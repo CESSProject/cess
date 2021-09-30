@@ -11,7 +11,7 @@
 
 ### Install Guide
 
-Follow *Setup* to guide you install the CESS development.
+Follow [Setup](https://github.com/Cumulus2021/cess/blob/main/docs/setup.md) to guide you install the CESS development.
 
 ### Build Node
 
