@@ -2,9 +2,9 @@
 
 [![Substrate version](https://img.shields.io/badge/Substrate-3.0.0-blue?logo=Parity%20Substrate)](https://substrate.dev/) [![GitHub license](https://img.shields.io/badge/license-GPL3%2FApache2-blue)](#LICENSE)
 
-----------------❇️----------------**An infrastructure of decentralized cloud data network built with [Substrate](https://substrate.dev/)**----------------❇️---------------
+-----------❇️-----------**An infrastructure of decentralized cloud data network built with [Substrate](https://substrate.dev/)**-----------❇️----------
 
-------------------------❇️------------------------**Learn more at [cess.cloud](http://cess.cloud/) & with [white-paper](https://github.com/Cumulus2021/Whitepaper)**------------------------❇️-----------------------
+-------------------❇️-------------------**Learn more at [cess.cloud](http://cess.cloud/) & with [white-paper](https://github.com/Cumulus2021/Whitepaper)**-------------------❇️------------------
 
 ## Getting Started
 
