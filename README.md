@@ -91,8 +91,8 @@ Now you can launch node again:
 Install [Docker](https://docs.docker.com/get-docker/) first, and run the following command to start a node on the C-ALPHA:
 
 ```
-docker pull cesstech/c-alpha
-docker run -v /tmp/x:/tmp/x --network host cesstech/c-alpha ./target/release/cess-node --base-path /tmp/cess --chain C-ALPHA
+docker pull cesstech/c-alpha:v0.0.1
+docker run --network host cesstech/c-alpha:v0.0.1 ./CESS-v0.0.1/target/release/cess-node --base-path /tmp/cess --chain C-ALPHA
 ```
 
 ## Run Tests
