@@ -115,4 +115,4 @@ cargo test --release
 ## Contribute
 
 
-Please follow the contributions guidelines as outlined in [`docs/CONTRIBUTING.adoc`](https://github.com/paritytech/substrate/blob/master/docs/CONTRIBUTING.adoc). In all communications and contributions, this project follows the [Contributor Covenant Code of Conduct](https://github.com/paritytech/substrate/blob/master/docs/CODE_OF_CONDUCT.md).
+Please follow the contributions guidelines as outlined in [`docs/CONTRIBUTING.adoc`](https://github.com/Cumulus2021/cess/blob/main/docs/CONTRIBUTING.adoc). In all communications and contributions, this project follows the [Contributor Covenant Code of Conduct](https://github.com/paritytech/substrate/blob/master/docs/CODE_OF_CONDUCT.md).
