@@ -19,7 +19,7 @@ The `cargo run` command will perform an initial build. Use the following command
 
 ```
 # Fetch the code
-git clone https://github.com/...
+git clone https://github.com/Cumulus2021/cess.git
 cd cess
 
 # Build the node (The first build will be long (~30min))
