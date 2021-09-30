@@ -108,9 +108,9 @@ cargo test --release
 ## Module Documentation
 
 
-* Files Bank
-* Files map
-* Sminer
+* [Files Bank](https://github.com/Cumulus2021/cess/tree/main/c-pallets/files-bank)
+* [Files map](https://github.com/Cumulus2021/cess/tree/main/c-pallets/files-map)
+* [Sminer](https://github.com/Cumulus2021/cess/tree/main/c-pallets/sminer)
 
 ## Contribute
 
