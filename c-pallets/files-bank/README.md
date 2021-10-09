@@ -5,7 +5,7 @@ Contain operations related info of files on multi-direction.
 ### Terminology
 
 * **Is Public:** Public or private.
-* **Backups:** Number of duplicate.
+* **Backups:** Number of duplicates.
 * **Deadline:** Expiration time.
 
 ## Interface
