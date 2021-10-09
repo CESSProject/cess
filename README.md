@@ -109,7 +109,7 @@ cargo test --release
 
 
 * [Files Bank](https://github.com/Cumulus2021/cess/tree/main/c-pallets/files-bank)
-* [Files map](https://github.com/Cumulus2021/cess/tree/main/c-pallets/files-map)
+* [Files Map](https://github.com/Cumulus2021/cess/tree/main/c-pallets/files-map)
 * [Sminer](https://github.com/Cumulus2021/cess/tree/main/c-pallets/sminer)
 
 ## Contribute
