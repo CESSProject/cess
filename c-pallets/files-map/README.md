@@ -1,6 +1,6 @@
 # Files Map Module
 
-Management to stored file routing.
+Management of stored file routing.
 
 ### Terminology
 
