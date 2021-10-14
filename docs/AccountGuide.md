@@ -1,7 +1,7 @@
 ## CESS Account Guide
 
 
-The CESS account carries the user's assets in the CESS network. Users need to properly keep mnemonics and backup files of CESS network to prevent permanent loss of assets in the account due to account loss. There are two ways to create accounts including the polkadot.js wallet extension and the Apps.
+The CESS account carries the user's assets in the CESS network. Users need to properly keep mnemonics and backup files of CESS network to prevent permanent loss of assets in the account due to account loss. There are two ways to create accounts including [the polkadot.js wallet extension](#1-create-an-account-using-the-polkadotjs-wallet-extension) and [the Apps]().
 
 ## 1. Create an account using the polkadot.js wallet extension
 
