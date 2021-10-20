@@ -3,7 +3,7 @@ authors = ['CESS LAB']
 edition = '2018'
 license = 'Unlicense'
 name = 'cess-node-runtime'
-repository = '...'
+repository = 'https://github.com/Cumulus2021/cess/'
 version = '3.0.0'
 
 [package.metadata.docs.rs]
