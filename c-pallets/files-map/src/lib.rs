@@ -35,7 +35,7 @@ pub trait Config: frame_system::Config {
 decl_storage! {
 	trait Store for Module<T: Config> as FilesMap {
 		/// The hashmap for route info of stored files.
-        FilesRoute get(fn files_route): map hasher(twox_64_concat) u128 => Option<(T::AccountId, u32)>;
+		FilesRoute get(fn files_route): map hasher(twox_64_concat) u128 => Option<(T::AccountId, u32)>;
 	}
 }
 
@@ -44,11 +44,11 @@ decl_event!(
 		/// An files map was updated.
 		Updated(u128, AccountId),
 
-        /// An files map was added.
-        Added(u128, AccountId),
+		/// An files map was added.
+		Added(u128, AccountId),
 
 		/// An files map was deleted.
-        Deleted(u128),
+		Deleted(u128),
 	}
 );
 
@@ -73,38 +73,38 @@ decl_module! {
 
 		fn deposit_event() = default;
 
-        /// Add stored file route.
-        /// 
-        /// The dispatch origin of this call must be _Signed_.
-        /// 
-        /// Parameters:
-        /// - `file_hash`: The hash for a stored file.
-        /// - `peer_id`: The storage miner account address.
+		/// Add stored file route.
+		///
+		/// The dispatch origin of this call must be _Signed_.
+		///
+		/// Parameters:
+		/// - `file_hash`: The hash for a stored file.
+		/// - `peer_id`: The storage miner account address.
 		/// - `storage_addr`: The IP address used by the storage miner to actually store data.
 		#[weight = 50_000_000]
 		fn add(origin, file_hash: u128, peer_id: T::AccountId, storage_addr: u32) {
 			let _ = ensure_signed(origin)?;
 
-            ensure!(!FilesRoute::<T>::contains_key(file_hash), Error::<T>::AlreadyExisted);
+			ensure!(!FilesRoute::<T>::contains_key(file_hash), Error::<T>::AlreadyExisted);
 
-            FilesRoute::<T>::insert(file_hash, (peer_id.clone(), storage_addr));
+			FilesRoute::<T>::insert(file_hash, (peer_id.clone(), storage_addr));
 
 			Self::deposit_event(RawEvent::Added(file_hash, peer_id.clone()));
 		}
 
-        /// Update stored file route.
-        /// 
-        /// The dispatch origin of this call must be _Signed_.
-        /// 
-        /// Parameters:
-        /// - `file_hash`: The hash for a stored file.
-        /// - `peer_id`: The storage miner account address.
+		/// Update stored file route.
+		///
+		/// The dispatch origin of this call must be _Signed_.
+		///
+		/// Parameters:
+		/// - `file_hash`: The hash for a stored file.
+		/// - `peer_id`: The storage miner account address.
 		/// - `storage_addr`: The IP address used by the storage miner to actually store data.
 		#[weight = 50_000_000]
 		fn update(origin, file_hash: u128, peer_id: T::AccountId, storage_addr: u32) {
 			let _ = ensure_signed(origin)?;
 
-            ensure!(FilesRoute::<T>::contains_key(file_hash), Error::<T>::NotExisted);
+			ensure!(FilesRoute::<T>::contains_key(file_hash), Error::<T>::NotExisted);
 
 			ensure!(FilesRoute::<T>::get(file_hash) != Some((peer_id.clone(), storage_addr)), Error::<T>::SameInfo);
 
@@ -116,18 +116,18 @@ decl_module! {
 		}
 
 		/// Delete stored file route.
-        /// 
-        /// The dispatch origin of this call must be _Signed_.
-        /// 
-        /// Parameters:
-        /// - `file_hash`: The hash for a stored file.
-        /// - `peer_id`: The storage miner account address.
+		///
+		/// The dispatch origin of this call must be _Signed_.
+		///
+		/// Parameters:
+		/// - `file_hash`: The hash for a stored file.
+		/// - `peer_id`: The storage miner account address.
 		/// - `storage_addr`: The IP address used by the storage miner to actually store data.
 		#[weight = 50_000_000]
 		fn del(origin, file_hash: u128) {
 			let _ = ensure_signed(origin)?;
 
-            ensure!(FilesRoute::<T>::contains_key(file_hash), Error::<T>::NotExisted);
+			ensure!(FilesRoute::<T>::contains_key(file_hash), Error::<T>::NotExisted);
 
 			FilesRoute::<T>::remove(file_hash);
 
@@ -258,6 +258,4 @@ mod tests {
 			assert_noop!(FilesMap::del(Origin::signed(2), file_hash), Error::<Test>::NotExisted);
 		});
 	}
-
 }
-

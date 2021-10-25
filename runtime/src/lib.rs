@@ -131,7 +131,7 @@ pub const CENTS: Balance = 1_000 * MILLICENTS;
 pub const DOLLARS: Balance = 100 * CENTS;
 
 const fn deposit(items: u32, bytes: u32) -> Balance {
-   items as Balance * 15 * CENTS + (bytes as Balance) * 6 * CENTS
+	 items as Balance * 15 * CENTS + (bytes as Balance) * 6 * CENTS
 }
 
 /// We assume that ~10% of the block weight is consumed by `on_initialize` handlers.
@@ -333,29 +333,29 @@ impl pallet_sudo::Config for Runtime {
 
 /*** Add This Block ***/
 parameter_types! {
-    pub const RewardModuleId: ModuleId = ModuleId(*b"rewardpt");
+		pub const RewardModuleId: ModuleId = ModuleId(*b"rewardpt");
 }
 
 impl pallet_sminer::Config for Runtime {
-    
-    type Currency = Balances;
 
-    // The ubiquitous event type.
-    type Event = Event;
+		type Currency = Balances;
+
+		// The ubiquitous event type.
+		type Event = Event;
 
 	type ModuleId = RewardModuleId;
 }
 
 impl pallet_files_map::Config for Runtime {
 
-    // The ubiquitous event type.
-    type Event = Event;
+		// The ubiquitous event type.
+		type Event = Event;
 }
 
 parameter_types! {
 	pub const FBModuleId: ModuleId = ModuleId(*b"filebank");
 }
-  
+
 impl pallet_files_bank::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
@@ -378,9 +378,8 @@ construct_runtime!(
 		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
 		TransactionPayment: pallet_transaction_payment::{Module, Storage},
 		Sudo: pallet_sudo::{Module, Call, Config<T>, Storage, Event<T>},
-		/*** Add This Line ***/
+		/*** CESS Modules ***/
 		Contracts: pallet_contracts::{Module, Call, Storage, Event<T>},
-		/*** Add This Line ***/
 		Sminer: pallet_sminer::{Module, Call, Storage, Event<T>},
 		FilesMap: pallet_files_map::{Module, Call, Storage, Event<T>},
 		FilesBank: pallet_files_bank::{Module, Call, Storage, Event<T>},
