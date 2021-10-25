@@ -324,5 +324,4 @@ mod tests {
 			assert_ok!(FilesBank::changed(Origin::signed(2), file, 200));
 		});
 	}
-
 }
