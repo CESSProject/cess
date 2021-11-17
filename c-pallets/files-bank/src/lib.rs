@@ -76,17 +76,17 @@ decl_event!(
 );
 
 decl_error! {
-	/// Error for the nicks module.
+	/// Error for the files bank module.
 	pub enum Error for Module<T: Config> {
-
+		/// An account not existed
 		NotExisted,	
-
+		/// An account lack of permissions
 		LackOfPermissions,
 	}
 }
 
 decl_module! {
-	/// Nicks module declaration.
+	/// Files bank module declaration.
 	pub struct Module<T: Config> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
 

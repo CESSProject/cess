@@ -378,8 +378,8 @@ construct_runtime!(
 		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
 		TransactionPayment: pallet_transaction_payment::{Module, Storage},
 		Sudo: pallet_sudo::{Module, Call, Config<T>, Storage, Event<T>},
-		/*** CESS Modules ***/
 		Contracts: pallet_contracts::{Module, Call, Storage, Event<T>},
+		/*** CESS Modules ***/
 		Sminer: pallet_sminer::{Module, Call, Storage, Event<T>},
 		FilesMap: pallet_files_map::{Module, Call, Storage, Event<T>},
 		FilesBank: pallet_files_bank::{Module, Call, Storage, Event<T>},
