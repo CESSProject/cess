@@ -4,14 +4,14 @@
 
 ---------🌌---------**An infrastructure of decentralized cloud data network built with [Substrate](https://substrate.dev/)**--------🌌-------
 
-----------------🌌----------------**Learn more at [cess.cloud](http://cess.cloud/) & with [white-paper](https://github.com/Cumulus2021/Whitepaper)**----------------🌌--------------
+----------------🌌----------------**Learn more at [cess.cloud](http://cess.cloud/) & with [white-paper](https://github.com/CESSProject/Whitepaper)**----------------🌌--------------
 
 ## Getting Started
 
 
 ### Install Guide
 
-Follow [Setup](https://github.com/Cumulus2021/cess/blob/main/docs/setup.md) to guide you install the CESS development.
+Follow [Setup](https://github.com/CESSProject/cess/blob/main/docs/setup.md) to guide you install the CESS development.
 
 ### Build Node
 
@@ -19,7 +19,7 @@ The `cargo run` command will perform an initial build. Use the following command
 
 ```
 # Fetch the code
-git clone https://github.com/Cumulus2021/cess.git
+git clone https://github.com/CESSProject/cess.git
 cd cess
 
 # Build the node (The first build will be long (~30min))
@@ -53,13 +53,13 @@ subkey inspect --scheme ed25519 "SECRET PHRASE YOU JUST GENERATED"
 
 We recommend that you record the above outputs and keep mnemonic in safe.
 
-### Run Testnet C-ALPHA
+### Run Testnet
 
-Launch node on the C-ALPHA with:
+Launch node on the cess-testnet with:
 
 ```
 # start
-./target/release/cess-node --base-path /tmp/cess --chain C-ALPHA
+./target/release/cess-node --base-path /tmp/cess --chain cess-testnet
 ```
 
 Then you can add an account with:
@@ -74,26 +74,30 @@ YOUR ACCOUNT'S SECRET PHRASE
 
 ```
 # add key to node
-./target/release/cess-node key insert --base-path /tmp/cess --chain C-ALPHA --scheme Sr25519  --key-type aura --suri /root/secretKey.txt
+./target/release/cess-node key insert --base-path /tmp/cess --chain cess-testnet --scheme Sr25519  --key-type babe --suri /root/secretKey.txt
 
-./target/release/cess-node key insert --base-path /tmp/cess --chain C-ALPHA --scheme Ed25519  --key-type gran --suri /root/secretKey.txt
+./target/release/cess-node key insert --base-path /tmp/cess --chain cess-testnet --scheme Ed25519  --key-type gran --suri /root/secretKey.txt
 ```
 
 Now you can launch node again:
 
 ```
 # start
-./target/release/cess-node --base-path /tmp/cess --chain C-ALPHA
+./target/release/cess-node --base-path /tmp/cess --chain cess-testnet
 ```
 
 ### Run in Docker
 
-Install [Docker](https://docs.docker.com/get-docker/) first, and run the following command to start a node on the C-ALPHA:
+Install [Docker](https://docs.docker.com/get-docker/) first, and run the following command to start a node on the cess-testnet:
 
 ```
-docker pull cesstech/c-alpha:v0.0.1
-docker run --network host cesstech/c-alpha:v0.0.1 ./CESS-v0.0.1/target/release/cess-node --base-path /tmp/cess --chain C-ALPHA
+docker pull cesstech/cess-testnet:v0.1.1
+docker run --network host cesstech/cess-testnet:v0.1.1 ./cess/target/release/cess-node --base-path /tmp/cess --chain cess-testnet
 ```
+
+## Storage Mining
+
+CESS supports to obtain incentives by contributing idle storage with [storage mining tool](https://github.com/CESSProject/storage-mining-tool), and click [here](https://github.com/CESSProject/cess/blob/main/docs/designs-of-storage-mining.md) to learn more.
 
 ## Run Tests
 
@@ -108,9 +112,9 @@ cargo test --release
 ## Module Documentation
 
 
-* [Files Bank](https://github.com/Cumulus2021/cess/tree/main/c-pallets/files-bank)
-* [Files Map](https://github.com/Cumulus2021/cess/tree/main/c-pallets/files-map)
-* [Sminer](https://github.com/Cumulus2021/cess/tree/main/c-pallets/sminer)
+* [Files Bank](https://github.com/CESSProject/cess/tree/main/c-pallets/files-bank)
+* [Files Map](https://github.com/CESSProject/cess/tree/main/c-pallets/files-map)
+* [Sminer](https://github.com/CESSProject/cess/tree/main/c-pallets/sminer)
 
 ## Contribute
 
