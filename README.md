@@ -11,7 +11,7 @@
 
 ### Install Guide
 
-Follow [Setup](https://github.com/CESSProject/cess/blob/main/docs/setup.md) to guide you install the CESS development.
+Follow [Setup](https://github.com/CESSProject/cess/tree/v0.1.1/docs/setup.md) to guide you install the CESS development.
 
 ### Build Node
 
@@ -97,7 +97,7 @@ docker run --network host cesstech/cess-testnet:v0.1.1 ./cess/target/release/ces
 
 ## Storage Mining
 
-CESS supports to obtain incentives by contributing idle storage with [storage mining tool](https://github.com/CESSProject/storage-mining-tool), and click [here](https://github.com/CESSProject/cess/blob/main/docs/designs-of-storage-mining.md) to learn more.
+CESS supports to obtain incentives by contributing idle storage with [storage mining tool](https://github.com/CESSProject/storage-mining-tool), and click [here](https://github.com/CESSProject/cess/tree/v0.1.1/docs/designs-of-storage-mining.md) to learn more.
 
 ## Run Tests
 
@@ -112,11 +112,11 @@ cargo test --release
 ## Module Documentation
 
 
-* [Files Bank](https://github.com/CESSProject/cess/tree/main/c-pallets/files-bank)
-* [Files Map](https://github.com/CESSProject/cess/tree/main/c-pallets/files-map)
-* [Sminer](https://github.com/CESSProject/cess/tree/main/c-pallets/sminer)
+* [Files Bank](https://github.com/CESSProject/cess/tree/v0.1.1/c-pallets/file-bank)
+* [Segment Book](https://github.com/CESSProject/cess/tree/v0.1.1/c-pallets/segment-book)
+* [Sminer](https://github.com/CESSProject/cess/tree/v0.1.1/c-pallets/sminer)
 
 ## Contribute
 
 
-Please follow the contributions guidelines as outlined in [`docs/CONTRIBUTING.adoc`](https://github.com/Cumulus2021/cess/blob/main/docs/CONTRIBUTING.adoc). In all communications and contributions, this project follows the [Contributor Covenant Code of Conduct](https://github.com/paritytech/substrate/blob/master/docs/CODE_OF_CONDUCT.md).
+Please follow the contributions guidelines as outlined in [`docs/CONTRIBUTING.adoc`](https://github.com/CESSProject/cess/tree/v0.1.1/docs/CONTRIBUTING.adoc). In all communications and contributions, this project follows the [Contributor Covenant Code of Conduct](https://github.com/paritytech/substrate/blob/master/docs/CODE_OF_CONDUCT.md).
