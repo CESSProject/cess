@@ -752,7 +752,7 @@ pub mod pallet {
 			match submit_type {
 				1u8 => {
 					ensure!(!<VerPoolB<T>>::contains_key(&sender, segment_id), Error::<T>::YetIntennt);
-					ensure!(!<PrePoolB<T>>::contains_key(&sender, segment_id), Error::<T>::SegmentUnExis);
+					ensure!(<PrePoolB<T>>::contains_key(&sender, segment_id), Error::<T>::SegmentUnExis);
 					<VerPoolB<T>>::insert(
 						&sender,
 						segment_id,
@@ -776,7 +776,7 @@ pub mod pallet {
 				}
 				2u8 => {
 					ensure!(!<VerPoolD<T>>::contains_key(&sender, segment_id), Error::<T>::YetIntennt);
-					ensure!(!<PrePoolD<T>>::contains_key(&sender, segment_id), Error::<T>::SegmentUnExis);
+					ensure!(<PrePoolD<T>>::contains_key(&sender, segment_id), Error::<T>::SegmentUnExis);
 					<VerPoolD<T>>::insert(
 						&sender,
 						segment_id,

@@ -7,7 +7,6 @@
 //! * **Is Public:** Public or private.
 //! * **Backups:** Number of duplicate.
 //! * **Deadline:** Expiration time.
-//! * **Invoice:** Certificate of ownership.
 //! 
 //! 
 //! ### Interface
@@ -59,7 +58,7 @@ pub struct FileInfo<T: pallet::Config> {
 	downloadfee: BalanceOf<T>,
 	//expiration time
 	deadline: u128,
-}
+}	
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -247,8 +246,8 @@ pub mod pallet {
 				invoice.push(*i);
 			}
 				
-			if <Invoice<T>>::contains_key(fileid.clone()) {
-				Self::deposit_event(Event::<T>::Purchased(sender.clone(), fileid.clone()));
+			if <Invoice<T>>::contains_key(invoice.clone()) {
+				Self::deposit_event(Event::<T>::Purchased(sender.clone(), invoice.clone()));
 			} else {
 				let zh = TryInto::<u128>::try_into(group_id.downloadfee).ok().unwrap();
 				//let umoney = zh * 8 / 10;
@@ -268,5 +267,62 @@ pub mod pallet {
 			Ok(())
 		}
 
+	}
+}
+
+pub mod migration {
+	use super::*;
+
+	pub mod deprecated {
+		use super::*;
+		use sp_runtime::{
+			RuntimeDebug,
+			traits::AccountIdConversion,
+		};
+		use frame_support::{
+			ensure,
+			pallet_prelude::*,
+			traits::Get,
+		};
+		use frame_system::{ensure_signed, pallet_prelude::*};
+		use crate::pallet::*;
+		use codec::{Encode, Decode};
+		use frame_support::{dispatch::DispatchResult, PalletId};
+		use sp_std::prelude::*;
+		use frame_support::traits::{Currency, ReservableCurrency, ExistenceRequirement::AllowDeath};
+		use frame_support::weights::Weight;
+		type AccountOf<T> = <T as frame_system::Config>::AccountId;	
+		type BalanceOf<T> = <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+		use scale_info::TypeInfo;
+
+		#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
+		#[scale_info(skip_type_params(T))]
+		pub struct FileInfo<T: crate::pallet::Config> {
+			filename: Vec<u8>,
+			owner: AccountOf<T>,
+			filehash: Vec<u8>,
+			similarityhash: Vec<u8>,
+			//two status: 0(private) 1(public)
+			ispublic: u8,
+			backups: u8,
+			creator: Vec<u8>,
+			filesize: u128,
+			keywords: Vec<u8>,
+			email: Vec<u8>,
+			uploadfee: BalanceOf<T>,
+			downloadfee: BalanceOf<T>,
+			//expiration time
+			deadline: u128,
+		}
+
+		#[crate::pallet::storage]
+		pub(super) type File<T: Config> = StorageMap<_, Twox64Concat, Vec<u8>, FileInfo<T>>;
+
+	}
+
+	pub fn migration_to_v2<T: Config>() -> frame_support::weights::Weight {
+		let ceshi: Vec<u8> = vec![23,23,1,4,52,234,25,234];
+
+		0
 	}
 }
