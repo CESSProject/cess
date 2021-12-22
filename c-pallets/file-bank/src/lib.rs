@@ -7,6 +7,7 @@
 //! * **Is Public:** Public or private.
 //! * **Backups:** Number of duplicate.
 //! * **Deadline:** Expiration time.
+//! * **Invoice:** Certificate of ownership.
 //! 
 //! 
 //! ### Interface
