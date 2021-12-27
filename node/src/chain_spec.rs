@@ -8,13 +8,14 @@ use sc_service::ChainType;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
-use sp_core::{sr25519, Pair, Public};
+use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public};
 use sp_finality_grandpa::AuthorityId as GrandpaId;
 use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
 	Perbill,
 };
 
+const PROTOCOL_ID: &str = "TCESS";
 
 // The URL for the telemetry server.
 // const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
@@ -60,8 +61,32 @@ pub fn authority_keys_from_seed(seed: &str) -> (AccountId, AccountId, GrandpaId,
 	)
 }
 
+fn cess_testnet_genesis() -> GenesisConfig {
+	testnet_genesis(
+		vec![authority_keys_from_seed("Alice"), authority_keys_from_seed("Bob")],
+		vec![],
+		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		None,
+	)
+}
+
 pub fn cess_testnet_config() -> ChainSpec {
-	ChainSpec::from_json_bytes(&include_bytes!("../ccg/cess-testnet-spec-raw.json")[..]).unwrap()
+	ChainSpec::from_genesis(
+		"cess-testnet",
+		// ID
+		"cess-testnet",
+		ChainType::Live,
+		cess_testnet_genesis,
+		vec![],
+		// Telemetry
+		None,
+		// Protocol ID
+		Some(PROTOCOL_ID),
+		// Properties
+		None,
+		// Extensions
+		None,
+	)
 }
 
 pub fn development_config() -> ChainSpec {
