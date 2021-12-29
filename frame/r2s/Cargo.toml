@@ -1,0 +1,62 @@
+[package]
+name = "pallet-r2s"
+version = "1.0.0-dev"
+authors = ["CESS"]
+edition = "2018"
+license = "Apache-2.0"
+homepage = "https://cess.one/"
+repository = "https://github.com/CESSProject/cess/"
+description = "Consensus extension module for r2s consensus. Collects on-chain randomness from VRF outputs and manages epoch transitions."
+readme = "README.md"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
+frame-benchmarking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate", optional = true }
+frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
+frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
+pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
+pallet-session = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
+pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
+sp-application-crypto = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
+sp-consensus-r2s = { version = "0.10.0-dev", default-features = false, path = "../../primitives/consensus/r2s" }
+sp-consensus-vrf = { version = "0.10.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
+sp-io = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
+sp-runtime = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
+sp-session = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
+sp-staking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
+sp-std = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
+log = { version = "0.4.14", default-features = false }
+
+[dev-dependencies]
+pallet-balances = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate" }
+pallet-offences = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate" }
+pallet-staking = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate" }
+pallet-staking-reward-curve = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate" }
+sp-core = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate" }
+frame-election-provider-support = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate" }
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"frame-benchmarking/std",
+	"frame-support/std",
+	"frame-system/std",
+	"pallet-authorship/std",
+	"pallet-session/std",
+	"pallet-timestamp/std",
+	"sp-application-crypto/std",
+	"sp-consensus-r2s/std",
+	"sp-consensus-vrf/std",
+	"sp-io/std",
+	"sp-runtime/std",
+	"sp-session/std",
+	"sp-staking/std",
+	"sp-std/std",
+	"log/std",
+]
+runtime-benchmarks = ["frame-benchmarking"]
+try-runtime = ["frame-support/try-runtime"]

@@ -1,0 +1,4 @@
+Consensus extension module for R2S consensus. Collects on-chain randomness
+from VRF outputs and manages epoch transitions.
+
+License: Apache-2.0
