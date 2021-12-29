@@ -60,26 +60,6 @@ pub struct FileInfo<T: pallet::Config> {
 	deadline: u128,
 }
 
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct FileInfoV2<T: pallet::Config> {
-	filename: Vec<u8>,
-	owner: AccountOf<T>
-}
-
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub enum StorageVersion {
-	V1,
-	V2,
-}
-
-impl Default for StorageVersion {
-	fn default() -> StorageVersion {
-		StorageVersion::V1
-	}
-}
-
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -128,10 +108,6 @@ pub mod pallet {
 	pub(super) type File<T: Config> = StorageMap<_, Twox64Concat, Vec<u8>, FileInfo<T>>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn file_v2)]
-	pub(super) type FileV2<T: Config> = StorageMap<_, Twox64Concat, Vec<u8>, FileInfoV2<T>>;
-
-	#[pallet::storage]
 	#[pallet::getter(fn invoice)]
 	pub(super) type Invoice<T: Config> = StorageMap<_, Twox64Concat, Vec<u8>, u8, ValueQuery>;
 
@@ -139,20 +115,9 @@ pub mod pallet {
 	#[pallet::getter(fn seg_info)]
 	pub(super) type UserFileSize<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, u128, ValueQuery>;
 
-	#[pallet::storage]
-	pub(super) type PalletVersion<T: Config> = StorageValue<Value = StorageVersion, QueryKind = ValueQuery>;
-
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
-
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_runtime_upgrade() -> Weight {
-			migration::migrate_to_v2::<T>()
-		}
-	}
-
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
@@ -179,17 +144,27 @@ pub mod pallet {
 		#[pallet::weight(T::WeightInfo::upload())]
 		pub fn upload(
 			origin: OriginFor<T>,
-			filename: Vec<u8>,
+			filename:Vec<u8>,
+			address:Vec<u8>,
 			fileid: Vec<u8>,
-			address: Vec<u8>,
-			owner: AccountOf<T>
+			filehash: Vec<u8>,
+			similarityhash: Vec<u8>,
+			ispublic: u8,
+			backups: u8,
+			creator: Vec<u8>,
+			filesize: u128,
+			keywords: Vec<u8>,
+			email: Vec<u8>,
+			uploadfee:BalanceOf<T>,
+			downloadfee:BalanceOf<T>,
+			deadline: u128
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
-			//let acc = T::FilbakPalletId::get().into_account();
-			//T::Currency::transfer(&sender, &acc, uploadfee, AllowDeath)?;
+			let acc = T::FilbakPalletId::get().into_account();
+			T::Currency::transfer(&sender, &acc, uploadfee, AllowDeath)?;
 			let mut invoice: Vec<u8> = Vec::new();
-			for i in &filename {
+			for i in &fileid {
 				invoice.push(*i);
 			}
 			for i in &address {
@@ -200,17 +175,28 @@ pub mod pallet {
 				invoice,
 				0
 			);
-			<FileV2<T>>::insert(
+			<File<T>>::insert(
 				fileid.clone(),
-				FileInfoV2 {
-					filename: filename,
-					owner: owner,
+				FileInfo::<T> {
+					filename,
+					owner: sender.clone(),
+					filehash,
+					similarityhash,
+					ispublic,
+					backups,
+					creator,
+					filesize,
+					keywords,
+					email,
+					uploadfee: uploadfee.clone(),
+					downloadfee: downloadfee.clone(),
+					deadline: deadline,
 				}
 			);
-			// UserFileSize::<T>::try_mutate(sender.clone(), |s| -> DispatchResult{
-			// 	*s = (*s).checked_add(filesize).ok_or(Error::<T>::Overflow)?;
-			// 	Ok(())
-			// })?;
+			UserFileSize::<T>::try_mutate(sender.clone(), |s| -> DispatchResult{
+				*s = (*s).checked_add(filesize).ok_or(Error::<T>::Overflow)?;
+				Ok(())
+			})?;
 			Self::deposit_event(Event::<T>::FileUpload(sender.clone()));
 			Ok(())
 		}
@@ -260,8 +246,8 @@ pub mod pallet {
 				invoice.push(*i);
 			}
 				
-			if <Invoice<T>>::contains_key(invoice.clone()) {
-				Self::deposit_event(Event::<T>::Purchased(sender.clone(), invoice.clone()));
+			if <Invoice<T>>::contains_key(fileid.clone()) {
+				Self::deposit_event(Event::<T>::Purchased(sender.clone(), fileid.clone()));
 			} else {
 				let zh = TryInto::<u128>::try_into(group_id.downloadfee).ok().unwrap();
 				//let umoney = zh * 8 / 10;
@@ -283,32 +269,3 @@ pub mod pallet {
 
 	}
 }
-
-pub mod migration {
-	use super::*;
-
-	use crate::Config;
-
-	pub fn migrate_to_v2<T: Config>() -> frame_support::weights::Weight {
-		if <PalletVersion<T>>::get() == StorageVersion::V1 {
-			for (key, value) in <File<T>>::iter() {
-				let filename = value.filename;
-				let owner = value.owner;
-				<FileV2<T>>::insert(
-					key,
-					FileInfoV2 {
-						filename: filename,
-						owner: owner
-					}
-				)
-			}
-			// 在这里加其它迁移逻辑
-			let _ = FileV2::<T>::iter().count();
-			<PalletVersion<T>>::put(StorageVersion::V2);
-		}
-
-		10000
-	}
-}
-
-

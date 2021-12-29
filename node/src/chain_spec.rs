@@ -61,7 +61,7 @@ pub fn authority_keys_from_seed(seed: &str) -> (AccountId, AccountId, GrandpaId,
 	)
 }
 
-fn cess_testnet_genesis() -> GenesisConfig {
+fn cess_hacknet_genesis() -> GenesisConfig {
 	testnet_genesis(
 		vec![authority_keys_from_seed("Alice"), authority_keys_from_seed("Bob")],
 		vec![],
@@ -70,13 +70,13 @@ fn cess_testnet_genesis() -> GenesisConfig {
 	)
 }
 
-pub fn cess_testnet_config() -> ChainSpec {
+pub fn cess_hacknet_config() -> ChainSpec {
 	ChainSpec::from_genesis(
-		"cess-testnet",
+		"cess-hacknet",
 		// ID
-		"cess-testnet",
+		"cess-hacknet",
 		ChainType::Live,
-		cess_testnet_genesis,
+		cess_hacknet_genesis,
 		vec![],
 		// Telemetry
 		None,
