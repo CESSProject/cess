@@ -251,7 +251,6 @@ pub mod pallet {
 				Self::deposit_event(Event::<T>::Purchased(sender.clone(), fileid.clone()));
 			} else {
 				let zh = TryInto::<u128>::try_into(group_id.downloadfee).ok().unwrap();
-				//let umoney = zh * 8 / 10;
 				let umoney = zh.checked_mul(8).ok_or(Error::<T>::Overflow)?
 					.checked_div(10).ok_or(Error::<T>::Overflow)?;
 				let money: Option<BalanceOf<T>> = umoney.try_into().ok();
