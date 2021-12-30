@@ -7,7 +7,6 @@
 //! * **Is Public:** Public or private.
 //! * **Backups:** Number of duplicate.
 //! * **Deadline:** Expiration time.
-//! * **Invoice:** Certificate of ownership.
 //! 
 //! 
 //! ### Interface
@@ -19,6 +18,12 @@
 //! * `buyfile` - Buy file with download fee.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+
+#[cfg(test)]
+mod mock;
+
+#[cfg(test)]
+mod tests;
 
 use frame_support::traits::{Currency, ReservableCurrency, ExistenceRequirement::AllowDeath};
 pub use pallet::*;
