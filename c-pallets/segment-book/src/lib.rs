@@ -609,6 +609,7 @@ pub mod pallet {
 									}
 									k += 1;
 								}
+								//remove related storage
 								<UnVerifiedD<T>>::put(unb);
 								<PrePoolC<T>>::remove(&acc, key2);
 								<PrePoolD<T>>::remove(&acc, key2);
