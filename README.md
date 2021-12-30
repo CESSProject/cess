@@ -44,7 +44,7 @@ Generate a mnemonic (Secret phrase) and see the `sr25519` key and address associ
 subkey generate --scheme sr25519
 ```
 
-Now see the `ed25519` key and address associated with the same mnemonic (Secret phrase).
+Now see the `ed25519` key and address associated with the same mnemonic (secret phrase).
 
 ```
 # subkey command
