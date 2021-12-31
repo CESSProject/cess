@@ -20,7 +20,7 @@ codec = { package = "parity-scale-codec", version = "2.0.0", features = [
 ] }
 futures = { version = "0.3.1", features = ["thread-pool"] }
 log = "0.4.8"
-sp-core = { git = "https://github.com/paritytech/substrate", version = "4.0.0-dev" }
+sp-core = { version = "4.0.0-dev", path = "../../../primitives/core" }
 sp-inherents = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate" }
 sp-state-machine = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate" }
 futures-timer = "3.0.1"

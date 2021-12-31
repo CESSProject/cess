@@ -35,7 +35,7 @@ pallet-balances = { version = "4.0.0-dev", git = "https://github.com/paritytech/
 pallet-offences = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate" }
 pallet-staking = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate" }
 pallet-staking-reward-curve = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate" }
-sp-core = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate" }
+sp-core = { version = "4.0.0-dev", path = "../../primitives/core" }
 frame-election-provider-support = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate" }
 
 [features]

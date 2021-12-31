@@ -64,9 +64,8 @@ git = 'https://github.com/paritytech/substrate.git'
 tag = 'monthly-2021-10'
 version = '0.10.0-dev'
 
-[dependencies.sc-consensus-babe]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2021-10'
+[dependencies.sc-consensus-r2s]
+path = '../client/consensus/r2s'
 version = '0.10.0-dev'
 
 [dependencies.sc-executor]
@@ -136,14 +135,12 @@ git = 'https://github.com/paritytech/substrate.git'
 tag = 'monthly-2021-10'
 version = '0.10.0-dev'
 
-[dependencies.sp-consensus-babe]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2021-10'
+[dependencies.sp-consensus-r2s]
+path = '../primitives/consensus/r2s'
 version = '0.10.0-dev'
 
 [dependencies.sp-core]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2021-10'
+path = '../primitives/core'
 version = '4.0.0-dev'
 
 [dependencies.sp-finality-grandpa]
