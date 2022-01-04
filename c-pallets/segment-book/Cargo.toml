@@ -58,6 +58,12 @@ git = 'https://github.com/paritytech/substrate.git'
 tag = 'monthly-2021-10'
 version = '4.0.0-dev'
 
+[dev-dependencies.pallet-timestamp]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'monthly-2021-10'
+version = '4.0.0-dev'
+
 [dependencies.sp-runtime]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
@@ -69,6 +75,24 @@ version = '4.0.0-dev'
 default-features = false
 path = '../sminer'
 version = '0.1.0'
+
+[dev-dependencies.frame-support-test]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'monthly-2021-10'
+version = '3.0.0'
+
+[dev-dependencies.pallet-balances]
+#default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'monthly-2021-10'
+version = '4.0.0-dev'
+
+[dev-dependencies.pallet-scheduler]
+#default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'monthly-2021-10'
+version = '4.0.0-dev'
 
 [features]
 default = ["std"]
