@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Primitives for BABE.
+//! Primitives for R2S.
 #![deny(warnings)]
 #![forbid(unsafe_code, missing_docs, unused_variables, unused_imports)]
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -38,34 +38,37 @@ use sp_std::vec::Vec;
 
 use crate::digests::{NextConfigDescriptor, NextEpochDescriptor};
 
-/// Key type for BABE module.
-pub const KEY_TYPE: sp_core::crypto::KeyTypeId = sp_application_crypto::key_types::BABE;
+/// Key type for R2S module.
+
+pub const R2S: KeyTypeId = KeyTypeId(*b"r2s");
+
+pub const KEY_TYPE: sp_core::crypto::KeyTypeId =  R2S;
 
 mod app {
-	use sp_application_crypto::{app_crypto, key_types::BABE, sr25519};
-	app_crypto!(sr25519, BABE);
+	use sp_application_crypto::{app_crypto, R2S, sr25519};
+	app_crypto!(sr25519, R2S);
 }
 
-/// The prefix used by BABE for its VRF keys.
-pub const BABE_VRF_PREFIX: &[u8] = b"substrate-babe-vrf";
+/// The prefix used by R2S for its VRF keys.
+pub const R2S_VRF_PREFIX: &[u8] = b"substrate-r2s-vrf";
 
-/// BABE VRFInOut context.
-pub static BABE_VRF_INOUT_CONTEXT: &[u8] = b"BabeVRFInOutContext";
+/// R2S VRFInOut context.
+pub static R2S_VRF_INOUT_CONTEXT: &[u8] = b"R2SVRFInOutContext";
 
-/// A Babe authority keypair. Necessarily equivalent to the schnorrkel public key used in
-/// the main Babe module. If that ever changes, then this must, too.
+/// A R2S authority keypair. Necessarily equivalent to the schnorrkel public key used in
+/// the main R2S module. If that ever changes, then this must, too.
 #[cfg(feature = "std")]
 pub type AuthorityPair = app::Pair;
 
-/// A Babe authority signature.
+/// A R2S authority signature.
 pub type AuthoritySignature = app::Signature;
 
-/// A Babe authority identifier. Necessarily equivalent to the schnorrkel public key used in
-/// the main Babe module. If that ever changes, then this must, too.
+/// A R2S authority identifier. Necessarily equivalent to the schnorrkel public key used in
+/// the main R2S module. If that ever changes, then this must, too.
 pub type AuthorityId = app::Public;
 
-/// The `ConsensusEngineId` of BABE.
-pub const BABE_ENGINE_ID: ConsensusEngineId = *b"BABE";
+/// The `ConsensusEngineId` of R2S.
+pub const R2S_ENGINE_ID: ConsensusEngineId = *b"R2S";
 
 /// The length of the public key
 pub const PUBLIC_KEY_LENGTH: usize = 32;
@@ -86,18 +89,18 @@ pub type EquivocationProof<H> = sp_consensus_slots::EquivocationProof<H, Authori
 /// The weight of an authority.
 // NOTE: we use a unique name for the weight to avoid conflicts with other
 //       `Weight` types, since the metadata isn't able to disambiguate.
-pub type BabeAuthorityWeight = u64;
+pub type R2SAuthorityWeight = u64;
 
-/// The cumulative weight of a BABE block, i.e. sum of block weights starting
+/// The cumulative weight of a R2S block, i.e. sum of block weights starting
 /// at this block until the genesis block.
 ///
 /// Primary blocks have a weight of 1 whereas secondary blocks have a weight
 /// of 0 (regardless of whether they are plain or vrf secondary blocks).
-pub type BabeBlockWeight = u32;
+pub type R2SBlockWeight = u32;
 
 /// Make a VRF transcript from given randomness, slot number and epoch.
 pub fn make_transcript(randomness: &Randomness, slot: Slot, epoch: u64) -> Transcript {
-	let mut transcript = Transcript::new(&BABE_ENGINE_ID);
+	let mut transcript = Transcript::new(&R2S_ENGINE_ID);
 	transcript.append_u64(b"slot number", *slot);
 	transcript.append_u64(b"current epoch", epoch);
 	transcript.append_message(b"chain randomness", &randomness[..]);
@@ -108,7 +111,7 @@ pub fn make_transcript(randomness: &Randomness, slot: Slot, epoch: u64) -> Trans
 #[cfg(feature = "std")]
 pub fn make_transcript_data(randomness: &Randomness, slot: Slot, epoch: u64) -> VRFTranscriptData {
 	VRFTranscriptData {
-		label: &BABE_ENGINE_ID,
+		label: &R2S_ENGINE_ID,
 		items: vec![
 			("slot number", VRFTranscriptValue::U64(*slot)),
 			("current epoch", VRFTranscriptValue::U64(epoch)),
@@ -117,7 +120,7 @@ pub fn make_transcript_data(randomness: &Randomness, slot: Slot, epoch: u64) -> 
 	}
 }
 
-/// An consensus log item for BABE.
+/// An consensus log item for R2S.
 #[derive(Decode, Encode, Clone, PartialEq, Eq)]
 pub enum ConsensusLog {
 	/// The epoch has changed. This provides information about the _next_
@@ -134,10 +137,10 @@ pub enum ConsensusLog {
 	NextConfigData(NextConfigDescriptor),
 }
 
-/// Configuration data used by the BABE consensus engine.
+/// Configuration data used by the R2S consensus engine.
 #[derive(Clone, PartialEq, Eq, Encode, Decode, RuntimeDebug)]
-pub struct BabeGenesisConfigurationV1 {
-	/// The slot duration in milliseconds for BABE. Currently, only
+pub struct R2SGenesisConfigurationV1 {
+	/// The slot duration in milliseconds for R2S. Currently, only
 	/// the value provided by this type at genesis will be used.
 	///
 	/// Dynamic slot duration may be supported in the future.
@@ -155,7 +158,7 @@ pub struct BabeGenesisConfigurationV1 {
 	pub c: (u64, u64),
 
 	/// The authorities for the genesis epoch.
-	pub genesis_authorities: Vec<(AuthorityId, BabeAuthorityWeight)>,
+	pub genesis_authorities: Vec<(AuthorityId, R2SAuthorityWeight)>,
 
 	/// The randomness for the genesis epoch.
 	pub randomness: Randomness,
@@ -165,8 +168,8 @@ pub struct BabeGenesisConfigurationV1 {
 	pub secondary_slots: bool,
 }
 
-impl From<BabeGenesisConfigurationV1> for BabeGenesisConfiguration {
-	fn from(v1: BabeGenesisConfigurationV1) -> Self {
+impl From<R2SGenesisConfigurationV1> for R2SGenesisConfiguration {
+	fn from(v1: R2SGenesisConfigurationV1) -> Self {
 		Self {
 			slot_duration: v1.slot_duration,
 			epoch_length: v1.epoch_length,
@@ -182,10 +185,10 @@ impl From<BabeGenesisConfigurationV1> for BabeGenesisConfiguration {
 	}
 }
 
-/// Configuration data used by the BABE consensus engine.
+/// Configuration data used by the R2S consensus engine.
 #[derive(Clone, PartialEq, Eq, Encode, Decode, RuntimeDebug)]
-pub struct BabeGenesisConfiguration {
-	/// The slot duration in milliseconds for BABE. Currently, only
+pub struct R2SGenesisConfiguration {
+	/// The slot duration in milliseconds for R2S. Currently, only
 	/// the value provided by this type at genesis will be used.
 	///
 	/// Dynamic slot duration may be supported in the future.
@@ -203,7 +206,7 @@ pub struct BabeGenesisConfiguration {
 	pub c: (u64, u64),
 
 	/// The authorities for the genesis epoch.
-	pub genesis_authorities: Vec<(AuthorityId, BabeAuthorityWeight)>,
+	pub genesis_authorities: Vec<(AuthorityId, R2SAuthorityWeight)>,
 
 	/// The randomness for the genesis epoch.
 	pub randomness: Randomness,
@@ -237,18 +240,18 @@ impl AllowedSlots {
 }
 
 #[cfg(feature = "std")]
-impl sp_consensus::SlotData for BabeGenesisConfiguration {
+impl sp_consensus::SlotData for R2SGenesisConfiguration {
 	fn slot_duration(&self) -> std::time::Duration {
 		std::time::Duration::from_millis(self.slot_duration)
 	}
 
-	const SLOT_KEY: &'static [u8] = b"babe_configuration";
+	const SLOT_KEY: &'static [u8] = b"r2s_configuration";
 }
 
-/// Configuration data used by the BABE consensus engine.
+/// Configuration data used by the R2S consensus engine.
 #[derive(Clone, PartialEq, Eq, Encode, Decode, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
-pub struct BabeEpochConfiguration {
+pub struct R2SEpochConfiguration {
 	/// A constant value that is used in the threshold calculation formula.
 	/// Expressed as a rational where the first member of the tuple is the
 	/// numerator and the second is the denominator. The rational should
@@ -273,10 +276,10 @@ where
 	use sp_application_crypto::RuntimeAppPublic;
 
 	let find_pre_digest =
-		|header: &H| header.digest().logs().iter().find_map(|log| log.as_babe_pre_digest());
+		|header: &H| header.digest().logs().iter().find_map(|log| log.as_r2s_pre_digest());
 
 	let verify_seal_signature = |mut header: H, offender: &AuthorityId| {
-		let seal = header.digest_mut().pop()?.as_babe_seal()?;
+		let seal = header.digest_mut().pop()?.as_r2s_seal()?;
 		let pre_hash = header.hash();
 
 		if !offender.verify(&pre_hash.as_ref(), &seal) {
@@ -344,7 +347,7 @@ impl OpaqueKeyOwnershipProof {
 	}
 }
 
-/// BABE epoch information
+/// R2S epoch information
 #[derive(Decode, Encode, PartialEq, Eq, Clone, Debug)]
 pub struct Epoch {
 	/// The epoch index.
@@ -354,23 +357,23 @@ pub struct Epoch {
 	/// The duration of this epoch.
 	pub duration: u64,
 	/// The authorities and their weights.
-	pub authorities: Vec<(AuthorityId, BabeAuthorityWeight)>,
+	pub authorities: Vec<(AuthorityId, R2SAuthorityWeight)>,
 	/// Randomness for this epoch.
 	pub randomness: [u8; VRF_OUTPUT_LENGTH],
 	/// Configuration of the epoch.
-	pub config: BabeEpochConfiguration,
+	pub config: R2SEpochConfiguration,
 }
 
 sp_api::decl_runtime_apis! {
-	/// API necessary for block authorship with BABE.
+	/// API necessary for block authorship with R2S.
 	#[api_version(2)]
-	pub trait BabeApi {
-		/// Return the genesis configuration for BABE. The configuration is only read on genesis.
-		fn configuration() -> BabeGenesisConfiguration;
+	pub trait R2SApi {
+		/// Return the genesis configuration for R2S. The configuration is only read on genesis.
+		fn configuration() -> R2SGenesisConfiguration;
 
-		/// Return the configuration for BABE. Version 1.
+		/// Return the configuration for R2S. Version 1.
 		#[changed_in(2)]
-		fn configuration() -> BabeGenesisConfigurationV1;
+		fn configuration() -> R2SGenesisConfigurationV1;
 
 		/// Returns the slot that started the current epoch.
 		fn current_epoch_start() -> Slot;

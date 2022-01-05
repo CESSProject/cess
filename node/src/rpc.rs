@@ -14,9 +14,9 @@ use sp_api::ProvideRuntimeApi;
 use sp_block_builder::BlockBuilder;
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
 use sp_consensus::SelectChain;
-use sp_consensus_babe::BabeApi;
-use sc_consensus_babe::{Config, Epoch};
-use sc_consensus_babe_rpc::BabeRpcHandler;
+use sp_consensus_r2s::BabeApi;
+use sc_consensus_r2s::{Config, Epoch};
+use sc_consensus_r2s_rpc::BabeRpcHandler;
 use sc_consensus_epochs::SharedEpochChanges;
 use sc_finality_grandpa_rpc::GrandpaRpcHandler;
 use sc_finality_grandpa::{
@@ -111,7 +111,7 @@ where
     	ContractsApi::to_delegate(Contracts::new(client.clone()))
 	);
 
-	io.extend_with(sc_consensus_babe_rpc::BabeApi::to_delegate(BabeRpcHandler::new(
+	io.extend_with(sc_consensus_r2s_rpc::BabeApi::to_delegate(BabeRpcHandler::new(
 		client.clone(),
 		shared_epoch_changes.clone(),
 		keystore,

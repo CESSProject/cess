@@ -19,7 +19,7 @@
 
 use super::{
 	AllowedSlots, AuthorityId, AuthorityIndex, AuthoritySignature, BabeAuthorityWeight,
-	BabeEpochConfiguration, Slot, BABE_ENGINE_ID,
+	R2SEpochConfiguration, Slot, BABE_ENGINE_ID,
 };
 use codec::{Codec, Decode, Encode};
 use sp_runtime::{DigestItem, RuntimeDebug};
@@ -139,14 +139,14 @@ pub enum NextConfigDescriptor {
 	/// Version 1.
 	#[codec(index = 1)]
 	V1 {
-		/// Value of `c` in `BabeEpochConfiguration`.
+		/// Value of `c` in `R2SEpochConfiguration`.
 		c: (u64, u64),
-		/// Value of `allowed_slots` in `BabeEpochConfiguration`.
+		/// Value of `allowed_slots` in `R2SEpochConfiguration`.
 		allowed_slots: AllowedSlots,
 	},
 }
 
-impl From<NextConfigDescriptor> for BabeEpochConfiguration {
+impl From<NextConfigDescriptor> for R2SEpochConfiguration {
 	fn from(desc: NextConfigDescriptor) -> Self {
 		match desc {
 			NextConfigDescriptor::V1 { c, allowed_slots } => Self { c, allowed_slots },

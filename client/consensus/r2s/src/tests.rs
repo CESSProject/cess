@@ -567,13 +567,13 @@ fn can_author_block() {
 		randomness: [0; 32],
 		epoch_index: 1,
 		duration: 100,
-		config: BabeEpochConfiguration {
+		config: R2SEpochConfiguration {
 			c: (3, 10),
 			allowed_slots: AllowedSlots::PrimaryAndSecondaryPlainSlots,
 		},
 	};
 
-	let mut config = crate::BabeGenesisConfiguration {
+	let mut config = crate::R2SGenesisConfiguration {
 		slot_duration: 1000,
 		epoch_length: 100,
 		c: (3, 10),
@@ -878,7 +878,7 @@ fn babe_transcript_generation_match() {
 		randomness: [0; 32],
 		epoch_index: 1,
 		duration: 100,
-		config: BabeEpochConfiguration {
+		config: R2SEpochConfiguration {
 			c: (3, 10),
 			allowed_slots: AllowedSlots::PrimaryAndSecondaryPlainSlots,
 		},

@@ -193,9 +193,8 @@ git = 'https://github.com/paritytech/substrate.git'
 tag = 'monthly-2021-10'
 version = '0.10.0-dev'
 
-[dependencies.sc-consensus-babe-rpc]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2021-10'
+[dependencies.sc-consensus-r2s-rpc]
+path = '../client/consensus/r2s/rpc'
 version = '0.10.0-dev'
 
 [dependencies.sp-keystore]

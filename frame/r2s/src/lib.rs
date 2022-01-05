@@ -1,23 +1,3 @@
-// This file is part of Substrate.
-
-// Copyright (C) 2019-2021 Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: Apache-2.0
-
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// 	http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
-//! Consensus extension module for BABE consensus. Collects on-chain randomness
-//! from VRF outputs and manages epoch transitions.
-
 #![cfg_attr(not(feature = "std"), no_std)]
 #![warn(unused_must_use, unsafe_code, unused_variables, unused_must_use)]
 
@@ -38,14 +18,14 @@ use sp_runtime::{
 use sp_session::{GetSessionNumber, GetValidatorCount};
 use sp_std::prelude::*;
 
-use sp_consensus_babe::{
+use sp_consensus_r2s::{
 	digests::{NextConfigDescriptor, NextEpochDescriptor, PreDigest},
-	BabeAuthorityWeight, BabeEpochConfiguration, ConsensusLog, Epoch, EquivocationProof, Slot,
+	BabeAuthorityWeight, R2SEpochConfiguration, ConsensusLog, Epoch, EquivocationProof, Slot,
 	BABE_ENGINE_ID,
 };
 use sp_consensus_vrf::schnorrkel;
 
-pub use sp_consensus_babe::{AuthorityId, PUBLIC_KEY_LENGTH, RANDOMNESS_LENGTH, VRF_OUTPUT_LENGTH};
+pub use sp_consensus_r2s::{AuthorityId, PUBLIC_KEY_LENGTH, RANDOMNESS_LENGTH, VRF_OUTPUT_LENGTH};
 
 mod default_weights;
 mod equivocation;
@@ -284,17 +264,17 @@ pub mod pallet {
 	/// The configuration for the current epoch. Should never be `None` as it is initialized in
 	/// genesis.
 	#[pallet::storage]
-	pub(super) type EpochConfig<T> = StorageValue<_, BabeEpochConfiguration>;
+	pub(super) type EpochConfig<T> = StorageValue<_, R2SEpochConfiguration>;
 
 	/// The configuration for the next epoch, `None` if the config will not change
 	/// (you can fallback to `EpochConfig` instead in that case).
 	#[pallet::storage]
-	pub(super) type NextEpochConfig<T> = StorageValue<_, BabeEpochConfiguration>;
+	pub(super) type NextEpochConfig<T> = StorageValue<_, R2SEpochConfiguration>;
 
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {
 		pub authorities: Vec<(AuthorityId, BabeAuthorityWeight)>,
-		pub epoch_config: Option<BabeEpochConfiguration>,
+		pub epoch_config: Option<R2SEpochConfiguration>,
 	}
 
 	#[cfg(feature = "std")]
@@ -550,7 +530,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		if let Some(pending_epoch_config_change) = PendingEpochConfigChange::<T>::take() {
-			let next_epoch_config: BabeEpochConfiguration =
+			let next_epoch_config: R2SEpochConfiguration =
 				pending_epoch_config_change.clone().into();
 			NextEpochConfig::<T>::put(next_epoch_config);
 
@@ -700,7 +680,7 @@ impl<T: Config> Pallet<T> {
 					.get(authority_index as usize)
 					.and_then(|author| schnorrkel::PublicKey::from_bytes(author.0.as_slice()).ok())
 					.and_then(|pubkey| {
-						let transcript = sp_consensus_babe::make_transcript(
+						let transcript = sp_consensus_r2s::make_transcript(
 							&Self::randomness(),
 							current_slot,
 							EpochIndex::<T>::get(),
@@ -708,7 +688,7 @@ impl<T: Config> Pallet<T> {
 
 						vrf_output.0.attach_input_hash(&pubkey, transcript).ok()
 					})
-					.map(|inout| inout.make_bytes(&sp_consensus_babe::BABE_VRF_INOUT_CONTEXT))
+					.map(|inout| inout.make_bytes(&sp_consensus_r2s::BABE_VRF_INOUT_CONTEXT))
 			})
 		});
 
@@ -761,7 +741,7 @@ impl<T: Config> Pallet<T> {
 		let slot = equivocation_proof.slot;
 
 		// validate the equivocation proof
-		if !sp_consensus_babe::check_equivocation_proof(equivocation_proof) {
+		if !sp_consensus_r2s::check_equivocation_proof(equivocation_proof) {
 			return Err(Error::<T>::InvalidEquivocationProof.into())
 		}
 
@@ -778,7 +758,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		// check the membership proof and extract the offender's id
-		let key = (sp_consensus_babe::KEY_TYPE, offender);
+		let key = (sp_consensus_r2s::KEY_TYPE, offender);
 		let offender = T::KeyOwnerProofSystem::check_proof(key, key_owner_proof)
 			.ok_or(Error::<T>::InvalidKeyOwnershipProof)?;
 
@@ -933,7 +913,7 @@ pub mod migrations {
 	/// A storage migration that adds the current epoch configuration for Babe
 	/// to storage.
 	pub fn add_epoch_configuration<T: BabePalletPrefix>(
-		epoch_config: BabeEpochConfiguration,
+		epoch_config: R2SEpochConfiguration,
 	) -> Weight {
 		let mut writes = 0;
 		let mut reads = 0;

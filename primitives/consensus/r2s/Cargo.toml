@@ -1,7 +1,7 @@
 [package]
 name = "sp-consensus-r2s"
 version = "0.10.0-dev"
-authors = ["CESS"]
+authors = ["CESS Lab"]
 description = "Primitives for R2S consensus"
 edition = "2018"
 license = "Apache-2.0"

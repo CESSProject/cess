@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-	AuthorityId, BabeAuthorityWeight, BabeEpochConfiguration, BabeGenesisConfiguration, Epoch,
+	AuthorityId, BabeAuthorityWeight, R2SEpochConfiguration, R2SGenesisConfiguration, Epoch,
 	NextEpochDescriptor, VRF_OUTPUT_LENGTH,
 };
 use codec::{Decode, Encode};
@@ -64,14 +64,14 @@ impl EpochT for EpochV0 {
 
 impl EpochV0 {
 	/// Migrate the sturct to current epoch version.
-	pub fn migrate(self, config: &BabeGenesisConfiguration) -> Epoch {
+	pub fn migrate(self, config: &R2SGenesisConfiguration) -> Epoch {
 		Epoch {
 			epoch_index: self.epoch_index,
 			start_slot: self.start_slot,
 			duration: self.duration,
 			authorities: self.authorities,
 			randomness: self.randomness,
-			config: BabeEpochConfiguration { c: config.c, allowed_slots: config.allowed_slots },
+			config: R2SEpochConfiguration { c: config.c, allowed_slots: config.allowed_slots },
 		}
 	}
 }

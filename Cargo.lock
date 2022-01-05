@@ -747,9 +747,9 @@ dependencies = [
  "sc-cli",
  "sc-client-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sc-consensus 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sc-consensus-babe-rpc",
  "sc-consensus-epochs 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sc-consensus-r2s",
+ "sc-consensus-r2s-rpc",
  "sc-consensus-uncles",
  "sc-executor 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sc-finality-grandpa",
@@ -4754,7 +4754,7 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "sp-application-crypto 4.0.0",
- "sp-consensus-babe 0.10.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus-babe",
  "sp-consensus-vrf 0.10.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-io 4.0.0",
  "sp-runtime 4.0.0",
@@ -6786,73 +6786,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sc-consensus-babe"
-version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
-dependencies = [
- "async-trait",
- "derive_more",
- "fork-tree 3.0.0 (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "futures 0.3.18",
- "log",
- "merlin",
- "num-bigint",
- "num-rational 0.2.4",
- "num-traits",
- "parity-scale-codec",
- "parking_lot 0.11.2",
- "rand 0.7.3",
- "retain_mut",
- "sc-client-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sc-consensus 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sc-consensus-epochs 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sc-consensus-slots 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sc-keystore 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sc-telemetry 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "schnorrkel",
- "serde",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-application-crypto 4.0.0-dev",
- "sp-block-builder 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-blockchain 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-consensus 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-consensus-babe 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-consensus-slots 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-consensus-vrf 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-io 4.0.0-dev",
- "sp-keystore 0.10.0-dev",
- "sp-runtime 4.0.0-dev",
- "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "substrate-prometheus-endpoint 0.9.0",
-]
-
-[[package]]
-name = "sc-consensus-babe-rpc"
-version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
-dependencies = [
- "derive_more",
- "futures 0.3.18",
- "jsonrpc-core",
- "jsonrpc-core-client",
- "jsonrpc-derive",
- "sc-consensus-babe",
- "sc-consensus-epochs 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sc-rpc-api 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "serde",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-application-crypto 4.0.0-dev",
- "sp-blockchain 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-consensus 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-consensus-babe 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-keystore 0.10.0-dev",
- "sp-runtime 4.0.0-dev",
-]
-
-[[package]]
 name = "sc-consensus-epochs"
 version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
@@ -6900,7 +6833,7 @@ dependencies = [
  "sc-client-api 4.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-consensus 0.10.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-consensus-epochs 0.10.0-dev (git+https://github.com/paritytech/substrate)",
- "sc-consensus-slots 0.10.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-consensus-slots",
  "sc-keystore 4.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-network 0.10.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-network-test",
@@ -6929,29 +6862,32 @@ dependencies = [
 ]
 
 [[package]]
-name = "sc-consensus-slots"
+name = "sc-consensus-r2s-rpc"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "async-trait",
+ "derive_more",
  "futures 0.3.18",
- "futures-timer 3.0.2",
- "log",
- "parity-scale-codec",
- "sc-client-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sc-consensus 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sc-telemetry 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-arithmetic 4.0.0-dev",
- "sp-blockchain 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-consensus 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-consensus-slots 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-runtime 4.0.0-dev",
- "sp-state-machine 0.10.0-dev",
- "sp-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "thiserror",
+ "jsonrpc-core",
+ "jsonrpc-core-client",
+ "jsonrpc-derive",
+ "sc-consensus 0.10.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-consensus-epochs 0.10.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-consensus-r2s",
+ "sc-keystore 4.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sc-rpc-api 0.10.0-dev (git+https://github.com/paritytech/substrate)",
+ "serde",
+ "serde_json",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-application-crypto 4.0.0",
+ "sp-blockchain 4.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus 0.10.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus-r2s",
+ "sp-core 4.0.0-dev",
+ "sp-keyring 4.0.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-keystore 0.10.0",
+ "sp-runtime 4.0.0",
+ "substrate-test-runtime-client",
+ "tempfile",
 ]
 
 [[package]]
@@ -7410,7 +7346,7 @@ dependencies = [
  "sc-service 0.10.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-blockchain 4.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-consensus 0.10.0-dev (git+https://github.com/paritytech/substrate)",
- "sp-consensus-babe 0.10.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus-babe",
  "sp-core 4.1.0-dev",
  "sp-runtime 4.0.0",
  "sp-tracing 4.0.0",
@@ -8764,29 +8700,6 @@ dependencies = [
 [[package]]
 name = "sp-consensus-babe"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
-dependencies = [
- "async-trait",
- "merlin",
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-application-crypto 4.0.0-dev",
- "sp-consensus 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-consensus-slots 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-consensus-vrf 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-keystore 0.10.0-dev",
- "sp-runtime 4.0.0-dev",
- "sp-std 4.0.0-dev",
- "sp-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
-]
-
-[[package]]
-name = "sp-consensus-babe"
-version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate#88a003283c6279bec634ba1630e738a8d0fdf8de"
 dependencies = [
  "async-trait",
@@ -8840,17 +8753,6 @@ dependencies = [
 [[package]]
 name = "sp-consensus-slots"
 version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
-dependencies = [
- "parity-scale-codec",
- "scale-info",
- "sp-arithmetic 4.0.0-dev",
- "sp-runtime 4.0.0-dev",
-]
-
-[[package]]
-name = "sp-consensus-slots"
-version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate#88a003283c6279bec634ba1630e738a8d0fdf8de"
 dependencies = [
  "parity-scale-codec",
@@ -8869,18 +8771,6 @@ dependencies = [
  "sp-core 4.0.0-dev",
  "sp-runtime 4.0.0",
  "sp-std 4.0.0",
-]
-
-[[package]]
-name = "sp-consensus-vrf"
-version = "0.10.0-dev"
-source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
-dependencies = [
- "parity-scale-codec",
- "schnorrkel",
- "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-runtime 4.0.0-dev",
- "sp-std 4.0.0-dev",
 ]
 
 [[package]]
@@ -10174,7 +10064,7 @@ dependencies = [
  "sp-application-crypto 4.0.0",
  "sp-block-builder 4.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-consensus-aura",
- "sp-consensus-babe 0.10.0-dev (git+https://github.com/paritytech/substrate)",
+ "sp-consensus-babe",
  "sp-core 4.1.0-dev",
  "sp-externalities 0.10.0",
  "sp-finality-grandpa 4.0.0-dev (git+https://github.com/paritytech/substrate)",

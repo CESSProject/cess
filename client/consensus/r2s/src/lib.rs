@@ -128,7 +128,7 @@ pub use sp_consensus_babe::{
 		PrimaryPreDigest, SecondaryPlainPreDigest,
 	},
 	AuthorityId, AuthorityPair, AuthoritySignature, BabeApi, BabeAuthorityWeight, BabeBlockWeight,
-	BabeEpochConfiguration, BabeGenesisConfiguration, ConsensusLog, BABE_ENGINE_ID,
+	R2SEpochConfiguration, R2SGenesisConfiguration, ConsensusLog, BABE_ENGINE_ID,
 	VRF_OUTPUT_LENGTH,
 };
 
@@ -156,16 +156,16 @@ pub struct Epoch {
 	/// Randomness for this epoch.
 	pub randomness: [u8; VRF_OUTPUT_LENGTH],
 	/// Configuration of the epoch.
-	pub config: BabeEpochConfiguration,
+	pub config: R2SEpochConfiguration,
 }
 
 impl EpochT for Epoch {
-	type NextEpochDescriptor = (NextEpochDescriptor, BabeEpochConfiguration);
+	type NextEpochDescriptor = (NextEpochDescriptor, R2SEpochConfiguration);
 	type Slot = Slot;
 
 	fn increment(
 		&self,
-		(descriptor, config): (NextEpochDescriptor, BabeEpochConfiguration),
+		(descriptor, config): (NextEpochDescriptor, R2SEpochConfiguration),
 	) -> Epoch {
 		Epoch {
 			epoch_index: self.epoch_index + 1,
@@ -202,14 +202,14 @@ impl From<sp_consensus_babe::Epoch> for Epoch {
 impl Epoch {
 	/// Create the genesis epoch (epoch #0). This is defined to start at the slot of
 	/// the first block, so that has to be provided.
-	pub fn genesis(genesis_config: &BabeGenesisConfiguration, slot: Slot) -> Epoch {
+	pub fn genesis(genesis_config: &R2SGenesisConfiguration, slot: Slot) -> Epoch {
 		Epoch {
 			epoch_index: 0,
 			start_slot: slot,
 			duration: genesis_config.epoch_length,
 			authorities: genesis_config.genesis_authorities.clone(),
 			randomness: genesis_config.randomness,
-			config: BabeEpochConfiguration {
+			config: R2SEpochConfiguration {
 				c: genesis_config.c,
 				allowed_slots: genesis_config.allowed_slots,
 			},
@@ -335,7 +335,7 @@ pub static INTERMEDIATE_KEY: &[u8] = b"babe1";
 // and `super::babe::Config` can be eliminated.
 // https://github.com/paritytech/substrate/issues/2434
 #[derive(Clone)]
-pub struct Config(sc_consensus_slots::SlotDuration<BabeGenesisConfiguration>);
+pub struct Config(sc_consensus_slots::SlotDuration<R2SGenesisConfiguration>);
 
 impl Config {
 	/// Either fetch the slot duration from disk or compute it from the genesis
@@ -380,9 +380,9 @@ impl Config {
 }
 
 impl std::ops::Deref for Config {
-	type Target = BabeGenesisConfiguration;
+	type Target = R2SGenesisConfiguration;
 
-	fn deref(&self) -> &BabeGenesisConfiguration {
+	fn deref(&self) -> &R2SGenesisConfiguration {
 		&*self.0
 	}
 }
@@ -534,7 +534,7 @@ where
 
 async fn answer_requests<B: BlockT, C>(
 	mut request_rx: Receiver<BabeRequest<B>>,
-	genesis_config: sc_consensus_slots::SlotDuration<BabeGenesisConfiguration>,
+	genesis_config: sc_consensus_slots::SlotDuration<R2SGenesisConfiguration>,
 	client: Arc<C>,
 	epoch_changes: SharedEpochChanges<B, Epoch>,
 ) where

@@ -25,7 +25,7 @@ use crate::{migration::EpochV0, Epoch};
 use sc_client_api::backend::AuxStore;
 use sc_consensus_epochs::{migration::EpochChangesForV0, EpochChangesFor, SharedEpochChanges};
 use sp_blockchain::{Error as ClientError, Result as ClientResult};
-use sp_consensus_babe::{BabeBlockWeight, BabeGenesisConfiguration};
+use sp_consensus_babe::{BabeBlockWeight, R2SGenesisConfiguration};
 use sp_runtime::traits::Block as BlockT;
 
 const BABE_EPOCH_CHANGES_VERSION: &[u8] = b"babe_epoch_changes_version";
@@ -54,7 +54,7 @@ where
 /// Load or initialize persistent epoch change data from backend.
 pub fn load_epoch_changes<Block: BlockT, B: AuxStore>(
 	backend: &B,
-	config: &BabeGenesisConfiguration,
+	config: &R2SGenesisConfiguration,
 ) -> ClientResult<SharedEpochChanges<Block, Epoch>> {
 	let version = load_decode::<_, u32>(backend, BABE_EPOCH_CHANGES_VERSION)?;
 
@@ -135,7 +135,7 @@ mod test {
 	use sc_consensus_epochs::{EpochHeader, PersistedEpoch, PersistedEpochHeader};
 	use sc_network_test::Block as TestBlock;
 	use sp_consensus::Error as ConsensusError;
-	use sp_consensus_babe::{AllowedSlots, BabeGenesisConfiguration};
+	use sp_consensus_babe::{AllowedSlots, R2SGenesisConfiguration};
 	use sp_core::H256;
 	use sp_runtime::traits::NumberFor;
 	use substrate_test_runtime_client;
@@ -174,7 +174,7 @@ mod test {
 
 		let epoch_changes = load_epoch_changes::<TestBlock, _>(
 			&client,
-			&BabeGenesisConfiguration {
+			&R2SGenesisConfiguration {
 				slot_duration: 10,
 				epoch_length: 4,
 				c: (3, 10),
