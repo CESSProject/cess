@@ -305,7 +305,6 @@ pub mod pallet {
 		//checked error
 		OverFlow(AccountOf<T>, u64),
 		//for test update runtime
-		TestTestHaHa(),
 	}
 
 	/// Error for the nicks pallet.
@@ -558,11 +557,10 @@ pub mod pallet {
 		//and the corresponding data segment will be removed
 		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
 			let number: u128 = now.saturated_into();
-			Self::deposit_event(Event::<T>::TestTestHaHa());
-			if number % 4320 == 0 {
+			if number % 14400 == 0 {
 						for (acc, key2, res) in <PrePoolB<T>>::iter() {
 							let blocknum2: u128 = res.block_num.unwrap().saturated_into();
-							if number - 4320 > blocknum2 {
+							if number - 14400 > blocknum2 {
 								let peerid = pallet_sminer::Pallet::<T>::get_peerid(&acc);
 								let _ = pallet_sminer::Pallet::<T>::sub_power(peerid, res.size_type);
 								<ConProofInfoA<T>>::mutate(&acc, |s|{
@@ -594,7 +592,7 @@ pub mod pallet {
 						for (acc, key2, res) in <PrePoolD<T>>::iter() {
 							let blocknum2: u128 = res.block_num.unwrap().saturated_into();
 							let peerid = pallet_sminer::Pallet::<T>::get_peerid(&acc);
-							if number - 4320 > blocknum2 {
+							if number - 14400 > blocknum2 {
 								let _ = pallet_sminer::Pallet::<T>::sub_power(peerid, res.size_type);
 								let _ = pallet_sminer::Pallet::<T>::sub_space(peerid, res.size_type);
 								<ConProofInfoC<T>>::mutate(&acc, |s|{
@@ -657,7 +655,6 @@ pub mod pallet {
 				1 => 8,
 				2 => 512,
 				_ => 0,
-
 			};
 			if 0 == size {
 				ensure!(false, Error::<T>::SizeTypeError);
@@ -856,6 +853,10 @@ pub mod pallet {
 			let _ = ensure_signed(origin)?;
 			let sender = pallet_sminer::Pallet::<T>::get_acc(peer_id);
 
+			let ua = UnVerifiedA::<T>::get();
+			let res = Self::unverify_remove(ua, peer_id, segment_id);
+			UnVerifiedA::<T>::put(res);
+
 			ensure!(<VerPoolA<T>>::contains_key(&sender, segment_id), Error::<T>::NotExistInVPA);
 
 			let vpa = VerPoolA::<T>::get(&sender, segment_id).unwrap();
@@ -932,10 +933,6 @@ pub mod pallet {
 
 			<VerPoolA<T>>::remove(&sender, segment_id);
 
-			let ua = UnVerifiedA::<T>::get();
-			let res = Self::unverify_remove(ua, peer_id, segment_id);
-			UnVerifiedA::<T>::put(res);
-
 			Self::deposit_event(Event::<T>::VPAVerified(peer_id, segment_id));
 			Ok(())
 		}
@@ -985,8 +982,14 @@ pub mod pallet {
 
 			let now_block = <frame_system::Pallet<T>>::block_number();
 			let now: u128 = now_block.saturated_into();
+
+			let ua = UnVerifiedB::<T>::get();
+			let res = Self::unverify_remove(ua, peer_id, segment_id);
+			UnVerifiedB::<T>::put(res);
+
 			ensure!(<VerPoolB<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
 			ensure!(<PrePoolB<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
+
 			let vpb = VerPoolB::<T>::get(&sender, segment_id).unwrap();
 
 			ensure!(vpb.is_ready, Error::<T>::NotReadyInVPB);
@@ -994,11 +997,9 @@ pub mod pallet {
 			if result {
 					PrePoolB::<T>::try_mutate(&sender, segment_id, |s_opt| -> DispatchResult {
 						let s = s_opt.as_mut().unwrap();
-						let last_blocknum: u128 = s.block_num.unwrap().saturated_into();
 						<BlockNumberB<T>>::try_mutate(&sender, |a_opt| -> DispatchResult {
 							let a = a_opt.as_mut().unwrap();
-							a.block_num = a.block_num.checked_sub(last_blocknum).ok_or(Error::<T>::OverFlow)?;
-							a.block_num = a.block_num.checked_add(now).ok_or(Error::<T>::OverFlow)?;
+							a.block_num = now;
 							Ok(())
 						})?;
 						s.proof = Some(vpb.proof.unwrap());
@@ -1083,6 +1084,11 @@ pub mod pallet {
 		pub fn verify_in_vpc(origin: OriginFor<T>, peer_id: u64, segment_id: u64, _uncid: Vec<Vec<u8>>, result: bool) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 			let sender = pallet_sminer::Pallet::<T>::get_acc(peer_id);
+
+			let ua = UnVerifiedC::<T>::get();
+			let res = Self::unverify_remove_vec(ua, peer_id, segment_id);
+			UnVerifiedC::<T>::put(res);
+
 			ensure!(<VerPoolC<T>>::contains_key(&sender, segment_id), Error::<T>::NotExistInVPC);
 
 			let vpc = VerPoolC::<T>::get(&sender, segment_id).unwrap();
@@ -1094,7 +1100,6 @@ pub mod pallet {
 					&sender,
 					segment_id,
 					ProofInfoPPC {
-						//false for 8M segment, true for 512M segment
 						size_type: vpc.size_type,
 						proof: vpc.proof,
 						sealed_cid: vpc.sealed_cid,
@@ -1193,10 +1198,6 @@ pub mod pallet {
 				});
 			}
 
-			let ua = UnVerifiedC::<T>::get();
-			let res = Self::unverify_remove_vec(ua, peer_id, segment_id);
-			UnVerifiedC::<T>::put(res);
-
 			Self::deposit_event(Event::<T>::VPCVerified(peer_id, segment_id));
 		
 			Ok(())
@@ -1248,7 +1249,13 @@ pub mod pallet {
 			let sender = pallet_sminer::Pallet::<T>::get_acc(peer_id);
 			let now_block = <frame_system::Pallet<T>>::block_number();
 			let now: u128 = <frame_system::Pallet<T>>::block_number().saturated_into();
-			ensure!(<VerPoolD<T>>::contains_key(&sender, segment_id), Error::<T>::NotExistInVPD);
+
+			let ua = UnVerifiedD::<T>::get();
+			let res = Self::unverify_remove_vec_d(ua, peer_id, segment_id);
+			UnVerifiedD::<T>::put(res);
+
+			ensure!(<VerPoolD<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
+			ensure!(<PrePoolD<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
 
 			let vpd = VerPoolD::<T>::get(&sender, segment_id).unwrap();
 
@@ -1257,11 +1264,9 @@ pub mod pallet {
 			if result {
 				PrePoolD::<T>::try_mutate(&sender, segment_id, |s_opt| -> DispatchResult {
 					let s = s_opt.as_mut().unwrap();
-					let last: u128 = s.block_num.unwrap().saturated_into();
 					<BlockNumberD<T>>::try_mutate(&sender, |a_opt| -> DispatchResult {
 						let a = a_opt.as_mut().unwrap();
-						a.block_num = a.block_num.checked_sub(last).ok_or(Error::<T>::OverFlow)?;
-						a.block_num = a.block_num.checked_add(now).ok_or(Error::<T>::OverFlow)?;
+						a.block_num = now;
 						Ok(())
 					})?;
 					s.proof = Some(vpd.proof.unwrap());
@@ -1271,10 +1276,6 @@ pub mod pallet {
 				})?;
 			}
 			<VerPoolD<T>>::remove(&sender, segment_id);
-
-			let ua = UnVerifiedD::<T>::get();
-			let res = Self::unverify_remove_vec_d(ua, peer_id, segment_id);
-			UnVerifiedD::<T>::put(res);
 
 			Self::deposit_event(Event::<T>::VPDVerified(peer_id, segment_id));
 			Ok(())
