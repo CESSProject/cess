@@ -1010,10 +1010,6 @@ pub mod pallet {
 			}
 			<VerPoolB<T>>::remove(&sender, segment_id);
 
-			let ua = UnVerifiedB::<T>::get();
-			let res = Self::unverify_remove(ua, peer_id, segment_id);
-			UnVerifiedB::<T>::put(res);
-
 			Self::deposit_event(Event::<T>::VPBVerified(peer_id, segment_id));
 			Ok(())
 		}
