@@ -1,8 +1,8 @@
 [package]
-name = "sp-consensus-r2s"
+name = "sp-consensus-rrsc"
 version = "0.10.0-dev"
 authors = ["CESS Lab"]
-description = "Primitives for R2S consensus"
+description = "Primitives for RRSC consensus"
 edition = "2018"
 license = "Apache-2.0"
 homepage = "https://cess.one/"

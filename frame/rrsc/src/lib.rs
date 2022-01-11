@@ -18,14 +18,14 @@ use sp_runtime::{
 use sp_session::{GetSessionNumber, GetValidatorCount};
 use sp_std::prelude::*;
 
-use sp_consensus_r2s::{
+use sp_consensus_rrsc::{
 	digests::{NextConfigDescriptor, NextEpochDescriptor, PreDigest},
-	BabeAuthorityWeight, R2SEpochConfiguration, ConsensusLog, Epoch, EquivocationProof, Slot,
+	BabeAuthorityWeight, RRSCEpochConfiguration, ConsensusLog, Epoch, EquivocationProof, Slot,
 	BABE_ENGINE_ID,
 };
 use sp_consensus_vrf::schnorrkel;
 
-pub use sp_consensus_r2s::{AuthorityId, PUBLIC_KEY_LENGTH, RANDOMNESS_LENGTH, VRF_OUTPUT_LENGTH};
+pub use sp_consensus_rrsc::{AuthorityId, PUBLIC_KEY_LENGTH, RANDOMNESS_LENGTH, VRF_OUTPUT_LENGTH};
 
 mod default_weights;
 mod equivocation;
@@ -264,17 +264,17 @@ pub mod pallet {
 	/// The configuration for the current epoch. Should never be `None` as it is initialized in
 	/// genesis.
 	#[pallet::storage]
-	pub(super) type EpochConfig<T> = StorageValue<_, R2SEpochConfiguration>;
+	pub(super) type EpochConfig<T> = StorageValue<_, RRSCEpochConfiguration>;
 
 	/// The configuration for the next epoch, `None` if the config will not change
 	/// (you can fallback to `EpochConfig` instead in that case).
 	#[pallet::storage]
-	pub(super) type NextEpochConfig<T> = StorageValue<_, R2SEpochConfiguration>;
+	pub(super) type NextEpochConfig<T> = StorageValue<_, RRSCEpochConfiguration>;
 
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {
 		pub authorities: Vec<(AuthorityId, BabeAuthorityWeight)>,
-		pub epoch_config: Option<R2SEpochConfiguration>,
+		pub epoch_config: Option<RRSCEpochConfiguration>,
 	}
 
 	#[cfg(feature = "std")]
@@ -530,7 +530,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		if let Some(pending_epoch_config_change) = PendingEpochConfigChange::<T>::take() {
-			let next_epoch_config: R2SEpochConfiguration =
+			let next_epoch_config: RRSCEpochConfiguration =
 				pending_epoch_config_change.clone().into();
 			NextEpochConfig::<T>::put(next_epoch_config);
 
@@ -680,7 +680,7 @@ impl<T: Config> Pallet<T> {
 					.get(authority_index as usize)
 					.and_then(|author| schnorrkel::PublicKey::from_bytes(author.0.as_slice()).ok())
 					.and_then(|pubkey| {
-						let transcript = sp_consensus_r2s::make_transcript(
+						let transcript = sp_consensus_rrsc::make_transcript(
 							&Self::randomness(),
 							current_slot,
 							EpochIndex::<T>::get(),
@@ -688,7 +688,7 @@ impl<T: Config> Pallet<T> {
 
 						vrf_output.0.attach_input_hash(&pubkey, transcript).ok()
 					})
-					.map(|inout| inout.make_bytes(&sp_consensus_r2s::BABE_VRF_INOUT_CONTEXT))
+					.map(|inout| inout.make_bytes(&sp_consensus_rrsc::BABE_VRF_INOUT_CONTEXT))
 			})
 		});
 
@@ -741,7 +741,7 @@ impl<T: Config> Pallet<T> {
 		let slot = equivocation_proof.slot;
 
 		// validate the equivocation proof
-		if !sp_consensus_r2s::check_equivocation_proof(equivocation_proof) {
+		if !sp_consensus_rrsc::check_equivocation_proof(equivocation_proof) {
 			return Err(Error::<T>::InvalidEquivocationProof.into())
 		}
 
@@ -758,7 +758,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		// check the membership proof and extract the offender's id
-		let key = (sp_consensus_r2s::KEY_TYPE, offender);
+		let key = (sp_consensus_rrsc::KEY_TYPE, offender);
 		let offender = T::KeyOwnerProofSystem::check_proof(key, key_owner_proof)
 			.ok_or(Error::<T>::InvalidKeyOwnershipProof)?;
 
@@ -913,7 +913,7 @@ pub mod migrations {
 	/// A storage migration that adds the current epoch configuration for Babe
 	/// to storage.
 	pub fn add_epoch_configuration<T: BabePalletPrefix>(
-		epoch_config: R2SEpochConfiguration,
+		epoch_config: RRSCEpochConfiguration,
 	) -> Weight {
 		let mut writes = 0;
 		let mut reads = 0;

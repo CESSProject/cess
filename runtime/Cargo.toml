@@ -73,9 +73,9 @@ version = '4.0.0-dev'
 optional = true
 version = '0.3.1'
 
-[dependencies.pallet-r2s]
+[dependencies.pallet-rrsc]
 default-features = false
-path = '../frame/r2s'
+path = '../frame/rrsc'
 version = '1.0.0-dev'
 
 [dependencies.pallet-balances]
@@ -132,9 +132,9 @@ git = 'https://github.com/paritytech/substrate.git'
 tag = 'monthly-2021-10'
 version = '4.0.0-dev'
 
-[dependencies.sp-consensus-r2s]
+[dependencies.sp-consensus-rrsc]
 default-features = false
-path = '../primitives/consensus/r2s'
+path = '../primitives/consensus/rrsc'
 version = '0.10.0-dev'
 
 [dependencies.sp-core]
@@ -371,7 +371,7 @@ std = [
     'frame-support/std',
     'frame-system-rpc-runtime-api/std',
     'frame-system/std',
-    'pallet-r2s/std',
+    'pallet-rrsc/std',
     'pallet-bags-list/std',
     'pallet-balances/std',
     'pallet-grandpa/std',
@@ -386,7 +386,7 @@ std = [
     'scale-info/std',
     'sp-api/std',
     'sp-block-builder/std',
-    'sp-consensus-r2s/std',
+    'sp-consensus-rrsc/std',
     'sp-core/std',
     'sp-inherents/std',
     'sp-offchain/std',

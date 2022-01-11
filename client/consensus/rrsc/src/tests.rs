@@ -34,7 +34,7 @@ use sc_consensus_slots::BackoffAuthoringOnFinalizedHeadLagging;
 use sc_keystore::LocalKeystore;
 use sc_network::config::ProtocolConfig;
 use sc_network_test::{Block as TestBlock, *};
-use sp_application_crypto::key_types::BABE;
+use sp_application_crypto::key_types::RRSC;
 use sp_consensus::{AlwaysCanAuthor, DisableProofRecording, NoNetwork as DummyOracle, Proposal};
 use sp_consensus_babe::{
 	inherents::InherentDataProvider, make_transcript, make_transcript_data, AllowedSlots,
@@ -567,13 +567,13 @@ fn can_author_block() {
 		randomness: [0; 32],
 		epoch_index: 1,
 		duration: 100,
-		config: R2SEpochConfiguration {
+		config: RRSCEpochConfiguration {
 			c: (3, 10),
 			allowed_slots: AllowedSlots::PrimaryAndSecondaryPlainSlots,
 		},
 	};
 
-	let mut config = crate::R2SGenesisConfiguration {
+	let mut config = crate::RRSCGenesisConfiguration {
 		slot_duration: 1000,
 		epoch_length: 100,
 		c: (3, 10),
@@ -878,7 +878,7 @@ fn babe_transcript_generation_match() {
 		randomness: [0; 32],
 		epoch_index: 1,
 		duration: 100,
-		config: R2SEpochConfiguration {
+		config: RRSCEpochConfiguration {
 			c: (3, 10),
 			allowed_slots: AllowedSlots::PrimaryAndSecondaryPlainSlots,
 		},

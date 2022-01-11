@@ -2,7 +2,7 @@
 
 use cess_node_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{ExecutorProvider, RemoteBackend};
-use sc_consensus_r2s::{self, SlotProportion};
+use sc_consensus_rrsc::{self, SlotProportion};
 pub use sc_executor::NativeElseWasmExecutor;
 use sc_finality_grandpa::{self as grandpa, SharedVoterState};
 use sc_keystore::LocalKeystore;
@@ -48,9 +48,9 @@ pub fn new_partial(
 				sc_rpc::SubscriptionTaskExecutor,
 			) -> Result<crate::rpc::IoHandler, sc_service::Error>,
 			(
-				sc_consensus_r2s::BabeBlockImport<Block, FullClient, FullGrandpaBlockImport>,
+				sc_consensus_rrsc::BabeBlockImport<Block, FullClient, FullGrandpaBlockImport>,
 				grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
-				sc_consensus_r2s::BabeLink<Block>,
+				sc_consensus_rrsc::BabeLink<Block>,
 			),
 			grandpa::SharedVoterState,
 			Option<Telemetry>,
@@ -111,15 +111,15 @@ pub fn new_partial(
 
 	let justification_import = grandpa_block_import.clone();
 
-	let (block_import, babe_link) = sc_consensus_r2s::block_import(
-		sc_consensus_r2s::Config::get_or_compute(&*client)?,
+	let (block_import, babe_link) = sc_consensus_rrsc::block_import(
+		sc_consensus_rrsc::Config::get_or_compute(&*client)?,
 		grandpa_block_import,
 		client.clone(),
 	)?;
 
 	let slot_duration = babe_link.config().slot_duration();
 
-	let import_queue = sc_consensus_r2s::import_queue(
+	let import_queue = sc_consensus_rrsc::import_queue(
 		babe_link.clone(),
 		block_import.clone(),
 		Some(Box::new(justification_import)),
@@ -176,7 +176,7 @@ pub fn new_partial(
 				select_chain: select_chain.clone(),
 				chain_spec: chain_spec.cloned_box(),
 				deny_unsafe,
-				r2s: crate::rpc::BabeDeps {
+				rrsc: crate::rpc::BabeDeps {
 					babe_config: babe_config.clone(),
 					shared_epoch_changes: shared_epoch_changes.clone(),
 					keystore: keystore.clone(),
@@ -219,8 +219,8 @@ fn remote_keystore(_url: &String) -> Result<Arc<LocalKeystore>, &'static str> {
 pub fn new_full(
 	mut config: Configuration,
 	with_startup_data: impl FnOnce(
-		&sc_consensus_r2s::BabeBlockImport<Block, FullClient, FullGrandpaBlockImport>,
-		&sc_consensus_r2s::BabeLink<Block>,
+		&sc_consensus_rrsc::BabeBlockImport<Block, FullClient, FullGrandpaBlockImport>,
+		&sc_consensus_rrsc::BabeLink<Block>,
 	),
 ) -> Result<TaskManager, ServiceError> {
 	let sc_service::PartialComponents {
@@ -283,8 +283,8 @@ pub fn new_full(
 
 	let _justification_import = grandpa_block_import.clone();
 
-	let (_block_import, _babe_link) = sc_consensus_r2s::block_import(
-		sc_consensus_r2s::Config::get_or_compute(&*client)?,
+	let (_block_import, _babe_link) = sc_consensus_rrsc::block_import(
+		sc_consensus_rrsc::Config::get_or_compute(&*client)?,
 		grandpa_block_import,
 		client.clone(),
 	)?;
@@ -323,7 +323,7 @@ pub fn new_full(
 	// 				select_chain: select_chain.clone(),
 	// 				chain_spec: chain_spec.cloned_box(),
 	// 				deny_unsafe,
-	// 				r2s: crate::rpc::BabeDeps {
+	// 				rrsc: crate::rpc::BabeDeps {
 	// 					babe_config: babe_config.clone(),
 	// 					shared_epoch_changes: shared_epoch_changes.clone(),
 	// 					keystore: keystore.clone(),
@@ -375,7 +375,7 @@ pub fn new_full(
 		let client_clone = client.clone();
 		let slot_duration = babe_link.config().slot_duration();
 
-		let babe_config = sc_consensus_r2s::BabeParams {
+		let babe_config = sc_consensus_rrsc::BabeParams {
 			keystore: keystore_container.sync_keystore(),
 			client: client.clone(),
 			select_chain,
@@ -417,8 +417,8 @@ pub fn new_full(
 			telemetry: telemetry.as_ref().map(|x| x.handle()),
 		};
 
-		let r2s = sc_consensus_r2s::start_babe(babe_config)?;
-		task_manager.spawn_essential_handle().spawn_blocking("r2s-proposer", r2s);
+		let rrsc = sc_consensus_rrsc::start_babe(babe_config)?;
+		task_manager.spawn_essential_handle().spawn_blocking("rrsc-proposer", rrsc);
 	}
 
 	// if the node isn't actively participating in consensus then it doesn't
@@ -518,15 +518,15 @@ pub fn new_light(mut config: Configuration) -> Result<TaskManager, ServiceError>
 
 	let justification_import = grandpa_block_import.clone();
 
-	let (babe_block_import, babe_link) = sc_consensus_r2s::block_import(
-		sc_consensus_r2s::Config::get_or_compute(&*client)?,
+	let (babe_block_import, babe_link) = sc_consensus_rrsc::block_import(
+		sc_consensus_rrsc::Config::get_or_compute(&*client)?,
 		grandpa_block_import,
 		client.clone(),
 	)?;
 
 	let slot_duration = babe_link.config().slot_duration();
 
-	let import_queue = sc_consensus_r2s::import_queue(
+	let import_queue = sc_consensus_rrsc::import_queue(
 		babe_link,
 		babe_block_import,
 		Some(Box::new(justification_import)),

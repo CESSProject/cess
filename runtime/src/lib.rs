@@ -111,7 +111,7 @@ pub mod opaque {
 
 	impl_opaque_keys! {
 		pub struct SessionKeys {
-			pub r2s: R2S,
+			pub rrsc: RRSC,
 			pub grandpa: Grandpa,
 			pub im_online: ImOnline,
 			pub authority_discovery: AuthorityDiscovery,
@@ -137,11 +137,11 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	transaction_version: 1,
 };
 
-/// The R2S epoch configuration at genesis.
-pub const R2S_GENESIS_EPOCH_CONFIG: sp_consensus_r2s::R2SEpochConfiguration =
-	sp_consensus_r2s::R2SEpochConfiguration {
+/// The RRSC epoch configuration at genesis.
+pub const RRSC_GENESIS_EPOCH_CONFIG: sp_consensus_rrsc::RRSCEpochConfiguration =
+	sp_consensus_rrsc::RRSCEpochConfiguration {
 		c: PRIMARY_PROBABILITY,
-		allowed_slots: sp_consensus_r2s::AllowedSlots::PrimaryAndSecondaryPlainSlots,
+		allowed_slots: sp_consensus_rrsc::AllowedSlots::PrimaryAndSecondaryPlainSlots,
 	};
 
 /// Money matters.
@@ -164,7 +164,7 @@ pub const MILLISECS_PER_BLOCK: u64 = 3000;
 pub const SLOT_DURATION: u64 = MILLISECS_PER_BLOCK;
 
 
-// 1 in 4 blocks (on average, not counting collisions) will be primary R2S blocks.
+// 1 in 4 blocks (on average, not counting collisions) will be primary RRSC blocks.
 pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
 
 // NOTE: Currently it is not possible to change the epoch duration after the chain has started.
@@ -372,7 +372,7 @@ parameter_types! {
 }
 
 impl pallet_authorship::Config for Runtime {
-	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, R2S>;
+	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, RRSC>;
 	type UncleGenerations = UncleGenerations;
 	type FilterUncle = ();
 	type EventHandler = (Staking, ImOnline);
@@ -405,26 +405,26 @@ parameter_types! {
 	pub const MaxAuthorities: u32 = 100;
 }
 
-impl pallet_r2s::Config for Runtime {
+impl pallet_rrsc::Config for Runtime {
 	type EpochDuration = EpochDuration;
 	type ExpectedBlockTime = ExpectedBlockTime;
-	type EpochChangeTrigger = pallet_r2s::ExternalTrigger;
+	type EpochChangeTrigger = pallet_rrsc::ExternalTrigger;
 	type DisabledValidators = Session;
 
 	type KeyOwnerProofSystem = Historical;
 
 	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
 		KeyTypeId,
-		pallet_r2s::AuthorityId,
+		pallet_rrsc::AuthorityId,
 	)>>::Proof;
 
 	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
 		KeyTypeId,
-		pallet_r2s::AuthorityId,
+		pallet_rrsc::AuthorityId,
 	)>>::IdentificationTuple;
 
 	type HandleEquivocation =
-		pallet_r2s::EquivocationHandler<Self::KeyOwnerIdentification, Offences, ReportLongevity>;
+		pallet_rrsc::EquivocationHandler<Self::KeyOwnerIdentification, Offences, ReportLongevity>;
 
 	type WeightInfo = ();
 	type MaxAuthorities = MaxAuthorities;
@@ -450,7 +450,7 @@ parameter_types! {
 impl pallet_im_online::Config for Runtime {
 	type AuthorityId = ImOnlineId;
 	type Event = Event;
-	type NextSessionRotation = R2S;
+	type NextSessionRotation = RRSC;
 	type ValidatorSet = Historical;
 	type ReportUnresponsiveness = Offences;
 	type UnsignedPriority = ImOnlineUnsignedPriority;
@@ -478,8 +478,8 @@ impl pallet_session::Config for Runtime {
 	type Event = Event;
 	type ValidatorId = <Self as frame_system::Config>::AccountId;
 	type ValidatorIdOf = pallet_staking::StashOf<Self>;
-	type ShouldEndSession = R2S;
-	type NextSessionRotation = R2S;
+	type ShouldEndSession = RRSC;
+	type NextSessionRotation = RRSC;
 	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, Staking>;
 	type SessionHandler = <opaque::SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = opaque::SessionKeys;
@@ -715,7 +715,7 @@ parameter_types! {
 impl pallet_timestamp::Config for Runtime {
 	/// A timestamp: milliseconds since the unix epoch.
 	type Moment = u64;
-	type OnTimestampSet = R2S;
+	type OnTimestampSet = RRSC;
 	type MinimumPeriod = MinimumPeriod;
 	type WeightInfo = pallet_timestamp::weights::SubstrateWeight<Runtime>;
 }
@@ -854,7 +854,7 @@ construct_runtime!(
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage},
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-		R2S: pallet_r2s::{Pallet, Call, Storage, Config, ValidateUnsigned},
+		RRSC: pallet_rrsc::{Pallet, Call, Storage, Config, ValidateUnsigned},
 		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
@@ -967,48 +967,48 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl sp_consensus_r2s::R2SApi<Block> for Runtime {
-		fn configuration() -> sp_consensus_r2s::R2SGenesisConfiguration {
-			sp_consensus_r2s::R2SGenesisConfiguration {
-				slot_duration: R2S::slot_duration(),
+	impl sp_consensus_rrsc::RRSCApi<Block> for Runtime {
+		fn configuration() -> sp_consensus_rrsc::RRSCGenesisConfiguration {
+			sp_consensus_rrsc::RRSCGenesisConfiguration {
+				slot_duration: RRSC::slot_duration(),
 				epoch_length: EpochDuration::get(),
-				c: R2S_GENESIS_EPOCH_CONFIG.c,
-				genesis_authorities: R2S::authorities().to_vec(),
-				randomness: R2S::randomness(),
-				allowed_slots: R2S_GENESIS_EPOCH_CONFIG.allowed_slots,
+				c: RRSC_GENESIS_EPOCH_CONFIG.c,
+				genesis_authorities: RRSC::authorities().to_vec(),
+				randomness: RRSC::randomness(),
+				allowed_slots: RRSC_GENESIS_EPOCH_CONFIG.allowed_slots,
 			}
 		}
 
-		fn current_epoch_start() -> sp_consensus_r2s::Slot {
-			R2S::current_epoch_start()
+		fn current_epoch_start() -> sp_consensus_rrsc::Slot {
+			RRSC::current_epoch_start()
 		}
 
-		fn current_epoch() -> sp_consensus_r2s::Epoch {
-			R2S::current_epoch()
+		fn current_epoch() -> sp_consensus_rrsc::Epoch {
+			RRSC::current_epoch()
 		}
 
-		fn next_epoch() -> sp_consensus_r2s::Epoch {
-			R2S::next_epoch()
+		fn next_epoch() -> sp_consensus_rrsc::Epoch {
+			RRSC::next_epoch()
 		}
 
 		fn generate_key_ownership_proof(
-			_slot: sp_consensus_r2s::Slot,
-			authority_id: sp_consensus_r2s::AuthorityId,
-		) -> Option<sp_consensus_r2s::OpaqueKeyOwnershipProof> {
+			_slot: sp_consensus_rrsc::Slot,
+			authority_id: sp_consensus_rrsc::AuthorityId,
+		) -> Option<sp_consensus_rrsc::OpaqueKeyOwnershipProof> {
 			use codec::Encode;
 
-			Historical::prove((sp_consensus_r2s::KEY_TYPE, authority_id))
+			Historical::prove((sp_consensus_rrsc::KEY_TYPE, authority_id))
 				.map(|p| p.encode())
-				.map(sp_consensus_r2s::OpaqueKeyOwnershipProof::new)
+				.map(sp_consensus_rrsc::OpaqueKeyOwnershipProof::new)
 		}
 
 		fn submit_report_equivocation_unsigned_extrinsic(
-			equivocation_proof: sp_consensus_r2s::EquivocationProof<<Block as BlockT>::Header>,
-			key_owner_proof: sp_consensus_r2s::OpaqueKeyOwnershipProof,
+			equivocation_proof: sp_consensus_rrsc::EquivocationProof<<Block as BlockT>::Header>,
+			key_owner_proof: sp_consensus_rrsc::OpaqueKeyOwnershipProof,
 		) -> Option<()> {
 			let key_owner_proof = key_owner_proof.decode()?;
 
-			R2S::submit_unsigned_equivocation_report(
+			RRSC::submit_unsigned_equivocation_report(
 				equivocation_proof,
 				key_owner_proof,
 			)

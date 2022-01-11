@@ -1,12 +1,12 @@
 [package]
-name = "pallet-r2s"
+name = "pallet-rrsc"
 version = "1.0.0-dev"
 authors = ["CESS Lab"]
 edition = "2018"
 license = "Apache-2.0"
 homepage = "https://cess.one/"
 repository = "https://github.com/CESSProject/cess/"
-description = "Consensus extension module for r2s consensus. Collects on-chain randomness from VRF outputs and manages epoch transitions."
+description = "Consensus extension module for rrsc consensus. Collects on-chain randomness from VRF outputs and manages epoch transitions."
 readme = "README.md"
 
 [package.metadata.docs.rs]
@@ -21,7 +21,7 @@ pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "ht
 pallet-session = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
 pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
 sp-application-crypto = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
-sp-consensus-r2s = { version = "0.10.0-dev", default-features = false, path = "../../primitives/consensus/r2s" }
+sp-consensus-rrsc = { version = "0.10.0-dev", default-features = false, path = "../../primitives/consensus/rrsc" }
 sp-consensus-vrf = { version = "0.10.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
 sp-io = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
 sp-runtime = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
@@ -49,7 +49,7 @@ std = [
 	"pallet-session/std",
 	"pallet-timestamp/std",
 	"sp-application-crypto/std",
-	"sp-consensus-r2s/std",
+	"sp-consensus-rrsc/std",
 	"sp-consensus-vrf/std",
 	"sp-io/std",
 	"sp-runtime/std",

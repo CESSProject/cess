@@ -25,7 +25,7 @@ use frame_support::{
 };
 use mock::*;
 use pallet_session::ShouldEndSession;
-use sp_consensus_babe::{AllowedSlots, R2SEpochConfiguration, Slot};
+use sp_consensus_babe::{AllowedSlots, RRSCEpochConfiguration, Slot};
 use sp_core::crypto::Pair;
 
 const EMPTY_RANDOMNESS: [u8; 32] = [
@@ -245,17 +245,17 @@ fn can_enact_next_config() {
 		assert_eq!(Babe::epoch_index(), 0);
 		go_to_block(2, 7);
 
-		let current_config = R2SEpochConfiguration {
+		let current_config = RRSCEpochConfiguration {
 			c: (0, 4),
 			allowed_slots: sp_consensus_babe::AllowedSlots::PrimarySlots,
 		};
 
-		let next_config = R2SEpochConfiguration {
+		let next_config = RRSCEpochConfiguration {
 			c: (1, 4),
 			allowed_slots: sp_consensus_babe::AllowedSlots::PrimarySlots,
 		};
 
-		let next_next_config = R2SEpochConfiguration {
+		let next_next_config = RRSCEpochConfiguration {
 			c: (2, 4),
 			allowed_slots: sp_consensus_babe::AllowedSlots::PrimarySlots,
 		};
@@ -317,7 +317,7 @@ fn only_root_can_enact_config_change() {
 #[test]
 fn can_fetch_current_and_next_epoch_data() {
 	new_test_ext(5).execute_with(|| {
-		EpochConfig::<Test>::put(R2SEpochConfiguration {
+		EpochConfig::<Test>::put(RRSCEpochConfiguration {
 			c: (1, 4),
 			allowed_slots: sp_consensus_babe::AllowedSlots::PrimarySlots,
 		});
@@ -885,7 +885,7 @@ fn add_epoch_configurations_migration_works() {
 		)
 		.is_some());
 
-		let current_epoch = R2SEpochConfiguration {
+		let current_epoch = RRSCEpochConfiguration {
 			c: (1, 4),
 			allowed_slots: sp_consensus_babe::AllowedSlots::PrimarySlots,
 		};

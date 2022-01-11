@@ -748,8 +748,8 @@ dependencies = [
  "sc-client-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sc-consensus 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sc-consensus-epochs 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sc-consensus-r2s",
- "sc-consensus-r2s-rpc",
+ "sc-consensus-rrsc",
+ "sc-consensus-rrsc-rpc",
  "sc-consensus-uncles",
  "sc-executor 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sc-finality-grandpa",
@@ -767,7 +767,7 @@ dependencies = [
  "sp-block-builder 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-blockchain 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-consensus 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-consensus-r2s",
+ "sp-consensus-rrsc",
  "sp-core 4.0.0-dev",
  "sp-finality-grandpa 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-keystore 0.10.0-dev",
@@ -806,8 +806,8 @@ dependencies = [
  "pallet-im-online",
  "pallet-membership",
  "pallet-offences 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "pallet-r2s",
  "pallet-randomness-collective-flip",
+ "pallet-rrsc",
  "pallet-scheduler",
  "pallet-segment-book",
  "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
@@ -824,7 +824,7 @@ dependencies = [
  "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-authority-discovery",
  "sp-block-builder 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "sp-consensus-r2s",
+ "sp-consensus-rrsc",
  "sp-core 4.0.0-dev",
  "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-io 4.0.0-dev",
@@ -5057,7 +5057,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-r2s"
+name = "pallet-randomness-collective-flip"
+version = "4.0.0-dev"
+source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
+dependencies = [
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "parity-scale-codec",
+ "safe-mix",
+ "scale-info",
+ "sp-runtime 4.0.0-dev",
+ "sp-std 4.0.0-dev",
+]
+
+[[package]]
+name = "pallet-rrsc"
 version = "1.0.0-dev"
 dependencies = [
  "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate)",
@@ -5074,7 +5088,7 @@ dependencies = [
  "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate)",
  "parity-scale-codec",
  "sp-application-crypto 4.0.0",
- "sp-consensus-r2s",
+ "sp-consensus-rrsc",
  "sp-consensus-vrf 0.10.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-core 4.0.0-dev",
  "sp-io 4.0.0",
@@ -5082,20 +5096,6 @@ dependencies = [
  "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-std 4.0.0",
-]
-
-[[package]]
-name = "pallet-randomness-collective-flip"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
-dependencies = [
- "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
- "parity-scale-codec",
- "safe-mix",
- "scale-info",
- "sp-runtime 4.0.0-dev",
- "sp-std 4.0.0-dev",
 ]
 
 [[package]]
@@ -6812,7 +6812,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sc-consensus-r2s"
+name = "sc-consensus-rrsc"
 version = "0.10.0-dev"
 dependencies = [
  "async-trait",
@@ -6845,7 +6845,7 @@ dependencies = [
  "sp-block-builder 4.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-blockchain 4.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-consensus 0.10.0-dev (git+https://github.com/paritytech/substrate)",
- "sp-consensus-r2s",
+ "sp-consensus-rrsc",
  "sp-consensus-slots 0.10.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-consensus-vrf 0.10.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-core 4.0.0-dev",
@@ -6862,7 +6862,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sc-consensus-r2s-rpc"
+name = "sc-consensus-rrsc-rpc"
 version = "0.10.0-dev"
 dependencies = [
  "derive_more",
@@ -6872,7 +6872,7 @@ dependencies = [
  "jsonrpc-derive",
  "sc-consensus 0.10.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-consensus-epochs 0.10.0-dev (git+https://github.com/paritytech/substrate)",
- "sc-consensus-r2s",
+ "sc-consensus-rrsc",
  "sc-keystore 4.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sc-rpc-api 0.10.0-dev (git+https://github.com/paritytech/substrate)",
  "serde",
@@ -6881,7 +6881,7 @@ dependencies = [
  "sp-application-crypto 4.0.0",
  "sp-blockchain 4.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-consensus 0.10.0-dev (git+https://github.com/paritytech/substrate)",
- "sp-consensus-r2s",
+ "sp-consensus-rrsc",
  "sp-core 4.0.0-dev",
  "sp-keyring 4.0.0-dev (git+https://github.com/paritytech/substrate)",
  "sp-keystore 0.10.0",
@@ -8721,7 +8721,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp-consensus-r2s"
+name = "sp-consensus-rrsc"
 version = "0.10.0-dev"
 dependencies = [
  "async-trait",

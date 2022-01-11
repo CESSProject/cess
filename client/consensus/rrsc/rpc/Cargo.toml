@@ -1,8 +1,8 @@
 [package]
-name = "sc-consensus-r2s-rpc"
+name = "sc-consensus-rrsc-rpc"
 version = "0.10.0-dev"
 authors = ["CESS Lab"]
-description = "RPC extensions for the R2S consensus algorithm"
+description = "RPC extensions for the RRSC consensus algorithm"
 edition = "2018"
 license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
 homepage = "https://cess.one/"
@@ -13,12 +13,12 @@ readme = "README.md"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-sc-consensus-r2s = { version = "0.10.0-dev", path = "../" }
+sc-consensus-rrsc = { version = "0.10.0-dev", path = "../" }
 sc-rpc-api = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git" }
 jsonrpc-core = "18.0.0"
 jsonrpc-core-client = "18.0.0"
 jsonrpc-derive = "18.0.0"
-sp-consensus-r2s = { version = "0.10.0-dev", path = "../../../../primitives/consensus/r2s" }
+sp-consensus-rrsc = { version = "0.10.0-dev", path = "../../../../primitives/consensus/rrsc" }
 serde = { version = "1.0.126", features=["derive"] }
 sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git" }
 sp-runtime = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git" }

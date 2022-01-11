@@ -1234,6 +1234,8 @@ impl sp_std::fmt::Display for CryptoTypePublicPair {
 pub mod key_types {
 	use super::KeyTypeId;
 
+	/// Key type for RRSC module, built-in. Identified as `rrsc` (Random Rotational Selection consensus).
+	pub const RRSC: KeyTypeId = KeyTypeId(*b"rrsc");
 	/// Key type for Babe module, built-in. Identified as `babe`.
 	pub const BABE: KeyTypeId = KeyTypeId(*b"babe");
 	/// Key type for Grandpa module, built-in. Identified as `gran`.

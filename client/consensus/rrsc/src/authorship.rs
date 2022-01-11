@@ -273,7 +273,7 @@ fn claim_primary_slot(
 mod tests {
 	use super::*;
 	use sc_keystore::LocalKeystore;
-	use sp_consensus_babe::{AllowedSlots, AuthorityId, R2SEpochConfiguration};
+	use sp_consensus_babe::{AllowedSlots, AuthorityId, RRSCEpochConfiguration};
 	use sp_core::{crypto::Pair as _, sr25519::Pair};
 	use std::sync::Arc;
 
@@ -298,7 +298,7 @@ mod tests {
 			duration: 20,
 			authorities: authorities.clone(),
 			randomness: Default::default(),
-			config: R2SEpochConfiguration {
+			config: RRSCEpochConfiguration {
 				c: (3, 10),
 				allowed_slots: AllowedSlots::PrimaryAndSecondaryPlainSlots,
 			},
