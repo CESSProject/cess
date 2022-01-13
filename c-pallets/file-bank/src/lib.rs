@@ -34,7 +34,7 @@ use sp_std::convert::TryInto;
 use scale_info::TypeInfo;
 use sp_runtime::{
 	RuntimeDebug,
-	traits::{AccountIdConversion, CheckedSub}
+	traits::{AccountIdConversion}
 };
 use sp_std::prelude::*;
 use codec::{Encode, Decode};
@@ -105,6 +105,8 @@ pub mod pallet {
 		Purchased(AccountOf<T>, Vec<u8>),
 
 		InsufficientStorage(AccountOf<T>, u128),
+
+		
 	}
 	#[pallet::error]
 	pub enum Error<T> {
@@ -116,6 +118,8 @@ pub mod pallet {
 		InsufficientStorage,
 
 		WrongOperation,
+
+		NotPurchasedSpace,
 	}
 	#[pallet::storage]
 	#[pallet::getter(fn file)]
@@ -131,7 +135,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn user_hold_file_list)]
-	pub(super) type UserHoldFileList<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, Vec<Vec<u8>>>;
+	pub(super) type UserHoldFileList<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, Vec<Vec<u8>>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn user_hold_storage_space)]
@@ -178,6 +182,10 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 			// let acc = T::FilbakPalletId::get().into_account();
 			// T::Currency::transfer(&sender, &acc, uploadfee, AllowDeath)?;
+
+			ensure!(<UserHoldStorageSpace<T>>::contains_key(&sender), Error::<T>::NotPurchasedSpace);
+			Self::update_user_space(sender.clone(), 1, filesize)?;
+
 			let mut invoice: Vec<u8> = Vec::new();
 			for i in &fileid {
 				invoice.push(*i);
@@ -206,6 +214,7 @@ pub mod pallet {
 				*s = (*s).checked_add(filesize).ok_or(Error::<T>::Overflow)?;
 				Ok(())
 			})?;
+			Self::add_user_hold_file(sender.clone(), fileid.clone());
 			Self::deposit_event(Event::<T>::FileUpload(sender.clone()));
 			Ok(())
 		}
@@ -280,8 +289,8 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	//1 upload files, 2 delete file
-	fn update_user_space(acc: AccountOf<T>,operation: u8, size: u128) -> DispatchResult{
+	//operation: 1 upload files, 2 delete file
+	fn update_user_space(acc: AccountOf<T>, operation: u8, size: u128) -> DispatchResult{
 		match operation {
 			1 => {
 				<UserHoldStorageSpace<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
@@ -305,24 +314,43 @@ impl<T: Config> Pallet<T> {
 					Ok(())
 				})?
 			}
-			_ => {
-				Err(Error::<T>::WrongOperation)?
-			}
+			_ => Err(Error::<T>::WrongOperation)?
+			
 		}
 		Ok(())
 	}
 
+	//operation: 1 first buy, 2 continue to buy
 	fn buy_user_space(acc: AccountOf<T>, operation: u8, size: u128) -> DispatchResult{
-		// match operation {
+		
+		match operation {
+			1 => {
+				let value = StorageSpace {
+					purchased_space: size,
+					used_space: 0,
+					remaining_space: size,
+				};
+				<UserHoldStorageSpace<T>>::insert(&acc, value);
+			}
+			2 => {
+				<UserHoldStorageSpace<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+					let s = s_opt.as_mut().unwrap();
+					s.purchased_space = s.purchased_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+					s.remaining_space = s.remaining_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+					Ok(())
+				})?;	
+			}
+			_ => Err(Error::<T>::WrongOperation)?
+			
+		}
 
-		// }
-		// let value = StorageSpace {
-		// 	purchased_space: size,
-		// 	used_space: 0,
-		// 	remaining_space:
-		// };
-		// <UserHoldStorageSpace<T>>::insert(&acc, )
-		// Ok(())
+		Ok(())
+	}
+
+	fn add_user_hold_file(acc: AccountOf<T>, fileid: Vec<u8>) {
+		<UserHoldFileList<T>>::mutate(&acc, |s|{
+			s.push(fileid);
+		});
 	}
 }
 
