@@ -1521,4 +1521,9 @@ impl<T: Config> Pallet<T> {
 		})?;
 		Ok(())
 	}
+
+	pub fn get_space() -> u128 {
+		let value = <StorageInfoValue<T>>::get();
+		return value.available_storage
+	}
 }
