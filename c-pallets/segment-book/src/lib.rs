@@ -583,6 +583,7 @@ pub mod pallet {
 								}
 								<UnVerifiedB<T>>::put(unb);
 								<PrePoolA<T>>::remove(&acc, key2);
+								<VerPoolB<T>>::remove(&acc, key2);
 								<PrePoolB<T>>::remove(&acc, key2);
 								Self::deposit_event(Event::<T>::PPBNoOnTimeSubmit(acc.clone(), key2));
 							}
@@ -616,6 +617,7 @@ pub mod pallet {
 								//remove related storage
 								<UnVerifiedD<T>>::put(unb);
 								<PrePoolC<T>>::remove(&acc, key2);
+								<VerPoolD<T>>::remove(&acc, key2);
 								<PrePoolD<T>>::remove(&acc, key2);
 								//let _ = pallet_sminer::Pallet::<T>::fine_money(&acc);
 								Self::deposit_event(Event::<T>::PPDNoOnTimeSubmit(acc.clone(), key2));

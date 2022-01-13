@@ -22,8 +22,8 @@
 #[cfg(test)]
 mod mock;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
 use frame_support::traits::{Currency, ReservableCurrency, ExistenceRequirement::AllowDeath};
 pub use pallet::*;
@@ -34,7 +34,7 @@ use sp_std::convert::TryInto;
 use scale_info::TypeInfo;
 use sp_runtime::{
 	RuntimeDebug,
-	traits::AccountIdConversion,
+	traits::{AccountIdConversion, CheckedSub}
 };
 use sp_std::prelude::*;
 use codec::{Encode, Decode};
@@ -51,19 +51,22 @@ pub struct FileInfo<T: pallet::Config> {
 	filename: Vec<u8>,
 	owner: AccountOf<T>,
 	filehash: Vec<u8>,
-	similarityhash: Vec<u8>,
-	//two status: 0(private) 1(public)
-	ispublic: u8,
 	backups: u8,
-	creator: Vec<u8>,
 	filesize: u128,
-	keywords: Vec<u8>,
-	email: Vec<u8>,
-	uploadfee: BalanceOf<T>,
 	downloadfee: BalanceOf<T>,
 	//expiration time
 	deadline: u128,
 }
+
+#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+pub struct StorageSpace {
+	purchased_space: u128,
+	used_space: u128,
+	remaining_space: u128,
+}
+
+
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -100,6 +103,8 @@ pub mod pallet {
 		BuyFile(AccountOf<T>, BalanceOf<T>, Vec<u8>),
 		//file purchased before.
 		Purchased(AccountOf<T>, Vec<u8>),
+
+		InsufficientStorage(AccountOf<T>, u128),
 	}
 	#[pallet::error]
 	pub enum Error<T> {
@@ -107,6 +112,10 @@ pub mod pallet {
 		FileNonExistent,
 		//overflow.
 		Overflow,
+
+		InsufficientStorage,
+
+		WrongOperation,
 	}
 	#[pallet::storage]
 	#[pallet::getter(fn file)]
@@ -119,6 +128,14 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn seg_info)]
 	pub(super) type UserFileSize<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, u128, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn user_hold_file_list)]
+	pub(super) type UserHoldFileList<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, Vec<Vec<u8>>>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn user_hold_storage_space)]
+	pub(super) type UserHoldStorageSpace<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, StorageSpace>;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -149,25 +166,18 @@ pub mod pallet {
 		#[pallet::weight(T::WeightInfo::upload())]
 		pub fn upload(
 			origin: OriginFor<T>,
+			address: Vec<u8>,
 			filename:Vec<u8>,
-			address:Vec<u8>,
 			fileid: Vec<u8>,
 			filehash: Vec<u8>,
-			similarityhash: Vec<u8>,
-			ispublic: u8,
 			backups: u8,
-			creator: Vec<u8>,
 			filesize: u128,
-			keywords: Vec<u8>,
-			email: Vec<u8>,
-			uploadfee:BalanceOf<T>,
 			downloadfee:BalanceOf<T>,
 			deadline: u128
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-
-			let acc = T::FilbakPalletId::get().into_account();
-			T::Currency::transfer(&sender, &acc, uploadfee, AllowDeath)?;
+			// let acc = T::FilbakPalletId::get().into_account();
+			// T::Currency::transfer(&sender, &acc, uploadfee, AllowDeath)?;
 			let mut invoice: Vec<u8> = Vec::new();
 			for i in &fileid {
 				invoice.push(*i);
@@ -186,14 +196,8 @@ pub mod pallet {
 					filename,
 					owner: sender.clone(),
 					filehash,
-					similarityhash,
-					ispublic,
 					backups,
-					creator,
 					filesize,
-					keywords,
-					email,
-					uploadfee: uploadfee.clone(),
 					downloadfee: downloadfee.clone(),
 					deadline: deadline,
 				}
@@ -214,20 +218,20 @@ pub mod pallet {
 		/// - `fileid`: id of file, each file will have different number, even for the same file.
 		/// - `is_public`: public or private.
 		/// - `similarityhash`: hash of file, used for checking similarity.
-		#[pallet::weight(T::WeightInfo::update())]
-		pub fn update(origin: OriginFor<T>, fileid: Vec<u8>, ispublic: u8, similarityhash: Vec<u8>) -> DispatchResult{
-			let sender = ensure_signed(origin)?;
-			ensure!((<File<T>>::contains_key(fileid.clone())), Error::<T>::FileNonExistent);
+		// #[pallet::weight(T::WeightInfo::update())]
+		// pub fn update(origin: OriginFor<T>, fileid: Vec<u8>, ispublic: u8, similarityhash: Vec<u8>) -> DispatchResult{
+		// 	let sender = ensure_signed(origin)?;
+		// 	ensure!((<File<T>>::contains_key(fileid.clone())), Error::<T>::FileNonExistent);
 
-			<File<T>>::mutate(fileid, |s_opt| {
-				let s = s_opt.as_mut().unwrap();
-				s.ispublic = ispublic;
-				s.similarityhash = similarityhash;
-			});
-			Self::deposit_event(Event::<T>::FileUpdate(sender.clone()));
+		// 	<File<T>>::mutate(fileid, |s_opt| {
+		// 		let s = s_opt.as_mut().unwrap();
+		// 		s.ispublic = ispublic;
+		// 		s.similarityhash = similarityhash;
+		// 	});
+		// 	Self::deposit_event(Event::<T>::FileUpdate(sender.clone()));
 
-			Ok(())
-		}
+		// 	Ok(())
+		// }
 
 		/// Update info of uploaded file.
 		/// 
@@ -274,3 +278,52 @@ pub mod pallet {
 
 	}
 }
+
+impl<T: Config> Pallet<T> {
+	//1 upload files, 2 delete file
+	fn update_user_space(acc: AccountOf<T>,operation: u8, size: u128) -> DispatchResult{
+		match operation {
+			1 => {
+				<UserHoldStorageSpace<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+					let s = s_opt.as_mut().unwrap();
+					if size > s.remaining_space {
+						Err(Error::<T>::InsufficientStorage)?
+					}
+					s.remaining_space = s.remaining_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
+					s.used_space = s.used_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+					Ok(())
+				})?
+			}
+			2 => {
+				<UserHoldStorageSpace<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+					let s = s_opt.as_mut().unwrap();
+					if size > s.remaining_space {
+						Err(Error::<T>::InsufficientStorage)?
+					}
+					s.remaining_space = s.remaining_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+					s.used_space = s.used_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
+					Ok(())
+				})?
+			}
+			_ => {
+				Err(Error::<T>::WrongOperation)?
+			}
+		}
+		Ok(())
+	}
+
+	fn buy_user_space(acc: AccountOf<T>, operation: u8, size: u128) -> DispatchResult{
+		// match operation {
+
+		// }
+		// let value = StorageSpace {
+		// 	purchased_space: size,
+		// 	used_space: 0,
+		// 	remaining_space:
+		// };
+		// <UserHoldStorageSpace<T>>::insert(&acc, )
+		// Ok(())
+	}
+}
+
+
