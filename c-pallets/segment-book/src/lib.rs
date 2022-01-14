@@ -559,7 +559,7 @@ pub mod pallet {
 		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
 			let number: u128 = now.saturated_into();
 			Self::deposit_event(Event::<T>::TestTestHaHa());
-			if number % 4320 == 0 {	
+			if number % 4320 == 0 {
 						for (acc, key2, res) in <PrePoolB<T>>::iter() {
 							let blocknum2: u128 = res.block_num.unwrap().saturated_into();
 							if number - 4320 > blocknum2 {
@@ -615,10 +615,11 @@ pub mod pallet {
 									}
 									k += 1;
 								}
+								//remove related storage
 								<UnVerifiedD<T>>::put(unb);
 								<PrePoolC<T>>::remove(&acc, key2);
 								<PrePoolD<T>>::remove(&acc, key2);
-								let _ = pallet_sminer::Pallet::<T>::fine_money(&acc);
+								//let _ = pallet_sminer::Pallet::<T>::fine_money(&acc);
 								Self::deposit_event(Event::<T>::PPDNoOnTimeSubmit(acc.clone(), key2));
 							}
 						}
@@ -660,7 +661,7 @@ pub mod pallet {
 			};
 			if 0 == size {
 				ensure!(false, Error::<T>::SizeTypeError);
-			}	
+			}
 			match submit_type {
 				1u8 => {
 					let (peer_id, segment_id) = pallet_sminer::Pallet::<T>::get_ids(&sender)?;
@@ -758,7 +759,7 @@ pub mod pallet {
 			match submit_type {
 				1u8 => {
 					ensure!(!<VerPoolB<T>>::contains_key(&sender, segment_id), Error::<T>::YetIntennt);
-					ensure!(!<PrePoolB<T>>::contains_key(&sender, segment_id), Error::<T>::SegmentUnExis);
+					ensure!(<PrePoolB<T>>::contains_key(&sender, segment_id), Error::<T>::SegmentUnExis);
 					<VerPoolB<T>>::insert(
 						&sender,
 						segment_id,
@@ -782,7 +783,7 @@ pub mod pallet {
 				}
 				2u8 => {
 					ensure!(!<VerPoolD<T>>::contains_key(&sender, segment_id), Error::<T>::YetIntennt);
-					ensure!(!<PrePoolD<T>>::contains_key(&sender, segment_id), Error::<T>::SegmentUnExis);
+					ensure!(<PrePoolD<T>>::contains_key(&sender, segment_id), Error::<T>::SegmentUnExis);
 					<VerPoolD<T>>::insert(
 						&sender,
 						segment_id,
@@ -835,7 +836,7 @@ pub mod pallet {
 					segment_id: segment_id, 
 					proof: proof.clone(), 
 					sealed_cid: sealed_cid.clone(), 
-					rand: s.rand, 
+					rand: s.rand,
 					size_type: s.size_type,
 				};
 				UnVerifiedA::<T>::mutate(|a| (*a).push(x));
