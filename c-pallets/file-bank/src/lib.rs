@@ -129,6 +129,8 @@ pub mod pallet {
 		WrongOperation,
 
 		NotPurchasedSpace,
+
+		LeaseExpired,
 	}
 	#[pallet::storage]
 	#[pallet::getter(fn file)]
@@ -153,11 +155,11 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn user_hold_storage_space)]
-	pub(super) type UserHoldStorageSpace<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, StorageSpace>;
+	pub(super) type UserHoldSpaceDetails<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, StorageSpace>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn user_spance_details)]
-	pub(super) type UserSpaceDetails<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, Vec<SpaceInfo<T>>, ValueQuery>;
+	pub(super) type UserSpaceList<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, Vec<SpaceInfo<T>>, ValueQuery>;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -200,7 +202,7 @@ pub mod pallet {
 			// let acc = T::FilbakPalletId::get().into_account();
 			// T::Currency::transfer(&sender, &acc, uploadfee, AllowDeath)?;
 
-			ensure!(<UserHoldStorageSpace<T>>::contains_key(&sender), Error::<T>::NotPurchasedSpace);
+			ensure!(<UserHoldSpaceDetails<T>>::contains_key(&sender), Error::<T>::NotPurchasedSpace);
 			Self::update_user_space(sender.clone(), 1, filesize * (backups as u128))?;
 
 			let mut invoice: Vec<u8> = Vec::new();
@@ -270,6 +272,7 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 
 			ensure!((<File<T>>::contains_key(fileid.clone())), Error::<T>::FileNonExistent);
+			ensure!(Self::check_lease_expired_forfileid(fileid.clone()), Error::<T>::LeaseExpired);
 			let group_id = <File<T>>::get(fileid.clone()).unwrap();
 
 			let mut invoice: Vec<u8> = Vec::new();
@@ -314,21 +317,28 @@ pub mod pallet {
 		//************************************************************Storage space lease***************************************************************
 		//**********************************************************************************************************************************************
 		#[pallet::weight(2_000_000)]
-		pub fn buy_space(origin: OriginFor<T>, count: u32) -> DispatchResult {
+		pub fn buy_space(origin: OriginFor<T>, count: u128) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let acc = T::FilbakPalletId::get().into_account();
 			// const k: usize = count.clone() as usize;
 			let unit_price = Self::get_price();
 			let space = 512 * count;
-			let price = unit_price * (space as u128) / 3;
+			let price = unit_price * (space) / 3;
 
 			let money: Option<BalanceOf<T>> = price.try_into().ok();
 			<T as pallet::Config>::Currency::transfer(&sender, &acc, money.unwrap(), AllowDeath)?;
 			let now = <frame_system::Pallet<T>>::block_number();
-			
-			let mut value: [SpaceInfo::<T>; count] = [SpaceInfo::<T>{size: 512, deadline: now + 864000.into()}; count];
+			let deadline: BlockNumberOf<T> = (864000 as u32).into();
+			let mut list: Vec<SpaceInfo<T>> = vec![SpaceInfo::<T>{size: 512, deadline: now + deadline}; count as usize];
 
-			Self::deposit_event(Event::<T>::BuySpace(sender.clone(), space as u128, money.unwrap()));
+			<UserSpaceList<T>>::mutate(&sender, |s|{
+				s.append(&mut list);
+			});
+			Self::user_buy_space_update(sender.clone(), space)?;
+
+			
+
+			Self::deposit_event(Event::<T>::BuySpace(sender.clone(), space, money.unwrap()));
 			Ok(())
 		}
 		
@@ -340,10 +350,13 @@ impl<T: Config> Pallet<T> {
 	fn update_user_space(acc: AccountOf<T>, operation: u8, size: u128) -> DispatchResult{
 		match operation {
 			1 => {
-				<UserHoldStorageSpace<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+				<UserHoldSpaceDetails<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
 					let s = s_opt.as_mut().unwrap();
 					if size > s.remaining_space {
 						Err(Error::<T>::InsufficientStorage)?;
+					}
+					if false == Self::check_lease_expired(acc.clone()) {
+						Err(Error::<T>::LeaseExpired)?;
 					}
 					s.remaining_space = s.remaining_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
 					s.used_space = s.used_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
@@ -351,46 +364,35 @@ impl<T: Config> Pallet<T> {
 				})?
 			}
 			2 => {
-				<UserHoldStorageSpace<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+				<UserHoldSpaceDetails<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
 					let s = s_opt.as_mut().unwrap();
-					if size > s.remaining_space {
-						Err(Error::<T>::InsufficientStorage)?
-					}
 					s.remaining_space = s.remaining_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
 					s.used_space = s.used_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
 					Ok(())
 				})?
 			}
-			_ => Err(Error::<T>::WrongOperation)?
-			
+			_ => Err(Error::<T>::WrongOperation)?			
 		}
 		Ok(())
 	}
 
-	//operation: 1 first buy, 2 continue to buy
-	fn user_buy_space_update(acc: AccountOf<T>, operation: u8, size: u128) -> DispatchResult{
+	fn user_buy_space_update(acc: AccountOf<T>, size: u128) -> DispatchResult{
 		
-		match operation {
-			1 => {
-				let value = StorageSpace {
-					purchased_space: size,
-					used_space: 0,
-					remaining_space: size,
-				};
-				<UserHoldStorageSpace<T>>::insert(&acc, value);
-			}
-			2 => {
-				<UserHoldStorageSpace<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
-					let s = s_opt.as_mut().unwrap();
-					s.purchased_space = s.purchased_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
-					s.remaining_space = s.remaining_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
-					Ok(())
-				})?;	
-			}
-			_ => Err(Error::<T>::WrongOperation)?
-			
+		if <UserHoldSpaceDetails<T>>::contains_key(&acc) {
+			<UserHoldSpaceDetails<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+				let s = s_opt.as_mut().unwrap();
+				s.purchased_space = s.purchased_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+				s.remaining_space = s.remaining_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+				Ok(())
+			})?;
+		} else {
+			let value = StorageSpace {
+				purchased_space: size,
+				used_space: 0,
+				remaining_space: size,
+			};
+			<UserHoldSpaceDetails<T>>::insert(&acc, value);
 		}
-
 		Ok(())
 	}
 
@@ -404,6 +406,20 @@ impl<T: Config> Pallet<T> {
 		let space = pallet_sminer::Pallet::<T>::get_space();
 		let price = space / 1024 * 1000;
 		price
+	}
+
+	fn check_lease_expired_forfileid(fileid: Vec<u8>) -> bool {
+		let file = <File<T>>::get(&fileid).unwrap();
+		Self::check_lease_expired(file.owner)
+	}
+	//ture is Not expired;  false is expired
+	fn check_lease_expired(acc: AccountOf<T>) -> bool {
+		let details = <UserHoldSpaceDetails<T>>::get(&acc).unwrap();
+		if details.used_space < details.purchased_space {
+			true
+		} else {
+			false
+		}
 	}
 }
 
