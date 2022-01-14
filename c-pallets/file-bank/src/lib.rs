@@ -34,7 +34,7 @@ use sp_std::convert::TryInto;
 use scale_info::TypeInfo;
 use sp_runtime::{
 	RuntimeDebug,
-	traits::{AccountIdConversion}
+	traits::{AccountIdConversion,SaturatedConversion}
 };
 use sp_std::prelude::*;
 use codec::{Encode, Decode};
@@ -116,6 +116,10 @@ pub mod pallet {
 		InsertFileSlice(Vec<u8>),		
 
 		BuySpace(AccountOf<T>, u128, BalanceOf<T>),
+
+		LeaseExpired(AccountOf<T>, u128),
+
+		LeaseExpireIn24Hours(AccountOf<T>, u128),
 	}
 	#[pallet::error]
 	pub enum Error<T> {
@@ -164,6 +168,42 @@ pub mod pallet {
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberOf<T>> for Pallet<T> {
+		//Used to calculate whether it is implied to submit spatiotemporal proof
+		//Cycle every 7.2 hours
+		//When there is an uncommitted space-time certificate, the corresponding miner will be punished 
+		//and the corresponding data segment will be removed
+		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
+			let number: u128 = now.saturated_into();
+			let block_oneday: BlockNumberOf<T> = (28800 as u32).into();
+			let mut count: u8 = 0;
+			if number % 28800 == 0 {
+				for (key, value) in <UserSpaceList<T>>::iter() {
+					let mut k = 0;
+					let mut list = <UserSpaceList<T>>::get(&key);
+					for s in value.iter() {
+						if now >= s.deadline {
+							list.remove(k);
+							<UserHoldSpaceDetails<T>>::mutate(&key, |s_opt|{
+								let v = s_opt.as_mut().unwrap();
+								v.purchased_space = v.purchased_space - 512;
+							});
+							Self::deposit_event(Event::<T>::LeaseExpired(key.clone(), 512));
+							k-= 1;
+						} else if s.deadline < now && now >= s.deadline - block_oneday {
+							count += 1;
+						} 
+						k+= 1;
+					}
+					<UserSpaceList<T>>::insert(&key, list);
+					Self::deposit_event(Event::<T>::LeaseExpired(key.clone(), 512 * (count as u128)));
+				}
+			}
+			0
+		}
+	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
