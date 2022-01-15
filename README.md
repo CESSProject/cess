@@ -112,7 +112,7 @@ cargo test --release
 ## Run Tests with Benchmarks
 
 
-CESS has Rust unit tests with benckmarks also.
+CESS has Rust unit tests with benckmarks also. Currently, testing this feature in docker is not supported. Please execute belows after clone this repo.
 
 ```
 # Run unit tests with benchmarks
