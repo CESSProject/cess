@@ -2,15 +2,14 @@
 
 use super::*;
 use frame_benchmarking::{
-	account, benchmarks_instance_pallet, impl_benchmark_test_suite, whitelisted_caller, benchmarks,
+	whitelisted_caller, benchmarks,
 };
 use frame_system::RawOrigin as SystemOrigin;
-use sp_runtime::traits::Bounded;
-type BalanceOf<T> = <<T as pallet_sminer::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+
 
 fn new_miner<T: Config>() {
 	let caller: T::AccountId = whitelisted_caller();
-    pallet_sminer::Pallet::<T>::new_miner(caller);   
+    pallet_sminer::Pallet::<T>::new_miner(caller).expect("err");   
 }
 
 fn intent_one<T: Config>() {
@@ -42,7 +41,7 @@ fn intent_one<T: Config>() {
     );
 }
 
-fn add_UnVerA<T: Config>() {
+fn add_unver_a<T: Config>() {
     let caller: T::AccountId = whitelisted_caller();
     let peer_id = 1;
     let segment_id = 1;
@@ -68,7 +67,7 @@ fn add_UnVerA<T: Config>() {
     UnVerifiedA::<T>::mutate(|a| (*a).push(x));
 }
 
-fn add_UnVerB<T: Config>() {
+fn add_unver_b<T: Config>() {
     let caller: T::AccountId = whitelisted_caller();
     let peer_id = 1;
     let segment_id = 1;
@@ -199,29 +198,29 @@ fn intent_po_st<T: Config>(){
     );
 }
 
-fn add_BlockB<T: Config>() {
+fn add_block_b<T: Config>() {
     let caller: T::AccountId = whitelisted_caller();
     <BlockNumberB<T>>::insert(
         &caller,
         PeerFileNum {
-            block_num: Some(0u32.into()),
+            block_num: 0u128.into(),
             total_num: 1,
         }
     );
 }
 
-fn add_BlockD<T: Config>() {
+fn add_block_d<T: Config>() {
     let caller: T::AccountId = whitelisted_caller();
     <BlockNumberD<T>>::insert(
         &caller,
         PeerFileNum {
-            block_num: Some(0u32.into()),
+            block_num: 0u128.into(),
             total_num: 1,
         }
     );
 }
 
-fn add_UnVerC<T: Config>() {
+fn add_unver_c<T: Config>() {
     let caller: T::AccountId = whitelisted_caller();
     let peer_id = 1;
     let segment_id = 1;
@@ -231,7 +230,7 @@ fn add_UnVerC<T: Config>() {
     uncid.push("testuncid1".as_bytes().to_vec());
     let mut proof: Vec<Vec<u8>> = Vec::new();
     proof.push("testproof0x981724981274".as_bytes().to_vec());
-    let mut sealed_cid: Vec<Vec<u8>> = Vec::new();
+    let sealed_cid: Vec<Vec<u8>> = Vec::new();
     proof.push("0x1241252352356".as_bytes().to_vec());
     VerPoolC::<T>::mutate(&caller, segment_id, |s_opt| {
         let s = s_opt.as_mut().unwrap();
@@ -253,7 +252,7 @@ fn add_UnVerC<T: Config>() {
     UnVerifiedC::<T>::mutate(|a| (*a).push(x));
 }
 
-fn add_UnVerD<T: Config>() {
+fn add_unver_d<T: Config>() {
     let caller: T::AccountId = whitelisted_caller();
     let peer_id = 1;
     let segment_id = 1;
@@ -261,7 +260,7 @@ fn add_UnVerD<T: Config>() {
     let random = 222;
     let mut proof: Vec<Vec<u8>> = Vec::new();
     proof.push("testproof0x981724981274".as_bytes().to_vec());
-    let mut sealed_cid: Vec<Vec<u8>> = Vec::new();
+    let sealed_cid: Vec<Vec<u8>> = Vec::new();
     proof.push("0x1241252352356".as_bytes().to_vec());
     <PrePoolD<T>>::insert(
         &caller,
@@ -334,7 +333,7 @@ benchmarks! {
     verify_in_vpa {
         new_miner::<T>();
         intent_one::<T>();
-        add_UnVerA::<T>();
+        add_unver_a::<T>();
         let caller: T::AccountId = whitelisted_caller();
         let peer_id: u64 = 1;
         let segment_id: u64 = 1;
@@ -361,8 +360,8 @@ benchmarks! {
     verify_in_vpb {
         new_miner::<T>();
         intent_po_st::<T>();
-        add_UnVerB::<T>();
-        add_BlockB::<T>();
+        add_unver_b::<T>();
+        add_block_b::<T>();
         let caller: T::AccountId = whitelisted_caller();
         let peer_id: u64 = 1;
         let segment_id: u64 = 1;
@@ -380,7 +379,7 @@ benchmarks! {
         let segment_id: u64 = 1;
         let mut proof: Vec<Vec<u8>> = Vec::new();
         proof.push("testproof0x981724981274".as_bytes().to_vec());
-        let mut sealed_cid: Vec<Vec<u8>> = Vec::new();
+        let sealed_cid: Vec<Vec<u8>> = Vec::new();
         proof.push("0x1241252352356".as_bytes().to_vec());
     }: _(SystemOrigin::Signed(caller.clone()), peer_id, segment_id, proof, sealed_cid)
     verify {
@@ -390,7 +389,7 @@ benchmarks! {
     verify_in_vpc {
         new_miner::<T>();
         intent_two::<T>();
-        add_UnVerC::<T>();
+        add_unver_c::<T>();
         let caller: T::AccountId = whitelisted_caller();
         let peer_id: u64 = 1;
         let segment_id: u64 = 1;
@@ -410,7 +409,7 @@ benchmarks! {
         let segment_id: u64 = 1;
         let mut proof: Vec<Vec<u8>> = Vec::new();
         proof.push("testproof0x981724981274".as_bytes().to_vec());
-        let mut sealed_cid: Vec<Vec<u8>> = Vec::new();
+        let sealed_cid: Vec<Vec<u8>> = Vec::new();
         proof.push("0x1241252352356".as_bytes().to_vec());
     }: _(SystemOrigin::Signed(caller.clone()), peer_id, segment_id, proof, sealed_cid)
     verify {
@@ -420,8 +419,8 @@ benchmarks! {
     verify_in_vpd {
         new_miner::<T>();
         intent_po_st::<T>();
-        add_UnVerD::<T>();
-        add_BlockD::<T>();
+        add_unver_d::<T>();
+        add_block_d::<T>();
         let caller: T::AccountId = whitelisted_caller();
         let peer_id: u64 = 1;
         let segment_id: u64 = 1;
@@ -430,4 +429,18 @@ benchmarks! {
     verify {
 
     }
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::mock::{new_test_ext, Test};
+	use frame_support::assert_ok;
+
+	#[test]
+	fn test_benchmarks() {
+	new_test_ext().execute_with(|| {
+		assert_ok!(Pallet::<Test>::test_benchmark_intent_submit());
+	});
+	}
 }

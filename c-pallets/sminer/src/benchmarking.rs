@@ -2,7 +2,7 @@
 
 use super::*;
 use frame_benchmarking::{
-	account, benchmarks_instance_pallet, impl_benchmark_test_suite, whitelisted_caller, benchmarks,
+	whitelisted_caller, benchmarks,
 };
 use frame_system::RawOrigin as SystemOrigin;
 use sp_runtime::traits::Bounded;
@@ -12,7 +12,7 @@ use crate::Pallet as Sminer;
 
 fn new_miner<T: Config>() {
 	let caller: T::AccountId = whitelisted_caller();
-    Pallet::<T>::new_miner(caller);  
+    Pallet::<T>::new_miner(caller).expect("err");  
 }
 
 fn add_owner<T: Config>() {
@@ -56,7 +56,7 @@ fn add_rewardclaimmap<T: Config>() {
 }
 
 fn init<T: Config>() {
-    let caller: T::AccountId = whitelisted_caller();
+    let _caller: T::AccountId = whitelisted_caller();
     let value = BalanceOf::<T>::from(0 as u32);
     let mst = MinerStatInfo::<T> {
         total_miners: 0u64,
@@ -95,7 +95,7 @@ benchmarks! {
         let caller: T::AccountId = whitelisted_caller();
         T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
         let money: BalanceOf<T> = BalanceOf::<T>::from(10000000u32);
-        Sminer::<T>::faucet_top_up(SystemOrigin::Signed(caller.clone()).into(), caller.clone(), money)?;
+        Sminer::<T>::faucet_top_up(SystemOrigin::Signed(caller.clone()).into(), money)?;
         MinerItems::<T>::mutate(&caller, |s_opt|{
             let s = s_opt.as_mut().unwrap();
             s.earnings = BalanceOf::<T>::from(50u32);
@@ -230,7 +230,7 @@ benchmarks! {
         let caller: T::AccountId = whitelisted_caller();    
         T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
         let money: BalanceOf<T> = 100000000000000000u128.try_into().map_err(|_e| "Error")?;
-        Sminer::<T>::faucet_top_up(SystemOrigin::Signed(caller.clone()).into(), caller.clone(), money)?;
+        Sminer::<T>::faucet_top_up(SystemOrigin::Signed(caller.clone()).into(), money)?;
     }: _(SystemOrigin::Signed(caller.clone()))
     verify {
 
@@ -243,7 +243,7 @@ benchmarks! {
         let caller: T::AccountId = whitelisted_caller();
         T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
         let money: BalanceOf<T> = 100000000000000000u128.try_into().map_err(|_e| "Error")?;
-        Sminer::<T>::faucet_top_up(SystemOrigin::Signed(caller.clone()).into(), caller.clone(), money)?;
+        Sminer::<T>::faucet_top_up(SystemOrigin::Signed(caller.clone()).into(), money)?;
         let when: T::BlockNumber = 80u32.into();
         let cycle: T::BlockNumber = 10u32.into();
         let degree: u32 = 10;
@@ -279,7 +279,7 @@ benchmarks! {
         let caller: T::AccountId = whitelisted_caller();
         T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
         let money: BalanceOf<T> = 100000000000000000u128.try_into().map_err(|_e| "Error")?;
-        Sminer::<T>::faucet_top_up(SystemOrigin::Signed(caller.clone()).into(), caller.clone(), money)?;
+        Sminer::<T>::faucet_top_up(SystemOrigin::Signed(caller.clone()).into(), money)?;
     }: _(SystemOrigin::Signed(caller.clone()), caller.clone())
     verify {
 
@@ -289,7 +289,7 @@ benchmarks! {
         let caller: T::AccountId = whitelisted_caller();
         T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
         let money: BalanceOf<T> = 100000000000000000u128.try_into().map_err(|_e| "Error")?;
-    }: _(SystemOrigin::Signed(caller.clone()), caller.clone(), money)
+    }: _(SystemOrigin::Signed(caller.clone()), money)
     verify {
 
     }
@@ -298,11 +298,28 @@ benchmarks! {
         let caller: T::AccountId = whitelisted_caller();
         T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
         let money: BalanceOf<T> = 100000000000000000u128.try_into().map_err(|_e| "Error")?;
-        Sminer::<T>::faucet_top_up(SystemOrigin::Signed(caller.clone()).into(), caller.clone(), money)?;
+        Sminer::<T>::faucet_top_up(SystemOrigin::Signed(caller.clone()).into(), money)?;
     }: _(SystemOrigin::Signed(caller.clone()), caller.clone())
     verify {
 
     }
 
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::mock::{new_test_ext, Test};
+	use frame_support::assert_ok;
+
+	#[test]
+	fn test_benchmarks() {
+	new_test_ext().execute_with(|| {
+		assert_ok!(Pallet::<Test>::test_benchmark_faucet_top_up());
+        assert_ok!(Pallet::<Test>::test_benchmark_faucet());
+        assert_ok!(Pallet::<Test>::test_benchmark_regnstk());
+        assert_ok!(Pallet::<Test>::test_benchmark_redeem());
+	});
+	}
 }
 
