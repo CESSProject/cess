@@ -11,7 +11,7 @@
 
 ### Install Guide
 
-Follow [Setup](https://github.com/CESSProject/cess/tree/v0.1.1/docs/setup.md) to guide you install the CESS development.
+Follow [Setup](https://github.com/CESSProject/cess/tree/main/docs/setup.md) to guide you install the CESS development.
 
 ### Build Node
 
@@ -91,13 +91,13 @@ Now you can launch node again:
 Install [Docker](https://docs.docker.com/get-docker/) first, and run the following command to start a node on the cess-testnet:
 
 ```
-docker pull cesstech/cess-testnet:v0.1.1
-docker run --network host cesstech/cess-testnet:v0.1.1 ./cess/target/release/cess-node --base-path /tmp/cess --chain cess-testnet
+docker pull cesstech/cess-testnet:v0.1.3
+docker run --network host cesstech/cess-testnet:v0.1.3 ./cess/target/release/cess-node --base-path /tmp/cess --chain cess-testnet
 ```
 
 ## Storage Mining
 
-CESS supports to obtain incentives by contributing idle storage with [storage mining tool](https://github.com/CESSProject/storage-mining-tool), and click [here](https://github.com/CESSProject/cess/tree/v0.1.1/docs/designs-of-storage-mining.md) to learn more.
+CESS supports to obtain incentives by contributing idle storage with [storage mining tool](https://github.com/CESSProject/storage-mining-tool), and click [here](https://github.com/CESSProject/cess/tree/main/docs/designs-of-storage-mining.md) to learn more.
 
 ## Run Tests
 
@@ -109,14 +109,26 @@ CESS has Rust unit tests, and can be run locally.
 cargo test --release
 ```
 
+## Run Tests with Benchmarks
+
+
+CESS has Rust unit tests with benckmarks also.
+
+```
+# Run unit tests with benchmarks
+cargo test -p pallet-sminer --features runtime-benchmarks
+cargo test -p pallet-segment-book --features runtime-benchmarks
+cargo test -p pallet-file-bank --features runtime-benchmarks
+```
+
 ## Module Documentation
 
 
-* [Files Bank](https://github.com/CESSProject/cess/tree/v0.1.1/c-pallets/file-bank)
-* [Segment Book](https://github.com/CESSProject/cess/tree/v0.1.1/c-pallets/segment-book)
-* [Sminer](https://github.com/CESSProject/cess/tree/v0.1.1/c-pallets/sminer)
+* [Files Bank](https://github.com/CESSProject/cess/tree/main/c-pallets/file-bank)
+* [Segment Book](https://github.com/CESSProject/cess/tree/main/c-pallets/segment-book)
+* [Sminer](https://github.com/CESSProject/cess/tree/main/c-pallets/sminer)
 
 ## Contribute
 
 
-Please follow the contributions guidelines as outlined in [`docs/CONTRIBUTING.adoc`](https://github.com/CESSProject/cess/tree/v0.1.1/docs/CONTRIBUTING.adoc). In all communications and contributions, this project follows the [Contributor Covenant Code of Conduct](https://github.com/paritytech/substrate/blob/master/docs/CODE_OF_CONDUCT.md).
+Please follow the contributions guidelines as outlined in [`docs/CONTRIBUTING.adoc`](https://github.com/CESSProject/cess/tree/main/docs/CONTRIBUTING.adoc). In all communications and contributions, this project follows the [Contributor Covenant Code of Conduct](https://github.com/paritytech/substrate/blob/master/docs/CODE_OF_CONDUCT.md).
