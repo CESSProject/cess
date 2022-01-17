@@ -112,13 +112,13 @@ pub mod pallet {
 		BuyFile{acc: AccountOf<T>, money: BalanceOf<T>, fileid: Vec<u8>},
 		//file purchased before.
 		Purchased{acc: AccountOf<T>, fileid: Vec<u8>},
-
+		//Storage information of scheduling storage file slice
 		InsertFileSlice{fileid: Vec<u8>},		
-
+		//User purchase space
 		BuySpace{acc: AccountOf<T>, size: u128, fee: BalanceOf<T>},
-
+		//Expired storage space
 		LeaseExpired{acc: AccountOf<T>, size: u128},
-
+		//Storage space expiring within 24 hours
 		LeaseExpireIn24Hours{acc: AccountOf<T>, size: u128},
 	}
 	#[pallet::error]
@@ -127,13 +127,13 @@ pub mod pallet {
 		FileNonExistent,
 		//overflow.
 		Overflow,
-
+		//When the user uploads a file, the purchased space is not enough
 		InsufficientStorage,
-
+		//Internal developer usage error
 		WrongOperation,
-
+		//haven't bought space at all
 		NotPurchasedSpace,
-
+		//Expired storage space
 		LeaseExpired,
 	}
 	#[pallet::storage]
