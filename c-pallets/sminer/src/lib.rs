@@ -1533,8 +1533,10 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub fn get_space() -> u128 {
-		let value = <StorageInfoValue<T>>::get();
-		return value.available_storage
+		let purchased_space = <PurchasedSpace<T>>::get();
+		let total_space = <AvailableSpace<T>>::get();
+		let value = total_space - purchased_space;
+		return value
 	}
 
 	pub fn add_purchased_space(size: u128) -> DispatchResult{

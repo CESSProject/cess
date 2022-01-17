@@ -135,6 +135,10 @@ pub mod pallet {
 		NotPurchasedSpace,
 		//Expired storage space
 		LeaseExpired,
+		//Exceeded the maximum amount expected by the user
+		ExceedExpectations,
+
+		ConversionError,
 	}
 	#[pallet::storage]
 	#[pallet::getter(fn file)]
@@ -358,14 +362,16 @@ pub mod pallet {
 		//************************************************************Storage space lease***************************************************************
 		//**********************************************************************************************************************************************
 		#[pallet::weight(2_000_000)]
-		pub fn buy_space(origin: OriginFor<T>, count: u128) -> DispatchResult {
+		pub fn buy_space(origin: OriginFor<T>, count: u128, max_price: u128) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let acc = T::FilbakPalletId::get().into_account();
-			// const k: usize = count.clone() as usize;
 			let unit_price = Self::get_price();
+			if unit_price > max_price * 1000000000000 && 0 != max_price {
+				Err(Error::<T>::ExceedExpectations)?;
+			}
 			let space = 512 * count;
+			//Because there are three backups, it is charged at one-third of the price
 			let price = unit_price * (space) / 3;
-
 			//Increase the space purchased by users 
 			//and judge whether there is still space available for purchase
 			pallet_sminer::Pallet::<T>::add_purchased_space(space)?;
@@ -447,7 +453,7 @@ impl<T: Config> Pallet<T> {
 	//Available space divided by 1024 is the unit price
 	fn get_price() -> u128 {
 		let space = pallet_sminer::Pallet::<T>::get_space();
-		let price = space / 1024 * 1000;
+		let price: u128 = space * 1000000000000 / 1024 * 1000;
 		price
 	}
 
