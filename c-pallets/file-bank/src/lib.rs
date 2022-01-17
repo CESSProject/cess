@@ -105,21 +105,21 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		//file uploaded.
-		FileUpload(AccountOf<T>),
+		FileUpload{acc: AccountOf<T>},
 		//file updated.
-		FileUpdate(AccountOf<T>),
+		FileUpdate{acc: AccountOf<T>},
 		//file bought.
-		BuyFile(AccountOf<T>, BalanceOf<T>, Vec<u8>),
+		BuyFile{acc: AccountOf<T>, money: BalanceOf<T>, fileid: Vec<u8>},
 		//file purchased before.
-		Purchased(AccountOf<T>, Vec<u8>),
+		Purchased{acc: AccountOf<T>, fileid: Vec<u8>},
 
-		InsertFileSlice(Vec<u8>),		
+		InsertFileSlice{fileid: Vec<u8>},		
 
-		BuySpace(AccountOf<T>, u128, BalanceOf<T>),
+		BuySpace{acc: AccountOf<T>, size: u128, fee: BalanceOf<T>},
 
-		LeaseExpired(AccountOf<T>, u128),
+		LeaseExpired{acc: AccountOf<T>, size: u128},
 
-		LeaseExpireIn24Hours(AccountOf<T>, u128),
+		LeaseExpireIn24Hours{acc: AccountOf<T>, size: u128},
 	}
 	#[pallet::error]
 	pub enum Error<T> {
@@ -190,7 +190,8 @@ pub mod pallet {
 								let v = s_opt.as_mut().unwrap();
 								v.purchased_space = v.purchased_space - 512;
 							});
-							Self::deposit_event(Event::<T>::LeaseExpired(key.clone(), 512));
+							let _ = pallet_sminer::Pallet::<T>::sub_purchased_space(512);
+							Self::deposit_event(Event::<T>::LeaseExpired{acc: key.clone(), size: 512});
 							k-= 1;
 						} else if s.deadline < now && now >= s.deadline - block_oneday {
 							count += 1;
@@ -198,7 +199,7 @@ pub mod pallet {
 						k+= 1;
 					}
 					<UserSpaceList<T>>::insert(&key, list);
-					Self::deposit_event(Event::<T>::LeaseExpired(key.clone(), 512 * (count as u128)));
+					Self::deposit_event(Event::<T>::LeaseExpireIn24Hours{acc: key.clone(), size: 512 * (count as u128)});
 				}
 			}
 			0
@@ -273,7 +274,7 @@ pub mod pallet {
 				Ok(())
 			})?;
 			Self::add_user_hold_file(sender.clone(), fileid.clone());
-			Self::deposit_event(Event::<T>::FileUpload(sender.clone()));
+			Self::deposit_event(Event::<T>::FileUpload{acc: sender.clone()});
 			Ok(())
 		}
 
@@ -324,7 +325,7 @@ pub mod pallet {
 			}
 				
 			if <Invoice<T>>::contains_key(fileid.clone()) {
-				Self::deposit_event(Event::<T>::Purchased(sender.clone(), fileid.clone()));
+				Self::deposit_event(Event::<T>::Purchased{acc: sender.clone(), fileid: fileid.clone()});
 			} else {
 				let zh = TryInto::<u128>::try_into(group_id.downloadfee).ok().unwrap();
 				//let umoney = zh * 8 / 10;
@@ -338,7 +339,7 @@ pub mod pallet {
 					invoice,
 					0
 				);
-				Self::deposit_event(Event::<T>::BuyFile(sender.clone(), group_id.downloadfee.clone(), fileid.clone()));
+				Self::deposit_event(Event::<T>::BuyFile{acc: sender.clone(), money: group_id.downloadfee.clone(), fileid: fileid.clone()});
 			}
 			
 			Ok(())
@@ -349,7 +350,7 @@ pub mod pallet {
 			let _ = ensure_signed(origin)?;
 
 			<FileSliceLocation<T>>::insert(&fileid, slice);
-			Self::deposit_event(Event::<T>::InsertFileSlice(fileid));
+			Self::deposit_event(Event::<T>::InsertFileSlice{fileid: fileid});
 			Ok(())
 		}
 
@@ -365,6 +366,10 @@ pub mod pallet {
 			let space = 512 * count;
 			let price = unit_price * (space) / 3;
 
+			//Increase the space purchased by users 
+			//and judge whether there is still space available for purchase
+			pallet_sminer::Pallet::<T>::add_purchased_space(space)?;
+
 			let money: Option<BalanceOf<T>> = price.try_into().ok();
 			<T as pallet::Config>::Currency::transfer(&sender, &acc, money.unwrap(), AllowDeath)?;
 			let now = <frame_system::Pallet<T>>::block_number();
@@ -376,9 +381,7 @@ pub mod pallet {
 			});
 			Self::user_buy_space_update(sender.clone(), space)?;
 
-			
-
-			Self::deposit_event(Event::<T>::BuySpace(sender.clone(), space, money.unwrap()));
+			Self::deposit_event(Event::<T>::BuySpace{acc: sender.clone(), size: space, fee: money.unwrap()});
 			Ok(())
 		}
 		

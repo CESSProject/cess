@@ -239,6 +239,8 @@ pub mod pallet {
 		ConversionError,
 		/// You can't divide by zero
 		DivideByZero,
+
+		InsufficientAvailableSpace,
 	}
 
 	/// The hashmap for info of storage miners.
@@ -315,6 +317,14 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn miner_info)]
 	pub(super) type AllMiner<T: Config> = StorageValue<_, Vec<MinerInfo>, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn purchased_space)]
+	pub(super) type PurchasedSpace<T: Config> = StorageValue<_, u128, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn available_space)]
+	pub(super) type AvailableSpace<T: Config> = StorageValue<_, u128, ValueQuery>;
 
 	/// Store all miner table information 
 	#[pallet::storage]
@@ -1525,5 +1535,38 @@ impl<T: Config> Pallet<T> {
 	pub fn get_space() -> u128 {
 		let value = <StorageInfoValue<T>>::get();
 		return value.available_storage
+	}
+
+	pub fn add_purchased_space(size: u128) -> DispatchResult{
+		<PurchasedSpace<T>>::try_mutate(|s| -> DispatchResult {
+			let available_space = <AvailableSpace<T>>::get();
+			if *s + size > available_space {
+				Err(<Error<T>>::InsufficientAvailableSpace)?;
+			}
+			*s = s.checked_add(size).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})?;
+		Ok(())
+	}
+	pub fn sub_purchased_space(size: u128) -> DispatchResult {
+		<PurchasedSpace<T>>::try_mutate(|s| -> DispatchResult {
+			*s = s.checked_sub(size).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})?;
+		Ok(())
+	}
+	pub fn add_available_space(size: u128) -> DispatchResult {
+		<AvailableSpace<T>>::try_mutate(|s| -> DispatchResult {
+			*s = s.checked_add(size).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})?;
+		Ok(())
+	}
+	pub fn sub_available_space(size: u128) -> DispatchResult {
+		<AvailableSpace<T>>::try_mutate(|s| -> DispatchResult {
+			*s = s.checked_sub(size).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})?;
+		Ok(())
 	}
 }
