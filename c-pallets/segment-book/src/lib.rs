@@ -281,29 +281,27 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// A series of params was generated.
-		ParamSet(u64, u64, u32),
+		ParamSet{peer_id: u64, segment_id: u64, random: u32},
 		/// vpa proof submitted.
-		VPASubmitted(u64, u64),
+		VPASubmitted{peer_id: u64, segment_id: u64},
 		/// vpa proof verified.
-		VPAVerified(u64, u64),
+		VPAVerified{peer_id: u64, segment_id: u64},
 		// vpb proof submitted.
-		VPBSubmitted(u64, u64),
+		VPBSubmitted{peer_id: u64, segment_id: u64},
 		// vpb proof verified.
-		VPBVerified(u64, u64),
+		VPBVerified{peer_id: u64, segment_id: u64},
 		// vpc proof submitted.
-		VPCSubmitted(u64, u64),
+		VPCSubmitted{peer_id: u64, segment_id: u64},
 		// vpc proof verified.
-		VPCVerified(u64, u64),
+		VPCVerified{peer_id: u64, segment_id: u64},
 		// vpd proof submitted.
-		VPDSubmitted(u64, u64),
+		VPDSubmitted{peer_id: u64, segment_id: u64},
 		// vpd proof verified.
-		VPDVerified(u64, u64),
+		VPDVerified{peer_id: u64, segment_id: u64},
 		//The time certificate was not submitted on time
-		PPBNoOnTimeSubmit(AccountOf<T>, u64),
+		PPBNoOnTimeSubmit{acc: AccountOf<T>, segment_id: u64},
 		//The time certificate was not submitted on time
-		PPDNoOnTimeSubmit(AccountOf<T>, u64),
-		//checked error
-		OverFlow(AccountOf<T>, u64),
+		PPDNoOnTimeSubmit{acc: AccountOf<T>, segment_id: u64},
 		//for test update runtime
 	}
 
@@ -586,7 +584,7 @@ pub mod pallet {
 								<PrePoolA<T>>::remove(&acc, key2);
 								<VerPoolB<T>>::remove(&acc, key2);
 								<PrePoolB<T>>::remove(&acc, key2);
-								Self::deposit_event(Event::<T>::PPBNoOnTimeSubmit(acc.clone(), key2));
+								Self::deposit_event(Event::<T>::PPBNoOnTimeSubmit{acc: acc.clone(), segment_id: key2});
 							}
 						}
 					
@@ -621,7 +619,7 @@ pub mod pallet {
 								<VerPoolD<T>>::remove(&acc, key2);
 								<PrePoolD<T>>::remove(&acc, key2);
 								//let _ = pallet_sminer::Pallet::<T>::fine_money(&acc);
-								Self::deposit_event(Event::<T>::PPDNoOnTimeSubmit(acc.clone(), key2));
+								Self::deposit_event(Event::<T>::PPDNoOnTimeSubmit{acc: acc.clone(), segment_id: key2});
 							}
 						}
 			}
@@ -686,7 +684,7 @@ pub mod pallet {
 							rand: random,
 						}
 					);
-					Self::deposit_event(Event::<T>::ParamSet(peer_id, segment_id, random));
+					Self::deposit_event(Event::<T>::ParamSet{peer_id: peer_id, segment_id: segment_id, random: random});
 				}
 				2u8 => {
 					let acc = pallet_sminer::Pallet::<T>::get_acc(peerid);
@@ -809,7 +807,7 @@ pub mod pallet {
 					ensure!(false, Error::<T>::SubmitTypeError);
 				}
 			}
-			Self::deposit_event(Event::<T>::ParamSet(peer_id, segment_id, random));
+			Self::deposit_event(Event::<T>::ParamSet{peer_id: peer_id, segment_id: segment_id, random: random});
 			Ok(())
 		}
 
@@ -841,7 +839,7 @@ pub mod pallet {
 				};
 				UnVerifiedA::<T>::mutate(|a| (*a).push(x));
 			});
-			Self::deposit_event(Event::<T>::VPASubmitted(peer_id, segment_id));
+			Self::deposit_event(Event::<T>::VPASubmitted{peer_id: peer_id, segment_id: segment_id});
 			Ok(())
 		}
 
@@ -937,7 +935,7 @@ pub mod pallet {
 
 			<VerPoolA<T>>::remove(&sender, segment_id);
 
-			Self::deposit_event(Event::<T>::VPAVerified(peer_id, segment_id));
+			Self::deposit_event(Event::<T>::VPAVerified{peer_id: peer_id, segment_id: segment_id});
 			Ok(())
 		}
 
@@ -970,7 +968,7 @@ pub mod pallet {
 				UnVerifiedB::<T>::mutate(|a| (*a).push(x));
 			});
 
-			Self::deposit_event(Event::<T>::VPBSubmitted(peer_id, segment_id));	
+			Self::deposit_event(Event::<T>::VPBSubmitted{peer_id: peer_id, segment_id: segment_id});	
 			Ok(())
 		}
 
@@ -1014,7 +1012,7 @@ pub mod pallet {
 			}
 			<VerPoolB<T>>::remove(&sender, segment_id);
 
-			Self::deposit_event(Event::<T>::VPBVerified(peer_id, segment_id));
+			Self::deposit_event(Event::<T>::VPBVerified{peer_id: peer_id, segment_id: segment_id});
 			Ok(())
 		}
 
@@ -1070,7 +1068,7 @@ pub mod pallet {
 			}
 			
 
-			Self::deposit_event(Event::<T>::VPCSubmitted(peer_id, segment_id));	
+			Self::deposit_event(Event::<T>::VPCSubmitted{peer_id: peer_id, segment_id: segment_id});	
 			Ok(())
 		}
 
@@ -1198,7 +1196,7 @@ pub mod pallet {
 				});
 			}
 
-			Self::deposit_event(Event::<T>::VPCVerified(peer_id, segment_id));
+			Self::deposit_event(Event::<T>::VPCVerified{peer_id: peer_id, segment_id: segment_id});
 		
 			Ok(())
 		
@@ -1234,7 +1232,7 @@ pub mod pallet {
 				UnVerifiedD::<T>::mutate(|a| (*a).push(x));
 			});
 
-			Self::deposit_event(Event::<T>::VPDSubmitted(peer_id, segment_id));	
+			Self::deposit_event(Event::<T>::VPDSubmitted{peer_id: peer_id, segment_id: segment_id});	
 			Ok(())
 		}
 
@@ -1277,7 +1275,7 @@ pub mod pallet {
 			}
 			<VerPoolD<T>>::remove(&sender, segment_id);
 
-			Self::deposit_event(Event::<T>::VPDVerified(peer_id, segment_id));
+			Self::deposit_event(Event::<T>::VPDVerified{peer_id: peer_id, segment_id: segment_id});
 			Ok(())
 		}
 	}
