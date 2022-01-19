@@ -1108,6 +1108,18 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::DrawFaucetMoney());
 			Ok(())
 		}
+
+		#[pallet::weight(2_000_000)]
+		pub fn init_space(origin: OriginFor<T>) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+			<AvailableSpace<T>>::mutate(|s| {
+				*s = 0;
+			});
+			<PurchasedSpace<T>>::mutate(|s| {
+				*s = 0;
+			});
+			Ok(())
+		}	
 		/// Test method for increasing computational power.
 		///
 		/// The dispatch origin of this call must be _root_.

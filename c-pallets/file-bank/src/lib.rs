@@ -195,7 +195,7 @@ pub mod pallet {
 							list.remove(k);
 							<UserHoldSpaceDetails<T>>::mutate(&key, |s_opt|{
 								let v = s_opt.as_mut().unwrap();
-								v.purchased_space = v.purchased_space - 512;
+								v.purchased_space = v.purchased_space - 512 * 1024;
 							});
 							let _ = pallet_sminer::Pallet::<T>::sub_purchased_space(512);
 							Self::deposit_event(Event::<T>::LeaseExpired{acc: key.clone(), size: 512});
@@ -378,7 +378,7 @@ pub mod pallet {
 			let price = unit_price * (space) / 3;
 			//Increase the space purchased by users 
 			//and judge whether there is still space available for purchase
-			pallet_sminer::Pallet::<T>::add_purchased_space(space * 1024)?;
+			pallet_sminer::Pallet::<T>::add_purchased_space(space)?;
 
 			let money: Option<BalanceOf<T>> = price.try_into().ok();
 			<T as pallet::Config>::Currency::transfer(&sender, &acc, money.unwrap(), AllowDeath)?;
@@ -392,6 +392,23 @@ pub mod pallet {
 			Self::user_buy_space_update(sender.clone(), space * 1024)?;
 
 			Self::deposit_event(Event::<T>::BuySpace{acc: sender.clone(), size: space, fee: money.unwrap()});
+			Ok(())
+		}
+
+		#[pallet::weight(2_000_000)]
+		pub fn initi_acc(origin: OriginFor<T>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			<UserSpaceList<T>>::remove(&sender);
+			<UserHoldSpaceDetails<T>>::remove(&sender);
+			Ok(())
+		}
+
+		#[pallet::weight(2_000_000)]
+		pub fn delete_file(origin: OriginFor<T>) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+			for (key, _) in <File<T>>::iter() {
+				<File<T>>::remove(&key);
+			}
 			Ok(())
 		}
 		
