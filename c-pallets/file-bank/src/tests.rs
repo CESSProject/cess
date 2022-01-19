@@ -105,7 +105,7 @@ fn upload_works_when_insufficient_storage() {
 				fileid.clone(),
 				fit.filehash,
 				fit.backups,
-				600 * 1024,
+				171 * 1024,
 				downloadfee
 			),
 			Error::<Test>::InsufficientStorage
