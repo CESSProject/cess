@@ -85,7 +85,7 @@ fn upload_works_when_not_buy_space() {
 }
 
 #[test]
-fn upload_works_when_insufficientStorage() {
+fn upload_works_when_insufficient_storage() {
 	new_test_ext().execute_with(|| {
 		let fileid = vec![1];
 		let address = vec![1];
@@ -105,7 +105,7 @@ fn upload_works_when_insufficientStorage() {
 				fileid.clone(),
 				fit.filehash,
 				fit.backups,
-				600,
+				600 * 1024,
 				downloadfee
 			),
 			Error::<Test>::InsufficientStorage
@@ -177,6 +177,7 @@ fn buy_file_work() {
 	})
 }
 
+#[test]
 fn buy_file_when_file_none_exis() {
 	new_test_ext().execute_with(|| {
 		let fileid = vec![1];
@@ -184,25 +185,7 @@ fn buy_file_when_file_none_exis() {
 		let address2 = vec![2];
 		let downloadfee = 1;
 		let fit = create();
-
-		init();
-		add_space();
-		assert_ok!(FileBank::buy_space(Origin::signed(1), 1, 0));
-		assert_eq!(File::<Test>::contains_key(&fileid), false);
-
-		assert_ok!(FileBank::upload(
-			Origin::signed(1),
-			address,
-			fit.filename,
-			fileid.clone(),
-			fit.filehash,
-			fit.backups,
-			fit.filesize,
-			downloadfee
-		));
-
-		assert_eq!(File::<Test>::contains_key(&fileid), true);
-
+		
 		assert_noop!(
 			FileBank::buyfile(Origin::signed(2), [2].to_vec(), address2),
 			Error::<Test>::FileNonExistent

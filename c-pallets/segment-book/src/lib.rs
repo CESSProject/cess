@@ -561,7 +561,7 @@ pub mod pallet {
 							if number - 14400 > blocknum2 {
 								let peerid = pallet_sminer::Pallet::<T>::get_peerid(&acc);
 								let _ = pallet_sminer::Pallet::<T>::sub_power(peerid, res.size_type);
-								let _ = pallet_sminer::Pallet::<T>::sub_available_space(res.size_type);
+								let _ = pallet_sminer::Pallet::<T>::sub_available_space(res.size_type * 1024);
 								<ConProofInfoA<T>>::mutate(&acc, |s|{
 									for i in 0..s.len() {
 										let v = s.get(i);
@@ -903,7 +903,7 @@ pub mod pallet {
 					})?;
 				}
 				let _ = pallet_sminer::Pallet::<T>::add_power(peer_id, vpa.size_type)?;
-				pallet_sminer::Pallet::<T>::add_available_space(vpa.size_type)?;
+				pallet_sminer::Pallet::<T>::add_available_space(vpa.size_type * 1024)?;
 				let size = vpa.size_type;
 				let bo = VerPoolA::<T>::get(&sender, segment_id).unwrap();
 				let sealed_cid = bo.sealed_cid.unwrap();

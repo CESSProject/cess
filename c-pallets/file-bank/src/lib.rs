@@ -123,6 +123,7 @@ pub mod pallet {
 	}
 	#[pallet::error]
 	pub enum Error<T> {
+		FileExistent,
 		//file doesn't exist.
 		FileNonExistent,
 		//overflow.
@@ -250,6 +251,7 @@ pub mod pallet {
 			// T::Currency::transfer(&sender, &acc, uploadfee, AllowDeath)?;
 
 			ensure!(<UserHoldSpaceDetails<T>>::contains_key(&sender), Error::<T>::NotPurchasedSpace);
+			ensure!(!<File<T>>::contains_key(&fileid), Error::<T>::FileExistent);
 			Self::update_user_space(sender.clone(), 1, filesize * (backups as u128))?;
 
 			let mut invoice: Vec<u8> = Vec::new();
@@ -376,7 +378,7 @@ pub mod pallet {
 			let price = unit_price * (space) / 3;
 			//Increase the space purchased by users 
 			//and judge whether there is still space available for purchase
-			pallet_sminer::Pallet::<T>::add_purchased_space(space)?;
+			pallet_sminer::Pallet::<T>::add_purchased_space(space * 1024)?;
 
 			let money: Option<BalanceOf<T>> = price.try_into().ok();
 			<T as pallet::Config>::Currency::transfer(&sender, &acc, money.unwrap(), AllowDeath)?;
@@ -387,7 +389,7 @@ pub mod pallet {
 			<UserSpaceList<T>>::mutate(&sender, |s|{
 				s.append(&mut list);
 			});
-			Self::user_buy_space_update(sender.clone(), space)?;
+			Self::user_buy_space_update(sender.clone(), space * 1024)?;
 
 			Self::deposit_event(Event::<T>::BuySpace{acc: sender.clone(), size: space, fee: money.unwrap()});
 			Ok(())
