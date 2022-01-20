@@ -342,21 +342,21 @@ pub mod pallet {
 		SegmentUnExis,
 	}
 
-	#[pallet::storage]
-	#[pallet::getter(fn param_set_a)]
-	pub(super) type ParamSetA<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, ParamInfo>;
+	// #[pallet::storage]
+	// #[pallet::getter(fn param_set_a)]
+	// pub(super) type ParamSetA<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, ParamInfo>;
 
-	#[pallet::storage]
-	#[pallet::getter(fn param_set_b)]
-	pub(super) type ParamSetB<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, ParamInfo>;
+	// #[pallet::storage]
+	// #[pallet::getter(fn param_set_b)]
+	// pub(super) type ParamSetB<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, ParamInfo>;
 
-	#[pallet::storage]
-	#[pallet::getter(fn param_set_c)]
-	pub(super) type ParamSetC<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, ParamInfo>;
+	// #[pallet::storage]
+	// #[pallet::getter(fn param_set_c)]
+	// pub(super) type ParamSetC<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, ParamInfo>;
 
-	#[pallet::storage]
-	#[pallet::getter(fn param_set_d)]
-	pub(super) type ParamSetD<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, ParamInfo>;
+	// #[pallet::storage]
+	// #[pallet::getter(fn param_set_d)]
+	// pub(super) type ParamSetD<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, ParamInfo>;
 
 	//It is used for miners to query themselves. It needs to provide spatiotemporal proof for those data segments
 	#[pallet::storage]
@@ -676,14 +676,14 @@ pub mod pallet {
 							block_num: None,
 						}
 					);
-					<ParamSetA<T>>::insert(
-						&sender,
-						ParamInfo {
-							peer_id,
-							segment_id,
-							rand: random,
-						}
-					);
+					// <ParamSetA<T>>::insert(
+					// 	&sender,
+					// 	ParamInfo {
+					// 		peer_id,
+					// 		segment_id,
+					// 		rand: random,
+					// 	}
+					// );
 					Self::deposit_event(Event::<T>::ParamSet{peer_id: peer_id, segment_id: segment_id, random: random});
 				}
 				2u8 => {
@@ -720,7 +720,6 @@ pub mod pallet {
 							value
 						)
 					}
-					
 				}
 				_ => {
 					ensure!(false, Error::<T>::SubmitTypeError);
@@ -770,14 +769,14 @@ pub mod pallet {
 							block_num: None,
 						}
 					);
-					<ParamSetB<T>>::insert(
-						&sender,
-						ParamInfo {
-							peer_id,
-							segment_id,
-							rand: random,
-						}
-					);
+					// <ParamSetB<T>>::insert(
+					// 	&sender,
+					// 	ParamInfo {
+					// 		peer_id,
+					// 		segment_id,
+					// 		rand: random,
+					// 	}
+					// );
 				}
 				2u8 => {
 					ensure!(!<VerPoolD<T>>::contains_key(&sender, segment_id), Error::<T>::YetIntennt);
@@ -794,14 +793,14 @@ pub mod pallet {
 							block_num: None,
 						}
 					);
-					<ParamSetD<T>>::insert(
-						&sender,
-						ParamInfo {
-							peer_id,
-							segment_id,
-							rand: random,
-						}
-					);
+					// <ParamSetD<T>>::insert(
+					// 	&sender,
+					// 	ParamInfo {
+					// 		peer_id,
+					// 		segment_id,
+					// 		rand: random,
+					// 	}
+					// );
 				}
 				_ => {
 					ensure!(false, Error::<T>::SubmitTypeError);

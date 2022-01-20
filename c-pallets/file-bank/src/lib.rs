@@ -73,7 +73,8 @@ pub struct SpaceInfo<T: pallet::Config> {
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
 pub struct FileSlice {
-	peer_id: u64,
+	peer_id: Vec<Vec<u8>>,
+	fill_zero: u32,
 	slice_id: u64,
 }
 
@@ -196,6 +197,9 @@ pub mod pallet {
 							<UserHoldSpaceDetails<T>>::mutate(&key, |s_opt|{
 								let v = s_opt.as_mut().unwrap();
 								v.purchased_space = v.purchased_space - 512 * 1024;
+								if v.remaining_space > 512 * 1024 {
+									v.remaining_space = v.remaining_space - 512 * 1024;
+								}
 							});
 							let _ = pallet_sminer::Pallet::<T>::sub_purchased_space(512);
 							Self::deposit_event(Event::<T>::LeaseExpired{acc: key.clone(), size: 512});
@@ -474,7 +478,7 @@ impl<T: Config> Pallet<T> {
 	//Available space divided by 1024 is the unit price
 	fn get_price() -> u128 {
 		let space = pallet_sminer::Pallet::<T>::get_space();
-		let price: u128 = space * 1000000000000 / 1024 * 1000;
+		let price: u128 = 1024 / space * 1000000000000 * 1000;
 		price
 	}
 
@@ -485,10 +489,10 @@ impl<T: Config> Pallet<T> {
 	//ture is Not expired;  false is expired
 	fn check_lease_expired(acc: AccountOf<T>) -> bool {
 		let details = <UserHoldSpaceDetails<T>>::get(&acc).unwrap();
-		if details.used_space < details.purchased_space {
-			true
-		} else {
+		if details.used_space + details.remaining_space > details.purchased_space {
 			false
+		} else {
+			true
 		}
 	}
 }
