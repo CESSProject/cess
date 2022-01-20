@@ -2,7 +2,7 @@
 - Version：**v0.1.3**
 - Substrate version：**monthly-2021-10**
 - In the continuous development, the number of blocks is close to **30w**, and the online upgrade is **3** times
-- With testable block explorers:（http://data.cesslab.co.uk/browser/#/explorer）
+- With testable block explorers:（http://data.cesslab.co.uk/browser/#/explorer ）
 - **Passed W3F Grants Milestone 1 and Milestone 2, and Milestone 3 has also been submitted**.
 
 # Hackathon Details
