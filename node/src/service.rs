@@ -48,9 +48,9 @@ pub fn new_partial(
 				sc_rpc::SubscriptionTaskExecutor,
 			) -> Result<crate::rpc::IoHandler, sc_service::Error>,
 			(
-				sc_consensus_rrsc::BabeBlockImport<Block, FullClient, FullGrandpaBlockImport>,
+				sc_consensus_rrsc::RRSCBlockImport<Block, FullClient, FullGrandpaBlockImport>,
 				grandpa::LinkHalf<Block, FullClient, FullSelectChain>,
-				sc_consensus_rrsc::BabeLink<Block>,
+				sc_consensus_rrsc::RRSCLink<Block>,
 			),
 			grandpa::SharedVoterState,
 			Option<Telemetry>,
@@ -111,16 +111,16 @@ pub fn new_partial(
 
 	let justification_import = grandpa_block_import.clone();
 
-	let (block_import, babe_link) = sc_consensus_rrsc::block_import(
+	let (block_import, rrsc_link) = sc_consensus_rrsc::block_import(
 		sc_consensus_rrsc::Config::get_or_compute(&*client)?,
 		grandpa_block_import,
 		client.clone(),
 	)?;
 
-	let slot_duration = babe_link.config().slot_duration();
+	let slot_duration = rrsc_link.config().slot_duration();
 
 	let import_queue = sc_consensus_rrsc::import_queue(
-		babe_link.clone(),
+		rrsc_link.clone(),
 		block_import.clone(),
 		Some(Box::new(justification_import)),
 		client.clone(),
@@ -129,7 +129,7 @@ pub fn new_partial(
 			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 			let slot =
-				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+				sp_consensus_rrsc::inherents::InherentDataProvider::from_timestamp_and_duration(
 					*timestamp,
 					slot_duration,
 				);
@@ -145,10 +145,10 @@ pub fn new_partial(
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-	let import_setup = (block_import, grandpa_link, babe_link);
+	let import_setup = (block_import, grandpa_link, rrsc_link);
 
 	let (rpc_extensions_builder, rpc_setup) = {
-		let (_, grandpa_link, babe_link) = &import_setup;
+		let (_, grandpa_link, rrsc_link) = &import_setup;
 
 		let justification_stream = grandpa_link.justification_stream();
 		let shared_authority_set = grandpa_link.shared_authority_set().clone();
@@ -160,8 +160,8 @@ pub fn new_partial(
 			Some(shared_authority_set.clone()),
 		);
 
-		let babe_config = babe_link.config().clone();
-		let shared_epoch_changes = babe_link.epoch_changes().clone();
+		let rrsc_config = rrsc_link.config().clone();
+		let shared_epoch_changes = rrsc_link.epoch_changes().clone();
 
 		let client = client.clone();
 		let pool = transaction_pool.clone();
@@ -176,8 +176,8 @@ pub fn new_partial(
 				select_chain: select_chain.clone(),
 				chain_spec: chain_spec.cloned_box(),
 				deny_unsafe,
-				rrsc: crate::rpc::BabeDeps {
-					babe_config: babe_config.clone(),
+				rrsc: crate::rpc::RRSCDeps {
+					rrsc_config: rrsc_config.clone(),
 					shared_epoch_changes: shared_epoch_changes.clone(),
 					keystore: keystore.clone(),
 				},
@@ -219,8 +219,8 @@ fn remote_keystore(_url: &String) -> Result<Arc<LocalKeystore>, &'static str> {
 pub fn new_full(
 	mut config: Configuration,
 	with_startup_data: impl FnOnce(
-		&sc_consensus_rrsc::BabeBlockImport<Block, FullClient, FullGrandpaBlockImport>,
-		&sc_consensus_rrsc::BabeLink<Block>,
+		&sc_consensus_rrsc::RRSCBlockImport<Block, FullClient, FullGrandpaBlockImport>,
+		&sc_consensus_rrsc::RRSCLink<Block>,
 	),
 ) -> Result<TaskManager, ServiceError> {
 	let sc_service::PartialComponents {
@@ -283,7 +283,7 @@ pub fn new_full(
 
 	let _justification_import = grandpa_block_import.clone();
 
-	let (_block_import, _babe_link) = sc_consensus_rrsc::block_import(
+	let (_block_import, _rrsc_link) = sc_consensus_rrsc::block_import(
 		sc_consensus_rrsc::Config::get_or_compute(&*client)?,
 		grandpa_block_import,
 		client.clone(),
@@ -294,15 +294,15 @@ pub fn new_full(
 		backend.clone(),
 		Some(shared_authority_set.clone()),
 	);
-	//let import_setup = (block_import, grandpa_link, babe_link);
+	//let import_setup = (block_import, grandpa_link, rrsc_link);
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
 	let backoff_authoring_blocks: Option<()> = None;
 	let name = config.network.node_name.clone();
 	let enable_grandpa = !config.disable_grandpa;
 	let prometheus_registry = config.prometheus_registry().cloned();
-	// let babe_config = babe_link.config().clone();
-	// let shared_epoch_changes = babe_link.epoch_changes().clone();
+	// let rrsc_config = rrsc_link.config().clone();
+	// let shared_epoch_changes = rrsc_link.epoch_changes().clone();
 	// let shared_voter_state = grandpa::SharedVoterState::empty();
 	// let rpc_setup = shared_voter_state.clone();
 	// let justification_stream = grandpa_link.justification_stream();
@@ -323,8 +323,8 @@ pub fn new_full(
 	// 				select_chain: select_chain.clone(),
 	// 				chain_spec: chain_spec.cloned_box(),
 	// 				deny_unsafe,
-	// 				rrsc: crate::rpc::BabeDeps {
-	// 					babe_config: babe_config.clone(),
+	// 				rrsc: crate::rpc::RRSCDeps {
+	// 					rrsc_config: rrsc_config.clone(),
 	// 					shared_epoch_changes: shared_epoch_changes.clone(),
 	// 					keystore: keystore.clone(),
 	// 				},
@@ -356,9 +356,9 @@ pub fn new_full(
 		telemetry: telemetry.as_mut(),
 	})?;
 
-	let (block_import, grandpa_link, babe_link) = import_setup;
+	let (block_import, grandpa_link, rrsc_link) = import_setup;
 
-	(with_startup_data)(&block_import, &babe_link);
+	(with_startup_data)(&block_import, &rrsc_link);
 
 	if role.is_authority() {
 		let proposer = sc_basic_authorship::ProposerFactory::new(
@@ -373,9 +373,9 @@ pub fn new_full(
 			sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
 
 		let client_clone = client.clone();
-		let slot_duration = babe_link.config().slot_duration();
+		let slot_duration = rrsc_link.config().slot_duration();
 
-		let babe_config = sc_consensus_rrsc::BabeParams {
+		let rrsc_config = sc_consensus_rrsc::RRSCParams {
 			keystore: keystore_container.sync_keystore(),
 			client: client.clone(),
 			select_chain,
@@ -394,7 +394,7 @@ pub fn new_full(
 					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 					let slot =
-						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+						sp_consensus_rrsc::inherents::InherentDataProvider::from_timestamp_and_duration(
 							*timestamp,
 							slot_duration,
 						);
@@ -410,14 +410,14 @@ pub fn new_full(
 			},
 			force_authoring,
 			backoff_authoring_blocks,
-			babe_link,
+			rrsc_link,
 			can_author_with,
 			block_proposal_slot_portion: SlotProportion::new(0.5),
 			max_block_proposal_slot_portion: None,
 			telemetry: telemetry.as_ref().map(|x| x.handle()),
 		};
 
-		let rrsc = sc_consensus_rrsc::start_babe(babe_config)?;
+		let rrsc = sc_consensus_rrsc::start_rrsc(rrsc_config)?;
 		task_manager.spawn_essential_handle().spawn_blocking("rrsc-proposer", rrsc);
 	}
 
@@ -518,17 +518,17 @@ pub fn new_light(mut config: Configuration) -> Result<TaskManager, ServiceError>
 
 	let justification_import = grandpa_block_import.clone();
 
-	let (babe_block_import, babe_link) = sc_consensus_rrsc::block_import(
+	let (rrsc_block_import, rrsc_link) = sc_consensus_rrsc::block_import(
 		sc_consensus_rrsc::Config::get_or_compute(&*client)?,
 		grandpa_block_import,
 		client.clone(),
 	)?;
 
-	let slot_duration = babe_link.config().slot_duration();
+	let slot_duration = rrsc_link.config().slot_duration();
 
 	let import_queue = sc_consensus_rrsc::import_queue(
-		babe_link,
-		babe_block_import,
+		rrsc_link,
+		rrsc_block_import,
 		Some(Box::new(justification_import)),
 		client.clone(),
 		select_chain.clone(),
@@ -536,7 +536,7 @@ pub fn new_light(mut config: Configuration) -> Result<TaskManager, ServiceError>
 			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 			let slot =
-				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
+				sp_consensus_rrsc::inherents::InherentDataProvider::from_timestamp_and_duration(
 					*timestamp,
 					slot_duration,
 				);

@@ -17,7 +17,7 @@
 
 //! Test utilities
 
-use crate::{self as pallet_babe, Config, CurrentSlot};
+use crate::{self as pallet_rrsc, Config, CurrentSlot};
 use codec::Encode;
 use frame_election_provider_support::onchain;
 use frame_support::{
@@ -27,7 +27,7 @@ use frame_support::{
 use frame_system::InitKind;
 use pallet_session::historical as pallet_session_historical;
 use pallet_staking::EraIndex;
-use sp_consensus_babe::{AuthorityId, AuthorityPair, Slot};
+use sp_consensus_rrsc::{AuthorityId, AuthorityPair, Slot};
 use sp_consensus_vrf::schnorrkel::{VRFOutput, VRFProof};
 use sp_core::{
 	crypto::{IsWrappedBy, KeyTypeId, Pair},
@@ -59,7 +59,7 @@ frame_support::construct_runtime!(
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Historical: pallet_session_historical::{Pallet},
 		Offences: pallet_offences::{Pallet, Storage, Event},
-		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned},
+		RRSC: pallet_rrsc::{Pallet, Call, Storage, Config, ValidateUnsigned},
 		Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
@@ -109,7 +109,7 @@ where
 
 impl_opaque_keys! {
 	pub struct MockSessionKeys {
-		pub babe_authority: super::Pallet<Test>,
+		pub rrsc_authority: super::Pallet<Test>,
 	}
 }
 
@@ -117,8 +117,8 @@ impl pallet_session::Config for Test {
 	type Event = Event;
 	type ValidatorId = <Self as frame_system::Config>::AccountId;
 	type ValidatorIdOf = pallet_staking::StashOf<Self>;
-	type ShouldEndSession = Babe;
-	type NextSessionRotation = Babe;
+	type ShouldEndSession = RRSC;
+	type NextSessionRotation = RRSC;
 	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, Staking>;
 	type SessionHandler = <MockSessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = MockSessionKeys;
@@ -136,7 +136,7 @@ parameter_types! {
 }
 
 impl pallet_authorship::Config for Test {
-	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
+	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, RRSC>;
 	type UncleGenerations = UncleGenerations;
 	type FilterUncle = ();
 	type EventHandler = ();
@@ -148,7 +148,7 @@ parameter_types! {
 
 impl pallet_timestamp::Config for Test {
 	type Moment = u64;
-	type OnTimestampSet = Babe;
+	type OnTimestampSet = RRSC;
 	type MinimumPeriod = MinimumPeriod;
 	type WeightInfo = ();
 }
@@ -258,7 +258,7 @@ impl Config for Test {
 pub fn go_to_block(n: u64, s: u64) {
 	use frame_support::traits::OnFinalize;
 
-	Babe::on_finalize(System::block_number());
+	RRSC::on_finalize(System::block_number());
 	Session::on_finalize(System::block_number());
 	Staking::on_finalize(System::block_number());
 
@@ -273,14 +273,14 @@ pub fn go_to_block(n: u64, s: u64) {
 
 	System::initialize(&n, &parent_hash, &pre_digest, InitKind::Full);
 
-	Babe::on_initialize(n);
+	RRSC::on_initialize(n);
 	Session::on_initialize(n);
 	Staking::on_initialize(n);
 }
 
 /// Slots will grow accordingly to blocks
 pub fn progress_to_block(n: u64) {
-	let mut slot = u64::from(Babe::current_slot()) + 1;
+	let mut slot = u64::from(RRSC::current_slot()) + 1;
 	for i in System::block_number() + 1..=n {
 		go_to_block(i, slot);
 		slot += 1;
@@ -301,61 +301,61 @@ pub fn start_era(era_index: EraIndex) {
 }
 
 pub fn make_primary_pre_digest(
-	authority_index: sp_consensus_babe::AuthorityIndex,
-	slot: sp_consensus_babe::Slot,
+	authority_index: sp_consensus_rrsc::AuthorityIndex,
+	slot: sp_consensus_rrsc::Slot,
 	vrf_output: VRFOutput,
 	vrf_proof: VRFProof,
 ) -> Digest {
-	let digest_data = sp_consensus_babe::digests::PreDigest::Primary(
-		sp_consensus_babe::digests::PrimaryPreDigest {
+	let digest_data = sp_consensus_rrsc::digests::PreDigest::Primary(
+		sp_consensus_rrsc::digests::PrimaryPreDigest {
 			authority_index,
 			slot,
 			vrf_output,
 			vrf_proof,
 		},
 	);
-	let log = DigestItem::PreRuntime(sp_consensus_babe::BABE_ENGINE_ID, digest_data.encode());
+	let log = DigestItem::PreRuntime(sp_consensus_rrsc::RRSC_ENGINE_ID, digest_data.encode());
 	Digest { logs: vec![log] }
 }
 
 pub fn make_secondary_plain_pre_digest(
-	authority_index: sp_consensus_babe::AuthorityIndex,
-	slot: sp_consensus_babe::Slot,
+	authority_index: sp_consensus_rrsc::AuthorityIndex,
+	slot: sp_consensus_rrsc::Slot,
 ) -> Digest {
-	let digest_data = sp_consensus_babe::digests::PreDigest::SecondaryPlain(
-		sp_consensus_babe::digests::SecondaryPlainPreDigest { authority_index, slot },
+	let digest_data = sp_consensus_rrsc::digests::PreDigest::SecondaryPlain(
+		sp_consensus_rrsc::digests::SecondaryPlainPreDigest { authority_index, slot },
 	);
-	let log = DigestItem::PreRuntime(sp_consensus_babe::BABE_ENGINE_ID, digest_data.encode());
+	let log = DigestItem::PreRuntime(sp_consensus_rrsc::RRSC_ENGINE_ID, digest_data.encode());
 	Digest { logs: vec![log] }
 }
 
 pub fn make_secondary_vrf_pre_digest(
-	authority_index: sp_consensus_babe::AuthorityIndex,
-	slot: sp_consensus_babe::Slot,
+	authority_index: sp_consensus_rrsc::AuthorityIndex,
+	slot: sp_consensus_rrsc::Slot,
 	vrf_output: VRFOutput,
 	vrf_proof: VRFProof,
 ) -> Digest {
-	let digest_data = sp_consensus_babe::digests::PreDigest::SecondaryVRF(
-		sp_consensus_babe::digests::SecondaryVRFPreDigest {
+	let digest_data = sp_consensus_rrsc::digests::PreDigest::SecondaryVRF(
+		sp_consensus_rrsc::digests::SecondaryVRFPreDigest {
 			authority_index,
 			slot,
 			vrf_output,
 			vrf_proof,
 		},
 	);
-	let log = DigestItem::PreRuntime(sp_consensus_babe::BABE_ENGINE_ID, digest_data.encode());
+	let log = DigestItem::PreRuntime(sp_consensus_rrsc::RRSC_ENGINE_ID, digest_data.encode());
 	Digest { logs: vec![log] }
 }
 
 pub fn make_vrf_output(
 	slot: Slot,
-	pair: &sp_consensus_babe::AuthorityPair,
+	pair: &sp_consensus_rrsc::AuthorityPair,
 ) -> (VRFOutput, VRFProof, [u8; 32]) {
 	let pair = sp_core::sr25519::Pair::from_ref(pair).as_ref();
-	let transcript = sp_consensus_babe::make_transcript(&Babe::randomness(), slot, 0);
+	let transcript = sp_consensus_rrsc::make_transcript(&RRSC::randomness(), slot, 0);
 	let vrf_inout = pair.vrf_sign(transcript);
 	let vrf_randomness: sp_consensus_vrf::schnorrkel::Randomness =
-		vrf_inout.0.make_bytes::<[u8; 32]>(&sp_consensus_babe::BABE_VRF_INOUT_CONTEXT);
+		vrf_inout.0.make_bytes::<[u8; 32]>(&sp_consensus_rrsc::RRSC_VRF_INOUT_CONTEXT);
 	let vrf_output = VRFOutput(vrf_inout.0.to_output());
 	let vrf_proof = VRFProof(vrf_inout.1);
 
@@ -392,11 +392,11 @@ pub fn new_test_ext_raw_authorities(authorities: Vec<AuthorityId>) -> sp_io::Tes
 		.iter()
 		.enumerate()
 		.map(|(i, k)| {
-			(i as u64, i as u64, MockSessionKeys { babe_authority: AuthorityId::from(k.clone()) })
+			(i as u64, i as u64, MockSessionKeys { rrsc_authority: AuthorityId::from(k.clone()) })
 		})
 		.collect();
 
-	// NOTE: this will initialize the babe authorities
+	// NOTE: this will initialize the rrsc authorities
 	// through OneSessionHandler::on_genesis_session
 	pallet_session::GenesisConfig::<Test> { keys: session_keys }
 		.assimilate_storage(&mut t)
@@ -428,8 +428,8 @@ pub fn generate_equivocation_proof(
 	offender_authority_index: u32,
 	offender_authority_pair: &AuthorityPair,
 	slot: Slot,
-) -> sp_consensus_babe::EquivocationProof<Header> {
-	use sp_consensus_babe::digests::CompatibleDigestItem;
+) -> sp_consensus_rrsc::EquivocationProof<Header> {
+	use sp_consensus_rrsc::digests::CompatibleDigestItem;
 
 	let current_block = System::block_number();
 	let current_slot = CurrentSlot::<Test>::get();
@@ -447,7 +447,7 @@ pub fn generate_equivocation_proof(
 	// digest item
 	let seal_header = |header: &mut Header| {
 		let prehash = header.hash();
-		let seal = <DigestItem as CompatibleDigestItem>::babe_seal(
+		let seal = <DigestItem as CompatibleDigestItem>::rrsc_seal(
 			offender_authority_pair.sign(prehash.as_ref()),
 		);
 		header.digest_mut().push(seal);
@@ -463,7 +463,7 @@ pub fn generate_equivocation_proof(
 	// restore previous runtime state
 	go_to_block(current_block, *current_slot);
 
-	sp_consensus_babe::EquivocationProof {
+	sp_consensus_rrsc::EquivocationProof {
 		slot,
 		offender: offender_authority_pair.public(),
 		first_header: h1,

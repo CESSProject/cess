@@ -1,29 +1,11 @@
-// This file is part of Substrate.
-
-// Copyright (C) 2019-2021 Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-//! Verification for BABE headers.
+//! Verification for RRSC headers.
 use super::{
 	authorship::{calculate_primary_threshold, check_primary_threshold, secondary_slot_author},
-	babe_err, find_pre_digest, BlockT, Epoch, Error,
+	rrsc_err, find_pre_digest, BlockT, Epoch, Error,
 };
 use log::{debug, trace};
 use sc_consensus_slots::CheckedHeader;
-use sp_consensus_babe::{
+use sp_consensus_rrsc::{
 	digests::{
 		CompatibleDigestItem, PreDigest, PrimaryPreDigest, SecondaryPlainPreDigest,
 		SecondaryVRFPreDigest,
@@ -34,7 +16,7 @@ use sp_consensus_slots::Slot;
 use sp_core::{Pair, Public};
 use sp_runtime::traits::{DigestItemFor, Header};
 
-/// BABE verification parameters
+/// RRSC verification parameters
 pub(super) struct VerificationParams<'a, B: 'a + BlockT> {
 	/// The header being verified.
 	pub(super) header: B::Header,
@@ -55,7 +37,7 @@ pub(super) struct VerificationParams<'a, B: 'a + BlockT> {
 /// The seal must be the last digest.  Otherwise, the whole header is considered
 /// unsigned.  This is required for security and must not be changed.
 ///
-/// This digest item will always return `Some` when used with `as_babe_pre_digest`.
+/// This digest item will always return `Some` when used with `as_rrsc_pre_digest`.
 ///
 /// The given header can either be from a primary or secondary slot assignment,
 /// with each having different validation logic.
@@ -70,15 +52,15 @@ where
 	let authorities = &epoch.authorities;
 	let pre_digest = pre_digest.map(Ok).unwrap_or_else(|| find_pre_digest::<B>(&header))?;
 
-	trace!(target: "babe", "Checking header");
+	trace!(target: "rrsc", "Checking header");
 	let seal = header
 		.digest_mut()
 		.pop()
-		.ok_or_else(|| babe_err(Error::HeaderUnsealed(header.hash())))?;
+		.ok_or_else(|| rrsc_err(Error::HeaderUnsealed(header.hash())))?;
 
 	let sig = seal
-		.as_babe_seal()
-		.ok_or_else(|| babe_err(Error::HeaderBadSeal(header.hash())))?;
+		.as_rrsc_seal()
+		.ok_or_else(|| rrsc_err(Error::HeaderBadSeal(header.hash())))?;
 
 	// the pre-hash of the header doesn't include the seal
 	// and that's what we sign
@@ -91,12 +73,12 @@ where
 
 	let author = match authorities.get(pre_digest.authority_index() as usize) {
 		Some(author) => author.0.clone(),
-		None => return Err(babe_err(Error::SlotAuthorNotFound)),
+		None => return Err(rrsc_err(Error::SlotAuthorNotFound)),
 	};
 
 	match &pre_digest {
 		PreDigest::Primary(primary) => {
-			debug!(target: "babe",
+			debug!(target: "rrsc",
 				"Verifying primary block #{} at slot: {}",
 				header.number(),
 				primary.slot,
@@ -107,7 +89,7 @@ where
 		PreDigest::SecondaryPlain(secondary)
 			if epoch.config.allowed_slots.is_secondary_plain_slots_allowed() =>
 		{
-			debug!(target: "babe",
+			debug!(target: "rrsc",
 				"Verifying secondary plain block #{} at slot: {}",
 				header.number(),
 				secondary.slot,
@@ -118,7 +100,7 @@ where
 		PreDigest::SecondaryVRF(secondary)
 			if epoch.config.allowed_slots.is_secondary_vrf_slots_allowed() =>
 		{
-			debug!(target: "babe",
+			debug!(target: "rrsc",
 				"Verifying secondary VRF block #{} at slot: {}",
 				header.number(),
 				secondary.slot,
@@ -126,11 +108,11 @@ where
 
 			check_secondary_vrf_header::<B>(pre_hash, secondary, sig, &epoch)?;
 		}
-		_ => return Err(babe_err(Error::SecondarySlotAssignmentsDisabled)),
+		_ => return Err(rrsc_err(Error::SecondarySlotAssignmentsDisabled)),
 	}
 
 	let info = VerifiedHeaderInfo {
-		pre_digest: CompatibleDigestItem::babe_pre_digest(pre_digest),
+		pre_digest: CompatibleDigestItem::rrsc_pre_digest(pre_digest),
 		seal,
 		author,
 	};
@@ -164,19 +146,19 @@ fn check_primary_header<B: BlockT + Sized>(
 				.and_then(|p| {
 					p.vrf_verify(transcript, &pre_digest.vrf_output, &pre_digest.vrf_proof)
 				})
-				.map_err(|s| babe_err(Error::VRFVerificationFailed(s)))?
+				.map_err(|s| rrsc_err(Error::VRFVerificationFailed(s)))?
 		};
 
 		let threshold =
 			calculate_primary_threshold(c, &epoch.authorities, pre_digest.authority_index as usize);
 
 		if !check_primary_threshold(&inout, threshold) {
-			return Err(babe_err(Error::VRFVerificationOfBlockFailed(author.clone(), threshold)))
+			return Err(rrsc_err(Error::VRFVerificationOfBlockFailed(author.clone(), threshold)))
 		}
 
 		Ok(())
 	} else {
-		Err(babe_err(Error::BadSignature(pre_hash)))
+		Err(rrsc_err(Error::BadSignature(pre_hash)))
 	}
 }
 
@@ -233,7 +215,7 @@ fn check_secondary_vrf_header<B: BlockT>(
 
 		schnorrkel::PublicKey::from_bytes(author.as_slice())
 			.and_then(|p| p.vrf_verify(transcript, &pre_digest.vrf_output, &pre_digest.vrf_proof))
-			.map_err(|s| babe_err(Error::VRFVerificationFailed(s)))?;
+			.map_err(|s| rrsc_err(Error::VRFVerificationFailed(s)))?;
 
 		Ok(())
 	} else {

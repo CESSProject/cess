@@ -1,40 +1,23 @@
-// This file is part of Substrate.
-
-// Copyright (C) 2020-2021 Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: Apache-2.0
-
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// 	http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 //! An opt-in utility module for reporting equivocations.
 //!
-//! This module defines an offence type for BABE equivocations
+//! This module defines an offence type for RRSC equivocations
 //! and some utility traits to wire together:
 //! - a system for reporting offences;
 //! - a system for submitting unsigned transactions;
 //! - a way to get the current block author;
 //!
 //! These can be used in an offchain context in order to submit equivocation
-//! reporting extrinsics (from the client that's import BABE blocks).
-//! And in a runtime context, so that the BABE pallet can validate the
+//! reporting extrinsics (from the client that's import RRSC blocks).
+//! And in a runtime context, so that the RRSC pallet can validate the
 //! equivocation proofs in the extrinsic and report the offences.
 //!
 //! IMPORTANT:
 //! When using this module for enabling equivocation reporting it is required
-//! that the `ValidateUnsigned` for the BABE pallet is used in the runtime
+//! that the `ValidateUnsigned` for the RRSC pallet is used in the runtime
 //! definition.
 
 use frame_support::traits::{Get, KeyOwnerProofSystem};
-use sp_consensus_babe::{EquivocationProof, Slot};
+use sp_consensus_rrsc::{EquivocationProof, Slot};
 use sp_runtime::{
 	transaction_validity::{
 		InvalidTransaction, TransactionPriority, TransactionSource, TransactionValidity,
@@ -50,7 +33,7 @@ use sp_std::prelude::*;
 
 use crate::{Call, Config, Pallet};
 
-/// A trait with utility methods for handling equivocation reports in BABE.
+/// A trait with utility methods for handling equivocation reports in RRSC.
 /// The trait provides methods for reporting an offence triggered by a valid
 /// equivocation report, checking the current block author (to declare as the
 /// reporter), and also for creating and submitting equivocation report
@@ -63,7 +46,7 @@ pub trait HandleEquivocation<T: Config> {
 	/// Report an offence proved by the given reporters.
 	fn report_offence(
 		reporters: Vec<T::AccountId>,
-		offence: BabeEquivocationOffence<T::KeyOwnerIdentification>,
+		offence: RRSCEquivocationOffence<T::KeyOwnerIdentification>,
 	) -> Result<(), OffenceError>;
 
 	/// Returns true if all of the offenders at the given time slot have already been reported.
@@ -84,7 +67,7 @@ impl<T: Config> HandleEquivocation<T> for () {
 
 	fn report_offence(
 		_reporters: Vec<T::AccountId>,
-		_offence: BabeEquivocationOffence<T::KeyOwnerIdentification>,
+		_offence: RRSCEquivocationOffence<T::KeyOwnerIdentification>,
 	) -> Result<(), OffenceError> {
 		Ok(())
 	}
@@ -130,7 +113,7 @@ where
 	R: ReportOffence<
 		T::AccountId,
 		T::KeyOwnerIdentification,
-		BabeEquivocationOffence<T::KeyOwnerIdentification>,
+		RRSCEquivocationOffence<T::KeyOwnerIdentification>,
 	>,
 	// The longevity (in blocks) that the equivocation report is valid for. When using the staking
 	// pallet this should be the bonding duration.
@@ -140,7 +123,7 @@ where
 
 	fn report_offence(
 		reporters: Vec<T::AccountId>,
-		offence: BabeEquivocationOffence<T::KeyOwnerIdentification>,
+		offence: RRSCEquivocationOffence<T::KeyOwnerIdentification>,
 	) -> Result<(), OffenceError> {
 		R::report_offence(reporters, offence)
 	}
@@ -160,11 +143,11 @@ where
 
 		match SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into()) {
 			Ok(()) => log::info!(
-				target: "runtime::babe",
-				"Submitted BABE equivocation report.",
+				target: "runtime::rrsc",
+				"Submitted RRSC equivocation report.",
 			),
 			Err(e) => log::error!(
-				target: "runtime::babe",
+				target: "runtime::rrsc",
 				"Error submitting equivocation report: {:?}",
 				e,
 			),
@@ -190,7 +173,7 @@ impl<T: Config> Pallet<T> {
 				TransactionSource::Local | TransactionSource::InBlock => { /* allowed */ },
 				_ => {
 					log::warn!(
-						target: "runtime::babe",
+						target: "runtime::rrsc",
 						"rejecting unsigned report equivocation transaction because it is not local/in-block.",
 					);
 
@@ -204,7 +187,7 @@ impl<T: Config> Pallet<T> {
 			let longevity =
 				<T::HandleEquivocation as HandleEquivocation<T>>::ReportLongevity::get();
 
-			ValidTransaction::with_tag_prefix("BabeEquivocation")
+			ValidTransaction::with_tag_prefix("RRSCEquivocation")
 				// We assign the maximum priority for any equivocation report.
 				.priority(TransactionPriority::max_value())
 				// Only one equivocation report for the same offender at the same slot.
@@ -232,7 +215,7 @@ fn is_known_offence<T: Config>(
 	key_owner_proof: &T::KeyOwnerProof,
 ) -> Result<(), TransactionValidityError> {
 	// check the membership proof to extract the offender's id
-	let key = (sp_consensus_babe::KEY_TYPE, equivocation_proof.offender.clone());
+	let key = (sp_consensus_rrsc::KEY_TYPE, equivocation_proof.offender.clone());
 
 	let offender = T::KeyOwnerProofSystem::check_proof(key, key_owner_proof.clone())
 		.ok_or(InvalidTransaction::BadProof)?;
@@ -246,11 +229,11 @@ fn is_known_offence<T: Config>(
 	}
 }
 
-/// A BABE equivocation offence report.
+/// A RRSC equivocation offence report.
 ///
 /// When a validator released two or more blocks at the same slot.
-pub struct BabeEquivocationOffence<FullIdentification> {
-	/// A babe slot in which this incident happened.
+pub struct RRSCEquivocationOffence<FullIdentification> {
+	/// A rrsc slot in which this incident happened.
 	pub slot: Slot,
 	/// The session index in which the incident happened.
 	pub session_index: SessionIndex,
@@ -261,9 +244,9 @@ pub struct BabeEquivocationOffence<FullIdentification> {
 }
 
 impl<FullIdentification: Clone> Offence<FullIdentification>
-	for BabeEquivocationOffence<FullIdentification>
+	for RRSCEquivocationOffence<FullIdentification>
 {
-	const ID: Kind = *b"babe:equivocatio";
+	const ID: Kind = *b"rrsc:equivocatio";
 	type TimeSlot = Slot;
 
 	fn offenders(&self) -> Vec<FullIdentification> {

@@ -20,8 +20,8 @@ use sp_std::prelude::*;
 
 use sp_consensus_rrsc::{
 	digests::{NextConfigDescriptor, NextEpochDescriptor, PreDigest},
-	BabeAuthorityWeight, RRSCEpochConfiguration, ConsensusLog, Epoch, EquivocationProof, Slot,
-	BABE_ENGINE_ID,
+	RRSCAuthorityWeight, RRSCEpochConfiguration, ConsensusLog, Epoch, EquivocationProof, Slot,
+	RRSC_ENGINE_ID,
 };
 use sp_consensus_vrf::schnorrkel;
 
@@ -38,7 +38,7 @@ mod mock;
 #[cfg(all(feature = "std", test))]
 mod tests;
 
-pub use equivocation::{BabeEquivocationOffence, EquivocationHandler, HandleEquivocation};
+pub use equivocation::{RRSCEquivocationOffence, EquivocationHandler, HandleEquivocation};
 pub use randomness::{
 	CurrentBlockRandomness, RandomnessFromOneEpochAgo, RandomnessFromTwoEpochsAgo,
 };
@@ -57,7 +57,7 @@ pub trait EpochChangeTrigger {
 	fn trigger<T: Config>(now: T::BlockNumber);
 }
 
-/// A type signifying to BABE that an external trigger
+/// A type signifying to RRSC that an external trigger
 /// for epoch changes (e.g. pallet-session) is used.
 pub struct ExternalTrigger;
 
@@ -65,7 +65,7 @@ impl EpochChangeTrigger for ExternalTrigger {
 	fn trigger<T: Config>(_: T::BlockNumber) {} // nothing - trigger is external.
 }
 
-/// A type signifying to BABE that it should perform epoch changes
+/// A type signifying to RRSC that it should perform epoch changes
 /// with an internal trigger, recycling the same authorities forever.
 pub struct SameAuthoritiesForever;
 
@@ -90,7 +90,7 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
 
-	/// The BABE Pallet
+	/// The RRSC Pallet
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
@@ -104,15 +104,15 @@ pub mod pallet {
 		#[pallet::constant]
 		type EpochDuration: Get<u64>;
 
-		/// The expected average block time at which BABE should be creating
-		/// blocks. Since BABE is probabilistic it is not trivial to figure out
+		/// The expected average block time at which RRSC should be creating
+		/// blocks. Since RRSC is probabilistic it is not trivial to figure out
 		/// what the expected average block time should be based on the slot
 		/// duration and the security parameter `c` (where `1 - c` represents
 		/// the probability of a slot being empty).
 		#[pallet::constant]
 		type ExpectedBlockTime: Get<Self::Moment>;
 
-		/// BABE requires some logic to be triggered on every block to query for whether an epoch
+		/// RRSC requires some logic to be triggered on every block to query for whether an epoch
 		/// has ended and to perform the transition to the next epoch.
 		///
 		/// Typically, the `ExternalTrigger` type should be used. An internal trigger should only be
@@ -169,7 +169,7 @@ pub mod pallet {
 	/// Current epoch authorities.
 	#[pallet::storage]
 	#[pallet::getter(fn authorities)]
-	pub type Authorities<T> = StorageValue<_, Vec<(AuthorityId, BabeAuthorityWeight)>, ValueQuery>;
+	pub type Authorities<T> = StorageValue<_, Vec<(AuthorityId, RRSCAuthorityWeight)>, ValueQuery>;
 
 	/// The slot at which the first epoch actually started. This is 0
 	/// until the first block of the chain.
@@ -210,7 +210,7 @@ pub mod pallet {
 	/// Next epoch authorities.
 	#[pallet::storage]
 	pub(super) type NextAuthorities<T> =
-		StorageValue<_, Vec<(AuthorityId, BabeAuthorityWeight)>, ValueQuery>;
+		StorageValue<_, Vec<(AuthorityId, RRSCAuthorityWeight)>, ValueQuery>;
 
 	/// Randomness under construction.
 	///
@@ -273,7 +273,7 @@ pub mod pallet {
 
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {
-		pub authorities: Vec<(AuthorityId, BabeAuthorityWeight)>,
+		pub authorities: Vec<(AuthorityId, RRSCAuthorityWeight)>,
 		pub epoch_config: Option<RRSCEpochConfiguration>,
 	}
 
@@ -391,8 +391,8 @@ pub mod pallet {
 	}
 }
 
-/// A BABE public key
-pub type BabeKey = [u8; PUBLIC_KEY_LENGTH];
+/// A RRSC public key
+pub type RRSCKey = [u8; PUBLIC_KEY_LENGTH];
 
 impl<T: Config> FindAuthor<u32> for Pallet<T> {
 	fn find_author<'a, I>(digests: I) -> Option<u32>
@@ -400,7 +400,7 @@ impl<T: Config> FindAuthor<u32> for Pallet<T> {
 		I: 'a + IntoIterator<Item = (ConsensusEngineId, &'a [u8])>,
 	{
 		for (id, mut data) in digests.into_iter() {
-			if id == BABE_ENGINE_ID {
+			if id == RRSC_ENGINE_ID {
 				let pre_digest: PreDigest = PreDigest::decode(&mut data).ok()?;
 				return Some(pre_digest.authority_index())
 			}
@@ -429,7 +429,7 @@ impl<T: Config> pallet_session::ShouldEndSession<T::BlockNumber> for Pallet<T> {
 }
 
 impl<T: Config> Pallet<T> {
-	/// Determine the BABE slot duration based on the Timestamp module configuration.
+	/// Determine the RRSC slot duration based on the Timestamp module configuration.
 	pub fn slot_duration() -> T::Moment {
 		// we double the minimum block-period so each author can always propose within
 		// the majority of their slot.
@@ -455,7 +455,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Return the _best guess_ block number, at which the next epoch change is predicted to happen.
 	///
-	/// Returns None if the prediction is in the past; This implies an error internally in the Babe
+	/// Returns None if the prediction is in the past; This implies an error internally in the RRSC
 	/// and should not happen under normal circumstances.
 	///
 	/// In other word, this is only accurate if no slots are missed. Given missed slots, the slot
@@ -483,8 +483,8 @@ impl<T: Config> Pallet<T> {
 	/// Typically, this is not handled directly by the user, but by higher-level validator-set
 	/// manager logic like `pallet-session`.
 	pub fn enact_epoch_change(
-		authorities: Vec<(AuthorityId, BabeAuthorityWeight)>,
-		next_authorities: Vec<(AuthorityId, BabeAuthorityWeight)>,
+		authorities: Vec<(AuthorityId, RRSCAuthorityWeight)>,
+		next_authorities: Vec<(AuthorityId, RRSCAuthorityWeight)>,
 	) {
 		// PRECONDITION: caller has done initialization and is guaranteed
 		// by the session module to be called before this.
@@ -592,7 +592,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn deposit_consensus<U: Encode>(new: U) {
-		let log: DigestItem<T::Hash> = DigestItem::Consensus(BABE_ENGINE_ID, new.encode());
+		let log: DigestItem<T::Hash> = DigestItem::Consensus(RRSC_ENGINE_ID, new.encode());
 		<frame_system::Pallet<T>>::deposit_log(log.into())
 	}
 
@@ -625,7 +625,7 @@ impl<T: Config> Pallet<T> {
 				.iter()
 				.filter_map(|s| s.as_pre_runtime())
 				.filter_map(|(id, mut data)| {
-					if id == BABE_ENGINE_ID {
+					if id == RRSC_ENGINE_ID {
 						PreDigest::decode(&mut data).ok()
 					} else {
 						None
@@ -688,7 +688,7 @@ impl<T: Config> Pallet<T> {
 
 						vrf_output.0.attach_input_hash(&pubkey, transcript).ok()
 					})
-					.map(|inout| inout.make_bytes(&sp_consensus_rrsc::BABE_VRF_INOUT_CONTEXT))
+					.map(|inout| inout.make_bytes(&sp_consensus_rrsc::RRSC_VRF_INOUT_CONTEXT))
 			})
 		});
 
@@ -724,7 +724,7 @@ impl<T: Config> Pallet<T> {
 		this_randomness
 	}
 
-	fn initialize_authorities(authorities: &[(AuthorityId, BabeAuthorityWeight)]) {
+	fn initialize_authorities(authorities: &[(AuthorityId, RRSCAuthorityWeight)]) {
 		if !authorities.is_empty() {
 			assert!(Authorities::<T>::get().is_empty(), "Authorities are already initialized!");
 			Authorities::<T>::put(authorities);
@@ -763,7 +763,7 @@ impl<T: Config> Pallet<T> {
 			.ok_or(Error::<T>::InvalidKeyOwnershipProof)?;
 
 		let offence =
-			BabeEquivocationOffence { slot, validator_set_count, offender, session_index };
+			RRSCEquivocationOffence { slot, validator_set_count, offender, session_index };
 
 		let reporters = match reporter {
 			Some(id) => vec![id],
@@ -796,7 +796,7 @@ impl<T: Config> Pallet<T> {
 impl<T: Config> OnTimestampSet<T::Moment> for Pallet<T> {
 	fn on_timestamp_set(moment: T::Moment) {
 		let slot_duration = Self::slot_duration();
-		assert!(!slot_duration.is_zero(), "Babe slot duration cannot be zero.");
+		assert!(!slot_duration.is_zero(), "RRSC slot duration cannot be zero.");
 
 		let timestamp_slot = moment / slot_duration;
 		let timestamp_slot = Slot::from(timestamp_slot.saturated_into::<u64>());
@@ -894,13 +894,13 @@ pub mod migrations {
 	use super::*;
 	use frame_support::pallet_prelude::{StorageValue, ValueQuery};
 
-	/// Something that can return the storage prefix of the `Babe` pallet.
-	pub trait BabePalletPrefix: Config {
+	/// Something that can return the storage prefix of the `RRSC` pallet.
+	pub trait RRSCPalletPrefix: Config {
 		fn pallet_prefix() -> &'static str;
 	}
 
 	struct __OldNextEpochConfig<T>(sp_std::marker::PhantomData<T>);
-	impl<T: BabePalletPrefix> frame_support::traits::StorageInstance for __OldNextEpochConfig<T> {
+	impl<T: RRSCPalletPrefix> frame_support::traits::StorageInstance for __OldNextEpochConfig<T> {
 		fn pallet_prefix() -> &'static str {
 			T::pallet_prefix()
 		}
@@ -910,9 +910,9 @@ pub mod migrations {
 	type OldNextEpochConfig<T> =
 		StorageValue<__OldNextEpochConfig<T>, Option<NextConfigDescriptor>, ValueQuery>;
 
-	/// A storage migration that adds the current epoch configuration for Babe
+	/// A storage migration that adds the current epoch configuration for RRSC
 	/// to storage.
-	pub fn add_epoch_configuration<T: BabePalletPrefix>(
+	pub fn add_epoch_configuration<T: RRSCPalletPrefix>(
 		epoch_config: RRSCEpochConfiguration,
 	) -> Weight {
 		let mut writes = 0;

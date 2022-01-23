@@ -1,22 +1,4 @@
-// This file is part of Substrate.
-
-// Copyright (C) 2020-2021 Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-//! RPC api for babe.
+//! RPC api for R2S.
 
 use futures::{FutureExt, TryFutureExt};
 use jsonrpc_core::Error as RpcError;
@@ -235,13 +217,13 @@ mod tests {
 		let keystore_path = tempfile::tempdir().expect("Creates keystore path");
 		let keystore =
 			Arc::new(LocalKeystore::open(keystore_path.path(), None).expect("Creates keystore"));
-		SyncCryptoStore::sr25519_generate_new(&*keystore, BABE, Some(&authority.to_seed()))
+		SyncCryptoStore::sr25519_generate_new(&*keystore, RRSC, Some(&authority.to_seed()))
 			.expect("Creates authority key");
 
 		(keystore, keystore_path)
 	}
 
-	fn test_babe_rpc_handler(
+	fn test_rrsc_rpc_handler(
 		deny_unsafe: DenyUnsafe,
 	) -> RRSCRpcHandler<Block, TestClient, sc_consensus::LongestChain<Backend, Block>> {
 		let builder = TestClientBuilder::new();
@@ -266,11 +248,11 @@ mod tests {
 
 	#[test]
 	fn epoch_authorship_works() {
-		let handler = test_babe_rpc_handler(DenyUnsafe::No);
+		let handler = test_rrsc_rpc_handler(DenyUnsafe::No);
 		let mut io = IoHandler::new();
 
 		io.extend_with(RRSCApi::to_delegate(handler));
-		let request = r#"{"jsonrpc":"2.0","method":"babe_epochAuthorship","params": [],"id":1}"#;
+		let request = r#"{"jsonrpc":"2.0","method":"rrsc_epochAuthorship","params": [],"id":1}"#;
 		let response = r#"{"jsonrpc":"2.0","result":{"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY":{"primary":[0],"secondary":[1,2,4],"secondary_vrf":[]}},"id":1}"#;
 
 		assert_eq!(Some(response.into()), io.handle_request_sync(request));
@@ -278,11 +260,11 @@ mod tests {
 
 	#[test]
 	fn epoch_authorship_is_unsafe() {
-		let handler = test_babe_rpc_handler(DenyUnsafe::Yes);
+		let handler = test_rrsc_rpc_handler(DenyUnsafe::Yes);
 		let mut io = IoHandler::new();
 
 		io.extend_with(RRSCApi::to_delegate(handler));
-		let request = r#"{"jsonrpc":"2.0","method":"babe_epochAuthorship","params": [],"id":1}"#;
+		let request = r#"{"jsonrpc":"2.0","method":"rrsc_epochAuthorship","params": [],"id":1}"#;
 
 		let response = io.handle_request_sync(request).unwrap();
 		let mut response: serde_json::Value = serde_json::from_str(&response).unwrap();

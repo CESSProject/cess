@@ -74,7 +74,7 @@ YOUR ACCOUNT'S SECRET PHRASE
 
 ```
 # add key to node
-./target/release/cess-node key insert --base-path /tmp/cess --chain cess-testnet --scheme Sr25519  --key-type babe --suri /root/secretKey.txt
+./target/release/cess-node key insert --base-path /tmp/cess --chain cess-testnet --scheme Sr25519  --key-type rrsc --suri /root/secretKey.txt
 
 ./target/release/cess-node key insert --base-path /tmp/cess --chain cess-testnet --scheme Ed25519  --key-type gran --suri /root/secretKey.txt
 ```

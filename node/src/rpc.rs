@@ -14,9 +14,9 @@ use sp_api::ProvideRuntimeApi;
 use sp_block_builder::BlockBuilder;
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
 use sp_consensus::SelectChain;
-use sp_consensus_rrsc::BabeApi;
+use sp_consensus_rrsc::RRSCApi;
 use sc_consensus_rrsc::{Config, Epoch};
-use sc_consensus_rrsc_rpc::BabeRpcHandler;
+use sc_consensus_rrsc_rpc::RRSCRpcHandler;
 use sc_consensus_epochs::SharedEpochChanges;
 use sc_finality_grandpa_rpc::GrandpaRpcHandler;
 use sc_finality_grandpa::{
@@ -27,11 +27,11 @@ use sp_keystore::SyncCryptoStorePtr;
 
 use pallet_contracts_rpc::{Contracts, ContractsApi};
 
-/// Extra dependencies for BABE.
-pub struct BabeDeps {
-	/// BABE protocol config.
-	pub babe_config: Config,
-	/// BABE pending epoch changes.
+/// Extra dependencies for RRSC.
+pub struct RRSCDeps {
+	/// RRSC protocol config.
+	pub rrsc_config: Config,
+	/// RRSC pending epoch changes.
 	pub shared_epoch_changes: SharedEpochChanges<Block, Epoch>,
 	/// The keystore that manages the keys of the node.
 	pub keystore: SyncCryptoStorePtr,
@@ -63,8 +63,8 @@ pub struct FullDeps<C, P, SC, B> {
 	pub chain_spec: Box<dyn sc_chain_spec::ChainSpec>,
 	/// Whether to deny unsafe calls
 	pub deny_unsafe: DenyUnsafe,
-	/// BABE specific dependencies.
-	pub babe: BabeDeps,
+	/// RRSC specific dependencies.
+	pub rrsc: RRSCDeps,
 	/// GRANDPA specific dependencies.
 	pub grandpa: GrandpaDeps<B>,
 }
@@ -80,7 +80,7 @@ where
 	C: Send + Sync + 'static,
 	C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Index>,
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
-	C::Api: BabeApi<Block>,
+	C::Api: RRSCApi<Block>,
 	C::Api: BlockBuilder<Block>,
 	C::Api: pallet_contracts_rpc::ContractsRuntimeApi<Block, AccountId, Balance, BlockNumber, Hash>,
 	P: TransactionPool + 'static,
@@ -92,8 +92,8 @@ where
 	use substrate_frame_rpc_system::{FullSystem, SystemApi};
 
 	let mut io = jsonrpc_core::IoHandler::default();
-	let FullDeps { client, pool, select_chain, chain_spec: _, deny_unsafe, babe, grandpa } = deps;
-	let BabeDeps { keystore, babe_config, shared_epoch_changes } = babe;
+	let FullDeps { client, pool, select_chain, chain_spec: _, deny_unsafe, rrsc, grandpa } = deps;
+	let RRSCDeps { keystore, rrsc_config, shared_epoch_changes } = rrsc;
 	let GrandpaDeps {
 		shared_voter_state,
 		shared_authority_set,
@@ -111,11 +111,11 @@ where
     	ContractsApi::to_delegate(Contracts::new(client.clone()))
 	);
 
-	io.extend_with(sc_consensus_rrsc_rpc::BabeApi::to_delegate(BabeRpcHandler::new(
+	io.extend_with(sc_consensus_rrsc_rpc::RRSCApi::to_delegate(RRSCRpcHandler::new(
 		client.clone(),
 		shared_epoch_changes.clone(),
 		keystore,
-		babe_config,
+		rrsc_config,
 		select_chain,
 		deny_unsafe,
 	)));

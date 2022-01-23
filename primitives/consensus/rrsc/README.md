@@ -1,3 +1,3 @@
-Primitives for BABE.
+Primitives for RRSC.
 
 License: Apache-2.0

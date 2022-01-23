@@ -15,36 +15,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Inherents for BABE
+//! Inherents for RRSC
 
 use sp_inherents::{Error, InherentData, InherentIdentifier};
 
 use sp_std::result::Result;
 
-/// The BABE inherent identifier.
-pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"babeslot";
+/// The RRSC inherent identifier.
+pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"rrscslot";
 
-/// The type of the BABE inherent.
+/// The type of the RRSC inherent.
 pub type InherentType = sp_consensus_slots::Slot;
-/// Auxiliary trait to extract BABE inherent data.
-pub trait BabeInherentData {
-	/// Get BABE inherent data.
-	fn babe_inherent_data(&self) -> Result<Option<InherentType>, Error>;
-	/// Replace BABE inherent data.
-	fn babe_replace_inherent_data(&mut self, new: InherentType);
+/// Auxiliary trait to extract RRSC inherent data.
+pub trait RRSCInherentData {
+	/// Get RRSC inherent data.
+	fn rrsc_inherent_data(&self) -> Result<Option<InherentType>, Error>;
+	/// Replace RRSC inherent data.
+	fn rrsc_replace_inherent_data(&mut self, new: InherentType);
 }
 
-impl BabeInherentData for InherentData {
-	fn babe_inherent_data(&self) -> Result<Option<InherentType>, Error> {
+impl RRSCInherentData for InherentData {
+	fn rrsc_inherent_data(&self) -> Result<Option<InherentType>, Error> {
 		self.get_data(&INHERENT_IDENTIFIER)
 	}
 
-	fn babe_replace_inherent_data(&mut self, new: InherentType) {
+	fn rrsc_replace_inherent_data(&mut self, new: InherentType) {
 		self.replace_data(INHERENT_IDENTIFIER, &new);
 	}
 }
 
-/// Provides the slot duration inherent data for BABE.
+/// Provides the slot duration inherent data for RRSC.
 // TODO: Remove in the future. https://github.com/paritytech/substrate/issues/8029
 #[cfg(feature = "std")]
 pub struct InherentDataProvider {

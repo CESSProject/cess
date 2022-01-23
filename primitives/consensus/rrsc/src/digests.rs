@@ -15,11 +15,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Private implementation details of BABE digests.
+//! Private implementation details of RRSC digests.
 
 use super::{
-	AllowedSlots, AuthorityId, AuthorityIndex, AuthoritySignature, BabeAuthorityWeight,
-	RRSCEpochConfiguration, Slot, BABE_ENGINE_ID,
+	AllowedSlots, AuthorityId, AuthorityIndex, AuthoritySignature, RRSCAuthorityWeight,
+	RRSCEpochConfiguration, Slot, RRSC_ENGINE_ID,
 };
 use codec::{Codec, Decode, Encode};
 use sp_runtime::{DigestItem, RuntimeDebug};
@@ -27,7 +27,7 @@ use sp_std::vec::Vec;
 
 use sp_consensus_vrf::schnorrkel::{Randomness, VRFOutput, VRFProof};
 
-/// Raw BABE primary slot assignment pre-digest.
+/// Raw RRSC primary slot assignment pre-digest.
 #[derive(Clone, RuntimeDebug, Encode, Decode)]
 pub struct PrimaryPreDigest {
 	/// Authority index
@@ -40,7 +40,7 @@ pub struct PrimaryPreDigest {
 	pub vrf_proof: VRFProof,
 }
 
-/// BABE secondary slot assignment pre-digest.
+/// RRSC secondary slot assignment pre-digest.
 #[derive(Clone, RuntimeDebug, Encode, Decode)]
 pub struct SecondaryPlainPreDigest {
 	/// Authority index
@@ -54,7 +54,7 @@ pub struct SecondaryPlainPreDigest {
 	pub slot: Slot,
 }
 
-/// BABE secondary deterministic slot assignment with VRF outputs.
+/// RRSC secondary deterministic slot assignment with VRF outputs.
 #[derive(Clone, RuntimeDebug, Encode, Decode)]
 pub struct SecondaryVRFPreDigest {
 	/// Authority index
@@ -67,8 +67,8 @@ pub struct SecondaryVRFPreDigest {
 	pub vrf_proof: VRFProof,
 }
 
-/// A BABE pre-runtime digest. This contains all data required to validate a
-/// block and for the BABE runtime module. Slots can be assigned to a primary
+/// A RRSC pre-runtime digest. This contains all data required to validate a
+/// block and for the RRSC runtime module. Slots can be assigned to a primary
 /// (VRF based) and to a secondary (slot number based).
 #[derive(Clone, RuntimeDebug, Encode, Decode)]
 pub enum PreDigest {
@@ -104,7 +104,7 @@ impl PreDigest {
 
 	/// Returns the weight _added_ by this digest, not the cumulative weight
 	/// of the chain.
-	pub fn added_weight(&self) -> crate::BabeBlockWeight {
+	pub fn added_weight(&self) -> crate::RRSCBlockWeight {
 		match self {
 			PreDigest::Primary(_) => 1,
 			PreDigest::SecondaryPlain(_) | PreDigest::SecondaryVRF(_) => 0,
@@ -126,7 +126,7 @@ impl PreDigest {
 #[derive(Decode, Encode, PartialEq, Eq, Clone, RuntimeDebug)]
 pub struct NextEpochDescriptor {
 	/// The authorities.
-	pub authorities: Vec<(AuthorityId, BabeAuthorityWeight)>,
+	pub authorities: Vec<(AuthorityId, RRSCAuthorityWeight)>,
 
 	/// The value of randomness to use for the slot-assignment.
 	pub randomness: Randomness,
@@ -154,24 +154,24 @@ impl From<NextConfigDescriptor> for RRSCEpochConfiguration {
 	}
 }
 
-/// A digest item which is usable with BABE consensus.
+/// A digest item which is usable with RRSC consensus.
 pub trait CompatibleDigestItem: Sized {
-	/// Construct a digest item which contains a BABE pre-digest.
-	fn babe_pre_digest(seal: PreDigest) -> Self;
+	/// Construct a digest item which contains a RRSC pre-digest.
+	fn rrsc_pre_digest(seal: PreDigest) -> Self;
 
-	/// If this item is an BABE pre-digest, return it.
-	fn as_babe_pre_digest(&self) -> Option<PreDigest>;
+	/// If this item is an RRSC pre-digest, return it.
+	fn as_rrsc_pre_digest(&self) -> Option<PreDigest>;
 
-	/// Construct a digest item which contains a BABE seal.
-	fn babe_seal(signature: AuthoritySignature) -> Self;
+	/// Construct a digest item which contains a RRSC seal.
+	fn rrsc_seal(signature: AuthoritySignature) -> Self;
 
-	/// If this item is a BABE signature, return the signature.
-	fn as_babe_seal(&self) -> Option<AuthoritySignature>;
+	/// If this item is a RRSC signature, return the signature.
+	fn as_rrsc_seal(&self) -> Option<AuthoritySignature>;
 
-	/// If this item is a BABE epoch descriptor, return it.
+	/// If this item is a RRSC epoch descriptor, return it.
 	fn as_next_epoch_descriptor(&self) -> Option<NextEpochDescriptor>;
 
-	/// If this item is a BABE config descriptor, return it.
+	/// If this item is a RRSC config descriptor, return it.
 	fn as_next_config_descriptor(&self) -> Option<NextConfigDescriptor>;
 }
 
@@ -179,24 +179,24 @@ impl<Hash> CompatibleDigestItem for DigestItem<Hash>
 where
 	Hash: Send + Sync + Eq + Clone + Codec + 'static,
 {
-	fn babe_pre_digest(digest: PreDigest) -> Self {
-		DigestItem::PreRuntime(BABE_ENGINE_ID, digest.encode())
+	fn rrsc_pre_digest(digest: PreDigest) -> Self {
+		DigestItem::PreRuntime(RRSC_ENGINE_ID, digest.encode())
 	}
 
-	fn as_babe_pre_digest(&self) -> Option<PreDigest> {
-		self.pre_runtime_try_to(&BABE_ENGINE_ID)
+	fn as_rrsc_pre_digest(&self) -> Option<PreDigest> {
+		self.pre_runtime_try_to(&RRSC_ENGINE_ID)
 	}
 
-	fn babe_seal(signature: AuthoritySignature) -> Self {
-		DigestItem::Seal(BABE_ENGINE_ID, signature.encode())
+	fn rrsc_seal(signature: AuthoritySignature) -> Self {
+		DigestItem::Seal(RRSC_ENGINE_ID, signature.encode())
 	}
 
-	fn as_babe_seal(&self) -> Option<AuthoritySignature> {
-		self.seal_try_to(&BABE_ENGINE_ID)
+	fn as_rrsc_seal(&self) -> Option<AuthoritySignature> {
+		self.seal_try_to(&RRSC_ENGINE_ID)
 	}
 
 	fn as_next_epoch_descriptor(&self) -> Option<NextEpochDescriptor> {
-		self.consensus_try_to(&BABE_ENGINE_ID)
+		self.consensus_try_to(&RRSC_ENGINE_ID)
 			.and_then(|x: super::ConsensusLog| match x {
 				super::ConsensusLog::NextEpochData(n) => Some(n),
 				_ => None,
@@ -204,7 +204,7 @@ where
 	}
 
 	fn as_next_config_descriptor(&self) -> Option<NextConfigDescriptor> {
-		self.consensus_try_to(&BABE_ENGINE_ID)
+		self.consensus_try_to(&RRSC_ENGINE_ID)
 			.and_then(|x: super::ConsensusLog| match x {
 				super::ConsensusLog::NextConfigData(n) => Some(n),
 				_ => None,

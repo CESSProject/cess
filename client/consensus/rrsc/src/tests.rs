@@ -1,22 +1,4 @@
-// This file is part of Substrate.
-
-// Copyright (C) 2019-2021 Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-//! BABE testsuite
+//! RRSC testsuite
 
 // FIXME #2532: need to allow deprecated until refactor is done
 // https://github.com/paritytech/substrate/issues/2532
@@ -36,7 +18,7 @@ use sc_network::config::ProtocolConfig;
 use sc_network_test::{Block as TestBlock, *};
 use sp_application_crypto::key_types::RRSC;
 use sp_consensus::{AlwaysCanAuthor, DisableProofRecording, NoNetwork as DummyOracle, Proposal};
-use sp_consensus_babe::{
+use sp_consensus_rrsc::{
 	inherents::InherentDataProvider, make_transcript, make_transcript_data, AllowedSlots,
 	AuthorityPair, Slot,
 };
@@ -68,8 +50,8 @@ enum Stage {
 
 type Mutator = Arc<dyn Fn(&mut TestHeader, Stage) + Send + Sync>;
 
-type BabeBlockImport =
-	PanickingBlockImport<crate::BabeBlockImport<TestBlock, TestClient, Arc<TestClient>>>;
+type RRSCBlockImport =
+	PanickingBlockImport<crate::RRSCBlockImport<TestBlock, TestClient, Arc<TestClient>>>;
 
 #[derive(Clone)]
 struct DummyFactory {
@@ -159,7 +141,7 @@ impl DummyProposer {
 				randomness: epoch.randomness.clone(),
 			})
 			.encode();
-			let digest = DigestItem::Consensus(BABE_ENGINE_ID, digest_data);
+			let digest = DigestItem::Consensus(RRSC_ENGINE_ID, digest_data);
 			block.header.digest_mut().push(digest)
 		}
 
@@ -221,10 +203,10 @@ where
 	}
 }
 
-type BabePeer = Peer<Option<PeerData>, BabeBlockImport>;
+type RRSCPeer = Peer<Option<PeerData>, RRSCBlockImport>;
 
-pub struct BabeTestNet {
-	peers: Vec<BabePeer>,
+pub struct RRSCTestNet {
+	peers: Vec<RRSCPeer>,
 }
 
 type TestHeader = <TestBlock as BlockT>::Header;
@@ -233,7 +215,7 @@ type TestSelectChain =
 	substrate_test_runtime_client::LongestChain<substrate_test_runtime_client::Backend, TestBlock>;
 
 pub struct TestVerifier {
-	inner: BabeVerifier<
+	inner: RRSCVerifier<
 		TestBlock,
 		PeersFullClient,
 		TestSelectChain,
@@ -265,7 +247,7 @@ impl Verifier<TestBlock> for TestVerifier {
 }
 
 pub struct PeerData {
-	link: BabeLink<TestBlock>,
+	link: RRSCLink<TestBlock>,
 	block_import: Mutex<
 		Option<
 			BoxBlockImport<
@@ -276,15 +258,15 @@ pub struct PeerData {
 	>,
 }
 
-impl TestNetFactory for BabeTestNet {
+impl TestNetFactory for RRSCTestNet {
 	type Verifier = TestVerifier;
 	type PeerData = Option<PeerData>;
-	type BlockImport = BabeBlockImport;
+	type BlockImport = RRSCBlockImport;
 
 	/// Create new test network with peers and given config.
 	fn from_config(_config: &ProtocolConfig) -> Self {
-		debug!(target: "babe", "Creating test network from config");
-		BabeTestNet { peers: Vec::new() }
+		debug!(target: "rrsc", "Creating test network from config");
+		RRSCTestNet { peers: Vec::new() }
 	}
 
 	fn make_block_import(
@@ -321,17 +303,17 @@ impl TestNetFactory for BabeTestNet {
 		use substrate_test_runtime_client::DefaultTestClientBuilderExt;
 
 		let client = client.as_full().expect("only full clients are used in test");
-		trace!(target: "babe", "Creating a verifier");
+		trace!(target: "rrsc", "Creating a verifier");
 
 		// ensure block import and verifier are linked correctly.
 		let data = maybe_link
 			.as_ref()
-			.expect("babe link always provided to verifier instantiation");
+			.expect("rrsc link always provided to verifier instantiation");
 
 		let (_, longest_chain) = TestClientBuilder::new().build_with_longest_chain();
 
 		TestVerifier {
-			inner: BabeVerifier {
+			inner: RRSCVerifier {
 				client: client.clone(),
 				select_chain: longest_chain,
 				create_inherent_data_providers: Box::new(|_, _| async {
@@ -352,17 +334,17 @@ impl TestNetFactory for BabeTestNet {
 		}
 	}
 
-	fn peer(&mut self, i: usize) -> &mut BabePeer {
-		trace!(target: "babe", "Retrieving a peer");
+	fn peer(&mut self, i: usize) -> &mut RRSCPeer {
+		trace!(target: "rrsc", "Retrieving a peer");
 		&mut self.peers[i]
 	}
 
-	fn peers(&self) -> &Vec<BabePeer> {
-		trace!(target: "babe", "Retrieving peers");
+	fn peers(&self) -> &Vec<RRSCPeer> {
+		trace!(target: "rrsc", "Retrieving peers");
 		&self.peers
 	}
 
-	fn mut_peers<F: FnOnce(&mut Vec<BabePeer>)>(&mut self, closure: F) {
+	fn mut_peers<F: FnOnce(&mut Vec<RRSCPeer>)>(&mut self, closure: F) {
 		closure(&mut self.peers);
 	}
 }
@@ -371,7 +353,7 @@ impl TestNetFactory for BabeTestNet {
 #[should_panic]
 fn rejects_empty_block() {
 	sp_tracing::try_init_simple();
-	let mut net = BabeTestNet::new(3);
+	let mut net = RRSCTestNet::new(3);
 	let block_builder = |builder: BlockBuilder<_, _, _>| builder.build().unwrap().block;
 	net.mut_peers(|peer| {
 		peer[0].generate_blocks(1, BlockOrigin::NetworkInitialSync, block_builder);
@@ -383,13 +365,13 @@ fn run_one_test(mutator: impl Fn(&mut TestHeader, Stage) + Send + Sync + 'static
 	let mutator = Arc::new(mutator) as Mutator;
 
 	MUTATOR.with(|m| *m.borrow_mut() = mutator.clone());
-	let net = BabeTestNet::new(3);
+	let net = RRSCTestNet::new(3);
 
 	let peers = &[(0, "//Alice"), (1, "//Bob"), (2, "//Charlie")];
 
 	let net = Arc::new(Mutex::new(net));
 	let mut import_notifications = Vec::new();
-	let mut babe_futures = Vec::new();
+	let mut rrsc_futures = Vec::new();
 	let mut keystore_paths = Vec::new();
 
 	for (peer_id, seed) in peers {
@@ -401,14 +383,14 @@ fn run_one_test(mutator: impl Fn(&mut TestHeader, Stage) + Send + Sync + 'static
 		let keystore_path = tempfile::tempdir().expect("Creates keystore path");
 		let keystore: SyncCryptoStorePtr =
 			Arc::new(LocalKeystore::open(keystore_path.path(), None).expect("Creates keystore"));
-		SyncCryptoStore::sr25519_generate_new(&*keystore, BABE, Some(seed))
+		SyncCryptoStore::sr25519_generate_new(&*keystore, RRSC, Some(seed))
 			.expect("Generates authority key");
 		keystore_paths.push(keystore_path);
 
 		let mut got_own = false;
 		let mut got_other = false;
 
-		let data = peer.data.as_ref().expect("babe link set up during initialization");
+		let data = peer.data.as_ref().expect("rrsc link set up during initialization");
 
 		let environ = DummyFactory {
 			client: client.clone(),
@@ -440,8 +422,8 @@ fn run_one_test(mutator: impl Fn(&mut TestHeader, Stage) + Send + Sync + 'static
 				.for_each(|_| future::ready(())),
 		);
 
-		babe_futures.push(
-			start_babe(BabeParams {
+		rrsc_futures.push(
+			start_rrsc(RRSCParams {
 				block_import: data.block_import.lock().take().expect("import set up during init"),
 				select_chain,
 				client,
@@ -458,7 +440,7 @@ fn run_one_test(mutator: impl Fn(&mut TestHeader, Stage) + Send + Sync + 'static
 				}),
 				force_authoring: false,
 				backoff_authoring_blocks: Some(BackoffAuthoringOnFinalizedHeadLagging::default()),
-				babe_link: data.link.clone(),
+				rrsc_link: data.link.clone(),
 				keystore,
 				can_author_with: sp_consensus::AlwaysCanAuthor,
 				justification_sync_link: (),
@@ -466,7 +448,7 @@ fn run_one_test(mutator: impl Fn(&mut TestHeader, Stage) + Send + Sync + 'static
 				max_block_proposal_slot_portion: None,
 				telemetry: None,
 			})
-			.expect("Starts babe"),
+			.expect("Starts rrsc"),
 		);
 	}
 	block_on(future::select(
@@ -481,7 +463,7 @@ fn run_one_test(mutator: impl Fn(&mut TestHeader, Stage) + Send + Sync + 'static
 
 			Poll::<()>::Pending
 		}),
-		future::select(future::join_all(import_notifications), future::join_all(babe_futures)),
+		future::select(future::join_all(import_notifications), future::join_all(rrsc_futures)),
 	));
 }
 
@@ -497,7 +479,7 @@ fn rejects_missing_inherent_digest() {
 		let v = std::mem::take(&mut header.digest_mut().logs);
 		header.digest_mut().logs = v
 			.into_iter()
-			.filter(|v| stage == Stage::PostSeal || v.as_babe_pre_digest().is_none())
+			.filter(|v| stage == Stage::PostSeal || v.as_rrsc_pre_digest().is_none())
 			.collect()
 	})
 }
@@ -509,7 +491,7 @@ fn rejects_missing_seals() {
 		let v = std::mem::take(&mut header.digest_mut().logs);
 		header.digest_mut().logs = v
 			.into_iter()
-			.filter(|v| stage == Stage::PreSeal || v.as_babe_seal().is_none())
+			.filter(|v| stage == Stage::PreSeal || v.as_rrsc_seal().is_none())
 			.collect()
 	})
 }
@@ -531,24 +513,24 @@ fn wrong_consensus_engine_id_rejected() {
 	sp_tracing::try_init_simple();
 	let sig = AuthorityPair::generate().0.sign(b"");
 	let bad_seal: Item = DigestItem::Seal([0; 4], sig.to_vec());
-	assert!(bad_seal.as_babe_pre_digest().is_none());
-	assert!(bad_seal.as_babe_seal().is_none())
+	assert!(bad_seal.as_rrsc_pre_digest().is_none());
+	assert!(bad_seal.as_rrsc_seal().is_none())
 }
 
 #[test]
 fn malformed_pre_digest_rejected() {
 	sp_tracing::try_init_simple();
-	let bad_seal: Item = DigestItem::Seal(BABE_ENGINE_ID, [0; 64].to_vec());
-	assert!(bad_seal.as_babe_pre_digest().is_none());
+	let bad_seal: Item = DigestItem::Seal(RRSC_ENGINE_ID, [0; 64].to_vec());
+	assert!(bad_seal.as_rrsc_pre_digest().is_none());
 }
 
 #[test]
 fn sig_is_not_pre_digest() {
 	sp_tracing::try_init_simple();
 	let sig = AuthorityPair::generate().0.sign(b"");
-	let bad_seal: Item = DigestItem::Seal(BABE_ENGINE_ID, sig.to_vec());
-	assert!(bad_seal.as_babe_pre_digest().is_none());
-	assert!(bad_seal.as_babe_seal().is_some())
+	let bad_seal: Item = DigestItem::Seal(RRSC_ENGINE_ID, sig.to_vec());
+	assert!(bad_seal.as_rrsc_pre_digest().is_none());
+	assert!(bad_seal.as_rrsc_seal().is_some())
 }
 
 #[test]
@@ -557,7 +539,7 @@ fn can_author_block() {
 	let keystore_path = tempfile::tempdir().expect("Creates keystore path");
 	let keystore: SyncCryptoStorePtr =
 		Arc::new(LocalKeystore::open(keystore_path.path(), None).expect("Creates keystore"));
-	let public = SyncCryptoStore::sr25519_generate_new(&*keystore, BABE, Some("//Alice"))
+	let public = SyncCryptoStore::sr25519_generate_new(&*keystore, RRSC, Some("//Alice"))
 		.expect("Generates authority pair");
 
 	let mut i = 0;
@@ -585,7 +567,7 @@ fn can_author_block() {
 	// with secondary slots enabled it should never be empty
 	match claim_slot(i.into(), &epoch, &keystore) {
 		None => i += 1,
-		Some(s) => debug!(target: "babe", "Authored block {:?}", s.0),
+		Some(s) => debug!(target: "rrsc", "Authored block {:?}", s.0),
 	}
 
 	// otherwise with only vrf-based primary slots we might need to try a couple
@@ -595,14 +577,14 @@ fn can_author_block() {
 		match claim_slot(i.into(), &epoch, &keystore) {
 			None => i += 1,
 			Some(s) => {
-				debug!(target: "babe", "Authored block {:?}", s.0);
+				debug!(target: "rrsc", "Authored block {:?}", s.0);
 				break
 			},
 		}
 	}
 }
 
-// Propose and import a new BABE block on top of the given parent.
+// Propose and import a new RRSC block on top of the given parent.
 fn propose_and_import_block<Transaction: Send + 'static>(
 	parent: &TestHeader,
 	slot: Option<Slot>,
@@ -617,7 +599,7 @@ fn propose_and_import_block<Transaction: Send + 'static>(
 	});
 
 	let pre_digest = sp_runtime::generic::Digest {
-		logs: vec![Item::babe_pre_digest(PreDigest::SecondaryPlain(SecondaryPlainPreDigest {
+		logs: vec![Item::rrsc_pre_digest(PreDigest::SecondaryPlain(SecondaryPlainPreDigest {
 			authority_index: 0,
 			slot,
 		}))],
@@ -645,7 +627,7 @@ fn propose_and_import_block<Transaction: Send + 'static>(
 		let pair = AuthorityPair::from_seed(&[1; 32]);
 		let pre_hash = block.header.hash();
 		let signature = pair.sign(pre_hash.as_ref());
-		Item::babe_seal(signature)
+		Item::rrsc_seal(signature)
 	};
 
 	let post_hash = {
@@ -660,7 +642,7 @@ fn propose_and_import_block<Transaction: Send + 'static>(
 	import.body = Some(block.extrinsics);
 	import.intermediates.insert(
 		Cow::from(INTERMEDIATE_KEY),
-		Box::new(BabeIntermediate::<TestBlock> { epoch_descriptor }) as Box<_>,
+		Box::new(RRSCIntermediate::<TestBlock> { epoch_descriptor }) as Box<_>,
 	);
 	import.fork_choice = Some(ForkChoiceStrategy::LongestChain);
 	let import_result = block_on(block_import.import_block(import, Default::default())).unwrap();
@@ -675,10 +657,10 @@ fn propose_and_import_block<Transaction: Send + 'static>(
 
 #[test]
 fn importing_block_one_sets_genesis_epoch() {
-	let mut net = BabeTestNet::new(1);
+	let mut net = RRSCTestNet::new(1);
 
 	let peer = net.peer(0);
-	let data = peer.data.as_ref().expect("babe link set up during initialization");
+	let data = peer.data.as_ref().expect("rrsc link set up during initialization");
 	let client = peer.client().as_full().expect("Only full clients are used in tests").clone();
 
 	let mut proposer_factory = DummyFactory {
@@ -716,10 +698,10 @@ fn importing_block_one_sets_genesis_epoch() {
 fn importing_epoch_change_block_prunes_tree() {
 	use sc_client_api::Finalizer;
 
-	let mut net = BabeTestNet::new(1);
+	let mut net = RRSCTestNet::new(1);
 
 	let peer = net.peer(0);
-	let data = peer.data.as_ref().expect("babe link set up during initialization");
+	let data = peer.data.as_ref().expect("rrsc link set up during initialization");
 
 	let client = peer.client().as_full().expect("Only full clients are used in tests").clone();
 	let mut block_import = data.block_import.lock().take().expect("import set up during init");
@@ -732,7 +714,7 @@ fn importing_epoch_change_block_prunes_tree() {
 		mutator: Arc::new(|_, _| ()),
 	};
 
-	// This is just boilerplate code for proposing and importing n valid BABE
+	// This is just boilerplate code for proposing and importing n valid RRSC
 	// blocks that are built on top of the given parent. The proposer takes care
 	// of producing epoch change digests according to the epoch duration (which
 	// is set to 6 slots in the test runtime).
@@ -831,10 +813,10 @@ fn importing_epoch_change_block_prunes_tree() {
 #[test]
 #[should_panic]
 fn verify_slots_are_strictly_increasing() {
-	let mut net = BabeTestNet::new(1);
+	let mut net = RRSCTestNet::new(1);
 
 	let peer = net.peer(0);
-	let data = peer.data.as_ref().expect("babe link set up during initialization");
+	let data = peer.data.as_ref().expect("rrsc link set up during initialization");
 
 	let client = peer.client().as_full().expect("Only full clients are used in tests").clone();
 	let mut block_import = data.block_import.lock().take().expect("import set up during init");
@@ -864,12 +846,12 @@ fn verify_slots_are_strictly_increasing() {
 }
 
 #[test]
-fn babe_transcript_generation_match() {
+fn rrsc_transcript_generation_match() {
 	sp_tracing::try_init_simple();
 	let keystore_path = tempfile::tempdir().expect("Creates keystore path");
 	let keystore: SyncCryptoStorePtr =
 		Arc::new(LocalKeystore::open(keystore_path.path(), None).expect("Creates keystore"));
-	let public = SyncCryptoStore::sr25519_generate_new(&*keystore, BABE, Some("//Alice"))
+	let public = SyncCryptoStore::sr25519_generate_new(&*keystore, RRSC, Some("//Alice"))
 		.expect("Generates authority pair");
 
 	let epoch = Epoch {

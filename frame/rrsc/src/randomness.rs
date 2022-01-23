@@ -37,7 +37,7 @@ use sp_runtime::traits::Hash;
 /// wins whatever game they play.
 ///
 /// All input commitments used with `RandomnessFromTwoEpochsAgo` should come from at least
-/// three epochs ago. We require BABE session keys be registered at least three epochs
+/// three epochs ago. We require RRSC session keys be registered at least three epochs
 /// before being used to derive `CurrentBlockRandomness` for example.
 ///
 /// All users learn `RandomnessFromTwoEpochsAgo` when epoch `current_epoch - 1` starts,
@@ -100,15 +100,15 @@ pub struct RandomnessFromOneEpochAgo<T>(sp_std::marker::PhantomData<T>);
 /// Aside from just biasing `RandomnessFromTwoEpochsAgo`, adversaries could also bias
 /// `CurrentBlockRandomness` by never announcing their block if doing so yields an
 /// unfavorable randomness. As such, `CurrentBlockRandomness` should be considered weaker
-/// than both other randomness sources provided by BABE, but `CurrentBlockRandomness`
+/// than both other randomness sources provided by RRSC, but `CurrentBlockRandomness`
 /// remains constrained by declared staking, while a randomness source like block hash is
 /// only constrained by adversaries' unknowable computational power.
 ///
 /// As an example use, parachains could assign block production slots based upon the
 /// `CurrentBlockRandomness` of their relay parent or relay parent's parent, provided the
 /// parachain registers collators but avoids censorship sensitive functionality like
-/// slashing. Any parachain with slashing could operate BABE itself or perhaps better yet
-/// a BABE-like approach that derives its `CurrentBlockRandomness`, and authorizes block
+/// slashing. Any parachain with slashing could operate RRSC itself or perhaps better yet
+/// a RRSC-like approach that derives its `CurrentBlockRandomness`, and authorizes block
 /// production, based upon the relay parent's `CurrentBlockRandomness` or more likely the
 /// relay parent's `RandomnessFromTwoEpochsAgo`.
 pub struct CurrentBlockRandomness<T>(sp_std::marker::PhantomData<T>);

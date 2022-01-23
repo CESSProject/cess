@@ -1,22 +1,4 @@
-// This file is part of Substrate.
-
-// Copyright (C) 2019-2021 Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-//! Schema for BABE epoch changes in the aux-db.
+//! Schema for RRSC epoch changes in the aux-db.
 
 use codec::{Decode, Encode};
 use log::info;
@@ -25,12 +7,12 @@ use crate::{migration::EpochV0, Epoch};
 use sc_client_api::backend::AuxStore;
 use sc_consensus_epochs::{migration::EpochChangesForV0, EpochChangesFor, SharedEpochChanges};
 use sp_blockchain::{Error as ClientError, Result as ClientResult};
-use sp_consensus_babe::{BabeBlockWeight, RRSCGenesisConfiguration};
+use sp_consensus_rrsc::{RRSCBlockWeight, RRSCGenesisConfiguration};
 use sp_runtime::traits::Block as BlockT;
 
-const BABE_EPOCH_CHANGES_VERSION: &[u8] = b"babe_epoch_changes_version";
-const BABE_EPOCH_CHANGES_KEY: &[u8] = b"babe_epoch_changes";
-const BABE_EPOCH_CHANGES_CURRENT_VERSION: u32 = 2;
+const RRSC_EPOCH_CHANGES_VERSION: &[u8] = b"rrsc_epoch_changes_version";
+const RRSC_EPOCH_CHANGES_KEY: &[u8] = b"rrsc_epoch_changes";
+const RRSC_EPOCH_CHANGES_CURRENT_VERSION: u32 = 2;
 
 /// The aux storage key used to store the block weight of the given block hash.
 pub fn block_weight_key<H: Encode>(block_hash: H) -> Vec<u8> {
@@ -43,7 +25,7 @@ where
 	T: Decode,
 {
 	let corrupt = |e: codec::Error| {
-		ClientError::Backend(format!("BABE DB is corrupted. Decode error: {}", e))
+		ClientError::Backend(format!("RRSC DB is corrupted. Decode error: {}", e))
 	};
 	match backend.get_aux(key)? {
 		None => Ok(None),
@@ -56,26 +38,26 @@ pub fn load_epoch_changes<Block: BlockT, B: AuxStore>(
 	backend: &B,
 	config: &RRSCGenesisConfiguration,
 ) -> ClientResult<SharedEpochChanges<Block, Epoch>> {
-	let version = load_decode::<_, u32>(backend, BABE_EPOCH_CHANGES_VERSION)?;
+	let version = load_decode::<_, u32>(backend, RRSC_EPOCH_CHANGES_VERSION)?;
 
 	let maybe_epoch_changes = match version {
 		None =>
-			load_decode::<_, EpochChangesForV0<Block, EpochV0>>(backend, BABE_EPOCH_CHANGES_KEY)?
+			load_decode::<_, EpochChangesForV0<Block, EpochV0>>(backend, RRSC_EPOCH_CHANGES_KEY)?
 				.map(|v0| v0.migrate().map(|_, _, epoch| epoch.migrate(config))),
 		Some(1) =>
-			load_decode::<_, EpochChangesFor<Block, EpochV0>>(backend, BABE_EPOCH_CHANGES_KEY)?
+			load_decode::<_, EpochChangesFor<Block, EpochV0>>(backend, RRSC_EPOCH_CHANGES_KEY)?
 				.map(|v1| v1.map(|_, _, epoch| epoch.migrate(config))),
-		Some(BABE_EPOCH_CHANGES_CURRENT_VERSION) =>
-			load_decode::<_, EpochChangesFor<Block, Epoch>>(backend, BABE_EPOCH_CHANGES_KEY)?,
+		Some(RRSC_EPOCH_CHANGES_CURRENT_VERSION) =>
+			load_decode::<_, EpochChangesFor<Block, Epoch>>(backend, RRSC_EPOCH_CHANGES_KEY)?,
 		Some(other) =>
-			return Err(ClientError::Backend(format!("Unsupported BABE DB version: {:?}", other))),
+			return Err(ClientError::Backend(format!("Unsupported RRSC DB version: {:?}", other))),
 	};
 
 	let epoch_changes =
 		SharedEpochChanges::<Block, Epoch>::new(maybe_epoch_changes.unwrap_or_else(|| {
 			info!(
-				target: "babe",
-				"👶 Creating empty BABE epoch changes on what appears to be first startup.",
+				target: "rrsc",
+				"👶 Creating empty RRSC epoch changes on what appears to be first startup.",
 			);
 			EpochChangesFor::<Block, Epoch>::default()
 		}));
@@ -97,11 +79,11 @@ pub(crate) fn write_epoch_changes<Block: BlockT, F, R>(
 where
 	F: FnOnce(&[(&'static [u8], &[u8])]) -> R,
 {
-	BABE_EPOCH_CHANGES_CURRENT_VERSION.using_encoded(|version| {
+	RRSC_EPOCH_CHANGES_CURRENT_VERSION.using_encoded(|version| {
 		let encoded_epoch_changes = epoch_changes.encode();
 		write_aux(&[
-			(BABE_EPOCH_CHANGES_KEY, encoded_epoch_changes.as_slice()),
-			(BABE_EPOCH_CHANGES_VERSION, version),
+			(RRSC_EPOCH_CHANGES_KEY, encoded_epoch_changes.as_slice()),
+			(RRSC_EPOCH_CHANGES_VERSION, version),
 		])
 	})
 }
@@ -109,7 +91,7 @@ where
 /// Write the cumulative chain-weight of a block ot aux storage.
 pub(crate) fn write_block_weight<H: Encode, F, R>(
 	block_hash: H,
-	block_weight: BabeBlockWeight,
+	block_weight: RRSCBlockWeight,
 	write_aux: F,
 ) -> R
 where
@@ -123,7 +105,7 @@ where
 pub fn load_block_weight<H: Encode, B: AuxStore>(
 	backend: &B,
 	block_hash: H,
-) -> ClientResult<Option<BabeBlockWeight>> {
+) -> ClientResult<Option<RRSCBlockWeight>> {
 	load_decode(backend, block_weight_key(block_hash).as_slice())
 }
 
@@ -135,7 +117,7 @@ mod test {
 	use sc_consensus_epochs::{EpochHeader, PersistedEpoch, PersistedEpochHeader};
 	use sc_network_test::Block as TestBlock;
 	use sp_consensus::Error as ConsensusError;
-	use sp_consensus_babe::{AllowedSlots, RRSCGenesisConfiguration};
+	use sp_consensus_rrsc::{AllowedSlots, RRSCGenesisConfiguration};
 	use sp_core::H256;
 	use sp_runtime::traits::NumberFor;
 	use substrate_test_runtime_client;
@@ -163,14 +145,14 @@ mod test {
 		client
 			.insert_aux(
 				&[(
-					BABE_EPOCH_CHANGES_KEY,
+					RRSC_EPOCH_CHANGES_KEY,
 					&EpochChangesForV0::<TestBlock, EpochV0>::from_raw(v0_tree).encode()[..],
 				)],
 				&[],
 			)
 			.unwrap();
 
-		assert_eq!(load_decode::<_, u32>(&client, BABE_EPOCH_CHANGES_VERSION).unwrap(), None);
+		assert_eq!(load_decode::<_, u32>(&client, RRSC_EPOCH_CHANGES_VERSION).unwrap(), None);
 
 		let epoch_changes = load_epoch_changes::<TestBlock, _>(
 			&client,
@@ -202,6 +184,6 @@ mod test {
 			client.insert_aux(values, &[]).unwrap();
 		});
 
-		assert_eq!(load_decode::<_, u32>(&client, BABE_EPOCH_CHANGES_VERSION).unwrap(), Some(2));
+		assert_eq!(load_decode::<_, u32>(&client, RRSC_EPOCH_CHANGES_VERSION).unwrap(), Some(2));
 	}
 }

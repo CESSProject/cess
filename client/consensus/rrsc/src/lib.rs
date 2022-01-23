@@ -1,67 +1,5 @@
-// This file is part of Substrate.
+//! # RRSC (Random Rotational Selection Consensus)
 
-// Copyright (C) 2019-2021 Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-//! # BABE (Blind Assignment for Blockchain Extension)
-//!
-//! BABE is a slot-based block production mechanism which uses a VRF PRNG to
-//! randomly perform the slot allocation. On every slot, all the authorities
-//! generate a new random number with the VRF function and if it is lower than a
-//! given threshold (which is proportional to their weight/stake) they have a
-//! right to produce a block. The proof of the VRF function execution will be
-//! used by other peer to validate the legitimacy of the slot claim.
-//!
-//! The engine is also responsible for collecting entropy on-chain which will be
-//! used to seed the given VRF PRNG. An epoch is a contiguous number of slots
-//! under which we will be using the same authority set. During an epoch all VRF
-//! outputs produced as a result of block production will be collected on an
-//! on-chain randomness pool. Epoch changes are announced one epoch in advance,
-//! i.e. when ending epoch N, we announce the parameters (randomness,
-//! authorities, etc.) for epoch N+2.
-//!
-//! Since the slot assignment is randomized, it is possible that a slot is
-//! assigned to multiple validators in which case we will have a temporary fork,
-//! or that a slot is assigned to no validator in which case no block is
-//! produced. Which means that block times are not deterministic.
-//!
-//! The protocol has a parameter `c` [0, 1] for which `1 - c` is the probability
-//! of a slot being empty. The choice of this parameter affects the security of
-//! the protocol relating to maximum tolerable network delays.
-//!
-//! In addition to the VRF-based slot assignment described above, which we will
-//! call primary slots, the engine also supports a deterministic secondary slot
-//! assignment. Primary slots take precedence over secondary slots, when
-//! authoring the node starts by trying to claim a primary slot and falls back
-//! to a secondary slot claim attempt. The secondary slot assignment is done
-//! by picking the authority at index:
-//!
-//! `blake2_256(epoch_randomness ++ slot_number) % authorities_len`.
-//!
-//! The secondary slots supports either a `SecondaryPlain` or `SecondaryVRF`
-//! variant. Comparing with `SecondaryPlain` variant, the `SecondaryVRF` variant
-//! generates an additional VRF output. The output is not included in beacon
-//! randomness, but can be consumed by parachains.
-//!
-//! The fork choice rule is weight-based, where weight equals the number of
-//! primary blocks in the chain. We will pick the heaviest chain (more primary
-//! blocks) and will go with the longest one in case of a tie.
-//!
-//! An in-depth description and analysis of the protocol can be found here:
-//! <https://research.web3.foundation/en/latest/polkadot/block-production/Babe.html>
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -110,7 +48,7 @@ use sp_consensus::{
 	BlockOrigin, CacheKeyId, CanAuthorWith, Environment, Error as ConsensusError, Proposer,
 	SelectChain, SlotData,
 };
-use sp_consensus_babe::inherents::BabeInherentData;
+use sp_consensus_rrsc::inherents::RRSCInherentData;
 use sp_consensus_slots::Slot;
 use sp_core::{crypto::Public, ExecutionContext};
 use sp_inherents::{CreateInherentDataProviders, InherentData, InherentDataProvider};
@@ -122,13 +60,13 @@ use sp_runtime::{
 
 pub use sc_consensus_slots::SlotProportion;
 pub use sp_consensus::SyncOracle;
-pub use sp_consensus_babe::{
+pub use sp_consensus_rrsc::{
 	digests::{
 		CompatibleDigestItem, NextConfigDescriptor, NextEpochDescriptor, PreDigest,
 		PrimaryPreDigest, SecondaryPlainPreDigest,
 	},
-	AuthorityId, AuthorityPair, AuthoritySignature, BabeApi, BabeAuthorityWeight, BabeBlockWeight,
-	RRSCEpochConfiguration, RRSCGenesisConfiguration, ConsensusLog, BABE_ENGINE_ID,
+	AuthorityId, AuthorityPair, AuthoritySignature, RRSCApi, RRSCAuthorityWeight, RRSCBlockWeight,
+	RRSCEpochConfiguration, RRSCGenesisConfiguration, ConsensusLog, RRSC_ENGINE_ID,
 	VRF_OUTPUT_LENGTH,
 };
 
@@ -142,7 +80,7 @@ pub mod aux_schema;
 #[cfg(test)]
 mod tests;
 
-/// BABE epoch information
+/// RRSC epoch information
 #[derive(Decode, Encode, PartialEq, Eq, Clone, Debug)]
 pub struct Epoch {
 	/// The epoch index.
@@ -152,7 +90,7 @@ pub struct Epoch {
 	/// The duration of this epoch.
 	pub duration: u64,
 	/// The authorities and their weights.
-	pub authorities: Vec<(AuthorityId, BabeAuthorityWeight)>,
+	pub authorities: Vec<(AuthorityId, RRSCAuthorityWeight)>,
 	/// Randomness for this epoch.
 	pub randomness: [u8; VRF_OUTPUT_LENGTH],
 	/// Configuration of the epoch.
@@ -186,8 +124,8 @@ impl EpochT for Epoch {
 	}
 }
 
-impl From<sp_consensus_babe::Epoch> for Epoch {
-	fn from(epoch: sp_consensus_babe::Epoch) -> Self {
+impl From<sp_consensus_rrsc::Epoch> for Epoch {
+	fn from(epoch: sp_consensus_rrsc::Epoch) -> Self {
 		Epoch {
 			epoch_index: epoch.epoch_index,
 			start_slot: epoch.start_slot,
@@ -217,20 +155,20 @@ impl Epoch {
 	}
 }
 
-/// Errors encountered by the babe authorship task.
+/// Errors encountered by the rrsc authorship task.
 #[derive(derive_more::Display, Debug)]
 pub enum Error<B: BlockT> {
-	/// Multiple BABE pre-runtime digests
-	#[display(fmt = "Multiple BABE pre-runtime digests, rejecting!")]
+	/// Multiple RRSC pre-runtime digests
+	#[display(fmt = "Multiple RRSC pre-runtime digests, rejecting!")]
 	MultiplePreRuntimeDigests,
-	/// No BABE pre-runtime digest found
-	#[display(fmt = "No BABE pre-runtime digest found")]
+	/// No RRSC pre-runtime digest found
+	#[display(fmt = "No RRSC pre-runtime digest found")]
 	NoPreRuntimeDigest,
-	/// Multiple BABE epoch change digests
-	#[display(fmt = "Multiple BABE epoch change digests, rejecting!")]
+	/// Multiple RRSC epoch change digests
+	#[display(fmt = "Multiple RRSC epoch change digests, rejecting!")]
 	MultipleEpochChangeDigests,
-	/// Multiple BABE config change digests
-	#[display(fmt = "Multiple BABE config change digests, rejecting!")]
+	/// Multiple RRSC config change digests
+	#[display(fmt = "Multiple RRSC config change digests, rejecting!")]
 	MultipleConfigChangeDigests,
 	/// Could not extract timestamp and slot
 	#[display(fmt = "Could not extract timestamp and slot: {:?}", _0)]
@@ -316,23 +254,23 @@ impl<B: BlockT> std::convert::From<Error<B>> for String {
 	}
 }
 
-fn babe_err<B: BlockT>(error: Error<B>) -> Error<B> {
-	debug!(target: "babe", "{}", error);
+fn rrsc_err<B: BlockT>(error: Error<B>) -> Error<B> {
+	debug!(target: "rrsc", "{}", error);
 	error
 }
 
 /// Intermediate value passed to block importer.
-pub struct BabeIntermediate<B: BlockT> {
+pub struct RRSCIntermediate<B: BlockT> {
 	/// The epoch descriptor.
 	pub epoch_descriptor: ViableEpochDescriptor<B::Hash, NumberFor<B>, Epoch>,
 }
 
-/// Intermediate key for Babe engine.
-pub static INTERMEDIATE_KEY: &[u8] = b"babe1";
+/// Intermediate key for RRSC engine.
+pub static INTERMEDIATE_KEY: &[u8] = b"rrsc1";
 
 /// A slot duration. Create with `get_or_compute`.
 // FIXME: Once Rust has higher-kinded types, the duplication between this
-// and `super::babe::Config` can be eliminated.
+// and `super::rrsc::Config` can be eliminated.
 // https://github.com/paritytech/substrate/issues/2434
 #[derive(Clone)]
 pub struct Config(sc_consensus_slots::SlotDuration<RRSCGenesisConfiguration>);
@@ -343,12 +281,12 @@ impl Config {
 	pub fn get_or_compute<B: BlockT, C>(client: &C) -> ClientResult<Self>
 	where
 		C: AuxStore + ProvideRuntimeApi<B> + UsageProvider<B>,
-		C::Api: BabeApi<B>,
+		C::Api: RRSCApi<B>,
 	{
-		trace!(target: "babe", "Getting slot duration");
+		trace!(target: "rrsc", "Getting slot duration");
 		match sc_consensus_slots::SlotDuration::get_or_compute(client, |a, b| {
-			let has_api_v1 = a.has_api_with::<dyn BabeApi<B>, _>(&b, |v| v == 1)?;
-			let has_api_v2 = a.has_api_with::<dyn BabeApi<B>, _>(&b, |v| v == 2)?;
+			let has_api_v1 = a.has_api_with::<dyn RRSCApi<B>, _>(&b, |v| v == 1)?;
+			let has_api_v2 = a.has_api_with::<dyn RRSCApi<B>, _>(&b, |v| v == 2)?;
 
 			if has_api_v1 {
 				#[allow(deprecated)]
@@ -359,7 +297,7 @@ impl Config {
 				a.configuration(b).map_err(Into::into)
 			} else {
 				Err(sp_blockchain::Error::VersionInvalid(
-					"Unsupported or invalid BabeApi version".to_string(),
+					"Unsupported or invalid RRSCApi version".to_string(),
 				))
 			}
 		})
@@ -367,7 +305,7 @@ impl Config {
 		{
 			Ok(s) => Ok(s),
 			Err(s) => {
-				warn!(target: "babe", "Failed to get slot duration");
+				warn!(target: "rrsc", "Failed to get slot duration");
 				Err(s)
 			},
 		}
@@ -387,8 +325,8 @@ impl std::ops::Deref for Config {
 	}
 }
 
-/// Parameters for BABE.
-pub struct BabeParams<B: BlockT, C, SC, E, I, SO, L, CIDP, BS, CAW> {
+/// Parameters for RRSC.
+pub struct RRSCParams<B: BlockT, C, SC, E, I, SO, L, CIDP, BS, CAW> {
 	/// The keystore that manages the keys of the node.
 	pub keystore: SyncCryptoStorePtr,
 
@@ -402,7 +340,7 @@ pub struct BabeParams<B: BlockT, C, SC, E, I, SO, L, CIDP, BS, CAW> {
 	pub env: E,
 
 	/// The underlying block-import object to supply our produced blocks to.
-	/// This must be a `BabeBlockImport` or a wrapper of it, otherwise
+	/// This must be a `RRSCBlockImport` or a wrapper of it, otherwise
 	/// critical consensus logic will be omitted.
 	pub block_import: I,
 
@@ -422,7 +360,7 @@ pub struct BabeParams<B: BlockT, C, SC, E, I, SO, L, CIDP, BS, CAW> {
 	pub backoff_authoring_blocks: Option<BS>,
 
 	/// The source of timestamps for relative slots
-	pub babe_link: BabeLink<B>,
+	pub rrsc_link: RRSCLink<B>,
 
 	/// Checks if the current native implementation can author with a runtime at a given block.
 	pub can_author_with: CAW,
@@ -442,9 +380,9 @@ pub struct BabeParams<B: BlockT, C, SC, E, I, SO, L, CIDP, BS, CAW> {
 	pub telemetry: Option<TelemetryHandle>,
 }
 
-/// Start the babe worker.
-pub fn start_babe<B, C, SC, E, I, SO, CIDP, BS, CAW, L, Error>(
-	BabeParams {
+/// Start the rrsc worker.
+pub fn start_rrsc<B, C, SC, E, I, SO, CIDP, BS, CAW, L, Error>(
+	RRSCParams {
 		keystore,
 		client,
 		select_chain,
@@ -455,13 +393,13 @@ pub fn start_babe<B, C, SC, E, I, SO, CIDP, BS, CAW, L, Error>(
 		create_inherent_data_providers,
 		force_authoring,
 		backoff_authoring_blocks,
-		babe_link,
+		rrsc_link,
 		can_author_with,
 		block_proposal_slot_portion,
 		max_block_proposal_slot_portion,
 		telemetry,
-	}: BabeParams<B, C, SC, E, I, SO, L, CIDP, BS, CAW>,
-) -> Result<BabeWorker<B>, sp_consensus::Error>
+	}: RRSCParams<B, C, SC, E, I, SO, L, CIDP, BS, CAW>,
+) -> Result<RRSCWorker<B>, sp_consensus::Error>
 where
 	B: BlockT,
 	C: ProvideRuntimeApi<B>
@@ -473,7 +411,7 @@ where
 		+ Send
 		+ Sync
 		+ 'static,
-	C::Api: BabeApi<B>,
+	C::Api: RRSCApi<B>,
 	SC: SelectChain<B> + 'static,
 	E: Environment<B, Error = Error> + Send + Sync + 'static,
 	E::Proposer: Proposer<B, Error = Error, Transaction = sp_api::TransactionFor<C, B>>,
@@ -491,10 +429,10 @@ where
 {
 	const HANDLE_BUFFER_SIZE: usize = 1024;
 
-	let config = babe_link.config;
+	let config = rrsc_link.config;
 	let slot_notification_sinks = Arc::new(Mutex::new(Vec::new()));
 
-	let worker = BabeSlotWorker {
+	let worker = RRSCSlotWorker {
 		client: client.clone(),
 		block_import,
 		env,
@@ -503,7 +441,7 @@ where
 		force_authoring,
 		backoff_authoring_blocks,
 		keystore,
-		epoch_changes: babe_link.epoch_changes.clone(),
+		epoch_changes: rrsc_link.epoch_changes.clone(),
 		slot_notification_sinks: slot_notification_sinks.clone(),
 		config: config.clone(),
 		block_proposal_slot_portion,
@@ -511,7 +449,7 @@ where
 		telemetry,
 	};
 
-	info!(target: "babe", "👶 Starting BABE Authorship worker");
+	info!(target: "rrsc", "👶 Starting RRSC Authorship worker");
 	let inner = sc_consensus_slots::start_slot_worker(
 		config.0.clone(),
 		select_chain,
@@ -524,16 +462,16 @@ where
 	let (worker_tx, worker_rx) = channel(HANDLE_BUFFER_SIZE);
 
 	let answer_requests =
-		answer_requests(worker_rx, config.0, client, babe_link.epoch_changes.clone());
-	Ok(BabeWorker {
+		answer_requests(worker_rx, config.0, client, rrsc_link.epoch_changes.clone());
+	Ok(RRSCWorker {
 		inner: Box::pin(future::join(inner, answer_requests).map(|_| ())),
 		slot_notification_sinks,
-		handle: BabeWorkerHandle(worker_tx),
+		handle: RRSCWorkerHandle(worker_tx),
 	})
 }
 
 async fn answer_requests<B: BlockT, C>(
-	mut request_rx: Receiver<BabeRequest<B>>,
+	mut request_rx: Receiver<RRSCRequest<B>>,
 	genesis_config: sc_consensus_slots::SlotDuration<RRSCGenesisConfiguration>,
 	client: Arc<C>,
 	epoch_changes: SharedEpochChanges<B, Epoch>,
@@ -550,7 +488,7 @@ async fn answer_requests<B: BlockT, C>(
 {
 	while let Some(request) = request_rx.next().await {
 		match request {
-			BabeRequest::EpochForChild(parent_hash, parent_number, slot_number, response) => {
+			RRSCRequest::EpochForChild(parent_hash, parent_number, slot_number, response) => {
 				let lookup = || {
 					let epoch_changes = epoch_changes.shared_data();
 					let epoch_descriptor = epoch_changes
@@ -569,7 +507,7 @@ async fn answer_requests<B: BlockT, C>(
 						})
 						.ok_or_else(|| Error::<B>::FetchEpoch(parent_hash))?;
 
-					Ok(sp_consensus_babe::Epoch {
+					Ok(sp_consensus_rrsc::Epoch {
 						epoch_index: viable_epoch.as_ref().epoch_index,
 						start_slot: viable_epoch.as_ref().start_slot,
 						duration: viable_epoch.as_ref().duration,
@@ -585,9 +523,9 @@ async fn answer_requests<B: BlockT, C>(
 	}
 }
 
-/// Requests to the BABE service.
+/// Requests to the RRSC service.
 #[non_exhaustive]
-pub enum BabeRequest<B: BlockT> {
+pub enum RRSCRequest<B: BlockT> {
 	/// Request the epoch that a child of the given block, with the given slot number would have.
 	///
 	/// The parent block is identified by its hash and number.
@@ -595,32 +533,32 @@ pub enum BabeRequest<B: BlockT> {
 		B::Hash,
 		NumberFor<B>,
 		Slot,
-		oneshot::Sender<Result<sp_consensus_babe::Epoch, Error<B>>>,
+		oneshot::Sender<Result<sp_consensus_rrsc::Epoch, Error<B>>>,
 	),
 }
 
-/// A handle to the BABE worker for issuing requests.
+/// A handle to the RRSC worker for issuing requests.
 #[derive(Clone)]
-pub struct BabeWorkerHandle<B: BlockT>(Sender<BabeRequest<B>>);
+pub struct RRSCWorkerHandle<B: BlockT>(Sender<RRSCRequest<B>>);
 
-impl<B: BlockT> BabeWorkerHandle<B> {
-	/// Send a request to the BABE service.
-	pub async fn send(&mut self, request: BabeRequest<B>) {
+impl<B: BlockT> RRSCWorkerHandle<B> {
+	/// Send a request to the RRSC service.
+	pub async fn send(&mut self, request: RRSCRequest<B>) {
 		// Failure to send means that the service is down.
 		// This will manifest as the receiver of the request being dropped.
 		let _ = self.0.send(request).await;
 	}
 }
 
-/// Worker for Babe which implements `Future<Output=()>`. This must be polled.
+/// Worker for RRSC which implements `Future<Output=()>`. This must be polled.
 #[must_use]
-pub struct BabeWorker<B: BlockT> {
+pub struct RRSCWorker<B: BlockT> {
 	inner: Pin<Box<dyn futures::Future<Output = ()> + Send + 'static>>,
 	slot_notification_sinks: SlotNotificationSinks<B>,
-	handle: BabeWorkerHandle<B>,
+	handle: RRSCWorkerHandle<B>,
 }
 
-impl<B: BlockT> BabeWorker<B> {
+impl<B: BlockT> RRSCWorker<B> {
 	/// Return an event stream of notifications for when new slot happens, and the corresponding
 	/// epoch descriptor.
 	pub fn slot_notification_stream(
@@ -634,12 +572,12 @@ impl<B: BlockT> BabeWorker<B> {
 	}
 
 	/// Get a handle to the worker.
-	pub fn handle(&self) -> BabeWorkerHandle<B> {
+	pub fn handle(&self) -> RRSCWorkerHandle<B> {
 		self.handle.clone()
 	}
 }
 
-impl<B: BlockT> futures::Future for BabeWorker<B> {
+impl<B: BlockT> futures::Future for RRSCWorker<B> {
 	type Output = ();
 
 	fn poll(
@@ -655,7 +593,7 @@ type SlotNotificationSinks<B> = Arc<
 	Mutex<Vec<Sender<(Slot, ViableEpochDescriptor<<B as BlockT>::Hash, NumberFor<B>, Epoch>)>>>,
 >;
 
-struct BabeSlotWorker<B: BlockT, C, E, I, SO, L, BS> {
+struct RRSCSlotWorker<B: BlockT, C, E, I, SO, L, BS> {
 	client: Arc<C>,
 	block_import: I,
 	env: E,
@@ -673,14 +611,14 @@ struct BabeSlotWorker<B: BlockT, C, E, I, SO, L, BS> {
 }
 
 impl<B, C, E, I, Error, SO, L, BS> sc_consensus_slots::SimpleSlotWorker<B>
-	for BabeSlotWorker<B, C, E, I, SO, L, BS>
+	for RRSCSlotWorker<B, C, E, I, SO, L, BS>
 where
 	B: BlockT,
 	C: ProvideRuntimeApi<B>
 		+ ProvideCache<B>
 		+ HeaderBackend<B>
 		+ HeaderMetadata<B, Error = ClientError>,
-	C::Api: BabeApi<B>,
+	C::Api: RRSCApi<B>,
 	E: Environment<B, Error = Error>,
 	E::Proposer: Proposer<B, Error = Error, Transaction = sp_api::TransactionFor<C, B>>,
 	I: BlockImport<B, Transaction = sp_api::TransactionFor<C, B>> + Send + Sync + 'static,
@@ -699,7 +637,7 @@ where
 	type BlockImport = I;
 
 	fn logging_target(&self) -> &'static str {
-		"babe"
+		"rrsc"
 	}
 
 	fn block_import(&mut self) -> &mut Self::BlockImport {
@@ -736,7 +674,7 @@ where
 		slot: Slot,
 		epoch_descriptor: &ViableEpochDescriptor<B::Hash, NumberFor<B>, Epoch>,
 	) -> Option<Self::Claim> {
-		debug!(target: "babe", "Attempting to claim slot {}", slot);
+		debug!(target: "rrsc", "Attempting to claim slot {}", slot);
 		let s = authorship::claim_slot(
 			slot,
 			self.epoch_changes
@@ -747,7 +685,7 @@ where
 		);
 
 		if s.is_some() {
-			debug!(target: "babe", "Claimed slot {}", slot);
+			debug!(target: "rrsc", "Claimed slot {}", slot);
 		}
 
 		s
@@ -764,7 +702,7 @@ where
 				Ok(()) => true,
 				Err(e) =>
 					if e.is_full() {
-						warn!(target: "babe", "Trying to notify a slot but the channel is full");
+						warn!(target: "rrsc", "Trying to notify a slot but the channel is full");
 						true
 					} else {
 						false
@@ -778,7 +716,7 @@ where
 		_slot: Slot,
 		claim: &Self::Claim,
 	) -> Vec<sp_runtime::DigestItem<B::Hash>> {
-		vec![<DigestItemFor<B> as CompatibleDigestItem>::babe_pre_digest(claim.0.clone())]
+		vec![<DigestItemFor<B> as CompatibleDigestItem>::rrsc_pre_digest(claim.0.clone())]
 	}
 
 	fn block_import_params(
@@ -820,7 +758,7 @@ where
 					.try_into()
 					.map_err(|_| sp_consensus::Error::InvalidSignature(signature, public))?;
 				let digest_item =
-					<DigestItemFor<B> as CompatibleDigestItem>::babe_seal(signature.into());
+					<DigestItemFor<B> as CompatibleDigestItem>::rrsc_seal(signature.into());
 
 				let mut import_block = BlockImportParams::new(BlockOrigin::Own, header);
 				import_block.post_digests.push(digest_item);
@@ -830,7 +768,7 @@ where
 				);
 				import_block.intermediates.insert(
 					Cow::from(INTERMEDIATE_KEY),
-					Box::new(BabeIntermediate::<B> { epoch_descriptor }) as Box<_>,
+					Box::new(RRSCIntermediate::<B> { epoch_descriptor }) as Box<_>,
 				);
 
 				Ok(import_block)
@@ -893,7 +831,7 @@ where
 	}
 }
 
-/// Extract the BABE pre digest from the given header. Pre-runtime digests are
+/// Extract the RRSC pre digest from the given header. Pre-runtime digests are
 /// mandatory, the function will return `Err` if none is found.
 pub fn find_pre_digest<B: BlockT>(header: &B::Header) -> Result<PreDigest, Error<B>> {
 	// genesis block doesn't contain a pre digest so let's generate a
@@ -907,17 +845,17 @@ pub fn find_pre_digest<B: BlockT>(header: &B::Header) -> Result<PreDigest, Error
 
 	let mut pre_digest: Option<_> = None;
 	for log in header.digest().logs() {
-		trace!(target: "babe", "Checking log {:?}, looking for pre runtime digest", log);
-		match (log.as_babe_pre_digest(), pre_digest.is_some()) {
-			(Some(_), true) => return Err(babe_err(Error::MultiplePreRuntimeDigests)),
-			(None, _) => trace!(target: "babe", "Ignoring digest not meant for us"),
+		trace!(target: "rrsc", "Checking log {:?}, looking for pre runtime digest", log);
+		match (log.as_rrsc_pre_digest(), pre_digest.is_some()) {
+			(Some(_), true) => return Err(rrsc_err(Error::MultiplePreRuntimeDigests)),
+			(None, _) => trace!(target: "rrsc", "Ignoring digest not meant for us"),
 			(s, false) => pre_digest = s,
 		}
 	}
-	pre_digest.ok_or_else(|| babe_err(Error::NoPreRuntimeDigest))
+	pre_digest.ok_or_else(|| rrsc_err(Error::NoPreRuntimeDigest))
 }
 
-/// Extract the BABE epoch change digest from the given header, if it exists.
+/// Extract the RRSC epoch change digest from the given header, if it exists.
 fn find_next_epoch_digest<B: BlockT>(
 	header: &B::Header,
 ) -> Result<Option<NextEpochDescriptor>, Error<B>>
@@ -926,20 +864,20 @@ where
 {
 	let mut epoch_digest: Option<_> = None;
 	for log in header.digest().logs() {
-		trace!(target: "babe", "Checking log {:?}, looking for epoch change digest.", log);
-		let log = log.try_to::<ConsensusLog>(OpaqueDigestItemId::Consensus(&BABE_ENGINE_ID));
+		trace!(target: "rrsc", "Checking log {:?}, looking for epoch change digest.", log);
+		let log = log.try_to::<ConsensusLog>(OpaqueDigestItemId::Consensus(&RRSC_ENGINE_ID));
 		match (log, epoch_digest.is_some()) {
 			(Some(ConsensusLog::NextEpochData(_)), true) =>
-				return Err(babe_err(Error::MultipleEpochChangeDigests)),
+				return Err(rrsc_err(Error::MultipleEpochChangeDigests)),
 			(Some(ConsensusLog::NextEpochData(epoch)), false) => epoch_digest = Some(epoch),
-			_ => trace!(target: "babe", "Ignoring digest not meant for us"),
+			_ => trace!(target: "rrsc", "Ignoring digest not meant for us"),
 		}
 	}
 
 	Ok(epoch_digest)
 }
 
-/// Extract the BABE config change digest from the given header, if it exists.
+/// Extract the RRSC config change digest from the given header, if it exists.
 fn find_next_config_digest<B: BlockT>(
 	header: &B::Header,
 ) -> Result<Option<NextConfigDescriptor>, Error<B>>
@@ -948,13 +886,13 @@ where
 {
 	let mut config_digest: Option<_> = None;
 	for log in header.digest().logs() {
-		trace!(target: "babe", "Checking log {:?}, looking for epoch change digest.", log);
-		let log = log.try_to::<ConsensusLog>(OpaqueDigestItemId::Consensus(&BABE_ENGINE_ID));
+		trace!(target: "rrsc", "Checking log {:?}, looking for epoch change digest.", log);
+		let log = log.try_to::<ConsensusLog>(OpaqueDigestItemId::Consensus(&RRSC_ENGINE_ID));
 		match (log, config_digest.is_some()) {
 			(Some(ConsensusLog::NextConfigData(_)), true) =>
-				return Err(babe_err(Error::MultipleConfigChangeDigests)),
+				return Err(rrsc_err(Error::MultipleConfigChangeDigests)),
 			(Some(ConsensusLog::NextConfigData(config)), false) => config_digest = Some(config),
-			_ => trace!(target: "babe", "Ignoring digest not meant for us"),
+			_ => trace!(target: "rrsc", "Ignoring digest not meant for us"),
 		}
 	}
 
@@ -963,12 +901,12 @@ where
 
 /// State that must be shared between the import queue and the authoring logic.
 #[derive(Clone)]
-pub struct BabeLink<Block: BlockT> {
+pub struct RRSCLink<Block: BlockT> {
 	epoch_changes: SharedEpochChanges<Block, Epoch>,
 	config: Config,
 }
 
-impl<Block: BlockT> BabeLink<Block> {
+impl<Block: BlockT> RRSCLink<Block> {
 	/// Get the epoch changes of this link.
 	pub fn epoch_changes(&self) -> &SharedEpochChanges<Block, Epoch> {
 		&self.epoch_changes
@@ -980,8 +918,8 @@ impl<Block: BlockT> BabeLink<Block> {
 	}
 }
 
-/// A verifier for Babe blocks.
-pub struct BabeVerifier<Block: BlockT, Client, SelectChain, CAW, CIDP> {
+/// A verifier for RRSC blocks.
+pub struct RRSCVerifier<Block: BlockT, Client, SelectChain, CAW, CIDP> {
 	client: Arc<Client>,
 	select_chain: SelectChain,
 	create_inherent_data_providers: CIDP,
@@ -991,11 +929,11 @@ pub struct BabeVerifier<Block: BlockT, Client, SelectChain, CAW, CIDP> {
 	telemetry: Option<TelemetryHandle>,
 }
 
-impl<Block, Client, SelectChain, CAW, CIDP> BabeVerifier<Block, Client, SelectChain, CAW, CIDP>
+impl<Block, Client, SelectChain, CAW, CIDP> RRSCVerifier<Block, Client, SelectChain, CAW, CIDP>
 where
 	Block: BlockT,
 	Client: AuxStore + HeaderBackend<Block> + HeaderMetadata<Block> + ProvideRuntimeApi<Block>,
-	Client::Api: BlockBuilderApi<Block> + BabeApi<Block>,
+	Client::Api: BlockBuilderApi<Block> + RRSCApi<Block>,
 	SelectChain: sp_consensus::SelectChain<Block>,
 	CAW: CanAuthorWith<Block>,
 	CIDP: CreateInherentDataProviders<Block, ()>,
@@ -1010,7 +948,7 @@ where
 	) -> Result<(), Error<Block>> {
 		if let Err(e) = self.can_author_with.can_author_with(&block_id) {
 			debug!(
-				target: "babe",
+				target: "rrsc",
 				"Skipping `check_inherents` as authoring version is not compatible: {}",
 				e,
 			);
@@ -1096,7 +1034,7 @@ where
 			None => match generate_key_owner_proof(&best_id)? {
 				Some(proof) => proof,
 				None => {
-					debug!(target: "babe", "Equivocation offender is not part of the authority set.");
+					debug!(target: "rrsc", "Equivocation offender is not part of the authority set.");
 					return Ok(())
 				},
 			},
@@ -1112,7 +1050,7 @@ where
 			)
 			.map_err(Error::RuntimeApi)?;
 
-		info!(target: "babe", "Submitted equivocation report for author {:?}", author);
+		info!(target: "rrsc", "Submitted equivocation report for author {:?}", author);
 
 		Ok(())
 	}
@@ -1123,7 +1061,7 @@ type BlockVerificationResult<Block> =
 
 #[async_trait::async_trait]
 impl<Block, Client, SelectChain, CAW, CIDP> Verifier<Block>
-	for BabeVerifier<Block, Client, SelectChain, CAW, CIDP>
+	for RRSCVerifier<Block, Client, SelectChain, CAW, CIDP>
 where
 	Block: BlockT,
 	Client: HeaderMetadata<Block, Error = sp_blockchain::Error>
@@ -1133,7 +1071,7 @@ where
 		+ Sync
 		+ AuxStore
 		+ ProvideCache<Block>,
-	Client::Api: BlockBuilderApi<Block> + BabeApi<Block>,
+	Client::Api: BlockBuilderApi<Block> + RRSCApi<Block>,
 	SelectChain: sp_consensus::SelectChain<Block>,
 	CAW: CanAuthorWith<Block> + Send + Sync,
 	CIDP: CreateInherentDataProviders<Block, ()> + Send + Sync,
@@ -1144,7 +1082,7 @@ where
 		mut block: BlockImportParams<Block, ()>,
 	) -> BlockVerificationResult<Block> {
 		trace!(
-			target: "babe",
+			target: "rrsc",
 			"Verifying origin: {:?} header: {:?} justification(s): {:?} body: {:?}",
 			block.origin,
 			block.header,
@@ -1163,7 +1101,7 @@ where
 			return Ok((block, Default::default()))
 		}
 
-		debug!(target: "babe", "We have {:?} logs in this header", block.header.digest().logs().len());
+		debug!(target: "rrsc", "We have {:?} logs in this header", block.header.digest().logs().len());
 
 		let create_inherent_data_providers = self
 			.create_inherent_data_providers
@@ -1208,11 +1146,11 @@ where
 
 		match check_header {
 			CheckedHeader::Checked(pre_header, verified_info) => {
-				let babe_pre_digest = verified_info
+				let rrsc_pre_digest = verified_info
 					.pre_digest
-					.as_babe_pre_digest()
+					.as_rrsc_pre_digest()
 					.expect("check_header always returns a pre-digest digest item; qed");
-				let slot = babe_pre_digest.slot();
+				let slot = rrsc_pre_digest.slot();
 
 				// the header is valid but let's check if there was something else already
 				// proposed at the same slot by the given author. if there was, we will
@@ -1227,7 +1165,7 @@ where
 					)
 					.await
 				{
-					warn!(target: "babe", "Error checking/reporting BABE equivocation: {:?}", err);
+					warn!(target: "rrsc", "Error checking/reporting RRSC equivocation: {:?}", err);
 				}
 
 				// if the body is passed through, we need to use the runtime
@@ -1237,7 +1175,7 @@ where
 					let mut inherent_data = create_inherent_data_providers
 						.create_inherent_data()
 						.map_err(Error::<Block>::CreateInherents)?;
-					inherent_data.babe_replace_inherent_data(slot);
+					inherent_data.rrsc_replace_inherent_data(slot);
 					let new_block = Block::new(pre_header.clone(), inner_body);
 
 					self.check_inherents(
@@ -1253,11 +1191,11 @@ where
 					block.body = Some(inner_body);
 				}
 
-				trace!(target: "babe", "Checked {:?}; importing.", pre_header);
+				trace!(target: "rrsc", "Checked {:?}; importing.", pre_header);
 				telemetry!(
 					self.telemetry;
 					CONSENSUS_TRACE;
-					"babe.checked_and_importing";
+					"rrsc.checked_and_importing";
 					"pre_header" => ?pre_header,
 				);
 
@@ -1265,18 +1203,18 @@ where
 				block.post_digests.push(verified_info.seal);
 				block.intermediates.insert(
 					Cow::from(INTERMEDIATE_KEY),
-					Box::new(BabeIntermediate::<Block> { epoch_descriptor }) as Box<_>,
+					Box::new(RRSCIntermediate::<Block> { epoch_descriptor }) as Box<_>,
 				);
 				block.post_hash = Some(hash);
 
 				Ok((block, Default::default()))
 			},
 			CheckedHeader::Deferred(a, b) => {
-				debug!(target: "babe", "Checking {:?} failed; {:?}, {:?}.", hash, a, b);
+				debug!(target: "rrsc", "Checking {:?} failed; {:?}, {:?}.", hash, a, b);
 				telemetry!(
 					self.telemetry;
 					CONSENSUS_DEBUG;
-					"babe.header_too_far_in_future";
+					"rrsc.header_too_far_in_future";
 					"hash" => ?hash, "a" => ?a, "b" => ?b
 				);
 				Err(Error::<Block>::TooFarInFuture(hash).into())
@@ -1285,7 +1223,7 @@ where
 	}
 }
 
-/// A block-import handler for BABE.
+/// A block-import handler for RRSC.
 ///
 /// This scans each imported block for epoch change signals. The signals are
 /// tracked in a tree (of all forks), and the import logic validates all epoch
@@ -1293,16 +1231,16 @@ where
 /// it is missing.
 ///
 /// The epoch change tree should be pruned as blocks are finalized.
-pub struct BabeBlockImport<Block: BlockT, Client, I> {
+pub struct RRSCBlockImport<Block: BlockT, Client, I> {
 	inner: I,
 	client: Arc<Client>,
 	epoch_changes: SharedEpochChanges<Block, Epoch>,
 	config: Config,
 }
 
-impl<Block: BlockT, I: Clone, Client> Clone for BabeBlockImport<Block, Client, I> {
+impl<Block: BlockT, I: Clone, Client> Clone for RRSCBlockImport<Block, Client, I> {
 	fn clone(&self) -> Self {
-		BabeBlockImport {
+		RRSCBlockImport {
 			inner: self.inner.clone(),
 			client: self.client.clone(),
 			epoch_changes: self.epoch_changes.clone(),
@@ -1311,18 +1249,18 @@ impl<Block: BlockT, I: Clone, Client> Clone for BabeBlockImport<Block, Client, I
 	}
 }
 
-impl<Block: BlockT, Client, I> BabeBlockImport<Block, Client, I> {
+impl<Block: BlockT, Client, I> RRSCBlockImport<Block, Client, I> {
 	fn new(
 		client: Arc<Client>,
 		epoch_changes: SharedEpochChanges<Block, Epoch>,
 		block_import: I,
 		config: Config,
 	) -> Self {
-		BabeBlockImport { client, inner: block_import, epoch_changes, config }
+		RRSCBlockImport { client, inner: block_import, epoch_changes, config }
 	}
 }
 
-impl<Block, Client, Inner> BabeBlockImport<Block, Client, Inner>
+impl<Block, Client, Inner> RRSCBlockImport<Block, Client, Inner>
 where
 	Block: BlockT,
 	Inner: BlockImport<Block, Transaction = sp_api::TransactionFor<Client, Block>> + Send + Sync,
@@ -1334,7 +1272,7 @@ where
 		+ ProvideCache<Block>
 		+ Send
 		+ Sync,
-	Client::Api: BabeApi<Block> + ApiExt<Block>,
+	Client::Api: RRSCApi<Block> + ApiExt<Block>,
 {
 	/// Import whole state after warp sync.
 	// This function makes multiple transactions to the DB. If one of them fails we may
@@ -1371,10 +1309,10 @@ where
 		// Read epoch info from the imported state.
 		let block_id = BlockId::hash(hash);
 		let current_epoch = self.client.runtime_api().current_epoch(&block_id).map_err(|e| {
-			ConsensusError::ClientImport(babe_err::<Block>(Error::RuntimeApi(e)).into())
+			ConsensusError::ClientImport(rrsc_err::<Block>(Error::RuntimeApi(e)).into())
 		})?;
 		let next_epoch = self.client.runtime_api().next_epoch(&block_id).map_err(|e| {
-			ConsensusError::ClientImport(babe_err::<Block>(Error::RuntimeApi(e)).into())
+			ConsensusError::ClientImport(rrsc_err::<Block>(Error::RuntimeApi(e)).into())
 		})?;
 
 		let mut epoch_changes = self.epoch_changes.shared_data_locked();
@@ -1389,7 +1327,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<Block, Client, Inner> BlockImport<Block> for BabeBlockImport<Block, Client, Inner>
+impl<Block, Client, Inner> BlockImport<Block> for RRSCBlockImport<Block, Client, Inner>
 where
 	Block: BlockT,
 	Inner: BlockImport<Block, Transaction = sp_api::TransactionFor<Client, Block>> + Send + Sync,
@@ -1401,7 +1339,7 @@ where
 		+ ProvideCache<Block>
 		+ Send
 		+ Sync,
-	Client::Api: BabeApi<Block> + ApiExt<Block>,
+	Client::Api: RRSCApi<Block> + ApiExt<Block>,
 {
 	type Error = ConsensusError;
 	type Transaction = sp_api::TransactionFor<Client, Block>;
@@ -1419,7 +1357,7 @@ where
 		match self.client.status(BlockId::Hash(hash)) {
 			Ok(sp_blockchain::BlockStatus::InChain) => {
 				// When re-importing existing block strip away intermediates.
-				let _ = block.take_intermediate::<BabeIntermediate<Block>>(INTERMEDIATE_KEY);
+				let _ = block.take_intermediate::<RRSCIntermediate<Block>>(INTERMEDIATE_KEY);
 				block.fork_choice = Some(ForkChoiceStrategy::Custom(false));
 				return self.inner.import_block(block, new_cache).await.map_err(Into::into)
 			},
@@ -1432,7 +1370,7 @@ where
 		}
 
 		let pre_digest = find_pre_digest::<Block>(&block.header).expect(
-			"valid babe headers must contain a predigest; header has been already verified; qed",
+			"valid rrsc headers must contain a predigest; header has been already verified; qed",
 		);
 		let slot = pre_digest.slot();
 
@@ -1443,19 +1381,19 @@ where
 			.map_err(|e| ConsensusError::ChainLookup(e.to_string()))?
 			.ok_or_else(|| {
 				ConsensusError::ChainLookup(
-					babe_err(Error::<Block>::ParentUnavailable(parent_hash, hash)).into(),
+					rrsc_err(Error::<Block>::ParentUnavailable(parent_hash, hash)).into(),
 				)
 			})?;
 
 		let parent_slot = find_pre_digest::<Block>(&parent_header).map(|d| d.slot()).expect(
-			"parent is non-genesis; valid BABE headers contain a pre-digest; header has already \
+			"parent is non-genesis; valid RRSC headers contain a pre-digest; header has already \
 			 been verified; qed",
 		);
 
 		// make sure that slot number is strictly increasing
 		if slot <= parent_slot {
 			return Err(ConsensusError::ClientImport(
-				babe_err(Error::<Block>::SlotMustIncrease(parent_slot, slot)).into(),
+				rrsc_err(Error::<Block>::SlotMustIncrease(parent_slot, slot)).into(),
 			))
 		}
 
@@ -1481,14 +1419,14 @@ where
 						.map_err(|e| ConsensusError::ClientImport(e.to_string()))?
 						.ok_or_else(|| {
 							ConsensusError::ClientImport(
-								babe_err(Error::<Block>::ParentBlockNoAssociatedWeight(hash))
+								rrsc_err(Error::<Block>::ParentBlockNoAssociatedWeight(hash))
 									.into(),
 							)
 						})?
 				};
 
 				let intermediate =
-					block.take_intermediate::<BabeIntermediate<Block>>(INTERMEDIATE_KEY)?;
+					block.take_intermediate::<RRSCIntermediate<Block>>(INTERMEDIATE_KEY)?;
 
 				let epoch_descriptor = intermediate.epoch_descriptor;
 				let first_in_epoch = parent_slot < epoch_descriptor.start_slot();
@@ -1508,15 +1446,15 @@ where
 				(false, false, false) => {},
 				(false, false, true) =>
 					return Err(ConsensusError::ClientImport(
-						babe_err(Error::<Block>::UnexpectedConfigChange).into(),
+						rrsc_err(Error::<Block>::UnexpectedConfigChange).into(),
 					)),
 				(true, false, _) =>
 					return Err(ConsensusError::ClientImport(
-						babe_err(Error::<Block>::ExpectedEpochChange(hash, slot)).into(),
+						rrsc_err(Error::<Block>::ExpectedEpochChange(hash, slot)).into(),
 					)),
 				(false, true, _) =>
 					return Err(ConsensusError::ClientImport(
-						babe_err(Error::<Block>::UnexpectedEpochChange).into(),
+						rrsc_err(Error::<Block>::UnexpectedEpochChange).into(),
 					)),
 			}
 
@@ -1542,7 +1480,7 @@ where
 					log::Level::Info
 				};
 
-				log!(target: "babe",
+				log!(target: "rrsc",
 					 log_level,
 					 "👶 New epoch {} launching at block {} (block slot {} >= start slot {}).",
 					 viable_epoch.as_ref().epoch_index,
@@ -1553,7 +1491,7 @@ where
 
 				let next_epoch = viable_epoch.increment((next_epoch_descriptor, epoch_config));
 
-				log!(target: "babe",
+				log!(target: "rrsc",
 					 log_level,
 					 "👶 Next epoch starts at slot {}",
 					 next_epoch.as_ref().start_slot,
@@ -1583,7 +1521,7 @@ where
 				};
 
 				if let Err(e) = prune_and_import() {
-					debug!(target: "babe", "Failed to launch next epoch: {:?}", e);
+					debug!(target: "rrsc", "Failed to launch next epoch: {:?}", e);
 					*epoch_changes =
 						old_epoch_changes.expect("set `Some` above and not taken; qed");
 					return Err(e)
@@ -1692,7 +1630,7 @@ where
 	Ok(())
 }
 
-/// Produce a BABE block-import object to be used later on in the construction of
+/// Produce a RRSC block-import object to be used later on in the construction of
 /// an import-queue.
 ///
 /// Also returns a link object used to correctly instantiate the import queue
@@ -1701,34 +1639,34 @@ pub fn block_import<Client, Block: BlockT, I>(
 	config: Config,
 	wrapped_block_import: I,
 	client: Arc<Client>,
-) -> ClientResult<(BabeBlockImport<Block, Client, I>, BabeLink<Block>)>
+) -> ClientResult<(RRSCBlockImport<Block, Client, I>, RRSCLink<Block>)>
 where
 	Client: AuxStore + HeaderBackend<Block> + HeaderMetadata<Block, Error = sp_blockchain::Error>,
 {
 	let epoch_changes = aux_schema::load_epoch_changes::<Block, _>(&*client, &config)?;
-	let link = BabeLink { epoch_changes: epoch_changes.clone(), config: config.clone() };
+	let link = RRSCLink { epoch_changes: epoch_changes.clone(), config: config.clone() };
 
 	// NOTE: this isn't entirely necessary, but since we didn't use to prune the
 	// epoch tree it is useful as a migration, so that nodes prune long trees on
 	// startup rather than waiting until importing the next epoch change block.
 	prune_finalized(client.clone(), &mut epoch_changes.shared_data())?;
 
-	let import = BabeBlockImport::new(client, epoch_changes, wrapped_block_import, config);
+	let import = RRSCBlockImport::new(client, epoch_changes, wrapped_block_import, config);
 
 	Ok((import, link))
 }
 
-/// Start an import queue for the BABE consensus algorithm.
+/// Start an import queue for the RRSC consensus algorithm.
 ///
 /// This method returns the import queue, some data that needs to be passed to the block authoring
-/// logic (`BabeLink`), and a future that must be run to
+/// logic (`RRSCLink`), and a future that must be run to
 /// completion and is responsible for listening to finality notifications and
 /// pruning the epoch changes tree.
 ///
-/// The block import object provided must be the `BabeBlockImport` or a wrapper
+/// The block import object provided must be the `RRSCBlockImport` or a wrapper
 /// of it, otherwise crucial import logic will be omitted.
 pub fn import_queue<Block: BlockT, Client, SelectChain, Inner, CAW, CIDP>(
-	babe_link: BabeLink<Block>,
+	rrsc_link: RRSCLink<Block>,
 	block_import: Inner,
 	justification_import: Option<BoxJustificationImport<Block>>,
 	client: Arc<Client>,
@@ -1755,17 +1693,17 @@ where
 		+ Send
 		+ Sync
 		+ 'static,
-	Client::Api: BlockBuilderApi<Block> + BabeApi<Block> + ApiExt<Block>,
+	Client::Api: BlockBuilderApi<Block> + RRSCApi<Block> + ApiExt<Block>,
 	SelectChain: sp_consensus::SelectChain<Block> + 'static,
 	CAW: CanAuthorWith<Block> + Send + Sync + 'static,
 	CIDP: CreateInherentDataProviders<Block, ()> + Send + Sync + 'static,
 	CIDP::InherentDataProviders: InherentDataProviderExt + Send + Sync,
 {
-	let verifier = BabeVerifier {
+	let verifier = RRSCVerifier {
 		select_chain,
 		create_inherent_data_providers,
-		config: babe_link.config,
-		epoch_changes: babe_link.epoch_changes,
+		config: rrsc_link.config,
+		epoch_changes: rrsc_link.epoch_changes,
 		can_author_with,
 		telemetry,
 		client,

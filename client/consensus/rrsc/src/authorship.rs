@@ -1,30 +1,12 @@
-// This file is part of Substrate.
-
-// Copyright (C) 2019-2021 Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU General Public License for more details.
-
-// You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-//! BABE authority selection and slot claiming.
+//! RRSC authority selection and slot claiming.
 
 use super::Epoch;
 use codec::Encode;
 use schnorrkel::{keys::PublicKey, vrf::VRFInOut};
 use sp_application_crypto::AppKey;
-use sp_consensus_babe::{
+use sp_consensus_rrsc::{
 	digests::{PreDigest, PrimaryPreDigest, SecondaryPlainPreDigest, SecondaryVRFPreDigest},
-	make_transcript, make_transcript_data, AuthorityId, BabeAuthorityWeight, Slot, BABE_VRF_PREFIX,
+	make_transcript, make_transcript_data, AuthorityId, RRSCAuthorityWeight, Slot, RRSC_VRF_PREFIX,
 };
 use sp_consensus_vrf::schnorrkel::{VRFOutput, VRFProof};
 use sp_core::{blake2_256, crypto::Public, U256};
@@ -34,7 +16,7 @@ use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 /// into account `c` (`1 - c` represents the probability of a slot being empty).
 pub(super) fn calculate_primary_threshold(
 	c: (u64, u64),
-	authorities: &[(AuthorityId, BabeAuthorityWeight)],
+	authorities: &[(AuthorityId, RRSCAuthorityWeight)],
 	authority_index: usize,
 ) -> u128 {
 	use num_bigint::BigUint;
@@ -89,7 +71,7 @@ pub(super) fn calculate_primary_threshold(
 /// Returns true if the given VRF output is lower than the given threshold,
 /// false otherwise.
 pub(super) fn check_primary_threshold(inout: &VRFInOut, threshold: u128) -> bool {
-	u128::from_le_bytes(inout.make_bytes::<[u8; 16]>(BABE_VRF_PREFIX)) < threshold
+	u128::from_le_bytes(inout.make_bytes::<[u8; 16]>(RRSC_VRF_PREFIX)) < threshold
 }
 
 /// Get the expected secondary author for the given slot and with given
@@ -97,7 +79,7 @@ pub(super) fn check_primary_threshold(inout: &VRFInOut, threshold: u128) -> bool
 /// authorities list is empty.
 pub(super) fn secondary_slot_author(
 	slot: Slot,
-	authorities: &[(AuthorityId, BabeAuthorityWeight)],
+	authorities: &[(AuthorityId, RRSCAuthorityWeight)],
 	randomness: [u8; 32],
 ) -> Option<&AuthorityId> {
 	if authorities.is_empty() {
@@ -273,7 +255,7 @@ fn claim_primary_slot(
 mod tests {
 	use super::*;
 	use sc_keystore::LocalKeystore;
-	use sp_consensus_babe::{AllowedSlots, AuthorityId, RRSCEpochConfiguration};
+	use sp_consensus_rrsc::{AllowedSlots, AuthorityId, RRSCEpochConfiguration};
 	use sp_core::{crypto::Pair as _, sr25519::Pair};
 	use std::sync::Arc;
 
