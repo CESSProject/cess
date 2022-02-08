@@ -13,19 +13,19 @@ readme = "README.md"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-sp-application-crypto = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
+sp-application-crypto = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate", tag = 'monthly-2021-10' }
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false }
 merlin = { version = "2.0", default-features = false }
-sp-std = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
-sp-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
+sp-std = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate", tag = 'monthly-2021-10' }
+sp-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate", tag = 'monthly-2021-10' }
 sp-consensus = { version = "0.10.0-dev", optional = true, path = "../common" }
 sp-consensus-slots = { version = "0.10.0-dev", default-features = false, path = "../slots" }
 sp-consensus-vrf = { version = "0.10.0-dev", path = "../vrf", default-features = false }
 sp-core = { version = "4.0.0-dev", default-features = false, path = "../../../primitives/core" }
-sp-inherents = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
-sp-keystore = { version = "0.10.0-dev", default-features = false, git = "https://github.com/paritytech/substrate", optional = true }
-sp-runtime = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate" }
-sp-timestamp = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate", optional = true }
+sp-inherents = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate", tag = 'monthly-2021-10' }
+sp-keystore = { version = "0.10.0-dev", default-features = false, git = "https://github.com/paritytech/substrate", optional = true, tag = 'monthly-2021-10' }
+sp-runtime = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate", tag = 'monthly-2021-10' }
+sp-timestamp = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate", optional = true, tag = 'monthly-2021-10' }
 serde = { version = "1.0.126", features = ["derive"], optional = true }
 async-trait = { version = "0.1.50", optional = true }
 

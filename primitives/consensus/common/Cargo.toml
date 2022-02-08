@@ -21,17 +21,17 @@ codec = { package = "parity-scale-codec", version = "2.0.0", features = [
 futures = { version = "0.3.1", features = ["thread-pool"] }
 log = "0.4.8"
 sp-core = { version = "4.0.0-dev", path = "../../../primitives/core" }
-sp-inherents = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate" }
-sp-state-machine = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate" }
+sp-inherents = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate", tag = 'monthly-2021-10' }
+sp-state-machine = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate", tag = 'monthly-2021-10' }
 futures-timer = "3.0.1"
-sp-std = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate" }
-sp-version = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate" }
-sp-runtime = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate" }
+sp-std = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate", tag = 'monthly-2021-10' }
+sp-version = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate", tag = 'monthly-2021-10' }
+sp-runtime = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate", tag = 'monthly-2021-10' }
 thiserror = "1.0.21"
 
 [dev-dependencies]
 futures = "0.3.9"
-sp-test-primitives = { version = "2.0.0", git = "https://github.com/paritytech/substrate" }
+sp-test-primitives = { version = "2.0.0", git = "https://github.com/paritytech/substrate", tag = 'monthly-2021-10' }
 
 [features]
 default = []

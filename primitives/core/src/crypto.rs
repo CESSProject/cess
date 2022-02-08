@@ -1236,8 +1236,8 @@ pub mod key_types {
 
 	/// Key type for RRSC module, built-in. Identified as `rrsc` (Random Rotational Selection consensus).
 	pub const RRSC: KeyTypeId = KeyTypeId(*b"rrsc");
-	/// Key type for RRSC module, built-in. Identified as `rrsc`.
-	pub const RRSC: KeyTypeId = KeyTypeId(*b"rrsc");
+	/// Key type for BABE module, built-in. Identified as `babe`.
+	pub const BABE: KeyTypeId = KeyTypeId(*b"babe");
 	/// Key type for Grandpa module, built-in. Identified as `gran`.
 	pub const GRANDPA: KeyTypeId = KeyTypeId(*b"gran");
 	/// Key type for controlling an account in a Substrate runtime, built-in. Identified as `acco`.
