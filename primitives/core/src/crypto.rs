@@ -31,6 +31,7 @@ use parking_lot::Mutex;
 use rand::{rngs::OsRng, RngCore};
 #[cfg(feature = "std")]
 use regex::Regex;
+use scale_info::TypeInfo;
 /// Trait for accessing reference to `SecretString`.
 pub use secrecy::ExposeSecret;
 /// A store for sensitive data.
@@ -576,6 +577,10 @@ ss58_address_format!(
 		(47, "reserved47", "Reserved for future use (47).")
 	NeatcoinAccount =>
 		(48, "neatcoin", "Neatcoin mainnet, standard account (*25519).")
+	PicassoAccount =>
+		(49, "picasso", "Composable Canary Network, standard account (*25519).")
+	ComposableAccount =>
+		(50, "composable", "Composable mainnet, standard account (*25519).")
 	HydraDXAccount =>
 		(63, "hydradx", "HydraDX standard account (*25519).")
 	AventusAccount =>
@@ -592,6 +597,8 @@ ss58_address_format!(
 		(77, "manta", "Manta Network, standard account (*25519).")
 	CalamariAccount =>
 		(78, "calamari", "Manta Canary Network, standard account (*25519).")
+	Polkadex =>
+		(88, "polkadex", "Polkadex Mainnet, standard account (*25519).")
 	PolkaSmith =>
 		(98, "polkasmith", "PolkaSmith Canary Network, standard account (*25519).")
 	PolkaFoundry =>
@@ -600,6 +607,8 @@ ss58_address_format!(
 		(101, "origintrail-parachain", "OriginTrail Parachain, ethereumm account (ECDSA).")
 	HeikoAccount =>
 		(110, "heiko", "Heiko, session key (*25519).")
+	CloverAccount =>
+		(128, "clover", "Clover Finance, standard account (*25519).")
 	ParallelAccount =>
 		(172, "parallel", "Parallel, session key (*25519).")
 	SocialAccount =>
@@ -610,10 +619,6 @@ ss58_address_format!(
 		(1285, "moonriver", "Moonriver, session key (*25519).")
 	BasiliskAccount =>
 		(10041, "basilisk", "Basilisk standard account (*25519).")
-	CessTestnet =>
-		(11330, "cess-testnet", "CESS-Testnet standard account (*25519).")
-	Cess =>
-		(11331, "cess", "Cess standard account (*25519).")
 
 	// Note: 16384 and above are reserved.
 );
@@ -713,7 +718,9 @@ pub trait Public:
 }
 
 /// An opaque 32-byte cryptographic identifier.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Default, Encode, Decode, MaxEncodedLen)]
+#[derive(
+	Clone, Eq, PartialEq, Ord, PartialOrd, Default, Encode, Decode, MaxEncodedLen, TypeInfo,
+)]
 #[cfg_attr(feature = "std", derive(Hash))]
 pub struct AccountId32([u8; 32]);
 
@@ -1173,6 +1180,7 @@ pub trait CryptoType {
 	Decode,
 	PassByInner,
 	crate::RuntimeDebug,
+	TypeInfo,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct KeyTypeId(pub [u8; 4]);
@@ -1233,10 +1241,10 @@ impl sp_std::fmt::Display for CryptoTypePublicPair {
 /// handy place to put common key types.
 pub mod key_types {
 	use super::KeyTypeId;
-
+	
 	/// Key type for RRSC module, built-in. Identified as `rrsc` (Random Rotational Selection consensus).
 	pub const RRSC: KeyTypeId = KeyTypeId(*b"rrsc");
-	/// Key type for BABE module, built-in. Identified as `babe`.
+	/// Key type for Babe module, built-in. Identified as `babe`.
 	pub const BABE: KeyTypeId = KeyTypeId(*b"babe");
 	/// Key type for Grandpa module, built-in. Identified as `gran`.
 	pub const GRANDPA: KeyTypeId = KeyTypeId(*b"gran");

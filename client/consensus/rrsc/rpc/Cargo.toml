@@ -14,27 +14,27 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 sc-consensus-rrsc = { version = "0.10.0-dev", path = "../" }
-sc-rpc-api = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git" }
+sc-rpc-api = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", tag = 'monthly-2021-10' }
 jsonrpc-core = "18.0.0"
 jsonrpc-core-client = "18.0.0"
 jsonrpc-derive = "18.0.0"
 sp-consensus-rrsc = { version = "0.10.0-dev", path = "../../../../primitives/consensus/rrsc" }
 serde = { version = "1.0.126", features=["derive"] }
-sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git" }
-sp-runtime = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git" }
-sc-consensus-epochs = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git" }
+sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", tag = 'monthly-2021-10' }
+sp-runtime = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", tag = 'monthly-2021-10' }
+sc-consensus-epochs = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", tag = 'monthly-2021-10' }
 futures = "0.3.16"
 derive_more = "0.99.2"
-sp-api = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git" }
-sp-consensus = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git" }
+sp-api = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", tag = 'monthly-2021-10' }
+sp-consensus = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", tag = 'monthly-2021-10' }
 sp-core = { version = "4.0.0-dev", path = "../../../../primitives/core" }
-sp-application-crypto = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git"  }
-sp-keystore = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git"  }
+sp-application-crypto = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", tag = 'monthly-2021-10' }
+sp-keystore = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", tag = 'monthly-2021-10' }
 
 [dev-dependencies]
-sc-consensus = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git"  }
+sc-consensus = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", tag = 'monthly-2021-10'}
 serde_json = "1.0.50"
-sp-keyring = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git"  }
-sc-keystore = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git"  }
-substrate-test-runtime-client = { version = "2.0.0", git = "https://github.com/paritytech/substrate.git"  }
+sp-keyring = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", tag = 'monthly-2021-10'}
+sc-keystore = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", tag = 'monthly-2021-10'}
+substrate-test-runtime-client = { version = "2.0.0", git = "https://github.com/paritytech/substrate.git", tag = 'monthly-2021-10'}
 tempfile = "3.1.0"
