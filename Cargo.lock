@@ -4118,8 +4118,13 @@ version = "0.1.0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
+ "frame-support-test",
  "frame-system",
  "pallet-balances",
+ "pallet-scheduler",
+ "pallet-segment-book",
+ "pallet-sminer",
+ "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",
  "serde",

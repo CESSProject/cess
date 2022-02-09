@@ -69,6 +69,35 @@ git = 'https://github.com/paritytech/substrate.git'
 tag = 'monthly-2021-10'
 version = '4.0.0-dev'
 
+[dev-dependencies.pallet-scheduler]
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'monthly-2021-10'
+version = '4.0.0-dev'
+
+[dev-dependencies.pallet-timestamp]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'monthly-2021-10'
+version = '4.0.0-dev'
+
+[dev-dependencies.frame-support-test]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'monthly-2021-10'
+version = '3.0.0'
+
+# local dependencies
+[dependencies.pallet-sminer]
+default-features = false
+path = '../sminer'
+version = '0.1.0'
+
+# local dependencies
+[dependencies.pallet-segment-book]
+default-features = false
+path = '../segment-book'
+version = '0.1.0'
+
 [features]
 default = ["std"]
 std = [

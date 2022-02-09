@@ -179,37 +179,37 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// A new account was set.
-		Registered(AccountOf<T>, BalanceOf<T>),
+		Registered{acc: AccountOf<T>, staking_val: BalanceOf<T>},
 		/// An account was redeemed.
-		Redeemed(AccountOf<T>, BalanceOf<T>),
+		Redeemed{acc: AccountOf<T>, deposit: BalanceOf<T>},
 		/// An account was claimed.
-		Claimed(AccountOf<T>, BalanceOf<T>),
+		Claimed{acc: AccountOf<T>, deposit: BalanceOf<T>},
 		/// Storage space is triggered periodically.
 		TimingStorageSpace(),
 		/// Adding a Scheduled Task.
-		AddScheduledTask(AccountOf<T>),
+		AddScheduledTask{acc: AccountOf<T>},
 		/// Updated address successfully.
-		UpdateAddressSucc(AccountOf<T>),
+		UpdateAddressSucc{acc: AccountOf<T>},
 		/// Set Etcd successfully.
-		SetEtcdSucc(AccountOf<T>),
+		SetEtcdSucc{acc: AccountOf<T>},
 		/// An account Add files
-		Add(AccountOf<T>),
+		Add{acc: AccountOf<T>},
 		/// An account Deleted files
-		Del(AccountOf<T>),
+		Del{acc: AccountOf<T>},
 		/// An account Update the file
-		Update(AccountOf<T>),
+		Update{acc: AccountOf<T>},
 		/// An account Get the file
-		Get(AccountOf<T>),
+		Get{acc: AccountOf<T>},
 		/// Scheduled Task Execution
 		TimedTask(),
 		/// Users to withdraw money
-		DrawMoney(AccountOf<T>),
+		DrawMoney{acc: AccountOf<T>},
 		/// Users to withdraw faucet money
 		DrawFaucetMoney(),
 		/// User recharges faucet
-		FaucetTopUpMoney(AccountOf<T>),
+		FaucetTopUpMoney{acc: AccountOf<T>},
 		/// Prompt time
-		LessThan24Hours(BlockNumberOf<T>, BlockNumberOf<T>),
+		LessThan24Hours{last: BlockNumberOf<T>, now: BlockNumberOf<T>},
 	}
 
 	/// Error for the sminer pallet.
@@ -239,6 +239,8 @@ pub mod pallet {
 		ConversionError,
 		/// You can't divide by zero
 		DivideByZero,
+
+		InsufficientAvailableSpace,
 	}
 
 	/// The hashmap for info of storage miners.
@@ -315,6 +317,14 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn miner_info)]
 	pub(super) type AllMiner<T: Config> = StorageValue<_, Vec<MinerInfo>, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn purchased_space)]
+	pub(super) type PurchasedSpace<T: Config> = StorageValue<_, u128, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn available_space)]
+	pub(super) type AvailableSpace<T: Config> = StorageValue<_, u128, ValueQuery>;
 
 	/// Store all miner table information 
 	#[pallet::storage]
@@ -440,7 +450,7 @@ pub mod pallet {
 				Ok(())
 			})?;
 
-			Self::deposit_event(Event::<T>::Registered(sender.clone(), staking_val.clone()));
+			Self::deposit_event(Event::<T>::Registered{acc: sender.clone(), staking_val: staking_val.clone()});
 			Ok(())
 		}
 		/// Redeem for storage miner.
@@ -467,7 +477,7 @@ pub mod pallet {
 			<WalletMiners<T>>::remove(peerid);
 			<MinerItems<T>>::remove(&sender);
 			<SegInfo<T>>::remove(&sender);
-			Self::deposit_event(Event::<T>::Redeemed(sender.clone(), deposit.clone()));
+			Self::deposit_event(Event::<T>::Redeemed{acc: sender.clone(), deposit: deposit.clone()});
 			Ok(())
 		}
 		/// Storage miner gets mi.earnings bonus.
@@ -483,7 +493,7 @@ pub mod pallet {
 			let deposit = mi.earnings;
 			let reward_pot = T::PalletId::get().into_account();
 			let _ = T::Currency::transfer(&reward_pot, &sender, deposit.clone(), AllowDeath);
-			Self::deposit_event(Event::<T>::Claimed(sender.clone(), deposit.clone()));
+			Self::deposit_event(Event::<T>::Claimed{acc: sender.clone(), deposit: deposit.clone()});
 			Ok(())
 		}
 		/// Miner information initialization.
@@ -566,7 +576,7 @@ pub mod pallet {
 			})?;
 			
 			if flag {
-				Self::deposit_event(Event::<T>::UpdateAddressSucc(newaddress.clone()));
+				Self::deposit_event(Event::<T>::UpdateAddressSucc{acc: newaddress.clone()});
 			} else {
 				ensure!(flag ,Error::<T>::NotOwner);
 			}
@@ -593,7 +603,7 @@ pub mod pallet {
 			})?;
 			if flag {
 				<EtcdRegister<T>>::put(ip);
-				Self::deposit_event(Event::<T>::SetEtcdSucc(sender));
+				Self::deposit_event(Event::<T>::SetEtcdSucc{acc: sender});
 			} else {
 				ensure!(flag ,Error::<T>::NotOwner);
 			}
@@ -615,7 +625,7 @@ pub mod pallet {
 			}
 			if flag {
 				<EtcdToken<T>>::put(token);
-				Self::deposit_event(Event::<T>::SetEtcdSucc(sender));
+				Self::deposit_event(Event::<T>::SetEtcdSucc{acc: sender});
 			} else {
 				ensure!(flag ,Error::<T>::NotOwner);
 			}
@@ -637,7 +647,7 @@ pub mod pallet {
 			}
 			if flag {
 				<ServicePort<T>>::put(serviceport);
-				Self::deposit_event(Event::<T>::SetEtcdSucc(sender));
+				Self::deposit_event(Event::<T>::SetEtcdSucc{acc: sender});
 			} else {
 				ensure!(flag ,Error::<T>::NotOwner);
 			}
@@ -1038,7 +1048,7 @@ pub mod pallet {
 				
 			<T as pallet::Config>::Currency::transfer(&sender, &reward_pot, award, AllowDeath)?;
 
-			Self::deposit_event(Event::<T>::FaucetTopUpMoney(sender.clone()));
+			Self::deposit_event(Event::<T>::FaucetTopUpMoney{acc: sender.clone()});
 			Ok(())
 		}
 		/// Users receive money through the faucet.
@@ -1075,12 +1085,12 @@ pub mod pallet {
 				let mut flag: bool = true;
 				if now >= BlockNumberOf::<T>::from(28800u32) {
 					if !(faucet_record.last_claim_time <= now.checked_sub(&BlockNumberOf::<T>::from(28800u32)).ok_or(Error::<T>::Overflow)?) {
-						Self::deposit_event(Event::<T>::LessThan24Hours(faucet_record.last_claim_time, now));
+						Self::deposit_event(Event::<T>::LessThan24Hours{last: faucet_record.last_claim_time, now: now});
 						flag = false;
 					}
 				} else {
 					if !(faucet_record.last_claim_time <= BlockNumberOf::<T>::from(0u32)) {
-						Self::deposit_event(Event::<T>::LessThan24Hours(faucet_record.last_claim_time, now));
+						Self::deposit_event(Event::<T>::LessThan24Hours{last: faucet_record.last_claim_time, now: now});
 						flag = false;
 					}
 				}
@@ -1098,6 +1108,18 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::DrawFaucetMoney());
 			Ok(())
 		}
+
+		#[pallet::weight(2_000_000)]
+		pub fn init_space(origin: OriginFor<T>) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+			<AvailableSpace<T>>::mutate(|s| {
+				*s = 0;
+			});
+			<PurchasedSpace<T>>::mutate(|s| {
+				*s = 0;
+			});
+			Ok(())
+		}	
 		/// Test method for increasing computational power.
 		///
 		/// The dispatch origin of this call must be _root_.
@@ -1517,6 +1539,46 @@ impl<T: Config> Pallet<T> {
 			s.total_miners = s.total_miners.checked_add(1).ok_or(Error::<T>::Overflow)?;
 			s.active_miners = s.active_miners.checked_add(1).ok_or(Error::<T>::Overflow)?;
 			s.staking = s.staking.checked_add(&BalanceOf::<T>::from(0u32)).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})?;
+		Ok(())
+	}
+
+	pub fn get_space() -> u128 {
+		let purchased_space = <PurchasedSpace<T>>::get();
+		let total_space = <AvailableSpace<T>>::get();
+		let value = total_space - purchased_space;
+		return value
+	}
+
+	pub fn add_purchased_space(size: u128) -> DispatchResult{
+		<PurchasedSpace<T>>::try_mutate(|s| -> DispatchResult {
+			let available_space = <AvailableSpace<T>>::get();
+			if *s + size > available_space {
+				Err(<Error<T>>::InsufficientAvailableSpace)?;
+			}
+			*s = s.checked_add(size).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})?;
+		Ok(())
+	}
+	pub fn sub_purchased_space(size: u128) -> DispatchResult {
+		<PurchasedSpace<T>>::try_mutate(|s| -> DispatchResult {
+			*s = s.checked_sub(size).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})?;
+		Ok(())
+	}
+	pub fn add_available_space(size: u128) -> DispatchResult {
+		<AvailableSpace<T>>::try_mutate(|s| -> DispatchResult {
+			*s = s.checked_add(size).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})?;
+		Ok(())
+	}
+	pub fn sub_available_space(size: u128) -> DispatchResult {
+		<AvailableSpace<T>>::try_mutate(|s| -> DispatchResult {
+			*s = s.checked_sub(size).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})?;
 		Ok(())

@@ -21,12 +21,16 @@ use super::*;
 use crate as file_bank;
 use frame_support::{
 	parameter_types,
+	weights::Weight,
 };
+use frame_system::{EnsureRoot};
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
+	Perbill,
 };
+use frame_support_test::TestRandomness;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -40,8 +44,66 @@ frame_support::construct_runtime!(
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		FileBank: file_bank::{Pallet, Call, Storage, Event<T>},
+		Sminer: pallet_sminer::{Pallet, Call, Storage, Event<T>},
+		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Config, Event<T>},
+		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+		SegmentBook: pallet_segment_book::{Pallet, Call, Storage, Event<T>},
 	}
 );
+
+parameter_types! {
+	pub const SegmentBookPalletId: PalletId = PalletId(*b"SegmentB");
+}
+
+impl pallet_segment_book::Config for Test {
+	type Event = Event;
+	// type Call = Call;
+	type Currency = Balances;
+	type MyPalletId = SegmentBookPalletId;
+	type WeightInfo = ();
+	type MyRandomness = TestRandomness<Self>;
+}
+
+parameter_types! {
+	pub const MinimumPeriod: u64 = 1;
+}
+
+impl pallet_timestamp::Config for Test {
+	type Moment = u64;
+	type OnTimestampSet = ();
+	type MinimumPeriod = MinimumPeriod;
+	type WeightInfo = ();
+}
+
+parameter_types! {
+	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) * BlockWeights::get().max_block;
+}
+
+impl pallet_scheduler::Config for Test {
+	type Event = Event;
+	type Origin = Origin;
+	type PalletsOrigin = OriginCaller;
+	type Call = Call;
+	type MaximumWeight = MaximumSchedulerWeight;
+	type ScheduleOrigin = EnsureRoot<u64>;
+	type MaxScheduledPerBlock = ();
+	type WeightInfo = ();
+}
+
+parameter_types! {
+	pub const RewardPalletId: PalletId = PalletId(*b"sminerpt");
+}
+
+impl pallet_sminer::Config for Test {
+	type Event = Event;
+	// type Call = Call;
+	type Currency = Balances;
+	type PalletId = RewardPalletId;
+	type SScheduler = Scheduler;
+	type SPalletsOrigin = OriginCaller;
+	type SProposal = Call;
+	type WeightInfo = ();
+}
 
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
@@ -105,7 +167,7 @@ impl Config for Test {
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 	pallet_balances::GenesisConfig::<Test> {
-		balances: vec![(1, 100000000000000000), (2, 100), (3, 100), (4, 100), (5, 100)],
+		balances: vec![(1, 1000000000000000000000), (2, 100), (3, 100), (4, 100), (5, 100)],
 	}
 	.assimilate_storage(&mut t)
 	.unwrap();

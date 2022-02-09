@@ -23,19 +23,13 @@ use frame_support::{assert_ok, assert_noop};
 use mock::{
 	new_test_ext, Origin, FileBank,
 };
-
+use frame_benchmarking::account;
+use pallet_sminer::Error as OtherError;
 pub struct FileInfoTest {
 	filename: Vec<u8>,
 	filehash: Vec<u8>,
-	similarityhash: Vec<u8>,
-	ispublic: u8,
 	backups: u8,
-	creator: Vec<u8>,
 	filesize: u128,
-	keywords: Vec<u8>,
-	email: Vec<u8>,
-	deadline: u128,
-	
 }
 
 #[test]
@@ -43,28 +37,23 @@ fn upload_works() {
 	new_test_ext().execute_with(|| {
 		let fileid = vec![1];
 		let address = vec![1];
-		let uploadfee = 1;
 		let downloadfee = 1;
 		let fit = create();
 
+		init();
+		add_space();
+		assert_ok!(FileBank::buy_space(Origin::signed(1), 1, 0));
 		assert_eq!(File::<Test>::contains_key(&fileid), false);
 
 		assert_ok!(FileBank::upload(
 			Origin::signed(1),
-			fit.filename,
 			address,
+			fit.filename,
 			fileid.clone(),
 			fit.filehash,
-			fit.similarityhash,
-			fit.ispublic,
 			fit.backups,
-			fit.creator,
 			fit.filesize,
-			fit.keywords,
-			fit.email,
-			uploadfee,
-			downloadfee,
-			fit.deadline
+			downloadfee
 		));
 
 		assert_eq!(File::<Test>::contains_key(&fileid), true);
@@ -72,156 +61,163 @@ fn upload_works() {
 }
 
 #[test]
-fn upload_transfer_works() {
+fn upload_works_when_not_buy_space() {
 	new_test_ext().execute_with(|| {
 		let fileid = vec![1];
 		let address = vec![1];
-		let uploadfee = 10;
 		let downloadfee = 1;
 		let fit = create();
-
-		assert_eq!(Balances::free_balance(&2), 100);
-
-		assert_ok!(FileBank::upload(
-			Origin::signed(2),
-			fit.filename,
-			address,
-			fileid.clone(),
-			fit.filehash,
-			fit.similarityhash,
-			fit.ispublic,
-			fit.backups,
-			fit.creator,
-			fit.filesize,
-			fit.keywords,
-			fit.email,
-			uploadfee,
-			downloadfee,
-			fit.deadline
-		));
-
-		assert_eq!(Balances::free_balance(&2), 90);
-	});
-}
-
-#[test]
-fn update_works() {
-	new_test_ext().execute_with(|| {
-		let fileid = vec![1];
-		let address = vec![1];
-		let uploadfee = 10;
-		let downloadfee = 1;
-		let fit = create();
-
-		assert_ok!(FileBank::upload(
-			Origin::signed(2),
-			fit.filename,
-			address,
-			fileid.clone(),
-			fit.filehash,
-			fit.similarityhash,
-			fit.ispublic,
-			fit.backups,
-			fit.creator,
-			fit.filesize,
-			fit.keywords,
-			fit.email,
-			uploadfee,
-			downloadfee,
-			fit.deadline
-		));
-
-		let mut file_info = File::<Test>::get(&fileid).unwrap();
-		assert_eq!(file_info.ispublic, 0);
-		assert_eq!(file_info.similarityhash, vec![1]);
-
-		let new_ispublic = 1;
-		let new_similarityhash = vec![2];
-
-		assert_ok!(FileBank::update(Origin::signed(2), fileid.clone(), new_ispublic, new_similarityhash));
-
-		file_info = File::<Test>::get(&fileid).unwrap();
-		assert_eq!(file_info.ispublic, 1);
-		assert_eq!(file_info.similarityhash, vec![2]);
-	});
-}
-
-#[test]
-fn update_failed_when_file_non_exists() {
-	new_test_ext().execute_with(|| {
-		let fileid = vec![1];
-		let new_ispublic = 1;
-		let new_similarityhash = vec![2];
 
 		assert_noop!(
-			FileBank::update(Origin::signed(2), fileid.clone(), new_ispublic, new_similarityhash),
-			Error::<Test>::FileNonExistent
+			FileBank::upload(
+				Origin::signed(1), 
+				address, 
+				fit.filename, 
+				fileid.clone(),
+				fit.filehash,
+				fit.backups,
+				fit.filesize,
+				downloadfee
+			),
+			Error::<Test>::NotPurchasedSpace
 		);
-	});
+	})
 }
 
 #[test]
-fn buyfile_works() {
+fn upload_works_when_insufficient_storage() {
 	new_test_ext().execute_with(|| {
 		let fileid = vec![1];
 		let address = vec![1];
-		let uploadfee = 10;
 		let downloadfee = 1;
 		let fit = create();
+
+		init();
+		add_space();
+		assert_ok!(FileBank::buy_space(Origin::signed(1), 1, 0));
+		assert_eq!(File::<Test>::contains_key(&fileid), false);
+
+		assert_noop!(
+			FileBank::upload(
+				Origin::signed(1),
+				address,
+				fit.filename,
+				fileid.clone(),
+				fit.filehash,
+				fit.backups,
+				171 * 1024,
+				downloadfee
+			),
+			Error::<Test>::InsufficientStorage
+		);
+	})
+}
+
+#[test]
+fn buy_space_works() {
+	new_test_ext().execute_with(|| {
+		init();
+		add_space();
+		assert_ok!(FileBank::buy_space(Origin::signed(1), 1, 0));
+	})
+}
+
+#[test]
+fn buy_space_works_when_exceed() {
+	new_test_ext().execute_with(|| {
+		init();
+		add_space();
+		assert_noop!(
+			FileBank::buy_space(Origin::signed(1), 1, 1),
+			Error::<Test>::ExceedExpectations
+		);
+	})
+}
+
+#[test]
+fn buy_space_works_when_insufficient_space() {
+	new_test_ext().execute_with(|| {
+		init();
+		add_space();
+		assert_noop!(
+			FileBank::buy_space(Origin::signed(1), 2, 0),
+			OtherError::<Test>::InsufficientAvailableSpace
+		);
+	})
+}
+
+#[test]
+fn buy_file_work() {
+	new_test_ext().execute_with(|| {
+		let fileid = vec![1];
+		let address = vec![1];
+		let address2 = vec![2];
+		let downloadfee = 1;
+		let fit = create();
+
+		init();
+		add_space();
+		assert_ok!(FileBank::buy_space(Origin::signed(1), 1, 0));
+		assert_eq!(File::<Test>::contains_key(&fileid), false);
 
 		assert_ok!(FileBank::upload(
 			Origin::signed(1),
-			fit.filename,
 			address,
+			fit.filename,
 			fileid.clone(),
 			fit.filehash,
-			fit.similarityhash,
-			fit.ispublic,
 			fit.backups,
-			fit.creator,
 			fit.filesize,
-			fit.keywords,
-			fit.email,
-			uploadfee,
-			downloadfee,
-			fit.deadline
+			downloadfee
 		));
 
-		let invoice = vec![1, 1];
-		assert_eq!(Invoice::<Test>::contains_key(&invoice), true);
+		assert_eq!(File::<Test>::contains_key(&fileid), true);
 
-		let new_address = vec![2];
-		assert_ok!(FileBank::buyfile(Origin::signed(2), fileid.clone(), new_address));
-
-		let new_invoice = vec![1, 2];
-		assert_eq!(Invoice::<Test>::contains_key(&new_invoice), true);
-	});
+		assert_ok!(FileBank::buyfile(Origin::signed(2), fileid, address2));
+	})
 }
 
 #[test]
-fn buyfile_failed_when_file_non_exists() {
+fn buy_file_when_file_none_exis() {
 	new_test_ext().execute_with(|| {
 		let fileid = vec![1];
 		let address = vec![1];
-
+		let address2 = vec![2];
+		let downloadfee = 1;
+		let fit = create();
+		
 		assert_noop!(
-			FileBank::buyfile(Origin::signed(2), fileid.clone(), address),
+			FileBank::buyfile(Origin::signed(2), [2].to_vec(), address2),
 			Error::<Test>::FileNonExistent
 		);
-	});
+	})
 }
 
 pub fn create() -> FileInfoTest {
 	FileInfoTest {
 		filename: vec![1],
 		filehash: vec![1],
-		similarityhash: vec![1],
-		ispublic: 0,
 		backups: 3,
-		creator: vec![1],
 		filesize: 1,
-		keywords: vec![1],
-		email: vec![1],
-		deadline: 100,
 	}
+}
+
+//Registered miners to submit certificates
+pub fn init() {
+	assert_ok!(Sminer::initi(Origin::root()));
+	assert_ok!(Sminer::regnstk(Origin::signed(1),account("source", 0, 0),0,0,0,0));
+}
+//Only when the miner submits the certificate can the available space 
+//be increased and later purchased by the user
+pub fn add_space() {
+	let value: Vec<u8> = [0].to_vec();
+	let value1: Vec<u8> = [0].to_vec();
+	let value2: Vec<u8> = [0].to_vec();
+	let value3: Vec<u8> = [0].to_vec();
+	let value4: Vec<u8> = [0].to_vec();
+	let mut v: Vec<Vec<u8>> = vec![];
+	v.push(value);
+	assert_ok!(SegmentBook::intent_submit(Origin::signed(1), 2, 1, 1, v, value1, value4));
+	assert_ok!(SegmentBook::submit_to_vpa(Origin::signed(1), 1, 1, value2, value3));
+	assert_ok!(SegmentBook::verify_in_vpa(Origin::signed(1), 1, 1, true));
 }

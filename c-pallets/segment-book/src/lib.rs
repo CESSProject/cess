@@ -281,31 +281,28 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// A series of params was generated.
-		ParamSet(u64, u64, u32),
+		ParamSet{peer_id: u64, segment_id: u64, random: u32},
 		/// vpa proof submitted.
-		VPASubmitted(u64, u64),
+		VPASubmitted{peer_id: u64, segment_id: u64},
 		/// vpa proof verified.
-		VPAVerified(u64, u64),
+		VPAVerified{peer_id: u64, segment_id: u64},
 		// vpb proof submitted.
-		VPBSubmitted(u64, u64),
+		VPBSubmitted{peer_id: u64, segment_id: u64},
 		// vpb proof verified.
-		VPBVerified(u64, u64),
+		VPBVerified{peer_id: u64, segment_id: u64},
 		// vpc proof submitted.
-		VPCSubmitted(u64, u64),
+		VPCSubmitted{peer_id: u64, segment_id: u64},
 		// vpc proof verified.
-		VPCVerified(u64, u64),
+		VPCVerified{peer_id: u64, segment_id: u64},
 		// vpd proof submitted.
-		VPDSubmitted(u64, u64),
+		VPDSubmitted{peer_id: u64, segment_id: u64},
 		// vpd proof verified.
-		VPDVerified(u64, u64),
+		VPDVerified{peer_id: u64, segment_id: u64},
 		//The time certificate was not submitted on time
-		PPBNoOnTimeSubmit(AccountOf<T>, u64),
+		PPBNoOnTimeSubmit{acc: AccountOf<T>, segment_id: u64},
 		//The time certificate was not submitted on time
-		PPDNoOnTimeSubmit(AccountOf<T>, u64),
-		//checked error
-		OverFlow(AccountOf<T>, u64),
+		PPDNoOnTimeSubmit{acc: AccountOf<T>, segment_id: u64},
 		//for test update runtime
-		TestTestHaHa(),
 	}
 
 	/// Error for the nicks pallet.
@@ -345,21 +342,21 @@ pub mod pallet {
 		SegmentUnExis,
 	}
 
-	#[pallet::storage]
-	#[pallet::getter(fn param_set_a)]
-	pub(super) type ParamSetA<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, ParamInfo>;
+	// #[pallet::storage]
+	// #[pallet::getter(fn param_set_a)]
+	// pub(super) type ParamSetA<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, ParamInfo>;
 
-	#[pallet::storage]
-	#[pallet::getter(fn param_set_b)]
-	pub(super) type ParamSetB<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, ParamInfo>;
+	// #[pallet::storage]
+	// #[pallet::getter(fn param_set_b)]
+	// pub(super) type ParamSetB<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, ParamInfo>;
 
-	#[pallet::storage]
-	#[pallet::getter(fn param_set_c)]
-	pub(super) type ParamSetC<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, ParamInfo>;
+	// #[pallet::storage]
+	// #[pallet::getter(fn param_set_c)]
+	// pub(super) type ParamSetC<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, ParamInfo>;
 
-	#[pallet::storage]
-	#[pallet::getter(fn param_set_d)]
-	pub(super) type ParamSetD<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, ParamInfo>;
+	// #[pallet::storage]
+	// #[pallet::getter(fn param_set_d)]
+	// pub(super) type ParamSetD<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, ParamInfo>;
 
 	//It is used for miners to query themselves. It needs to provide spatiotemporal proof for those data segments
 	#[pallet::storage]
@@ -558,13 +555,13 @@ pub mod pallet {
 		//and the corresponding data segment will be removed
 		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
 			let number: u128 = now.saturated_into();
-			Self::deposit_event(Event::<T>::TestTestHaHa());
-			if number % 4320 == 0 {
+			if number % 14400 == 0 {
 						for (acc, key2, res) in <PrePoolB<T>>::iter() {
 							let blocknum2: u128 = res.block_num.unwrap().saturated_into();
-							if number - 4320 > blocknum2 {
+							if number - 14400 > blocknum2 {
 								let peerid = pallet_sminer::Pallet::<T>::get_peerid(&acc);
 								let _ = pallet_sminer::Pallet::<T>::sub_power(peerid, res.size_type);
+								let _ = pallet_sminer::Pallet::<T>::sub_available_space(res.size_type);
 								<ConProofInfoA<T>>::mutate(&acc, |s|{
 									for i in 0..s.len() {
 										let v = s.get(i);
@@ -585,8 +582,9 @@ pub mod pallet {
 								}
 								<UnVerifiedB<T>>::put(unb);
 								<PrePoolA<T>>::remove(&acc, key2);
+								<VerPoolB<T>>::remove(&acc, key2);
 								<PrePoolB<T>>::remove(&acc, key2);
-								Self::deposit_event(Event::<T>::PPBNoOnTimeSubmit(acc.clone(), key2));
+								Self::deposit_event(Event::<T>::PPBNoOnTimeSubmit{acc: acc.clone(), segment_id: key2});
 							}
 						}
 					
@@ -594,7 +592,7 @@ pub mod pallet {
 						for (acc, key2, res) in <PrePoolD<T>>::iter() {
 							let blocknum2: u128 = res.block_num.unwrap().saturated_into();
 							let peerid = pallet_sminer::Pallet::<T>::get_peerid(&acc);
-							if number - 4320 > blocknum2 {
+							if number - 14400 > blocknum2 {
 								let _ = pallet_sminer::Pallet::<T>::sub_power(peerid, res.size_type);
 								let _ = pallet_sminer::Pallet::<T>::sub_space(peerid, res.size_type);
 								<ConProofInfoC<T>>::mutate(&acc, |s|{
@@ -618,9 +616,10 @@ pub mod pallet {
 								//remove related storage
 								<UnVerifiedD<T>>::put(unb);
 								<PrePoolC<T>>::remove(&acc, key2);
+								<VerPoolD<T>>::remove(&acc, key2);
 								<PrePoolD<T>>::remove(&acc, key2);
 								//let _ = pallet_sminer::Pallet::<T>::fine_money(&acc);
-								Self::deposit_event(Event::<T>::PPDNoOnTimeSubmit(acc.clone(), key2));
+								Self::deposit_event(Event::<T>::PPDNoOnTimeSubmit{acc: acc.clone(), segment_id: key2});
 							}
 						}
 			}
@@ -657,7 +656,6 @@ pub mod pallet {
 				1 => 8,
 				2 => 512,
 				_ => 0,
-
 			};
 			if 0 == size {
 				ensure!(false, Error::<T>::SizeTypeError);
@@ -678,15 +676,15 @@ pub mod pallet {
 							block_num: None,
 						}
 					);
-					<ParamSetA<T>>::insert(
-						&sender,
-						ParamInfo {
-							peer_id,
-							segment_id,
-							rand: random,
-						}
-					);
-					Self::deposit_event(Event::<T>::ParamSet(peer_id, segment_id, random));
+					// <ParamSetA<T>>::insert(
+					// 	&sender,
+					// 	ParamInfo {
+					// 		peer_id,
+					// 		segment_id,
+					// 		rand: random,
+					// 	}
+					// );
+					Self::deposit_event(Event::<T>::ParamSet{peer_id: peer_id, segment_id: segment_id, random: random});
 				}
 				2u8 => {
 					let acc = pallet_sminer::Pallet::<T>::get_acc(peerid);
@@ -722,7 +720,6 @@ pub mod pallet {
 							value
 						)
 					}
-					
 				}
 				_ => {
 					ensure!(false, Error::<T>::SubmitTypeError);
@@ -772,14 +769,14 @@ pub mod pallet {
 							block_num: None,
 						}
 					);
-					<ParamSetB<T>>::insert(
-						&sender,
-						ParamInfo {
-							peer_id,
-							segment_id,
-							rand: random,
-						}
-					);
+					// <ParamSetB<T>>::insert(
+					// 	&sender,
+					// 	ParamInfo {
+					// 		peer_id,
+					// 		segment_id,
+					// 		rand: random,
+					// 	}
+					// );
 				}
 				2u8 => {
 					ensure!(!<VerPoolD<T>>::contains_key(&sender, segment_id), Error::<T>::YetIntennt);
@@ -796,20 +793,20 @@ pub mod pallet {
 							block_num: None,
 						}
 					);
-					<ParamSetD<T>>::insert(
-						&sender,
-						ParamInfo {
-							peer_id,
-							segment_id,
-							rand: random,
-						}
-					);
+					// <ParamSetD<T>>::insert(
+					// 	&sender,
+					// 	ParamInfo {
+					// 		peer_id,
+					// 		segment_id,
+					// 		rand: random,
+					// 	}
+					// );
 				}
 				_ => {
 					ensure!(false, Error::<T>::SubmitTypeError);
 				}
 			}
-			Self::deposit_event(Event::<T>::ParamSet(peer_id, segment_id, random));
+			Self::deposit_event(Event::<T>::ParamSet{peer_id: peer_id, segment_id: segment_id, random: random});
 			Ok(())
 		}
 
@@ -841,7 +838,7 @@ pub mod pallet {
 				};
 				UnVerifiedA::<T>::mutate(|a| (*a).push(x));
 			});
-			Self::deposit_event(Event::<T>::VPASubmitted(peer_id, segment_id));
+			Self::deposit_event(Event::<T>::VPASubmitted{peer_id: peer_id, segment_id: segment_id});
 			Ok(())
 		}
 
@@ -855,6 +852,10 @@ pub mod pallet {
 		pub fn verify_in_vpa(origin: OriginFor<T>, peer_id: u64, segment_id: u64, result: bool) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 			let sender = pallet_sminer::Pallet::<T>::get_acc(peer_id);
+
+			let ua = UnVerifiedA::<T>::get();
+			let res = Self::unverify_remove(ua, peer_id, segment_id);
+			UnVerifiedA::<T>::put(res);
 
 			ensure!(<VerPoolA<T>>::contains_key(&sender, segment_id), Error::<T>::NotExistInVPA);
 
@@ -901,6 +902,7 @@ pub mod pallet {
 					})?;
 				}
 				let _ = pallet_sminer::Pallet::<T>::add_power(peer_id, vpa.size_type)?;
+				pallet_sminer::Pallet::<T>::add_available_space(vpa.size_type)?;
 				let size = vpa.size_type;
 				let bo = VerPoolA::<T>::get(&sender, segment_id).unwrap();
 				let sealed_cid = bo.sealed_cid.unwrap();
@@ -932,11 +934,7 @@ pub mod pallet {
 
 			<VerPoolA<T>>::remove(&sender, segment_id);
 
-			let ua = UnVerifiedA::<T>::get();
-			let res = Self::unverify_remove(ua, peer_id, segment_id);
-			UnVerifiedA::<T>::put(res);
-
-			Self::deposit_event(Event::<T>::VPAVerified(peer_id, segment_id));
+			Self::deposit_event(Event::<T>::VPAVerified{peer_id: peer_id, segment_id: segment_id});
 			Ok(())
 		}
 
@@ -969,7 +967,7 @@ pub mod pallet {
 				UnVerifiedB::<T>::mutate(|a| (*a).push(x));
 			});
 
-			Self::deposit_event(Event::<T>::VPBSubmitted(peer_id, segment_id));	
+			Self::deposit_event(Event::<T>::VPBSubmitted{peer_id: peer_id, segment_id: segment_id});	
 			Ok(())
 		}
 
@@ -985,8 +983,14 @@ pub mod pallet {
 
 			let now_block = <frame_system::Pallet<T>>::block_number();
 			let now: u128 = now_block.saturated_into();
+
+			let ua = UnVerifiedB::<T>::get();
+			let res = Self::unverify_remove(ua, peer_id, segment_id);
+			UnVerifiedB::<T>::put(res);
+
 			ensure!(<VerPoolB<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
 			ensure!(<PrePoolB<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
+
 			let vpb = VerPoolB::<T>::get(&sender, segment_id).unwrap();
 
 			ensure!(vpb.is_ready, Error::<T>::NotReadyInVPB);
@@ -994,11 +998,9 @@ pub mod pallet {
 			if result {
 					PrePoolB::<T>::try_mutate(&sender, segment_id, |s_opt| -> DispatchResult {
 						let s = s_opt.as_mut().unwrap();
-						let last_blocknum: u128 = s.block_num.unwrap().saturated_into();
 						<BlockNumberB<T>>::try_mutate(&sender, |a_opt| -> DispatchResult {
 							let a = a_opt.as_mut().unwrap();
-							a.block_num = a.block_num.checked_sub(last_blocknum).ok_or(Error::<T>::OverFlow)?;
-							a.block_num = a.block_num.checked_add(now).ok_or(Error::<T>::OverFlow)?;
+							a.block_num = now;
 							Ok(())
 						})?;
 						s.proof = Some(vpb.proof.unwrap());
@@ -1009,11 +1011,7 @@ pub mod pallet {
 			}
 			<VerPoolB<T>>::remove(&sender, segment_id);
 
-			let ua = UnVerifiedB::<T>::get();
-			let res = Self::unverify_remove(ua, peer_id, segment_id);
-			UnVerifiedB::<T>::put(res);
-
-			Self::deposit_event(Event::<T>::VPBVerified(peer_id, segment_id));
+			Self::deposit_event(Event::<T>::VPBVerified{peer_id: peer_id, segment_id: segment_id});
 			Ok(())
 		}
 
@@ -1069,7 +1067,7 @@ pub mod pallet {
 			}
 			
 
-			Self::deposit_event(Event::<T>::VPCSubmitted(peer_id, segment_id));	
+			Self::deposit_event(Event::<T>::VPCSubmitted{peer_id: peer_id, segment_id: segment_id});	
 			Ok(())
 		}
 
@@ -1083,6 +1081,11 @@ pub mod pallet {
 		pub fn verify_in_vpc(origin: OriginFor<T>, peer_id: u64, segment_id: u64, _uncid: Vec<Vec<u8>>, result: bool) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 			let sender = pallet_sminer::Pallet::<T>::get_acc(peer_id);
+
+			let ua = UnVerifiedC::<T>::get();
+			let res = Self::unverify_remove_vec(ua, peer_id, segment_id);
+			UnVerifiedC::<T>::put(res);
+
 			ensure!(<VerPoolC<T>>::contains_key(&sender, segment_id), Error::<T>::NotExistInVPC);
 
 			let vpc = VerPoolC::<T>::get(&sender, segment_id).unwrap();
@@ -1094,7 +1097,6 @@ pub mod pallet {
 					&sender,
 					segment_id,
 					ProofInfoPPC {
-						//false for 8M segment, true for 512M segment
 						size_type: vpc.size_type,
 						proof: vpc.proof,
 						sealed_cid: vpc.sealed_cid,
@@ -1193,11 +1195,7 @@ pub mod pallet {
 				});
 			}
 
-			let ua = UnVerifiedC::<T>::get();
-			let res = Self::unverify_remove_vec(ua, peer_id, segment_id);
-			UnVerifiedC::<T>::put(res);
-
-			Self::deposit_event(Event::<T>::VPCVerified(peer_id, segment_id));
+			Self::deposit_event(Event::<T>::VPCVerified{peer_id: peer_id, segment_id: segment_id});
 		
 			Ok(())
 		
@@ -1233,7 +1231,7 @@ pub mod pallet {
 				UnVerifiedD::<T>::mutate(|a| (*a).push(x));
 			});
 
-			Self::deposit_event(Event::<T>::VPDSubmitted(peer_id, segment_id));	
+			Self::deposit_event(Event::<T>::VPDSubmitted{peer_id: peer_id, segment_id: segment_id});	
 			Ok(())
 		}
 
@@ -1248,7 +1246,13 @@ pub mod pallet {
 			let sender = pallet_sminer::Pallet::<T>::get_acc(peer_id);
 			let now_block = <frame_system::Pallet<T>>::block_number();
 			let now: u128 = <frame_system::Pallet<T>>::block_number().saturated_into();
-			ensure!(<VerPoolD<T>>::contains_key(&sender, segment_id), Error::<T>::NotExistInVPD);
+
+			let ua = UnVerifiedD::<T>::get();
+			let res = Self::unverify_remove_vec_d(ua, peer_id, segment_id);
+			UnVerifiedD::<T>::put(res);
+
+			ensure!(<VerPoolD<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
+			ensure!(<PrePoolD<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
 
 			let vpd = VerPoolD::<T>::get(&sender, segment_id).unwrap();
 
@@ -1257,11 +1261,9 @@ pub mod pallet {
 			if result {
 				PrePoolD::<T>::try_mutate(&sender, segment_id, |s_opt| -> DispatchResult {
 					let s = s_opt.as_mut().unwrap();
-					let last: u128 = s.block_num.unwrap().saturated_into();
 					<BlockNumberD<T>>::try_mutate(&sender, |a_opt| -> DispatchResult {
 						let a = a_opt.as_mut().unwrap();
-						a.block_num = a.block_num.checked_sub(last).ok_or(Error::<T>::OverFlow)?;
-						a.block_num = a.block_num.checked_add(now).ok_or(Error::<T>::OverFlow)?;
+						a.block_num = now;
 						Ok(())
 					})?;
 					s.proof = Some(vpd.proof.unwrap());
@@ -1272,11 +1274,7 @@ pub mod pallet {
 			}
 			<VerPoolD<T>>::remove(&sender, segment_id);
 
-			let ua = UnVerifiedD::<T>::get();
-			let res = Self::unverify_remove_vec_d(ua, peer_id, segment_id);
-			UnVerifiedD::<T>::put(res);
-
-			Self::deposit_event(Event::<T>::VPDVerified(peer_id, segment_id));
+			Self::deposit_event(Event::<T>::VPDVerified{peer_id: peer_id, segment_id: segment_id});
 			Ok(())
 		}
 	}
