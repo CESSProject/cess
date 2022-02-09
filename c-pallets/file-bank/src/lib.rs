@@ -78,7 +78,7 @@ pub mod pallet {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		/// The currency trait.
 		type Currency: ReservableCurrency<Self::AccountId>;
-
+		/// The weight.
 		type WeightInfo: WeightInfo;
 		/// pallet address.
 		#[pallet::constant]
