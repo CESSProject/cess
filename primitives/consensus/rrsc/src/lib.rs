@@ -40,9 +40,9 @@ use crate::digests::{NextConfigDescriptor, NextEpochDescriptor};
 
 /// Key type for RRSC module.
 
- pub const RRSC: sp_application_crypto::KeyTypeId = sp_application_crypto::KeyTypeId(*b"rrsc");
+pub const RRSC: KeyTypeId = sp_application_crypto::KeyTypeId(*b"rrsc");
 
-pub const KEY_TYPE: sp_core::crypto::KeyTypeId =  RRSC;
+//pub const KEY_TYPE: sp_core::crypto::KeyTypeId =  sp_application_crypto::key_types::RRSC;
 
 mod app {
 	use super::RRSC;
