@@ -1,5 +1,5 @@
 [package]
-name = "sp-consensus-rrsc"
+name = "cessp-consensus-rrsc"
 version = "0.10.0-dev"
 authors = ["CESS Lab"]
 description = "Primitives for RRSC consensus"

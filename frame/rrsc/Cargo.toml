@@ -1,5 +1,5 @@
 [package]
-name = "pallet-rrsc"
+name = "pallet-cess-rrsc"
 version = "1.0.0-dev"
 authors = ["CESS Lab"]
 edition = "2018"

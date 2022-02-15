@@ -1,5 +1,5 @@
 [package]
-name = "sp-consensus"
+name = "cessp-consensus"
 version = "0.10.0-dev"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
