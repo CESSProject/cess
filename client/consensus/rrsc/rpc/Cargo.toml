@@ -27,7 +27,8 @@ futures = "0.3.16"
 derive_more = "0.99.2"
 sp-api = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", tag = 'monthly-2021-10' }
 sp-consensus = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", tag = 'monthly-2021-10' }
-sp-core = { version = "4.0.0-dev", path = "../../../../primitives/core" }
+# sp-core = { version = "4.0.0-dev", path = "../../../../primitives/core" }
+sp-core = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", tag = 'monthly-2021-10' }
 sp-application-crypto = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", tag = 'monthly-2021-10' }
 sp-keystore = { version = "0.10.0-dev", git = "https://github.com/paritytech/substrate.git", tag = 'monthly-2021-10' }
 
