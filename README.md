@@ -95,8 +95,10 @@ Now you can launch node again:
 Install [Docker](https://docs.docker.com/get-docker/) first, and run the following command to start a node on the cess-testnet:
 
 ```
-docker pull cesstech/cess-testnet:v0.1.3
-docker run --network host cesstech/cess-testnet:v0.1.3 ./cess/target/release/cess-node --base-path /tmp/cess --chain cess-testnet
+docker pull cesslab/cesstech:0.2.0
+docker run -itd --name=cess --network=host cesslab/cesstech:0.2.0
+//view log
+docker logs -f  cess
 ```
 
 ## Storage Mining
