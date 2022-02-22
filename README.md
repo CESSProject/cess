@@ -6,9 +6,10 @@
 <a href='https://web3.foundation/'><img width='160' alt='web3f_grants_badge.png' src='https://github.com/heyworld88/gitskills/blob/main/web3f_grants_badge.png'></a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href='https://builders.parity.io/'><img width='180' src='https://github.com/heyworld88/gitskills/blob/main/sbp_grants_badge.png'></a>
 
   
----------🌌---------**An infrastructure of decentralized cloud data network built with [Substrate](https://substrate.dev/)**--------🌌--------
+**[cess.cloud](http://cess.cloud/) is to provide the capabilities of a new global decentralized cloud data storage network by building with the infrastructure of decentralized cloud data network of the [substrate](https://substrate.dev/) while maintaining the data security and reliability guarantees inherent to blockchain technology**
 
-----------------🌌----------------**Learn more at [cess.cloud](http://cess.cloud/) & with [white-paper](https://github.com/CESSProject/Whitepaper)**----------------🌌--------------
+
+🌌🌌🌌 **Learn more at [white-paper](https://github.com/CESSProject/Whitepaper)** 🌌🌌🌌
 
 ## Getting Started
 
