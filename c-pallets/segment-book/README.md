@@ -1,4 +1,4 @@
-# Segemnt Book Module
+# Segment Book Module
 
 Contain operations related proof of storage. 
 
