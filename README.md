@@ -92,9 +92,7 @@ Install [Docker](https://docs.docker.com/get-docker/) first, and run the followi
 
 ```
 docker pull cesslab/cesstech:0.2.0
-docker run -itd --name=cess --network=host cesslab/cesstech:0.2.0
-//view log
-docker logs -f  cess
+docker run -itd --name=cess --network=host cesslab/cess_testnet:0.2.0 && docker logs -f cess
 ```
 
 ## Storage Mining
