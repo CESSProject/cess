@@ -7,9 +7,7 @@
 
   
 **[cess.cloud](http://cess.cloud/) is to provide the capabilities of a new global decentralized cloud data storage network by building with the infrastructure of decentralized cloud data network of the [substrate](https://substrate.dev/) while maintaining the data security and reliability guarantees inherent to blockchain technology.**
-
-
-                    🌌🌌🌌 **Learn more at [white-paper](https://github.com/CESSProject/Whitepaper)** 🌌🌌🌌
+**Learn more at [white-paper](https://github.com/CESSProject/Whitepaper)** 
 
 ## Getting Started
 
