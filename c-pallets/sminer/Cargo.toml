@@ -100,4 +100,4 @@ std = [
 	"pallet-timestamp/std",
 	"frame-benchmarking/std",
 ]
-runtime-benchmarks = ["frame-benchmarking"] 
+runtime-benchmarks = ["frame-benchmarking"]
