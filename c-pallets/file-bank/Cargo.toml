@@ -14,6 +14,7 @@ readme = "README.md"
 serde = { version = "1.0.101", optional = true }
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
 scale-info = { default-features = false, features = ['derive'], version = "1.0" }
+serde_json = { version = '1.0.67', default-features = false, features = ['alloc'] }
 
 [dependencies.frame-benchmarking]
 default-features = false

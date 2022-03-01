@@ -49,13 +49,55 @@ type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct FileInfo<T: pallet::Config> {
-	filename: Vec<u8>,
-	owner: AccountOf<T>,
-	filehash: Vec<u8>,
+	file_name: Vec<u8>,
+	file_size: u128,
+	file_hash: Vec<u8>,
+	//Public or not
+	public: bool,
+	user_addr: AccountOf<T>,
+	//normal or repairing
+	file_state: Vec<u8>,
+	//Number of backups
 	backups: u8,
-	filesize: u128,
 	downloadfee: BalanceOf<T>,
+	//Backup information
+	file_dupl: Vec<FileDuplicateInfo<T>>,
 }
+
+//backups info struct
+#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+pub struct FileDuplicateInfo<T: pallet::Config> {
+	dupl_id: Vec<u8>,
+	rand_key: Vec<u8>,
+	slice_num: u16,
+	file_slice: Vec<FileSliceInfo<T>>,
+}
+
+//slice info
+//Slice consists of shard
+#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+pub struct FileSliceInfo<T: pallet::Config> {
+	slice_id: Vec<u8>,
+	slice_size: u16,
+	slice_hash: Vec<u8>,
+	file_shard: FileShardInfo<T>,
+}
+
+//shard info
+//Slice consists of shard
+#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+pub struct FileShardInfo<T: pallet::Config> {
+	data_shard_num: u8,
+	redun_shard_num: u8,
+	shard_hash: Vec<Vec<u8>>,
+	shard_addr: Vec<AccountOf<T>>,
+}
+
+
+
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
 pub struct StorageSpace {
@@ -108,7 +150,7 @@ pub mod pallet {
 		//file uploaded.
 		FileUpload{acc: AccountOf<T>},
 		//file updated.
-		FileUpdate{acc: AccountOf<T>},
+		FileUpdate{acc: AccountOf<T>, fileid: Vec<u8>},
 		//file bought.
 		BuyFile{acc: AccountOf<T>, money: BalanceOf<T>, fileid: Vec<u8>},
 		//file purchased before.
@@ -239,6 +281,18 @@ pub mod pallet {
 		/// - `uploadfee`: the upload fees.
 		/// - `downloadfee`: the download fees.
 		/// - `deadline`: expiration time.
+		/// 
+		// pub struct FileInfo<T: pallet::Config> {
+		// 	file_name: Vec<u8>,
+		// 	file_size: u128,
+		// 	file_hash: Vec<u8>,
+		// 	public: bool,
+		// 	user_addr: AccountOf<T>,
+		// 	file_state: Vec<u8>,
+		// 	backups: u8,
+		// 	downloadfee: BalanceOf<T>,
+		// 	file_dupl: Vec<FileDuplicateInfo<T>>,
+		// }
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload())]
 		pub fn upload(
 			origin: OriginFor<T>,
@@ -246,9 +300,11 @@ pub mod pallet {
 			filename:Vec<u8>,
 			fileid: Vec<u8>,
 			filehash: Vec<u8>,
+			public: bool,
+			file_state: Vec<u8>,
 			backups: u8,
 			filesize: u128,
-			downloadfee:BalanceOf<T>
+			downloadfee:BalanceOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			// let acc = T::FilbakPalletId::get().into_account();
@@ -273,12 +329,15 @@ pub mod pallet {
 			<File<T>>::insert(
 				fileid.clone(),
 				FileInfo::<T> {
-					filename,
-					owner: sender.clone(),
-					filehash,
-					backups,
-					filesize,
-					downloadfee: downloadfee.clone(),
+					file_name: filename,
+					file_size: filesize,
+					file_hash: filehash,
+					public: public,
+					user_addr: sender.clone(),
+					file_state: file_state,
+					backups: backups,
+					downloadfee: downloadfee,
+					file_dupl: Vec::new(),
 				}
 			);
 			UserFileSize::<T>::try_mutate(sender.clone(), |s| -> DispatchResult{
@@ -298,20 +357,27 @@ pub mod pallet {
 		/// - `fileid`: id of file, each file will have different number, even for the same file.
 		/// - `is_public`: public or private.
 		/// - `similarityhash`: hash of file, used for checking similarity.
-		// #[pallet::weight(T::WeightInfo::update())]
-		// pub fn update(origin: OriginFor<T>, fileid: Vec<u8>, ispublic: u8, similarityhash: Vec<u8>) -> DispatchResult{
-		// 	let sender = ensure_signed(origin)?;
-		// 	ensure!((<File<T>>::contains_key(fileid.clone())), Error::<T>::FileNonExistent);
+		#[pallet::weight(1_000_000)]
+		pub fn update_dupl(origin: OriginFor<T>, fileid: Vec<u8>, file_dupl: Vec<FileDuplicateInfo<T>>) -> DispatchResult{
+			let sender = ensure_signed(origin)?;
+			ensure!((<File<T>>::contains_key(fileid.clone())), Error::<T>::FileNonExistent);
 
-		// 	<File<T>>::mutate(fileid, |s_opt| {
-		// 		let s = s_opt.as_mut().unwrap();
-		// 		s.ispublic = ispublic;
-		// 		s.similarityhash = similarityhash;
-		// 	});
-		// 	Self::deposit_event(Event::<T>::FileUpdate(sender.clone()));
+			<File<T>>::mutate(fileid.clone(), |s_opt| {
+				let s = s_opt.as_mut().unwrap();
+				s.file_dupl = file_dupl;
+			});
+			Self::deposit_event(Event::<T>::FileUpdate{acc: sender.clone(), fileid: fileid});
 
-		// 	Ok(())
-		// }
+			Ok(())
+		}
+
+		#[pallet::weight(1_000_000)]
+		pub fn update_file_state(origin: OriginFor<T>, fileid: Vec<u8>, state: Vec<u8>) -> DispatchResult {
+			let sender = ensure_signed(origin);
+
+			
+			Ok(())
+		}
 
 		/// Update info of uploaded file.
 		/// 
@@ -345,7 +411,7 @@ pub mod pallet {
 					.checked_div(10).ok_or(Error::<T>::Overflow)?;
 				let money: Option<BalanceOf<T>> = umoney.try_into().ok();
 				let acc = T::FilbakPalletId::get().into_account();
-				<T as pallet::Config>::Currency::transfer(&sender, &group_id.owner, money.unwrap(), AllowDeath)?;
+				<T as pallet::Config>::Currency::transfer(&sender, &group_id.user_addr, money.unwrap(), AllowDeath)?;
 				<T as pallet::Config>::Currency::transfer(&sender, &acc, group_id.downloadfee - money.unwrap(), AllowDeath)?;
 				<Invoice<T>>::insert(
 					invoice,
@@ -484,7 +550,7 @@ impl<T: Config> Pallet<T> {
 
 	fn check_lease_expired_forfileid(fileid: Vec<u8>) -> bool {
 		let file = <File<T>>::get(&fileid).unwrap();
-		Self::check_lease_expired(file.owner)
+		Self::check_lease_expired(file.user_addr)
 	}
 	//ture is Not expired;  false is expired
 	fn check_lease_expired(acc: AccountOf<T>) -> bool {
