@@ -30,6 +30,7 @@ pub use pallet::*;
 mod benchmarking;
 pub mod weights;
 use sp_std::convert::TryInto;
+use sp_std::fmt::Debug;
 
 use scale_info::TypeInfo;
 use sp_runtime::{
@@ -132,7 +133,7 @@ pub mod pallet {
 	use frame_system::{ensure_signed, pallet_prelude::*};
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_sminer::Config {
+	pub trait Config: frame_system::Config + pallet_sminer::Config + sp_std::fmt::Debug {
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		/// The currency trait.
@@ -151,6 +152,8 @@ pub mod pallet {
 		FileUpload{acc: AccountOf<T>},
 		//file updated.
 		FileUpdate{acc: AccountOf<T>, fileid: Vec<u8>},
+
+		FileChangeState{acc: AccountOf<T>, fileid: Vec<u8>},
 		//file bought.
 		BuyFile{acc: AccountOf<T>, money: BalanceOf<T>, fileid: Vec<u8>},
 		//file purchased before.
@@ -185,6 +188,10 @@ pub mod pallet {
 		ConversionError,
 
 		InsufficientAvailableSpace,
+
+		AlreadyRepair,
+
+		NotOwner,
 	}
 	#[pallet::storage]
 	#[pallet::getter(fn file)]
@@ -361,6 +368,7 @@ pub mod pallet {
 		pub fn update_dupl(origin: OriginFor<T>, fileid: Vec<u8>, file_dupl: Vec<FileDuplicateInfo<T>>) -> DispatchResult{
 			let sender = ensure_signed(origin)?;
 			ensure!((<File<T>>::contains_key(fileid.clone())), Error::<T>::FileNonExistent);
+			//Judge whether it is a consensus node
 
 			<File<T>>::mutate(fileid.clone(), |s_opt| {
 				let s = s_opt.as_mut().unwrap();
@@ -373,19 +381,41 @@ pub mod pallet {
 
 		#[pallet::weight(1_000_000)]
 		pub fn update_file_state(origin: OriginFor<T>, fileid: Vec<u8>, state: Vec<u8>) -> DispatchResult {
-			let sender = ensure_signed(origin);
+			let sender = ensure_signed(origin)?;
 
-			
+			ensure!((<File<T>>::contains_key(fileid.clone())), Error::<T>::FileNonExistent);
+			//Judge whether it is a consensus node
+
+			<File<T>>::try_mutate(fileid.clone(), |s_opt| -> DispatchResult{
+				let s = s_opt.as_mut().unwrap();
+				//To prevent multiple scheduling
+				if s.file_state == "repairing".as_bytes().to_vec() && state == "repairing".as_bytes().to_vec() {
+					Err(Error::<T>::AlreadyRepair)?;
+				}
+
+				s.file_state = state;
+				Ok(())
+			})?;
+
+			Self::deposit_event(Event::<T>::FileChangeState{acc: sender.clone(), fileid: fileid});
 			Ok(())
 		}
 
-		/// Update info of uploaded file.
-		/// 
-		/// The dispatch origin of this call must be _Signed_.
-		/// 
-		/// Parameters:
-		/// - `fileid`: id of file, each file will have different number, even for the same file.
-		/// - `address`: address of file.
+		#[pallet::weight(2_000_000)]
+		pub fn delete_file(origin: OriginFor<T>, fileid: Vec<u8>) -> DispatchResult{
+			let sender = ensure_signed(origin)?;
+			ensure!((<File<T>>::contains_key(fileid.clone())), Error::<T>::FileNonExistent);
+			let file = <File<T>>::get(&fileid).unwrap();
+			if file.user_addr != sender {
+				Err(Error::<T>::NotOwner)?;
+			}
+
+			Self::update_user_space(sender, 2, file.file_size)?;
+			<File::<T>>::remove(fileid);
+
+			Ok(())
+		}
+
 		#[pallet::weight(2_000_000)]
 		pub fn buyfile(origin: OriginFor<T>, fileid: Vec<u8>, address: Vec<u8>) -> DispatchResult{
 			let sender = ensure_signed(origin)?;
@@ -473,14 +503,14 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(2_000_000)]
-		pub fn delete_file(origin: OriginFor<T>) -> DispatchResult {
-			let _ = ensure_signed(origin)?;
-			for (key, _) in <File<T>>::iter() {
-				<File<T>>::remove(&key);
-			}
-			Ok(())
-		}
+		// #[pallet::weight(2_000_000)]
+		// pub fn clean_file(origin: OriginFor<T>) -> DispatchResult {
+		// 	let _ = ensure_signed(origin)?;
+		// 	for (key, _) in <File<T>>::iter() {
+		// 		<File<T>>::remove(&key);
+		// 	}
+		// 	Ok(())
+		// }
 		
 	}
 }
@@ -559,6 +589,14 @@ impl<T: Config> Pallet<T> {
 			false
 		} else {
 			true
+		}
+	}
+
+	pub fn check_file_exist(fileid: Vec<u8>) -> bool {
+		if <File<T>>::contains_key(fileid) {
+			true
+		} else {
+			false
 		}
 	}
 }

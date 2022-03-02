@@ -523,114 +523,114 @@ pub mod pallet {
 		/// - `address2`: The account address 2.
 		/// - `address3`: The account address 3.
 		/// - `address4`: The account address 4.
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::setaddress())]
-		pub fn setaddress(origin: OriginFor<T>, address1: T::AccountId, address2: T::AccountId, address3: T::AccountId, address4: T::AccountId) -> DispatchResult {
-			let _ = ensure_signed(origin)?;
-			let v = <Control<T>>::get();
-			if v == 0 {
-				EtcdRegisterOwner::<T>::try_mutate(|s| -> DispatchResult {
-					s.push(address1);
-					Ok(())
-				})?;
-				EtcdRegisterOwner::<T>::try_mutate(|s| -> DispatchResult {
-					s.push(address2);
-					Ok(())
-				})?;
-				EtcdRegisterOwner::<T>::try_mutate(|s| -> DispatchResult {
-					s.push(address3);
-					Ok(())
-				})?;
-				EtcdOwner::<T>::put(address4);
-				<Control<T>>::put(1);
-			}
-			Ok(())
-		}
+		// #[pallet::weight(<T as pallet::Config>::WeightInfo::setaddress())]
+		// pub fn setaddress(origin: OriginFor<T>, address1: T::AccountId, address2: T::AccountId, address3: T::AccountId, address4: T::AccountId) -> DispatchResult {
+		// 	let _ = ensure_signed(origin)?;
+		// 	let v = <Control<T>>::get();
+		// 	if v == 0 {
+		// 		EtcdRegisterOwner::<T>::try_mutate(|s| -> DispatchResult {
+		// 			s.push(address1);
+		// 			Ok(())
+		// 		})?;
+		// 		EtcdRegisterOwner::<T>::try_mutate(|s| -> DispatchResult {
+		// 			s.push(address2);
+		// 			Ok(())
+		// 		})?;
+		// 		EtcdRegisterOwner::<T>::try_mutate(|s| -> DispatchResult {
+		// 			s.push(address3);
+		// 			Ok(())
+		// 		})?;
+		// 		EtcdOwner::<T>::put(address4);
+		// 		<Control<T>>::put(1);
+		// 	}
+		// 	Ok(())
+		// }
 		/// Update the Etcd registration address.
 		///
 		/// The dispatch origin of this call must be _Signed_.
 		///
 		/// Parameters:
 		/// - `newaddress`: Updated account address.
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::updateaddress())]
-		pub fn updateaddress(origin: OriginFor<T>, newaddress: T::AccountId) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			let mut flag: bool = false;
-			let mut k = 0;
-			<EtcdRegisterOwner<T>>::try_mutate(|s| -> DispatchResult {
-				for i in s {
-					if sender == i.clone(){
-						flag = true;
-						break;
-					}
-					k = k.checked_add(&1).ok_or(Error::<T>::Overflow)?;
-				}
-				Ok(())
-			})?;
-			<EtcdRegisterOwner<T>>::try_mutate(|s| -> DispatchResult {
-				(*s).remove(k);
-				Ok(())
-			})?;
-			<EtcdRegisterOwner<T>>::try_mutate(|s| -> DispatchResult {
-				(*s).push(newaddress.clone());
-				Ok(())
-			})?;
+		// #[pallet::weight(<T as pallet::Config>::WeightInfo::updateaddress())]
+		// pub fn updateaddress(origin: OriginFor<T>, newaddress: T::AccountId) -> DispatchResult {
+		// 	let sender = ensure_signed(origin)?;
+		// 	let mut flag: bool = false;
+		// 	let mut k = 0;
+		// 	<EtcdRegisterOwner<T>>::try_mutate(|s| -> DispatchResult {
+		// 		for i in s {
+		// 			if sender == i.clone(){
+		// 				flag = true;
+		// 				break;
+		// 			}
+		// 			k = k.checked_add(&1).ok_or(Error::<T>::Overflow)?;
+		// 		}
+		// 		Ok(())
+		// 	})?;
+		// 	<EtcdRegisterOwner<T>>::try_mutate(|s| -> DispatchResult {
+		// 		(*s).remove(k);
+		// 		Ok(())
+		// 	})?;
+		// 	<EtcdRegisterOwner<T>>::try_mutate(|s| -> DispatchResult {
+		// 		(*s).push(newaddress.clone());
+		// 		Ok(())
+		// 	})?;
 			
-			if flag {
-				Self::deposit_event(Event::<T>::UpdateAddressSucc{acc: newaddress.clone()});
-			} else {
-				ensure!(flag ,Error::<T>::NotOwner);
-			}
-			Ok(())
-		}
+		// 	if flag {
+		// 		Self::deposit_event(Event::<T>::UpdateAddressSucc{acc: newaddress.clone()});
+		// 	} else {
+		// 		ensure!(flag ,Error::<T>::NotOwner);
+		// 	}
+		// 	Ok(())
+		// }
 		/// Set ETCD parameters.
 		///
 		/// The dispatch origin of this call must be _Signed_.
 		///
 		/// Parameters:
 		/// - `ip`: Server IP Address.
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::setetcd())]
-		pub fn setetcd(origin: OriginFor<T>, ip: Vec<u8>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			let mut flag: bool = false;
-			<EtcdRegisterOwner<T>>::try_mutate(|s| -> DispatchResult {
-				for i in s {
-					if sender == i.clone() {
-						flag = true;
-						break;
-					}
-				}
-				Ok(())
-			})?;
-			if flag {
-				<EtcdRegister<T>>::put(ip);
-				Self::deposit_event(Event::<T>::SetEtcdSucc{acc: sender});
-			} else {
-				ensure!(flag ,Error::<T>::NotOwner);
-			}
-			Ok(())
-		}
+		// #[pallet::weight(<T as pallet::Config>::WeightInfo::setetcd())]
+		// pub fn setetcd(origin: OriginFor<T>, ip: Vec<u8>) -> DispatchResult {
+		// 	let sender = ensure_signed(origin)?;
+		// 	let mut flag: bool = false;
+		// 	<EtcdRegisterOwner<T>>::try_mutate(|s| -> DispatchResult {
+		// 		for i in s {
+		// 			if sender == i.clone() {
+		// 				flag = true;
+		// 				break;
+		// 			}
+		// 		}
+		// 		Ok(())
+		// 	})?;
+		// 	if flag {
+		// 		<EtcdRegister<T>>::put(ip);
+		// 		Self::deposit_event(Event::<T>::SetEtcdSucc{acc: sender});
+		// 	} else {
+		// 		ensure!(flag ,Error::<T>::NotOwner);
+		// 	}
+		// 	Ok(())
+		// }
 		/// Set ETCD token.
 		///
 		/// The dispatch origin of this call must be _Signed_.
 		///
 		/// Parameters:
 		/// - `token`: Etcd Token.
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::setetcdtoken())]
-		pub fn setetcdtoken(origin: OriginFor<T>, token: Vec<u8>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			let mut flag: bool = false;
-			let address = <EtcdOwner<T>>::get();
-			if sender == address {
-				flag = true;
-			}
-			if flag {
-				<EtcdToken<T>>::put(token);
-				Self::deposit_event(Event::<T>::SetEtcdSucc{acc: sender});
-			} else {
-				ensure!(flag ,Error::<T>::NotOwner);
-			}
-			Ok(())
-		}
+		// #[pallet::weight(<T as pallet::Config>::WeightInfo::setetcdtoken())]
+		// pub fn setetcdtoken(origin: OriginFor<T>, token: Vec<u8>) -> DispatchResult {
+		// 	let sender = ensure_signed(origin)?;
+		// 	let mut flag: bool = false;
+		// 	let address = <EtcdOwner<T>>::get();
+		// 	if sender == address {
+		// 		flag = true;
+		// 	}
+		// 	if flag {
+		// 		<EtcdToken<T>>::put(token);
+		// 		Self::deposit_event(Event::<T>::SetEtcdSucc{acc: sender});
+		// 	} else {
+		// 		ensure!(flag ,Error::<T>::NotOwner);
+		// 	}
+		// 	Ok(())
+		// }
 		/// Set service port.
 		///
 		/// The dispatch origin of this call must be _Signed_.

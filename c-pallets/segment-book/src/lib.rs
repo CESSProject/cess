@@ -262,7 +262,7 @@ pub mod pallet {
 	use frame_system::{ensure_signed, pallet_prelude::*};
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_sminer::Config {
+	pub trait Config: frame_system::Config + pallet_sminer::Config + pallet_file_bank::Config {
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		/// The currency trait.
@@ -340,6 +340,8 @@ pub mod pallet {
 		MinerUnExis,
 
 		SegmentUnExis,
+
+		FileNonExistent,
 	}
 
 	// #[pallet::storage]
@@ -1022,9 +1024,12 @@ pub mod pallet {
 		///  - `proof`: proof, It could be a slice, so multiple proofs
 		///  - `sealed_cid`: Required for verification certificate, It could be a slice, so multiple proofs
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_to_vpc())]
-		pub fn submit_to_vpc(origin: OriginFor<T>, peer_id: u64, segment_id: u64, proof: Vec<Vec<u8>>, sealed_cid: Vec<Vec<u8>>) -> DispatchResult {
+		pub fn submit_to_vpc(origin: OriginFor<T>, peer_id: u64, segment_id: u64, proof: Vec<Vec<u8>>, sealed_cid: Vec<Vec<u8>>, fileid: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(<VerPoolC<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
+			if !pallet_file_bank::Pallet::<T>::check_file_exist(fileid) {
+				Err(Error::<T>::FileNonExistent)?;
+			}
 			
 			VerPoolC::<T>::mutate(&sender, segment_id, |s_opt| {
 				let s = s_opt.as_mut().unwrap();
@@ -1208,10 +1213,14 @@ pub mod pallet {
 		///  - `proof`: proof, It could be a slice, so multiple proofs
 		///  - `sealed_cid`: Required for verification certificate, It could be a slice, so multiple proofs
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_to_vpd())]
-		pub fn submit_to_vpd(origin: OriginFor<T>, peer_id: u64, segment_id: u64, proof: Vec<Vec<u8>>, sealed_cid: Vec<Vec<u8>>) -> DispatchResult {
+		pub fn submit_to_vpd(origin: OriginFor<T>, peer_id: u64, segment_id: u64, proof: Vec<Vec<u8>>, sealed_cid: Vec<Vec<u8>>, fileid: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let now_block = <frame_system::Pallet<T>>::block_number();
 			ensure!(<VerPoolD<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
+			ensure!(<VerPoolC<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
+			if !pallet_file_bank::Pallet::<T>::check_file_exist(fileid) {
+				Err(Error::<T>::FileNonExistent)?;
+			}
 
 			VerPoolD::<T>::mutate(&sender, segment_id, |s_opt| {
 				let s = s_opt.as_mut().unwrap();
@@ -1369,6 +1378,9 @@ impl<T: Config> Pallet<T> {
 		list
 	}
 
+	fn check_file_exist(fileid: Vec<u8>) -> bool {
+		pallet_file_bank::Pallet::<T>::check_file_exist(fileid)
+	}
 }
 
 

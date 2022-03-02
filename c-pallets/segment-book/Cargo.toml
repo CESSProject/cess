@@ -71,6 +71,12 @@ tag = 'monthly-2021-10'
 version = '4.0.0-dev'
 
 # local dependencies
+[dependencies.pallet-file-bank]
+default-features = false
+path = '../file-bank'
+version = '0.1.0'
+
+# local dependencies
 [dependencies.pallet-sminer]
 default-features = false
 path = '../sminer'
