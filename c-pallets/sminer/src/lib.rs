@@ -30,7 +30,7 @@ pub mod weights;
 pub use pallet::*;
 use sp_runtime::{
 	RuntimeDebug,
-	traits::{AccountIdConversion, StaticLookup},
+	traits::{AccountIdConversion, StaticLookup,SaturatedConversion},
 };
 use sp_std::prelude::*;
 use codec::{Encode, Decode};
@@ -50,24 +50,26 @@ type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 #[derive(PartialEq, Eq, Default, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
 pub struct MinerInfo {
 	peerid: u64,
-	ip: u32,
-	port: u32,
-	fileport: u32,
+	ip: Vec<u8>,
 	power: u128,	
-	space: u128,	
+	space: u128,
 }
 /// The custom struct for storing info of storage miners.
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct Mr<T: pallet::Config> {
 	peerid: u64,
+	//Income account
 	beneficiary: AccountOf<T>,
-	ip: u32,
-	port: u32,
-	fileport: u32,
+	ip: Vec<u8>,
 	collaterals: BalanceOf<T>,
 	earnings: BalanceOf<T>,
 	locked: BalanceOf<T>,
+	//nomal, exit, frozen
+	state: Vec<u8>,
+
+	power: u128,
+	space: u128,
 }
 /// The custom struct for storing index of segment, miner's current power and space.
 #[derive(PartialEq, Eq, Default, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
@@ -127,6 +129,7 @@ pub struct CalculateRewardOrder <T: pallet::Config>{
 #[derive(PartialEq, Eq, Encode, Default, Decode, Clone, RuntimeDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct RewardClaim <T: pallet::Config>{
+	beneficiary: AccountOf<T>,
 	total_reward: BalanceOf<T>,
 	total_rewards_currently_available: BalanceOf<T>,
 	have_to_receive: BalanceOf<T>,
@@ -210,11 +213,18 @@ pub mod pallet {
 		FaucetTopUpMoney{acc: AccountOf<T>},
 		/// Prompt time
 		LessThan24Hours{last: BlockNumberOf<T>, now: BlockNumberOf<T>},
+
+		AlreadyFrozen{acc: AccountOf<T>},
+
+		MinerExit{acc: AccountOf<T>},
+
+		MinerClaim{acc: AccountOf<T>},
 	}
 
 	/// Error for the sminer pallet.
 	#[pallet::error]
 	pub enum Error<T> {
+		NotMiner,
 		/// An account doesn't registered.
 		UnregisteredAccountId,
 		/// An account has locked balances.
@@ -241,17 +251,21 @@ pub mod pallet {
 		DivideByZero,
 
 		InsufficientAvailableSpace,
+
+		//The account has been frozen
+		AlreadyFrozen,
+
+		CollingNotOver,
 	}
+
+	#[pallet::storage]
+	#[pallet::getter(fn miner_cooling)]
+	pub(super) type MinerColling<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BlockNumberOf<T>>;
 
 	/// The hashmap for info of storage miners.
 	#[pallet::storage]
 	#[pallet::getter(fn miner_items)]
 	pub(super) type MinerItems<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, Mr<T>>;
-
-	/// The hashmap for checking registered or not.
-	#[pallet::storage]
-	#[pallet::getter(fn wallet_miners)]
-	pub(super) type WalletMiners<T: Config> = StorageMap<_, Twox64Concat, u64, i8, ValueQuery>;
 
 	/// The hashmap for index of storage miners, it's unique to whole system.
 	#[pallet::storage]
@@ -262,31 +276,6 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn control)]
 	pub(super) type Control<T: Config> = StorageValue<_, u8, ValueQuery>;
-
-	/// Etcd registers the owner's data structure.
-	#[pallet::storage]
-	#[pallet::getter(fn etcd_register_owner)]
-	pub(super) type EtcdRegisterOwner<T: Config> = StorageValue<_, Vec<T::AccountId>, ValueQuery>;
-
-	/// Data structure of the Etcd owner.
-	#[pallet::storage]
-	#[pallet::getter(fn etcd_owner)]
-	pub(super) type EtcdOwner<T: Config> = StorageValue<_, T::AccountId, ValueQuery>;
-
-	/// Data structure of the Etcd register.
-	#[pallet::storage]
-	#[pallet::getter(fn etcd_register)]
-	pub(super) type EtcdRegister<T: Config> = StorageValue<_, Vec<u8>, ValueQuery>;
-
-	/// Data structure of the Etcd token.
-	#[pallet::storage]
-	#[pallet::getter(fn etcd_token)]
-	pub(super) type EtcdToken<T: Config> = StorageValue<_, Vec<u8>, ValueQuery>;
-
-	/// Data structure of the Service port.
-	#[pallet::storage]
-	#[pallet::getter(fn service_port)]
-	pub(super) type ServicePort<T: Config> = StorageValue<_, Vec<u8>, ValueQuery>;
 
 	/// The total power of all storage miners.
 	#[pallet::storage]
@@ -373,7 +362,7 @@ pub mod pallet {
 		/// - `fileport`: The number of staking.
 		/// - `staking_val`: The number of staking.
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
-		pub fn regnstk(origin: OriginFor<T>, beneficiary: <T::Lookup as StaticLookup>::Source, ip: u32, port: u32, fileport: u32,  #[pallet::compact] staking_val: BalanceOf<T>) -> DispatchResult {
+		pub fn regnstk(origin: OriginFor<T>, beneficiary: <T::Lookup as StaticLookup>::Source, ip: Vec<u8>, #[pallet::compact] staking_val: BalanceOf<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let beneficiary = T::Lookup::lookup(beneficiary)?;
 			ensure!(!(<MinerItems<T>>::contains_key(&sender)), Error::<T>::AlreadyRegistered);
@@ -384,17 +373,18 @@ pub mod pallet {
 			<MinerItems<T>>::insert(
 				&sender,
 				Mr::<T> {
-					peerid,
+					peerid: peerid,
 					beneficiary: beneficiary.clone(),
-					ip,
-					port,
-					fileport,
+					ip: ip.clone(),
 					collaterals: staking_val.clone(),
 					earnings: value.clone(),
 					locked: value.clone(),
+					state: "nomal".as_bytes().to_vec(),
+					power: 0,
+					space: 0,
 				}
 			);
-			<WalletMiners<T>>::insert(peerid, 1);
+
 			<PeerIndex<T>>::put(peerid);
 
 			<SegInfo<T>>::insert(
@@ -406,8 +396,6 @@ pub mod pallet {
 			let add_minerinfo = MinerInfo {
 				peerid: peerid,
 				ip: ip,
-				port: port,
-				fileport: fileport,
 				power: 0 as u128,
 				space: 0 as u128,
 			};
@@ -453,6 +441,77 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::Registered{acc: sender.clone(), staking_val: staking_val.clone()});
 			Ok(())
 		}
+
+		#[pallet::weight(1_000_000)]
+		pub fn increase_collateral(origin: OriginFor<T>, #[pallet::compact] collaterals: BalanceOf<T>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			
+			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
+			T::Currency::reserve(&sender, collaterals)?;
+			<MinerItems<T>>::try_mutate(sender, |s_opt| -> DispatchResult {
+				let s = s_opt.as_mut().unwrap();
+				s.collaterals = s.collaterals + collaterals;
+				if s.state == "frozen".as_bytes().to_vec() {
+					let limit = Self::check_collateral_limit(s.peerid)?;
+					if s.collaterals > limit {
+						s.state = "nomal".as_bytes().to_vec();
+					}
+				}
+
+				Ok(())
+			})?;
+
+			Ok(())
+		}
+
+		#[pallet::weight(1_000_000)]
+		pub fn exit_miner(origin: OriginFor<T>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
+			let state = Self::check_state(sender.clone());
+			if state == "frozen".as_bytes().to_vec() {
+				Err(Error::<T>::AlreadyFrozen)?;
+			}
+
+			MinerItems::<T>::try_mutate(&sender, |s_opt| -> DispatchResult {
+				let s = s_opt.as_mut().unwrap();
+				
+				Self::sub_space(s.peerid, s.space)?;
+				Self::sub_power(s.peerid, s.power)?;
+				
+				s.state = "cooling".as_bytes().to_vec();
+				Ok(())
+			})?; 
+
+			let now = <frame_system::Pallet<T>>::block_number();
+			MinerColling::<T>::insert(&sender, now);
+
+			Self::deposit_event(Event::<T>::MinerExit{acc: sender});
+			Ok(())
+
+		}
+
+		#[pallet::weight(2_000_000_000_000)]
+		pub fn withdraw(origin: OriginFor<T>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			let now: u128 = <frame_system::Pallet<T>>::block_number().saturated_into();
+			let colling_line: u128 = MinerColling::<T>::get(&sender).unwrap().saturated_into();
+			if colling_line + 57600 < now {
+				Err(Error::<T>::CollingNotOver)?;
+			}
+
+			let collaterals = MinerItems::<T>::get(&sender).unwrap().collaterals;
+			T::Currency::unreserve(&sender, collaterals);
+			Self::delete_miner_info(sender.clone());
+			MinerColling::<T>::remove(&sender);
+
+			Self::deposit_event(Event::<T>::MinerClaim{acc: sender});
+			Ok(())
+		}
+
+	
+		 
 		/// Redeem for storage miner.
 		///
 		/// The dispatch origin of this call must be _Signed_.
@@ -469,12 +528,12 @@ pub mod pallet {
 				k = k.checked_add(1).ok_or(Error::<T>::Overflow)?;
 			}
 			AllMiner::<T>::put(allminer);
-			ensure!(<WalletMiners<T>>::contains_key(peerid), Error::<T>::UnregisteredAccountId);
+
 			let mi = MinerItems::<T>::get(&sender).unwrap();
 			ensure!(mi.locked == BalanceOf::<T>::from(0 as u32), Error::<T>::LockedNotEmpty);
 			let deposit = mi.collaterals;
 			let _ = T::Currency::unreserve(&sender, deposit.clone());
-			<WalletMiners<T>>::remove(peerid);
+
 			<MinerItems<T>>::remove(&sender);
 			<SegInfo<T>>::remove(&sender);
 			Self::deposit_event(Event::<T>::Redeemed{acc: sender.clone(), deposit: deposit.clone()});
@@ -487,7 +546,7 @@ pub mod pallet {
 		pub fn claim(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let peerid = MinerItems::<T>::get(&sender).unwrap().peerid;
-			ensure!(<WalletMiners<T>>::contains_key(peerid), Error::<T>::UnregisteredAccountId);
+
 			let mi = MinerItems::<T>::get(&sender).unwrap();
 			ensure!(mi.earnings != BalanceOf::<T>::from(0 as u32), Error::<T>::EarningsIsEmpty);
 			let deposit = mi.earnings;
@@ -514,145 +573,13 @@ pub mod pallet {
 			<MinerStatValue<T>>::put(mst);
 			Ok(())
 		}
-		/// Set the Etcd registration address.
-		///
-		/// The dispatch origin of this call must be _Signed_.
-		///
-		/// Parameters:
-		/// - `address1`: The account address 1.
-		/// - `address2`: The account address 2.
-		/// - `address3`: The account address 3.
-		/// - `address4`: The account address 4.
-		// #[pallet::weight(<T as pallet::Config>::WeightInfo::setaddress())]
-		// pub fn setaddress(origin: OriginFor<T>, address1: T::AccountId, address2: T::AccountId, address3: T::AccountId, address4: T::AccountId) -> DispatchResult {
-		// 	let _ = ensure_signed(origin)?;
-		// 	let v = <Control<T>>::get();
-		// 	if v == 0 {
-		// 		EtcdRegisterOwner::<T>::try_mutate(|s| -> DispatchResult {
-		// 			s.push(address1);
-		// 			Ok(())
-		// 		})?;
-		// 		EtcdRegisterOwner::<T>::try_mutate(|s| -> DispatchResult {
-		// 			s.push(address2);
-		// 			Ok(())
-		// 		})?;
-		// 		EtcdRegisterOwner::<T>::try_mutate(|s| -> DispatchResult {
-		// 			s.push(address3);
-		// 			Ok(())
-		// 		})?;
-		// 		EtcdOwner::<T>::put(address4);
-		// 		<Control<T>>::put(1);
-		// 	}
-		// 	Ok(())
-		// }
-		/// Update the Etcd registration address.
-		///
-		/// The dispatch origin of this call must be _Signed_.
-		///
-		/// Parameters:
-		/// - `newaddress`: Updated account address.
-		// #[pallet::weight(<T as pallet::Config>::WeightInfo::updateaddress())]
-		// pub fn updateaddress(origin: OriginFor<T>, newaddress: T::AccountId) -> DispatchResult {
-		// 	let sender = ensure_signed(origin)?;
-		// 	let mut flag: bool = false;
-		// 	let mut k = 0;
-		// 	<EtcdRegisterOwner<T>>::try_mutate(|s| -> DispatchResult {
-		// 		for i in s {
-		// 			if sender == i.clone(){
-		// 				flag = true;
-		// 				break;
-		// 			}
-		// 			k = k.checked_add(&1).ok_or(Error::<T>::Overflow)?;
-		// 		}
-		// 		Ok(())
-		// 	})?;
-		// 	<EtcdRegisterOwner<T>>::try_mutate(|s| -> DispatchResult {
-		// 		(*s).remove(k);
-		// 		Ok(())
-		// 	})?;
-		// 	<EtcdRegisterOwner<T>>::try_mutate(|s| -> DispatchResult {
-		// 		(*s).push(newaddress.clone());
-		// 		Ok(())
-		// 	})?;
-			
-		// 	if flag {
-		// 		Self::deposit_event(Event::<T>::UpdateAddressSucc{acc: newaddress.clone()});
-		// 	} else {
-		// 		ensure!(flag ,Error::<T>::NotOwner);
-		// 	}
-		// 	Ok(())
-		// }
-		/// Set ETCD parameters.
-		///
-		/// The dispatch origin of this call must be _Signed_.
-		///
-		/// Parameters:
-		/// - `ip`: Server IP Address.
-		// #[pallet::weight(<T as pallet::Config>::WeightInfo::setetcd())]
-		// pub fn setetcd(origin: OriginFor<T>, ip: Vec<u8>) -> DispatchResult {
-		// 	let sender = ensure_signed(origin)?;
-		// 	let mut flag: bool = false;
-		// 	<EtcdRegisterOwner<T>>::try_mutate(|s| -> DispatchResult {
-		// 		for i in s {
-		// 			if sender == i.clone() {
-		// 				flag = true;
-		// 				break;
-		// 			}
-		// 		}
-		// 		Ok(())
-		// 	})?;
-		// 	if flag {
-		// 		<EtcdRegister<T>>::put(ip);
-		// 		Self::deposit_event(Event::<T>::SetEtcdSucc{acc: sender});
-		// 	} else {
-		// 		ensure!(flag ,Error::<T>::NotOwner);
-		// 	}
-		// 	Ok(())
-		// }
-		/// Set ETCD token.
-		///
-		/// The dispatch origin of this call must be _Signed_.
-		///
-		/// Parameters:
-		/// - `token`: Etcd Token.
-		// #[pallet::weight(<T as pallet::Config>::WeightInfo::setetcdtoken())]
-		// pub fn setetcdtoken(origin: OriginFor<T>, token: Vec<u8>) -> DispatchResult {
-		// 	let sender = ensure_signed(origin)?;
-		// 	let mut flag: bool = false;
-		// 	let address = <EtcdOwner<T>>::get();
-		// 	if sender == address {
-		// 		flag = true;
-		// 	}
-		// 	if flag {
-		// 		<EtcdToken<T>>::put(token);
-		// 		Self::deposit_event(Event::<T>::SetEtcdSucc{acc: sender});
-		// 	} else {
-		// 		ensure!(flag ,Error::<T>::NotOwner);
-		// 	}
-		// 	Ok(())
-		// }
+
 		/// Set service port.
 		///
 		/// The dispatch origin of this call must be _Signed_.
 		///
 		/// Parameters:
 		/// - `serviceport`: service port.
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::setserviceport())]
-		pub fn setserviceport(origin: OriginFor<T>, serviceport: Vec<u8>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			let mut flag: bool = false;
-			let address = <EtcdOwner<T>>::get();
-			if sender == address {
-				flag = true;
-			}
-			if flag {
-				<ServicePort<T>>::put(serviceport);
-				Self::deposit_event(Event::<T>::SetEtcdSucc{acc: sender});
-			} else {
-				ensure!(flag ,Error::<T>::NotOwner);
-			}
-			Ok(())
-		}
 		/// Add available storage.
 		///
 		/// The dispatch origin of this call must be _root_.
@@ -766,10 +693,18 @@ pub mod pallet {
 			let _ = ensure_root(origin)?;
 			let total_power = <TotalPower<T>>::get();
 			ensure!(total_power != 0, Error::<T>::DivideByZero);
+			let reward_pot = T::PalletId::get().into_account();
+
 			for (_, detail) in <MinerDetails<T>>::iter() {
 				let tmp1:u128 = 750000000000000000_u128.checked_mul(detail.power).ok_or(Error::<T>::Overflow)?;
 				let tmp2:u128 = tmp1.checked_div(total_power).ok_or(Error::<T>::Overflow)?;
-				let _ = Self::add_reward_order1(detail.address,tmp2);	
+				let _ = Self::add_reward_order1(detail.address,tmp2);
+
+				let reward_20_percent: BalanceOf<T> = (tmp2.checked_mul(2).ok_or(Error::<T>::Overflow)?.checked_div(10).ok_or(Error::<T>::Overflow)?)
+				.try_into()
+				.map_err(|_e| Error::<T>::ConversionError)?;
+
+				<T as pallet::Config>::Currency::transfer(&reward_pot, &detail.beneficiary, reward_20_percent, AllowDeath)?;
 			}
 			let reward3:BalanceOf<T> = 750000000000000000_u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
 
@@ -852,12 +787,13 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timed_user_receive_award1())]
 		pub fn timed_user_receive_award1(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
-			for (peerid, info) in <MinerDetails<T>>::iter() {
-				let sender = info.address;
+			for (sender, info) in <RewardClaimMap<T>>::iter() {
 				
 				let acc = info.beneficiary;
-
-				ensure!(RewardClaimMap::<T>::contains_key(&sender), Error::<T>::NotExisted);
+				let state = <MinerItems<T>>::get(&sender).unwrap().state;
+				if state == "frozen".as_bytes().to_vec() {
+					Self::deposit_event(Event::<T>::AlreadyFrozen{acc: acc.clone()});
+				}
 				
 				let reward_pot = T::PalletId::get().into_account();
 
@@ -865,7 +801,6 @@ pub mod pallet {
 				
 				let award = reward_claim1.current_availability;
 				let total = reward_claim1.total_reward;
-				let total_rewards_currently_available = reward_claim1.total_rewards_currently_available;
 
 				ensure!(reward_claim1.have_to_receive.checked_add(&award).ok_or(Error::<T>::Overflow)? <= reward_claim1.total_rewards_currently_available, Error::<T>::BeyondClaim);
 				
@@ -875,17 +810,21 @@ pub mod pallet {
 					let reward_claim = reward_claim_opt.as_mut().unwrap();
 					let have_to_receive = reward_claim.have_to_receive.checked_add(&award).ok_or(Error::<T>::Overflow)?;
 					reward_claim.have_to_receive = have_to_receive;
-					reward_claim.current_availability = total_rewards_currently_available.checked_sub(&have_to_receive).ok_or(Error::<T>::Overflow)?;
+					reward_claim.current_availability = 0u32.into();
 					reward_claim.total_not_receive = total.checked_sub(&have_to_receive).ok_or(Error::<T>::Overflow)?;
 					Ok(())
 				})?;
-
+				let peerid = Self::get_peerid(&sender);
 				MinerDetails::<T>::try_mutate(peerid, |miner_detail_opt| -> DispatchResult {
 					let miner_detail = miner_detail_opt.as_mut().unwrap();
 					let total_not_receive = RewardClaimMap::<T>::get(&sender).unwrap().total_not_receive;
 					miner_detail.totald_not_receive = total_not_receive;
 					Ok(())
 				})?;
+
+				if Self::check_exist_miner_reward(sender.clone()) {
+					Self::clean_reward_map(sender)
+				}
 			}
 			Ok(())
 		}
@@ -924,26 +863,42 @@ pub mod pallet {
 				for i in &order_vec{
 					total = total.checked_add(i.calculate_reward).ok_or(Error::<T>::Overflow)?;
 					if i.deadline > now {
-						let tmp1 = TryInto::<u128>::try_into(now.checked_sub(&i.start_t).ok_or(Error::<T>::Overflow)?).ok().unwrap();
+						// let tmp1 = TryInto::<u128>::try_into(now.checked_sub(&i.start_t).ok_or(Error::<T>::Overflow)?).ok().unwrap();
 						// let day:u128 = tmp/28800+1;
 						// // test 5 minutes
 						// let day:u128 = tmp/100+1;
 						// test 6 hours
-						let day:u128 = tmp1.checked_div(7200).ok_or(Error::<T>::Overflow)?.checked_add(1).ok_or(Error::<T>::Overflow)?;
-						let tmp2:BalanceOf<T> = (i.calculate_reward*8/10/180*day).try_into().map_err(|_e| Error::<T>::ConversionError)?;
+						// let day:u128 = tmp1.checked_div(7200).ok_or(Error::<T>::Overflow)?.checked_add(1).ok_or(Error::<T>::Overflow)?;
+						let tmp2:BalanceOf<T> = (i.calculate_reward*8/10/180).try_into().map_err(|_e| Error::<T>::ConversionError)?;
 						avail = avail.checked_add(&tmp2).ok_or(Error::<T>::Overflow)?;
-					} else {
-						let tmp1:BalanceOf<T> = (i.calculate_reward*8/10).try_into().map_err(|_e| Error::<T>::ConversionError)?;
-						avail = avail.checked_add(&tmp1).ok_or(Error::<T>::Overflow)?;
-						// Call::del_order(_acc,i);
-					}
+					} 
+					// else {
+					// 	let tmp1:BalanceOf<T> = (i.calculate_reward*8/10).try_into().map_err(|_e| Error::<T>::ConversionError)?;
+					// 	avail = avail.checked_add(&tmp1).ok_or(Error::<T>::Overflow)?;
+					// 	// Call::del_order(_acc,i);
+					// }
 				}
-				let reward1:BalanceOf<T> = (total.checked_mul(2).ok_or(Error::<T>::Overflow)?.checked_div(10).ok_or(Error::<T>::Overflow)?).try_into().map_err(|_e| Error::<T>::ConversionError)?;
-				let currently_available:BalanceOf<T> = reward1.checked_add(&avail).ok_or(Error::<T>::Overflow)?;
+
+				let mut order_clone = order_vec.clone();
+				order_clone.retain(|item| {
+					if item.deadline > now {
+						true
+					} else {
+						false
+					}
+				});
+
+				let total_20_percent:BalanceOf<T> = total
+						.checked_mul(2).ok_or(Error::<T>::Overflow)?
+						.checked_div(10).ok_or(Error::<T>::Overflow)?
+						.try_into().map_err(|_e| Error::<T>::ConversionError)?;
+
+				let currently_available:BalanceOf<T> = avail;
 
 				let reward2:BalanceOf<T> = total.try_into().map_err(|_e| Error::<T>::ConversionError)?;
 
-				let peerid = MinerItems::<T>::get(&_acc).unwrap().peerid;
+				let miner = MinerItems::<T>::get(&_acc).unwrap();
+				let peerid = miner.peerid;
 				MinerTable::<T>::try_mutate(peerid, |s_opt| -> DispatchResult {
 					let s = s_opt.as_mut().unwrap();
 					s.mining_reward = reward2;
@@ -954,42 +909,68 @@ pub mod pallet {
 					<RewardClaimMap<T>>::insert(
 						&_acc, 
 						RewardClaim::<T> {
+							beneficiary: miner.beneficiary,
 							total_reward: reward2,
-							total_rewards_currently_available: currently_available,
-							have_to_receive: 0u128.try_into().map_err(|_e| Error::<T>::ConversionError)?,
+							total_rewards_currently_available: currently_available
+							.checked_add(&total_20_percent).ok_or(Error::<T>::Overflow)?,
+							have_to_receive: total_20_percent,
 							current_availability: currently_available,
-							total_not_receive: reward2,
+							total_not_receive: reward2.checked_sub(&total_20_percent).ok_or(Error::<T>::Overflow)?,
 						}
 					);
 
+					
 					let peerid = MinerItems::<T>::get(&_acc).unwrap().peerid;
-					MinerDetails::<T>::try_mutate(peerid, |miner_detail_opt| -> DispatchResult {
-						let miner_detail = miner_detail_opt.as_mut().unwrap();
-						miner_detail.total_reward = reward2;
-						miner_detail.total_rewards_currently_available = currently_available;
-						miner_detail.totald_not_receive = reward2;
-						Ok(())
-					})?;
+					if <MinerDetails<T>>::contains_key(peerid) {
+						MinerDetails::<T>::try_mutate(peerid, |miner_detail_opt| -> DispatchResult {
+							let miner_detail = miner_detail_opt.as_mut().unwrap();
+							miner_detail.total_reward = reward2;
+							miner_detail.total_rewards_currently_available = currently_available.checked_add(&total_20_percent).ok_or(Error::<T>::Overflow)?;
+							miner_detail.totald_not_receive = reward2.checked_sub(&total_20_percent).ok_or(Error::<T>::Overflow)?;
+							Ok(())
+						})?;
+					}
+					
 				} else {
 					RewardClaimMap::<T>::try_mutate(&_acc, |reward_claim_opt| -> DispatchResult {
+						//Convert balance to U128 for multiplication and division
 						let reward_claim = reward_claim_opt.as_mut().unwrap();
+						let diff = reward2.checked_sub(&reward_claim.total_reward).ok_or(Error::<T>::Overflow)?;
+						let diff128 = TryInto::<u128>::try_into(diff).ok().unwrap();
+						let diff_20_percent: BalanceOf<T> = diff128
+							.checked_mul(2).ok_or(Error::<T>::Overflow)?
+							.checked_div(10).ok_or(Error::<T>::Overflow)?
+							.try_into()
+							.map_err(|_e| Error::<T>::ConversionError)?;
+						//Before switching back to balance
+						//Plus 20% of the new share
+						reward_claim.have_to_receive = reward_claim.have_to_receive.checked_add(&diff_20_percent).ok_or(Error::<T>::Overflow)?;
 						reward_claim.total_reward = reward2;
-						reward_claim.total_rewards_currently_available = currently_available;
-						reward_claim.current_availability = currently_available.checked_sub(&reward_claim.have_to_receive).ok_or(Error::<T>::Overflow)?;
-						reward_claim.total_not_receive = reward2.checked_sub(&reward_claim.have_to_receive).ok_or(Error::<T>::Overflow)?;
+						reward_claim.total_rewards_currently_available = currently_available
+							.checked_add(&reward_claim.current_availability).ok_or(Error::<T>::Overflow)?
+							.checked_add(&reward_claim.have_to_receive).ok_or(Error::<T>::Overflow)?;
+						reward_claim.current_availability = reward_claim.current_availability.checked_add(&currently_available).ok_or(Error::<T>::Overflow)?;
+						reward_claim.total_not_receive = reward2
+							.checked_sub(&reward_claim.have_to_receive).ok_or(Error::<T>::Overflow)?
+							.checked_sub(&total_20_percent).ok_or(Error::<T>::Overflow)?;
 						Ok(())
 					})?;
 
 					let peerid = MinerItems::<T>::get(&_acc).unwrap().peerid;
-					MinerDetails::<T>::try_mutate(peerid, |miner_detail_opt| -> DispatchResult {
-						let miner_detail = miner_detail_opt.as_mut().unwrap();
-						miner_detail.total_reward = reward2;
-						miner_detail.total_rewards_currently_available = currently_available;
-						let total_not_receive = RewardClaimMap::<T>::get(&_acc).unwrap().total_not_receive;
-						miner_detail.totald_not_receive = total_not_receive;
-						Ok(())
-					})?;
+					if <MinerDetails<T>>::contains_key(peerid) {
+						MinerDetails::<T>::try_mutate(peerid, |miner_detail_opt| -> DispatchResult {
+							let miner_detail = miner_detail_opt.as_mut().unwrap();
+							miner_detail.total_reward = reward2;
+							let total_rewards_currently_available  = RewardClaimMap::<T>::get(&_acc).unwrap().total_rewards_currently_available;	
+							miner_detail.total_rewards_currently_available = total_rewards_currently_available;
+							let total_not_receive = RewardClaimMap::<T>::get(&_acc).unwrap().total_not_receive;
+							miner_detail.totald_not_receive = total_not_receive;
+							Ok(())
+						})?;
+					}
 				}
+
+				<CalculateRewardOrderMap<T>>::insert(_acc, order_clone);
 			}
 
 			Self::deposit_event(Event::<T>::TimedTask());
@@ -1022,17 +1003,6 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `acc`: miner .
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::punishment())]
-		pub fn punishment(origin: OriginFor<T>, acc: AccountOf<T>) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			let reward_pot = T::PalletId::get().into_account();
-			
-			<T as pallet::Config>::Currency::transfer(&acc, &reward_pot, <T as pallet::Config>::Currency::total_balance(&acc), AllowDeath)?;
-
-			// Self::deposit_event(Event::<T>::FaucetTopUpMoney(sender.clone()));
-			Ok(())
-		}
 		/// The faucet top up.
 		///
 		/// The dispatch origin of this call must be _Signed_.
@@ -1142,7 +1112,7 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Parameters:
 	/// - `aid`: aid.
-	pub fn get_ids(aid: &<T as frame_system::Config>::AccountId) -> Result<(u64, u64), DispatchError> {
+	pub fn get_ids(aid: &AccountOf<T>) -> Result<(u64, u64), DispatchError> {
 		//check exist
 		if !<MinerItems<T>>::contains_key(&aid) {
 			frame_support::print("UnregisteredAccountId");
@@ -1159,7 +1129,7 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Parameters:
 	/// - `aid`: aid.
-	pub fn get_peerid(aid: &<T as frame_system::Config>::AccountId) -> u64 {
+	pub fn get_peerid(aid: &AccountOf<T>) -> u64 {
 		if !<MinerItems<T>>::contains_key(&aid) {
 			frame_support::print("UnregisteredAccountId");
 		}
@@ -1170,7 +1140,7 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Parameters:
 	/// - `aid`: aid.
-	pub fn get_segmentid(aid: &<T as frame_system::Config>::AccountId) -> Result<u64, DispatchError> {
+	pub fn get_segmentid(aid: &AccountOf<T>) -> Result<u64, DispatchError> {
 		SegInfo::<T>::try_mutate(&aid, |s| -> DispatchResult {
 			(*s).segment_index = (*s).segment_index.checked_add(1).ok_or(Error::<T>::Overflow)?;
 			Ok(())
@@ -1185,9 +1155,23 @@ impl<T: Config> Pallet<T> {
 	/// - `increment`: computing power.
 	pub fn add_power(peerid: u64, increment: u128) -> DispatchResult {
 		//check exist
-		if !<WalletMiners<T>>::contains_key(peerid) {
+		if !<MinerDetails<T>>::contains_key(peerid) {
 			frame_support::print("UnregisteredAccountId");
 		}
+
+		
+
+		let acc = Self::get_acc(peerid);
+		let state = Self::check_state(acc.clone());
+		if state == "exit".as_bytes().to_vec() {
+			return Ok(())
+		}
+
+		MinerItems::<T>::try_mutate(&acc, |s_opt| -> DispatchResult{
+			let s = s_opt.as_mut().unwrap();
+			s.power = s.power.checked_add(increment).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})?;
 
 		TotalPower::<T>::try_mutate(|s| -> DispatchResult {
 			*s = s.checked_add(increment).ok_or(Error::<T>::Overflow)?;
@@ -1215,9 +1199,7 @@ impl<T: Config> Pallet<T> {
 			if i.peerid == peerid {
 				let newminer = MinerInfo {
 					peerid: i.peerid,
-					ip: i.ip,
-					port: i.port,
-					fileport: i.fileport,
+					ip: i.ip.clone(),
 					power: i.power.checked_add(increment).ok_or(Error::<T>::Overflow)?,
 					space: i.space,
 				};
@@ -1236,9 +1218,20 @@ impl<T: Config> Pallet<T> {
 	/// - `increment`: computing power.
 	pub fn sub_power(peerid: u64, increment: u128) -> DispatchResult {
 		//check exist
-		if !<WalletMiners<T>>::contains_key(peerid) {
+		if !<MinerDetails<T>>::contains_key(peerid) {
 			frame_support::print("UnregisteredAccountId");
 		}
+
+		let acc = Self::get_acc(peerid);
+		let state = Self::check_state(acc.clone());
+		if state == "exit".as_bytes().to_vec() {
+			return Ok(())
+		}
+		MinerItems::<T>::try_mutate(&acc, |s_opt| -> DispatchResult{
+			let s = s_opt.as_mut().unwrap();
+			s.power = s.power.checked_sub(increment).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})?;
 
 		MinerTable::<T>::try_mutate(peerid, |s_opt| -> DispatchResult {
 			let s = s_opt.as_mut().unwrap();
@@ -1266,9 +1259,7 @@ impl<T: Config> Pallet<T> {
 			if i.peerid == peerid {
 				let newminer = MinerInfo {
 					peerid: i.peerid,
-					ip: i.ip,
-					port: i.port,
-					fileport: i.fileport,
+					ip: i.ip.clone(),
 					power: i.power.checked_sub(increment).ok_or(Error::<T>::Overflow)?,
 					space: i.space,
 				};
@@ -1280,6 +1271,7 @@ impl<T: Config> Pallet<T> {
 		AllMiner::<T>::put(allminer);
 		Ok(())
 	}
+
 	/// Add space calculation power to corresponding miners.
 	///
 	/// Parameters:
@@ -1287,10 +1279,20 @@ impl<T: Config> Pallet<T> {
 	/// - `increment`: computing power.
 	pub fn add_space(peerid: u64, increment: u128) -> DispatchResult {
 		//check exist
-		if !<WalletMiners<T>>::contains_key(peerid) {
+		if !<MinerDetails<T>>::contains_key(peerid) {
 			frame_support::print("UnregisteredAccountId");
 		}
 
+		let acc = Self::get_acc(peerid);
+		let state = Self::check_state(acc.clone());
+		if state == "exit".as_bytes().to_vec() {
+			return Ok(())
+		}
+		MinerItems::<T>::try_mutate(&acc, |s_opt| -> DispatchResult{
+			let s = s_opt.as_mut().unwrap();
+			s.space = s.space.checked_add(increment).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})?;
 		MinerDetails::<T>::try_mutate(peerid, |s_opt| -> DispatchResult {
 			let s = s_opt.as_mut().unwrap();
 			s.space = s.space.checked_add(increment).ok_or(Error::<T>::Overflow)?;
@@ -1316,9 +1318,7 @@ impl<T: Config> Pallet<T> {
 			if i.peerid == peerid {
  				let newminer = MinerInfo {
 					peerid: i.peerid,
-					ip: i.ip,
-					port: i.port,
-					fileport: i.fileport,
+					ip: i.ip.clone(),
 					power: i.power,
 					space: i.space.checked_add(increment).ok_or(Error::<T>::Overflow)?,
 				};
@@ -1337,10 +1337,20 @@ impl<T: Config> Pallet<T> {
 	/// - `increment`: computing power.
 	pub fn sub_space(peerid: u64, increment: u128) -> DispatchResult {
 		//check exist
-		if !<WalletMiners<T>>::contains_key(peerid) {
+		if !<MinerDetails<T>>::contains_key(peerid) {
 			frame_support::print("UnregisteredAccountId");
 		}
 
+		let acc = Self::get_acc(peerid);
+		let state = Self::check_state(acc.clone());
+		if state == "exit".as_bytes().to_vec() {
+			return Ok(())
+		}
+		MinerItems::<T>::try_mutate(&acc, |s_opt| -> DispatchResult{
+			let s = s_opt.as_mut().unwrap();
+			s.space = s.space.checked_sub(increment).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})?;
 		MinerDetails::<T>::mutate(peerid, |s_opt| -> DispatchResult {
 			let s = s_opt.as_mut().unwrap();
 			s.space = s.space.checked_sub(increment).ok_or(Error::<T>::Overflow)?;
@@ -1366,9 +1376,7 @@ impl<T: Config> Pallet<T> {
 			if i.peerid == peerid {
 				let newminer = MinerInfo {
 					peerid: i.peerid,
-					ip: i.ip,
-					port: i.port,
-					fileport: i.fileport,
+					ip: i.ip.clone(),
 					power: i.power,
 					space: i.space.checked_sub(increment).ok_or(Error::<T>::Overflow)?,
 				};
@@ -1384,20 +1392,77 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Parameters:
 	/// - `aid`: aid.
-	pub fn fine_money(aid: &<T as frame_system::Config>::AccountId) -> DispatchResult {
+	pub fn punish(aid: AccountOf<T>) -> DispatchResult {
 		if !<MinerItems<T>>::contains_key(&aid) {
-			frame_support::print("UnregisteredAccountId");
+			Err(Error::<T>::NotMiner)?;
 		}
 		let mr = MinerItems::<T>::get(&aid).unwrap();
 		let acc = T::PalletId::get().into_account();
-		let money: BalanceOf<T> = 1u32.into();
-		T::Currency::unreserve(&aid, mr.collaterals);
-		MinerItems::<T>::mutate(&aid, |s| -> DispatchResult {
-			s.as_mut().unwrap().collaterals = s.as_mut().unwrap().collaterals.checked_sub(&money).ok_or(Error::<T>::Overflow)?;
+		let punish_amount: BalanceOf<T> = 20u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
+
+		if mr.collaterals < punish_amount {
+			Self::delete_miner_info(aid.clone())?;
+			return Ok(())
+		}
+		T::Currency::unreserve(&aid, punish_amount);
+		MinerItems::<T>::try_mutate(&aid, |s_opt| -> DispatchResult {
+			let s = s_opt.as_mut().unwrap();
+			s.collaterals = s.collaterals.checked_sub(&punish_amount).ok_or(Error::<T>::Overflow)?;
+			let limit = Self::check_collateral_limit(s.peerid)?;
+			if mr.collaterals < limit && s.state != "frozen".as_bytes().to_vec() {
+				s.state = "frozen".as_bytes().to_vec();
+			}
 			Ok(())
 		})?;
-		T::Currency::transfer(&aid, &acc, money, AllowDeath)?;
+		T::Currency::transfer(&aid, &acc, punish_amount, AllowDeath)?;
+
+		
+
 		Ok(())
+	}
+
+	fn delete_miner_info(acc: AccountOf<T>) -> DispatchResult {
+		let peerid = Self::get_peerid(&acc);
+		let miner = <MinerDetails<T>>::get(peerid).unwrap();
+		TotalPower::<T>::try_mutate(|s| -> DispatchResult {
+			*s = s.checked_sub(miner.power).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})?;
+
+		TotalSpace::<T>::try_mutate(|s| -> DispatchResult {
+			*s = s.checked_sub(miner.space).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})?;
+
+		let mut miner_list = AllMiner::<T>::get();
+		miner_list.retain(|s| if s.peerid == peerid {false} else {true});
+		AllMiner::<T>::put(miner_list);
+
+		<MinerItems<T>>::remove(&acc);
+		<MinerDetails<T>>::remove(peerid);
+		<SegInfo<T>>::remove(&acc);
+		Ok(())
+	}
+
+	//Check whether the rewards for exited miners have been paid out. 
+	//true is Distribution completed. false is Unfinished
+	fn check_exist_miner_reward(acc: AccountOf<T>) -> bool {
+		if !<MinerItems<T>>::contains_key(&acc) {
+			let order_vec = <CalculateRewardOrderMap<T>>::get(&acc);
+			if order_vec.len() == 0 {
+				let reward_map = <RewardClaimMap<T>>::get(&acc).unwrap();
+				if reward_map.have_to_receive == reward_map.total_reward {
+					return true
+				}
+			}
+		}
+		
+		false
+	}
+
+	fn clean_reward_map(acc: AccountOf<T>) {
+		<CalculateRewardOrderMap<T>>::remove(&acc);
+		<RewardClaimMap<T>>::remove(&acc);
 	}
 	/// Add reward orders for corresponding accounts.
 	///
@@ -1451,98 +1516,6 @@ impl<T: Config> Pallet<T> {
 		let acc = MinerDetails::<T>::get(peerid).unwrap();
 		acc.address
 	}
-	/// Create a new miner.
-	///
-	/// Parameters:
-	/// - `caller`: Miners account.
-	pub fn new_miner(caller: AccountOf<T>) -> DispatchResult {
-		let peerid: u64 = 1;
-		let ip: u32 = 15343514;
-		let port: u32 =  32335;
-		let fileport: u32 = 123;
-
-		//init
-		let mst = MinerStatInfo::<T> {
-			total_miners: 0u64,
-			active_miners: 0u64,
-			staking: BalanceOf::<T>::from(0u32),
-			miner_reward: BalanceOf::<T>::from(0u32),
-			sum_files: 0u128,
-		};
-		<MinerStatValue<T>>::put(mst);
-
-		//insert miner
-		<MinerItems<T>>::insert(
-			&caller,
-			Mr::<T> {
-				peerid: peerid,
-				beneficiary: caller.clone(),
-				ip: ip,
-				port: port,
-				fileport: fileport,
-				collaterals: BalanceOf::<T>::from(0u32),
-				earnings: BalanceOf::<T>::from(0u32),
-				locked: BalanceOf::<T>::from(0u32),
-			}
-		);
-		<WalletMiners<T>>::insert(peerid, 1);
-				<PeerIndex<T>>::put(peerid);
-
-		<SegInfo<T>>::insert(
-			&caller,
-			SegmentInfo {
-				segment_index: 0 as u64,
-			}
-		);
-		let add_minerinfo = MinerInfo {
-			peerid: peerid,
-			ip: ip,
-			port: port,
-			fileport: fileport,
-			power: 0 as u128,
-			space: 0 as u128,
-		};
-		AllMiner::<T>::mutate(|s| -> DispatchResult {
-			(*s).push(add_minerinfo);
-			Ok(())
-		})?;
-		//pallet_sminer::AllMiner::<T>::mutate(|s| (*s).push(add_minerinfo));
-
-		<MinerTable<T>>::insert(
-			peerid,
-			TableInfo::<T> {
-				address: caller.clone(),
-				beneficiary: caller.clone(),
-				total_storage: 0u128,
-				average_daily_data_traffic_in: 0u64,
-				average_daily_data_traffic_out: 0u64,
-				mining_reward: BalanceOf::<T>::from(0u32),
-			}
-		);
-
-		<MinerDetails<T>>::insert(
-			peerid,
-			MinerDetailInfo::<T> {
-				address: caller.clone(),
-				beneficiary: caller.clone(),
-				power: 0u128,
-				space: 0u128,
-				total_reward: BalanceOf::<T>::from(0u32),
-				total_rewards_currently_available: BalanceOf::<T>::from(0u32),
-				totald_not_receive: BalanceOf::<T>::from(0u32),
-				collaterals: BalanceOf::<T>::from(0u32),
-			}
-		);
-
-		MinerStatValue::<T>::mutate(|s_opt| -> DispatchResult {
-			let s = s_opt.as_mut().unwrap();
-			s.total_miners = s.total_miners.checked_add(1).ok_or(Error::<T>::Overflow)?;
-			s.active_miners = s.active_miners.checked_add(1).ok_or(Error::<T>::Overflow)?;
-			s.staking = s.staking.checked_add(&BalanceOf::<T>::from(0u32)).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
-		Ok(())
-	}
 
 	pub fn get_space() -> u128 {
 		let purchased_space = <PurchasedSpace<T>>::get();
@@ -1582,5 +1555,24 @@ impl<T: Config> Pallet<T> {
 			Ok(())
 		})?;
 		Ok(())
+	}
+
+	fn check_collateral_limit(peer_id: u64) -> Result<BalanceOf<T>, Error<T>> {
+		let power = <MinerDetails<T>>::get(peer_id).unwrap().power;
+		let mut current_power_num:u128 = 0;
+		if power % (1024 * 1024) > 0 {
+			current_power_num += 1;
+		}
+		current_power_num += power.checked_div(1024 * 1024).ok_or(Error::<T>::Overflow)?;
+		//2000TCESS/TB(space)
+		let limit: BalanceOf<T> = (current_power_num * 2000_000_000_000_000u128)
+		.try_into()
+		.map_err(|_e| Error::<T>::ConversionError)?;
+
+		Ok(limit)
+	}
+
+	fn check_state(acc: AccountOf<T>) -> Vec<u8> {
+		<MinerItems<T>>::get(&acc).unwrap().state
 	}
 }
