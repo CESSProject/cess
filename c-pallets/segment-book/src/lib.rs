@@ -595,31 +595,10 @@ pub mod pallet {
 							let blocknum2: u128 = res.block_num.unwrap().saturated_into();
 							let peerid = pallet_sminer::Pallet::<T>::get_peerid(&acc);
 							if number - 14400 > blocknum2 {
+								pallet_sminer::Pallet::<T>::punish(acc.clone());
 								let _ = pallet_sminer::Pallet::<T>::sub_power(peerid, res.size_type);
 								let _ = pallet_sminer::Pallet::<T>::sub_space(peerid, res.size_type);
-								<ConProofInfoC<T>>::mutate(&acc, |s|{
-									for i in 0..s.len() {
-										let v = s.get(i);
-										if v.unwrap().segment_id == key2 {
-											s.remove(i);
-											break;
-										}
-									}
-								});
-								let mut unb = <UnVerifiedD<T>>::get();
-								let mut k = 0;
-								for i in unb.clone().iter() {
-									if peerid == i.peer_id && key2 == i.segment_id {
-										unb.remove(k);
-										break;
-									}
-									k += 1;
-								}
-								//remove related storage
-								<UnVerifiedD<T>>::put(unb);
-								<PrePoolC<T>>::remove(&acc, key2);
-								<VerPoolD<T>>::remove(&acc, key2);
-								<PrePoolD<T>>::remove(&acc, key2);
+								Self::clean_service_proofs_signle(peerid, key2);
 								//let _ = pallet_sminer::Pallet::<T>::fine_money(&acc);
 								Self::deposit_event(Event::<T>::PPDNoOnTimeSubmit{acc: acc.clone(), segment_id: key2});
 							}
@@ -1028,6 +1007,7 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 			ensure!(<VerPoolC<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
 			if !pallet_file_bank::Pallet::<T>::check_file_exist(fileid) {
+				Self::clean_service_proofs_signle(peer_id, segment_id);
 				Err(Error::<T>::FileNonExistent)?;
 			}
 			
@@ -1191,6 +1171,11 @@ pub mod pallet {
 				}
 				<VerPoolC<T>>::remove(&sender, segment_id);
 			} else {
+				let vpc = <VerPoolC<T>>::get(sender.clone(), segment_id).unwrap();
+				let _ = pallet_sminer::Pallet::<T>::sub_power(peer_id, vpc.size_type);
+				let _ = pallet_sminer::Pallet::<T>::sub_space(peer_id, vpc.size_type);
+				pallet_sminer::Pallet::<T>::punish(sender.clone())?;
+				Self::clean_service_proofs_signle(peer_id, segment_id);
 				<VerPoolC<T>>::mutate(&sender, segment_id, |x_opt| {
 					let s = x_opt.as_mut().unwrap();
 					s.is_ready = false;
@@ -1219,6 +1204,7 @@ pub mod pallet {
 			ensure!(<VerPoolD<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
 			ensure!(<VerPoolC<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
 			if !pallet_file_bank::Pallet::<T>::check_file_exist(fileid) {
+				Self::clean_service_proofs_signle(peer_id, segment_id);
 				Err(Error::<T>::FileNonExistent)?;
 			}
 
@@ -1280,7 +1266,14 @@ pub mod pallet {
 					s.block_num = Some(now_block);
 					Ok(())
 				})?;
+			} else {
+				let vpc = <PrePoolC<T>>::get(sender.clone(), segment_id).unwrap();
+				let _ = pallet_sminer::Pallet::<T>::sub_power(peer_id, vpc.size_type);
+				let _ = pallet_sminer::Pallet::<T>::sub_space(peer_id, vpc.size_type);
+				pallet_sminer::Pallet::<T>::punish(sender.clone())?;
+				Self::clean_service_proofs_signle(peer_id, segment_id);
 			}
+
 			<VerPoolD<T>>::remove(&sender, segment_id);
 
 			Self::deposit_event(Event::<T>::VPDVerified{peer_id: peer_id, segment_id: segment_id});
@@ -1378,8 +1371,35 @@ impl<T: Config> Pallet<T> {
 		list
 	}
 
-	fn check_file_exist(fileid: Vec<u8>) -> bool {
-		pallet_file_bank::Pallet::<T>::check_file_exist(fileid)
+	// fn check_file_exist(fileid: Vec<u8>) -> bool {
+	// 	pallet_file_bank::Pallet::<T>::check_file_exist(fileid)
+	// }
+
+	fn clean_service_proofs_signle(peer_id: u64, segment_id: u64) {
+		let acc = pallet_sminer::Pallet::<T>::get_acc(peer_id);
+		<ConProofInfoC<T>>::mutate(&acc, |s|{
+			for i in 0..s.len() {
+				let v = s.get(i);
+				if v.unwrap().segment_id == segment_id {
+					s.remove(i);
+					break;
+				}
+			}
+		});
+		let mut unb = <UnVerifiedD<T>>::get();
+		let mut k = 0;
+		for i in unb.clone().iter() {
+			if peer_id == i.peer_id && segment_id == i.segment_id {
+				unb.remove(k);
+				break;
+			}
+			k += 1;
+		}
+		//remove related storage
+		<UnVerifiedD<T>>::put(unb);
+		<PrePoolC<T>>::remove(&acc, segment_id);
+		<VerPoolD<T>>::remove(&acc, segment_id);
+		<PrePoolD<T>>::remove(&acc, segment_id);
 	}
 }
 
