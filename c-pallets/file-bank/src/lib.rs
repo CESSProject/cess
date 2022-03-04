@@ -166,6 +166,8 @@ pub mod pallet {
 		LeaseExpired{acc: AccountOf<T>, size: u128},
 		//Storage space expiring within 24 hours
 		LeaseExpireIn24Hours{acc: AccountOf<T>, size: u128},
+
+		DeleteFile{acc: AccountOf<T>, fileid: Vec<u8>},
 	}
 	#[pallet::error]
 	pub enum Error<T> {
@@ -241,25 +243,27 @@ pub mod pallet {
 					let mut k = 0;
 					let mut list = <UserSpaceList<T>>::get(&key);
 					for s in value.iter() {
+						let size = s.size;
 						if now >= s.deadline {
 							list.remove(k);
 							<UserHoldSpaceDetails<T>>::mutate(&key, |s_opt|{
 								let v = s_opt.as_mut().unwrap();
-								v.purchased_space = v.purchased_space - 512 * 1024;
-								if v.remaining_space > 512 * 1024 {
-									v.remaining_space = v.remaining_space - 512 * 1024;
+								v.purchased_space = v.purchased_space - size * 1024;
+								if v.remaining_space > size * 1024 {
+									v.remaining_space = v.remaining_space - size * 1024;
 								}
 							});
-							let _ = pallet_sminer::Pallet::<T>::sub_purchased_space(512);
-							Self::deposit_event(Event::<T>::LeaseExpired{acc: key.clone(), size: 512});
+							let _ = pallet_sminer::Pallet::<T>::sub_purchased_space(size);
+							Self::deposit_event(Event::<T>::LeaseExpired{acc: key.clone(), size: size});
 							k-= 1;
 						} else if s.deadline < now && now >= s.deadline - block_oneday {
 							count += 1;
+							
 						} 
 						k+= 1;
 					}
 					<UserSpaceList<T>>::insert(&key, list);
-					Self::deposit_event(Event::<T>::LeaseExpireIn24Hours{acc: key.clone(), size: 512 * (count as u128)});
+					Self::deposit_event(Event::<T>::LeaseExpireIn24Hours{acc: key.clone(), size: 1024 * (count as u128)});
 				}
 			}
 			0
@@ -308,7 +312,6 @@ pub mod pallet {
 			fileid: Vec<u8>,
 			filehash: Vec<u8>,
 			public: bool,
-			file_state: Vec<u8>,
 			backups: u8,
 			filesize: u128,
 			downloadfee:BalanceOf<T>,
@@ -319,8 +322,7 @@ pub mod pallet {
 
 			ensure!(<UserHoldSpaceDetails<T>>::contains_key(&sender), Error::<T>::NotPurchasedSpace);
 			ensure!(!<File<T>>::contains_key(&fileid), Error::<T>::FileExistent);
-			Self::update_user_space(sender.clone(), 1, filesize * (backups as u128))?;
-
+			
 			let mut invoice: Vec<u8> = Vec::new();
 			for i in &fileid {
 				invoice.push(*i);
@@ -341,7 +343,7 @@ pub mod pallet {
 					file_hash: filehash,
 					public: public,
 					user_addr: sender.clone(),
-					file_state: file_state,
+					file_state: "nomal".as_bytes().to_vec(),
 					backups: backups,
 					downloadfee: downloadfee,
 					file_dupl: Vec::new(),
@@ -351,6 +353,7 @@ pub mod pallet {
 				*s = (*s).checked_add(filesize).ok_or(Error::<T>::Overflow)?;
 				Ok(())
 			})?;
+			Self::update_user_space(sender.clone(), 1, filesize * (backups as u128))?;
 			Self::add_user_hold_file(sender.clone(), fileid.clone());
 			Self::deposit_event(Event::<T>::FileUpload{acc: sender.clone()});
 			Ok(())
@@ -406,13 +409,14 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 			ensure!((<File<T>>::contains_key(fileid.clone())), Error::<T>::FileNonExistent);
 			let file = <File<T>>::get(&fileid).unwrap();
-			if file.user_addr != sender {
+			if file.user_addr != sender.clone() {
 				Err(Error::<T>::NotOwner)?;
 			}
 
-			Self::update_user_space(sender, 2, file.file_size)?;
-			<File::<T>>::remove(fileid);
+			Self::update_user_space(sender.clone(), 2, file.file_size)?;
+			<File::<T>>::remove(&fileid);
 
+			Self::deposit_event(Event::<T>::DeleteFile{acc: sender, fileid: fileid});
 			Ok(())
 		}
 
@@ -466,16 +470,16 @@ pub mod pallet {
 		//************************************************************Storage space lease***************************************************************
 		//**********************************************************************************************************************************************
 		#[pallet::weight(2_000_000)]
-		pub fn buy_space(origin: OriginFor<T>, count: u128, max_price: u128) -> DispatchResult {
+		pub fn buy_space(origin: OriginFor<T>, space_count: u128, lease_count: u128, max_price: u128) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let acc = T::FilbakPalletId::get().into_account();
 			let unit_price = Self::get_price();
 			if unit_price > max_price * 1000000000000 && 0 != max_price {
 				Err(Error::<T>::ExceedExpectations)?;
 			}
-			let space = 512 * count;
+			let space = 1024 * space_count;
 			//Because there are three backups, it is charged at one-third of the price
-			let price = unit_price * (space) / 3;
+			let price = unit_price * (space) * lease_count / 3;
 			//Increase the space purchased by users 
 			//and judge whether there is still space available for purchase
 			pallet_sminer::Pallet::<T>::add_purchased_space(space)?;
@@ -483,8 +487,8 @@ pub mod pallet {
 			let money: Option<BalanceOf<T>> = price.try_into().ok();
 			<T as pallet::Config>::Currency::transfer(&sender, &acc, money.unwrap(), AllowDeath)?;
 			let now = <frame_system::Pallet<T>>::block_number();
-			let deadline: BlockNumberOf<T> = (864000 as u32).into();
-			let mut list: Vec<SpaceInfo<T>> = vec![SpaceInfo::<T>{size: 512, deadline: now + deadline}; count as usize];
+			let deadline: BlockNumberOf<T> = ((864000 * lease_count) as u32).into();
+			let mut list: Vec<SpaceInfo<T>> = vec![SpaceInfo::<T>{size: 1024, deadline: now + deadline}; space_count as usize];
 
 			<UserSpaceList<T>>::mutate(&sender, |s|{
 				s.append(&mut list);
@@ -526,6 +530,7 @@ impl<T: Config> Pallet<T> {
 						Err(Error::<T>::InsufficientStorage)?;
 					}
 					if false == Self::check_lease_expired(acc.clone()) {
+						Self::deposit_event(Event::<T>::LeaseExpired{acc: acc.clone(), size: 0});
 						Err(Error::<T>::LeaseExpired)?;
 					}
 					s.remaining_space = s.remaining_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
