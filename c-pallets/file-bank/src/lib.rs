@@ -576,7 +576,7 @@ impl<T: Config> Pallet<T> {
 	//Available space divided by 1024 is the unit price
 	fn get_price() -> u128 {
 		let space = pallet_sminer::Pallet::<T>::get_space();
-		let price: u128 = 1024 / space * 1000000000000 * 1000;
+		let price: u128 = 1024 / space * 1_000_000_000_000 * 1000;
 		price
 	}
 
