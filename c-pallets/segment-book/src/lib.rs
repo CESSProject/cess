@@ -595,7 +595,7 @@ pub mod pallet {
 							let blocknum2: u128 = res.block_num.unwrap().saturated_into();
 							let peerid = pallet_sminer::Pallet::<T>::get_peerid(&acc);
 							if number - 14400 > blocknum2 {
-								pallet_sminer::Pallet::<T>::punish(acc.clone());
+								let _ = pallet_sminer::Pallet::<T>::punish(acc.clone());
 								let _ = pallet_sminer::Pallet::<T>::sub_power(peerid, res.size_type);
 								let _ = pallet_sminer::Pallet::<T>::sub_space(peerid, res.size_type);
 								Self::clean_service_proofs_signle(peerid, key2);

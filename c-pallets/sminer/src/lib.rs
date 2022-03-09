@@ -65,7 +65,7 @@ pub struct Mr<T: pallet::Config> {
 	collaterals: BalanceOf<T>,
 	earnings: BalanceOf<T>,
 	locked: BalanceOf<T>,
-	//nomal, exit, frozen
+	//nomal, exit, frozen, e_frozen
 	state: Vec<u8>,
 
 	power: u128,
@@ -219,6 +219,8 @@ pub mod pallet {
 		MinerExit{acc: AccountOf<T>},
 
 		MinerClaim{acc: AccountOf<T>},
+
+		IncreaseCollateral{acc: AccountOf<T>, balance: BalanceOf<T>},
 	}
 
 	/// Error for the sminer pallet.
@@ -256,6 +258,8 @@ pub mod pallet {
 		AlreadyFrozen,
 
 		CollingNotOver,
+
+		NotNomalState,
 	}
 
 	#[pallet::storage]
@@ -448,13 +452,19 @@ pub mod pallet {
 			
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
 			T::Currency::reserve(&sender, collaterals)?;
-			<MinerItems<T>>::try_mutate(sender, |s_opt| -> DispatchResult {
+			let mut balance: BalanceOf<T> = 0u32.saturated_into();
+			<MinerItems<T>>::try_mutate(&sender, |s_opt| -> DispatchResult {
 				let s = s_opt.as_mut().unwrap();
 				s.collaterals = s.collaterals + collaterals;
-				if s.state == "frozen".as_bytes().to_vec() {
+				balance = s.collaterals;
+				if s.state == "frozen".as_bytes().to_vec() || s.state == "e_frozen".as_bytes().to_vec() {
 					let limit = Self::check_collateral_limit(s.peerid)?;
 					if s.collaterals > limit {
-						s.state = "nomal".as_bytes().to_vec();
+						if s.state == "frozen".as_bytes().to_vec() {
+							s.state = "nomal".as_bytes().to_vec();
+						} else {
+							s.state = "exit".as_bytes().to_vec();
+						}
 					}
 				}
 
@@ -466,6 +476,7 @@ pub mod pallet {
 				s.staking = s.staking.checked_add(&collaterals).ok_or(Error::<T>::Overflow)?;
 				Ok(())
 			})?;
+			Self::deposit_event(Event::<T>::IncreaseCollateral{acc: sender, balance: balance});
 
 			Ok(())
 		}
@@ -476,8 +487,8 @@ pub mod pallet {
 
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
 			let state = Self::check_state(sender.clone());
-			if state == "frozen".as_bytes().to_vec() {
-				Err(Error::<T>::AlreadyFrozen)?;
+			if state != "nomal".as_bytes().to_vec() {
+				Err(Error::<T>::NotNomalState)?;
 			}
 
 			MinerItems::<T>::try_mutate(&sender, |s_opt| -> DispatchResult {
@@ -501,6 +512,11 @@ pub mod pallet {
 		#[pallet::weight(2_000_000_000_000)]
 		pub fn withdraw(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
+			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
+			let state = Self::check_state(sender.clone());
+			if state != "exit".as_bytes().to_vec() {
+				Err(Error::<T>::NotExisted)?;
+			}
 			let now: u128 = <frame_system::Pallet<T>>::block_number().saturated_into();
 			let colling_line: u128 = MinerColling::<T>::get(&sender).unwrap().saturated_into();
 			if colling_line + 57600 < now {
@@ -702,6 +718,9 @@ pub mod pallet {
 			let reward_pot = T::PalletId::get().into_account();
 
 			for (_, detail) in <MinerDetails<T>>::iter() {
+				if detail.power == 0 {
+					continue;
+				}
 				let tmp1:u128 = 750000000000000000_u128.checked_mul(detail.power).ok_or(Error::<T>::Overflow)?;
 				let tmp2:u128 = tmp1.checked_div(total_power).ok_or(Error::<T>::Overflow)?;
 				let _ = Self::add_reward_order1(detail.address,tmp2);
@@ -797,8 +816,9 @@ pub mod pallet {
 				
 				let acc = info.beneficiary;
 				let state = <MinerItems<T>>::get(&sender).unwrap().state;
-				if state == "frozen".as_bytes().to_vec() {
+				if state == "frozen".as_bytes().to_vec() || state == "e_frozen".as_bytes().to_vec() {
 					Self::deposit_event(Event::<T>::AlreadyFrozen{acc: acc.clone()});
+					continue;
 				}
 				
 				let reward_pot = T::PalletId::get().into_account();
@@ -1415,8 +1435,12 @@ impl<T: Config> Pallet<T> {
 			let s = s_opt.as_mut().unwrap();
 			s.collaterals = s.collaterals.checked_sub(&punish_amount).ok_or(Error::<T>::Overflow)?;
 			let limit = Self::check_collateral_limit(s.peerid)?;
-			if mr.collaterals < limit && s.state != "frozen".as_bytes().to_vec() {
-				s.state = "frozen".as_bytes().to_vec();
+			if mr.collaterals < limit && s.state != "frozen".as_bytes().to_vec() && s.state != "e_frozen".as_bytes().to_vec() {
+				if s.state == "nomal".as_bytes().to_vec() {
+					s.state = "frozen".as_bytes().to_vec();
+				} else if s.state == "exit".as_bytes().to_vec() {
+					s.state = "e_frozen".as_bytes().to_vec();
+				}	
 			}
 			Ok(())
 		})?;
