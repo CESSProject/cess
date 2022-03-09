@@ -30,7 +30,6 @@ pub use pallet::*;
 mod benchmarking;
 pub mod weights;
 use sp_std::convert::TryInto;
-use sp_std::fmt::Debug;
 
 use scale_info::TypeInfo;
 use sp_runtime::{
@@ -94,11 +93,9 @@ pub struct FileShardInfo<T: pallet::Config> {
 	data_shard_num: u8,
 	redun_shard_num: u8,
 	shard_hash: Vec<Vec<u8>>,
-	shard_addr: Vec<AccountOf<T>>,
+	shard_addr: Vec<Vec<u8>>,
+	wallet_addr: Vec<AccountOf<T>>,
 }
-
-
-
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
 pub struct StorageSpace {

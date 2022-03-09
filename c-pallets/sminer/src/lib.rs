@@ -461,6 +461,12 @@ pub mod pallet {
 				Ok(())
 			})?;
 
+			MinerStatValue::<T>::try_mutate(|s_opt| -> DispatchResult {
+				let s = s_opt.as_mut().unwrap();
+				s.staking = s.staking.checked_add(&collaterals).ok_or(Error::<T>::Overflow)?;
+				Ok(())
+			})?;
+
 			Ok(())
 		}
 
@@ -503,7 +509,7 @@ pub mod pallet {
 
 			let collaterals = MinerItems::<T>::get(&sender).unwrap().collaterals;
 			T::Currency::unreserve(&sender, collaterals);
-			Self::delete_miner_info(sender.clone());
+			Self::delete_miner_info(sender.clone())?;
 			MinerColling::<T>::remove(&sender);
 
 			Self::deposit_event(Event::<T>::MinerClaim{acc: sender});
@@ -1414,9 +1420,28 @@ impl<T: Config> Pallet<T> {
 			}
 			Ok(())
 		})?;
+		MinerStatValue::<T>::try_mutate(|s_opt| -> DispatchResult {
+			let s = s_opt.as_mut().unwrap();
+			s.staking = s.staking.checked_sub(&punish_amount).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})?;
 		T::Currency::transfer(&aid, &acc, punish_amount, AllowDeath)?;
 
 		
+
+		Ok(())
+	}
+
+	fn modify_miner_statvalue(acc: AccountOf<T>) -> DispatchResult {
+		let staking_val = <MinerItems<T>>::get(&acc).unwrap().collaterals;
+
+		MinerStatValue::<T>::try_mutate(|s_opt| -> DispatchResult {
+			let s = s_opt.as_mut().unwrap();
+			s.total_miners = s.total_miners.checked_sub(1).ok_or(Error::<T>::Overflow)?;
+			s.active_miners = s.active_miners.checked_sub(1).ok_or(Error::<T>::Overflow)?;
+			s.staking = s.staking.checked_sub(&staking_val).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})?;
 
 		Ok(())
 	}
@@ -1433,6 +1458,8 @@ impl<T: Config> Pallet<T> {
 			*s = s.checked_sub(miner.space).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})?;
+
+		Self::modify_miner_statvalue(acc.clone())?;
 
 		let mut miner_list = AllMiner::<T>::get();
 		miner_list.retain(|s| if s.peerid == peerid {false} else {true});
