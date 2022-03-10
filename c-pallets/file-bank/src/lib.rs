@@ -191,6 +191,8 @@ pub mod pallet {
 		AlreadyRepair,
 
 		NotOwner,
+
+		AlreadyReceive,
 	}
 	#[pallet::storage]
 	#[pallet::getter(fn file)]
@@ -220,6 +222,9 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn user_spance_details)]
 	pub(super) type UserSpaceList<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, Vec<SpaceInfo<T>>, ValueQuery>;
+
+	#[pallet::storage]
+	pub(super) type UserFreeRecord<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, u8, ValueQuery>;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -497,6 +502,24 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(2_000_000)]
+		pub fn receive_free_space(origin: OriginFor<T>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			ensure!(!<UserFreeRecord<T>>::contains_key(&sender), Error::<T>::AlreadyReceive);
+
+			let deadline: BlockNumberOf<T> = 999999999u32.into();
+			let mut list: Vec<SpaceInfo<T>> = vec![SpaceInfo::<T>{size: 1024, deadline}];
+
+			<UserSpaceList<T>>::mutate(&sender, |s|{
+				s.append(&mut list);
+			});
+
+			Self::user_buy_space_update(sender.clone(), 1024 * 1024)?;
+			<UserFreeRecord<T>>::insert(&sender, 1);
+			Ok(())
+		}
+		// #[
+
+		#[pallet::weight(2_000_000)]
 		pub fn initi_acc(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			<UserSpaceList<T>>::remove(&sender);
@@ -504,7 +527,8 @@ pub mod pallet {
 			Ok(())
 		}
 
-		// #[pallet::weight(2_000_000)]
+
+		//#[pallet::weight(2_000_000)]
 		// pub fn clean_file(origin: OriginFor<T>) -> DispatchResult {
 		// 	let _ = ensure_signed(origin)?;
 		// 	for (key, _) in <File<T>>::iter() {
