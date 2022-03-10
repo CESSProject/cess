@@ -27,6 +27,8 @@ mod tests;
 use frame_support::traits::{Get, Currency, ReservableCurrency, LockIdentifier, schedule::{Named as ScheduleNamed, DispatchTime}, ExistenceRequirement::AllowDeath};
 mod benchmarking;
 pub mod weights;
+mod types;
+use types::*;
 pub use pallet::*;
 use sp_runtime::{
 	RuntimeDebug,
@@ -46,102 +48,7 @@ use frame_support::pallet_prelude::DispatchError;
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
-/// The custom struct for storing info of storage MinerInfo.
-#[derive(PartialEq, Eq, Default, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-pub struct MinerInfo {
-	peerid: u64,
-	ip: Vec<u8>,
-	power: u128,	
-	space: u128,
-}
-/// The custom struct for storing info of storage miners.
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct Mr<T: pallet::Config> {
-	peerid: u64,
-	//Income account
-	beneficiary: AccountOf<T>,
-	ip: Vec<u8>,
-	collaterals: BalanceOf<T>,
-	earnings: BalanceOf<T>,
-	locked: BalanceOf<T>,
-	//nomal, exit, frozen, e_frozen
-	state: Vec<u8>,
 
-	power: u128,
-	space: u128,
-}
-/// The custom struct for storing index of segment, miner's current power and space.
-#[derive(PartialEq, Eq, Default, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-pub struct SegmentInfo {
-	segment_index: u64,
-}
-/// The custom struct for storing info of storage StorageInfo.
-#[derive(PartialEq, Eq, Default, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-pub struct StorageInfo {
-	used_storage: u128,
-	available_storage: u128,
-	time: u128,
-}
-/// The custom struct for miner table of block explorer.
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct TableInfo<T: pallet::Config> {
-	address: AccountOf<T>,
-	beneficiary: AccountOf<T>,
-	total_storage: u128,
-	average_daily_data_traffic_in: u64,
-	average_daily_data_traffic_out: u64,
-	mining_reward: BalanceOf<T>,
-}
-/// The custom struct for miner detail of block explorer.
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct MinerDetailInfo<T: pallet::Config> {
-	address: AccountOf<T>,
-	beneficiary: AccountOf<T>,
-	power: u128,
-	space: u128,
-	total_reward: BalanceOf<T>, 
-	total_rewards_currently_available: BalanceOf<T>,
-	totald_not_receive: BalanceOf<T>,
-	collaterals: BalanceOf<T>,
-}
-/// The custom struct for miner detail of block explorer.
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct MinerStatInfo<T: pallet::Config> {
-	total_miners: u64,
-	active_miners: u64,
-	staking: BalanceOf<T>,
-	miner_reward: BalanceOf<T>,
-	sum_files: u128, 
-}
-/// The custom struct for storing info of storage CalculateRewardOrder.
-#[derive(PartialEq, Eq, Encode, Default, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct CalculateRewardOrder <T: pallet::Config>{
-	calculate_reward:u128,
-	start_t: BlockNumberOf<T>,
-	deadline: BlockNumberOf<T>,
-}
-/// The custom struct for storing info of storage RewardClaim.
-#[derive(PartialEq, Eq, Encode, Default, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct RewardClaim <T: pallet::Config>{
-	beneficiary: AccountOf<T>,
-	total_reward: BalanceOf<T>,
-	total_rewards_currently_available: BalanceOf<T>,
-	have_to_receive: BalanceOf<T>,
-	current_availability: BalanceOf<T>,
-	total_not_receive: BalanceOf<T>,
-}
-/// The custom struct for storing info of storage FaucetRecord.
-#[derive(PartialEq, Eq, Encode, Default, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct FaucetRecord <T: pallet::Config>{
-	last_claim_time: BlockNumberOf<T>,
-}
 
 #[frame_support::pallet]
 pub mod pallet {

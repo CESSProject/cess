@@ -1,23 +1,20 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use frame_support::traits::{Currency, ReservableCurrency, ExistenceRequirement::AllowDeath};
+use frame_support::traits::{ReservableCurrency};
 pub use pallet::*;
-use sp_std::convert::TryInto;
-use sp_std::fmt::Debug;
+
 
 use scale_info::TypeInfo;
 use sp_runtime::{
-	RuntimeDebug,
-	traits::{AccountIdConversion,SaturatedConversion}
+	RuntimeDebug
 };
-use sp_std::prelude::*;
+
 use codec::{Encode, Decode};
 use frame_support::{dispatch::DispatchResult, PalletId};
 
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
-type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
+
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
@@ -28,15 +25,15 @@ pub struct SchedulerInfo<T: pallet::Config> {
 
 #[frame_support::pallet]
 pub mod pallet {
-    use std::sync::mpsc::Sender;
+
 
     use super::*;
 	use frame_support::{
-		ensure,
+
 		pallet_prelude::*,
-		traits::{Get, schedule},
+		traits::{Get},
 	};
-	use frame_system::{ensure_root, ensure_signed, pallet_prelude::*};
+	use frame_system::{ensure_signed, pallet_prelude::*};
 
 
 	#[pallet::config]

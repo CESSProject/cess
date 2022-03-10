@@ -30,6 +30,8 @@ pub use pallet::*;
 mod benchmarking;
 pub mod weights;
 use sp_std::convert::TryInto;
+mod types;
+pub use types::*;
 
 use scale_info::TypeInfo;
 use sp_runtime::{
@@ -44,79 +46,6 @@ pub use weights::WeightInfo;
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
-
-/// The custom struct for storing file info.
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct FileInfo<T: pallet::Config> {
-	file_name: Vec<u8>,
-	file_size: u128,
-	file_hash: Vec<u8>,
-	//Public or not
-	public: bool,
-	user_addr: AccountOf<T>,
-	//normal or repairing
-	file_state: Vec<u8>,
-	//Number of backups
-	backups: u8,
-	downloadfee: BalanceOf<T>,
-	//Backup information
-	file_dupl: Vec<FileDuplicateInfo<T>>,
-}
-
-//backups info struct
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct FileDuplicateInfo<T: pallet::Config> {
-	dupl_id: Vec<u8>,
-	rand_key: Vec<u8>,
-	slice_num: u16,
-	file_slice: Vec<FileSliceInfo<T>>,
-}
-
-//slice info
-//Slice consists of shard
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct FileSliceInfo<T: pallet::Config> {
-	slice_id: Vec<u8>,
-	slice_size: u16,
-	slice_hash: Vec<u8>,
-	file_shard: FileShardInfo<T>,
-}
-
-//shard info
-//Slice consists of shard
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct FileShardInfo<T: pallet::Config> {
-	data_shard_num: u8,
-	redun_shard_num: u8,
-	shard_hash: Vec<Vec<u8>>,
-	shard_addr: Vec<Vec<u8>>,
-	wallet_addr: Vec<AccountOf<T>>,
-}
-
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-pub struct StorageSpace {
-	purchased_space: u128,
-	used_space: u128,
-	remaining_space: u128,
-}
-
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct SpaceInfo<T: pallet::Config> {
-	size: u128,
-	deadline: BlockNumberOf<T>,
-}
-
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-pub struct FileSlice {
-	peer_id: Vec<Vec<u8>>,
-	fill_zero: u32,
-	slice_id: u64,
-}
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -279,33 +208,6 @@ pub mod pallet {
 		/// 
 		/// The dispatch origin of this call must be _Signed_.
 		/// 
-		/// Parameters:
-		/// - `filename`: name of file.
-		/// - `address`: address of file.
-		/// - `fileid`: id of file, each file will have different number, even for the same file.
-		/// - `filehash`: hash of file.
-		/// - `similarityhash`: hash of file, used for checking similarity.
-		/// - `is_public`: public or private.
-		/// - `backups`: number of duplicate.
-		/// - `creator`: creator of file.
-		/// - `file_size`: the file size.
-		/// - `keywords`: keywords of file.
-		/// - `email`: owner's email.
-		/// - `uploadfee`: the upload fees.
-		/// - `downloadfee`: the download fees.
-		/// - `deadline`: expiration time.
-		/// 
-		// pub struct FileInfo<T: pallet::Config> {
-		// 	file_name: Vec<u8>,
-		// 	file_size: u128,
-		// 	file_hash: Vec<u8>,
-		// 	public: bool,
-		// 	user_addr: AccountOf<T>,
-		// 	file_state: Vec<u8>,
-		// 	backups: u8,
-		// 	downloadfee: BalanceOf<T>,
-		// 	file_dupl: Vec<FileDuplicateInfo<T>>,
-		// }
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload())]
 		pub fn upload(
 			origin: OriginFor<T>,
