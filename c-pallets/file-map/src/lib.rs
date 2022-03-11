@@ -11,7 +11,7 @@ use sp_runtime::{
 
 use codec::{Encode, Decode};
 use frame_support::{dispatch::DispatchResult, PalletId};
-
+use sp_std::prelude::*;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 
@@ -37,7 +37,7 @@ pub mod pallet {
 
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_sminer::Config + pallet_file_bank::Config + pallet_segment_book::Config {
+	pub trait Config: frame_system::Config {
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		/// The currency trait.
@@ -50,12 +50,12 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-        RegistrationScheduler{acc: AccountOf<T>, ip: Vec<u8>}
+        RegistrationScheduler{acc: AccountOf<T>, ip: Vec<u8>},
     }
 
     #[pallet::error]
     pub enum Error<T> {
-
+        AlreadyRegistration,
     }
 
     #[pallet::storage]
@@ -72,11 +72,16 @@ pub mod pallet {
         pub fn registration_scheduler(origin: OriginFor<T>, ip: Vec<u8>) -> DispatchResult {
             let sender = ensure_signed(origin)?;
 
+
             let mut s_vec = SchedulerMap::<T>::get();
             let scheduler = SchedulerInfo::<T>{
                 ip: ip.clone(),
                 acc: sender.clone(),
             };
+
+            if s_vec.contains(&scheduler) {
+                Err(Error::<T>::AlreadyRegistration)?;
+            }
             s_vec.push(scheduler);
             SchedulerMap::<T>::put(s_vec);
             Self::deposit_event(Event::<T>::RegistrationScheduler{acc: sender, ip: ip});

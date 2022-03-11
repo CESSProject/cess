@@ -766,6 +766,7 @@ dependencies = [
  "pallet-contracts-rpc-runtime-api",
  "pallet-election-provider-multi-phase",
  "pallet-file-bank",
+ "pallet-file-map",
  "pallet-grandpa",
  "pallet-im-online",
  "pallet-membership",

@@ -474,7 +474,7 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::claim())]
 		pub fn claim(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			let peerid = MinerItems::<T>::get(&sender).unwrap().peerid;
+			let _peerid = MinerItems::<T>::get(&sender).unwrap().peerid;
 
 			let mi = MinerItems::<T>::get(&sender).unwrap();
 			ensure!(mi.earnings != BalanceOf::<T>::from(0 as u32), Error::<T>::EarningsIsEmpty);

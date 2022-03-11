@@ -131,7 +131,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 104,
+	spec_version: 105,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -812,6 +812,17 @@ impl pallet_file_bank::Config for Runtime {
 	type WeightInfo = pallet_file_bank::weights::SubstrateWeight<Runtime>;
 }
 
+parameter_types! {
+	pub const FileMapPalletId: PalletId = PalletId(*b"filmpdpt");
+}
+
+impl pallet_file_map::Config for Runtime {
+	type Currency = Balances;
+	// The ubiquitous event type.
+	type Event = Event;
+	type FileMapPalletId = FilbakPalletId;
+}
+
 /*** End This Block ***/
 
 //add contracts
@@ -895,7 +906,7 @@ construct_runtime!(
 		SegmentBook: pallet_segment_book::{Pallet, Call, Storage, Event<T>},
 		FileBank: pallet_file_bank::{Pallet,Call, Storage, Event<T>},
 		BagsList: pallet_bags_list::{Pallet,Call, Storage, Event<T>},
-
+		FileMap: pallet_file_map::{Pallet, Call, Storage, Event<T>},
 	}
 );
 

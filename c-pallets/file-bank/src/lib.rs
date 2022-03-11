@@ -407,7 +407,8 @@ pub mod pallet {
 		pub fn receive_free_space(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!<UserFreeRecord<T>>::contains_key(&sender), Error::<T>::AlreadyReceive);
-
+			pallet_sminer::Pallet::<T>::add_purchased_space(1024)?;
+			
 			let deadline: BlockNumberOf<T> = 999999999u32.into();
 			let mut list: Vec<SpaceInfo<T>> = vec![SpaceInfo::<T>{size: 1024, deadline}];
 

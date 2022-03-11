@@ -333,6 +333,12 @@ default-features = false
 path = '../c-pallets/file-bank'
 version = '0.1.0'
 
+# local dependencies
+[dependencies.pallet-file-map]
+default-features = false
+path = '../c-pallets/file-map'
+version = '0.1.0'
+
 [features]
 default = ['std']
 runtime-benchmarks = [
@@ -365,6 +371,7 @@ std = [
     "pallet-file-bank/std",
     "pallet-segment-book/std",
     "pallet-sminer/std",
+    'pallet-file-map/std',
     "sp-io/std",
     "sp-authority-discovery/std",
     "sp-npos-elections/std",

@@ -15,6 +15,7 @@ use sp_runtime::{
 	Perbill,
 };
 
+const PROTOCOL_ID: &str = "TCESS";
 
 // The URL for the telemetry server.
 // const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
@@ -60,8 +61,32 @@ pub fn authority_keys_from_seed(seed: &str) -> (AccountId, AccountId, GrandpaId,
 	)
 }
 
+fn cess_testnet_genesis() -> GenesisConfig {
+	testnet_genesis(
+		vec![authority_keys_from_seed("Alice"), authority_keys_from_seed("Bob")],
+		vec![],
+		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		None,
+	)
+}
+
 pub fn cess_testnet_config() -> ChainSpec {
-	ChainSpec::from_json_bytes(&include_bytes!("../ccg/cess-testnet-spec-raw.json")[..]).unwrap()
+	ChainSpec::from_genesis(
+		"cess-testnet",
+		// ID
+		"cess-testnet",
+		ChainType::Live,
+		cess_testnet_genesis,
+		vec![],
+		// Telemetry
+		None,
+		// Protocol ID
+		Some(PROTOCOL_ID),
+		// Properties
+		None,
+		// Extensions
+		None,
+	)
 }
 
 pub fn development_config() -> ChainSpec {
