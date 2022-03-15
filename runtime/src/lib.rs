@@ -68,7 +68,7 @@ use pallet_transaction_payment::CurrencyAdapter;
 use pallet_contracts::weights::WeightInfo;
 
 #[cfg(any(feature = "std", test))]
-pub use pallet_staking::StakerStatus;
+pub use pallet_cess_staking::StakerStatus;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 
@@ -494,7 +494,7 @@ parameter_types! {
 impl pallet_session::Config for Runtime {
 	type Event = Event;
 	type ValidatorId = <Self as frame_system::Config>::AccountId;
-	type ValidatorIdOf = pallet_staking::StashOf<Self>;
+	type ValidatorIdOf = pallet_cess_staking::StashOf<Self>;
 	type ShouldEndSession = Babe;
 	type NextSessionRotation = Babe;
 	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, Staking>;
@@ -505,8 +505,8 @@ impl pallet_session::Config for Runtime {
 }
 
 impl pallet_session::historical::Config for Runtime {
-	type FullIdentification = pallet_staking::Exposure<AccountId, Balance>;
-	type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
+	type FullIdentification = pallet_cess_staking::Exposure<AccountId, Balance>;
+	type FullIdentificationOf = pallet_cess_staking::ExposureOf<Runtime>;
 }
 
 pallet_staking_reward_curve::build! {
@@ -522,8 +522,8 @@ pallet_staking_reward_curve::build! {
 
 parameter_types! {
 	pub const SessionsPerEra: sp_staking::SessionIndex = 6;
-	pub const BondingDuration: pallet_staking::EraIndex = 24 * 28;
-	pub const SlashDeferDuration: pallet_staking::EraIndex = 24 * 7; // 1/4 the bonding duration.
+	pub const BondingDuration: pallet_cess_staking::EraIndex = 24 * 28;
+	pub const SlashDeferDuration: pallet_cess_staking::EraIndex = 24 * 7; // 1/4 the bonding duration.
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 256;
 	pub OffchainRepeat: BlockNumber = 5;
@@ -535,7 +535,7 @@ impl onchain::Config for Runtime {
 	type DataProvider = Staking;
 }
 
-impl pallet_staking::Config for Runtime {
+impl pallet_cess_staking::Config for Runtime {
 	const MAX_NOMINATIONS: u32 = MAX_NOMINATIONS;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
@@ -554,13 +554,13 @@ impl pallet_staking::Config for Runtime {
 		pallet_collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>,
 	>;
 	type SessionInterface = Self;
-	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
+	type EraPayout = pallet_cess_staking::ConvertCurve<RewardCurve>;
 	type NextNewSession = Session;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type GenesisElectionProvider = onchain::OnChainSequentialPhragmen<Self>;
 	type SortedListProvider = BagsList;
-	type WeightInfo = pallet_staking::weights::SubstrateWeight<Runtime>;
+	type WeightInfo = pallet_cess_staking::weights::SubstrateWeight<Runtime>;
 }
 
 type EnsureRootOrHalfCouncil = EnsureOneOf<
@@ -893,7 +893,7 @@ construct_runtime!(
 		Historical: pallet_session_historical::{Pallet},
 		Authorship: pallet_authorship::{Pallet, Call, Storage, Inherent},
 		Offences: pallet_offences::{Pallet, Storage, Event},
-		Staking: pallet_staking::{Pallet, Call, Config<T>, Storage, Event<T>},
+		Staking: pallet_cess_staking::{Pallet, Call, Config<T>, Storage, Event<T>},
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned},
 		Council: pallet_collective::<Instance1>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>},
 		TechnicalCommittee: pallet_collective::<Instance2>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>},

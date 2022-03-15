@@ -697,7 +697,7 @@ name = "cess-node"
 version = "3.0.0-monthly-2021-10"
 dependencies = [
  "cess-node-runtime",
- "frame-benchmarking",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "frame-benchmarking-cli",
  "jsonrpc-core",
  "pallet-contracts",
@@ -724,18 +724,18 @@ dependencies = [
  "sc-telemetry",
  "sc-transaction-pool",
  "sc-transaction-pool-api",
- "sp-api",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-authority-discovery",
- "sp-authorship",
+ "sp-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-finality-grandpa",
- "sp-keystore",
- "sp-runtime",
- "sp-timestamp",
+ "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-transaction-storage-proof",
  "structopt",
  "substrate-build-script-utils",
@@ -746,20 +746,21 @@ dependencies = [
 name = "cess-node-runtime"
 version = "3.0.0-monthly-2021-10"
 dependencies = [
- "frame-benchmarking",
- "frame-election-provider-support",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-election-provider-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "frame-executive",
- "frame-support",
- "frame-system",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "hex-literal",
  "pallet-authority-discovery",
- "pallet-authorship",
+ "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "pallet-babe",
- "pallet-bags-list",
- "pallet-balances",
+ "pallet-bags-list 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "pallet-bounties",
+ "pallet-cess-staking",
  "pallet-collective",
  "pallet-contracts",
  "pallet-contracts-primitives",
@@ -774,32 +775,31 @@ dependencies = [
  "pallet-randomness-collective-flip",
  "pallet-scheduler",
  "pallet-segment-book",
- "pallet-session",
+ "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "pallet-sminer",
- "pallet-staking",
- "pallet-staking-reward-curve",
+ "pallet-staking-reward-curve 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "pallet-sudo",
- "pallet-timestamp",
+ "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "pallet-treasury",
  "parity-scale-codec",
  "scale-info",
- "sp-api",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core",
- "sp-inherents",
- "sp-io",
- "sp-npos-elections",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-npos-elections 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-offchain",
- "sp-runtime",
- "sp-session",
- "sp-staking",
- "sp-std",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-transaction-pool",
- "sp-version",
+ "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "substrate-wasm-builder",
 ]
 
@@ -1598,19 +1598,39 @@ name = "frame-benchmarking"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-support",
- "frame-system",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "linregress",
  "log",
  "parity-scale-codec",
  "paste",
  "scale-info",
- "sp-api",
- "sp-io",
- "sp-runtime",
- "sp-runtime-interface",
- "sp-std",
- "sp-storage",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+]
+
+[[package]]
+name = "frame-benchmarking"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "frame-support 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "frame-system 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "linregress",
+ "log",
+ "parity-scale-codec",
+ "paste",
+ "scale-info",
+ "sp-api 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-io 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-runtime-interface 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-storage 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
 ]
 
 [[package]]
@@ -1620,8 +1640,8 @@ source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf
 dependencies = [
  "Inflector",
  "chrono",
- "frame-benchmarking",
- "frame-support",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "handlebars",
  "linked-hash-map",
  "log",
@@ -1631,11 +1651,11 @@ dependencies = [
  "sc-executor",
  "sc-service",
  "serde",
- "sp-core",
- "sp-externalities",
- "sp-keystore",
- "sp-runtime",
- "sp-state-machine",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "structopt",
 ]
 
@@ -1644,13 +1664,27 @@ name = "frame-election-provider-support"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-support",
- "frame-system",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "parity-scale-codec",
  "scale-info",
- "sp-arithmetic",
- "sp-npos-elections",
- "sp-std",
+ "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-npos-elections 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+]
+
+[[package]]
+name = "frame-election-provider-support"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "frame-support 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "frame-system 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-arithmetic 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-npos-elections 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
 ]
 
 [[package]]
@@ -1658,15 +1692,15 @@ name = "frame-executive"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-support",
- "frame-system",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "parity-scale-codec",
  "scale-info",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
- "sp-tracing",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -1688,7 +1722,7 @@ source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf
 dependencies = [
  "bitflags",
  "frame-metadata",
- "frame-support-procedural",
+ "frame-support-procedural 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "impl-trait-for-tuples",
  "log",
  "once_cell",
@@ -1697,15 +1731,42 @@ dependencies = [
  "scale-info",
  "serde",
  "smallvec",
- "sp-arithmetic",
- "sp-core",
- "sp-inherents",
- "sp-io",
- "sp-runtime",
- "sp-staking",
- "sp-state-machine",
- "sp-std",
- "sp-tracing",
+ "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+]
+
+[[package]]
+name = "frame-support"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "bitflags",
+ "frame-metadata",
+ "frame-support-procedural 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "impl-trait-for-tuples",
+ "log",
+ "once_cell",
+ "parity-scale-codec",
+ "paste",
+ "scale-info",
+ "serde",
+ "smallvec",
+ "sp-arithmetic 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-core 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-io 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-staking 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-state-machine 0.10.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-tracing 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
 ]
 
 [[package]]
@@ -1714,7 +1775,19 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
  "Inflector",
- "frame-support-procedural-tools",
+ "frame-support-procedural-tools 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "frame-support-procedural"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "Inflector",
+ "frame-support-procedural-tools 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
  "proc-macro2",
  "quote",
  "syn",
@@ -1725,7 +1798,19 @@ name = "frame-support-procedural-tools"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-support-procedural-tools-derive",
+ "frame-support-procedural-tools-derive 3.0.0 (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "proc-macro-crate 1.1.0",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "frame-support-procedural-tools"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "frame-support-procedural-tools-derive 3.0.0 (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
  "proc-macro-crate 1.1.0",
  "proc-macro2",
  "quote",
@@ -1743,24 +1828,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "frame-support-procedural-tools-derive"
+version = "3.0.0"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "frame-support-test"
 version = "3.0.0"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-support",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "frame-support-test-pallet",
- "frame-system",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "parity-scale-codec",
  "pretty_assertions",
  "rustversion",
  "scale-info",
  "serde",
- "sp-arithmetic",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
- "sp-version",
+ "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "trybuild",
 ]
 
@@ -1769,8 +1864,8 @@ name = "frame-support-test-pallet"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-support",
- "frame-system",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "parity-scale-codec",
  "scale-info",
 ]
@@ -1780,16 +1875,33 @@ name = "frame-system"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-support",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "log",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
- "sp-version",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+]
+
+[[package]]
+name = "frame-system"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "frame-support 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-core 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-io 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-version 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
 ]
 
 [[package]]
@@ -1797,14 +1909,14 @@ name = "frame-system-benchmarking"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "parity-scale-codec",
  "scale-info",
- "sp-core",
- "sp-runtime",
- "sp-std",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -1813,7 +1925,7 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
  "parity-scale-codec",
- "sp-api",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -3895,15 +4007,15 @@ name = "pallet-authority-discovery"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-support",
- "frame-system",
- "pallet-session",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "parity-scale-codec",
  "scale-info",
- "sp-application-crypto",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-authority-discovery",
- "sp-runtime",
- "sp-std",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -3911,14 +4023,29 @@ name = "pallet-authorship"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-support",
- "frame-system",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "scale-info",
- "sp-authorship",
- "sp-runtime",
- "sp-std",
+ "sp-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+]
+
+[[package]]
+name = "pallet-authorship"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "frame-support 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "frame-system 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "impl-trait-for-tuples",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-authorship 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
 ]
 
 [[package]]
@@ -3926,23 +4053,23 @@ name = "pallet-babe"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "log",
- "pallet-authorship",
- "pallet-session",
- "pallet-timestamp",
+ "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "parity-scale-codec",
  "scale-info",
- "sp-application-crypto",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-consensus-babe",
  "sp-consensus-vrf",
- "sp-io",
- "sp-runtime",
- "sp-session",
- "sp-staking",
- "sp-std",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -3950,14 +4077,34 @@ name = "pallet-bags-list"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-election-provider-support",
- "frame-support",
- "frame-system",
+ "frame-election-provider-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-runtime",
- "sp-std",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+]
+
+[[package]]
+name = "pallet-bags-list"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "frame-election-provider-support 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "frame-support 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "frame-system 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "log",
+ "pallet-balances 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-io 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-tracing 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
 ]
 
 [[package]]
@@ -3965,14 +4112,29 @@ name = "pallet-balances"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-runtime",
- "sp-std",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+]
+
+[[package]]
+name = "pallet-balances"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "frame-support 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "frame-system 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-runtime 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
 ]
 
 [[package]]
@@ -3980,16 +4142,46 @@ name = "pallet-bounties"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-support",
- "frame-system",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "log",
  "pallet-treasury",
  "parity-scale-codec",
  "scale-info",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+]
+
+[[package]]
+name = "pallet-cess-staking"
+version = "4.0.0-dev"
+dependencies = [
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "frame-election-provider-support 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "frame-support 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "frame-system 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "log",
+ "pallet-authorship 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "pallet-bags-list 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "pallet-balances 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "pallet-session 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "pallet-staking-reward-curve 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "pallet-timestamp 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "parity-scale-codec",
+ "rand_chacha 0.2.2",
+ "scale-info",
+ "serde",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-core 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-io 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-npos-elections 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-staking 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-tracing 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "substrate-test-utils",
 ]
 
 [[package]]
@@ -3997,16 +4189,16 @@ name = "pallet-collective"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -4015,9 +4207,9 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
  "bitflags",
- "frame-benchmarking",
- "frame-support",
- "frame-system",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "libsecp256k1 0.3.5",
  "log",
  "pallet-contracts-primitives",
@@ -4029,11 +4221,11 @@ dependencies = [
  "scale-info",
  "serde",
  "smallvec",
- "sp-core",
- "sp-io",
- "sp-runtime",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-sandbox",
- "sp-std",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "wasmi-validation",
 ]
 
@@ -4046,9 +4238,9 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core",
- "sp-runtime",
- "sp-std",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -4073,11 +4265,11 @@ dependencies = [
  "pallet-contracts-rpc-runtime-api",
  "parity-scale-codec",
  "serde",
- "sp-api",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-blockchain",
- "sp-core",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-rpc",
- "sp-runtime",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -4088,9 +4280,9 @@ dependencies = [
  "pallet-contracts-primitives",
  "parity-scale-codec",
  "scale-info",
- "sp-api",
- "sp-runtime",
- "sp-std",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -4098,18 +4290,18 @@ name = "pallet-election-provider-multi-phase"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-election-provider-support",
- "frame-support",
- "frame-system",
+ "frame-election-provider-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-arithmetic",
- "sp-core",
- "sp-io",
- "sp-npos-elections",
- "sp-runtime",
- "sp-std",
+ "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-npos-elections 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "static_assertions",
 ]
 
@@ -4117,32 +4309,32 @@ dependencies = [
 name = "pallet-file-bank"
 version = "0.1.0"
 dependencies = [
- "frame-benchmarking",
- "frame-support",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "frame-support-test",
- "frame-system",
- "pallet-balances",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "pallet-scheduler",
  "pallet-segment-book",
  "pallet-sminer",
- "pallet-timestamp",
+ "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "parity-scale-codec",
  "scale-info",
  "serde",
  "serde_json",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
 name = "pallet-file-map"
 version = "0.1.0"
 dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "pallet-file-bank",
  "pallet-segment-book",
  "pallet-sminer",
@@ -4150,10 +4342,10 @@ dependencies = [
  "scale-info",
  "serde",
  "serde_json",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -4161,22 +4353,22 @@ name = "pallet-grandpa"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "log",
- "pallet-authorship",
- "pallet-session",
+ "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "pallet-session 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "parity-scale-codec",
  "scale-info",
- "sp-application-crypto",
- "sp-core",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-finality-grandpa",
- "sp-io",
- "sp-runtime",
- "sp-session",
- "sp-staking",
- "sp-std",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -4184,18 +4376,18 @@ name = "pallet-im-online"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-support",
- "frame-system",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "log",
- "pallet-authorship",
+ "pallet-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "parity-scale-codec",
  "scale-info",
- "sp-application-crypto",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-staking",
- "sp-std",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -4203,16 +4395,16 @@ name = "pallet-membership"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -4220,16 +4412,16 @@ name = "pallet-offences"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-support",
- "frame-system",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "log",
- "pallet-balances",
+ "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-runtime",
- "sp-staking",
- "sp-std",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -4237,13 +4429,13 @@ name = "pallet-randomness-collective-flip"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-support",
- "frame-system",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "parity-scale-codec",
  "safe-mix",
  "scale-info",
- "sp-runtime",
- "sp-std",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -4251,37 +4443,37 @@ name = "pallet-scheduler"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
 name = "pallet-segment-book"
 version = "0.1.0"
 dependencies = [
- "frame-benchmarking",
- "frame-support",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "frame-support-test",
- "frame-system",
- "pallet-balances",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "pallet-file-bank",
  "pallet-scheduler",
  "pallet-sminer",
- "pallet-timestamp",
+ "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -4289,60 +4481,60 @@ name = "pallet-session"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-support",
- "frame-system",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "impl-trait-for-tuples",
  "log",
- "pallet-timestamp",
+ "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "parity-scale-codec",
  "scale-info",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-session",
- "sp-staking",
- "sp-std",
- "sp-trie",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+]
+
+[[package]]
+name = "pallet-session"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "frame-support 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "frame-system 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "impl-trait-for-tuples",
+ "log",
+ "pallet-timestamp 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-io 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-session 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-staking 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-trie 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
 ]
 
 [[package]]
 name = "pallet-sminer"
 version = "0.1.0"
 dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "pallet-balances",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "pallet-scheduler",
- "pallet-timestamp",
+ "pallet-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
-name = "pallet-staking"
-version = "4.0.0-dev"
-source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
-dependencies = [
- "frame-election-provider-support",
- "frame-support",
- "frame-system",
- "log",
- "pallet-authorship",
- "pallet-session",
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-application-crypto",
- "sp-io",
- "sp-runtime",
- "sp-staking",
- "sp-std",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -4357,17 +4549,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-staking-reward-curve"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "proc-macro-crate 1.1.0",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "pallet-sudo"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-support",
- "frame-system",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "parity-scale-codec",
  "scale-info",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -4375,17 +4578,34 @@ name = "pallet-timestamp"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-inherents",
- "sp-io",
- "sp-runtime",
- "sp-std",
- "sp-timestamp",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+]
+
+[[package]]
+name = "pallet-timestamp"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "frame-benchmarking 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "frame-support 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "frame-system 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-inherents 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-timestamp 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
 ]
 
 [[package]]
@@ -4393,16 +4613,16 @@ name = "pallet-transaction-payment"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-support",
- "frame-system",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "parity-scale-codec",
  "scale-info",
  "serde",
  "smallvec",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -4415,11 +4635,11 @@ dependencies = [
  "jsonrpc-derive",
  "pallet-transaction-payment-rpc-runtime-api",
  "parity-scale-codec",
- "sp-api",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-blockchain",
- "sp-core",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-rpc",
- "sp-runtime",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -4429,8 +4649,8 @@ source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf
 dependencies = [
  "pallet-transaction-payment",
  "parity-scale-codec",
- "sp-api",
- "sp-runtime",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -4438,15 +4658,15 @@ name = "pallet-treasury"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "frame-support",
- "frame-system",
+ "frame-support 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "frame-system 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "impl-trait-for-tuples",
- "pallet-balances",
+ "pallet-balances 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-runtime",
- "sp-std",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -5446,8 +5666,8 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
  "log",
- "sp-core",
- "sp-wasm-interface",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "thiserror",
 ]
 
@@ -5465,12 +5685,12 @@ dependencies = [
  "sc-proposer-metrics",
  "sc-telemetry",
  "sc-transaction-pool-api",
- "sp-api",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-blockchain",
  "sp-consensus",
- "sp-core",
- "sp-inherents",
- "sp-runtime",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "substrate-prometheus-endpoint",
 ]
 
@@ -5481,13 +5701,13 @@ source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf
 dependencies = [
  "parity-scale-codec",
  "sc-client-api",
- "sp-api",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-block-builder",
  "sp-blockchain",
- "sp-core",
- "sp-inherents",
- "sp-runtime",
- "sp-state-machine",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -5502,8 +5722,8 @@ dependencies = [
  "sc-telemetry",
  "serde",
  "serde_json",
- "sp-core",
- "sp-runtime",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -5543,12 +5763,12 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-blockchain",
- "sp-core",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-keyring",
- "sp-keystore",
- "sp-panic-handler",
- "sp-runtime",
- "sp-version",
+ "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-panic-handler 3.0.0 (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "structopt",
  "thiserror",
  "tiny-bip39",
@@ -5569,17 +5789,17 @@ dependencies = [
  "sc-executor",
  "sc-transaction-pool-api",
  "sc-utils",
- "sp-api",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-blockchain",
  "sp-consensus",
- "sp-core",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-database",
- "sp-externalities",
- "sp-keystore",
- "sp-runtime",
- "sp-state-machine",
- "sp-storage",
- "sp-trie",
+ "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "substrate-prometheus-endpoint",
 ]
 
@@ -5599,13 +5819,13 @@ dependencies = [
  "parking_lot 0.11.2",
  "sc-client-api",
  "sc-state-db",
- "sp-arithmetic",
+ "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-blockchain",
- "sp-core",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-database",
- "sp-runtime",
- "sp-state-machine",
- "sp-trie",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -5622,12 +5842,12 @@ dependencies = [
  "sc-client-api",
  "sc-utils",
  "serde",
- "sp-api",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-blockchain",
  "sp-consensus",
- "sp-core",
- "sp-runtime",
- "sp-state-machine",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "substrate-prometheus-endpoint",
  "thiserror",
 ]
@@ -5658,20 +5878,20 @@ dependencies = [
  "sc-telemetry",
  "schnorrkel",
  "serde",
- "sp-api",
- "sp-application-crypto",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
  "sp-consensus-slots",
  "sp-consensus-vrf",
- "sp-core",
- "sp-inherents",
- "sp-io",
- "sp-keystore",
- "sp-runtime",
- "sp-version",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "substrate-prometheus-endpoint",
 ]
 
@@ -5689,14 +5909,14 @@ dependencies = [
  "sc-consensus-epochs",
  "sc-rpc-api",
  "serde",
- "sp-api",
- "sp-application-crypto",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core",
- "sp-keystore",
- "sp-runtime",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -5709,7 +5929,7 @@ dependencies = [
  "sc-client-api",
  "sc-consensus",
  "sp-blockchain",
- "sp-runtime",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -5725,16 +5945,16 @@ dependencies = [
  "sc-client-api",
  "sc-consensus",
  "sc-telemetry",
- "sp-api",
- "sp-arithmetic",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-slots",
- "sp-core",
- "sp-inherents",
- "sp-runtime",
- "sp-state-machine",
- "sp-timestamp",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "thiserror",
 ]
 
@@ -5744,8 +5964,8 @@ version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
  "sc-client-api",
- "sp-authorship",
- "sp-runtime",
+ "sp-authorship 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "thiserror",
 ]
 
@@ -5762,16 +5982,16 @@ dependencies = [
  "sc-executor-common",
  "sc-executor-wasmi",
  "sc-executor-wasmtime",
- "sp-api",
- "sp-core",
- "sp-externalities",
- "sp-io",
- "sp-panic-handler",
- "sp-runtime-interface",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-panic-handler 3.0.0 (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-tasks",
- "sp-trie",
- "sp-version",
- "sp-wasm-interface",
+ "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "wasmi",
 ]
 
@@ -5785,10 +6005,10 @@ dependencies = [
  "parity-scale-codec",
  "pwasm-utils",
  "sc-allocator",
- "sp-core",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-maybe-compressed-blob",
  "sp-serializer",
- "sp-wasm-interface",
+ "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "thiserror",
  "wasmi",
 ]
@@ -5803,9 +6023,9 @@ dependencies = [
  "sc-allocator",
  "sc-executor-common",
  "scoped-tls",
- "sp-core",
- "sp-runtime-interface",
- "sp-wasm-interface",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "wasmi",
 ]
 
@@ -5821,9 +6041,9 @@ dependencies = [
  "parity-wasm 0.42.2",
  "sc-allocator",
  "sc-executor-common",
- "sp-core",
- "sp-runtime-interface",
- "sp-wasm-interface",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "wasmtime",
 ]
 
@@ -5852,15 +6072,15 @@ dependencies = [
  "sc-telemetry",
  "sc-utils",
  "serde_json",
- "sp-api",
- "sp-application-crypto",
- "sp-arithmetic",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-blockchain",
  "sp-consensus",
- "sp-core",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-finality-grandpa",
- "sp-keystore",
- "sp-runtime",
+ "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "substrate-prometheus-endpoint",
 ]
 
@@ -5884,8 +6104,8 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-blockchain",
- "sp-core",
- "sp-runtime",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -5902,7 +6122,7 @@ dependencies = [
  "sc-network",
  "sc-transaction-pool-api",
  "sp-blockchain",
- "sp-runtime",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -5915,9 +6135,9 @@ dependencies = [
  "hex",
  "parking_lot 0.11.2",
  "serde_json",
- "sp-application-crypto",
- "sp-core",
- "sp-keystore",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -5930,12 +6150,12 @@ dependencies = [
  "parking_lot 0.11.2",
  "sc-client-api",
  "sc-executor",
- "sp-api",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-blockchain",
- "sp-core",
- "sp-externalities",
- "sp-runtime",
- "sp-state-machine",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -5976,12 +6196,12 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec",
- "sp-arithmetic",
+ "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-blockchain",
  "sp-consensus",
- "sp-core",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-finality-grandpa",
- "sp-runtime",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "substrate-prometheus-endpoint",
  "thiserror",
  "unsigned-varint 0.6.0",
@@ -6000,7 +6220,7 @@ dependencies = [
  "log",
  "lru",
  "sc-network",
- "sp-runtime",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "substrate-prometheus-endpoint",
  "tracing",
 ]
@@ -6025,10 +6245,10 @@ dependencies = [
  "sc-client-api",
  "sc-network",
  "sc-utils",
- "sp-api",
- "sp-core",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-offchain",
- "sp-runtime",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "threadpool",
 ]
 
@@ -6074,15 +6294,15 @@ dependencies = [
  "sc-transaction-pool-api",
  "sc-utils",
  "serde_json",
- "sp-api",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-blockchain",
- "sp-core",
- "sp-keystore",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-offchain",
  "sp-rpc",
- "sp-runtime",
- "sp-session",
- "sp-version",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -6102,11 +6322,11 @@ dependencies = [
  "sc-transaction-pool-api",
  "serde",
  "serde_json",
- "sp-core",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-rpc",
- "sp-runtime",
- "sp-tracing",
- "sp-version",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "thiserror",
 ]
 
@@ -6166,24 +6386,24 @@ dependencies = [
  "sc-utils",
  "serde",
  "serde_json",
- "sp-api",
- "sp-application-crypto",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
- "sp-core",
- "sp-externalities",
- "sp-inherents",
- "sp-keystore",
- "sp-runtime",
- "sp-session",
- "sp-state-machine",
- "sp-storage",
- "sp-tracing",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-session 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-transaction-pool",
  "sp-transaction-storage-proof",
- "sp-trie",
- "sp-version",
+ "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "substrate-prometheus-endpoint",
  "tempfile",
  "thiserror",
@@ -6203,7 +6423,7 @@ dependencies = [
  "parity-util-mem-derive",
  "parking_lot 0.11.2",
  "sc-client-api",
- "sp-core",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -6241,12 +6461,12 @@ dependencies = [
  "sc-rpc-server",
  "sc-tracing-proc-macro",
  "serde",
- "sp-api",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-blockchain",
- "sp-core",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-rpc",
- "sp-runtime",
- "sp-tracing",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "thiserror",
  "tracing",
  "tracing-log",
@@ -6281,11 +6501,11 @@ dependencies = [
  "sc-transaction-pool-api",
  "sc-utils",
  "serde",
- "sp-api",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-blockchain",
- "sp-core",
- "sp-runtime",
- "sp-tracing",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-transaction-pool",
  "substrate-prometheus-endpoint",
  "thiserror",
@@ -6301,7 +6521,7 @@ dependencies = [
  "log",
  "serde",
  "sp-blockchain",
- "sp-runtime",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "thiserror",
 ]
 
@@ -6722,12 +6942,29 @@ dependencies = [
  "hash-db",
  "log",
  "parity-scale-codec",
- "sp-api-proc-macro",
- "sp-core",
- "sp-runtime",
- "sp-state-machine",
- "sp-std",
- "sp-version",
+ "sp-api-proc-macro 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "thiserror",
+]
+
+[[package]]
+name = "sp-api"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "hash-db",
+ "log",
+ "parity-scale-codec",
+ "sp-api-proc-macro 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-core 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-state-machine 0.10.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-version 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
  "thiserror",
 ]
 
@@ -6744,6 +6981,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-api-proc-macro"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "blake2-rfc",
+ "proc-macro-crate 1.1.0",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "sp-application-crypto"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
@@ -6751,9 +7000,22 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-core",
- "sp-io",
- "sp-std",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+]
+
+[[package]]
+name = "sp-application-crypto"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-core 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-io 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
 ]
 
 [[package]]
@@ -6766,8 +7028,23 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-debug-derive",
- "sp-std",
+ "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "static_assertions",
+]
+
+[[package]]
+name = "sp-arithmetic"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "integer-sqrt",
+ "num-traits",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-debug-derive 3.0.0 (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
  "static_assertions",
 ]
 
@@ -6778,10 +7055,10 @@ source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf
 dependencies = [
  "parity-scale-codec",
  "scale-info",
- "sp-api",
- "sp-application-crypto",
- "sp-runtime",
- "sp-std",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -6791,9 +7068,21 @@ source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf
 dependencies = [
  "async-trait",
  "parity-scale-codec",
- "sp-inherents",
- "sp-runtime",
- "sp-std",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+]
+
+[[package]]
+name = "sp-authorship"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "async-trait",
+ "parity-scale-codec",
+ "sp-inherents 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
 ]
 
 [[package]]
@@ -6802,10 +7091,10 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
  "parity-scale-codec",
- "sp-api",
- "sp-inherents",
- "sp-runtime",
- "sp-std",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -6818,11 +7107,11 @@ dependencies = [
  "lru",
  "parity-scale-codec",
  "parking_lot 0.11.2",
- "sp-api",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-consensus",
  "sp-database",
- "sp-runtime",
- "sp-state-machine",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "thiserror",
 ]
 
@@ -6836,12 +7125,12 @@ dependencies = [
  "futures-timer 3.0.2",
  "log",
  "parity-scale-codec",
- "sp-core",
- "sp-inherents",
- "sp-runtime",
- "sp-state-machine",
- "sp-std",
- "sp-version",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-version 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "thiserror",
 ]
 
@@ -6855,17 +7144,17 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-api",
- "sp-application-crypto",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-consensus",
  "sp-consensus-slots",
  "sp-consensus-vrf",
- "sp-core",
- "sp-inherents",
- "sp-keystore",
- "sp-runtime",
- "sp-std",
- "sp-timestamp",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-timestamp 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -6875,8 +7164,8 @@ source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf
 dependencies = [
  "parity-scale-codec",
  "scale-info",
- "sp-arithmetic",
- "sp-runtime",
+ "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -6886,9 +7175,9 @@ source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf
 dependencies = [
  "parity-scale-codec",
  "schnorrkel",
- "sp-core",
- "sp-runtime",
- "sp-std",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -6922,11 +7211,56 @@ dependencies = [
  "secrecy",
  "serde",
  "sha2 0.9.8",
- "sp-debug-derive",
- "sp-externalities",
- "sp-runtime-interface",
- "sp-std",
- "sp-storage",
+ "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "substrate-bip39",
+ "thiserror",
+ "tiny-bip39",
+ "tiny-keccak",
+ "twox-hash",
+ "wasmi",
+ "zeroize",
+]
+
+[[package]]
+name = "sp-core"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "base58",
+ "blake2-rfc",
+ "byteorder",
+ "dyn-clonable",
+ "ed25519-dalek",
+ "futures 0.3.18",
+ "hash-db",
+ "hash256-std-hasher",
+ "hex",
+ "impl-serde",
+ "lazy_static",
+ "libsecp256k1 0.6.0",
+ "log",
+ "merlin",
+ "num-traits",
+ "parity-scale-codec",
+ "parity-util-mem",
+ "parking_lot 0.11.2",
+ "primitive-types",
+ "rand 0.7.3",
+ "regex",
+ "scale-info",
+ "schnorrkel",
+ "secrecy",
+ "serde",
+ "sha2 0.9.8",
+ "sp-debug-derive 3.0.0 (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-externalities 0.10.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-runtime-interface 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-storage 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
  "substrate-bip39",
  "thiserror",
  "tiny-bip39",
@@ -6956,14 +7290,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-debug-derive"
+version = "3.0.0"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "sp-externalities"
 version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
  "environmental",
  "parity-scale-codec",
- "sp-std",
- "sp-storage",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+]
+
+[[package]]
+name = "sp-externalities"
+version = "0.10.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "environmental",
+ "parity-scale-codec",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-storage 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
 ]
 
 [[package]]
@@ -6976,12 +7331,12 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-api",
- "sp-application-crypto",
- "sp-core",
- "sp-keystore",
- "sp-runtime",
- "sp-std",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -6992,9 +7347,23 @@ dependencies = [
  "async-trait",
  "impl-trait-for-tuples",
  "parity-scale-codec",
- "sp-core",
- "sp-runtime",
- "sp-std",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "thiserror",
+]
+
+[[package]]
+name = "sp-inherents"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "async-trait",
+ "impl-trait-for-tuples",
+ "parity-scale-codec",
+ "sp-core 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
  "thiserror",
 ]
 
@@ -7009,15 +7378,39 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "parking_lot 0.11.2",
- "sp-core",
- "sp-externalities",
- "sp-keystore",
- "sp-runtime-interface",
- "sp-state-machine",
- "sp-std",
- "sp-tracing",
- "sp-trie",
- "sp-wasm-interface",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-keystore 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-state-machine 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "tracing",
+ "tracing-core",
+]
+
+[[package]]
+name = "sp-io"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "futures 0.3.18",
+ "hash-db",
+ "libsecp256k1 0.6.0",
+ "log",
+ "parity-scale-codec",
+ "parking_lot 0.11.2",
+ "sp-core 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-externalities 0.10.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-keystore 0.10.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-runtime-interface 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-state-machine 0.10.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-tracing 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-trie 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-wasm-interface 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
  "tracing",
  "tracing-core",
 ]
@@ -7028,8 +7421,8 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
  "lazy_static",
- "sp-core",
- "sp-runtime",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "strum",
 ]
 
@@ -7046,8 +7439,24 @@ dependencies = [
  "parking_lot 0.11.2",
  "schnorrkel",
  "serde",
- "sp-core",
- "sp-externalities",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+]
+
+[[package]]
+name = "sp-keystore"
+version = "0.10.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "async-trait",
+ "derive_more",
+ "futures 0.3.18",
+ "merlin",
+ "parity-scale-codec",
+ "parking_lot 0.11.2",
+ "schnorrkel",
+ "sp-core 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-externalities 0.10.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
 ]
 
 [[package]]
@@ -7066,11 +7475,26 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
- "sp-arithmetic",
- "sp-core",
- "sp-npos-elections-solution-type",
- "sp-runtime",
- "sp-std",
+ "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-npos-elections-solution-type 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+]
+
+[[package]]
+name = "sp-npos-elections"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-arithmetic 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-core 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-npos-elections-solution-type 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
 ]
 
 [[package]]
@@ -7085,13 +7509,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-npos-elections-solution-type"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "proc-macro-crate 1.1.0",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "sp-offchain"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "sp-api",
- "sp-core",
- "sp-runtime",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -7103,13 +7538,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-panic-handler"
+version = "3.0.0"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "backtrace",
+]
+
+[[package]]
 name = "sp-rpc"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
  "rustc-hash",
  "serde",
- "sp-core",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -7127,11 +7570,33 @@ dependencies = [
  "rand 0.7.3",
  "scale-info",
  "serde",
- "sp-application-crypto",
- "sp-arithmetic",
- "sp-core",
- "sp-io",
- "sp-std",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-arithmetic 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+]
+
+[[package]]
+name = "sp-runtime"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "either",
+ "hash256-std-hasher",
+ "impl-trait-for-tuples",
+ "log",
+ "parity-scale-codec",
+ "parity-util-mem",
+ "paste",
+ "rand 0.7.3",
+ "scale-info",
+ "serde",
+ "sp-application-crypto 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-arithmetic 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-core 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-io 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
 ]
 
 [[package]]
@@ -7142,12 +7607,29 @@ dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "primitive-types",
- "sp-externalities",
- "sp-runtime-interface-proc-macro",
- "sp-std",
- "sp-storage",
- "sp-tracing",
- "sp-wasm-interface",
+ "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime-interface-proc-macro 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-storage 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-tracing 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "static_assertions",
+]
+
+[[package]]
+name = "sp-runtime-interface"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "impl-trait-for-tuples",
+ "parity-scale-codec",
+ "primitive-types",
+ "sp-externalities 0.10.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-runtime-interface-proc-macro 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-storage 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-tracing 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-wasm-interface 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
  "static_assertions",
 ]
 
@@ -7164,16 +7646,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-runtime-interface-proc-macro"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "Inflector",
+ "proc-macro-crate 1.1.0",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "sp-sandbox"
 version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
  "log",
  "parity-scale-codec",
- "sp-core",
- "sp-io",
- "sp-std",
- "sp-wasm-interface",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-wasm-interface 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "wasmi",
 ]
 
@@ -7193,11 +7687,25 @@ source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf
 dependencies = [
  "parity-scale-codec",
  "scale-info",
- "sp-api",
- "sp-core",
- "sp-runtime",
- "sp-staking",
- "sp-std",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-staking 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+]
+
+[[package]]
+name = "sp-session"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "parity-scale-codec",
+ "scale-info",
+ "sp-api 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-core 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-staking 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
 ]
 
 [[package]]
@@ -7207,8 +7715,19 @@ source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf
 dependencies = [
  "parity-scale-codec",
  "scale-info",
- "sp-runtime",
- "sp-std",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+]
+
+[[package]]
+name = "sp-staking"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "parity-scale-codec",
+ "scale-info",
+ "sp-runtime 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
 ]
 
 [[package]]
@@ -7223,11 +7742,34 @@ dependencies = [
  "parking_lot 0.11.2",
  "rand 0.7.3",
  "smallvec",
- "sp-core",
- "sp-externalities",
- "sp-panic-handler",
- "sp-std",
- "sp-trie",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-panic-handler 3.0.0 (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "thiserror",
+ "tracing",
+ "trie-db",
+ "trie-root",
+]
+
+[[package]]
+name = "sp-state-machine"
+version = "0.10.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "hash-db",
+ "log",
+ "num-traits",
+ "parity-scale-codec",
+ "parking_lot 0.11.2",
+ "rand 0.7.3",
+ "smallvec",
+ "sp-core 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-externalities 0.10.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-panic-handler 3.0.0 (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-trie 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
  "thiserror",
  "tracing",
  "trie-db",
@@ -7240,6 +7782,11 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 
 [[package]]
+name = "sp-std"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+
+[[package]]
 name = "sp-storage"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
@@ -7248,8 +7795,21 @@ dependencies = [
  "parity-scale-codec",
  "ref-cast",
  "serde",
- "sp-debug-derive",
- "sp-std",
+ "sp-debug-derive 3.0.0 (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+]
+
+[[package]]
+name = "sp-storage"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "impl-serde",
+ "parity-scale-codec",
+ "ref-cast",
+ "serde",
+ "sp-debug-derive 3.0.0 (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
 ]
 
 [[package]]
@@ -7258,11 +7818,11 @@ version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
  "log",
- "sp-core",
- "sp-externalities",
- "sp-io",
- "sp-runtime-interface",
- "sp-std",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-externalities 0.10.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-io 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime-interface 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -7274,10 +7834,26 @@ dependencies = [
  "futures-timer 3.0.2",
  "log",
  "parity-scale-codec",
- "sp-api",
- "sp-inherents",
- "sp-runtime",
- "sp-std",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "thiserror",
+]
+
+[[package]]
+name = "sp-timestamp"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "async-trait",
+ "futures-timer 3.0.2",
+ "log",
+ "parity-scale-codec",
+ "sp-api 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
  "thiserror",
 ]
 
@@ -7293,7 +7869,25 @@ dependencies = [
  "serde",
  "serde_json",
  "slog",
- "sp-std",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "tracing",
+ "tracing-core",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "sp-tracing"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "erased-serde",
+ "log",
+ "parity-scale-codec",
+ "parking_lot 0.10.2",
+ "serde",
+ "serde_json",
+ "slog",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
  "tracing",
  "tracing-core",
  "tracing-subscriber",
@@ -7304,8 +7898,8 @@ name = "sp-transaction-pool"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
- "sp-api",
- "sp-runtime",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -7317,11 +7911,11 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "scale-info",
- "sp-core",
- "sp-inherents",
- "sp-runtime",
- "sp-std",
- "sp-trie",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-inherents 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-trie 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -7333,8 +7927,23 @@ dependencies = [
  "memory-db",
  "parity-scale-codec",
  "scale-info",
- "sp-core",
- "sp-std",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "trie-db",
+ "trie-root",
+]
+
+[[package]]
+name = "sp-trie"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "hash-db",
+ "memory-db",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
  "trie-db",
  "trie-root",
 ]
@@ -7349,9 +7958,25 @@ dependencies = [
  "parity-wasm 0.42.2",
  "scale-info",
  "serde",
- "sp-runtime",
- "sp-std",
- "sp-version-proc-macro",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-version-proc-macro 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "thiserror",
+]
+
+[[package]]
+name = "sp-version"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "impl-serde",
+ "parity-scale-codec",
+ "parity-wasm 0.42.2",
+ "scale-info",
+ "serde",
+ "sp-runtime 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
+ "sp-version-proc-macro 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
  "thiserror",
 ]
 
@@ -7367,13 +7992,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-version-proc-macro"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "parity-scale-codec",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "sp-wasm-interface"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10#bf9683eee40f82cc4e01a05cd375b0e8bba3c8ef"
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
- "sp-std",
+ "sp-std 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "wasmi",
+]
+
+[[package]]
+name = "sp-wasm-interface"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "impl-trait-for-tuples",
+ "parity-scale-codec",
+ "sp-std 4.0.0-dev (git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess)",
  "wasmi",
 ]
 
@@ -7495,11 +8142,11 @@ dependencies = [
  "sc-client-api",
  "sc-rpc-api",
  "sc-transaction-pool-api",
- "sp-api",
+ "sp-api 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
  "sp-block-builder",
  "sp-blockchain",
- "sp-core",
- "sp-runtime",
+ "sp-core 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
+ "sp-runtime 4.0.0-dev (git+https://github.com/paritytech/substrate.git?tag=monthly-2021-10)",
 ]
 
 [[package]]
@@ -7514,6 +8161,27 @@ dependencies = [
  "log",
  "prometheus",
  "tokio",
+]
+
+[[package]]
+name = "substrate-test-utils"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "futures 0.3.18",
+ "substrate-test-utils-derive",
+ "tokio",
+]
+
+[[package]]
+name = "substrate-test-utils-derive"
+version = "0.10.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2021-10-cess#a6989dc81e1f9b9e3e2f827bbf7f96c7800a8374"
+dependencies = [
+ "proc-macro-crate 1.1.0",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -7717,7 +8385,19 @@ dependencies = [
  "once_cell",
  "pin-project-lite 0.2.7",
  "signal-hook-registry",
+ "tokio-macros",
  "winapi 0.3.9",
+]
+
+[[package]]
+name = "tokio-macros"
+version = "1.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b557f72f448c511a979e2564e55d74e6c4432fc96ff4f6241bc6bded342643b7"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
