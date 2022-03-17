@@ -58,6 +58,18 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + SendTransactionTypes<Call<Self>> {
+		/// Rewards for all validators in the first year.
+		const FIRST_YEAR_VALIDATOR_REWARDS: BalanceOf<Self>;
+
+		/// Rewards for all sminers in the first year.
+		const FIRST_YEAR_SMINER_REWARDS: BalanceOf<Self>;
+
+		/// The reward decrease ratio per year.
+		const REWARD_DECREASE_RATIO: Perbill;
+
+		/// Tokens have been minted for sminers.
+		type SminerRewardPool: OnUnbalanced<NegativeImbalanceOf<Self>>;
+
 		/// The staking balance.
 		type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
 
