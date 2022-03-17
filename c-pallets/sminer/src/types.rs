@@ -8,6 +8,7 @@ type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 pub struct MinerInfo {
 	pub(super) peerid: u64,
 	pub(super) ip: Vec<u8>,
+	
 	pub(super) power: u128,	
 	pub(super) space: u128,
 }
@@ -24,7 +25,7 @@ pub struct Mr<T: pallet::Config> {
 	pub(super) locked: BalanceOf<T>,
 	//nomal, exit, frozen, e_frozen
 	pub(super) state: Vec<u8>,
-
+	
 	pub(super) power: u128,
 	pub(super) space: u128,
 }

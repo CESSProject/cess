@@ -16,7 +16,6 @@
 //! * `upload` - Upload info of stored file.
 //! * `update` - Update info of uploaded file.
 //! * `buyfile` - Buy file with download fee.
-
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(test)]
@@ -155,6 +154,10 @@ pub mod pallet {
 	#[pallet::storage]
 	pub(super) type UserFreeRecord<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, u8, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn test_struct_map)]
+	pub(super) type TestStructMap<T: Config> = StorageValue<_, Vec<TestStructInfo>, ValueQuery>;
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
@@ -272,15 +275,16 @@ pub mod pallet {
 		/// - `is_public`: public or private.
 		/// - `similarityhash`: hash of file, used for checking similarity.
 		#[pallet::weight(1_000_000)]
-		pub fn update_dupl(origin: OriginFor<T>, fileid: Vec<u8>, file_dupl: Vec<FileDuplicateInfo<T>>) -> DispatchResult{
+		pub fn update_dupl(origin: OriginFor<T>, fileid: Vec<u8>, file_dupl: Vec<FileDuplicateInfo>) -> DispatchResult{
 			let sender = ensure_signed(origin)?;
 			ensure!((<File<T>>::contains_key(fileid.clone())), Error::<T>::FileNonExistent);
 			//Judge whether it is a consensus node
 
-			<File<T>>::mutate(fileid.clone(), |s_opt| {
+			<File<T>>::try_mutate(fileid.clone(), |s_opt| -> DispatchResult {
 				let s = s_opt.as_mut().unwrap();
 				s.file_dupl = file_dupl;
-			});
+				Ok(())
+			})?;
 			Self::deposit_event(Event::<T>::FileUpdate{acc: sender.clone(), fileid: fileid});
 
 			Ok(())
@@ -500,6 +504,12 @@ impl<T: Config> Pallet<T> {
 			s.push(fileid);
 		});
 	}
+
+	// fn remove_user_hold_file(acc: &AccountOf<T>, fileid: Vec<u8>) {
+	// 	<UserHoldFileList<T>>::mutate(&acc, |s|{
+	// 		s.drain_filter(|v| *v == fileid);
+	// 	});
+	// }
 	//Available space divided by 1024 is the unit price
 	fn get_price() -> u128 {
 		let space = pallet_sminer::Pallet::<T>::get_space();

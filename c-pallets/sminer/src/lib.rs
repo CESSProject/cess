@@ -166,7 +166,7 @@ pub mod pallet {
 
 		CollingNotOver,
 
-		NotNomalState,
+		NotpositiveState,
 	}
 
 	#[pallet::storage]
@@ -239,7 +239,7 @@ pub mod pallet {
 	/// Store all miner stat information 
 	#[pallet::storage]
 	#[pallet::getter(fn miner_stat_value)]
-	pub(super) type MinerStatValue<T: Config> = StorageValue<_, MinerStatInfo<T>>;
+	pub(super) type MinerStatValue<T: Config> = StorageValue<_, MinerStatInfo<T>>; 
 
 	/// The hashmap for info of storage miners.
 	#[pallet::storage]
@@ -290,7 +290,7 @@ pub mod pallet {
 					collaterals: staking_val.clone(),
 					earnings: value.clone(),
 					locked: value.clone(),
-					state: "nomal".as_bytes().to_vec(),
+					state: "positive".as_bytes().to_vec(),
 					power: 0,
 					space: 0,
 				}
@@ -368,7 +368,7 @@ pub mod pallet {
 					let limit = Self::check_collateral_limit(s.peerid)?;
 					if s.collaterals > limit {
 						if s.state == "frozen".as_bytes().to_vec() {
-							s.state = "nomal".as_bytes().to_vec();
+							s.state = "positive".as_bytes().to_vec();
 						} else {
 							s.state = "exit".as_bytes().to_vec();
 						}
@@ -394,8 +394,8 @@ pub mod pallet {
 
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
 			let state = Self::check_state(sender.clone());
-			if state != "nomal".as_bytes().to_vec() {
-				Err(Error::<T>::NotNomalState)?;
+			if state != "positive".as_bytes().to_vec() {
+				Err(Error::<T>::NotpositiveState)?;
 			}
 
 			MinerItems::<T>::try_mutate(&sender, |s_opt| -> DispatchResult {
@@ -404,7 +404,7 @@ pub mod pallet {
 				Self::sub_space(s.peerid, s.space)?;
 				Self::sub_power(s.peerid, s.power)?;
 				
-				s.state = "cooling".as_bytes().to_vec();
+				s.state = "exit".as_bytes().to_vec();
 				Ok(())
 			})?; 
 
@@ -1037,6 +1037,21 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::DrawFaucetMoney());
 			Ok(())
 		}
+
+		#[pallet::weight(2_000_000)]
+		pub fn change_miner_normal(origin: OriginFor<T>) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+
+			for (key, _) in <MinerItems<T>>::iter() {
+				MinerItems::<T>::try_mutate(key, |s_opt| -> DispatchResult {
+					let s = s_opt.as_mut().unwrap();
+					s.state = "positive".as_bytes().to_vec();
+					Ok(())
+				})?;
+			}
+
+			Ok(())
+		}
 	}
 }
 
@@ -1239,11 +1254,11 @@ impl<T: Config> Pallet<T> {
 			(*s).used_storage = (*s).used_storage.checked_add(increment).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})?;
-		MinerStatValue::<T>::try_mutate(|s_opt| -> DispatchResult {
-			let s = s_opt.as_mut().unwrap();
-			s.sum_files = s.sum_files.checked_add(1).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
+		// MinerStatValue::<T>::try_mutate(|s_opt| -> DispatchResult {
+		// 	let s = s_opt.as_mut().unwrap();
+		// 	s.sum_files = s.sum_files.checked_add(1).ok_or(Error::<T>::Overflow)?;
+		// 	Ok(())
+		// })?;
 
 		let mut allminer = AllMiner::<T>::get();
 		let mut k = 0;
@@ -1297,11 +1312,11 @@ impl<T: Config> Pallet<T> {
 			(*s).used_storage = (*s).used_storage.checked_sub(increment).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})?;
-		MinerStatValue::<T>::mutate(|s_opt| -> DispatchResult {
-			let s = s_opt.as_mut().unwrap();
-			s.sum_files = s.sum_files.checked_sub(1).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
+		// MinerStatValue::<T>::mutate(|s_opt| -> DispatchResult {
+		// 	let s = s_opt.as_mut().unwrap();
+		// 	s.sum_files = s.sum_files.checked_sub(1).ok_or(Error::<T>::Overflow)?;
+		// 	Ok(())
+		// })?;
 
 		let mut allminer = AllMiner::<T>::get();
 		let mut k = 0;
@@ -1343,7 +1358,7 @@ impl<T: Config> Pallet<T> {
 			s.collaterals = s.collaterals.checked_sub(&punish_amount).ok_or(Error::<T>::Overflow)?;
 			let limit = Self::check_collateral_limit(s.peerid)?;
 			if mr.collaterals < limit && s.state != "frozen".as_bytes().to_vec() && s.state != "e_frozen".as_bytes().to_vec() {
-				if s.state == "nomal".as_bytes().to_vec() {
+				if s.state == "positive".as_bytes().to_vec() {
 					s.state = "frozen".as_bytes().to_vec();
 				} else if s.state == "exit".as_bytes().to_vec() {
 					s.state = "e_frozen".as_bytes().to_vec();
