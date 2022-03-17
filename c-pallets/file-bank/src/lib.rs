@@ -250,7 +250,7 @@ pub mod pallet {
 					file_hash: filehash,
 					public: public,
 					user_addr: sender.clone(),
-					file_state: "nomal".as_bytes().to_vec(),
+					file_state: "normal".as_bytes().to_vec(),
 					backups: backups,
 					downloadfee: downloadfee,
 					file_dupl: Vec::new(),
@@ -282,6 +282,7 @@ pub mod pallet {
 
 			<File<T>>::try_mutate(fileid.clone(), |s_opt| -> DispatchResult {
 				let s = s_opt.as_mut().unwrap();
+				s.file_state = "active".as_bytes().to_vec();
 				s.file_dupl = file_dupl;
 				Ok(())
 			})?;
