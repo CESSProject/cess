@@ -349,6 +349,7 @@ runtime-benchmarks = [
     'hex-literal',
     'pallet-balances/runtime-benchmarks',
     'pallet-timestamp/runtime-benchmarks',
+    'pallet-collective/runtime-benchmarks',
     'pallet-file-bank/runtime-benchmarks',
     'pallet-segment-book/runtime-benchmarks',
     'pallet-sminer/runtime-benchmarks',

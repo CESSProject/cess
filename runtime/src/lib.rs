@@ -1178,6 +1178,8 @@ impl_runtime_apis! {
 			list_benchmark!(list, extra, pallet_contracts, Contracts);
 			list_benchmark!(list, extra, pallet_segment_book, SegmentBook);
 			list_benchmark!(list, extra, pallet_sminer, Sminer);
+			list_benchmark!(list, extra, pallet_collective::<Instance1>, Council);
+			list_benchmark!(list, extra, pallet_collective::<Instance2>, TechnicalCommittee);
 			// list_benchmark!(list, extra, pallet_template, TemplateModule);
 
 			/*** Add This Line ***/
@@ -1219,6 +1221,8 @@ impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_segment_book, SegmentBook);
 			add_benchmark!(params, batches, pallet_sminer, Sminer);
 			add_benchmark!(params, batches, pallet_contracts, Contracts);
+			add_benchmark!(params, batches, pallet_collective::<Instance1>, Council);
+			add_benchmark!(params, batches, pallet_collective::<Instance2>, TechnicalCommittee);
 			// add_benchmark!(params, batches, pallet_template, TemplateModule);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }

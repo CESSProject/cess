@@ -426,7 +426,7 @@ pub mod pallet {
 			}
 			let now: u128 = <frame_system::Pallet<T>>::block_number().saturated_into();
 			let colling_line: u128 = MinerColling::<T>::get(&sender).unwrap().saturated_into();
-			if colling_line + 57600 < now {
+			if colling_line + 1200 < now {
 				Err(Error::<T>::CollingNotOver)?;
 			}
 
@@ -503,18 +503,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Set service port.
-		///
-		/// The dispatch origin of this call must be _Signed_.
-		///
-		/// Parameters:
-		/// - `serviceport`: service port.
-		/// Add available storage.
-		///
-		/// The dispatch origin of this call must be _root_.
-		///
-		/// Parameters:
-		/// - `increment`: The miners power.
+
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::add_available_storage())]
 		pub fn add_available_storage(origin: OriginFor<T>, increment: u128) -> DispatchResult {
 			let _ = ensure_root(origin)?;
@@ -1012,17 +1001,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(2_000_000)]
-		pub fn init_space(origin: OriginFor<T>) -> DispatchResult {
-			let _ = ensure_signed(origin)?;
-			<AvailableSpace<T>>::mutate(|s| {
-				*s = 0;
-			});
-			<PurchasedSpace<T>>::mutate(|s| {
-				*s = 0;
-			});
-			Ok(())
-		}	
 		/// Test method for increasing computational power.
 		///
 		/// The dispatch origin of this call must be _root_.
@@ -1038,20 +1016,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(2_000_000)]
-		pub fn change_miner_normal(origin: OriginFor<T>) -> DispatchResult {
-			let _ = ensure_signed(origin)?;
-
-			for (key, _) in <MinerItems<T>>::iter() {
-				MinerItems::<T>::try_mutate(key, |s_opt| -> DispatchResult {
-					let s = s_opt.as_mut().unwrap();
-					s.state = "positive".as_bytes().to_vec();
-					Ok(())
-				})?;
-			}
-
-			Ok(())
-		}
 	}
 }
 

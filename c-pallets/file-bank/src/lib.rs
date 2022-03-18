@@ -134,10 +134,6 @@ pub mod pallet {
 	#[pallet::getter(fn seg_info)]
 	pub(super) type UserFileSize<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, u128, ValueQuery>;
 
-	#[pallet::storage]
-	#[pallet::getter(fn file_slice_location)]
-	pub(super) type FileSliceLocation<T: Config> = StorageMap<_, Twox64Concat, Vec<u8>, Vec<FileSlice>>;
-
 
 	#[pallet::storage]
 	#[pallet::getter(fn user_hold_file_list)]
@@ -366,15 +362,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(2_000_000)]
-		pub fn insert_file_slice_location(origin: OriginFor<T>, fileid: Vec<u8>, slice: Vec<FileSlice>) -> DispatchResult {
-			let _ = ensure_signed(origin)?;
-
-			<FileSliceLocation<T>>::insert(&fileid, slice);
-			Self::deposit_event(Event::<T>::InsertFileSlice{fileid: fileid});
-			Ok(())
-		}
-
 		//**********************************************************************************************************************************************
 		//************************************************************Storage space lease***************************************************************
 		//**********************************************************************************************************************************************
@@ -427,6 +414,7 @@ pub mod pallet {
 		}
 		// #[
 
+		//Test method：Clear the storage space owned by the user
 		#[pallet::weight(2_000_000)]
 		pub fn initi_acc(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -434,6 +422,7 @@ pub mod pallet {
 			<UserHoldSpaceDetails<T>>::remove(&sender);
 			Ok(())
 		}
+
 
 
 		//#[pallet::weight(2_000_000)]

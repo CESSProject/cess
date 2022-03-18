@@ -26,3 +26,6 @@ Contain operations related storage miners.
 * `timed_user_receive_award1` - Users receive rewards for scheduled tasks.
 * `faucet_top_up` - The faucet top up.
 * `faucet` - Users receive money through the faucet.
+* `increase_collateral` - Additional deposit for miners.
+* `exit_miner` - Miner exit.
+* `withdraw` - Miners redeem deposit.
