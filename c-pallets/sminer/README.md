@@ -16,11 +16,6 @@ Contain operations related storage miners.
 * `redeem` - Redeem for storage miner.
 * `claim` - Storage miner gets rewards from earnings.
 * `initi` - Miner information initialization.
-* `setaddress` - Set the ETCD registration address.
-* `updateaddress` - Update the ETCD registration address.
-* `setetcd` - Set ETCD parameters.
-* `setetcdtoken` - Set ETCD token.
-* `setserviceport` - Set service port.
 * `timing_storage_space` - A scheduled task for computing power trend data of the entire network.
 * `timing_storage_space_thirty_days` - Generate power trend data for the first 30 days.
 * `timed_increase_rewards` - Add reward orders.

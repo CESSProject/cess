@@ -69,13 +69,6 @@ pub struct SpaceInfo<T: pallet::Config> {
 	pub(super) deadline: BlockNumberOf<T>,
 }
 
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-pub struct FileSlice {
-	pub(super) peer_id: Vec<Vec<u8>>,
-	pub(super) fill_zero: u32,
-	pub(super) slice_id: u64,
-}
-
 #[derive(PartialEq, Eq, Default, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
 pub struct TestStructInfo {
 	pub(super) test_id: u16,
