@@ -261,8 +261,8 @@ impl onchain::Config for Test {
 }
 
 impl crate::pallet::pallet::Config for Test {
-	const FIRST_YEAR_VALIDATOR_REWARDS: BalanceOf<Test> = 1_000_000_000;
-	const FIRST_YEAR_SMINER_REWARDS: BalanceOf<Test> = 1_000_000_000;
+	const FIRST_YEAR_VALIDATOR_REWARDS: BalanceOf<Test> = 618_000_000;
+	const FIRST_YEAR_SMINER_REWARDS: BalanceOf<Test> = 309_000_000;
 	const REWARD_DECREASE_RATIO: Perbill = Perbill::from_perthousand(794);
 	type SminerRewardPool = ();
 	const MAX_NOMINATIONS: u32 = 16;

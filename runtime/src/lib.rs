@@ -34,7 +34,7 @@ use sp_core::{
 use codec::Decode;
 use sp_inherents::{CheckInherentsResult, InherentData};
 use sp_runtime::{
-	create_runtime_str, generic, impl_opaque_keys, curve::PiecewiseLinear,
+	create_runtime_str, generic, impl_opaque_keys,
 	traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, Verify, OpaqueKeys},
 	transaction_validity::{TransactionSource, TransactionValidity, TransactionPriority},
 	ApplyExtrinsicResult, MultiSignature, Perbill, Permill, Percent,
@@ -524,9 +524,9 @@ impl onchain::Config for Runtime {
 }
 
 impl pallet_cess_staking::Config for Runtime {
-	const FIRST_YEAR_VALIDATOR_REWARDS: Balance = 600_000_000 * CENTS;
-	const FIRST_YEAR_SMINER_REWARDS: Balance = 300_000_000 * CENTS;
-	const REWARD_DECREASE_RATIO: Perbill = Perbill::from_perthousand(794);
+	const FIRST_YEAR_VALIDATOR_REWARDS: Balance = 477_000_000 * CENTS;
+	const FIRST_YEAR_SMINER_REWARDS: Balance = 238_500_000 * CENTS;
+	const REWARD_DECREASE_RATIO: Perbill = Perbill::from_perthousand(841);
 	type SminerRewardPool = Treasury;
 	const MAX_NOMINATIONS: u32 = MAX_NOMINATIONS;
 	type Currency = Balances;
