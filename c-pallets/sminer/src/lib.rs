@@ -725,7 +725,7 @@ pub mod pallet {
 				let award = reward_claim1.current_availability;
 				let total = reward_claim1.total_reward;
 
-				ensure!(reward_claim1.have_to_receive.checked_add(&award).ok_or(Error::<T>::Overflow)? <= reward_claim1.total_rewards_currently_available, Error::<T>::BeyondClaim);
+				ensure!(reward_claim1.have_to_receive.checked_add(&award).ok_or(Error::<T>::Overflow)? <= reward_claim1.total_reward, Error::<T>::BeyondClaim);
 				
 				<T as pallet::Config>::Currency::transfer(&reward_pot, &acc, award, AllowDeath)?;
 
@@ -734,7 +734,7 @@ pub mod pallet {
 					let have_to_receive = reward_claim.have_to_receive.checked_add(&award).ok_or(Error::<T>::Overflow)?;
 					reward_claim.have_to_receive = have_to_receive;
 					reward_claim.current_availability = 0u32.into();
-					reward_claim.total_not_receive = total.checked_sub(&have_to_receive).ok_or(Error::<T>::Overflow)?;
+					reward_claim.total_not_receive = total.checked_sub(&award).ok_or(Error::<T>::Overflow)?;
 					Ok(())
 				})?;
 				let peerid = Self::get_peerid(&sender);
@@ -834,10 +834,8 @@ pub mod pallet {
 						RewardClaim::<T> {
 							beneficiary: miner.beneficiary,
 							total_reward: reward2,
-							total_rewards_currently_available: currently_available
-							.checked_add(&total_20_percent).ok_or(Error::<T>::Overflow)?,
 							have_to_receive: 0u32.into(),
-							current_availability: currently_available,
+							current_availability: currently_available.checked_add(&total_20_percent).ok_or(Error::<T>::Overflow)?,
 							total_not_receive: reward2,
 						}
 					);
@@ -849,7 +847,7 @@ pub mod pallet {
 							let miner_detail = miner_detail_opt.as_mut().unwrap();
 							miner_detail.total_reward = reward2;
 							miner_detail.total_rewards_currently_available = currently_available.checked_add(&total_20_percent).ok_or(Error::<T>::Overflow)?;
-							miner_detail.totald_not_receive = reward2.checked_sub(&total_20_percent).ok_or(Error::<T>::Overflow)?;
+							miner_detail.totald_not_receive = reward2;
 							Ok(())
 						})?;
 					}
@@ -867,15 +865,12 @@ pub mod pallet {
 							.map_err(|_e| Error::<T>::ConversionError)?;
 						//Before switching back to balance
 						//Plus 20% of the new share
-						reward_claim.have_to_receive = reward_claim.have_to_receive.checked_add(&diff_20_percent).ok_or(Error::<T>::Overflow)?;
 						reward_claim.total_reward = reward2;
-						reward_claim.total_rewards_currently_available = currently_available
-							.checked_add(&reward_claim.current_availability).ok_or(Error::<T>::Overflow)?
-							.checked_add(&reward_claim.have_to_receive).ok_or(Error::<T>::Overflow)?;
-						reward_claim.current_availability = reward_claim.current_availability.checked_add(&currently_available).ok_or(Error::<T>::Overflow)?;
+						reward_claim.current_availability = reward_claim.current_availability
+							.checked_add(&currently_available).ok_or(Error::<T>::Overflow)?
+							.checked_add(&diff_20_percent).ok_or(Error::<T>::Overflow)?;
 						reward_claim.total_not_receive = reward2
-							.checked_sub(&reward_claim.have_to_receive).ok_or(Error::<T>::Overflow)?
-							.checked_sub(&total_20_percent).ok_or(Error::<T>::Overflow)?;
+							.checked_sub(&reward_claim.have_to_receive).ok_or(Error::<T>::Overflow)?;
 						Ok(())
 					})?;
 
@@ -884,8 +879,11 @@ pub mod pallet {
 						MinerDetails::<T>::try_mutate(peerid, |miner_detail_opt| -> DispatchResult {
 							let miner_detail = miner_detail_opt.as_mut().unwrap();
 							miner_detail.total_reward = reward2;
-							let total_rewards_currently_available  = RewardClaimMap::<T>::get(&_acc).unwrap().total_rewards_currently_available;	
-							miner_detail.total_rewards_currently_available = total_rewards_currently_available;
+
+							let reward_claim_map = RewardClaimMap::<T>::get(&_acc).unwrap();
+							miner_detail.total_rewards_currently_available = reward_claim_map.have_to_receive
+								.checked_add(&reward_claim_map.current_availability).ok_or(Error::<T>::Overflow)?;
+
 							let total_not_receive = RewardClaimMap::<T>::get(&_acc).unwrap().total_not_receive;
 							miner_detail.totald_not_receive = total_not_receive;
 							Ok(())

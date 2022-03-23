@@ -89,7 +89,6 @@ pub struct CalculateRewardOrder <T: pallet::Config>{
 pub struct RewardClaim <T: pallet::Config>{
 	pub(super) beneficiary: AccountOf<T>,
 	pub(super) total_reward: BalanceOf<T>,
-	pub(super) total_rewards_currently_available: BalanceOf<T>,
 	pub(super) have_to_receive: BalanceOf<T>,
 	pub(super) current_availability: BalanceOf<T>,
 	pub(super) total_not_receive: BalanceOf<T>,
