@@ -186,7 +186,7 @@ pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
 
 // NOTE: Currently it is not possible to change the epoch duration after the chain has started.
 //       Attempting to do so will brick block production.
-pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 10 * MINUTES;
+pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 1 * MINUTES;
 pub const EPOCH_DURATION_IN_SLOTS: u64 = {
 	const SLOT_FILL_RATE: f64 = MILLISECS_PER_BLOCK as f64 / SLOT_DURATION as f64;
 
@@ -523,7 +523,14 @@ impl onchain::Config for Runtime {
 	type DataProvider = Staking;
 }
 
+pub const ERAS_PER_YEAR: u64 = {
+	// Milliseconds per year for the Julian year (365.25 days).
+	const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
+	MILLISECONDS_PER_YEAR / MILLISECS_PER_BLOCK / (EPOCH_DURATION_IN_BLOCKS * SessionsPerEra::get()) as u64
+};
+
 impl pallet_cess_staking::Config for Runtime {
+	const ERAS_PER_YEAR: u64 = 2;
 	const FIRST_YEAR_VALIDATOR_REWARDS: Balance = 477_000_000 * CENTS;
 	const FIRST_YEAR_SMINER_REWARDS: Balance = 238_500_000 * CENTS;
 	const REWARD_DECREASE_RATIO: Perbill = Perbill::from_perthousand(841);

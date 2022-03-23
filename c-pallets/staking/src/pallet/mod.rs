@@ -58,6 +58,9 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + SendTransactionTypes<Call<Self>> {
+		/// eras per year.
+		const ERAS_PER_YEAR: u64;
+
 		/// Rewards for all validators in the first year.
 		const FIRST_YEAR_VALIDATOR_REWARDS: BalanceOf<Self>;
 
