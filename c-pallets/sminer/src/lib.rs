@@ -611,7 +611,7 @@ pub mod pallet {
 			let _ = ensure_root(origin)?;
 			let total_power = <TotalPower<T>>::get();
 			ensure!(total_power != 0, Error::<T>::DivideByZero);
-			let reward_pot = T::PalletId::get().into_account();
+			// let reward_pot = T::PalletId::get().into_account();
 
 			for (_, detail) in <MinerDetails<T>>::iter() {
 				if detail.power == 0 {
@@ -621,11 +621,12 @@ pub mod pallet {
 				let tmp2:u128 = tmp1.checked_div(total_power).ok_or(Error::<T>::Overflow)?;
 				let _ = Self::add_reward_order1(detail.address,tmp2);
 
-				let reward_20_percent: BalanceOf<T> = (tmp2.checked_mul(2).ok_or(Error::<T>::Overflow)?.checked_div(10).ok_or(Error::<T>::Overflow)?)
-				.try_into()
-				.map_err(|_e| Error::<T>::ConversionError)?;
+				//Give 20% reward to users in advance
+				// let reward_20_percent: BalanceOf<T> = (tmp2.checked_mul(2).ok_or(Error::<T>::Overflow)?.checked_div(10).ok_or(Error::<T>::Overflow)?)
+				// .try_into()
+				// .map_err(|_e| Error::<T>::ConversionError)?;
 
-				<T as pallet::Config>::Currency::transfer(&reward_pot, &detail.beneficiary, reward_20_percent, AllowDeath)?;
+				// <T as pallet::Config>::Currency::transfer(&reward_pot, &detail.beneficiary, reward_20_percent, AllowDeath)?;
 			}
 			let reward3:BalanceOf<T> = 750000000000000000_u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
 
@@ -835,9 +836,9 @@ pub mod pallet {
 							total_reward: reward2,
 							total_rewards_currently_available: currently_available
 							.checked_add(&total_20_percent).ok_or(Error::<T>::Overflow)?,
-							have_to_receive: total_20_percent,
+							have_to_receive: 0u32.into(),
 							current_availability: currently_available,
-							total_not_receive: reward2.checked_sub(&total_20_percent).ok_or(Error::<T>::Overflow)?,
+							total_not_receive: reward2,
 						}
 					);
 

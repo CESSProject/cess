@@ -341,7 +341,7 @@ pub mod pallet {
 				invoice.push(*i);
 			}
 				
-			if <Invoice<T>>::contains_key(fileid.clone()) {
+			if <Invoice<T>>::contains_key(invoice.clone()) {
 				Self::deposit_event(Event::<T>::Purchased{acc: sender.clone(), fileid: fileid.clone()});
 			} else {
 				let zh = TryInto::<u128>::try_into(group_id.downloadfee).ok().unwrap();

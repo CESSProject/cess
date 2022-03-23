@@ -434,7 +434,6 @@ pub mod pallet {
 			submit_type: u8, 
 			peerid: u64, 
 			uncid: Vec<Vec<u8>>, 
-			hash: Vec<u8>, 
 			shardhash: Vec<u8>
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -494,7 +493,6 @@ pub mod pallet {
 						segment_id: segment_id,
 						uncid: uncid,
 						rand: random,
-						hash: hash,
 						shardhash: shardhash,
 					};
 					if <MinerHoldSlice<T>>::contains_key(&acc) {
@@ -932,7 +930,7 @@ pub mod pallet {
 				let value = MinerHoldSlice::<T>::get(&sender);
 				for i in value {
 					if i.segment_id == segment_id {
-						hash = i.hash;
+						hash = i.shardhash;
 					}
 				}
 

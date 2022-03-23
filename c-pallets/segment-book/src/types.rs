@@ -192,10 +192,9 @@ pub struct ContinuousProofPoolVec {
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 pub struct FileSilceInfo {
-    pub(super) 	peer_id: u64,
+    pub(super) peer_id: u64,
 	pub(super) segment_id: u64,
 	pub(super) uncid: Vec<Vec<u8>>,
 	pub(super) rand: u32,
-	pub(super) hash: Vec<u8>,
 	pub(super) shardhash: Vec<u8>,
 }

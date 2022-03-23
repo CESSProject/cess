@@ -72,7 +72,6 @@ pub mod pallet {
         pub fn registration_scheduler(origin: OriginFor<T>, ip: Vec<u8>) -> DispatchResult {
             let sender = ensure_signed(origin)?;
 
-
             let mut s_vec = SchedulerMap::<T>::get();
             let scheduler = SchedulerInfo::<T>{
                 ip: ip.clone(),
