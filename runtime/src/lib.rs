@@ -534,7 +534,7 @@ impl pallet_cess_staking::Config for Runtime {
 	const FIRST_YEAR_VALIDATOR_REWARDS: Balance = 477_000_000 * CENTS;
 	const FIRST_YEAR_SMINER_REWARDS: Balance = 238_500_000 * CENTS;
 	const REWARD_DECREASE_RATIO: Perbill = Perbill::from_perthousand(841);
-	type SminerRewardPool = Treasury;
+	type SminerRewardPool = Sminer;
 	const MAX_NOMINATIONS: u32 = MAX_NOMINATIONS;
 	type Currency = Balances;
 	type UnixTime = Timestamp;

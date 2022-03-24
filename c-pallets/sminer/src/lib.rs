@@ -24,7 +24,7 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-use frame_support::traits::{Get, Currency, ReservableCurrency, LockIdentifier, schedule::{Named as ScheduleNamed, DispatchTime}, ExistenceRequirement::AllowDeath};
+use frame_support::traits::{Get, Currency, ReservableCurrency, Imbalance, OnUnbalanced, LockIdentifier, schedule::{Named as ScheduleNamed, DispatchTime}, ExistenceRequirement::AllowDeath};
 mod benchmarking;
 pub mod weights;
 mod types;
@@ -47,6 +47,7 @@ use frame_support::pallet_prelude::DispatchError;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type NegativeImbalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 
 
@@ -128,6 +129,8 @@ pub mod pallet {
 		MinerClaim{acc: AccountOf<T>},
 
 		IncreaseCollateral{acc: AccountOf<T>, balance: BalanceOf<T>},
+		/// Some funds have been deposited. \[deposit\]
+		Deposit(BalanceOf<T>),
 	}
 
 	/// Error for the sminer pallet.
@@ -1510,5 +1513,16 @@ impl<T: Config> Pallet<T> {
 
 	fn check_state(acc: AccountOf<T>) -> Vec<u8> {
 		<MinerItems<T>>::get(&acc).unwrap().state
+	}
+}
+
+impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for Pallet<T> {
+	fn on_nonzero_unbalanced(amount: NegativeImbalanceOf<T>) {
+		let numeric_amount = amount.peek();
+
+		// Must resolve into existing but better to be safe.
+		let _ = T::Currency::resolve_creating(&T::PalletId::get().into_account(), amount);
+
+		Self::deposit_event(Event::Deposit(numeric_amount));
 	}
 }
