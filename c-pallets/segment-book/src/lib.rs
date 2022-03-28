@@ -1006,7 +1006,7 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 			let now_block = <frame_system::Pallet<T>>::block_number();
 			ensure!(<VerPoolD<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
-			ensure!(<VerPoolC<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
+			// ensure!(<VerPoolC<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
 			if !pallet_file_bank::Pallet::<T>::check_file_exist(fileid) {
 				Self::clean_service_proofs_signle(peer_id, segment_id);
 				Err(Error::<T>::FileNonExistent)?;
