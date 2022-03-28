@@ -64,7 +64,7 @@ pub mod pallet {
 	const DEMOCRACY_IDA: LockIdentifier = *b"msminerA";
 	const DEMOCRACY_IDB: LockIdentifier = *b"msminerB";
 	const DEMOCRACY_IDC: LockIdentifier = *b"msminerC";
-	const DEMOCRACY_IDD: LockIdentifier = *b"msminerD";
+	// const DEMOCRACY_IDD: LockIdentifier = *b"msminerD";
 	
 	#[pallet::config]
 	pub trait Config: pallet_timestamp::Config + frame_system::Config {
@@ -205,11 +205,6 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn seg_info)]
 	pub(super) type SegInfo<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, SegmentInfo, ValueQuery>;
-
-	/// A data structure that stores information
-	#[pallet::storage]
-	#[pallet::getter(fn storage_info_value)]
-	pub(super) type StorageInfoValue<T: Config> = StorageValue<_, StorageInfo, ValueQuery>;
 
 	/// The hashmap for segment info including index of segment, miner's current power and space.
 	#[pallet::storage]
@@ -507,106 +502,109 @@ pub mod pallet {
 		}
 
 
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::add_available_storage())]
-		pub fn add_available_storage(origin: OriginFor<T>, increment: u128) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-			StorageInfoValue::<T>::try_mutate(|s| -> DispatchResult {
-				(*s).available_storage = (*s).available_storage.checked_add(increment).ok_or(Error::<T>::Overflow)?;
-				Ok(())
-			})?;
-			Ok(())
-		}
+		// #[pallet::weight(<T as pallet::Config>::WeightInfo::add_available_storage())]
+		// pub fn add_available_storage(origin: OriginFor<T>, increment: u128) -> DispatchResult {
+		// 	let _ = ensure_root(origin)?;
+		// 	StorageInfoValue::<T>::try_mutate(|s| -> DispatchResult {
+		// 		(*s).available_storage = (*s).available_storage.checked_add(increment).ok_or(Error::<T>::Overflow)?;
+		// 		Ok(())
+		// 	})?;
+		// 	Ok(())
+		// }
 		/// Add used storage.
 		///
 		/// The dispatch origin of this call must be _root_.
 		///
 		/// Parameters:
 		/// - `increment`: The miners power.
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::add_used_storage())]
-		pub fn add_used_storage(origin: OriginFor<T>, increment: u128) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-			StorageInfoValue::<T>::try_mutate(|s| -> DispatchResult {
-				(*s).used_storage = (*s).used_storage.checked_add(increment).ok_or(Error::<T>::Overflow)?;
-				Ok(())
-			})?;
-			Ok(())
-		}
+		/// 
+		// #[pallet::weight(<T as pallet::Config>::WeightInfo::add_used_storage())]
+		// pub fn add_used_storage(origin: OriginFor<T>, increment: u128) -> DispatchResult {
+		// 	let _ = ensure_root(origin)?;
+		// 	StorageInfoValue::<T>::try_mutate(|s| -> DispatchResult {
+		// 		(*s).used_storage = (*s).used_storage.checked_add(increment).ok_or(Error::<T>::Overflow)?;
+		// 		Ok(())
+		// 	})?;
+		// 	Ok(())
+		// }
+
 		/// A scheduled task for computing power trend data of the entire network.
 		///
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::timing_storage_space())]
-		pub fn timing_storage_space(origin: OriginFor<T>) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-			let now = pallet_timestamp::Pallet::<T>::get();
-			let storage_info = StorageInfoValue::<T>::get();
-			let mut storage_info_vec = StorageInfoVec::<T>::get();
+		// #[pallet::weight(<T as pallet::Config>::WeightInfo::timing_storage_space())]
+		// pub fn timing_storage_space(origin: OriginFor<T>) -> DispatchResult {
+		// 	let _ = ensure_root(origin)?;
+		// 	let now = pallet_timestamp::Pallet::<T>::get();
+		// 	let storage_info = StorageInfoValue::<T>::get();
+		// 	let mut storage_info_vec = StorageInfoVec::<T>::get();
 			
-			let mut info1: Vec<StorageInfo> = Vec::new();
-			let value = StorageInfo{
-				used_storage: storage_info.used_storage,
-				available_storage: storage_info.available_storage,
-				time: TryInto::<u128>::try_into(now).ok().unwrap(),
-			};
-			info1.push(value);
+		// 	let mut info1: Vec<StorageInfo> = Vec::new();
+		// 	let value = StorageInfo{
+		// 		used_storage: storage_info.used_storage,
+		// 		available_storage: storage_info.available_storage,
+		// 		time: TryInto::<u128>::try_into(now).ok().unwrap(),
+		// 	};
+		// 	info1.push(value);
 
-			storage_info_vec.append(&mut info1);
-			storage_info_vec.remove(0);
+		// 	storage_info_vec.append(&mut info1);
+		// 	storage_info_vec.remove(0);
 
-			<StorageInfoVec<T>>::put(storage_info_vec);
-			Self::deposit_event(Event::<T>::TimingStorageSpace());
-			Ok(())
-		}
+		// 	<StorageInfoVec<T>>::put(storage_info_vec);
+		// 	Self::deposit_event(Event::<T>::TimingStorageSpace());
+		// 	Ok(())
+		// }
+
 		/// A scheduled task for computing power trend data of the entire network.
 		///
 		/// The dispatch origin of this call must be _root_.
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::timing_task_storage_space())]
-		pub fn timing_task_storage_space(origin: OriginFor<T>, when: T::BlockNumber, cycle: T::BlockNumber, degree: u32) -> DispatchResult {
-			let _ = ensure_root(origin)?;
+		// #[pallet::weight(<T as pallet::Config>::WeightInfo::timing_task_storage_space())]
+		// pub fn timing_task_storage_space(origin: OriginFor<T>, when: T::BlockNumber, cycle: T::BlockNumber, degree: u32) -> DispatchResult {
+		// 	let _ = ensure_root(origin)?;
 
-			if T::SScheduler::schedule_named(
-				(DEMOCRACY_IDD).encode(),
-				DispatchTime::At(when),
-				Some(( cycle, degree)),
-				63,
-				frame_system::RawOrigin::Root.into(),
-				Call::timing_storage_space{}.into(),
-			).is_err() {
-				frame_support::print("LOGIC ERROR: timing_storage_space/schedule_named failed");
-			}
+		// 	if T::SScheduler::schedule_named(
+		// 		(DEMOCRACY_IDD).encode(),
+		// 		DispatchTime::At(when),
+		// 		Some(( cycle, degree)),
+		// 		63,
+		// 		frame_system::RawOrigin::Root.into(),
+		// 		Call::timing_storage_space{}.into(),
+		// 	).is_err() {
+		// 		frame_support::print("LOGIC ERROR: timing_storage_space/schedule_named failed");
+		// 	}
 
-			// Self::deposit_event(Event::<T>::AddScheduledTask(sender.clone()));
-			Ok(())
-		}
+		// 	// Self::deposit_event(Event::<T>::AddScheduledTask(sender.clone()));
+		// 	Ok(())
+		// }
 		/// Generate power trend data for the first 30 days.
 		///
 		/// The dispatch origin of this call must be _root_.
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::timing_storage_space_thirty_days())]
-		pub fn timing_storage_space_thirty_days(origin: OriginFor<T>) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-			let now = pallet_timestamp::Pallet::<T>::get();
-			let mut storage_info_vec = StorageInfoVec::<T>::get();
-			let mut info1: Vec<StorageInfo> = Vec::new();
+		// #[pallet::weight(<T as pallet::Config>::WeightInfo::timing_storage_space_thirty_days())]
+		// pub fn timing_storage_space_thirty_days(origin: OriginFor<T>) -> DispatchResult {
+		// 	let _ = ensure_root(origin)?;
+		// 	let now = pallet_timestamp::Pallet::<T>::get();
+		// 	let mut storage_info_vec = StorageInfoVec::<T>::get();
+		// 	let mut info1: Vec<StorageInfo> = Vec::new();
 
-			let mut i = 0;
-			while i < 30 {
-				if TryInto::<u128>::try_into(now).ok().unwrap() > 86400000*30{
-					let tmp = TryInto::<u128>::try_into(now).ok().unwrap().checked_sub(86400000*(30-i-1)).ok_or(Error::<T>::Overflow)?;
+		// 	let mut i = 0;
+		// 	while i < 30 {
+		// 		if TryInto::<u128>::try_into(now).ok().unwrap() > 86400000*30{
+		// 			let tmp = TryInto::<u128>::try_into(now).ok().unwrap().checked_sub(86400000*(30-i-1)).ok_or(Error::<T>::Overflow)?;
 
-					let value = StorageInfo{
-						used_storage: 0,
-						available_storage: 0,
-						time: tmp,
-					};
-					info1.push(value);
-				}
-				i = i.checked_add(1).ok_or(Error::<T>::Overflow)?;
-			}
+		// 			let value = StorageInfo{
+		// 				used_storage: 0,
+		// 				available_storage: 0,
+		// 				time: tmp,
+		// 			};
+		// 			info1.push(value);
+		// 		}
+		// 		i = i.checked_add(1).ok_or(Error::<T>::Overflow)?;
+		// 	}
 
-			storage_info_vec.append(&mut info1);
+		// 	storage_info_vec.append(&mut info1);
 
-			<StorageInfoVec<T>>::put(storage_info_vec);
-			Self::deposit_event(Event::<T>::TimingStorageSpace());
-			Ok(())
-		}
+		// 	<StorageInfoVec<T>>::put(storage_info_vec);
+		// 	Self::deposit_event(Event::<T>::TimingStorageSpace());
+		// 	Ok(())
+		// }
 		/// Add reward orders.
 		///
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timed_increase_rewards())]
@@ -1091,10 +1089,7 @@ impl<T: Config> Pallet<T> {
 			*s = s.checked_add(increment).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})?;
-		StorageInfoValue::<T>::try_mutate(|s| -> DispatchResult {
-			(*s).available_storage = (*s).available_storage.checked_add(increment).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
+
 		MinerTable::<T>::try_mutate(peerid, |s_opt| -> DispatchResult {
 			let s = s_opt.as_mut().unwrap();
 			s.total_storage = s.total_storage.checked_add(increment).ok_or(Error::<T>::Overflow)?;
@@ -1163,10 +1158,7 @@ impl<T: Config> Pallet<T> {
 			*s = s.checked_sub(increment).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})?;
-		StorageInfoValue::<T>::try_mutate(|s| -> DispatchResult {
-			(*s).available_storage = (*s).available_storage.checked_sub(increment).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
+
 		let mut allminer = AllMiner::<T>::get();
 		let mut k = 0;
 		for i in allminer.clone().iter() {
@@ -1216,10 +1208,7 @@ impl<T: Config> Pallet<T> {
 			*s = s.checked_add(increment).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})?;
-		StorageInfoValue::<T>::try_mutate(|s| -> DispatchResult {
-			(*s).used_storage = (*s).used_storage.checked_add(increment).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
+
 		// MinerStatValue::<T>::try_mutate(|s_opt| -> DispatchResult {
 		// 	let s = s_opt.as_mut().unwrap();
 		// 	s.sum_files = s.sum_files.checked_add(1).ok_or(Error::<T>::Overflow)?;
@@ -1274,10 +1263,7 @@ impl<T: Config> Pallet<T> {
 			*s = s.checked_sub(increment).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})?;
-		StorageInfoValue::<T>::mutate(|s| -> DispatchResult {
-			(*s).used_storage = (*s).used_storage.checked_sub(increment).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
+
 		// MinerStatValue::<T>::mutate(|s_opt| -> DispatchResult {
 		// 	let s = s_opt.as_mut().unwrap();
 		// 	s.sum_files = s.sum_files.checked_sub(1).ok_or(Error::<T>::Overflow)?;

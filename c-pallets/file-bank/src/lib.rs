@@ -375,13 +375,16 @@ pub mod pallet {
 			}
 			let space = 1024 * space_count;
 			//Because there are three backups, it is charged at one-third of the price
-			let price = unit_price * (space) * lease_count / 3;
+			let price = unit_price
+				.checked_mul(space).ok_or(Error::<T>::Overflow)?
+				.checked_mul(lease_count).ok_or(Error::<T>::Overflow)?
+				.checked_div(3).ok_or(Error::<T>::Overflow)?;
 			//Increase the space purchased by users 
 			//and judge whether there is still space available for purchase
 			pallet_sminer::Pallet::<T>::add_purchased_space(space)?;
 
-			let money: Option<BalanceOf<T>> = price.try_into().ok();
-			<T as pallet::Config>::Currency::transfer(&sender, &acc, money.unwrap(), AllowDeath)?;
+			let money: BalanceOf<T> = price.try_into().map_err(|_e| Error::<T>::ConversionError)?;
+			<T as pallet::Config>::Currency::transfer(&sender, &acc, money, AllowDeath)?;
 			let now = <frame_system::Pallet<T>>::block_number();
 			let deadline: BlockNumberOf<T> = ((864000 * lease_count) as u32).into();
 			let mut list: Vec<SpaceInfo<T>> = vec![SpaceInfo::<T>{size: 1024, deadline: now + deadline}; space_count as usize];
@@ -391,7 +394,7 @@ pub mod pallet {
 			});
 			Self::user_buy_space_update(sender.clone(), space * 1024)?;
 
-			Self::deposit_event(Event::<T>::BuySpace{acc: sender.clone(), size: space, fee: money.unwrap()});
+			Self::deposit_event(Event::<T>::BuySpace{acc: sender.clone(), size: space, fee: money});
 			Ok(())
 		}
 
@@ -503,7 +506,7 @@ impl<T: Config> Pallet<T> {
 	//Available space divided by 1024 is the unit price
 	fn get_price() -> u128 {
 		let space = pallet_sminer::Pallet::<T>::get_space();
-		let price: u128 = 1024 / space * 1_000_000_000_000 * 1000;
+		let price: u128 = 1024 * 1_000_000_000_000 * 1000 / space ;
 		price
 	}
 
