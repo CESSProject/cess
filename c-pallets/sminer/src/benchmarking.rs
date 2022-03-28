@@ -12,7 +12,11 @@ use crate::Pallet as Sminer;
 
 fn new_miner<T: Config>() {
 	let caller: T::AccountId = whitelisted_caller();
-    Pallet::<T>::new_miner(caller).expect("err");  
+    assert!(Pallet::<T>::regnstk(
+        SystemOrigin::Signed(caller.clone()).into(),
+        
+    )
+    .is_ok());  
 }
 
 fn add_owner<T: Config>() {
@@ -77,7 +81,7 @@ benchmarks! {
         let fileport = 35535;
         let staking_val: BalanceOf<T> = BalanceOf::<T>::from(0u32);
         let beneficiary = T::Lookup::unlookup(caller.clone());
-    }: _(SystemOrigin::Signed(caller.clone()), beneficiary, ip, port, fileport, staking_val)
+    }: _(SystemOrigin::Signed(caller.clone()), beneficiary, ip, staking_val)
     verify {
         assert_eq!(<MinerItems<T>>::get(&caller).unwrap().peerid, 1);
     }
@@ -110,48 +114,6 @@ benchmarks! {
     }: _(SystemOrigin::Signed(caller.clone()))
     verify {
         assert_eq!(<MinerStatValue<T>>::get().unwrap().total_miners, 0);
-    }
-
-    setaddress {
-        let caller: T::AccountId = whitelisted_caller();
-    }: _(SystemOrigin::Signed(caller.clone()), caller.clone(), caller.clone(), caller.clone(), caller.clone())
-    verify {
-
-    }
-
-    updateaddress {
-        add_owner::<T>();
-        let caller: T::AccountId = whitelisted_caller();
-    }: _(SystemOrigin::Signed(caller.clone()), caller.clone())
-    verify {
-
-    }
-
-    setetcd {
-        add_owner::<T>();
-        let caller: T::AccountId = whitelisted_caller();
-        let ip: Vec<u8> = "192.168.1.1".as_bytes().to_vec();
-    }: _(SystemOrigin::Signed(caller.clone()), ip.clone())
-    verify {
-        assert_eq!(<EtcdRegister<T>>::get(), ip);
-    }
-
-    setetcdtoken {
-        add_owner::<T>();
-        let caller: T::AccountId = whitelisted_caller();
-        let token: Vec<u8> = "192.168.1.1".as_bytes().to_vec();
-    }: _(SystemOrigin::Signed(caller.clone()), token.clone())
-    verify {
-        assert_eq!(<EtcdToken<T>>::get(), token);
-    }
-
-    setserviceport {
-        add_owner::<T>();
-        let caller: T::AccountId = whitelisted_caller();
-        let serviceport: Vec<u8> = "192.168.1.1".as_bytes().to_vec();
-    }: _(SystemOrigin::Signed(caller.clone()), serviceport.clone())
-    verify {
-        assert_eq!(<ServicePort<T>>::get(), serviceport);
     }
 
     add_available_storage {

@@ -41,6 +41,9 @@ use sp_runtime::{
 	RuntimeDebug,
 	traits::{SaturatedConversion},
 };
+mod types;
+use types::*;
+
 
 use sp_std::prelude::*;
 use codec::{Encode, Decode};
@@ -54,203 +57,6 @@ pub use weights::WeightInfo;
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 
-/// The custom struct for storing info of proofs in VPA. idle segment
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct ProofInfoVPA<T: pallet::Config> {
-	//When is_ready changed to true, the corresponding spatiotemporal proof can be submitted
-	is_ready: bool,
-	//false for 8M segment, true for 512M segment
-	size_type: u128,
-	proof: Option<Vec<u8>>,
-	sealed_cid: Option<Vec<u8>>,
-	rand: u32,
-	block_num: Option<BlockNumberOf<T>>,
-}
-
-/// The custom struct for storing info of proofs in PPA.
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct ProofInfoPPA<T: pallet::Config> {
-	//1 for 8M segment, 2 for 512M segment
-	size_type: u128,
-	proof: Option<Vec<u8>>,
-	sealed_cid: Option<Vec<u8>>,
-	block_num: Option<BlockNumberOf<T>>,
-}
-
-///Used to provide random numbers for miners
-///Miners generate certificates based on random numbers and submit them
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-pub struct ParamInfo {
-	peer_id: u64,
-	segment_id: u64,
-	rand: u32,
-}
-
-///When the VPA is submitted, and the verification is passed
-///Miners began to submit idle time and space certificates
-///The data is stored in the structure
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct ProofInfoVPB<T: pallet::Config> {
-	//When is_ready changed to true, the corresponding spatiotemporal proof can be submitted
-	is_ready: bool,
-	//1 for 8M segment, 2 for 512M segment
-	size_type: u128,
-	proof: Option<Vec<u8>>,
-	sealed_cid: Option<Vec<u8>>,
-	rand: u32,
-	block_num: Option<BlockNumberOf<T>>,
-}
-
-//The spatiotemporal proof of validation is stored in the modified structure
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct ProofInfoPPB<T: pallet::Config> {
-	//1 for 8M segment, 2 for 512M segment
-	size_type: u128,
-	proof: Option<Vec<u8>>,
-	sealed_cid: Option<Vec<u8>>,
-	block_num: Option<BlockNumberOf<T>>,
-}
-
-//Service copy certificate
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct ProofInfoVPC<T: pallet::Config> {
-	//When is_ready changed to true, the corresponding spatiotemporal proof can be submitted
-	is_ready: bool,
-	//1 for 8M segment, 2 for 512M segment
-	size_type: u128,
-	proof: Option<Vec<Vec<u8>>>,
-	sealed_cid: Option<Vec<Vec<u8>>>,
-	rand: u32,
-	block_num: Option<BlockNumberOf<T>>,
-}
-
-//Verification certificate
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct ProofInfoPPC<T: pallet::Config> {
-	//1 for 8M segment, 2 for 512M segment
-	size_type: u128,
-	proof: Option<Vec<Vec<u8>>>,
-	sealed_cid: Option<Vec<Vec<u8>>>,
-	block_num: Option<BlockNumberOf<T>>,
-}
-
-//Submit spatiotemporal proof for proof of replication of service data segments
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct ProofInfoVPD<T: pallet::Config> {
-	//When is_ready changed to true, the corresponding spatiotemporal proof can be submitted
-	is_ready: bool,
-	//1 for 8M segment, 2 for 512M segment
-	size_type: u128,
-	proof: Option<Vec<Vec<u8>>>,
-	sealed_cid: Option<Vec<Vec<u8>>>,
-	rand: u32,
-	block_num: Option<BlockNumberOf<T>>,
-}
-
-//Verification Corresponding certificate
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct ProofInfoPPD<T: pallet::Config> {
-	//1 for 8M segment, 2 for 512M segment
-	size_type: u128,
-	proof: Option<Vec<Vec<u8>>>,
-	sealed_cid: Option<Vec<Vec<u8>>>,
-	block_num: Option<BlockNumberOf<T>>,
-}
-
-//A series of data required for polling
-//The total number of blocks that store all the file data held by the miner
-
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct PeerFileNum {
-	block_num: u128,
-	total_num: u64,
-}
-
-//The scheduler reads the pool to know which data it should verify for AB
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct UnverifiedPool<T: pallet::Config> {
-	acc: AccountOf<T>,
-	peer_id: u64,
-	segment_id: u64,
-	proof: Vec<u8>,
-	sealed_cid: Vec<u8>,
-	rand: u32,
-	size_type: u128,
-}
-
-//The scheduler reads the pool to know which data it should verify for C
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct UnverifiedPoolVec<T: pallet::Config> {
-	acc: AccountOf<T>,
-	peer_id: u64,
-	segment_id: u64,
-	//The file is sliced, and each slice generates a certificate
-	proof: Vec<Vec<u8>>,
-	sealed_cid: Vec<Vec<u8>>,
-	uncid: Vec<Vec<u8>>,
-	rand: u32,
-	size_type: u128,
-}
-
-//The scheduler reads the pool to know which data it should verify for D
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct UnverifiedPoolVecD<T: pallet::Config> {
-	acc: AccountOf<T>,
-	peer_id: u64,
-	segment_id: u64,
-	//The file is sliced, and each slice generates a certificate
-	proof: Vec<Vec<u8>>,
-	sealed_cid: Vec<Vec<u8>>,
-	rand: u32,
-	size_type: u128,
-}
-
-//Miners read the pool to know which data segments they need to submit time-space certificates
-// for AB
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct ContinuousProofPool {
-	peer_id: u64,
-	segment_id: u64,
-	sealed_cid: Vec<u8>,
-	size_type: u128,
-}
-//Miners read the pool to know which data segments they need to submit time-space certificates
-// for CD
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct ContinuousProofPoolVec {
-	peer_id: u64,
-	segment_id: u64,
-	sealed_cid: Vec<Vec<u8>>,
-	hash: Vec<u8>,
-	size_type: u128,
-}
-
-//The miner reads the pool to generate a duplicate certificate of service
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct FileSilceInfo {
-	peer_id: u64,
-	segment_id: u64,
-	uncid: Vec<Vec<u8>>,
-	rand: u32,
-	hash: Vec<u8>,
-	shardhash: Vec<u8>,
-}
-
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -262,7 +68,7 @@ pub mod pallet {
 	use frame_system::{ensure_signed, pallet_prelude::*};
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_sminer::Config {
+	pub trait Config: frame_system::Config + pallet_sminer::Config + pallet_file_bank::Config {
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		/// The currency trait.
@@ -340,6 +146,8 @@ pub mod pallet {
 		MinerUnExis,
 
 		SegmentUnExis,
+
+		FileNonExistent,
 	}
 
 	// #[pallet::storage]
@@ -593,31 +401,10 @@ pub mod pallet {
 							let blocknum2: u128 = res.block_num.unwrap().saturated_into();
 							let peerid = pallet_sminer::Pallet::<T>::get_peerid(&acc);
 							if number - 14400 > blocknum2 {
+								let _ = pallet_sminer::Pallet::<T>::punish(acc.clone());
 								let _ = pallet_sminer::Pallet::<T>::sub_power(peerid, res.size_type);
 								let _ = pallet_sminer::Pallet::<T>::sub_space(peerid, res.size_type);
-								<ConProofInfoC<T>>::mutate(&acc, |s|{
-									for i in 0..s.len() {
-										let v = s.get(i);
-										if v.unwrap().segment_id == key2 {
-											s.remove(i);
-											break;
-										}
-									}
-								});
-								let mut unb = <UnVerifiedD<T>>::get();
-								let mut k = 0;
-								for i in unb.clone().iter() {
-									if peerid == i.peer_id && key2 == i.segment_id {
-										unb.remove(k);
-										break;
-									}
-									k += 1;
-								}
-								//remove related storage
-								<UnVerifiedD<T>>::put(unb);
-								<PrePoolC<T>>::remove(&acc, key2);
-								<VerPoolD<T>>::remove(&acc, key2);
-								<PrePoolD<T>>::remove(&acc, key2);
+								Self::clean_service_proofs_signle(peerid, key2);
 								//let _ = pallet_sminer::Pallet::<T>::fine_money(&acc);
 								Self::deposit_event(Event::<T>::PPDNoOnTimeSubmit{acc: acc.clone(), segment_id: key2});
 							}
@@ -647,7 +434,6 @@ pub mod pallet {
 			submit_type: u8, 
 			peerid: u64, 
 			uncid: Vec<Vec<u8>>, 
-			hash: Vec<u8>, 
 			shardhash: Vec<u8>
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -707,7 +493,6 @@ pub mod pallet {
 						segment_id: segment_id,
 						uncid: uncid,
 						rand: random,
-						hash: hash,
 						shardhash: shardhash,
 					};
 					if <MinerHoldSlice<T>>::contains_key(&acc) {
@@ -1022,9 +807,13 @@ pub mod pallet {
 		///  - `proof`: proof, It could be a slice, so multiple proofs
 		///  - `sealed_cid`: Required for verification certificate, It could be a slice, so multiple proofs
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_to_vpc())]
-		pub fn submit_to_vpc(origin: OriginFor<T>, peer_id: u64, segment_id: u64, proof: Vec<Vec<u8>>, sealed_cid: Vec<Vec<u8>>) -> DispatchResult {
+		pub fn submit_to_vpc(origin: OriginFor<T>, peer_id: u64, segment_id: u64, proof: Vec<Vec<u8>>, sealed_cid: Vec<Vec<u8>>, fileid: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(<VerPoolC<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
+			if !pallet_file_bank::Pallet::<T>::check_file_exist(fileid) {
+				Self::clean_service_proofs_signle(peer_id, segment_id);
+				Err(Error::<T>::FileNonExistent)?;
+			}
 			
 			VerPoolC::<T>::mutate(&sender, segment_id, |s_opt| {
 				let s = s_opt.as_mut().unwrap();
@@ -1141,7 +930,7 @@ pub mod pallet {
 				let value = MinerHoldSlice::<T>::get(&sender);
 				for i in value {
 					if i.segment_id == segment_id {
-						hash = i.hash;
+						hash = i.shardhash;
 					}
 				}
 
@@ -1186,6 +975,11 @@ pub mod pallet {
 				}
 				<VerPoolC<T>>::remove(&sender, segment_id);
 			} else {
+				let vpc = <VerPoolC<T>>::get(sender.clone(), segment_id).unwrap();
+				let _ = pallet_sminer::Pallet::<T>::sub_power(peer_id, vpc.size_type);
+				let _ = pallet_sminer::Pallet::<T>::sub_space(peer_id, vpc.size_type);
+				pallet_sminer::Pallet::<T>::punish(sender.clone())?;
+				Self::clean_service_proofs_signle(peer_id, segment_id);
 				<VerPoolC<T>>::mutate(&sender, segment_id, |x_opt| {
 					let s = x_opt.as_mut().unwrap();
 					s.is_ready = false;
@@ -1208,10 +1002,15 @@ pub mod pallet {
 		///  - `proof`: proof, It could be a slice, so multiple proofs
 		///  - `sealed_cid`: Required for verification certificate, It could be a slice, so multiple proofs
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_to_vpd())]
-		pub fn submit_to_vpd(origin: OriginFor<T>, peer_id: u64, segment_id: u64, proof: Vec<Vec<u8>>, sealed_cid: Vec<Vec<u8>>) -> DispatchResult {
+		pub fn submit_to_vpd(origin: OriginFor<T>, peer_id: u64, segment_id: u64, proof: Vec<Vec<u8>>, sealed_cid: Vec<Vec<u8>>, fileid: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let now_block = <frame_system::Pallet<T>>::block_number();
 			ensure!(<VerPoolD<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
+			// ensure!(<VerPoolC<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
+			if !pallet_file_bank::Pallet::<T>::check_file_exist(fileid) {
+				Self::clean_service_proofs_signle(peer_id, segment_id);
+				Err(Error::<T>::FileNonExistent)?;
+			}
 
 			VerPoolD::<T>::mutate(&sender, segment_id, |s_opt| {
 				let s = s_opt.as_mut().unwrap();
@@ -1271,7 +1070,14 @@ pub mod pallet {
 					s.block_num = Some(now_block);
 					Ok(())
 				})?;
+			} else {
+				let vpc = <PrePoolC<T>>::get(sender.clone(), segment_id).unwrap();
+				let _ = pallet_sminer::Pallet::<T>::sub_power(peer_id, vpc.size_type);
+				let _ = pallet_sminer::Pallet::<T>::sub_space(peer_id, vpc.size_type);
+				pallet_sminer::Pallet::<T>::punish(sender.clone())?;
+				Self::clean_service_proofs_signle(peer_id, segment_id);
 			}
+
 			<VerPoolD<T>>::remove(&sender, segment_id);
 
 			Self::deposit_event(Event::<T>::VPDVerified{peer_id: peer_id, segment_id: segment_id});
@@ -1369,6 +1175,36 @@ impl<T: Config> Pallet<T> {
 		list
 	}
 
+	// fn check_file_exist(fileid: Vec<u8>) -> bool {
+	// 	pallet_file_bank::Pallet::<T>::check_file_exist(fileid)
+	// }
+
+	fn clean_service_proofs_signle(peer_id: u64, segment_id: u64) {
+		let acc = pallet_sminer::Pallet::<T>::get_acc(peer_id);
+		<ConProofInfoC<T>>::mutate(&acc, |s|{
+			for i in 0..s.len() {
+				let v = s.get(i);
+				if v.unwrap().segment_id == segment_id {
+					s.remove(i);
+					break;
+				}
+			}
+		});
+		let mut unb = <UnVerifiedD<T>>::get();
+		let mut k = 0;
+		for i in unb.clone().iter() {
+			if peer_id == i.peer_id && segment_id == i.segment_id {
+				unb.remove(k);
+				break;
+			}
+			k += 1;
+		}
+		//remove related storage
+		<UnVerifiedD<T>>::put(unb);
+		<PrePoolC<T>>::remove(&acc, segment_id);
+		<VerPoolD<T>>::remove(&acc, segment_id);
+		<PrePoolD<T>>::remove(&acc, segment_id);
+	}
 }
 
 

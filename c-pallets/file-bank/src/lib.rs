@@ -16,7 +16,6 @@
 //! * `upload` - Upload info of stored file.
 //! * `update` - Update info of uploaded file.
 //! * `buyfile` - Buy file with download fee.
-
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(test)]
@@ -30,6 +29,8 @@ pub use pallet::*;
 mod benchmarking;
 pub mod weights;
 use sp_std::convert::TryInto;
+mod types;
+pub use types::*;
 
 use scale_info::TypeInfo;
 use sp_runtime::{
@@ -45,39 +46,6 @@ type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 
-/// The custom struct for storing file info.
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct FileInfo<T: pallet::Config> {
-	filename: Vec<u8>,
-	owner: AccountOf<T>,
-	filehash: Vec<u8>,
-	backups: u8,
-	filesize: u128,
-	downloadfee: BalanceOf<T>,
-}
-
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-pub struct StorageSpace {
-	purchased_space: u128,
-	used_space: u128,
-	remaining_space: u128,
-}
-
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct SpaceInfo<T: pallet::Config> {
-	size: u128,
-	deadline: BlockNumberOf<T>,
-}
-
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-pub struct FileSlice {
-	peer_id: Vec<Vec<u8>>,
-	fill_zero: u32,
-	slice_id: u64,
-}
-
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -90,7 +58,7 @@ pub mod pallet {
 	use frame_system::{ensure_signed, pallet_prelude::*};
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_sminer::Config {
+	pub trait Config: frame_system::Config + pallet_sminer::Config + sp_std::fmt::Debug {
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		/// The currency trait.
@@ -108,7 +76,9 @@ pub mod pallet {
 		//file uploaded.
 		FileUpload{acc: AccountOf<T>},
 		//file updated.
-		FileUpdate{acc: AccountOf<T>},
+		FileUpdate{acc: AccountOf<T>, fileid: Vec<u8>},
+
+		FileChangeState{acc: AccountOf<T>, fileid: Vec<u8>},
 		//file bought.
 		BuyFile{acc: AccountOf<T>, money: BalanceOf<T>, fileid: Vec<u8>},
 		//file purchased before.
@@ -121,6 +91,8 @@ pub mod pallet {
 		LeaseExpired{acc: AccountOf<T>, size: u128},
 		//Storage space expiring within 24 hours
 		LeaseExpireIn24Hours{acc: AccountOf<T>, size: u128},
+
+		DeleteFile{acc: AccountOf<T>, fileid: Vec<u8>},
 	}
 	#[pallet::error]
 	pub enum Error<T> {
@@ -143,6 +115,12 @@ pub mod pallet {
 		ConversionError,
 
 		InsufficientAvailableSpace,
+
+		AlreadyRepair,
+
+		NotOwner,
+
+		AlreadyReceive,
 	}
 	#[pallet::storage]
 	#[pallet::getter(fn file)]
@@ -156,10 +134,6 @@ pub mod pallet {
 	#[pallet::getter(fn seg_info)]
 	pub(super) type UserFileSize<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, u128, ValueQuery>;
 
-	#[pallet::storage]
-	#[pallet::getter(fn file_slice_location)]
-	pub(super) type FileSliceLocation<T: Config> = StorageMap<_, Twox64Concat, Vec<u8>, Vec<FileSlice>>;
-
 
 	#[pallet::storage]
 	#[pallet::getter(fn user_hold_file_list)]
@@ -172,6 +146,13 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn user_spance_details)]
 	pub(super) type UserSpaceList<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, Vec<SpaceInfo<T>>, ValueQuery>;
+
+	#[pallet::storage]
+	pub(super) type UserFreeRecord<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, u8, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn test_struct_map)]
+	pub(super) type TestStructMap<T: Config> = StorageValue<_, Vec<TestStructInfo>, ValueQuery>;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -192,25 +173,27 @@ pub mod pallet {
 					let mut k = 0;
 					let mut list = <UserSpaceList<T>>::get(&key);
 					for s in value.iter() {
+						let size = s.size;
 						if now >= s.deadline {
 							list.remove(k);
 							<UserHoldSpaceDetails<T>>::mutate(&key, |s_opt|{
 								let v = s_opt.as_mut().unwrap();
-								v.purchased_space = v.purchased_space - 512 * 1024;
-								if v.remaining_space > 512 * 1024 {
-									v.remaining_space = v.remaining_space - 512 * 1024;
+								v.purchased_space = v.purchased_space - size * 1024;
+								if v.remaining_space > size * 1024 {
+									v.remaining_space = v.remaining_space - size * 1024;
 								}
 							});
-							let _ = pallet_sminer::Pallet::<T>::sub_purchased_space(512);
-							Self::deposit_event(Event::<T>::LeaseExpired{acc: key.clone(), size: 512});
+							let _ = pallet_sminer::Pallet::<T>::sub_purchased_space(size);
+							Self::deposit_event(Event::<T>::LeaseExpired{acc: key.clone(), size: size});
 							k-= 1;
 						} else if s.deadline < now && now >= s.deadline - block_oneday {
 							count += 1;
+							
 						} 
 						k+= 1;
 					}
 					<UserSpaceList<T>>::insert(&key, list);
-					Self::deposit_event(Event::<T>::LeaseExpireIn24Hours{acc: key.clone(), size: 512 * (count as u128)});
+					Self::deposit_event(Event::<T>::LeaseExpireIn24Hours{acc: key.clone(), size: 1024 * (count as u128)});
 				}
 			}
 			0
@@ -224,21 +207,6 @@ pub mod pallet {
 		/// 
 		/// The dispatch origin of this call must be _Signed_.
 		/// 
-		/// Parameters:
-		/// - `filename`: name of file.
-		/// - `address`: address of file.
-		/// - `fileid`: id of file, each file will have different number, even for the same file.
-		/// - `filehash`: hash of file.
-		/// - `similarityhash`: hash of file, used for checking similarity.
-		/// - `is_public`: public or private.
-		/// - `backups`: number of duplicate.
-		/// - `creator`: creator of file.
-		/// - `file_size`: the file size.
-		/// - `keywords`: keywords of file.
-		/// - `email`: owner's email.
-		/// - `uploadfee`: the upload fees.
-		/// - `downloadfee`: the download fees.
-		/// - `deadline`: expiration time.
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload())]
 		pub fn upload(
 			origin: OriginFor<T>,
@@ -246,9 +214,10 @@ pub mod pallet {
 			filename:Vec<u8>,
 			fileid: Vec<u8>,
 			filehash: Vec<u8>,
+			public: bool,
 			backups: u8,
 			filesize: u128,
-			downloadfee:BalanceOf<T>
+			downloadfee:BalanceOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			// let acc = T::FilbakPalletId::get().into_account();
@@ -256,8 +225,7 @@ pub mod pallet {
 
 			ensure!(<UserHoldSpaceDetails<T>>::contains_key(&sender), Error::<T>::NotPurchasedSpace);
 			ensure!(!<File<T>>::contains_key(&fileid), Error::<T>::FileExistent);
-			Self::update_user_space(sender.clone(), 1, filesize * (backups as u128))?;
-
+			
 			let mut invoice: Vec<u8> = Vec::new();
 			for i in &fileid {
 				invoice.push(*i);
@@ -273,18 +241,22 @@ pub mod pallet {
 			<File<T>>::insert(
 				fileid.clone(),
 				FileInfo::<T> {
-					filename,
-					owner: sender.clone(),
-					filehash,
-					backups,
-					filesize,
-					downloadfee: downloadfee.clone(),
+					file_name: filename,
+					file_size: filesize,
+					file_hash: filehash,
+					public: public,
+					user_addr: sender.clone(),
+					file_state: "normal".as_bytes().to_vec(),
+					backups: backups,
+					downloadfee: downloadfee,
+					file_dupl: Vec::new(),
 				}
 			);
 			UserFileSize::<T>::try_mutate(sender.clone(), |s| -> DispatchResult{
 				*s = (*s).checked_add(filesize).ok_or(Error::<T>::Overflow)?;
 				Ok(())
 			})?;
+			Self::update_user_space(sender.clone(), 1, filesize * (backups as u128))?;
 			Self::add_user_hold_file(sender.clone(), fileid.clone());
 			Self::deposit_event(Event::<T>::FileUpload{acc: sender.clone()});
 			Ok(())
@@ -298,28 +270,61 @@ pub mod pallet {
 		/// - `fileid`: id of file, each file will have different number, even for the same file.
 		/// - `is_public`: public or private.
 		/// - `similarityhash`: hash of file, used for checking similarity.
-		// #[pallet::weight(T::WeightInfo::update())]
-		// pub fn update(origin: OriginFor<T>, fileid: Vec<u8>, ispublic: u8, similarityhash: Vec<u8>) -> DispatchResult{
-		// 	let sender = ensure_signed(origin)?;
-		// 	ensure!((<File<T>>::contains_key(fileid.clone())), Error::<T>::FileNonExistent);
+		#[pallet::weight(1_000_000)]
+		pub fn update_dupl(origin: OriginFor<T>, fileid: Vec<u8>, file_dupl: Vec<FileDuplicateInfo>) -> DispatchResult{
+			let sender = ensure_signed(origin)?;
+			ensure!((<File<T>>::contains_key(fileid.clone())), Error::<T>::FileNonExistent);
+			//Judge whether it is a consensus node
 
-		// 	<File<T>>::mutate(fileid, |s_opt| {
-		// 		let s = s_opt.as_mut().unwrap();
-		// 		s.ispublic = ispublic;
-		// 		s.similarityhash = similarityhash;
-		// 	});
-		// 	Self::deposit_event(Event::<T>::FileUpdate(sender.clone()));
+			<File<T>>::try_mutate(fileid.clone(), |s_opt| -> DispatchResult {
+				let s = s_opt.as_mut().unwrap();
+				s.file_state = "active".as_bytes().to_vec();
+				s.file_dupl = file_dupl;
+				Ok(())
+			})?;
+			Self::deposit_event(Event::<T>::FileUpdate{acc: sender.clone(), fileid: fileid});
 
-		// 	Ok(())
-		// }
+			Ok(())
+		}
 
-		/// Update info of uploaded file.
-		/// 
-		/// The dispatch origin of this call must be _Signed_.
-		/// 
-		/// Parameters:
-		/// - `fileid`: id of file, each file will have different number, even for the same file.
-		/// - `address`: address of file.
+		#[pallet::weight(1_000_000)]
+		pub fn update_file_state(origin: OriginFor<T>, fileid: Vec<u8>, state: Vec<u8>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			ensure!((<File<T>>::contains_key(fileid.clone())), Error::<T>::FileNonExistent);
+			//Judge whether it is a consensus node
+
+			<File<T>>::try_mutate(fileid.clone(), |s_opt| -> DispatchResult{
+				let s = s_opt.as_mut().unwrap();
+				//To prevent multiple scheduling
+				if s.file_state == "repairing".as_bytes().to_vec() && state == "repairing".as_bytes().to_vec() {
+					Err(Error::<T>::AlreadyRepair)?;
+				}
+
+				s.file_state = state;
+				Ok(())
+			})?;
+
+			Self::deposit_event(Event::<T>::FileChangeState{acc: sender.clone(), fileid: fileid});
+			Ok(())
+		}
+
+		#[pallet::weight(2_000_000)]
+		pub fn delete_file(origin: OriginFor<T>, fileid: Vec<u8>) -> DispatchResult{
+			let sender = ensure_signed(origin)?;
+			ensure!((<File<T>>::contains_key(fileid.clone())), Error::<T>::FileNonExistent);
+			let file = <File<T>>::get(&fileid).unwrap();
+			if file.user_addr != sender.clone() {
+				Err(Error::<T>::NotOwner)?;
+			}
+
+			Self::update_user_space(sender.clone(), 2, file.file_size)?;
+			<File::<T>>::remove(&fileid);
+
+			Self::deposit_event(Event::<T>::DeleteFile{acc: sender, fileid: fileid});
+			Ok(())
+		}
+
 		#[pallet::weight(2_000_000)]
 		pub fn buyfile(origin: OriginFor<T>, fileid: Vec<u8>, address: Vec<u8>) -> DispatchResult{
 			let sender = ensure_signed(origin)?;
@@ -336,7 +341,7 @@ pub mod pallet {
 				invoice.push(*i);
 			}
 				
-			if <Invoice<T>>::contains_key(fileid.clone()) {
+			if <Invoice<T>>::contains_key(invoice.clone()) {
 				Self::deposit_event(Event::<T>::Purchased{acc: sender.clone(), fileid: fileid.clone()});
 			} else {
 				let zh = TryInto::<u128>::try_into(group_id.downloadfee).ok().unwrap();
@@ -345,7 +350,7 @@ pub mod pallet {
 					.checked_div(10).ok_or(Error::<T>::Overflow)?;
 				let money: Option<BalanceOf<T>> = umoney.try_into().ok();
 				let acc = T::FilbakPalletId::get().into_account();
-				<T as pallet::Config>::Currency::transfer(&sender, &group_id.owner, money.unwrap(), AllowDeath)?;
+				<T as pallet::Config>::Currency::transfer(&sender, &group_id.user_addr, money.unwrap(), AllowDeath)?;
 				<T as pallet::Config>::Currency::transfer(&sender, &acc, group_id.downloadfee - money.unwrap(), AllowDeath)?;
 				<Invoice<T>>::insert(
 					invoice,
@@ -357,48 +362,62 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(2_000_000)]
-		pub fn insert_file_slice_location(origin: OriginFor<T>, fileid: Vec<u8>, slice: Vec<FileSlice>) -> DispatchResult {
-			let _ = ensure_signed(origin)?;
-
-			<FileSliceLocation<T>>::insert(&fileid, slice);
-			Self::deposit_event(Event::<T>::InsertFileSlice{fileid: fileid});
-			Ok(())
-		}
-
 		//**********************************************************************************************************************************************
 		//************************************************************Storage space lease***************************************************************
 		//**********************************************************************************************************************************************
 		#[pallet::weight(2_000_000)]
-		pub fn buy_space(origin: OriginFor<T>, count: u128, max_price: u128) -> DispatchResult {
+		pub fn buy_space(origin: OriginFor<T>, space_count: u128, lease_count: u128, max_price: u128) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let acc = T::FilbakPalletId::get().into_account();
 			let unit_price = Self::get_price();
 			if unit_price > max_price * 1000000000000 && 0 != max_price {
 				Err(Error::<T>::ExceedExpectations)?;
 			}
-			let space = 512 * count;
+			let space = 1024 * space_count;
 			//Because there are three backups, it is charged at one-third of the price
-			let price = unit_price * (space) / 3;
+			let price = unit_price
+				.checked_mul(space).ok_or(Error::<T>::Overflow)?
+				.checked_mul(lease_count).ok_or(Error::<T>::Overflow)?
+				.checked_div(3).ok_or(Error::<T>::Overflow)?;
 			//Increase the space purchased by users 
 			//and judge whether there is still space available for purchase
 			pallet_sminer::Pallet::<T>::add_purchased_space(space)?;
 
-			let money: Option<BalanceOf<T>> = price.try_into().ok();
-			<T as pallet::Config>::Currency::transfer(&sender, &acc, money.unwrap(), AllowDeath)?;
+			let money: BalanceOf<T> = price.try_into().map_err(|_e| Error::<T>::ConversionError)?;
+			<T as pallet::Config>::Currency::transfer(&sender, &acc, money, AllowDeath)?;
 			let now = <frame_system::Pallet<T>>::block_number();
-			let deadline: BlockNumberOf<T> = (864000 as u32).into();
-			let mut list: Vec<SpaceInfo<T>> = vec![SpaceInfo::<T>{size: 512, deadline: now + deadline}; count as usize];
+			let deadline: BlockNumberOf<T> = ((864000 * lease_count) as u32).into();
+			let mut list: Vec<SpaceInfo<T>> = vec![SpaceInfo::<T>{size: 1024, deadline: now + deadline}; space_count as usize];
 
 			<UserSpaceList<T>>::mutate(&sender, |s|{
 				s.append(&mut list);
 			});
 			Self::user_buy_space_update(sender.clone(), space * 1024)?;
 
-			Self::deposit_event(Event::<T>::BuySpace{acc: sender.clone(), size: space, fee: money.unwrap()});
+			Self::deposit_event(Event::<T>::BuySpace{acc: sender.clone(), size: space, fee: money});
 			Ok(())
 		}
 
+		#[pallet::weight(2_000_000)]
+		pub fn receive_free_space(origin: OriginFor<T>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			ensure!(!<UserFreeRecord<T>>::contains_key(&sender), Error::<T>::AlreadyReceive);
+			pallet_sminer::Pallet::<T>::add_purchased_space(1024)?;
+			
+			let deadline: BlockNumberOf<T> = 999999999u32.into();
+			let mut list: Vec<SpaceInfo<T>> = vec![SpaceInfo::<T>{size: 1024, deadline}];
+
+			<UserSpaceList<T>>::mutate(&sender, |s|{
+				s.append(&mut list);
+			});
+
+			Self::user_buy_space_update(sender.clone(), 1024 * 1024)?;
+			<UserFreeRecord<T>>::insert(&sender, 1);
+			Ok(())
+		}
+		// #[
+
+		//Test method：Clear the storage space owned by the user
 		#[pallet::weight(2_000_000)]
 		pub fn initi_acc(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -407,14 +426,16 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(2_000_000)]
-		pub fn delete_file(origin: OriginFor<T>) -> DispatchResult {
-			let _ = ensure_signed(origin)?;
-			for (key, _) in <File<T>>::iter() {
-				<File<T>>::remove(&key);
-			}
-			Ok(())
-		}
+
+
+		//#[pallet::weight(2_000_000)]
+		// pub fn clean_file(origin: OriginFor<T>) -> DispatchResult {
+		// 	let _ = ensure_signed(origin)?;
+		// 	for (key, _) in <File<T>>::iter() {
+		// 		<File<T>>::remove(&key);
+		// 	}
+		// 	Ok(())
+		// }
 		
 	}
 }
@@ -430,6 +451,7 @@ impl<T: Config> Pallet<T> {
 						Err(Error::<T>::InsufficientStorage)?;
 					}
 					if false == Self::check_lease_expired(acc.clone()) {
+						Self::deposit_event(Event::<T>::LeaseExpired{acc: acc.clone(), size: 0});
 						Err(Error::<T>::LeaseExpired)?;
 					}
 					s.remaining_space = s.remaining_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
@@ -475,16 +497,22 @@ impl<T: Config> Pallet<T> {
 			s.push(fileid);
 		});
 	}
+
+	// fn remove_user_hold_file(acc: &AccountOf<T>, fileid: Vec<u8>) {
+	// 	<UserHoldFileList<T>>::mutate(&acc, |s|{
+	// 		s.drain_filter(|v| *v == fileid);
+	// 	});
+	// }
 	//Available space divided by 1024 is the unit price
 	fn get_price() -> u128 {
 		let space = pallet_sminer::Pallet::<T>::get_space();
-		let price: u128 = 1024 / space * 1000000000000 * 1000;
+		let price: u128 = 1024 * 1_000_000_000_000 * 1000 / space ;
 		price
 	}
 
 	fn check_lease_expired_forfileid(fileid: Vec<u8>) -> bool {
 		let file = <File<T>>::get(&fileid).unwrap();
-		Self::check_lease_expired(file.owner)
+		Self::check_lease_expired(file.user_addr)
 	}
 	//ture is Not expired;  false is expired
 	fn check_lease_expired(acc: AccountOf<T>) -> bool {
@@ -493,6 +521,14 @@ impl<T: Config> Pallet<T> {
 			false
 		} else {
 			true
+		}
+	}
+
+	pub fn check_file_exist(fileid: Vec<u8>) -> bool {
+		if <File<T>>::contains_key(fileid) {
+			true
+		} else {
+			false
 		}
 	}
 }
