@@ -97,24 +97,8 @@ pub mod pallet {
 		Claimed{acc: AccountOf<T>, deposit: BalanceOf<T>},
 		/// Storage space is triggered periodically.
 		TimingStorageSpace(),
-		/// Adding a Scheduled Task.
-		AddScheduledTask{acc: AccountOf<T>},
-		/// Updated address successfully.
-		UpdateAddressSucc{acc: AccountOf<T>},
-		/// Set Etcd successfully.
-		SetEtcdSucc{acc: AccountOf<T>},
-		/// An account Add files
-		Add{acc: AccountOf<T>},
-		/// An account Deleted files
-		Del{acc: AccountOf<T>},
-		/// An account Update the file
-		Update{acc: AccountOf<T>},
-		/// An account Get the file
-		Get{acc: AccountOf<T>},
 		/// Scheduled Task Execution
 		TimedTask(),
-		/// Users to withdraw money
-		DrawMoney{acc: AccountOf<T>},
 		/// Users to withdraw faucet money
 		DrawFaucetMoney(),
 		/// User recharges faucet
@@ -130,7 +114,7 @@ pub mod pallet {
 
 		IncreaseCollateral{acc: AccountOf<T>, balance: BalanceOf<T>},
 		/// Some funds have been deposited. \[deposit\]
-		Deposit(BalanceOf<T>),
+		Deposit{balance: BalanceOf<T>},
 	}
 
 	/// Error for the sminer pallet.
@@ -148,7 +132,7 @@ pub mod pallet {
 		/// An operation would lead to an overflow.
 		Overflow,
 		/// No owner.
-		NotOwner,
+		// NotOwner,
 		/// User does not exist.
 		NotExisted,	
 		/// Lack of permissions.
@@ -1298,7 +1282,7 @@ impl<T: Config> Pallet<T> {
 		}
 		let mr = MinerItems::<T>::get(&aid).unwrap();
 		let acc = T::PalletId::get().into_account();
-		let punish_amount: BalanceOf<T> = 20u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
+		let punish_amount: BalanceOf<T> = 20_000_000_000_000u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
 
 		if mr.collaterals < punish_amount {
 			Self::delete_miner_info(aid.clone())?;
@@ -1509,6 +1493,6 @@ impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for Pallet<T> {
 		// Must resolve into existing but better to be safe.
 		let _ = T::Currency::resolve_creating(&T::PalletId::get().into_account(), amount);
 
-		Self::deposit_event(Event::Deposit(numeric_amount));
+		Self::deposit_event(Event::Deposit{balance: numeric_amount});
 	}
 }
