@@ -105,7 +105,7 @@ pub mod pallet {
 		FaucetTopUpMoney{acc: AccountOf<T>},
 		/// Prompt time
 		LessThan24Hours{last: BlockNumberOf<T>, now: BlockNumberOf<T>},
-
+		//The miners have been frozen
 		AlreadyFrozen{acc: AccountOf<T>},
 
 		MinerExit{acc: AccountOf<T>},
