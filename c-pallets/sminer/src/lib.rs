@@ -107,7 +107,7 @@ pub mod pallet {
 		LessThan24Hours{last: BlockNumberOf<T>, now: BlockNumberOf<T>},
 		//The miners have been frozen
 		AlreadyFrozen{acc: AccountOf<T>},
-
+		//Miner exit event
 		MinerExit{acc: AccountOf<T>},
 
 		MinerClaim{acc: AccountOf<T>},
