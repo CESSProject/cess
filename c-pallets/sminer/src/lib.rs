@@ -487,33 +487,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-
-		// #[pallet::weight(<T as pallet::Config>::WeightInfo::add_available_storage())]
-		// pub fn add_available_storage(origin: OriginFor<T>, increment: u128) -> DispatchResult {
-		// 	let _ = ensure_root(origin)?;
-		// 	StorageInfoValue::<T>::try_mutate(|s| -> DispatchResult {
-		// 		(*s).available_storage = (*s).available_storage.checked_add(increment).ok_or(Error::<T>::Overflow)?;
-		// 		Ok(())
-		// 	})?;
-		// 	Ok(())
-		// }
-		/// Add used storage.
-		///
-		/// The dispatch origin of this call must be _root_.
-		///
-		/// Parameters:
-		/// - `increment`: The miners power.
-		/// 
-		// #[pallet::weight(<T as pallet::Config>::WeightInfo::add_used_storage())]
-		// pub fn add_used_storage(origin: OriginFor<T>, increment: u128) -> DispatchResult {
-		// 	let _ = ensure_root(origin)?;
-		// 	StorageInfoValue::<T>::try_mutate(|s| -> DispatchResult {
-		// 		(*s).used_storage = (*s).used_storage.checked_add(increment).ok_or(Error::<T>::Overflow)?;
-		// 		Ok(())
-		// 	})?;
-		// 	Ok(())
-		// }
-
 		/// A scheduled task for computing power trend data of the entire network.
 		///
 		// #[pallet::weight(<T as pallet::Config>::WeightInfo::timing_storage_space())]
