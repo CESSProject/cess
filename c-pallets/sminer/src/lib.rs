@@ -370,6 +370,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		//Miner exit method, Irreversible process.
 		#[pallet::weight(1_000_000)]
 		pub fn exit_miner(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -398,6 +399,7 @@ pub mod pallet {
 
 		}
 
+		//Method for miners to redeem deposit
 		#[pallet::weight(2_000_000_000_000)]
 		pub fn withdraw(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
