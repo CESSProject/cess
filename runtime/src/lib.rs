@@ -1230,6 +1230,7 @@ impl_runtime_apis! {
 	}
 }
 
+//extension for ink! test
 use codec::Encode;
 use frame_support::log::{
     error,
