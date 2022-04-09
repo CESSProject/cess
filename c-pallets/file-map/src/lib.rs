@@ -70,6 +70,7 @@ pub mod pallet {
 
     #[pallet::call]
 	impl<T: Config> Pallet<T> {
+        //Scheduling registration method
         #[pallet::weight(1_000_000)]
         pub fn registration_scheduler(origin: OriginFor<T>, ip: Vec<u8>) -> DispatchResult {
             let sender = ensure_signed(origin)?;
