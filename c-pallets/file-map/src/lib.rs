@@ -50,6 +50,7 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
+        //Scheduling registration method
         RegistrationScheduler{acc: AccountOf<T>, ip: Vec<u8>},
     }
 
