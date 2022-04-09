@@ -487,29 +487,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// A scheduled task for computing power trend data of the entire network.
-		///
-		/// A scheduled task for computing power trend data of the entire network.
-		///
-		/// The dispatch origin of this call must be _root_.
-		// #[pallet::weight(<T as pallet::Config>::WeightInfo::timing_task_storage_space())]
-		// pub fn timing_task_storage_space(origin: OriginFor<T>, when: T::BlockNumber, cycle: T::BlockNumber, degree: u32) -> DispatchResult {
-		// 	let _ = ensure_root(origin)?;
-
-		// 	if T::SScheduler::schedule_named(
-		// 		(DEMOCRACY_IDD).encode(),
-		// 		DispatchTime::At(when),
-		// 		Some(( cycle, degree)),
-		// 		63,
-		// 		frame_system::RawOrigin::Root.into(),
-		// 		Call::timing_storage_space{}.into(),
-		// 	).is_err() {
-		// 		frame_support::print("LOGIC ERROR: timing_storage_space/schedule_named failed");
-		// 	}
-
-		// 	// Self::deposit_event(Event::<T>::AddScheduledTask(sender.clone()));
-		// 	Ok(())
-		// }
+		
 		/// Generate power trend data for the first 30 days.
 		///
 		/// The dispatch origin of this call must be _root_.
