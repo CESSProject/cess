@@ -489,29 +489,6 @@ pub mod pallet {
 
 		/// A scheduled task for computing power trend data of the entire network.
 		///
-		// #[pallet::weight(<T as pallet::Config>::WeightInfo::timing_storage_space())]
-		// pub fn timing_storage_space(origin: OriginFor<T>) -> DispatchResult {
-		// 	let _ = ensure_root(origin)?;
-		// 	let now = pallet_timestamp::Pallet::<T>::get();
-		// 	let storage_info = StorageInfoValue::<T>::get();
-		// 	let mut storage_info_vec = StorageInfoVec::<T>::get();
-			
-		// 	let mut info1: Vec<StorageInfo> = Vec::new();
-		// 	let value = StorageInfo{
-		// 		used_storage: storage_info.used_storage,
-		// 		available_storage: storage_info.available_storage,
-		// 		time: TryInto::<u128>::try_into(now).ok().unwrap(),
-		// 	};
-		// 	info1.push(value);
-
-		// 	storage_info_vec.append(&mut info1);
-		// 	storage_info_vec.remove(0);
-
-		// 	<StorageInfoVec<T>>::put(storage_info_vec);
-		// 	Self::deposit_event(Event::<T>::TimingStorageSpace());
-		// 	Ok(())
-		// }
-
 		/// A scheduled task for computing power trend data of the entire network.
 		///
 		/// The dispatch origin of this call must be _root_.
