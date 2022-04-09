@@ -488,30 +488,6 @@ pub mod pallet {
 		}
 
 		
-		/// Generate power trend data for the first 30 days.
-		///
-		/// The dispatch origin of this call must be _root_.
-		// #[pallet::weight(<T as pallet::Config>::WeightInfo::timing_storage_space_thirty_days())]
-		// pub fn timing_storage_space_thirty_days(origin: OriginFor<T>) -> DispatchResult {
-		// 	let _ = ensure_root(origin)?;
-		// 	let now = pallet_timestamp::Pallet::<T>::get();
-		// 	let mut storage_info_vec = StorageInfoVec::<T>::get();
-		// 	let mut info1: Vec<StorageInfo> = Vec::new();
-
-		// 	let mut i = 0;
-		// 	while i < 30 {
-		// 		if TryInto::<u128>::try_into(now).ok().unwrap() > 86400000*30{
-		// 			let tmp = TryInto::<u128>::try_into(now).ok().unwrap().checked_sub(86400000*(30-i-1)).ok_or(Error::<T>::Overflow)?;
-
-		// 			let value = StorageInfo{
-		// 				used_storage: 0,
-		// 				available_storage: 0,
-		// 				time: tmp,
-		// 			};
-		// 			info1.push(value);
-		// 		}
-		// 		i = i.checked_add(1).ok_or(Error::<T>::Overflow)?;
-		// 	}
 
 		// 	storage_info_vec.append(&mut info1);
 
