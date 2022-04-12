@@ -93,6 +93,8 @@ pub mod pallet {
 		LeaseExpireIn24Hours{acc: AccountOf<T>, size: u128},
 
 		DeleteFile{acc: AccountOf<T>, fileid: Vec<u8>},
+
+		UserAuth{user: AccountOf<T>, collaterals: BalanceOf<T>, random: u32},
 	}
 	#[pallet::error]
 	pub enum Error<T> {
@@ -151,8 +153,9 @@ pub mod pallet {
 	pub(super) type UserFreeRecord<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, u8, ValueQuery>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn test_struct_map)]
-	pub(super) type TestStructMap<T: Config> = StorageValue<_, Vec<TestStructInfo>, ValueQuery>;
+	#[pallet::getter(fn user_info_map)]
+	pub(super) type UserInfoMap<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, UserInfo<T>>;
+
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -436,6 +439,32 @@ pub mod pallet {
 		// 	}
 		// 	Ok(())
 		// }
+
+		///For HTTP services
+		#[pallet::weight(2_000_000)]
+		pub fn user_auth(origin: OriginFor<T>, user: AccountOf<T>, collaterals: BalanceOf<T>, random: u32) -> DispatchResult {
+			let _who = ensure_signed(origin)?;
+			<T as pallet::Config>::Currency::reserve(&user, collaterals.clone())?;
+			// if who == b"5CkMk8pNuvZsZpYKi1HpTEajVLuM1EzRDUnj9e9Rbuxmit7M".to_owner() {
+
+			// }
+			let mut space_details = StorageSpace {
+				purchased_space: 0,
+				used_space: 0,
+				remaining_space: 0,
+			};
+			if <UserHoldSpaceDetails<T>>::contains_key(&user) {
+				space_details = <UserHoldSpaceDetails<T>>::get(&user).unwrap();
+			} 
+			UserInfoMap::<T>::insert(&user,
+				UserInfo::<T>{
+					collaterals: collaterals.clone(),
+					space_details: space_details,
+			});
+
+			Self::deposit_event(Event::<T>::UserAuth{user: user, collaterals: collaterals, random: random});
+			Ok(())
+		}
 		
 	}
 }
