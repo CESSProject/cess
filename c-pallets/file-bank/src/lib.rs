@@ -494,7 +494,6 @@ pub mod pallet {
 
 use frame_support::ensure;
 impl<T: Config> Pallet<T> {
-
 	fn upload_file(
 		acc: &AccountOf<T>, 
 		address: &Vec<u8>,
