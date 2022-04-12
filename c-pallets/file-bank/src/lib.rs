@@ -221,7 +221,7 @@ pub mod pallet {
 			filehash: Vec<u8>,
 			public: bool,
 			backups: u8,
-			filesize: u128,
+			filesize: u64,
 			downloadfee:BalanceOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -289,7 +289,7 @@ pub mod pallet {
 				Err(Error::<T>::NotOwner)?;
 			}
 
-			Self::update_user_space(sender.clone(), 2, file.file_size)?;
+			Self::update_user_space(sender.clone(), 2, file.file_size.into())?;
 			<File::<T>>::remove(&fileid);
 
 			Self::deposit_event(Event::<T>::DeleteFile{acc: sender, fileid: fileid});
@@ -445,7 +445,7 @@ pub mod pallet {
 			filehash: Vec<u8>,
 			public: bool,
 			backups: u8,
-			filesize: u128,
+			filesize: u64,
 			downloadfee:BalanceOf<T>
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -480,7 +480,7 @@ pub mod pallet {
 				Err(Error::<T>::NotOwner)?;
 			}
 
-			Self::update_user_space(user.clone(), 2, file.file_size)?;
+			Self::update_user_space(user.clone(), 2, file.file_size.into())?;
 			<File::<T>>::remove(&fileid);
 
 			let deposit: BalanceOf<T> = 780_000_000_000u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
@@ -502,7 +502,7 @@ impl<T: Config> Pallet<T> {
 		filehash: &Vec<u8>,
 		public: bool,
 		backups: u8,
-		filesize: u128,
+		filesize: u64,
 		downloadfee: BalanceOf<T>
 	) -> DispatchResult {
 		ensure!(<UserHoldSpaceDetails<T>>::contains_key(&acc), Error::<T>::NotPurchasedSpace);
@@ -535,10 +535,10 @@ impl<T: Config> Pallet<T> {
 			}
 		);
 		UserFileSize::<T>::try_mutate(acc.clone(), |s| -> DispatchResult{
-			*s = (*s).checked_add(filesize).ok_or(Error::<T>::Overflow)?;
+			*s = (*s).checked_add(filesize as u128).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})?;
-		Self::update_user_space(acc.clone(), 1, filesize * (backups as u128))?;
+		Self::update_user_space(acc.clone(), 1, (filesize as u128) * (backups as u128))?;
 		Self::add_user_hold_file(acc.clone(), fileid.clone());
 		Ok(())
 	}

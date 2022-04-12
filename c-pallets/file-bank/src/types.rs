@@ -8,7 +8,7 @@ type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 #[scale_info(skip_type_params(T))]
 pub struct FileInfo<T: pallet::Config> {
 	pub(super) file_name: Vec<u8>,
-	pub(super) file_size: u128,
+	pub(super) file_size: u64,
 	pub(super) file_hash: Vec<u8>,
 	//Public or not
 	pub(super) public: bool,
