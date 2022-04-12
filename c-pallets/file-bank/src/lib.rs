@@ -451,15 +451,42 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 
 			if !<UserInfoMap<T>>::contains_key(&user) {
+				Err(Error::<T>::NotUser)?;
+			}
+			let deposit: BalanceOf<T> = 780_000_000_000u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
+		
+			Self::upload_file(&user, &address, &filename, &fileid, &filehash, public, backups, filesize, downloadfee)?;
+			<T as pallet::Config>::Currency::unreserve(&user, deposit);
+			<T as pallet::Config>::Currency::transfer(&user, &sender, deposit, AllowDeath)?;
+			
+			Self::deposit_event(Event::<T>::FileUpload{acc: user.clone()});
+			Ok(())
+		}
+
+		#[pallet::weight(2_000_000)]
+		pub fn http_delete(
+			origin: OriginFor<T>,
+			user: AccountOf<T>,
+			fileid: Vec<u8>
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			if !<UserInfoMap<T>>::contains_key(&user) {
+				Err(Error::<T>::NotUser)?;
+			}
+
+			ensure!((<File<T>>::contains_key(fileid.clone())), Error::<T>::FileNonExistent);
+			let file = <File<T>>::get(&fileid).unwrap();
+			if file.user_addr != user.clone() {
 				Err(Error::<T>::NotOwner)?;
 			}
+
+			Self::update_user_space(user.clone(), 2, file.file_size)?;
+			<File::<T>>::remove(&fileid);
+
 			let deposit: BalanceOf<T> = 780_000_000_000u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
 			<T as pallet::Config>::Currency::unreserve(&user, deposit);
 			<T as pallet::Config>::Currency::transfer(&user, &sender, deposit, AllowDeath)?;
-
-			Self::upload_file(&user, &address, &filename, &fileid, &filehash, public, backups, filesize, downloadfee)?;
-			
-			Self::deposit_event(Event::<T>::FileUpload{acc: user.clone()});
+			Self::deposit_event(Event::<T>::DeleteFile{acc: user, fileid: fileid});
 			Ok(())
 		}
 	}
