@@ -5,7 +5,6 @@ Segment book is the interface about proof of storage, which mainly deals with th
 ![Image](https://raw.githubusercontent.com/CESSProject/W3F-illustration/main/cess-v0.1.1/Substrate-Node-Template-2.png)
 
 
-
 ![Image](https://raw.githubusercontent.com/CESSProject/W3F-illustration/main/cess-v0.1.1/segmentbook.png)
 
 ## Proofs of idle segments
