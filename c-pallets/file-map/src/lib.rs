@@ -36,7 +36,6 @@ use sp_runtime::{
 	RuntimeDebug,
     traits::SaturatedConversion,
 };
-
 use codec::{Encode, Decode};
 use frame_support::{dispatch::DispatchResult, PalletId};
 use sp_std::prelude::*;
@@ -57,7 +56,7 @@ pub struct SchedulerInfo<T: pallet::Config> {
 #[scale_info(skip_type_params(T))]
 pub struct ExceptionReport<T: pallet::Config> {
     count: u32,
-    reporter: Vec<AccountOf<T>>,
+    reporters: Vec<AccountOf<T>>,
 } 
 
 #[frame_support::pallet]
@@ -71,7 +70,7 @@ pub mod pallet {
 
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_cess_staking::Config + std::default::Default {
+	pub trait Config: frame_system::Config + pallet_cess_staking::Config {
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		/// The currency trait.
@@ -104,7 +103,7 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::getter(fn scheduler_exception)]
-    pub(super) type SchedulerException<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, ExceptionReport<T>, ValueQuery>;
+    pub(super) type SchedulerException<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, ExceptionReport<T>>;
 
     #[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -160,14 +159,22 @@ pub mod pallet {
         pub fn scheduler_exception_report(origin: OriginFor<T>, account: AccountOf<T>) -> DispatchResult {
             let sender = ensure_signed(origin)?;
 
-            <SchedulerException<T>>::try_mutate(&account, |o| -> DispatchResult {
-                for value in &o.reporter {
+            if !<SchedulerException<T>>::contains_key(&account) {
+                <SchedulerException<T>>::insert(&account, ExceptionReport::<T>{
+                    count: 0,
+                    reporters: Vec::new(),
+                });
+            }
+
+            <SchedulerException<T>>::try_mutate(&account, |opt| -> DispatchResult {
+                let o = opt.as_mut().unwrap();
+                for value in &o.reporters {
                     if &sender == value {
                         Err(Error::<T>::AlreadyReport)?;
                     }
                 }
                 o.count += 1;
-                o.reporter.push(account.clone());
+                o.reporters.push(account.clone());
                 Ok(())
             })?; 
 
