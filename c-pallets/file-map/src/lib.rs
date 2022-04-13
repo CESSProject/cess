@@ -112,10 +112,7 @@ pub mod pallet {
 
     #[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberOf<T>> for Pallet<T> {
-		//Used to calculate whether it is implied to submit spatiotemporal proof
-		//Cycle every 7.2 hours
-		//When there is an uncommitted space-time certificate, the corresponding miner will be punished 
-		//and the corresponding data segment will be removed
+		//Polling exception report
 		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
 			let number: u128 = now.saturated_into();
 			let count: usize = Self::scheduler_map().len();
