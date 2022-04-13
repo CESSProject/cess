@@ -33,7 +33,8 @@ use frame_support::traits::{ReservableCurrency};
 pub use pallet::*;
 use scale_info::TypeInfo;
 use sp_runtime::{
-	RuntimeDebug
+	RuntimeDebug,
+    traits::SaturatedConversion,
 };
 
 use codec::{Encode, Decode};
@@ -41,6 +42,7 @@ use frame_support::{dispatch::DispatchResult, PalletId};
 use sp_std::prelude::*;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
+type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
@@ -107,6 +109,28 @@ pub mod pallet {
     #[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
+
+    #[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberOf<T>> for Pallet<T> {
+		//Used to calculate whether it is implied to submit spatiotemporal proof
+		//Cycle every 7.2 hours
+		//When there is an uncommitted space-time certificate, the corresponding miner will be punished 
+		//and the corresponding data segment will be removed
+		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
+			let number: u128 = now.saturated_into();
+			let count: usize = Self::scheduler_map().len();
+			if number % 1200 == 0 {
+				for (key ,value) in <SchedulerException<T>>::iter() {
+                    if value.count > ( count / 2 ) as u32 {
+
+                    }
+
+                    <SchedulerException<T>>::remove(key);
+                }
+			}
+			0
+		}
+	}
 
     #[pallet::call]
 	impl<T: Config> Pallet<T> {
