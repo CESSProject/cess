@@ -51,21 +51,25 @@ pub struct SchedulerInfo<T: pallet::Config> {
     controller_user: AccountOf<T>,
 }
 
+#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, Default, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+pub struct ExceptionReport<T: pallet::Config> {
+    count: u32,
+    reporter: Vec<AccountOf<T>>,
+} 
+
 #[frame_support::pallet]
 pub mod pallet {
-
-
     use super::*;
 	use frame_support::{
-
 		pallet_prelude::*,
-		traits::{Get},
+		traits::{Get}, Blake2_128Concat
 	};
 	use frame_system::{ensure_signed, pallet_prelude::*};
 
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_cess_staking::Config {
+	pub trait Config: frame_system::Config + pallet_cess_staking::Config + std::default::Default {
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		/// The currency trait.
@@ -88,11 +92,17 @@ pub mod pallet {
         AlreadyRegistration,
 
         NotController,
+
+        AlreadyReport,
     }
 
     #[pallet::storage]
     #[pallet::getter(fn scheduler_map)]
     pub(super) type SchedulerMap<T: Config> = StorageValue<_, Vec<SchedulerInfo<T>>, ValueQuery>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn scheduler_exception)]
+    pub(super) type SchedulerException<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, ExceptionReport<T>, ValueQuery>;
 
     #[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -128,6 +138,17 @@ pub mod pallet {
         #[pallet::weight(1_000_000)]
         pub fn scheduler_exception_report(origin: OriginFor<T>, account: AccountOf<T>) -> DispatchResult {
             let sender = ensure_signed(origin)?;
+
+            <SchedulerException<T>>::try_mutate(&account, |o| -> DispatchResult {
+                for value in &o.reporter {
+                    if &sender == value {
+                        Err(Error::<T>::AlreadyReport)?;
+                    }
+                }
+                o.count += 1;
+                o.reporter.push(account.clone());
+                Ok(())
+            })?; 
 
             Ok(())
         }
