@@ -819,7 +819,7 @@ impl pallet_file_map::Config for Runtime {
 	type Currency = Balances;
 	// The ubiquitous event type.
 	type Event = Event;
-	type FileMapPalletId = FilbakPalletId;
+	type FileMapPalletId = FileMapPalletId;
 }
 
 /*** End This Block ***/

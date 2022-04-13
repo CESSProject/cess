@@ -1,9 +1,36 @@
+//! # Segemnt Book Module
+//!
+//! Contain operations related proof of storage.
+//!
+//! ### Terminology
+//! 
+//! * **uncid:** 		Necessary parameters for generating proof (unencrypted)
+//! * **sealed_cid:** 	Necessary parameters for generating proof (encrypted)
+//! * **segment_id:**	Allocated segment ID
+//! * **is_ready:**		Used to know whether to submit a certificate
+//! * **size_type:**	Segment size
+//! * **peer_id:**		Miner's ID 
+//! 
+//! ### Interface
+//!
+//! ### Dispatchable Functions
+//!
+//! * `intent_submit` 		Pprovide miners with the necessary parameters to generate proof
+//! * `intent_submit_po_st` Provide miners with the necessary parameters to generate proof
+//! * `submit_to_vpa` 		Submit copy certificate of idle data segment
+//! * `verify_in_vpa` 		Verify replication proof of idle data segments
+//! * `submit_to_vpb` 		Submit space-time proof of idle data segments
+//! * `verify_in_vpb` 		Verify the spatiotemporal proof of idle data segments
+//! * `submit_to_vpc` 		Submit a copy certificate of the service data segment
+//! * `verify_in_vpc` 		Verify the replication certificate of the service data segment
+//! * `submit_to_vpd` 		Submit spatio-temporal proof of service data segment
+//! * `verify_in_vpd` 		Verify the spatio-temporal proof of service data segments
+
+
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use frame_support::traits::{ReservableCurrency};
 pub use pallet::*;
-
-
 use scale_info::TypeInfo;
 use sp_runtime::{
 	RuntimeDebug
@@ -20,7 +47,8 @@ type AccountOf<T> = <T as frame_system::Config>::AccountId;
 #[scale_info(skip_type_params(T))]
 pub struct SchedulerInfo<T: pallet::Config> {
     ip: Vec<u8>,
-    acc: AccountOf<T>,
+    stash_user: AccountOf<T>,
+    controller_user: AccountOf<T>,
 }
 
 #[frame_support::pallet]
@@ -37,7 +65,7 @@ pub mod pallet {
 
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config: frame_system::Config + pallet_cess_staking::Config {
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		/// The currency trait.
@@ -58,6 +86,8 @@ pub mod pallet {
     pub enum Error<T> {
         //Already registered
         AlreadyRegistration,
+
+        NotController,
     }
 
     #[pallet::storage]
@@ -72,13 +102,18 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
         //Scheduling registration method
         #[pallet::weight(1_000_000)]
-        pub fn registration_scheduler(origin: OriginFor<T>, ip: Vec<u8>) -> DispatchResult {
+        pub fn registration_scheduler(origin: OriginFor<T>, stash_account: AccountOf<T>, ip: Vec<u8>) -> DispatchResult {
             let sender = ensure_signed(origin)?;
 
+            let acc = <pallet_cess_staking::Pallet<T>>::bonded(&stash_account).unwrap();
+            if sender != acc {
+                Err(Error::<T>::NotController)?;
+            }
             let mut s_vec = SchedulerMap::<T>::get();
             let scheduler = SchedulerInfo::<T>{
                 ip: ip.clone(),
-                acc: sender.clone(),
+                stash_user: stash_account.clone(),
+                controller_user: sender.clone(),
             };
 
             if s_vec.contains(&scheduler) {
@@ -87,6 +122,13 @@ pub mod pallet {
             s_vec.push(scheduler);
             SchedulerMap::<T>::put(s_vec);
             Self::deposit_event(Event::<T>::RegistrationScheduler{acc: sender, ip: ip});
+            Ok(())
+        }
+
+        #[pallet::weight(1_000_000)]
+        pub fn scheduler_exception_report(origin: OriginFor<T>, account: AccountOf<T>) -> DispatchResult {
+            let sender = ensure_signed(origin)?;
+
             Ok(())
         }
     }

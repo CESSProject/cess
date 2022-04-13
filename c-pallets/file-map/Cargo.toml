@@ -75,6 +75,11 @@ default-features = false
 path = '../file-bank'
 version = '0.1.0'
 
+[dependencies.pallet-cess-staking]
+default-features = false
+path = '../staking'
+version = '4.0.0-dev'
+
 [features]
 default = ["std"]
 std = [
@@ -89,5 +94,6 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"frame-benchmarking/std",
+	"pallet-cess-staking/std",
 ]
 runtime-benchmarks = ["frame-benchmarking"]
