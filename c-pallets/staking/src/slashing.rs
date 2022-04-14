@@ -640,6 +640,10 @@ fn pay_reporters<T: Config>(
 	T::Slash::on_unbalanced(value_slashed);
 }
 
+pub fn slash_scheduler<T: Config>(stash: &T::AccountId) {
+	
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
