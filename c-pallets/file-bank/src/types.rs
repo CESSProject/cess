@@ -73,5 +73,4 @@ pub struct SpaceInfo<T: pallet::Config> {
 #[scale_info(skip_type_params(T))]
 pub struct UserInfo<T: pallet::Config> {
 	pub(super) collaterals: BalanceOf<T>,
-	pub(super) space_details: StorageSpace, 
 }

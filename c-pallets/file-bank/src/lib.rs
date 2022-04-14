@@ -41,6 +41,7 @@ use sp_std::prelude::*;
 use codec::{Encode, Decode};
 use frame_support::{dispatch::DispatchResult, PalletId};
 pub use weights::WeightInfo;
+use sp_runtime::traits::CheckedAdd;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -358,10 +359,13 @@ pub mod pallet {
 			<T as pallet::Config>::Currency::transfer(&sender, &acc, money, AllowDeath)?;
 			let now = <frame_system::Pallet<T>>::block_number();
 			let deadline: BlockNumberOf<T> = ((864000 * lease_count) as u32).into();
-			let mut list: Vec<SpaceInfo<T>> = vec![SpaceInfo::<T>{size: 1024, deadline: now + deadline}; space_count as usize];
+			let list: SpaceInfo<T> = SpaceInfo::<T>{
+				size: space, 
+				deadline: now + deadline,
+			};
 
 			<UserSpaceList<T>>::mutate(&sender, |s|{
-				s.append(&mut list);
+				s.push(list);
 			});
 			Self::user_buy_space_update(sender.clone(), space * 1024)?;
 
@@ -417,19 +421,20 @@ pub mod pallet {
 			// if who == b"5CkMk8pNuvZsZpYKi1HpTEajVLuM1EzRDUnj9e9Rbuxmit7M".to_owner() {
 
 			// }
-			let mut space_details = StorageSpace {
-				purchased_space: 0,
-				used_space: 0,
-				remaining_space: 0,
-			};
-			if <UserHoldSpaceDetails<T>>::contains_key(&user) {
-				space_details = <UserHoldSpaceDetails<T>>::get(&user).unwrap();
-			} 
-			UserInfoMap::<T>::insert(&user,
-				UserInfo::<T>{
-					collaterals: collaterals.clone(),
-					space_details: space_details,
-			});
+
+			if <UserInfoMap<T>>::contains_key(&user) {
+				UserInfoMap::<T>::insert(&user,
+					UserInfo::<T>{
+						collaterals: collaterals.clone()
+				});
+			} else {
+				UserInfoMap::<T>::try_mutate(&user, |opt| -> DispatchResult {
+					let o = opt.as_mut().unwrap();
+					o.collaterals = o.collaterals.checked_add(&collaterals).ok_or(Error::<T>::Overflow)?;
+					Ok(())
+				})?;
+			}
+			
 
 			Self::deposit_event(Event::<T>::UserAuth{user: user, collaterals: collaterals, random: random});
 			Ok(())
