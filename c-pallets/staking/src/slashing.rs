@@ -641,7 +641,15 @@ fn pay_reporters<T: Config>(
 }
 
 pub fn slash_scheduler<T: Config>(stash: &T::AccountId) {
-	
+	use sp_std::convert::TryInto;
+	let unapplied_slash = UnappliedSlash::<T::AccountId, BalanceOf<T>> {
+		validator: stash.clone(),
+		own: 0u128.try_into().ok().unwrap(),
+		others: Vec::new(),
+		reporters: Vec::new(),
+		payout: 0u128.try_into().ok().unwrap(),
+	};
+	apply_slash::<T>(unapplied_slash);
 }
 
 #[cfg(test)]
