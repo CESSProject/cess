@@ -640,6 +640,7 @@ fn pay_reporters<T: Config>(
 	T::Slash::on_unbalanced(value_slashed);
 }
 
+/// Apply a slash to a scheduler
 pub fn slash_scheduler<T: Config>(stash: &T::AccountId) {
 	use sp_std::convert::TryInto;
 	let unapplied_slash = UnappliedSlash::<T::AccountId, BalanceOf<T>> {
