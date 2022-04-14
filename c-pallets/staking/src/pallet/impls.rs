@@ -374,9 +374,13 @@ impl<T: Config> Pallet<T> {
 
 	/// Compute rewards for validator and sminer for era.
 	fn rewards_in_era(active_era_index: EraIndex) -> (BalanceOf<T>, BalanceOf<T>) {
-		let year_num = active_era_index as u64 / T::ERAS_PER_YEAR;
+		let mut year_num = active_era_index as u64 / T::ERAS_PER_YEAR;
 		let mut validator_rewards_this_year = TryInto::<u128>::try_into(T::FIRST_YEAR_VALIDATOR_REWARDS).ok().unwrap();
 		let mut sminer_rewards_this_year = TryInto::<u128>::try_into(T::FIRST_YEAR_SMINER_REWARDS).ok().unwrap();
+		// No longer decrease from the 41st year.
+		if year_num > 40 {
+			year_num = 40;
+		}
 		for _ in 0..year_num {
 			validator_rewards_this_year = T::REWARD_DECREASE_RATIO * validator_rewards_this_year;
 			sminer_rewards_this_year = T::REWARD_DECREASE_RATIO * sminer_rewards_this_year;

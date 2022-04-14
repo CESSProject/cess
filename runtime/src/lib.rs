@@ -131,7 +131,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 100,
+	spec_version: 101,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -186,7 +186,7 @@ pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
 
 // NOTE: Currently it is not possible to change the epoch duration after the chain has started.
 //       Attempting to do so will brick block production.
-pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 1 * MINUTES;
+pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 10 * MINUTES;
 pub const EPOCH_DURATION_IN_SLOTS: u64 = {
 	const SLOT_FILL_RATE: f64 = MILLISECS_PER_BLOCK as f64 / SLOT_DURATION as f64;
 
@@ -239,7 +239,7 @@ parameter_types! {
 		})
 		.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
 		.build_or_panic();
-	pub const SS58Prefix: u16 = 42;
+	pub const SS58Prefix: u16 = 11330;
 }
 
 // Configure FRAME pallets to include in runtime.
@@ -290,6 +290,7 @@ impl frame_system::Config for Runtime {
 	/// Weight information for the extrinsics of this pallet.
 	type SystemWeightInfo = ();
 	/// This is used as an identifier of the chain. 42 is the generic substrate prefix.
+	/// 11330 is the cess testnet prefix. 11331 is the cess mainnet prefix.
 	type SS58Prefix = SS58Prefix;
 	/// The set code logic, just the default since we're not a parachain.
 	type OnSetCode = ();
@@ -530,7 +531,7 @@ pub const ERAS_PER_YEAR: u64 = {
 };
 
 impl pallet_cess_staking::Config for Runtime {
-	const ERAS_PER_YEAR: u64 = 2;
+	const ERAS_PER_YEAR: u64 = ERAS_PER_YEAR;
 	const FIRST_YEAR_VALIDATOR_REWARDS: Balance = 477_000_000 * CENTS;
 	const FIRST_YEAR_SMINER_REWARDS: Balance = 238_500_000 * CENTS;
 	const REWARD_DECREASE_RATIO: Perbill = Perbill::from_perthousand(841);
@@ -819,7 +820,7 @@ impl pallet_file_map::Config for Runtime {
 	type Currency = Balances;
 	// The ubiquitous event type.
 	type Event = Event;
-	type FileMapPalletId = FilbakPalletId;
+	type FileMapPalletId = FileMapPalletId;
 }
 
 /*** End This Block ***/
@@ -860,6 +861,7 @@ impl pallet_contracts::Config for Runtime {
 	type CallStack = [pallet_contracts::Frame<Self>; 31];
 	type WeightPrice = pallet_transaction_payment::Pallet<Self>;
 	type WeightInfo = pallet_contracts::weights::SubstrateWeight<Self>;
+	//test for ink! 3.0 
 	type ChainExtension = ();
 	type DeletionQueueDepth = DeletionQueueDepth;
 	type DeletionWeightLimit = DeletionWeightLimit;
@@ -1229,3 +1231,61 @@ impl_runtime_apis! {
 		}
 	}
 }
+
+//extension for ink! test
+// use codec::Encode;
+// use frame_support::log::{
+//     error,
+//     trace,
+// };
+
+// pub struct FetchRandomExtension;
+// use pallet_contracts::chain_extension::{
+//     ChainExtension,
+//     Environment,
+//     Ext,
+//     InitState,
+//     RetVal,
+//     SysConfig,
+//     UncheckedFrom,
+// };
+// use sp_runtime::DispatchError;
+
+// impl ChainExtension<Runtime> for FetchRandomExtension {
+//     fn call<E: Ext>(
+//         func_id: u32,
+//         env: Environment<E, InitState>,
+//     ) -> Result<RetVal, DispatchError>
+//     where
+//         <E::T as SysConfig>::AccountId:
+//             UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
+//     {
+//         match func_id {
+//             1101 => {
+//                 let mut env = env.buf_in_buf_out();
+//                 let arg: [u8; 32] = env.read_as()?;
+//                 let random_seed = crate::RandomnessCollectiveFlip::random(&arg).0;
+//                 let random_slice = random_seed.encode();
+//                 trace!(
+//                     target: "runtime",
+//                     "[ChainExtension]|call|func_id:{:}",
+//                     func_id
+//                 );
+//                 env.write(&random_slice, false, None).map_err(|_| {
+//                     DispatchError::Other("ChainExtension failed to call random")
+//                 })?;
+//             }
+
+//             _ => {
+//                 error!("Called an unregistered `func_id`: {:}", func_id);
+//                 return Err(DispatchError::Other("Unimplemented func_id"))
+//             }
+//         }
+//         Ok(RetVal::Converging(0))
+//     }
+
+//     fn enabled() -> bool {
+//         true
+//     }
+// }
+

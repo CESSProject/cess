@@ -97,40 +97,24 @@ pub mod pallet {
 		Claimed{acc: AccountOf<T>, deposit: BalanceOf<T>},
 		/// Storage space is triggered periodically.
 		TimingStorageSpace(),
-		/// Adding a Scheduled Task.
-		AddScheduledTask{acc: AccountOf<T>},
-		/// Updated address successfully.
-		UpdateAddressSucc{acc: AccountOf<T>},
-		/// Set Etcd successfully.
-		SetEtcdSucc{acc: AccountOf<T>},
-		/// An account Add files
-		Add{acc: AccountOf<T>},
-		/// An account Deleted files
-		Del{acc: AccountOf<T>},
-		/// An account Update the file
-		Update{acc: AccountOf<T>},
-		/// An account Get the file
-		Get{acc: AccountOf<T>},
 		/// Scheduled Task Execution
 		TimedTask(),
-		/// Users to withdraw money
-		DrawMoney{acc: AccountOf<T>},
 		/// Users to withdraw faucet money
 		DrawFaucetMoney(),
 		/// User recharges faucet
 		FaucetTopUpMoney{acc: AccountOf<T>},
 		/// Prompt time
 		LessThan24Hours{last: BlockNumberOf<T>, now: BlockNumberOf<T>},
-
+		//The miners have been frozen
 		AlreadyFrozen{acc: AccountOf<T>},
-
+		//Miner exit event
 		MinerExit{acc: AccountOf<T>},
 
 		MinerClaim{acc: AccountOf<T>},
 
 		IncreaseCollateral{acc: AccountOf<T>, balance: BalanceOf<T>},
 		/// Some funds have been deposited. \[deposit\]
-		Deposit(BalanceOf<T>),
+		Deposit{balance: BalanceOf<T>},
 	}
 
 	/// Error for the sminer pallet.
@@ -148,7 +132,7 @@ pub mod pallet {
 		/// An operation would lead to an overflow.
 		Overflow,
 		/// No owner.
-		NotOwner,
+		// NotOwner,
 		/// User does not exist.
 		NotExisted,	
 		/// Lack of permissions.
@@ -386,6 +370,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		//Miner exit method, Irreversible process.
 		#[pallet::weight(1_000_000)]
 		pub fn exit_miner(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -414,6 +399,7 @@ pub mod pallet {
 
 		}
 
+		//Method for miners to redeem deposit
 		#[pallet::weight(2_000_000_000_000)]
 		pub fn withdraw(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -501,103 +487,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-
-		// #[pallet::weight(<T as pallet::Config>::WeightInfo::add_available_storage())]
-		// pub fn add_available_storage(origin: OriginFor<T>, increment: u128) -> DispatchResult {
-		// 	let _ = ensure_root(origin)?;
-		// 	StorageInfoValue::<T>::try_mutate(|s| -> DispatchResult {
-		// 		(*s).available_storage = (*s).available_storage.checked_add(increment).ok_or(Error::<T>::Overflow)?;
-		// 		Ok(())
-		// 	})?;
-		// 	Ok(())
-		// }
-		/// Add used storage.
-		///
-		/// The dispatch origin of this call must be _root_.
-		///
-		/// Parameters:
-		/// - `increment`: The miners power.
-		/// 
-		// #[pallet::weight(<T as pallet::Config>::WeightInfo::add_used_storage())]
-		// pub fn add_used_storage(origin: OriginFor<T>, increment: u128) -> DispatchResult {
-		// 	let _ = ensure_root(origin)?;
-		// 	StorageInfoValue::<T>::try_mutate(|s| -> DispatchResult {
-		// 		(*s).used_storage = (*s).used_storage.checked_add(increment).ok_or(Error::<T>::Overflow)?;
-		// 		Ok(())
-		// 	})?;
-		// 	Ok(())
-		// }
-
-		/// A scheduled task for computing power trend data of the entire network.
-		///
-		// #[pallet::weight(<T as pallet::Config>::WeightInfo::timing_storage_space())]
-		// pub fn timing_storage_space(origin: OriginFor<T>) -> DispatchResult {
-		// 	let _ = ensure_root(origin)?;
-		// 	let now = pallet_timestamp::Pallet::<T>::get();
-		// 	let storage_info = StorageInfoValue::<T>::get();
-		// 	let mut storage_info_vec = StorageInfoVec::<T>::get();
-			
-		// 	let mut info1: Vec<StorageInfo> = Vec::new();
-		// 	let value = StorageInfo{
-		// 		used_storage: storage_info.used_storage,
-		// 		available_storage: storage_info.available_storage,
-		// 		time: TryInto::<u128>::try_into(now).ok().unwrap(),
-		// 	};
-		// 	info1.push(value);
-
-		// 	storage_info_vec.append(&mut info1);
-		// 	storage_info_vec.remove(0);
-
-		// 	<StorageInfoVec<T>>::put(storage_info_vec);
-		// 	Self::deposit_event(Event::<T>::TimingStorageSpace());
-		// 	Ok(())
-		// }
-
-		/// A scheduled task for computing power trend data of the entire network.
-		///
-		/// The dispatch origin of this call must be _root_.
-		// #[pallet::weight(<T as pallet::Config>::WeightInfo::timing_task_storage_space())]
-		// pub fn timing_task_storage_space(origin: OriginFor<T>, when: T::BlockNumber, cycle: T::BlockNumber, degree: u32) -> DispatchResult {
-		// 	let _ = ensure_root(origin)?;
-
-		// 	if T::SScheduler::schedule_named(
-		// 		(DEMOCRACY_IDD).encode(),
-		// 		DispatchTime::At(when),
-		// 		Some(( cycle, degree)),
-		// 		63,
-		// 		frame_system::RawOrigin::Root.into(),
-		// 		Call::timing_storage_space{}.into(),
-		// 	).is_err() {
-		// 		frame_support::print("LOGIC ERROR: timing_storage_space/schedule_named failed");
-		// 	}
-
-		// 	// Self::deposit_event(Event::<T>::AddScheduledTask(sender.clone()));
-		// 	Ok(())
-		// }
-		/// Generate power trend data for the first 30 days.
-		///
-		/// The dispatch origin of this call must be _root_.
-		// #[pallet::weight(<T as pallet::Config>::WeightInfo::timing_storage_space_thirty_days())]
-		// pub fn timing_storage_space_thirty_days(origin: OriginFor<T>) -> DispatchResult {
-		// 	let _ = ensure_root(origin)?;
-		// 	let now = pallet_timestamp::Pallet::<T>::get();
-		// 	let mut storage_info_vec = StorageInfoVec::<T>::get();
-		// 	let mut info1: Vec<StorageInfo> = Vec::new();
-
-		// 	let mut i = 0;
-		// 	while i < 30 {
-		// 		if TryInto::<u128>::try_into(now).ok().unwrap() > 86400000*30{
-		// 			let tmp = TryInto::<u128>::try_into(now).ok().unwrap().checked_sub(86400000*(30-i-1)).ok_or(Error::<T>::Overflow)?;
-
-		// 			let value = StorageInfo{
-		// 				used_storage: 0,
-		// 				available_storage: 0,
-		// 				time: tmp,
-		// 			};
-		// 			info1.push(value);
-		// 		}
-		// 		i = i.checked_add(1).ok_or(Error::<T>::Overflow)?;
-		// 	}
+		
 
 		// 	storage_info_vec.append(&mut info1);
 
@@ -1298,7 +1188,7 @@ impl<T: Config> Pallet<T> {
 		}
 		let mr = MinerItems::<T>::get(&aid).unwrap();
 		let acc = T::PalletId::get().into_account();
-		let punish_amount: BalanceOf<T> = 20u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
+		let punish_amount: BalanceOf<T> = 20_000_000_000_000u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
 
 		if mr.collaterals < punish_amount {
 			Self::delete_miner_info(aid.clone())?;
@@ -1509,6 +1399,6 @@ impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for Pallet<T> {
 		// Must resolve into existing but better to be safe.
 		let _ = T::Currency::resolve_creating(&T::PalletId::get().into_account(), amount);
 
-		Self::deposit_event(Event::Deposit(numeric_amount));
+		Self::deposit_event(Event::Deposit{balance: numeric_amount});
 	}
 }

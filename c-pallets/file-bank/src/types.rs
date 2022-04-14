@@ -8,7 +8,7 @@ type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 #[scale_info(skip_type_params(T))]
 pub struct FileInfo<T: pallet::Config> {
 	pub(super) file_name: Vec<u8>,
-	pub(super) file_size: u128,
+	pub(super) file_size: u64,
 	pub(super) file_hash: Vec<u8>,
 	//Public or not
 	pub(super) public: bool,
@@ -69,15 +69,9 @@ pub struct SpaceInfo<T: pallet::Config> {
 	pub(super) deadline: BlockNumberOf<T>,
 }
 
-#[derive(PartialEq, Eq, Default, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-pub struct TestStructInfo {
-	pub(super) test_id: u16,
-	pub(super) test_str: Vec<u8>,
-	pub(super) test_struct_info2: Vec<TestStructInfo2>,
-}
-
-#[derive(PartialEq, Eq, Default, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-pub struct TestStructInfo2 {
-	pub(super) test_id: u16,
-	pub(super) test_str: Vec<u8>,
+#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+pub struct UserInfo<T: pallet::Config> {
+	pub(super) collaterals: BalanceOf<T>,
+	pub(super) space_details: StorageSpace, 
 }

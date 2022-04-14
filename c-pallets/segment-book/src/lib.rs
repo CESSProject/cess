@@ -1179,6 +1179,7 @@ impl<T: Config> Pallet<T> {
 	// 	pallet_file_bank::Pallet::<T>::check_file_exist(fileid)
 	// }
 
+	//Clear the certificate of a document slice and related certificates
 	fn clean_service_proofs_signle(peer_id: u64, segment_id: u64) {
 		let acc = pallet_sminer::Pallet::<T>::get_acc(peer_id);
 		<ConProofInfoC<T>>::mutate(&acc, |s|{
