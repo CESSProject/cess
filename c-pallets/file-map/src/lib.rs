@@ -91,7 +91,7 @@ pub mod pallet {
     pub enum Error<T> {
         //Already registered
         AlreadyRegistration,
-
+        //Not Controller
         NotController,
 
         AlreadyReport,
