@@ -93,7 +93,7 @@ pub mod pallet {
         AlreadyRegistration,
         //Not Controller
         NotController,
-
+        //Already Report
         AlreadyReport,
     }
 
