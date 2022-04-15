@@ -422,7 +422,7 @@ pub mod pallet {
 
 			// }
 
-			if <UserInfoMap<T>>::contains_key(&user) {
+			if !<UserInfoMap<T>>::contains_key(&user) {
 				UserInfoMap::<T>::insert(&user,
 					UserInfo::<T>{
 						collaterals: collaterals.clone()
