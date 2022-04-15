@@ -642,13 +642,14 @@ fn pay_reporters<T: Config>(
 
 /// Apply a slash to a scheduler
 pub fn slash_scheduler<T: Config>(stash: &T::AccountId) {
-	use sp_std::convert::TryInto;
+	let min_bond = <Pallet<T> as Store>::MinValidatorBond::get();
+
 	let unapplied_slash = UnappliedSlash::<T::AccountId, BalanceOf<T>> {
 		validator: stash.clone(),
-		own: 0u128.try_into().ok().unwrap(),
+		own: Perbill::from_percent(5) * min_bond,
 		others: Vec::new(),
 		reporters: Vec::new(),
-		payout: 0u128.try_into().ok().unwrap(),
+		payout: Zero::zero(),
 	};
 	apply_slash::<T>(unapplied_slash);
 }
