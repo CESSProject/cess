@@ -52,23 +52,26 @@ use frame_support::{
 	PalletId,
 	traits::{ReservableCurrency, Get, Randomness,},
 };
+use frame_support::pallet_prelude::*;
 use scale_info::TypeInfo;
 pub use weights::WeightInfo;
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 
-type BoundedString<T> = BoundedVec<u8, <T as Config>::StringLimit>;
-type BoundedList<T> = BoundedVec<BoundedVec<u8, <T as Config>::StringLimit>, <T as Config>::StringLimit>;
+
 
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
 	use frame_support::{
 		ensure,
-		pallet_prelude::*,
+		
 		traits::Get,
 	};
 	use frame_system::{ensure_signed, pallet_prelude::*};
+
+	pub type BoundedString<T> = BoundedVec<u8, <T as Config>::SegStringLimit>;
+	pub type BoundedList<T> = BoundedVec<BoundedVec<u8, <T as Config>::SegStringLimit>, <T as Config>::SegStringLimit>;
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + pallet_sminer::Config + pallet_file_bank::Config {
@@ -84,7 +87,7 @@ pub mod pallet {
 		type MyPalletId: Get<PalletId>;
 
 		#[pallet::constant]
-		type StringLimit: Get<u32>;
+		type SegStringLimit: Get<u32>;
 		/// randomness for seeds.
 		type MyRandomness: Randomness<Self::Hash, Self::BlockNumber>;
 	}
@@ -181,7 +184,7 @@ pub mod pallet {
 		//peer acc
 		T::AccountId,
 		//segment id
-		Vec<ContinuousProofPool<BoundedString<T>>>,
+		BoundedVec<ContinuousProofPool<BoundedString<T>>, T::SegStringLimit>,
 		ValueQuery,
 	>;
 
@@ -193,7 +196,7 @@ pub mod pallet {
 		//peer acc
 		T::AccountId,
 		//segment id
-		Vec<ContinuousProofPoolVec<BoundedString<T>, BoundedList<T>>>,
+		BoundedVec<ContinuousProofPoolVec<BoundedString<T>, BoundedList<T>>, T::SegStringLimit>,
 		ValueQuery,
 	>;
 
@@ -313,7 +316,7 @@ pub mod pallet {
 		//peer acc
 		T::AccountId,
 		//segment id
-		Vec<FileSilceInfo<BoundedString<T>, BoundedList<T>>>,
+		BoundedVec<FileSilceInfo<BoundedString<T>, BoundedList<T>>, T::SegStringLimit>,
 
 		ValueQuery
 	>;
@@ -322,21 +325,22 @@ pub mod pallet {
 	//Vec<(T::Account, peer_id, segment_id, poof, sealed_cid, rand, size_type)>
 	#[pallet::storage]
 	#[pallet::getter(fn un_verified_a)]
-	pub(super) type UnVerifiedA<T: Config> = StorageValue<_, Vec<UnverifiedPool<AccountOf<T>, BoundedString<T>>>, ValueQuery>;
+	pub(super) type UnVerifiedA<T: Config> = StorageValue<_, BoundedVec<UnverifiedPool<AccountOf<T>, BoundedString<T>>, T::SegStringLimit>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn un_verified_b)]
-	pub(super) type UnVerifiedB<T: Config> = StorageValue<_, Vec<UnverifiedPool<AccountOf<T>, BoundedString<T>>>, ValueQuery>;
+	pub(super) type UnVerifiedB<T: Config> = StorageValue<_, BoundedVec<UnverifiedPool<AccountOf<T>, BoundedString<T>>, T::SegStringLimit>, ValueQuery>;
 
 
 	#[pallet::storage]
 	#[pallet::getter(fn un_verified_c)]
-	pub(super) type UnVerifiedC<T: Config> = StorageValue<_, Vec<UnverifiedPoolVec<AccountOf<T>, BoundedList<T>>>, ValueQuery>;
+	pub(super) type UnVerifiedC<T: Config> = StorageValue<_, BoundedVec<UnverifiedPoolVec<AccountOf<T>, BoundedList<T>>, T::SegStringLimit>, ValueQuery>;
 
 
 	#[pallet::storage]
 	#[pallet::getter(fn un_verified_d)]
-	pub(super) type UnVerifiedD<T: Config> = StorageValue<_, Vec<UnverifiedPoolVecD<AccountOf<T>, BoundedList<T>>>, ValueQuery>;
+	pub(super) type UnVerifiedD<T: Config> = StorageValue<_, BoundedVec<UnverifiedPoolVecD<AccountOf<T>, BoundedList<T>>, T::SegStringLimit>, ValueQuery>;
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
@@ -477,18 +481,22 @@ pub mod pallet {
 					let silce_info = FileSilceInfo::<BoundedString<T>, BoundedList<T>> {
 						peer_id: peerid,
 						segment_id: segment_id,
-						uncid: uncid,
+						uncid: Self::veclist_to_boundlist(uncid)?,
 						rand: random,
-						shardhash: shardhash,
+						shardhash: Self::vec_to_bound::<u8>(shardhash)?,
 					};
 					if <MinerHoldSlice<T>>::contains_key(&acc) {
-						<MinerHoldSlice<T>>::mutate(&acc, |s| (*s).push(silce_info));
+						<MinerHoldSlice<T>>::try_mutate(&acc, |s| -> DispatchResult {
+							(*s).try_push(silce_info).expect("Length exceeded");
+							Ok(())
+						})?;
 					} else {
-						let mut value: Vec<FileSilceInfo<<BoundedString<T>, BoundedList<T>>> = Vec::new();
+						let mut value: Vec<FileSilceInfo<BoundedString<T>, BoundedList<T>>> = Vec::new();
 						value.push(silce_info);
+						let value_bound = Self::vec_to_bound::<FileSilceInfo<BoundedString<T>, BoundedList<T>>>(value)?;
 						<MinerHoldSlice<T>>::insert(
 							&acc,
-							value
+							value_bound
 						)
 					}
 				}
@@ -592,23 +600,27 @@ pub mod pallet {
 		pub fn submit_to_vpa(origin: OriginFor<T>, peer_id: u64, segment_id: u64, proof: Vec<u8>, sealed_cid: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(<VerPoolA<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
-			VerPoolA::<T>::mutate(&sender, segment_id, |s_opt| {
+			VerPoolA::<T>::try_mutate(&sender, segment_id, |s_opt| -> DispatchResult {
 				let s = s_opt.as_mut().unwrap();
 				s.is_ready = true;
-				s.proof = Some(proof.clone());
-				s.sealed_cid = Some(sealed_cid.clone());
+				s.proof = Some(Self::vec_to_bound::<u8>(proof.clone())?);
+				s.sealed_cid = Some(Self::vec_to_bound::<u8>(sealed_cid.clone())?);
 				s.block_num = Some(<frame_system::Pallet<T>>::block_number());
 				let x = UnverifiedPool::<AccountOf<T>, BoundedString<T>>{
 					acc: sender.clone(), 
 					peer_id: peer_id, 
 					segment_id: segment_id, 
-					proof: proof.clone(), 
-					sealed_cid: sealed_cid.clone(), 
+					proof: Self::vec_to_bound::<u8>(proof.clone())?, 
+					sealed_cid: Self::vec_to_bound::<u8>(sealed_cid.clone())?, 
 					rand: s.rand,
 					size_type: s.size_type,
 				};
-				UnVerifiedA::<T>::mutate(|a| (*a).push(x));
-			});
+				UnVerifiedA::<T>::try_mutate(|a| -> DispatchResult {			
+					(*a).try_push(x).expect("Length exceeded");
+					Ok(())
+				})?;
+				Ok(())
+			})?;
 			Self::deposit_event(Event::<T>::VPASubmitted{peer_id: peer_id, segment_id: segment_id});
 			Ok(())
 		}
@@ -625,8 +637,9 @@ pub mod pallet {
 			let sender = pallet_sminer::Pallet::<T>::get_acc(peer_id);
 
 			let ua = UnVerifiedA::<T>::get();
-			let res = Self::unverify_remove(ua, peer_id, segment_id);
-			UnVerifiedA::<T>::put(res);
+			let res = Self::unverify_remove(ua.to_vec(), peer_id, segment_id);
+			let res_bound = Self::vec_to_bound::<UnverifiedPool<AccountOf<T>, BoundedString<T>>>(res)?;
+			UnVerifiedA::<T>::put(res_bound);
 
 			ensure!(<VerPoolA<T>>::contains_key(&sender, segment_id), Error::<T>::NotExistInVPA);
 
@@ -669,7 +682,7 @@ pub mod pallet {
 							sealed_cid: sealed_cid,
 							size_type: size,
 						};
-						(*v).push(value);
+						(*v).try_push(value).expect("Length exceeded");
 					});
 				} else {
 					let mut v: Vec<ContinuousProofPool<BoundedString<T>>> = Vec::new();
@@ -680,9 +693,10 @@ pub mod pallet {
 						size_type: size,
 					};
 					v.push(value);
+					let v_bound = Self::vec_to_bound::<ContinuousProofPool<BoundedString<T>>>(v)?;
 					<ConProofInfoA<T>>::insert(
 						&sender,
-						v
+						v_bound
 					);
 				}
 			}
@@ -704,23 +718,27 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 			ensure!(<VerPoolB<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
 
-			VerPoolB::<T>::mutate(&sender, segment_id, |s_opt| {
+			VerPoolB::<T>::try_mutate(&sender, segment_id, |s_opt| -> DispatchResult {
 				let s = s_opt.as_mut().unwrap();
 				s.is_ready = true;
-				s.proof = Some(proof.clone());
-				s.sealed_cid = Some(sealed_cid.clone());
+				s.proof = Some(Self::vec_to_bound::<u8>(proof.clone())?);
+				s.sealed_cid = Some(Self::vec_to_bound::<u8>(sealed_cid.clone())?);
 				s.block_num = Some(<frame_system::Pallet<T>>::block_number());
 				let x = UnverifiedPool::<AccountOf<T>, BoundedString<T>>{
 					acc: sender.clone(), 
 					peer_id: peer_id, 
 					segment_id: segment_id, 
-					proof: proof.clone(), 
-					sealed_cid: sealed_cid.clone(), 
+					proof: Self::vec_to_bound::<u8>(proof.clone())?, 
+					sealed_cid: Self::vec_to_bound::<u8>(sealed_cid.clone())?, 
 					rand: (*s).rand, 
 					size_type: (*s).size_type,
 				};
-				UnVerifiedB::<T>::mutate(|a| (*a).push(x));
-			});
+				UnVerifiedB::<T>::try_mutate(|a| -> DispatchResult {			
+					(*a).try_push(x).expect("Length exceeded");
+					Ok(())
+				})?;
+				Ok(())
+			})?;
 
 			Self::deposit_event(Event::<T>::VPBSubmitted{peer_id: peer_id, segment_id: segment_id});	
 			Ok(())
@@ -740,8 +758,9 @@ pub mod pallet {
 			let now: u128 = now_block.saturated_into();
 
 			let ua = UnVerifiedB::<T>::get();
-			let res = Self::unverify_remove(ua, peer_id, segment_id);
-			UnVerifiedB::<T>::put(res);
+			let res = Self::unverify_remove(ua.to_vec(), peer_id, segment_id);
+			let res_bound = Self::vec_to_bound::<UnverifiedPool<AccountOf<T>, BoundedString<T>>>(res)?;
+			UnVerifiedB::<T>::put(res_bound);
 
 			ensure!(<VerPoolB<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
 			ensure!(<PrePoolB<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
@@ -781,13 +800,14 @@ pub mod pallet {
 				Err(Error::<T>::FileNonExistent)?;
 			}
 			
-			VerPoolC::<T>::mutate(&sender, segment_id, |s_opt| {
+			VerPoolC::<T>::try_mutate(&sender, segment_id, |s_opt| -> DispatchResult {
 				let s = s_opt.as_mut().unwrap();
 				s.is_ready = true;
-				s.proof = Some(proof.clone());
-				s.sealed_cid = Some(sealed_cid.clone());
+				s.proof = Some(Self::veclist_to_boundlist(proof.clone())?);
+				s.sealed_cid = Some(Self::veclist_to_boundlist(sealed_cid.clone())?);
 				s.block_num = Some(<frame_system::Pallet<T>>::block_number());
-			});
+				Ok(())
+			})?;
 
 			let mut flag: bool = false;
 			let unc = UnVerifiedC::<T>::get();
@@ -802,7 +822,7 @@ pub mod pallet {
 			} else {
 				let v = VerPoolC::<T>::get(&sender, segment_id).unwrap();
 				let value = MinerHoldSlice::<T>::get(&sender);
-				let mut uncid: Vec<Vec<u8>> = Vec::new();
+				let mut uncid: BoundedList<T> = Default::default();
 				for i in value {
 					if i.segment_id == segment_id {
 						uncid = i.uncid;
@@ -812,13 +832,16 @@ pub mod pallet {
 					acc: sender.clone(), 
 					peer_id: peer_id, 
 					segment_id: segment_id, 
-					proof: proof.clone(), 
-					sealed_cid: sealed_cid.clone(), 
+					proof: Self::veclist_to_boundlist(proof.clone())?, 
+					sealed_cid: Self::veclist_to_boundlist(sealed_cid.clone())?, 
 					uncid: uncid,
 					rand: v.rand, 
 					size_type: v.size_type,
 				};
-				UnVerifiedC::<T>::mutate(|a| (*a).push(x));
+				UnVerifiedC::<T>::try_mutate(|a| -> DispatchResult {			
+					(*a).try_push(x).expect("Length exceeded");
+					Ok(())
+				})?;
 			}
 			
 
@@ -838,8 +861,9 @@ pub mod pallet {
 			let sender = pallet_sminer::Pallet::<T>::get_acc(peer_id);
 
 			let ua = UnVerifiedC::<T>::get();
-			let res = Self::unverify_remove_vec(ua, peer_id, segment_id);
-			UnVerifiedC::<T>::put(res);
+			let res = Self::unverify_remove_vec(ua.to_vec(), peer_id, segment_id);
+			let res_bound = Self::vec_to_bound::<UnverifiedPoolVec<AccountOf<T>, BoundedList<T>>>(res)?;
+			UnVerifiedC::<T>::put(res_bound);
 
 			ensure!(<VerPoolC<T>>::contains_key(&sender, segment_id), Error::<T>::NotExistInVPC);
 
@@ -880,34 +904,36 @@ pub mod pallet {
 				let value = MinerHoldSlice::<T>::get(&sender);
 				for i in value {
 					if i.segment_id == segment_id {
-						hash = i.shardhash;
+						hash = i.shardhash.to_vec();
 					}
 				}
 
 				if <ConProofInfoC<T>>::contains_key(&sender) {
-					<ConProofInfoC<T>>::mutate(sender.clone(), |v|{
+					<ConProofInfoC<T>>::try_mutate(sender.clone(), |v| -> DispatchResult {
 						let value = ContinuousProofPoolVec::<BoundedString<T>, BoundedList<T>> {
 							peer_id: peer_id,
 							segment_id: segment_id,
 							sealed_cid: sealed_cid.clone(),
-							hash: hash,
+							hash: Self::vec_to_bound::<u8>(hash)?,
 							size_type: size,
 						};
-						(*v).push(value)
-					});
+						(*v).try_push(value).expect("Length exceeded");
+						Ok(())
+					})?;
 				} else {
-					let mut v: Vec<ContinuousProofPoolVec<<BoundedString<T>, BoundedList<T>>>> = Vec::new();
+					let mut v: Vec<ContinuousProofPoolVec<BoundedString<T>, BoundedList<T>>> = Vec::new();
 					let value = ContinuousProofPoolVec::<BoundedString<T>, BoundedList<T>> {
 						peer_id: peer_id,
 						segment_id: segment_id,
 						sealed_cid: sealed_cid,
-						hash: hash,
+						hash: Self::vec_to_bound::<u8>(hash)?,
 						size_type: size,
 					};
 					v.push(value);
+					let v_bound = Self::vec_to_bound::<ContinuousProofPoolVec<BoundedString<T>, BoundedList<T>>>(v)?;
 					<ConProofInfoC<T>>::insert(
 						&sender,
-						v
+						v_bound
 					);
 				}
 
@@ -962,23 +988,27 @@ pub mod pallet {
 				Err(Error::<T>::FileNonExistent)?;
 			}
 
-			VerPoolD::<T>::mutate(&sender, segment_id, |s_opt| {
+			VerPoolD::<T>::try_mutate(&sender, segment_id, |s_opt| -> DispatchResult {
 				let s = s_opt.as_mut().unwrap();
 				s.is_ready = true;
-				s.proof = Some(proof.clone());
-				s.sealed_cid = Some(sealed_cid.clone());
+				s.proof = Some(Self::veclist_to_boundlist(proof.clone())?);
+				s.sealed_cid = Some(Self::veclist_to_boundlist(sealed_cid.clone())?);
 				s.block_num = Some(now_block);
 				let x = UnverifiedPoolVecD::<AccountOf<T>, BoundedList<T>>{
 					acc: sender.clone(), 
 					peer_id: peer_id, 
 					segment_id: segment_id, 
-					proof: proof.clone(), 
-					sealed_cid: sealed_cid.clone(), 
+					proof: Self::veclist_to_boundlist(proof.clone())?, 
+					sealed_cid: Self::veclist_to_boundlist(sealed_cid.clone())?, 
 					rand: (*s).rand, 
 					size_type: (*s).size_type,
 				};
-				UnVerifiedD::<T>::mutate(|a| (*a).push(x));
-			});
+				UnVerifiedD::<T>::try_mutate(|a| -> DispatchResult {
+					(*a).try_push(x).expect("Length exceeded"); 
+					Ok(())
+				})?;
+				Ok(())
+			})?;
 
 			Self::deposit_event(Event::<T>::VPDSubmitted{peer_id: peer_id, segment_id: segment_id});	
 			Ok(())
@@ -997,8 +1027,9 @@ pub mod pallet {
 			let now: u128 = <frame_system::Pallet<T>>::block_number().saturated_into();
 
 			let ua = UnVerifiedD::<T>::get();
-			let res = Self::unverify_remove_vec_d(ua, peer_id, segment_id);
-			UnVerifiedD::<T>::put(res);
+			let res = Self::unverify_remove_vec_d(ua.to_vec(), peer_id, segment_id);
+			let res_bound = Self::vec_to_bound::<UnverifiedPoolVecD<AccountOf<T>, BoundedList<T>>>(res)?;
+			UnVerifiedD::<T>::put(res_bound);
 
 			ensure!(<VerPoolD<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
 			ensure!(<PrePoolD<T>>::contains_key(&sender, segment_id), Error::<T>::NoIntentSubmitYet);
@@ -1064,6 +1095,7 @@ pub mod pallet {
 // }
 
 impl<T: Config> Pallet<T> {
+
 	// Generate a random number from a given seed.
 	fn generate_random_number(seed: u32) -> u32 {
 		let (random_seed, _) = T::MyRandomness::random(&(T::MyPalletId::get(), seed).encode());
@@ -1084,7 +1116,7 @@ impl<T: Config> Pallet<T> {
 	// 	list
 	// }
 
-	fn unverify_remove(mut list: Vec<UnverifiedPool<T>>, peer_id: u64, segment_id: u64) -> Vec<UnverifiedPool<T>>{
+	fn unverify_remove(mut list: Vec<UnverifiedPool<AccountOf<T>, BoundedString<T>>>, peer_id: u64, segment_id: u64) -> Vec<UnverifiedPool<AccountOf<T>, BoundedString<T>>>{
 		let mut k = 0;
 		for i in list.iter() {
 			if i.peer_id == peer_id && i.segment_id == segment_id {
@@ -1150,6 +1182,22 @@ impl<T: Config> Pallet<T> {
 		<PrePoolC<T>>::remove(&acc, segment_id);
 		<VerPoolD<T>>::remove(&acc, segment_id);
 		<PrePoolD<T>>::remove(&acc, segment_id);
+	}
+
+	fn vec_to_bound<P>(param: Vec<P>) -> Result<BoundedVec<P, T::SegStringLimit>, DispatchError> {
+		let result: BoundedVec<P, T::SegStringLimit> = param.try_into().expect("too long");
+		Ok(result)
+	}
+
+	fn veclist_to_boundlist(param: Vec<Vec<u8>>) -> Result<BoundedList<T>, DispatchError> {
+		let mut result: BoundedList<T> = Vec::new().try_into().expect("...");
+
+		for v in param {
+			let string: BoundedVec<u8, T::SegStringLimit> = v.try_into().expect("keywords too long");
+			result.try_push(string).expect("keywords too long");
+		}
+
+		Ok(result)
 	}
 }
 

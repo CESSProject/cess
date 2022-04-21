@@ -37,27 +37,13 @@ use sp_runtime::{
     traits::SaturatedConversion,
 };
 use codec::{Encode, Decode};
-use frame_support::{dispatch::DispatchResult, PalletId};
+use frame_support::{dispatch::{DispatchResult, DispatchError}, PalletId};
+use frame_support::BoundedVec;
 use sp_std::prelude::*;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 
-
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct SchedulerInfo<T: pallet::Config> {
-    ip: Vec<u8>,
-    stash_user: AccountOf<T>,
-    controller_user: AccountOf<T>,
-}
-
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, Default, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct ExceptionReport<T: pallet::Config> {
-    count: u32,
-    reporters: Vec<AccountOf<T>>,
-} 
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -68,9 +54,25 @@ pub mod pallet {
 	};
 	use frame_system::{ensure_signed, pallet_prelude::*};
 
+    #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+    #[scale_info(skip_type_params(T))]
+    #[codec(mel_bound())]
+    pub struct SchedulerInfo<T: pallet::Config> {
+        ip: BoundedVec<u8, T::StringLimit>,
+        stash_user: AccountOf<T>,
+        controller_user: AccountOf<T>,
+    }
+
+    #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, Default, MaxEncodedLen, TypeInfo)]
+    #[scale_info(skip_type_params(T))]
+    #[codec(mel_bound())]
+    pub struct ExceptionReport<T: pallet::Config> {
+        count: u32,
+        reporters: BoundedVec<AccountOf<T>, T::StringLimit>,
+    } 
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_cess_staking::Config {
+	pub trait Config: frame_system::Config {
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		/// The currency trait.
@@ -78,6 +80,9 @@ pub mod pallet {
 		/// pallet address.
 		#[pallet::constant]
 		type FileMapPalletId: Get<PalletId>;
+
+        #[pallet::constant]
+        type StringLimit: Get<u32> + PartialEq + Eq + Clone;
 	}
 
 	#[pallet::event]
@@ -99,7 +104,7 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::getter(fn scheduler_map)]
-    pub(super) type SchedulerMap<T: Config> = StorageValue<_, Vec<SchedulerInfo<T>>, ValueQuery>;
+    pub(super) type SchedulerMap<T: Config> = StorageValue<_, BoundedVec<SchedulerInfo<T>, T::StringLimit>, ValueQuery>;
 
     #[pallet::storage]
     #[pallet::getter(fn scheduler_exception)]
@@ -135,21 +140,22 @@ pub mod pallet {
         pub fn registration_scheduler(origin: OriginFor<T>, stash_account: AccountOf<T>, ip: Vec<u8>) -> DispatchResult {
             let sender = ensure_signed(origin)?;
 
-            let acc = <pallet_cess_staking::Pallet<T>>::bonded(&stash_account).unwrap();
-            if sender != acc {
-                Err(Error::<T>::NotController)?;
-            }
+            // let acc = <pallet_cess_staking::Pallet<T>>::bonded(&stash_account).unwrap();
+            // if sender != acc {
+            //     Err(Error::<T>::NotController)?;
+            // }
             let mut s_vec = SchedulerMap::<T>::get();
+            let ip_bound = Self::vec_to_bound::<u8>(ip.clone())?;
             let scheduler = SchedulerInfo::<T>{
-                ip: ip.clone(),
+                ip: ip_bound,
                 stash_user: stash_account.clone(),
                 controller_user: sender.clone(),
             };
-
-            if s_vec.contains(&scheduler) {
+ 
+            if s_vec.to_vec().contains(&scheduler) {
                 Err(Error::<T>::AlreadyRegistration)?;
             }
-            s_vec.push(scheduler);
+            s_vec.try_push(scheduler).expect("Length exceeded");
             SchedulerMap::<T>::put(s_vec);
             Self::deposit_event(Event::<T>::RegistrationScheduler{acc: sender, ip: ip});
             Ok(())
@@ -162,23 +168,30 @@ pub mod pallet {
             if !<SchedulerException<T>>::contains_key(&account) {
                 <SchedulerException<T>>::insert(&account, ExceptionReport::<T>{
                     count: 0,
-                    reporters: Vec::new(),
+                    reporters: Default::default(),
                 });
             }
 
             <SchedulerException<T>>::try_mutate(&account, |opt| -> DispatchResult {
                 let o = opt.as_mut().unwrap();
-                for value in &o.reporters {
+                for value in &o.reporters.to_vec() {
                     if &sender == value {
                         Err(Error::<T>::AlreadyReport)?;
                     }
                 }
                 o.count += 1;
-                o.reporters.push(account.clone());
+                o.reporters.try_push(account.clone()).expect("Length exceeded");
                 Ok(())
             })?; 
 
             Ok(())
         }
     }
+}
+
+impl<T: Config> Pallet<T> {
+    fn vec_to_bound<P>(param: Vec<P>) -> Result<BoundedVec<P, T::StringLimit>, DispatchError> {
+		let result: BoundedVec<P, T::StringLimit> = param.try_into().expect("too long");
+		Ok(result)
+	}
 }

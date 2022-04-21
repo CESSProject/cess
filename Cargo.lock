@@ -4304,7 +4304,6 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
- "pallet-cess-staking",
  "pallet-file-bank",
  "pallet-segment-book",
  "pallet-sminer",

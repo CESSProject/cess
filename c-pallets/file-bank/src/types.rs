@@ -4,7 +4,9 @@ type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 
-#[derive(Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+
+
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct FileInfo<T: pallet::Config> {
@@ -24,7 +26,7 @@ pub struct FileInfo<T: pallet::Config> {
 }
 
 //backups info struct
-#[derive(Default, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct FileDuplicateInfo<T: pallet::Config> {
@@ -34,11 +36,26 @@ pub struct FileDuplicateInfo<T: pallet::Config> {
 	pub(super) file_slice: BoundedVec<FileSliceInfo<T>, T::StringLimit>,
 }
 
-// impl<T: pallet::Config> Clone for FileDuplicateInfo<T> {
+#[derive(Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+pub struct TestFileDuplicateInfo<T: pallet::Config> {
+	pub(super) dupl_id: BoundedVec<u8, T::StringLimit>,
+	pub(super) rand_key: BoundedVec<u8, T::StringLimit>,
+	pub(super) slice_num: u16,
+}
+// impl<T: pallet::Config> Copy for FileInfo<T> {}
+
+// impl<T, S> Copy for BoundedVec<T, S> {}
+
+// impl<T: pallet::Config> Copy for FileDuplicateInfo<T> {}
+// #[cfg(feature = "std")]
+// impl<T: pallet::Config> core::clone::Clone for TestFileDuplicateInfo<T> {
 //     fn clone(&self) -> Self {
-//         *self
+//         self.clone()
 //     }
 // }
+
+
 
 // impl<T: pallet::Config> PartialEq for FileDuplicateInfo<T> {
 //     fn eq(&self, other: &FileDuplicateInfo<T>) -> bool {
@@ -62,7 +79,7 @@ pub struct FileDuplicateInfo<T: pallet::Config> {
 
 //slice info
 //Slice consists of shard
-#[derive(PartialEq, Eq, Default, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+#[derive(PartialEq, Eq, Clone, Default, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct FileSliceInfo<T: pallet::Config> {
@@ -74,7 +91,7 @@ pub struct FileSliceInfo<T: pallet::Config> {
 
 //shard info
 //Slice consists of shard
-#[derive(PartialEq, Eq, Default, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+#[derive(PartialEq, Eq, Clone, Default, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct FileShardInfo<T: pallet::Config> {

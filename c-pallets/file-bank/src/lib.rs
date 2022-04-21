@@ -40,11 +40,11 @@ use sp_runtime::{
 };
 use sp_std::prelude::*;
 use codec::{Encode, Decode};
+
 use frame_support::{
 	pallet_prelude::*,
 	dispatch::DispatchResult, 
 	PalletId,
-	storage::bounded_vec::BoundedVec
 };
 use sp_runtime::traits::CheckedAdd;
 use sp_runtime::traits::CheckedSub;
@@ -61,7 +61,6 @@ pub mod pallet {
 	use super::*;
 	use frame_support::{
 		ensure,
-		pallet_prelude::*,
 		traits::Get,
 	};
 	//pub use crate::weights::WeightInfo;
@@ -80,7 +79,7 @@ pub mod pallet {
 		type FilbakPalletId: Get<PalletId>;
 
 		#[pallet::constant]
-		type StringLimit: Get<u32>;
+		type StringLimit: Get<u32> + Clone + Eq + PartialEq;
 	}
 
 	#[pallet::event]
@@ -378,9 +377,10 @@ pub mod pallet {
 				deadline: now + deadline,
 			};
 
-			<UserSpaceList<T>>::mutate(&sender, |s|{
-				s.push(list);
-			});
+			<UserSpaceList<T>>::try_mutate(&sender, |s| -> DispatchResult{
+				s.try_push(list).expect("Length exceeded");
+				Ok(())
+			})?;
 			Self::user_buy_space_update(sender.clone(), space * 1024)?;
 
 			Self::deposit_event(Event::<T>::BuySpace{acc: sender.clone(), size: space, fee: money});
@@ -394,11 +394,12 @@ pub mod pallet {
 			pallet_sminer::Pallet::<T>::add_purchased_space(1024)?;
 			
 			let deadline: BlockNumberOf<T> = 999999999u32.into();
-			let mut list: Vec<SpaceInfo<T>> = [SpaceInfo::<T>{size: 1024, deadline}].to_vec();
-
-			<UserSpaceList<T>>::mutate(&sender, |s|{
-				s.append(&mut list);
-			});
+			let list: SpaceInfo<T> = SpaceInfo::<T>{size: 1024, deadline};
+		
+			<UserSpaceList<T>>::try_mutate(&sender, |s| -> DispatchResult{
+				s.try_push(list).expect("Length exceeded");
+				Ok(())
+			})?;
 
 			Self::user_buy_space_update(sender.clone(), 1024 * 1024)?;
 			<UserFreeRecord<T>>::insert(&sender, 1);
@@ -490,7 +491,7 @@ pub mod pallet {
 			if !<UserInfoMap<T>>::contains_key(&user) {
 				Err(Error::<T>::NotUser)?;
 			}
-			let bounded_fileid = Self::vec_to_bound::<u8>(fileid)?;
+			let bounded_fileid = Self::vec_to_bound::<u8>(fileid.clone())?;
 			ensure!((<File<T>>::contains_key(bounded_fileid.clone())), Error::<T>::FileNonExistent);
 			
 			let file = <File<T>>::get(&bounded_fileid).unwrap();
@@ -524,7 +525,7 @@ impl<T: Config> Pallet<T> {
 		downloadfee: BalanceOf<T>
 	) -> DispatchResult {
 		ensure!(<UserHoldSpaceDetails<T>>::contains_key(&acc), Error::<T>::NotPurchasedSpace);
-		let bounded_fileid = Self::vec_to_bound::<u8>(*fileid)?;
+		let bounded_fileid = Self::vec_to_bound::<u8>(fileid.to_vec())?;
 		ensure!(!<File<T>>::contains_key(bounded_fileid.clone()), Error::<T>::FileExistent);		
 		let mut invoice: Vec<u8> = Vec::new();
 		for i in fileid {
@@ -616,7 +617,7 @@ impl<T: Config> Pallet<T> {
 	fn add_user_hold_file(acc: AccountOf<T>, fileid: Vec<u8>){
 		let bounded_fileid = Self::vec_to_bound::<u8>(fileid).unwrap();
 		<UserHoldFileList<T>>::mutate(&acc, |s|{
-			s.push(bounded_fileid);
+			s.try_push(bounded_fileid).expect("Length exceeded");
 		});
 	}
 
