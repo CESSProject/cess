@@ -44,10 +44,10 @@ use sp_runtime::{
 mod types;
 use types::*;
 
-
 use sp_std::prelude::*;
 use codec::{Encode, Decode};
 use frame_support::{
+	storage::bounded_vec::BoundedVec,
 	dispatch::DispatchResult,
 	PalletId,
 	traits::{ReservableCurrency, Get, Randomness,},
@@ -56,6 +56,9 @@ use scale_info::TypeInfo;
 pub use weights::WeightInfo;
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
+
+type BoundedString<T> = BoundedVec<u8, <T as Config>::StringLimit>;
+type BoundedList<T> = BoundedVec<BoundedVec<u8, <T as Config>::StringLimit>, <T as Config>::StringLimit>;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -79,6 +82,9 @@ pub mod pallet {
 		#[pallet::constant]
 		/// The pallet id
 		type MyPalletId: Get<PalletId>;
+
+		#[pallet::constant]
+		type StringLimit: Get<u32>;
 		/// randomness for seeds.
 		type MyRandomness: Randomness<Self::Hash, Self::BlockNumber>;
 	}
@@ -175,7 +181,7 @@ pub mod pallet {
 		//peer acc
 		T::AccountId,
 		//segment id
-		Vec<ContinuousProofPool>,
+		Vec<ContinuousProofPool<BoundedString<T>>>,
 		ValueQuery,
 	>;
 
@@ -187,32 +193,12 @@ pub mod pallet {
 		//peer acc
 		T::AccountId,
 		//segment id
-		Vec<ContinuousProofPoolVec>,
+		Vec<ContinuousProofPoolVec<BoundedString<T>, BoundedList<T>>>,
 		ValueQuery,
 	>;
 
 	//One Accout total blocknumber use For polling
-	#[pallet::storage]
-	#[pallet::getter(fn block_number_a)]
-	pub(super) type BlockNumberD<T: Config> = StorageMap<
-		_,
-		Twox64Concat,
-		//peer acc
-		T::AccountId,
-		//segment id
-		PeerFileNum,
-	>;
 
-	#[pallet::storage]
-	#[pallet::getter(fn block_number_b)]
-	pub(super) type BlockNumberB<T: Config> = StorageMap<
-		_,
-		Twox64Concat,
-		//peer acc
-		T::AccountId,
-		//segment id
-		PeerFileNum,
-	>;
 	//One Accout total blocknumber use For polling
 
 	#[pallet::storage]
@@ -225,7 +211,7 @@ pub mod pallet {
 		Twox64Concat,
 		//segment id
 		u64,
-		ProofInfoVPA<T>,
+		ProofInfoVPA<BoundedString<T>, BlockNumberOf<T>>,
 	>;
 
 	#[pallet::storage]
@@ -238,7 +224,7 @@ pub mod pallet {
 		Twox64Concat,
 		//segment id
 		u64,
-		ProofInfoPPA<T>,
+		ProofInfoPPA<BoundedString<T>, BlockNumberOf<T>>,
 	>;
 
 	#[pallet::storage]
@@ -251,7 +237,7 @@ pub mod pallet {
 		Twox64Concat,
 		//segment id
 		u64,
-		ProofInfoVPB<T>,
+		ProofInfoVPB<BoundedString<T>, BlockNumberOf<T>>,
 	>;
 
 	#[pallet::storage]
@@ -264,7 +250,7 @@ pub mod pallet {
 		Twox64Concat,
 		//segment id
 		u64,
-		ProofInfoPPB<T>,
+		ProofInfoPPB<BoundedString<T>, BlockNumberOf<T>>,
 	>;
 
 	#[pallet::storage]
@@ -277,7 +263,7 @@ pub mod pallet {
 		Twox64Concat,
 		//segment id
 		u64,
-		ProofInfoVPC<T>,
+		ProofInfoVPC<BoundedList<T>, BlockNumberOf<T>>,
 	>;
 
 	#[pallet::storage]
@@ -290,7 +276,7 @@ pub mod pallet {
 		Twox64Concat,
 		//segment id
 		u64,
-		ProofInfoPPC<T>,
+		ProofInfoPPC<BoundedList<T>, BlockNumberOf<T>>,
 	>;
 
 	#[pallet::storage]
@@ -303,7 +289,7 @@ pub mod pallet {
 		Twox64Concat,
 		//segment id
 		u64,
-		ProofInfoVPD<T>,
+		ProofInfoVPD<BoundedList<T>, BlockNumberOf<T>>,
 	>;
 
 	#[pallet::storage]
@@ -316,7 +302,7 @@ pub mod pallet {
 		Twox64Concat,
 		//segment id
 		u64,
-		ProofInfoPPD<T>,
+		ProofInfoPPD<BoundedList<T>, BlockNumberOf<T>>,
 	>;
 
 	#[pallet::storage]
@@ -327,7 +313,7 @@ pub mod pallet {
 		//peer acc
 		T::AccountId,
 		//segment id
-		Vec<FileSilceInfo>,
+		Vec<FileSilceInfo<BoundedString<T>, BoundedList<T>>>,
 
 		ValueQuery
 	>;
@@ -336,21 +322,21 @@ pub mod pallet {
 	//Vec<(T::Account, peer_id, segment_id, poof, sealed_cid, rand, size_type)>
 	#[pallet::storage]
 	#[pallet::getter(fn un_verified_a)]
-	pub(super) type UnVerifiedA<T: Config> = StorageValue<_, Vec<UnverifiedPool<T>>, ValueQuery>;
+	pub(super) type UnVerifiedA<T: Config> = StorageValue<_, Vec<UnverifiedPool<AccountOf<T>, BoundedString<T>>>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn un_verified_b)]
-	pub(super) type UnVerifiedB<T: Config> = StorageValue<_, Vec<UnverifiedPool<T>>, ValueQuery>;
+	pub(super) type UnVerifiedB<T: Config> = StorageValue<_, Vec<UnverifiedPool<AccountOf<T>, BoundedString<T>>>, ValueQuery>;
 
 
 	#[pallet::storage]
 	#[pallet::getter(fn un_verified_c)]
-	pub(super) type UnVerifiedC<T: Config> = StorageValue<_, Vec<UnverifiedPoolVec<T>>, ValueQuery>;
+	pub(super) type UnVerifiedC<T: Config> = StorageValue<_, Vec<UnverifiedPoolVec<AccountOf<T>, BoundedList<T>>>, ValueQuery>;
 
 
 	#[pallet::storage]
 	#[pallet::getter(fn un_verified_d)]
-	pub(super) type UnVerifiedD<T: Config> = StorageValue<_, Vec<UnverifiedPoolVecD<T>>, ValueQuery>;
+	pub(super) type UnVerifiedD<T: Config> = StorageValue<_, Vec<UnverifiedPoolVecD<AccountOf<T>, BoundedList<T>>>, ValueQuery>;
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
@@ -453,7 +439,7 @@ pub mod pallet {
 					<VerPoolA<T>>::insert(
 						&sender,
 						segment_id,
-						ProofInfoVPA {
+						ProofInfoVPA::<BoundedString<T>, BlockNumberOf<T>> {
 							is_ready: false,
 							size_type: size,
 							proof: None,
@@ -479,7 +465,7 @@ pub mod pallet {
 					<VerPoolC<T>>::insert(
 						&acc,
 						segment_id,
-						ProofInfoVPC {
+						ProofInfoVPC::<BoundedList<T>, BlockNumberOf<T>> {
 							is_ready: false,
 							size_type: size,
 							proof: None,
@@ -488,7 +474,7 @@ pub mod pallet {
 							block_num: None,
 						}
 					);
-					let silce_info = FileSilceInfo {
+					let silce_info = FileSilceInfo::<BoundedString<T>, BoundedList<T>> {
 						peer_id: peerid,
 						segment_id: segment_id,
 						uncid: uncid,
@@ -498,7 +484,7 @@ pub mod pallet {
 					if <MinerHoldSlice<T>>::contains_key(&acc) {
 						<MinerHoldSlice<T>>::mutate(&acc, |s| (*s).push(silce_info));
 					} else {
-						let mut value: Vec<FileSilceInfo> = Vec::new();
+						let mut value: Vec<FileSilceInfo<<BoundedString<T>, BoundedList<T>>> = Vec::new();
 						value.push(silce_info);
 						<MinerHoldSlice<T>>::insert(
 							&acc,
@@ -545,7 +531,7 @@ pub mod pallet {
 					<VerPoolB<T>>::insert(
 						&sender,
 						segment_id,
-						ProofInfoVPB {
+						ProofInfoVPB::<BoundedString<T>, BlockNumberOf<T>> {
 							is_ready: false,
 							size_type: size,
 							proof: None,
@@ -569,7 +555,7 @@ pub mod pallet {
 					<VerPoolD<T>>::insert(
 						&sender,
 						segment_id,
-						ProofInfoVPD {
+						ProofInfoVPD::<BoundedList<T>, BlockNumberOf<T>> {
 							is_ready: false,
 							size_type: size,
 							sealed_cid: None,
@@ -612,7 +598,7 @@ pub mod pallet {
 				s.proof = Some(proof.clone());
 				s.sealed_cid = Some(sealed_cid.clone());
 				s.block_num = Some(<frame_system::Pallet<T>>::block_number());
-				let x = UnverifiedPool{
+				let x = UnverifiedPool::<AccountOf<T>, BoundedString<T>>{
 					acc: sender.clone(), 
 					peer_id: peer_id, 
 					segment_id: segment_id, 
@@ -652,7 +638,7 @@ pub mod pallet {
 				<PrePoolA<T>>::insert(
 					&sender,
 					segment_id,
-					ProofInfoPPA {
+					ProofInfoPPA::<BoundedString<T>, BlockNumberOf<T>> {
 						size_type: vpa.size_type,
 						proof: vpa.proof,
 						sealed_cid: vpa.sealed_cid,
@@ -662,30 +648,14 @@ pub mod pallet {
 				<PrePoolB<T>>::insert(
 					&sender,
 					segment_id,
-					ProofInfoPPB {
+					ProofInfoPPB::<BoundedString<T>, BlockNumberOf<T>> {
 						size_type: vpa.size_type.clone(),
 						proof: None,
 						sealed_cid: None,
 						block_num: Some(<frame_system::Pallet<T>>::block_number()),
 					}
 				);
-				if !(<BlockNumberB<T>>::contains_key(&sender)) {
-					<BlockNumberB<T>>::insert(
-						&sender,
-						PeerFileNum {
-							block_num: <frame_system::Pallet<T>>::block_number().saturated_into(),
-							total_num: 1,
-						}
-					);
-				} else {
-					<BlockNumberB<T>>::try_mutate(&sender, |s_opt| -> DispatchResult {
-						let now: u128 = <frame_system::Pallet<T>>::block_number().saturated_into();
-						let s = s_opt.as_mut().unwrap();
-						s.block_num = s.block_num.checked_add(now).ok_or(Error::<T>::OverFlow)?;
-						s.total_num = s.total_num.checked_add(1).ok_or(Error::<T>::OverFlow)?;
-						Ok(())
-					})?;
-				}
+				
 				let _ = pallet_sminer::Pallet::<T>::add_power(peer_id, vpa.size_type)?;
 				pallet_sminer::Pallet::<T>::add_available_space(vpa.size_type)?;
 				let size = vpa.size_type;
@@ -693,7 +663,7 @@ pub mod pallet {
 				let sealed_cid = bo.sealed_cid.unwrap();
 				if <ConProofInfoA<T>>::contains_key(&sender) {
 					<ConProofInfoA<T>>::mutate(sender.clone(), |v| {
-						let value = ContinuousProofPool {
+						let value = ContinuousProofPool::<BoundedString<T>> {
 							peer_id: peer_id,
 							segment_id: segment_id,
 							sealed_cid: sealed_cid,
@@ -702,8 +672,8 @@ pub mod pallet {
 						(*v).push(value);
 					});
 				} else {
-					let mut v: Vec<ContinuousProofPool> = Vec::new();
-					let value = ContinuousProofPool {
+					let mut v: Vec<ContinuousProofPool<BoundedString<T>>> = Vec::new();
+					let value = ContinuousProofPool::<BoundedString<T>> {
 						peer_id: peer_id,
 						segment_id: segment_id,
 						sealed_cid: sealed_cid,
@@ -740,7 +710,7 @@ pub mod pallet {
 				s.proof = Some(proof.clone());
 				s.sealed_cid = Some(sealed_cid.clone());
 				s.block_num = Some(<frame_system::Pallet<T>>::block_number());
-				let x = UnverifiedPool{
+				let x = UnverifiedPool::<AccountOf<T>, BoundedString<T>>{
 					acc: sender.clone(), 
 					peer_id: peer_id, 
 					segment_id: segment_id, 
@@ -783,11 +753,7 @@ pub mod pallet {
 			if result {
 					PrePoolB::<T>::try_mutate(&sender, segment_id, |s_opt| -> DispatchResult {
 						let s = s_opt.as_mut().unwrap();
-						<BlockNumberB<T>>::try_mutate(&sender, |a_opt| -> DispatchResult {
-							let a = a_opt.as_mut().unwrap();
-							a.block_num = now;
-							Ok(())
-						})?;
+					
 						s.proof = Some(vpb.proof.unwrap());
 						s.sealed_cid = Some(vpb.sealed_cid.unwrap());
 						s.block_num = Some(now_block);
@@ -842,7 +808,7 @@ pub mod pallet {
 						uncid = i.uncid;
 					}
 				}
-				let x = UnverifiedPoolVec{
+				let x = UnverifiedPoolVec::<AccountOf<T>, BoundedList<T>>{
 					acc: sender.clone(), 
 					peer_id: peer_id, 
 					segment_id: segment_id, 
@@ -885,7 +851,7 @@ pub mod pallet {
 				<PrePoolC<T>>::insert(
 					&sender,
 					segment_id,
-					ProofInfoPPC {
+					ProofInfoPPC::<BoundedList<T>, BlockNumberOf<T>> {
 						size_type: vpc.size_type,
 						proof: vpc.proof,
 						sealed_cid: vpc.sealed_cid,
@@ -895,30 +861,14 @@ pub mod pallet {
 				<PrePoolD<T>>::insert(
 					&sender,
 					segment_id,
-					ProofInfoPPD {
+					ProofInfoPPD::<BoundedList<T>, BlockNumberOf<T>> {
 						size_type: vpc.size_type.clone(),
 						proof: None,
 						sealed_cid: None,
 						block_num: Some(<frame_system::Pallet<T>>::block_number()),
 					}
 				);
-				if !(<BlockNumberD<T>>::contains_key(&sender)) {
-					<BlockNumberD<T>>::insert(
-						&sender,
-						PeerFileNum {
-							block_num: <frame_system::Pallet<T>>::block_number().saturated_into(),
-							total_num: 1,
-						}
-					);
-				} else {
-					let now: u128 = <frame_system::Pallet<T>>::block_number().saturated_into();
-					<BlockNumberD<T>>::try_mutate(&sender, |s_opt| -> DispatchResult {
-						let s = s_opt.as_mut().unwrap();
-						s.block_num = s.block_num.checked_add(now).ok_or(Error::<T>::OverFlow)?;
-						s.total_num = s.total_num.checked_add(1).ok_or(Error::<T>::OverFlow)?;
-						Ok(())
-					})?;
-				}
+		
 				let _ = pallet_sminer::Pallet::<T>::add_power(peer_id, vpc.size_type)?;
 				let _ = pallet_sminer::Pallet::<T>::add_space(peer_id, vpc.size_type)?;
 
@@ -936,7 +886,7 @@ pub mod pallet {
 
 				if <ConProofInfoC<T>>::contains_key(&sender) {
 					<ConProofInfoC<T>>::mutate(sender.clone(), |v|{
-						let value = ContinuousProofPoolVec {
+						let value = ContinuousProofPoolVec::<BoundedString<T>, BoundedList<T>> {
 							peer_id: peer_id,
 							segment_id: segment_id,
 							sealed_cid: sealed_cid.clone(),
@@ -946,8 +896,8 @@ pub mod pallet {
 						(*v).push(value)
 					});
 				} else {
-					let mut v: Vec<ContinuousProofPoolVec> = Vec::new();
-					let value = ContinuousProofPoolVec {
+					let mut v: Vec<ContinuousProofPoolVec<<BoundedString<T>, BoundedList<T>>>> = Vec::new();
+					let value = ContinuousProofPoolVec::<BoundedString<T>, BoundedList<T>> {
 						peer_id: peer_id,
 						segment_id: segment_id,
 						sealed_cid: sealed_cid,
@@ -1018,7 +968,7 @@ pub mod pallet {
 				s.proof = Some(proof.clone());
 				s.sealed_cid = Some(sealed_cid.clone());
 				s.block_num = Some(now_block);
-				let x = UnverifiedPoolVecD{
+				let x = UnverifiedPoolVecD::<AccountOf<T>, BoundedList<T>>{
 					acc: sender.clone(), 
 					peer_id: peer_id, 
 					segment_id: segment_id, 
@@ -1060,11 +1010,6 @@ pub mod pallet {
 			if result {
 				PrePoolD::<T>::try_mutate(&sender, segment_id, |s_opt| -> DispatchResult {
 					let s = s_opt.as_mut().unwrap();
-					<BlockNumberD<T>>::try_mutate(&sender, |a_opt| -> DispatchResult {
-						let a = a_opt.as_mut().unwrap();
-						a.block_num = now;
-						Ok(())
-					})?;
 					s.proof = Some(vpd.proof.unwrap());
 					s.sealed_cid = Some(vpd.sealed_cid.unwrap());
 					s.block_num = Some(now_block);
@@ -1086,37 +1031,37 @@ pub mod pallet {
 	}
 }
 
-pub trait UnVerify {
-	fn get_peerid(&self) -> u64;
-	fn get_segmentid(&self) -> u64;
-}
+// pub trait UnVerify {
+// 	fn get_peerid(&self) -> u64;
+// 	fn get_segmentid(&self) -> u64;
+// }
 
-impl<T: Config> UnVerify for UnverifiedPool<T> {
-	fn get_peerid(&self) -> u64 {
-		self.peer_id
-	}
-	fn get_segmentid(&self) -> u64 {
-		self.segment_id
-	}
-}
+// impl<T: Config> UnVerify for UnverifiedPool<T> {
+// 	fn get_peerid(&self) -> u64 {
+// 		self.peer_id
+// 	}
+// 	fn get_segmentid(&self) -> u64 {
+// 		self.segment_id
+// 	}
+// }
 
-impl<T: Config> UnVerify for UnverifiedPoolVec<T> {
-	fn get_peerid(&self) -> u64 {
-		self.peer_id
-	}
-	fn get_segmentid(&self) -> u64 {
-		self.segment_id
-	}
-}
+// impl<T: Config> UnVerify for UnverifiedPoolVec<T> {
+// 	fn get_peerid(&self) -> u64 {
+// 		self.peer_id
+// 	}
+// 	fn get_segmentid(&self) -> u64 {
+// 		self.segment_id
+// 	}
+// }
 
-impl<T: Config> UnVerify for UnverifiedPoolVecD<T> {
-	fn get_peerid(&self) -> u64 {
-		self.peer_id
-	}
-	fn get_segmentid(&self) -> u64 {
-		self.segment_id
-	}
-}
+// impl<T: Config> UnVerify for UnverifiedPoolVecD<T> {
+// 	fn get_peerid(&self) -> u64 {
+// 		self.peer_id
+// 	}
+// 	fn get_segmentid(&self) -> u64 {
+// 		self.segment_id
+// 	}
+// }
 
 impl<T: Config> Pallet<T> {
 	// Generate a random number from a given seed.
@@ -1127,17 +1072,17 @@ impl<T: Config> Pallet<T> {
 		random_number
 	}
 	//Remove eligible data from VEC
-	fn _unverify_usually<U: UnVerify>(mut list: Vec<U>, peer_id: u64, segment_id:u64) -> Vec<U> {
-		let mut k = 0;
-		for i in list.iter() {
-			if (*i).get_peerid() == peer_id && (*i).get_segmentid() == segment_id {
-				break;
-			}
-			k += 1;
-		}
-		list.remove(k);
-		list
-	}
+	// fn _unverify_usually<U: UnVerify>(mut list: Vec<U>, peer_id: u64, segment_id:u64) -> Vec<U> {
+	// 	let mut k = 0;
+	// 	for i in list.iter() {
+	// 		if (*i).get_peerid() == peer_id && (*i).get_segmentid() == segment_id {
+	// 			break;
+	// 		}
+	// 		k += 1;
+	// 	}
+	// 	list.remove(k);
+	// 	list
+	// }
 
 	fn unverify_remove(mut list: Vec<UnverifiedPool<T>>, peer_id: u64, segment_id: u64) -> Vec<UnverifiedPool<T>>{
 		let mut k = 0;
@@ -1151,7 +1096,7 @@ impl<T: Config> Pallet<T> {
 		list
 	}
 	//Remove eligible data from VEC
-	fn unverify_remove_vec(mut list: Vec<UnverifiedPoolVec<T>>, peer_id: u64, segment_id: u64) -> Vec<UnverifiedPoolVec<T>>{
+	fn unverify_remove_vec(mut list: Vec<UnverifiedPoolVec<AccountOf<T>, BoundedList<T>>>, peer_id: u64, segment_id: u64) -> Vec<UnverifiedPoolVec<AccountOf<T>, BoundedList<T>>>{
 		let mut k = 0;
 		for i in list.iter() {
 			if i.peer_id == peer_id && i.segment_id == segment_id {
@@ -1163,7 +1108,7 @@ impl<T: Config> Pallet<T> {
 		list
 	}
 	//Remove eligible data from VEC
-	fn unverify_remove_vec_d(mut list: Vec<UnverifiedPoolVecD<T>>, peer_id: u64, segment_id: u64) -> Vec<UnverifiedPoolVecD<T>>{
+	fn unverify_remove_vec_d(mut list: Vec<UnverifiedPoolVecD<AccountOf<T>, BoundedList<T>>>, peer_id: u64, segment_id: u64) -> Vec<UnverifiedPoolVecD<AccountOf<T>, BoundedList<T>>>{
 		let mut k = 0;
 		for i in list.iter() {
 			if i.peer_id == peer_id && i.segment_id == segment_id {
