@@ -1,10 +1,10 @@
 [package]
 authors = ['CESS LAB']
-edition = '2018'
+edition = '2021'
 license = 'Unlicense'
 name = 'cess-node-runtime'
 repository = '...'
-version = '3.0.0-monthly-2021-10'
+version = '3.0.0-monthly-2022-04'
 
 [package.metadata.docs.rs]
 targets = ['x86_64-unknown-linux-gnu']
@@ -29,7 +29,7 @@ version = '3.0.0'
 [dependencies.scale-info]
 default-features = false
 features = ['derive']
-version = '1.0'
+version = '2.0.1'
 
 [dependencies.frame-benchmarking]
 default-features = false
@@ -71,7 +71,7 @@ version = '4.0.0-dev'
 
 [dependencies.hex-literal]
 optional = true
-version = '0.3.1'
+version = '0.3.4'
 
 [dependencies.pallet-babe]
 default-features = false
@@ -173,7 +173,7 @@ version = '4.0.0-dev'
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
 tag = 'monthly-2022-04'
-version = '4.0.0-dev'
+version = '4.0.0'
 
 [dependencies.sp-transaction-pool]
 default-features = false

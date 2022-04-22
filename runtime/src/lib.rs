@@ -26,11 +26,7 @@ use sp_api::impl_runtime_apis;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical as pallet_session_historical;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use sp_core::{
-	crypto::KeyTypeId,
-	u32_trait::{_1, _2, _3, _4, _5},
-	OpaqueMetadata
-};
+use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use codec::Decode;
 use sp_inherents::{CheckInherentsResult, InherentData};
 use sp_runtime::{
@@ -47,7 +43,7 @@ use sp_version::RuntimeVersion;
 // A few exports that help ease life for downstream crates.
 pub use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{KeyOwnerProofSystem, Randomness, StorageInfo, U128CurrencyToVote, Nothing},
+	traits::{KeyOwnerProofSystem, Randomness, StorageInfo, U128CurrencyToVote, Nothing, EnsureOneOf},
 	weights::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
 		DispatchClass, IdentityFee, Weight,
@@ -58,7 +54,7 @@ pub use frame_support::{
 
 use frame_system::{
 	limits::{BlockLength, BlockWeights},
-	EnsureOneOf, EnsureRoot,
+	EnsureRoot,
 };
 
 pub use pallet_balances::Call as BalancesCall;
@@ -135,6 +131,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
+	state_version: 1,
 };
 
 /// The BABE epoch configuration at genesis.
@@ -530,17 +527,23 @@ pub const ERAS_PER_YEAR: u64 = {
 	MILLISECONDS_PER_YEAR / MILLISECS_PER_BLOCK / (EPOCH_DURATION_IN_BLOCKS * SessionsPerEra::get()) as u64
 };
 
+pub struct StakingBenchmarkingConfig;
+impl pallet_staking::BenchmarkingConfig for StakingBenchmarkingConfig {
+	type MaxNominators = ConstU32<0>;
+	type MaxValidators = ConstU32<1000>;
+}
+
 impl pallet_cess_staking::Config for Runtime {
 	const ERAS_PER_YEAR: u64 = ERAS_PER_YEAR;
 	const FIRST_YEAR_VALIDATOR_REWARDS: Balance = 477_000_000 * CENTS;
 	const FIRST_YEAR_SMINER_REWARDS: Balance = 238_500_000 * CENTS;
 	const REWARD_DECREASE_RATIO: Perbill = Perbill::from_perthousand(841);
 	type SminerRewardPool = Sminer;
-	const MAX_NOMINATIONS: u32 = MAX_NOMINATIONS;
+	type MaxNominations = MaxNominations;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = U128CurrencyToVote;
-	type RewardRemainder = ();
+	type RewardRemainder = Treasury;
 	type Event = Event;
 	type Slash = Treasury; // send the slashed funds to the treasury.
 	type Reward = (); // rewards are minted from the void
@@ -549,18 +552,20 @@ impl pallet_cess_staking::Config for Runtime {
 	type SlashDeferDuration = SlashDeferDuration;
 	/// A super-majority of the council can cancel the slash.
 	type SlashCancelOrigin = EnsureOneOf<
-		AccountId,
 		EnsureRoot<AccountId>,
-		pallet_collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>,
+		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 4>,
 	>;
 	type SessionInterface = Self;
 	type EraPayout = ();
 	type NextNewSession = Session;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type ElectionProvider = ElectionProviderMultiPhase;
-	type GenesisElectionProvider = onchain::OnChainSequentialPhragmen<Self>;
-	type SortedListProvider = BagsList;
-	type WeightInfo = pallet_cess_staking::weights::SubstrateWeight<Runtime>;
+	type GenesisElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
+	type VoterList = BagsList;
+	type MaxUnlockingChunks = ConstU32<32>;
+	type WeightInfo = pallet_staking::weights::SubstrateWeight<Runtime>;
+	type BenchmarkingConfig = StakingBenchmarkingConfig;
 }
 
 type EnsureRootOrHalfCouncil = EnsureOneOf<
