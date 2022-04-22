@@ -2,10 +2,10 @@
 name = "pallet-cess-staking"
 version = "4.0.0-dev"
 authors = ["CESS LAB"]
-edition = "2018"
+edition = "2021"
 license = "Apache-2.0"
-homepage = ""
-repository = "https://github.com/paritytech/substrate.git"
+homepage = "https://www.cess.cloud"
+repository = "https://github.com/CESSProject/cess/"
 description = "FRAME pallet cess staking"
 readme = "README.md"
 
@@ -16,10 +16,9 @@ targets = ["x86_64-unknown-linux-gnu"]
 serde = { version = "1.0.136", optional = true }
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = [
 	"derive",
-	"max-encoded-len"
 ] }
-scale-info = { version = "1.0", default-features = false, features = ["derive"] }
-sp-std = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
+scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
+sp-std = { version = "4.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
 sp-io = { version = "6.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
 sp-runtime = { version = "6.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
 sp-staking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
@@ -69,7 +68,7 @@ std = [
 	"frame-election-provider-support/std",
 ]
 runtime-benchmarks = [
-	"frame-benchmarking",
+	"frame-benchmarking/runtime-benchmarks",
 	"frame-election-provider-support/runtime-benchmarks",
 	"rand_chacha",
 ]
