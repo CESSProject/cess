@@ -123,7 +123,7 @@ pub mod pallet {
 			if number % 1200 == 0 {
 				for (key ,value) in <SchedulerException<T>>::iter() {
                     if value.count > ( count / 2 ) as u32 {
-
+                        pallet_cess_staking::slashing::slash_scheduler::<T>(&key);
                     }
 
                     <SchedulerException<T>>::remove(key);

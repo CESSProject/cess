@@ -640,6 +640,20 @@ fn pay_reporters<T: Config>(
 	T::Slash::on_unbalanced(value_slashed);
 }
 
+/// Apply a slash to a scheduler
+pub fn slash_scheduler<T: Config>(stash: &T::AccountId) {
+	let min_bond = <Pallet<T> as Store>::MinValidatorBond::get();
+
+	let unapplied_slash = UnappliedSlash::<T::AccountId, BalanceOf<T>> {
+		validator: stash.clone(),
+		own: Perbill::from_percent(5) * min_bond,
+		others: Vec::new(),
+		reporters: Vec::new(),
+		payout: Zero::zero(),
+	};
+	apply_slash::<T>(unapplied_slash);
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
