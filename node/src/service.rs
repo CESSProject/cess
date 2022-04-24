@@ -85,6 +85,7 @@ pub fn new_partial(
 			telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
 			executor,
 		)?;
+		
 	let client = Arc::new(client);
 
 	let telemetry = telemetry.map(|(worker, telemetry)| {
@@ -167,6 +168,18 @@ pub fn new_partial(
 		let pool = transaction_pool.clone();
 		let select_chain = select_chain.clone();
 		let keystore = keystore_container.sync_keystore();
+
+		if config.offchain_worker.enabled {
+			// Initialize seed for signing transaction using off-chain workers. This is a convenience
+			// so learners can see the transactions submitted simply running the node.
+			// Typically these keys should be inserted with RPC calls to `author_insertKey`.
+			sp_keystore::SyncCryptoStore::sr25519_generate_new(
+				&*keystore,
+				cess_node_runtime::pallet_file_bank::KEY_TYPE,
+				Some("//Alice"),
+			).expect("Creating key with account Alice should succeed.");
+		}
+
 		let chain_spec = config.chain_spec.cloned_box();
 
 		let rpc_extensions_builder = move |deny_unsafe, subscription_executor| {
