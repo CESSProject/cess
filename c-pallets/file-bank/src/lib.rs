@@ -41,7 +41,17 @@ use sp_std::prelude::*;
 use codec::{Encode, Decode};
 use frame_support::{dispatch::DispatchResult, PalletId};
 pub use weights::WeightInfo;
-use sp_runtime::traits::CheckedAdd;
+use sp_runtime::{
+	traits::{
+		CheckedAdd,
+		BlockNumberProvider,
+	},
+	offchain as rt_offchain,
+	offchain::{
+		storage::StorageValueRef,
+		storage_lock::{BlockAndTime, StorageLock},
+	},
+};
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -55,20 +65,70 @@ pub mod pallet {
 		pallet_prelude::*,
 		traits::Get,
 	};
+	
 	//pub use crate::weights::WeightInfo;
-	use frame_system::{ensure_signed, pallet_prelude::*};
+	use frame_system::{
+		ensure_signed, 
+		pallet_prelude::*,
+		offchain::{
+			AppCrypto, CreateSignedTransaction, SendSignedTransaction, SendUnsignedTransaction,
+			SignedPayload, Signer, SigningTypes, SubmitTransaction,
+		},
+	};
+	use sp_core::{crypto::KeyTypeId};
+
+	// const HTTP_REQUEST_STR: &str = "https://arweave.net/price/1048576";
+	const HTTP_REQUEST_STR: &str = "https://api.coincap.io/v2/assets/polkadot";
+	pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"demo");
+	const FETCH_TIMEOUT_PERIOD: u64 = 10_000; // in milli-seconds
+	const LOCK_TIMEOUT_EXPIRATION: u64 = FETCH_TIMEOUT_PERIOD + 1000; // in milli-seconds
+	const LOCK_BLOCK_EXPIRATION: u32 = 3; // in block number
+	const UNSIGNED_TXS_PRIORITY: u64 = 100;
+
+	pub mod crypto {
+		use crate::KEY_TYPE;
+		use sp_core::sr25519::Signature as Sr25519Signature;
+		use sp_runtime::app_crypto::{app_crypto, sr25519};
+		use sp_runtime::{traits::Verify, MultiSignature, MultiSigner};
+
+		app_crypto!(sr25519, KEY_TYPE);
+
+		pub struct TestAuthId;
+		// implemented for ocw-runtime
+		impl frame_system::offchain::AppCrypto<MultiSigner, MultiSignature> for TestAuthId {
+			type RuntimeAppPublic = Public;
+			type GenericSignature = sp_core::sr25519::Signature;
+			type GenericPublic = sp_core::sr25519::Public;
+		}
+
+		// implemented for mock runtime in test
+		impl frame_system::offchain::AppCrypto<<Sr25519Signature as Verify>::Signer, Sr25519Signature>
+		for TestAuthId
+		{
+			type RuntimeAppPublic = Public;
+			type GenericSignature = sp_core::sr25519::Signature;
+			type GenericPublic = sp_core::sr25519::Public;
+		}
+	}
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_sminer::Config + sp_std::fmt::Debug {
+	pub trait Config: frame_system::Config + pallet_sminer::Config + sp_std::fmt::Debug + CreateSignedTransaction<Call<Self>> {
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		/// The currency trait.
 		type Currency: ReservableCurrency<Self::AccountId>;
 
 		type WeightInfo: WeightInfo;
+
+		type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
+
+		type Call: From<Call<Self>>;
 		/// pallet address.
 		#[pallet::constant]
 		type FilbakPalletId: Get<PalletId>;
+
+		#[pallet::constant]
+		type OneDay: Get<BlockNumberOf<Self>>;
 	}
 
 	#[pallet::event]
@@ -126,6 +186,12 @@ pub mod pallet {
 		AlreadyReceive,
 
 		NotUser,
+
+		HttpFetchingError,
+
+		OffchainSignedTxError,
+
+		NoLocalAcctForSigning,
 	}
 	#[pallet::storage]
 	#[pallet::getter(fn file)]
@@ -204,7 +270,20 @@ pub mod pallet {
 			}
 			0
 		}
+
+		fn offchain_worker(block_number: T::BlockNumber) {
+			let number: u128 = block_number.saturated_into();
+			let one_day: u128 = <T as Config>::OneDay::get().saturated_into();
+			if number % 10 == 0 {
+				let result = Self::offchain_fetch_price(block_number);
+				if let Err(e) = result {
+					log::error!("offchain_worker error: {:?}", e);
+				}
+			}
+		}
 	}
+
+	
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
@@ -494,150 +573,250 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::DeleteFile{acc: user, fileid: fileid});
 			Ok(())
 		}
-	}
-}
 
-use frame_support::ensure;
-impl<T: Config> Pallet<T> {
-	fn upload_file(
-		acc: &AccountOf<T>, 
-		address: &Vec<u8>,
-		filename:&Vec<u8>,
-		fileid: &Vec<u8>,
-		filehash: &Vec<u8>,
-		public: bool,
-		backups: u8,
-		filesize: u64,
-		downloadfee: BalanceOf<T>
-	) -> DispatchResult {
-		ensure!(<UserHoldSpaceDetails<T>>::contains_key(&acc), Error::<T>::NotPurchasedSpace);
-		ensure!(!<File<T>>::contains_key(fileid), Error::<T>::FileExistent);
+		#[pallet::weight(2_000_000)]
+		pub fn update_price(
+			origin: OriginFor<T>,
+			price: Vec<u8>
+		) -> DispatchResult {
+			let _sender = ensure_signed(origin)?;
 
-		let mut invoice: Vec<u8> = Vec::new();
-		for i in fileid {
-			invoice.push(*i);
-		}
-		for i in address {
-			invoice.push(*i);
-		}
+			log::info!("上链的信息是: {:?}", price);
 
-		<Invoice<T>>::insert(
-			invoice,
-			0 
-		);
-		<File<T>>::insert(
-			fileid.clone(),
-			FileInfo::<T> {
-				file_name: filename.to_vec(),
-				file_size: filesize,
-				file_hash: filehash.to_vec(),
-				public: public,
-				user_addr: acc.clone(),
-				file_state: "normal".as_bytes().to_vec(),
-				backups: backups,
-				downloadfee: downloadfee,
-				file_dupl: Vec::new(),
-			}
-		);
-		UserFileSize::<T>::try_mutate(acc.clone(), |s| -> DispatchResult{
-			*s = (*s).checked_add(filesize as u128).ok_or(Error::<T>::Overflow)?;
 			Ok(())
-		})?;
-		Self::update_user_space(acc.clone(), 1, (filesize as u128) * (backups as u128))?;
-		Self::add_user_hold_file(acc.clone(), fileid.clone());
-		Ok(())
-	}
-
-	//operation: 1 upload files, 2 delete file
-	fn update_user_space(acc: AccountOf<T>, operation: u8, size: u128) -> DispatchResult{
-		match operation {
-			1 => {
-				<UserHoldSpaceDetails<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
-					let s = s_opt.as_mut().unwrap();
-					if size > s.remaining_space {
-						Err(Error::<T>::InsufficientStorage)?;
-					}
-					if false == Self::check_lease_expired(acc.clone()) {
-						Self::deposit_event(Event::<T>::LeaseExpired{acc: acc.clone(), size: 0});
-						Err(Error::<T>::LeaseExpired)?;
-					}
-					s.remaining_space = s.remaining_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
-					s.used_space = s.used_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
-					Ok(())
-				})?
-			}
-			2 => {
-				<UserHoldSpaceDetails<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
-					let s = s_opt.as_mut().unwrap();
-					s.remaining_space = s.remaining_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
-					s.used_space = s.used_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
-					Ok(())
-				})?
-			}
-			_ => Err(Error::<T>::WrongOperation)?			
 		}
-		Ok(())
 	}
 
-	fn user_buy_space_update(acc: AccountOf<T>, size: u128) -> DispatchResult{
-		
-		if <UserHoldSpaceDetails<T>>::contains_key(&acc) {
-			<UserHoldSpaceDetails<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
-				let s = s_opt.as_mut().unwrap();
-				s.purchased_space = s.purchased_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
-				s.remaining_space = s.remaining_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+	impl<T: Config> Pallet<T> {
+		fn upload_file(
+			acc: &AccountOf<T>, 
+			address: &Vec<u8>,
+			filename:&Vec<u8>,
+			fileid: &Vec<u8>,
+			filehash: &Vec<u8>,
+			public: bool,
+			backups: u8,
+			filesize: u64,
+			downloadfee: BalanceOf<T>
+		) -> DispatchResult {
+			ensure!(<UserHoldSpaceDetails<T>>::contains_key(&acc), Error::<T>::NotPurchasedSpace);
+			ensure!(!<File<T>>::contains_key(fileid), Error::<T>::FileExistent);
+	
+			let mut invoice: Vec<u8> = Vec::new();
+			for i in fileid {
+				invoice.push(*i);
+			}
+			for i in address {
+				invoice.push(*i);
+			}
+	
+			<Invoice<T>>::insert(
+				invoice,
+				0 
+			);
+			<File<T>>::insert(
+				fileid.clone(),
+				FileInfo::<T> {
+					file_name: filename.to_vec(),
+					file_size: filesize,
+					file_hash: filehash.to_vec(),
+					public: public,
+					user_addr: acc.clone(),
+					file_state: "normal".as_bytes().to_vec(),
+					backups: backups,
+					downloadfee: downloadfee,
+					file_dupl: Vec::new(),
+				}
+			);
+			UserFileSize::<T>::try_mutate(acc.clone(), |s| -> DispatchResult{
+				*s = (*s).checked_add(filesize as u128).ok_or(Error::<T>::Overflow)?;
 				Ok(())
 			})?;
-		} else {
-			let value = StorageSpace {
-				purchased_space: size,
-				used_space: 0,
-				remaining_space: size,
-			};
-			<UserHoldSpaceDetails<T>>::insert(&acc, value);
+			Self::update_user_space(acc.clone(), 1, (filesize as u128) * (backups as u128))?;
+			Self::add_user_hold_file(acc.clone(), fileid.clone());
+			Ok(())
 		}
-		Ok(())
-	}
+	
+		//operation: 1 upload files, 2 delete file
+		fn update_user_space(acc: AccountOf<T>, operation: u8, size: u128) -> DispatchResult{
+			match operation {
+				1 => {
+					<UserHoldSpaceDetails<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+						let s = s_opt.as_mut().unwrap();
+						if size > s.remaining_space {
+							Err(Error::<T>::InsufficientStorage)?;
+						}
+						if false == Self::check_lease_expired(acc.clone()) {
+							Self::deposit_event(Event::<T>::LeaseExpired{acc: acc.clone(), size: 0});
+							Err(Error::<T>::LeaseExpired)?;
+						}
+						s.remaining_space = s.remaining_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
+						s.used_space = s.used_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+						Ok(())
+					})?
+				}
+				2 => {
+					<UserHoldSpaceDetails<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+						let s = s_opt.as_mut().unwrap();
+						s.remaining_space = s.remaining_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+						s.used_space = s.used_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
+						Ok(())
+					})?
+				}
+				_ => Err(Error::<T>::WrongOperation)?			
+			}
+			Ok(())
+		}
+	
+		fn user_buy_space_update(acc: AccountOf<T>, size: u128) -> DispatchResult{
+			
+			if <UserHoldSpaceDetails<T>>::contains_key(&acc) {
+				<UserHoldSpaceDetails<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+					let s = s_opt.as_mut().unwrap();
+					s.purchased_space = s.purchased_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+					s.remaining_space = s.remaining_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+					Ok(())
+				})?;
+			} else {
+				let value = StorageSpace {
+					purchased_space: size,
+					used_space: 0,
+					remaining_space: size,
+				};
+				<UserHoldSpaceDetails<T>>::insert(&acc, value);
+			}
+			Ok(())
+		}
+	
+		fn add_user_hold_file(acc: AccountOf<T>, fileid: Vec<u8>) {
+			<UserHoldFileList<T>>::mutate(&acc, |s|{
+				s.push(fileid);
+			});
+		}
+	
+		// fn remove_user_hold_file(acc: &AccountOf<T>, fileid: Vec<u8>) {
+		// 	<UserHoldFileList<T>>::mutate(&acc, |s|{
+		// 		s.drain_filter(|v| *v == fileid);
+		// 	});
+		// }
+		//Available space divided by 1024 is the unit price
+		fn get_price() -> u128 {
+			let space = pallet_sminer::Pallet::<T>::get_space();
+			let price: u128 = 1024 * 1_000_000_000_000 * 1000 / space ;
+			price
+		}
+	
+		fn check_lease_expired_forfileid(fileid: Vec<u8>) -> bool {
+			let file = <File<T>>::get(&fileid).unwrap();
+			Self::check_lease_expired(file.user_addr)
+		}
+		//ture is Not expired;  false is expired
+		fn check_lease_expired(acc: AccountOf<T>) -> bool {
+			let details = <UserHoldSpaceDetails<T>>::get(&acc).unwrap();
+			if details.used_space + details.remaining_space > details.purchased_space {
+				false
+			} else {
+				true
+			}
+		}
+	
+		pub fn check_file_exist(fileid: Vec<u8>) -> bool {
+			if <File<T>>::contains_key(fileid) {
+				true
+			} else {
+				false
+			}
+		}
+	
+		fn offchain_signed_tx(block_number: T::BlockNumber, price: Vec<u8>) -> Result<(), Error<T>> {
+			// We retrieve a signer and check if it is valid.
+			//   Since this pallet only has one key in the keystore. We use `any_account()1 to
+			//   retrieve it. If there are multiple keys and we want to pinpoint it, `with_filter()` can be chained,
+			let signer = Signer::<T, T::AuthorityId>::any_account();
 
-	fn add_user_hold_file(acc: AccountOf<T>, fileid: Vec<u8>) {
-		<UserHoldFileList<T>>::mutate(&acc, |s|{
-			s.push(fileid);
-		});
-	}
 
-	// fn remove_user_hold_file(acc: &AccountOf<T>, fileid: Vec<u8>) {
-	// 	<UserHoldFileList<T>>::mutate(&acc, |s|{
-	// 		s.drain_filter(|v| *v == fileid);
-	// 	});
-	// }
-	//Available space divided by 1024 is the unit price
-	fn get_price() -> u128 {
-		let space = pallet_sminer::Pallet::<T>::get_space();
-		let price: u128 = 1024 * 1_000_000_000_000 * 1000 / space ;
-		price
-	}
+			let number: u64 = block_number.try_into().unwrap_or(0);
 
-	fn check_lease_expired_forfileid(fileid: Vec<u8>) -> bool {
-		let file = <File<T>>::get(&fileid).unwrap();
-		Self::check_lease_expired(file.user_addr)
-	}
-	//ture is Not expired;  false is expired
-	fn check_lease_expired(acc: AccountOf<T>) -> bool {
-		let details = <UserHoldSpaceDetails<T>>::get(&acc).unwrap();
-		if details.used_space + details.remaining_space > details.purchased_space {
-			false
-		} else {
-			true
+
+			let result = signer.send_signed_transaction(|_acct|
+
+				Call::update_price{price: price.to_vec()}
+			);
+
+			// Display error if the signed tx fails.
+			if let Some((acc, res)) = result {
+				if res.is_err() {
+					log::error!("failure: offchain_signed_tx: tx sent: {:?}", acc.id);
+					return Err(<Error<T>>::OffchainSignedTxError);
+				}
+
+				return Ok(());
+			}
+
+
+			log::error!("No local account available");
+			Err(<Error<T>>::NoLocalAcctForSigning)
+		}
+
+		pub fn offchain_fetch_price(block_number: T::BlockNumber) -> Result<(), Error<T>> {
+
+			let mut lock = StorageLock::<BlockAndTime<Self>>::with_block_and_time_deadline(
+				b"offchain-demo::lock", LOCK_BLOCK_EXPIRATION,
+				rt_offchain::Duration::from_millis(LOCK_TIMEOUT_EXPIRATION)
+			);
+
+			if let Ok(_guard) = lock.try_lock() {
+				let resp_bytes = Self::offchain_http_req().map_err(|e| {
+					log::error!("fetch_from_remote error: {:?}", e);
+					<Error<T>>::HttpFetchingError
+				})?;
+				let _ = Self::offchain_signed_tx(block_number, resp_bytes)?;
+			}
+
+			Ok(())
+		}
+	
+		pub fn offchain_http_req() -> Result<Vec<u8>, Error<T>> {
+			log::info!("send request to {}", HTTP_REQUEST_STR);
+			
+			let request = rt_offchain::http::Request::get(HTTP_REQUEST_STR);
+			
+			let timeout = sp_io::offchain::timestamp()
+			.add(rt_offchain::Duration::from_millis(FETCH_TIMEOUT_PERIOD));
+	
+			log::info!("send request");
+			let pending = request
+			.add_header("User-Agent","PostmanRuntime/7.28.4")
+				.deadline(timeout) // Setting the timeout time
+				.send() // Sending the request out by the host
+				.map_err(|_| <Error<T>>::HttpFetchingError)?;
+			
+			log::info!("wating response");
+			let response = pending
+				.wait()
+				.map_err(|e| {log::info!("{:?}", e); <Error<T>>::HttpFetchingError})?;
+			log::info!("getted response");
+			if response.code != 200 {
+				log::error!("Unexpected http request status code: {}", response.code);
+				return Err(<Error<T>>::HttpFetchingError);
+			}
+
+			log::info!("responsse body is: {:?}", response.body().collect::<Vec<u8>>());
+				
+			Ok(response.body().collect::<Vec<u8>>())
 		}
 	}
 
-	pub fn check_file_exist(fileid: Vec<u8>) -> bool {
-		if <File<T>>::contains_key(fileid) {
-			true
-		} else {
-			false
+	impl<T: Config> BlockNumberProvider for Pallet<T> {
+		type BlockNumber = T::BlockNumber;
+
+		fn current_block_number() -> Self::BlockNumber {
+			<frame_system::Pallet<T>>::block_number()
 		}
 	}
 }
+
+
+
 
 

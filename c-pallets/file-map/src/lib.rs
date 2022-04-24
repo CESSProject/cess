@@ -140,7 +140,7 @@ pub mod pallet {
                 Err(Error::<T>::NotController)?;
             }
             let mut s_vec = SchedulerMap::<T>::get();
-            let scheduler = SchedulerInfo::<T>{
+            let scheduler = SchedulerInfo::<T> {
                 ip: ip.clone(),
                 stash_user: stash_account.clone(),
                 controller_user: sender.clone(),
