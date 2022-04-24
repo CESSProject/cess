@@ -235,12 +235,6 @@ git = 'https://github.com/paritytech/substrate.git'
 tag = 'monthly-2022-04'
 version = '4.0.0-dev'
 
-[dependencies.sp-npos-elections]
-default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
-version = '4.0.0-dev'
-
 [dependencies.pallet-election-provider-multi-phase]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
@@ -272,12 +266,6 @@ tag = 'monthly-2022-04'
 version = '4.0.0-dev'
 
 [dependencies.pallet-bounties]
-default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
-version = '4.0.0-dev'
-
-[dependencies.pallet-staking-reward-curve]
 default-features = false
 git = 'https://github.com/paritytech/substrate.git'
 tag = 'monthly-2022-04'
@@ -374,7 +362,6 @@ std = [
     'pallet-file-map/std',
     "sp-io/std",
     "sp-authority-discovery/std",
-    "sp-npos-elections/std",
     "sp-staking/std",
     'codec/std',
     'frame-executive/std',
