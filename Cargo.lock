@@ -676,6 +676,7 @@ dependencies = [
  "frame-benchmarking-cli",
  "frame-system-rpc-runtime-api",
  "futures 0.3.21",
+ "hex-literal",
  "jsonrpc-core",
  "pallet-contracts",
  "pallet-contracts-rpc",
