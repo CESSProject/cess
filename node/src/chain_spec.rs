@@ -1,15 +1,15 @@
 use cess_node_runtime::{
 	AccountId, AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, Balance, CouncilConfig,
 	GenesisConfig, GrandpaConfig, 
-	ImOnlineConfig, SessionConfig, Signature, StakingConfig, opaque::SessionKeys, SudoConfig, StakerStatus,
-	SystemConfig, TechnicalCommitteeConfig, wasm_binary_unwrap, MAX_NOMINATIONS, DOLLARS
+	ImOnlineConfig, SessionConfig, Signature, StakingConfig, SessionKeys, SudoConfig, StakerStatus,
+	SystemConfig, TechnicalCommitteeConfig, wasm_binary_unwrap, MaxNominations, DOLLARS
 };
 use sc_service::ChainType;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
 use sp_core::{sr25519, Pair, Public};
-use sp_finality_grandpa::AuthorityId as GrandpaId;
+use grandpa_primitives::AuthorityId as GrandpaId;
 use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
 	Perbill,
@@ -90,6 +90,8 @@ pub fn development_config() -> ChainSpec {
 		None,
 		// Properties
 		None,
+
+		None,
 		// Extensions
 		Default::default(),
 	)
@@ -120,6 +122,8 @@ pub fn local_testnet_config() -> ChainSpec {
 		// Protocol ID
 		None,
 		// Properties
+		None,
+
 		None,
 		// Extensions
 		Default::default(),
@@ -176,7 +180,7 @@ fn testnet_genesis(
 		.map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator))
 		.chain(initial_nominators.iter().map(|x| {
 			use rand::{seq::SliceRandom, Rng};
-			let limit = (MAX_NOMINATIONS as usize).min(initial_authorities.len());
+			let limit = (MaxNominations::get() as usize).min(initial_authorities.len());
 			let count = rng.gen::<usize>() % limit;
 			let nominations = initial_authorities
 				.as_slice()
@@ -194,11 +198,7 @@ fn testnet_genesis(
 	const STASH: Balance = ENDOWMENT / 1000;
 
 	GenesisConfig {
-		system: SystemConfig {
-			// Add Wasm runtime to storage.
-			code: wasm_binary_unwrap().to_vec(),
-			changes_trie_config: Default::default(),
-		},
+		system: SystemConfig { code: wasm_binary_unwrap().to_vec() },
 		balances: BalancesConfig {
 			// Configure endowed accounts with initial balance of 1 << 60.
 			balances: endowed_accounts.iter().cloned().map(|k| (k, 1 << 60)).collect(),
@@ -235,7 +235,7 @@ fn testnet_genesis(
 		babe: BabeConfig {
 			authorities: vec![],
 			epoch_config: Some(cess_node_runtime::BABE_GENESIS_EPOCH_CONFIG),
-		},
+		},	
 		im_online: ImOnlineConfig { keys: vec![] },
 		authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },
 		grandpa: GrandpaConfig { authorities: vec![] },
@@ -243,7 +243,9 @@ fn testnet_genesis(
 		treasury: Default::default(),
 		sudo: SudoConfig {
 			// Assign network admin rights.
-			key: root_key,
+			key: Some(root_key),
 		},
+		assets: Default::default(),
+		transaction_payment: Default::default(),
 	}
 }

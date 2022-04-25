@@ -23,15 +23,43 @@ version = '3.0.0'
 jsonrpc-core = '18.0.0'
 structopt = '0.3.8'
 rand = "0.8"
+futures = "0.3.19"
+codec = { package = "parity-scale-codec", version = "3.0.0" }
+clap = { version = "3.1.6", features = ["derive"], optional = true }
 
 [dependencies.cess-node-runtime]
 path = '../runtime'
 # version = '3.0.0-monthly-2021-10'
 
+[dependencies.frame-system-rpc-runtime-api]
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'monthly-2022-04'
+version = '4.0.0-dev'
+
+[dependencies.sc-network]
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'monthly-2022-04'
+version = '0.10.0-dev'
+
 [dependencies.frame-benchmarking]
 git = 'https://github.com/paritytech/substrate.git'
 tag = 'monthly-2022-04'
 version = '4.0.0-dev'
+
+[dependencies.pallet-mmr-rpc]
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'monthly-2022-04'
+version = '3.0.0'
+
+[dependencies.substrate-state-trie-migration-rpc]
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'monthly-2022-04'
+version = '4.0.0-dev'
+
+[dependencies.sc-sync-state-rpc]
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'monthly-2022-04'
+version = '0.10.0-dev'
 
 [dependencies.frame-benchmarking-cli]
 git = 'https://github.com/paritytech/substrate.git'
@@ -75,9 +103,21 @@ git = 'https://github.com/paritytech/substrate.git'
 tag = 'monthly-2022-04'
 version = '0.10.0-dev'
 
-[dependencies.sc-finality-grandpa]
+[dependencies.sc-consensus-slots]
 git = 'https://github.com/paritytech/substrate.git'
 tag = 'monthly-2022-04'
+version = '0.10.0-dev'
+
+[dependencies.grandpa-primitives]
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'monthly-2022-04'
+package = 'sp-finality-grandpa'
+version = '4.0.0-dev'
+
+[dependencies.grandpa]
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'monthly-2022-04'
+package = 'sc-finality-grandpa'
 version = '0.10.0-dev'
 
 [dependencies.sc-keystore]
@@ -145,11 +185,6 @@ version = '0.10.0-dev'
 git = 'https://github.com/paritytech/substrate.git'
 tag = 'monthly-2022-04'
 version = '6.0.0'
-
-[dependencies.sp-finality-grandpa]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
-version = '4.0.0-dev'
 
 [dependencies.sp-runtime]
 git = 'https://github.com/paritytech/substrate.git'
@@ -228,8 +263,16 @@ git = 'https://github.com/paritytech/substrate.git'
 tag = 'monthly-2022-04'
 version = '4.0.0-dev'
 
-
+[dependencies.sc-authority-discovery]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'monthly-2022-04'
+version = '0.10.0-dev'
 
 [features]
-default = []
+default = ["cli"]
 runtime-benchmarks = ['cess-node-runtime/runtime-benchmarks']
+
+cli = [
+	"clap",
+]

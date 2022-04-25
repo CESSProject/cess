@@ -29,6 +29,8 @@ use frame_support::traits::{
 	Currency, 
 	ReservableCurrency, 
 	LockIdentifier, 
+	OnUnbalanced,
+	Imbalance,
 	schedule::{
 		Named as ScheduleNamed, 
 		DispatchTime
@@ -58,7 +60,7 @@ use frame_support::pallet_prelude::DispatchError;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-// type NegativeImbalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
+type NegativeImbalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 
 
@@ -1425,13 +1427,13 @@ impl<T: Config> Pallet<T> {
 	// }
 }
 
-// impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for Pallet<T> {
-// 	fn on_nonzero_unbalanced(amount: NegativeImbalanceOf<T>) {
-// 		let numeric_amount = amount.peek();
+impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for Pallet<T> {
+	fn on_nonzero_unbalanced(amount: NegativeImbalanceOf<T>) {
+		let numeric_amount = amount.peek();
 
-// 		// Must resolve into existing but better to be safe.
-// 		let _ = T::Currency::resolve_creating(&T::PalletId::get().into_account(), amount);
+		// Must resolve into existing but better to be safe.
+		let _ = T::Currency::resolve_creating(&T::PalletId::get().into_account(), amount);
 
-// 		Self::deposit_event(Event::Deposit{balance: numeric_amount});
-// 	}
-// }
+		Self::deposit_event(Event::Deposit{balance: numeric_amount});
+	}
+}
