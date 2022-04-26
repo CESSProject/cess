@@ -29,6 +29,7 @@ pub use pallet::*;
 mod benchmarking;
 pub mod weights;
 use sp_std::convert::TryInto;
+
 mod types;
 pub use types::*;
 
@@ -39,19 +40,27 @@ use sp_runtime::{
 };
 use sp_std::prelude::*;
 use codec::{Encode, Decode};
-use frame_support::{dispatch::DispatchResult, PalletId};
+
+use frame_support::{
+	pallet_prelude::*,
+	dispatch::DispatchResult, 
+	PalletId,
+};
+use sp_runtime::traits::CheckedAdd;
+use sp_runtime::traits::CheckedSub;
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
+type BoundedString<T> = BoundedVec<u8, <T as Config>::StringLimit>;
+type BoundedList<T> = BoundedVec<BoundedVec<u8, <T as Config>::StringLimit>, <T as Config>::StringLimit>;
 
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
 	use frame_support::{
 		ensure,
-		pallet_prelude::*,
 		traits::Get,
 	};
 	//pub use crate::weights::WeightInfo;
@@ -68,6 +77,9 @@ pub mod pallet {
 		/// pallet address.
 		#[pallet::constant]
 		type FilbakPalletId: Get<PalletId>;
+
+		#[pallet::constant]
+		type StringLimit: Get<u32> + Clone + Eq + PartialEq;
 	}
 
 	#[pallet::event]
@@ -128,11 +140,11 @@ pub mod pallet {
 	}
 	#[pallet::storage]
 	#[pallet::getter(fn file)]
-	pub(super) type File<T: Config> = StorageMap<_, Twox64Concat, Vec<u8>, FileInfo<T>>;
+	pub(super) type File<T: Config> = StorageMap<_, Twox64Concat, BoundedString<T>, FileInfo<T>>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn invoice)]
-	pub(super) type Invoice<T: Config> = StorageMap<_, Twox64Concat, Vec<u8>, u8, ValueQuery>;
+	pub(super) type Invoice<T: Config> = StorageMap<_, Twox64Concat, BoundedString<T>, u8, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn seg_info)]
@@ -141,7 +153,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn user_hold_file_list)]
-	pub(super) type UserHoldFileList<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, Vec<Vec<u8>>, ValueQuery>;
+	pub(super) type UserHoldFileList<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BoundedList<T>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn user_hold_storage_space)]
@@ -149,7 +161,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn user_spance_details)]
-	pub(super) type UserSpaceList<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, Vec<SpaceInfo<T>>, ValueQuery>;
+	pub(super) type UserSpaceList<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BoundedVec<SpaceInfo<T>, T::ItemLimit>, ValueQuery>;
 
 	#[pallet::storage]
 	pub(super) type UserFreeRecord<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, u8, ValueQuery>;
@@ -161,7 +173,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
-	pub struct Pallet<T>(_);
+	pub struct Pallet<T>(PhantomData<T>);
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberOf<T>> for Pallet<T> {
@@ -242,15 +254,16 @@ pub mod pallet {
 		/// - `is_public`: public or private.
 		/// - `similarityhash`: hash of file, used for checking similarity.
 		#[pallet::weight(1_000_000)]
-		pub fn update_dupl(origin: OriginFor<T>, fileid: Vec<u8>, file_dupl: Vec<FileDuplicateInfo>) -> DispatchResult{
+		pub fn update_dupl(origin: OriginFor<T>, fileid: Vec<u8>, file_dupl: Vec<FileDuplicateInfo<T>> ) -> DispatchResult{
 			let sender = ensure_signed(origin)?;
-			ensure!((<File<T>>::contains_key(fileid.clone())), Error::<T>::FileNonExistent);
+			let bounded_fileid = Self::vec_to_bound::<u8>(fileid.clone())?;
+			ensure!((<File<T>>::contains_key(bounded_fileid.clone())), Error::<T>::FileNonExistent);
 			//Judge whether it is a consensus node
 
-			<File<T>>::try_mutate(fileid.clone(), |s_opt| -> DispatchResult {
+			<File<T>>::try_mutate(bounded_fileid.clone(), |s_opt| -> DispatchResult {
 				let s = s_opt.as_mut().unwrap();
-				s.file_state = "active".as_bytes().to_vec();
-				s.file_dupl = file_dupl;
+				s.file_state = Self::vec_to_bound::<u8>("active".as_bytes().to_vec())?;
+				// s.file_dupl = filee_dupl;
 				Ok(())
 			})?;
 			Self::deposit_event(Event::<T>::FileUpdate{acc: sender.clone(), fileid: fileid});
@@ -261,18 +274,18 @@ pub mod pallet {
 		#[pallet::weight(1_000_000)]
 		pub fn update_file_state(origin: OriginFor<T>, fileid: Vec<u8>, state: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-
-			ensure!((<File<T>>::contains_key(fileid.clone())), Error::<T>::FileNonExistent);
+			let bounded_fileid = Self::vec_to_bound::<u8>(fileid.clone())?;
+			ensure!((<File<T>>::contains_key(bounded_fileid.clone())), Error::<T>::FileNonExistent);
 			//Judge whether it is a consensus node
 
-			<File<T>>::try_mutate(fileid.clone(), |s_opt| -> DispatchResult{
+			<File<T>>::try_mutate(bounded_fileid.clone(), |s_opt| -> DispatchResult{
 				let s = s_opt.as_mut().unwrap();
 				//To prevent multiple scheduling
 				if s.file_state == "repairing".as_bytes().to_vec() && state == "repairing".as_bytes().to_vec() {
 					Err(Error::<T>::AlreadyRepair)?;
 				}
 
-				s.file_state = state;
+				s.file_state = Self::vec_to_bound::<u8>(state)?;
 				Ok(())
 			})?;
 
@@ -283,14 +296,15 @@ pub mod pallet {
 		#[pallet::weight(2_000_000)]
 		pub fn delete_file(origin: OriginFor<T>, fileid: Vec<u8>) -> DispatchResult{
 			let sender = ensure_signed(origin)?;
-			ensure!((<File<T>>::contains_key(fileid.clone())), Error::<T>::FileNonExistent);
-			let file = <File<T>>::get(&fileid).unwrap();
+			let bounded_fileid = Self::vec_to_bound::<u8>(fileid.clone())?;
+			ensure!((<File<T>>::contains_key(bounded_fileid.clone())), Error::<T>::FileNonExistent);
+			let file = <File<T>>::get(&bounded_fileid).unwrap();
 			if file.user_addr != sender.clone() {
 				Err(Error::<T>::NotOwner)?;
 			}
 
 			Self::update_user_space(sender.clone(), 2, file.file_size.into())?;
-			<File::<T>>::remove(&fileid);
+			<File::<T>>::remove(&bounded_fileid);
 
 			Self::deposit_event(Event::<T>::DeleteFile{acc: sender, fileid: fileid});
 			Ok(())
@@ -299,10 +313,10 @@ pub mod pallet {
 		#[pallet::weight(2_000_000)]
 		pub fn buyfile(origin: OriginFor<T>, fileid: Vec<u8>, address: Vec<u8>) -> DispatchResult{
 			let sender = ensure_signed(origin)?;
-
-			ensure!((<File<T>>::contains_key(fileid.clone())), Error::<T>::FileNonExistent);
+			let bounded_fileid = Self::vec_to_bound::<u8>(fileid.clone())?;
+			ensure!((<File<T>>::contains_key(bounded_fileid.clone())), Error::<T>::FileNonExistent);
 			ensure!(Self::check_lease_expired_forfileid(fileid.clone()), Error::<T>::LeaseExpired);
-			let group_id = <File<T>>::get(fileid.clone()).unwrap();
+			let group_id = <File<T>>::get(bounded_fileid.clone()).unwrap();
 
 			let mut invoice: Vec<u8> = Vec::new();
 			for i in &fileid {
@@ -311,8 +325,8 @@ pub mod pallet {
 			for i in &address {
 				invoice.push(*i);
 			}
-				
-			if <Invoice<T>>::contains_key(invoice.clone()) {
+			let bounded_invoice = Self::vec_to_bound::<u8>(invoice.clone())?;
+			if <Invoice<T>>::contains_key(bounded_invoice.clone()) {
 				Self::deposit_event(Event::<T>::Purchased{acc: sender.clone(), fileid: fileid.clone()});
 			} else {
 				let zh = TryInto::<u128>::try_into(group_id.downloadfee).ok().unwrap();
@@ -324,7 +338,7 @@ pub mod pallet {
 				<T as pallet::Config>::Currency::transfer(&sender, &group_id.user_addr, money.unwrap(), AllowDeath)?;
 				<T as pallet::Config>::Currency::transfer(&sender, &acc, group_id.downloadfee - money.unwrap(), AllowDeath)?;
 				<Invoice<T>>::insert(
-					invoice,
+					bounded_invoice,
 					0
 				);
 				Self::deposit_event(Event::<T>::BuyFile{acc: sender.clone(), money: group_id.downloadfee.clone(), fileid: fileid.clone()});
@@ -358,11 +372,15 @@ pub mod pallet {
 			<T as pallet::Config>::Currency::transfer(&sender, &acc, money, AllowDeath)?;
 			let now = <frame_system::Pallet<T>>::block_number();
 			let deadline: BlockNumberOf<T> = ((864000 * lease_count) as u32).into();
-			let mut list: Vec<SpaceInfo<T>> = vec![SpaceInfo::<T>{size: 1024, deadline: now + deadline}; space_count as usize];
+			let list: SpaceInfo<T> = SpaceInfo::<T>{
+				size: space, 
+				deadline: now + deadline,
+			};
 
-			<UserSpaceList<T>>::mutate(&sender, |s|{
-				s.append(&mut list);
-			});
+			<UserSpaceList<T>>::try_mutate(&sender, |s| -> DispatchResult{
+				s.try_push(list).expect("Length exceeded");
+				Ok(())
+			})?;
 			Self::user_buy_space_update(sender.clone(), space * 1024)?;
 
 			Self::deposit_event(Event::<T>::BuySpace{acc: sender.clone(), size: space, fee: money});
@@ -376,11 +394,12 @@ pub mod pallet {
 			pallet_sminer::Pallet::<T>::add_purchased_space(1024)?;
 			
 			let deadline: BlockNumberOf<T> = 999999999u32.into();
-			let mut list: Vec<SpaceInfo<T>> = vec![SpaceInfo::<T>{size: 1024, deadline}];
-
-			<UserSpaceList<T>>::mutate(&sender, |s|{
-				s.append(&mut list);
-			});
+			let list: SpaceInfo<T> = SpaceInfo::<T>{size: 1024, deadline};
+		
+			<UserSpaceList<T>>::try_mutate(&sender, |s| -> DispatchResult{
+				s.try_push(list).expect("Length exceeded");
+				Ok(())
+			})?;
 
 			Self::user_buy_space_update(sender.clone(), 1024 * 1024)?;
 			<UserFreeRecord<T>>::insert(&sender, 1);
@@ -417,19 +436,18 @@ pub mod pallet {
 			// if who == b"5CkMk8pNuvZsZpYKi1HpTEajVLuM1EzRDUnj9e9Rbuxmit7M".to_owner() {
 
 			// }
-			let mut space_details = StorageSpace {
-				purchased_space: 0,
-				used_space: 0,
-				remaining_space: 0,
-			};
-			if <UserHoldSpaceDetails<T>>::contains_key(&user) {
-				space_details = <UserHoldSpaceDetails<T>>::get(&user).unwrap();
-			} 
-			UserInfoMap::<T>::insert(&user,
-				UserInfo::<T>{
-					collaterals: collaterals.clone(),
-					space_details: space_details,
-			});
+			if !<UserInfoMap<T>>::contains_key(&user) {
+				UserInfoMap::<T>::insert(&user,
+					UserInfo::<T>{
+						collaterals: collaterals.clone()
+				});
+			} else {
+				UserInfoMap::<T>::try_mutate(&user, |opt| -> DispatchResult {
+					let o = opt.as_mut().unwrap();
+					o.collaterals = o.collaterals.checked_add(&collaterals).ok_or(Error::<T>::Overflow)?;
+					Ok(())
+				})?;
+			}
 
 			Self::deposit_event(Event::<T>::UserAuth{user: user, collaterals: collaterals, random: random});
 			Ok(())
@@ -473,15 +491,16 @@ pub mod pallet {
 			if !<UserInfoMap<T>>::contains_key(&user) {
 				Err(Error::<T>::NotUser)?;
 			}
-
-			ensure!((<File<T>>::contains_key(fileid.clone())), Error::<T>::FileNonExistent);
-			let file = <File<T>>::get(&fileid).unwrap();
+			let bounded_fileid = Self::vec_to_bound::<u8>(fileid.clone())?;
+			ensure!((<File<T>>::contains_key(bounded_fileid.clone())), Error::<T>::FileNonExistent);
+			
+			let file = <File<T>>::get(&bounded_fileid).unwrap();
 			if file.user_addr != user.clone() {
 				Err(Error::<T>::NotOwner)?;
 			}
 
 			Self::update_user_space(user.clone(), 2, file.file_size.into())?;
-			<File::<T>>::remove(&fileid);
+			<File<T>>::remove(&bounded_fileid);
 
 			let deposit: BalanceOf<T> = 780_000_000_000u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
 			<T as pallet::Config>::Currency::unreserve(&user, deposit);
@@ -506,8 +525,8 @@ impl<T: Config> Pallet<T> {
 		downloadfee: BalanceOf<T>
 	) -> DispatchResult {
 		ensure!(<UserHoldSpaceDetails<T>>::contains_key(&acc), Error::<T>::NotPurchasedSpace);
-		ensure!(!<File<T>>::contains_key(fileid), Error::<T>::FileExistent);
-
+		let bounded_fileid = Self::vec_to_bound::<u8>(fileid.to_vec())?;
+		ensure!(!<File<T>>::contains_key(bounded_fileid.clone()), Error::<T>::FileExistent);		
 		let mut invoice: Vec<u8> = Vec::new();
 		for i in fileid {
 			invoice.push(*i);
@@ -516,22 +535,23 @@ impl<T: Config> Pallet<T> {
 			invoice.push(*i);
 		}
 
+		let bounded_invoice = Self::vec_to_bound::<u8>(invoice)?;
 		<Invoice<T>>::insert(
-			invoice,
+			bounded_invoice,
 			0 
 		);
 		<File<T>>::insert(
-			fileid.clone(),
+			bounded_fileid.clone(),
 			FileInfo::<T> {
-				file_name: filename.to_vec(),
+				file_name: Self::vec_to_bound::<u8>(filename.to_vec())?,
 				file_size: filesize,
-				file_hash: filehash.to_vec(),
+				file_hash: Self::vec_to_bound::<u8>(filehash.to_vec())?,
 				public: public,
 				user_addr: acc.clone(),
-				file_state: "normal".as_bytes().to_vec(),
+				file_state: Self::vec_to_bound::<u8>("normal".as_bytes().to_vec())?,
 				backups: backups,
 				downloadfee: downloadfee,
-				file_dupl: Vec::new(),
+				file_dupl: BoundedVec::default(),
 			}
 		);
 		UserFileSize::<T>::try_mutate(acc.clone(), |s| -> DispatchResult{
@@ -594,9 +614,10 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	fn add_user_hold_file(acc: AccountOf<T>, fileid: Vec<u8>) {
+	fn add_user_hold_file(acc: AccountOf<T>, fileid: Vec<u8>){
+		let bounded_fileid = Self::vec_to_bound::<u8>(fileid).unwrap();
 		<UserHoldFileList<T>>::mutate(&acc, |s|{
-			s.push(fileid);
+			s.try_push(bounded_fileid).expect("Length exceeded");
 		});
 	}
 
@@ -613,7 +634,8 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn check_lease_expired_forfileid(fileid: Vec<u8>) -> bool {
-		let file = <File<T>>::get(&fileid).unwrap();
+		let bounded_fileid = Self::vec_to_bound::<u8>(fileid).unwrap();
+		let file = <File<T>>::get(&bounded_fileid).unwrap();
 		Self::check_lease_expired(file.user_addr)
 	}
 	//ture is Not expired;  false is expired
@@ -627,11 +649,17 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub fn check_file_exist(fileid: Vec<u8>) -> bool {
-		if <File<T>>::contains_key(fileid) {
+		let bounded_fileid = Self::vec_to_bound::<u8>(fileid).unwrap();
+		if <File<T>>::contains_key(bounded_fileid) {
 			true
 		} else {
 			false
 		}
+	}
+
+	fn vec_to_bound<P>(param: Vec<P>) -> Result<BoundedVec<P, T::StringLimit>, DispatchError> {
+		let result: BoundedVec<P, T::StringLimit> = param.try_into().expect("too long");
+		Ok(result)
 	}
 }
 

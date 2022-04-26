@@ -2,9 +2,9 @@
 name = "pallet-cess-staking"
 version = "4.0.0-dev"
 authors = ["CESS LAB"]
-edition = "2018"
+edition = "2021"
 license = "Apache-2.0"
-homepage = ""
+homepage = "https://www.cess.cloud"
 repository = "https://github.com/CESSProject/cess/"
 description = "FRAME pallet cess staking"
 readme = "README.md"
@@ -13,40 +13,40 @@ readme = "README.md"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-serde = { version = "1.0.126", optional = true }
-codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = [
+serde = { version = "1.0.136", optional = true }
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = [
 	"derive",
 ] }
-scale-info = { version = "1.0", default-features = false, features = ["derive"] }
-sp-std = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2021-10-cess" }
-sp-io = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2021-10-cess" }
-sp-runtime = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2021-10-cess" }
-sp-staking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2021-10-cess" }
-frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2021-10-cess" }
-frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2021-10-cess" }
+scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
+sp-std = { version = "4.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
+sp-io = { version = "6.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
+sp-runtime = { version = "6.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
+sp-staking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
+frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
+frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
 pallet-session = { version = "4.0.0-dev", default-features = false, features = [
 	"historical",
-], git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2021-10-cess" }
-pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2021-10-cess" }
-sp-application-crypto = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2021-10-cess" }
-frame-election-provider-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2021-10-cess" }
+], git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
+pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
+sp-application-crypto = { version = "6.0.0", default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
+frame-election-provider-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
 log = { version = "0.4.14", default-features = false }
 
 # Optional imports for benchmarking
-frame-benchmarking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2021-10-cess", optional = true }
+frame-benchmarking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04", optional = true }
 rand_chacha = { version = "0.2", default-features = false, optional = true }
 
 [dev-dependencies]
-sp-tracing = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2021-10-cess" }
-sp-core = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2021-10-cess" }
-sp-npos-elections = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2021-10-cess" }
-pallet-balances = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2021-10-cess" }
-pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2021-10-cess" }
-pallet-staking-reward-curve = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2021-10-cess" }
-pallet-bags-list = { version = "4.0.0-dev", features = ["runtime-benchmarks"], git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2021-10-cess" }
-substrate-test-utils = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2021-10-cess" }
-frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2021-10-cess" }
-frame-election-provider-support = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2021-10-cess" }
+sp-tracing = { version = "5.0.0", git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
+sp-core = { version = "6.0.0", git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
+sp-npos-elections = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
+pallet-balances = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
+pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
+pallet-staking-reward-curve = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
+pallet-bags-list = { version = "4.0.0-dev", features = ["runtime-benchmarks"], git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
+substrate-test-utils = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
+frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
+frame-election-provider-support = { version = "4.0.0-dev", git = "https://github.com/paritytech/substrate.git", tag = "monthly-2022-04" }
 rand_chacha = { version = "0.2" }
 
 [features]
@@ -68,7 +68,7 @@ std = [
 	"frame-election-provider-support/std",
 ]
 runtime-benchmarks = [
-	"frame-benchmarking",
+	"frame-benchmarking/runtime-benchmarks",
 	"frame-election-provider-support/runtime-benchmarks",
 	"rand_chacha",
 ]

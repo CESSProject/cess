@@ -19,6 +19,7 @@ use crate::{
 	chain_spec,
 	cli::{Cli, Subcommand},
 	service,
+	executor::ExecutorDispatch,
 };
 use cess_node_runtime::Block;
 use sc_cli::{ChainSpec, Role, RuntimeVersion, SubstrateCli};
@@ -113,7 +114,12 @@ pub fn run() -> sc_cli::Result<()> {
 			runner.async_run(|config| {
 				let PartialComponents { client, task_manager, backend, .. } =
 					service::new_partial(&config)?;
-				Ok((cmd.run(client, backend), task_manager))
+				let revert_aux = Box::new(|client, backend, blocks| {
+					sc_consensus_babe::revert(client, backend, blocks)?;
+						// TODO: grandpa revert
+					Ok(())
+				});
+				Ok((cmd.run(client, backend, Some(revert_aux)), task_manager))
 			})
 		},
 		Some(Subcommand::Benchmark(cmd)) =>
@@ -129,11 +135,7 @@ pub fn run() -> sc_cli::Result<()> {
 		None => {
 			let runner = cli.create_runner(&cli.run)?;
 			runner.run_node_until_exit(|config| async move {
-				match config.role {
-					Role::Light => service::new_light(config),
-					_ => service::new_full(config, |_, _| ()),
-				}
-				.map_err(sc_cli::Error::Service)
+				service::new_full(config).map_err(sc_cli::Error::Service)
 			})
 		},
 	}
