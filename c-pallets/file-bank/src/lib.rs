@@ -45,16 +45,42 @@ use frame_support::{
 	pallet_prelude::*,
 	dispatch::DispatchResult, 
 	PalletId,
+	ensure,
 };
-use sp_runtime::traits::CheckedAdd;
-use sp_runtime::traits::CheckedSub;
+use sp_runtime::{
+	traits::{
+		CheckedAdd,
+		CheckedSub,
+		BlockNumberProvider
+	},
+	offchain as rt_offchain,
+	offchain::{
+		storage::StorageValueRef,
+		storage_lock::{BlockAndTime, StorageLock},
+	},
+};
+use frame_system::{
+	offchain::{
+		AppCrypto, CreateSignedTransaction, SendSignedTransaction, SendUnsignedTransaction,
+		SignedPayload, Signer, SigningTypes, SubmitTransaction,
+	},
+};
 pub use weights::WeightInfo;
+use sp_core::{crypto::KeyTypeId};
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 type BoundedString<T> = BoundedVec<u8, <T as Config>::StringLimit>;
 type BoundedList<T> = BoundedVec<BoundedVec<u8, <T as Config>::StringLimit>, <T as Config>::StringLimit>;
+
+const HTTP_REQUEST_STR: &str = "https://arweave.net/price/1048576";
+// const HTTP_REQUEST_STR: &str = "https://api.coincap.io/v2/assets/polkadot";
+pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"demo");
+const FETCH_TIMEOUT_PERIOD: u64 = 60_000; // in milli-seconds
+const LOCK_TIMEOUT_EXPIRATION: u64 = FETCH_TIMEOUT_PERIOD + 1000; // in milli-seconds
+const LOCK_BLOCK_EXPIRATION: u32 = 3; // in block number
+const UNSIGNED_TXS_PRIORITY: u64 = 100;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -66,20 +92,51 @@ pub mod pallet {
 	//pub use crate::weights::WeightInfo;
 	use frame_system::{ensure_signed, pallet_prelude::*};
 
+	pub mod crypto {
+		use crate::KEY_TYPE;
+		use sp_core::sr25519::Signature as Sr25519Signature;
+		use sp_runtime::app_crypto::{app_crypto, sr25519};
+		use sp_runtime::{traits::Verify, MultiSignature, MultiSigner};
+
+		app_crypto!(sr25519, KEY_TYPE);
+
+		pub struct TestAuthId;
+		// implemented for ocw-runtime
+		impl frame_system::offchain::AppCrypto<MultiSigner, MultiSignature> for TestAuthId {
+			type RuntimeAppPublic = Public;
+			type GenericSignature = sp_core::sr25519::Signature;
+			type GenericPublic = sp_core::sr25519::Public;
+		}
+
+		// implemented for mock runtime in test
+		impl frame_system::offchain::AppCrypto<<Sr25519Signature as Verify>::Signer, Sr25519Signature>
+		for TestAuthId
+		{
+			type RuntimeAppPublic = Public;
+			type GenericSignature = sp_core::sr25519::Signature;
+			type GenericPublic = sp_core::sr25519::Public;
+		}
+	}
+
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_sminer::Config + sp_std::fmt::Debug {
+	pub trait Config: frame_system::Config + pallet_sminer::Config + sp_std::fmt::Debug  + CreateSignedTransaction<Call<Self>>{
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		/// The currency trait.
 		type Currency: ReservableCurrency<Self::AccountId>;
 
 		type WeightInfo: WeightInfo;
+
+		type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
 		/// pallet address.
 		#[pallet::constant]
 		type FilbakPalletId: Get<PalletId>;
 
 		#[pallet::constant]
 		type StringLimit: Get<u32> + Clone + Eq + PartialEq;
+
+		#[pallet::constant]
+		type OneDay: Get<BlockNumberOf<Self>>;
 	}
 
 	#[pallet::event]
@@ -137,6 +194,12 @@ pub mod pallet {
 		AlreadyReceive,
 
 		NotUser,
+
+		HttpFetchingError,
+
+		OffchainSignedTxError,
+
+		NoLocalAcctForSigning,
 	}
 	#[pallet::storage]
 	#[pallet::getter(fn file)]
@@ -215,6 +278,18 @@ pub mod pallet {
 			}
 			0
 		}
+
+		fn offchain_worker(block_number: T::BlockNumber) {
+			let number: u128 = block_number.saturated_into();
+			let one_day: u128 = <T as Config>::OneDay::get().saturated_into();
+			if number % 5 == 0 {
+				let result = Self::offchain_http_req();
+				if let Err(e) = result {
+					log::error!("offchain_worker error: {:?}", e);
+				}
+			}
+		}
+
 	}
 
 	#[pallet::call]
@@ -263,7 +338,7 @@ pub mod pallet {
 			<File<T>>::try_mutate(bounded_fileid.clone(), |s_opt| -> DispatchResult {
 				let s = s_opt.as_mut().unwrap();
 				s.file_state = Self::vec_to_bound::<u8>("active".as_bytes().to_vec())?;
-				// s.file_dupl = filee_dupl;
+				s.file_dupl = Self::vec_to_bound::<FileDuplicateInfo<T>>(file_dupl)?;
 				Ok(())
 			})?;
 			Self::deposit_event(Event::<T>::FileUpdate{acc: sender.clone(), fileid: fileid});
@@ -416,6 +491,17 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::weight(2_000_000)]
+		pub fn update_price(
+			origin: OriginFor<T>,
+			price: Vec<u8>
+		) -> DispatchResult {
+			let _sender = ensure_signed(origin)?;
+
+			log::info!("up chain info is: {:?}", price);
+
+			Ok(())
+		}
 
 
 		//#[pallet::weight(2_000_000)]
@@ -426,240 +512,327 @@ pub mod pallet {
 		// 	}
 		// 	Ok(())
 		// }
+	
+		// #[pallet::weight(2_000_000)]
+		// pub fn user_auth(origin: OriginFor<T>, user: AccountOf<T>, collaterals: BalanceOf<T>, random: u32) -> DispatchResult {
+		// 	let _who = ensure_signed(origin)?;
+		// 	<T as pallet::Config>::Currency::reserve(&user, collaterals.clone())?;
+		// 	// if who == b"5CkMk8pNuvZsZpYKi1HpTEajVLuM1EzRDUnj9e9Rbuxmit7M".to_owner() {
 
-		///----------------------------------------------For HTTP services---------------------------------------------
-		///For transactions authorized by the user, the user needs to submit a deposit
-		#[pallet::weight(2_000_000)]
-		pub fn user_auth(origin: OriginFor<T>, user: AccountOf<T>, collaterals: BalanceOf<T>, random: u32) -> DispatchResult {
-			let _who = ensure_signed(origin)?;
-			<T as pallet::Config>::Currency::reserve(&user, collaterals.clone())?;
-			// if who == b"5CkMk8pNuvZsZpYKi1HpTEajVLuM1EzRDUnj9e9Rbuxmit7M".to_owner() {
+		// 	// }
+		// 	if !<UserInfoMap<T>>::contains_key(&user) {
+		// 		UserInfoMap::<T>::insert(&user,
+		// 			UserInfo::<T>{
+		// 				collaterals: collaterals.clone()
+		// 		});
+		// 	} else {
+		// 		UserInfoMap::<T>::try_mutate(&user, |opt| -> DispatchResult {
+		// 			let o = opt.as_mut().unwrap();
+		// 			o.collaterals = o.collaterals.checked_add(&collaterals).ok_or(Error::<T>::Overflow)?;
+		// 			Ok(())
+		// 		})?;
+		// 	}
 
-			// }
-			if !<UserInfoMap<T>>::contains_key(&user) {
-				UserInfoMap::<T>::insert(&user,
-					UserInfo::<T>{
-						collaterals: collaterals.clone()
-				});
-			} else {
-				UserInfoMap::<T>::try_mutate(&user, |opt| -> DispatchResult {
-					let o = opt.as_mut().unwrap();
-					o.collaterals = o.collaterals.checked_add(&collaterals).ok_or(Error::<T>::Overflow)?;
-					Ok(())
-				})?;
-			}
-
-			Self::deposit_event(Event::<T>::UserAuth{user: user, collaterals: collaterals, random: random});
-			Ok(())
-		}
+		// 	Self::deposit_event(Event::<T>::UserAuth{user: user, collaterals: collaterals, random: random});
+		// 	Ok(())
+		// }
 		
-		#[pallet::weight(2_000_000)]
-		pub fn http_upload(
-			origin: OriginFor<T>, 
-			user: AccountOf<T>, 
-			address: Vec<u8>,
-			filename:Vec<u8>,
-			fileid: Vec<u8>,
-			filehash: Vec<u8>,
+		// #[pallet::weight(2_000_000)]
+		// pub fn http_upload(
+		// 	origin: OriginFor<T>, 
+		// 	user: AccountOf<T>, 
+		// 	address: Vec<u8>,
+		// 	filename:Vec<u8>,
+		// 	fileid: Vec<u8>,
+		// 	filehash: Vec<u8>,
+		// 	public: bool,
+		// 	backups: u8,
+		// 	filesize: u64,
+		// 	downloadfee:BalanceOf<T>
+		// ) -> DispatchResult {
+		// 	let sender = ensure_signed(origin)?;
+
+		// 	if !<UserInfoMap<T>>::contains_key(&user) {
+		// 		Err(Error::<T>::NotUser)?;
+		// 	}
+		// 	let deposit: BalanceOf<T> = 780_000_000_000u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
+		
+		// 	Self::upload_file(&user, &address, &filename, &fileid, &filehash, public, backups, filesize, downloadfee)?;
+		// 	<T as pallet::Config>::Currency::unreserve(&user, deposit);
+		// 	<T as pallet::Config>::Currency::transfer(&user, &sender, deposit, AllowDeath)?;
+			
+		// 	Self::deposit_event(Event::<T>::FileUpload{acc: user.clone()});
+		// 	Ok(())
+		// }
+
+		// #[pallet::weight(2_000_000)]
+		// pub fn http_delete(
+		// 	origin: OriginFor<T>,
+		// 	user: AccountOf<T>,
+		// 	fileid: Vec<u8>
+		// ) -> DispatchResult {
+		// 	let sender = ensure_signed(origin)?;
+		// 	if !<UserInfoMap<T>>::contains_key(&user) {
+		// 		Err(Error::<T>::NotUser)?;
+		// 	}
+		// 	let bounded_fileid = Self::vec_to_bound::<u8>(fileid.clone())?;
+		// 	ensure!((<File<T>>::contains_key(bounded_fileid.clone())), Error::<T>::FileNonExistent);
+			
+		// 	let file = <File<T>>::get(&bounded_fileid).unwrap();
+		// 	if file.user_addr != user.clone() {
+		// 		Err(Error::<T>::NotOwner)?;
+		// 	}
+
+		// 	Self::update_user_space(user.clone(), 2, file.file_size.into())?;
+		// 	<File<T>>::remove(&bounded_fileid);
+
+		// 	let deposit: BalanceOf<T> = 780_000_000_000u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
+		// 	<T as pallet::Config>::Currency::unreserve(&user, deposit);
+		// 	<T as pallet::Config>::Currency::transfer(&user, &sender, deposit, AllowDeath)?;
+		// 	Self::deposit_event(Event::<T>::DeleteFile{acc: user, fileid: fileid});
+		// 	Ok(())
+		// }
+	}
+
+	impl<T: Config> Pallet<T> {
+		fn upload_file(
+			acc: &AccountOf<T>, 
+			address: &Vec<u8>,
+			filename:&Vec<u8>,
+			fileid: &Vec<u8>,
+			filehash: &Vec<u8>,
 			public: bool,
 			backups: u8,
 			filesize: u64,
-			downloadfee:BalanceOf<T>
+			downloadfee: BalanceOf<T>
 		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-
-			if !<UserInfoMap<T>>::contains_key(&user) {
-				Err(Error::<T>::NotUser)?;
+			ensure!(<UserHoldSpaceDetails<T>>::contains_key(&acc), Error::<T>::NotPurchasedSpace);
+			let bounded_fileid = Self::vec_to_bound::<u8>(fileid.to_vec())?;
+			ensure!(!<File<T>>::contains_key(bounded_fileid.clone()), Error::<T>::FileExistent);		
+			let mut invoice: Vec<u8> = Vec::new();
+			for i in fileid {
+				invoice.push(*i);
 			}
-			let deposit: BalanceOf<T> = 780_000_000_000u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
-		
-			Self::upload_file(&user, &address, &filename, &fileid, &filehash, public, backups, filesize, downloadfee)?;
-			<T as pallet::Config>::Currency::unreserve(&user, deposit);
-			<T as pallet::Config>::Currency::transfer(&user, &sender, deposit, AllowDeath)?;
-			
-			Self::deposit_event(Event::<T>::FileUpload{acc: user.clone()});
+			for i in address {
+				invoice.push(*i);
+			}
+	
+			let bounded_invoice = Self::vec_to_bound::<u8>(invoice)?;
+			<Invoice<T>>::insert(
+				bounded_invoice,
+				0 
+			);
+			<File<T>>::insert(
+				bounded_fileid.clone(),
+				FileInfo::<T> {
+					file_name: Self::vec_to_bound::<u8>(filename.to_vec())?,
+					file_size: filesize,
+					file_hash: Self::vec_to_bound::<u8>(filehash.to_vec())?,
+					public: public,
+					user_addr: acc.clone(),
+					file_state: Self::vec_to_bound::<u8>("normal".as_bytes().to_vec())?,
+					backups: backups,
+					downloadfee: downloadfee,
+					file_dupl: BoundedVec::default(),
+				}
+			);
+			UserFileSize::<T>::try_mutate(acc.clone(), |s| -> DispatchResult{
+				*s = (*s).checked_add(filesize as u128).ok_or(Error::<T>::Overflow)?;
+				Ok(())
+			})?;
+			Self::update_user_space(acc.clone(), 1, (filesize as u128) * (backups as u128))?;
+			Self::add_user_hold_file(acc.clone(), fileid.clone());
 			Ok(())
 		}
-
-		#[pallet::weight(2_000_000)]
-		pub fn http_delete(
-			origin: OriginFor<T>,
-			user: AccountOf<T>,
-			fileid: Vec<u8>
-		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			if !<UserInfoMap<T>>::contains_key(&user) {
-				Err(Error::<T>::NotUser)?;
+	
+		//operation: 1 upload files, 2 delete file
+		fn update_user_space(acc: AccountOf<T>, operation: u8, size: u128) -> DispatchResult{
+			match operation {
+				1 => {
+					<UserHoldSpaceDetails<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+						let s = s_opt.as_mut().unwrap();
+						if size > s.remaining_space {
+							Err(Error::<T>::InsufficientStorage)?;
+						}
+						if false == Self::check_lease_expired(acc.clone()) {
+							Self::deposit_event(Event::<T>::LeaseExpired{acc: acc.clone(), size: 0});
+							Err(Error::<T>::LeaseExpired)?;
+						}
+						s.remaining_space = s.remaining_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
+						s.used_space = s.used_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+						Ok(())
+					})?
+				}
+				2 => {
+					<UserHoldSpaceDetails<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+						let s = s_opt.as_mut().unwrap();
+						s.remaining_space = s.remaining_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+						s.used_space = s.used_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
+						Ok(())
+					})?
+				}
+				_ => Err(Error::<T>::WrongOperation)?			
 			}
-			let bounded_fileid = Self::vec_to_bound::<u8>(fileid.clone())?;
-			ensure!((<File<T>>::contains_key(bounded_fileid.clone())), Error::<T>::FileNonExistent);
+			Ok(())
+		}
+	
+		fn user_buy_space_update(acc: AccountOf<T>, size: u128) -> DispatchResult{
 			
+			if <UserHoldSpaceDetails<T>>::contains_key(&acc) {
+				<UserHoldSpaceDetails<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+					let s = s_opt.as_mut().unwrap();
+					s.purchased_space = s.purchased_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+					s.remaining_space = s.remaining_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+					Ok(())
+				})?;
+			} else {
+				let value = StorageSpace {
+					purchased_space: size,
+					used_space: 0,
+					remaining_space: size,
+				};
+				<UserHoldSpaceDetails<T>>::insert(&acc, value);
+			}
+			Ok(())
+		}
+	
+		fn add_user_hold_file(acc: AccountOf<T>, fileid: Vec<u8>){
+			let bounded_fileid = Self::vec_to_bound::<u8>(fileid).unwrap();
+			<UserHoldFileList<T>>::mutate(&acc, |s|{
+				s.try_push(bounded_fileid).expect("Length exceeded");
+			});
+		}
+	
+		// fn remove_user_hold_file(acc: &AccountOf<T>, fileid: Vec<u8>) {
+		// 	<UserHoldFileList<T>>::mutate(&acc, |s|{
+		// 		s.drain_filter(|v| *v == fileid);
+		// 	});
+		// }
+		//Available space divided by 1024 is the unit price
+		fn get_price() -> u128 {
+			let space = pallet_sminer::Pallet::<T>::get_space();
+			let price: u128 = 1024 * 1_000_000_000_000 * 1000 / space ;
+			price
+		}
+	
+		fn check_lease_expired_forfileid(fileid: Vec<u8>) -> bool {
+			let bounded_fileid = Self::vec_to_bound::<u8>(fileid).unwrap();
 			let file = <File<T>>::get(&bounded_fileid).unwrap();
-			if file.user_addr != user.clone() {
-				Err(Error::<T>::NotOwner)?;
+			Self::check_lease_expired(file.user_addr)
+		}
+		//ture is Not expired;  false is expired
+		fn check_lease_expired(acc: AccountOf<T>) -> bool {
+			let details = <UserHoldSpaceDetails<T>>::get(&acc).unwrap();
+			if details.used_space + details.remaining_space > details.purchased_space {
+				false
+			} else {
+				true
 			}
-
-			Self::update_user_space(user.clone(), 2, file.file_size.into())?;
-			<File<T>>::remove(&bounded_fileid);
-
-			let deposit: BalanceOf<T> = 780_000_000_000u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
-			<T as pallet::Config>::Currency::unreserve(&user, deposit);
-			<T as pallet::Config>::Currency::transfer(&user, &sender, deposit, AllowDeath)?;
-			Self::deposit_event(Event::<T>::DeleteFile{acc: user, fileid: fileid});
+		}
+	
+		pub fn check_file_exist(fileid: Vec<u8>) -> bool {
+			let bounded_fileid = Self::vec_to_bound::<u8>(fileid).unwrap();
+			if <File<T>>::contains_key(bounded_fileid) {
+				true
+			} else {
+				false
+			}
+		}
+	
+		fn vec_to_bound<P>(param: Vec<P>) -> Result<BoundedVec<P, T::StringLimit>, DispatchError> {
+			let result: BoundedVec<P, T::StringLimit> = param.try_into().expect("too long");
+			Ok(result)
+		}
+	
+		//offchain helper
+		fn offchain_signed_tx(block_number: T::BlockNumber, price: Vec<u8>) -> Result<(), Error<T>> {
+			// We retrieve a signer and check if it is valid.
+			//   Since this pallet only has one key in the keystore. We use `any_account()1 to
+			//   retrieve it. If there are multiple keys and we want to pinpoint it, `with_filter()` can be chained,
+			let signer = Signer::<T, T::AuthorityId>::any_account();
+	
+	
+			let number: u64 = block_number.try_into().unwrap_or(0);
+	
+	
+			let result = signer.send_signed_transaction(|_acct|
+	
+				Call::update_price{price: price.to_vec()}
+			);
+	
+			// Display error if the signed tx fails.
+			if let Some((acc, res)) = result {
+				if res.is_err() {
+					log::error!("failure: offchain_signed_tx: tx sent: {:?}", acc.id);
+					return Err(<Error<T>>::OffchainSignedTxError);
+				}
+	
+				return Ok(());
+			}
+	
+	
+			log::error!("No local account available");
+			Err(<Error<T>>::NoLocalAcctForSigning)
+		}
+	
+		pub fn offchain_fetch_price(block_number: T::BlockNumber) -> Result<(), Error<T>> {
+	
+			let mut lock = StorageLock::<BlockAndTime<Self>>::with_block_and_time_deadline(
+				b"offchain-demo::lock", LOCK_BLOCK_EXPIRATION,
+				rt_offchain::Duration::from_millis(LOCK_TIMEOUT_EXPIRATION)
+			);
+	
+			if let Ok(_guard) = lock.try_lock() {
+				let resp_bytes = Self::offchain_http_req().map_err(|e| {
+					log::error!("fetch_from_remote error: {:?}", e);
+					<Error<T>>::HttpFetchingError
+				})?;
+				let _ = Self::offchain_signed_tx(block_number, resp_bytes)?;
+			}
+	
 			Ok(())
 		}
+	
+		fn offchain_http_req() -> Result<Vec<u8>, Error<T>> {
+			log::info!("send request to {}", HTTP_REQUEST_STR);
+			
+			let request = rt_offchain::http::Request::get(HTTP_REQUEST_STR);
+			
+			let timeout = sp_io::offchain::timestamp()
+			.add(rt_offchain::Duration::from_millis(FETCH_TIMEOUT_PERIOD));
+	
+			log::info!("send request");
+			let pending = request
+			.add_header("User-Agent","PostmanRuntime/7.28.4")
+				.deadline(timeout) // Setting the timeout time
+				.send() // Sending the request out by the host
+				.map_err(|_| <Error<T>>::HttpFetchingError)?;
+			
+			log::info!("wating response");
+			let response = pending
+				.wait().unwrap();
+	
+			log::info!("getted response");
+			if response.code != 200 {
+				log::error!("Unexpected http request status code: {}", response.code);
+				return Err(<Error<T>>::HttpFetchingError);
+			}
+	
+			log::info!("responsse body is: {:?}", response.body().collect::<Vec<u8>>());			
+			Ok(response.body().collect::<Vec<u8>>())
+		}
+	
 	}
 }
 
-use frame_support::ensure;
-impl<T: Config> Pallet<T> {
-	fn upload_file(
-		acc: &AccountOf<T>, 
-		address: &Vec<u8>,
-		filename:&Vec<u8>,
-		fileid: &Vec<u8>,
-		filehash: &Vec<u8>,
-		public: bool,
-		backups: u8,
-		filesize: u64,
-		downloadfee: BalanceOf<T>
-	) -> DispatchResult {
-		ensure!(<UserHoldSpaceDetails<T>>::contains_key(&acc), Error::<T>::NotPurchasedSpace);
-		let bounded_fileid = Self::vec_to_bound::<u8>(fileid.to_vec())?;
-		ensure!(!<File<T>>::contains_key(bounded_fileid.clone()), Error::<T>::FileExistent);		
-		let mut invoice: Vec<u8> = Vec::new();
-		for i in fileid {
-			invoice.push(*i);
-		}
-		for i in address {
-			invoice.push(*i);
-		}
 
-		let bounded_invoice = Self::vec_to_bound::<u8>(invoice)?;
-		<Invoice<T>>::insert(
-			bounded_invoice,
-			0 
-		);
-		<File<T>>::insert(
-			bounded_fileid.clone(),
-			FileInfo::<T> {
-				file_name: Self::vec_to_bound::<u8>(filename.to_vec())?,
-				file_size: filesize,
-				file_hash: Self::vec_to_bound::<u8>(filehash.to_vec())?,
-				public: public,
-				user_addr: acc.clone(),
-				file_state: Self::vec_to_bound::<u8>("normal".as_bytes().to_vec())?,
-				backups: backups,
-				downloadfee: downloadfee,
-				file_dupl: BoundedVec::default(),
-			}
-		);
-		UserFileSize::<T>::try_mutate(acc.clone(), |s| -> DispatchResult{
-			*s = (*s).checked_add(filesize as u128).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
-		Self::update_user_space(acc.clone(), 1, (filesize as u128) * (backups as u128))?;
-		Self::add_user_hold_file(acc.clone(), fileid.clone());
-		Ok(())
-	}
 
-	//operation: 1 upload files, 2 delete file
-	fn update_user_space(acc: AccountOf<T>, operation: u8, size: u128) -> DispatchResult{
-		match operation {
-			1 => {
-				<UserHoldSpaceDetails<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
-					let s = s_opt.as_mut().unwrap();
-					if size > s.remaining_space {
-						Err(Error::<T>::InsufficientStorage)?;
-					}
-					if false == Self::check_lease_expired(acc.clone()) {
-						Self::deposit_event(Event::<T>::LeaseExpired{acc: acc.clone(), size: 0});
-						Err(Error::<T>::LeaseExpired)?;
-					}
-					s.remaining_space = s.remaining_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
-					s.used_space = s.used_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
-					Ok(())
-				})?
-			}
-			2 => {
-				<UserHoldSpaceDetails<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
-					let s = s_opt.as_mut().unwrap();
-					s.remaining_space = s.remaining_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
-					s.used_space = s.used_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
-					Ok(())
-				})?
-			}
-			_ => Err(Error::<T>::WrongOperation)?			
-		}
-		Ok(())
-	}
 
-	fn user_buy_space_update(acc: AccountOf<T>, size: u128) -> DispatchResult{
-		
-		if <UserHoldSpaceDetails<T>>::contains_key(&acc) {
-			<UserHoldSpaceDetails<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
-				let s = s_opt.as_mut().unwrap();
-				s.purchased_space = s.purchased_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
-				s.remaining_space = s.remaining_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
-				Ok(())
-			})?;
-		} else {
-			let value = StorageSpace {
-				purchased_space: size,
-				used_space: 0,
-				remaining_space: size,
-			};
-			<UserHoldSpaceDetails<T>>::insert(&acc, value);
-		}
-		Ok(())
-	}
+impl<T: Config> BlockNumberProvider for Pallet<T> {
+	type BlockNumber = T::BlockNumber;
 
-	fn add_user_hold_file(acc: AccountOf<T>, fileid: Vec<u8>){
-		let bounded_fileid = Self::vec_to_bound::<u8>(fileid).unwrap();
-		<UserHoldFileList<T>>::mutate(&acc, |s|{
-			s.try_push(bounded_fileid).expect("Length exceeded");
-		});
-	}
-
-	// fn remove_user_hold_file(acc: &AccountOf<T>, fileid: Vec<u8>) {
-	// 	<UserHoldFileList<T>>::mutate(&acc, |s|{
-	// 		s.drain_filter(|v| *v == fileid);
-	// 	});
-	// }
-	//Available space divided by 1024 is the unit price
-	fn get_price() -> u128 {
-		let space = pallet_sminer::Pallet::<T>::get_space();
-		let price: u128 = 1024 * 1_000_000_000_000 * 1000 / space ;
-		price
-	}
-
-	fn check_lease_expired_forfileid(fileid: Vec<u8>) -> bool {
-		let bounded_fileid = Self::vec_to_bound::<u8>(fileid).unwrap();
-		let file = <File<T>>::get(&bounded_fileid).unwrap();
-		Self::check_lease_expired(file.user_addr)
-	}
-	//ture is Not expired;  false is expired
-	fn check_lease_expired(acc: AccountOf<T>) -> bool {
-		let details = <UserHoldSpaceDetails<T>>::get(&acc).unwrap();
-		if details.used_space + details.remaining_space > details.purchased_space {
-			false
-		} else {
-			true
-		}
-	}
-
-	pub fn check_file_exist(fileid: Vec<u8>) -> bool {
-		let bounded_fileid = Self::vec_to_bound::<u8>(fileid).unwrap();
-		if <File<T>>::contains_key(bounded_fileid) {
-			true
-		} else {
-			false
-		}
-	}
-
-	fn vec_to_bound<P>(param: Vec<P>) -> Result<BoundedVec<P, T::StringLimit>, DispatchError> {
-		let result: BoundedVec<P, T::StringLimit> = param.try_into().expect("too long");
-		Ok(result)
+	fn current_block_number() -> Self::BlockNumber {
+		<frame_system::Pallet<T>>::block_number()
 	}
 }
 

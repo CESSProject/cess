@@ -9,7 +9,8 @@ version = '3.0.0-monthly-2022-04'
 [package.metadata.docs.rs]
 targets = ['x86_64-unknown-linux-gnu']
 
-
+[dependencies]
+log = { version = "0.4.14", default-features = false }
 
 [build-dependencies.substrate-wasm-builder]
 git = 'https://github.com/paritytech/substrate.git'
