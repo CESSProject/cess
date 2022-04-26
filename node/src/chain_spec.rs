@@ -1,6 +1,6 @@
 use cess_node_runtime::{
 	AccountId, AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, Balance, CouncilConfig,
-	GenesisConfig, GrandpaConfig, 
+	GenesisConfig, GrandpaConfig, Block,
 	ImOnlineConfig, SessionConfig, Signature, StakingConfig, SessionKeys, SudoConfig, StakerStatus,
 	SystemConfig, TechnicalCommitteeConfig, wasm_binary_unwrap, MaxNominations, DOLLARS
 };
@@ -15,7 +15,8 @@ use sp_runtime::{
 	Perbill,
 };
 use hex_literal::hex;
-
+use serde::{Deserialize, Serialize};
+use sc_chain_spec::ChainSpecExtension;
 use sc_telemetry::TelemetryEndpoints;
 
 
@@ -23,7 +24,7 @@ use sc_telemetry::TelemetryEndpoints;
 // const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
-pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig>;
+
 
 /// Generate a crypto pair from seed.
 pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Public {
@@ -31,6 +32,20 @@ pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Pu
 		.expect("static values are valid; qed")
 		.public()
 }
+
+#[derive(Default, Clone, Serialize, Deserialize, ChainSpecExtension)]
+#[serde(rename_all = "camelCase")]
+pub struct Extensions {
+	/// Block numbers with known hashes.
+	pub fork_blocks: sc_client_api::ForkBlocks<Block>,
+	/// Known bad block hashes.
+	pub bad_blocks: sc_client_api::BadBlocks<Block>,
+	/// The light sync state extension used by the sync-state rpc.
+	pub light_sync_state: sc_sync_state_rpc::LightSyncStateExtension,
+}
+
+/// Specialized `ChainSpec`.
+pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig, Extensions>;
 
 type AccountPublic = <Signature as Verify>::Signer;
 
@@ -170,8 +185,8 @@ fn cess_testnet_config_genesis() -> GenesisConfig {
 pub fn cess_testnet_config() -> ChainSpec {
 	let boot_nodes = vec![];
 	ChainSpec::from_genesis(
-		"Cess Testnet",
-		"Cess_testnet",
+		"cess-testnet",
+		"cess-testnet",
 		ChainType::Live,
 		cess_testnet_config_genesis,
 		boot_nodes,
@@ -183,6 +198,15 @@ pub fn cess_testnet_config() -> ChainSpec {
 	)
 }
 
+fn development_config_genesis() -> GenesisConfig {
+	testnet_genesis(
+		vec![authority_keys_from_seed("Alice")],
+		vec![],
+		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		None,
+	)
+}
+
 pub fn development_config() -> ChainSpec {
 	ChainSpec::from_genesis(
 		// Name
@@ -190,17 +214,7 @@ pub fn development_config() -> ChainSpec {
 		// ID
 		"dev",
 		ChainType::Development,
-		move || {
-			testnet_genesis(
-				// Initial PoA authorities
-				vec![authority_keys_from_seed("Alice")],
-				// Pre-funded accounts
-				vec![],
-				// Sudo account
-				get_account_id_from_seed::<sr25519::Public>("Alice"),
-				None
-			)
-		},
+		development_config_genesis,
 		// Bootnodes
 		vec![],
 		// Telemetry

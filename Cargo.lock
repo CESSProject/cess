@@ -708,6 +708,7 @@ dependencies = [
  "sc-telemetry",
  "sc-transaction-pool",
  "sc-transaction-pool-api",
+ "serde",
  "sp-api",
  "sp-authority-discovery",
  "sp-authorship",
