@@ -28,7 +28,6 @@ use frame_support::traits::{Currency, ReservableCurrency, ExistenceRequirement::
 pub use pallet::*;
 mod benchmarking;
 pub mod weights;
-use sp_std::convert::TryInto;
 
 mod types;
 pub use types::*;
@@ -38,7 +37,11 @@ use sp_runtime::{
 	RuntimeDebug,
 	traits::{AccountIdConversion,SaturatedConversion}
 };
-use sp_std::prelude::*;
+use sp_std::{
+	prelude::*,
+	convert::TryInto,
+	str,
+};
 use codec::{Encode, Decode};
 
 use frame_support::{
@@ -74,13 +77,7 @@ type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 type BoundedString<T> = BoundedVec<u8, <T as Config>::StringLimit>;
 type BoundedList<T> = BoundedVec<BoundedVec<u8, <T as Config>::StringLimit>, <T as Config>::StringLimit>;
 
-const HTTP_REQUEST_STR: &str = "https://arweave.net/price/1048576";
-// const HTTP_REQUEST_STR: &str = "https://api.coincap.io/v2/assets/polkadot";
-pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"demo");
-const FETCH_TIMEOUT_PERIOD: u64 = 60_000; // in milli-seconds
-const LOCK_TIMEOUT_EXPIRATION: u64 = FETCH_TIMEOUT_PERIOD + 1000; // in milli-seconds
-const LOCK_BLOCK_EXPIRATION: u32 = 3; // in block number
-const UNSIGNED_TXS_PRIORITY: u64 = 100;
+
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -92,11 +89,21 @@ pub mod pallet {
 	//pub use crate::weights::WeightInfo;
 	use frame_system::{ensure_signed, pallet_prelude::*};
 
+	const HTTP_REQUEST_STR: &str = "https://arweave.net/price/1048576";
+		// const HTTP_REQUEST_STR: &str = "https://api.coincap.io/v2/assets/polkadot";
+	pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"demo");
+	const FETCH_TIMEOUT_PERIOD: u64 = 60_000; // in milli-seconds
+	const LOCK_TIMEOUT_EXPIRATION: u64 = FETCH_TIMEOUT_PERIOD + 1000; // in milli-seconds
+	const LOCK_BLOCK_EXPIRATION: u32 = 3; // in block number
+	const UNSIGNED_TXS_PRIORITY: u64 = 100;
+
 	pub mod crypto {
-		use crate::KEY_TYPE;
+		use super::KEY_TYPE;
 		use sp_core::sr25519::Signature as Sr25519Signature;
 		use sp_runtime::app_crypto::{app_crypto, sr25519};
 		use sp_runtime::{traits::Verify, MultiSignature, MultiSigner};
+
+		
 
 		app_crypto!(sr25519, KEY_TYPE);
 
@@ -126,6 +133,8 @@ pub mod pallet {
 		type Currency: ReservableCurrency<Self::AccountId>;
 
 		type WeightInfo: WeightInfo;
+
+		type Call: From<Call<Self>>;
 
 		type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
 		/// pallet address.
@@ -233,6 +242,10 @@ pub mod pallet {
 	#[pallet::getter(fn user_info_map)]
 	pub(super) type UserInfoMap<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, UserInfo<T>>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn unit_price)]
+	pub(super) type UnitPrice<T: Config> = StorageValue<_, BalanceOf<T>>;
+
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -280,10 +293,12 @@ pub mod pallet {
 		}
 
 		fn offchain_worker(block_number: T::BlockNumber) {
+			let signer = Signer::<T, T::AuthorityId>::all_accounts();
+
 			let number: u128 = block_number.saturated_into();
 			let one_day: u128 = <T as Config>::OneDay::get().saturated_into();
 			if number % 5 == 0 {
-				let result = Self::offchain_http_req();
+				let result = Self::offchain_fetch_price(block_number);
 				if let Err(e) = result {
 					log::error!("offchain_worker error: {:?}", e);
 				}
@@ -498,7 +513,19 @@ pub mod pallet {
 		) -> DispatchResult {
 			let _sender = ensure_signed(origin)?;
 
-			log::info!("up chain info is: {:?}", price);
+			log::info!("upchain get vec is: {:?}", price);
+			//Vec<u8> -> str
+			let str_price = str::from_utf8(&price).unwrap();
+			log::info!("upchain get str is: {:?}", str_price);
+			//str -> u128
+			let price_u128: u128 = str_price.parse().map_err(|_e| Error::<T>::ConversionError)?;
+			log::info!("upchain get u128 is: {:?}", price_u128);
+			//u128 -> balance
+			let price_balance: BalanceOf<T> = price_u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
+
+			<UnitPrice<T>>::put(price_balance);
+
+			log::info!("upchain get is: {}", price_u128);
 
 			Ok(())
 		}
@@ -745,19 +772,18 @@ pub mod pallet {
 		}
 	
 		//offchain helper
-		fn offchain_signed_tx(block_number: T::BlockNumber, price: Vec<u8>) -> Result<(), Error<T>> {
+		fn offchain_signed_tx(block_number: T::BlockNumber, value: Vec<u8>) -> Result<(), Error<T>> {
 			// We retrieve a signer and check if it is valid.
 			//   Since this pallet only has one key in the keystore. We use `any_account()1 to
 			//   retrieve it. If there are multiple keys and we want to pinpoint it, `with_filter()` can be chained,
 			let signer = Signer::<T, T::AuthorityId>::any_account();
 	
 	
-			let number: u64 = block_number.try_into().unwrap_or(0);
+			let _number: u64 = block_number.try_into().unwrap_or(0);
 	
-	
-			let result = signer.send_signed_transaction(|_acct|
-	
-				Call::update_price{price: price.to_vec()}
+			log::info!("shang lian qian yi ke: {:?}", value);
+			let result = signer.send_signed_transaction(|_acct| 
+				Call::update_price{price: value.clone()}
 			);
 	
 			// Display error if the signed tx fails.
@@ -782,13 +808,14 @@ pub mod pallet {
 				rt_offchain::Duration::from_millis(LOCK_TIMEOUT_EXPIRATION)
 			);
 	
-			if let Ok(_guard) = lock.try_lock() {
+		
 				let resp_bytes = Self::offchain_http_req().map_err(|e| {
 					log::error!("fetch_from_remote error: {:?}", e);
 					<Error<T>>::HttpFetchingError
 				})?;
+				log::info!("diao yong qian ming");
 				let _ = Self::offchain_signed_tx(block_number, resp_bytes)?;
-			}
+			
 	
 			Ok(())
 		}
@@ -810,7 +837,8 @@ pub mod pallet {
 			
 			log::info!("wating response");
 			let response = pending
-				.wait().unwrap();
+				.wait()
+				.map_err(|_| <Error<T>>::HttpFetchingError)?;
 	
 			log::info!("getted response");
 			if response.code != 200 {
@@ -818,7 +846,9 @@ pub mod pallet {
 				return Err(<Error<T>>::HttpFetchingError);
 			}
 	
-			log::info!("responsse body is: {:?}", response.body().collect::<Vec<u8>>());			
+			// let value: u128 = str::from_utf8(&response.body().collect::<Vec<u8>>()).unwrap().parse().unwrap();
+			// log::info!("responsse body is: {:?}", value);	
+					
 			Ok(response.body().collect::<Vec<u8>>())
 		}
 	

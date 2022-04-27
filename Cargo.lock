@@ -760,6 +760,7 @@ dependencies = [
  "pallet-file-map",
  "pallet-grandpa",
  "pallet-im-online",
+ "pallet-indices",
  "pallet-membership",
  "pallet-mmr",
  "pallet-offences",
@@ -4344,6 +4345,7 @@ dependencies = [
  "pallet-sminer",
  "pallet-timestamp",
  "parity-scale-codec",
+ "parking_lot 0.11.2",
  "scale-info",
  "serde",
  "serde_json",
@@ -4413,6 +4415,22 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-staking",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-indices"
+version = "4.0.0-dev"
+source = "git+https://github.com/paritytech/substrate.git?tag=monthly-2022-04#2287cd80830b081bd51bd8c313c6213d312e541e"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-keyring",
+ "sp-runtime",
  "sp-std",
 ]
 
