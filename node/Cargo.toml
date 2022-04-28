@@ -15,8 +15,8 @@ targets = ['x86_64-unknown-linux-gnu']
 name = 'cess-node'
 
 [build-dependencies.substrate-build-script-utils]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '3.0.0'
 
 [dependencies]
@@ -34,241 +34,241 @@ path = '../runtime'
 # version = '3.0.0-monthly-2021-10'
 
 [dependencies.frame-system-rpc-runtime-api]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.sc-network]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
 [dependencies.frame-benchmarking]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.pallet-mmr-rpc]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '3.0.0'
 
 [dependencies.substrate-state-trie-migration-rpc]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.sc-sync-state-rpc]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
 [dependencies.frame-benchmarking-cli]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.pallet-transaction-payment-rpc]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.sc-basic-authorship]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
 [dependencies.sc-cli]
 features = ['wasmtime']
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
 [dependencies.sc-client-api]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.sc-consensus]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
 [dependencies.sc-consensus-babe]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
 [dependencies.sc-executor]
 features = ['wasmtime']
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
 [dependencies.sc-consensus-slots]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
 [dependencies.grandpa-primitives]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 package = 'sp-finality-grandpa'
 version = '4.0.0-dev'
 
 [dependencies.grandpa]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 package = 'sc-finality-grandpa'
 version = '0.10.0-dev'
 
 [dependencies.sc-keystore]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.sc-rpc]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.sc-rpc-api]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
 [dependencies.sc-service]
 features = ['wasmtime']
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
 [dependencies.sc-telemetry]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.sc-transaction-pool]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.sc-transaction-pool-api]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.sp-api]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.sp-block-builder]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.sp-blockchain]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.sp-consensus]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
 [dependencies.sp-consensus-babe]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
 [dependencies.sp-core]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '6.0.0'
 
 [dependencies.sp-runtime]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '6.0.0'
 
 [dependencies.sp-timestamp]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.substrate-frame-rpc-system]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.pallet-im-online]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.sp-authority-discovery]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.sp-transaction-storage-proof]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.sp-authorship]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.sc-consensus-uncles]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
 [dependencies.sc-finality-grandpa-rpc]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
 [dependencies.sc-consensus-babe-rpc]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
 [dependencies.sp-keystore]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '0.12.0'
 
 [dependencies.sc-consensus-epochs]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
 [dependencies.sc-chain-spec]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.pallet-contracts]
 default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.pallet-contracts-rpc]
 default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.sc-authority-discovery]
 default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
 [features]
