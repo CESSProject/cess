@@ -392,6 +392,8 @@ runtime-benchmarks = [
     'pallet-sminer/runtime-benchmarks',
     'sp-runtime/runtime-benchmarks',
     "pallet-contracts/runtime-benchmarks",
+    "pallet-ethereum/runtime-benchmarks",
+	"pallet-evm/runtime-benchmarks",
 ]
 std = [
     "pallet-authority-discovery/std",
@@ -447,4 +449,13 @@ std = [
     'sp-std/std',
     'sp-transaction-pool/std',
     'sp-version/std',
+
+    "fp-rpc/std",
+	"fp-self-contained/std",
+	"pallet-base-fee/std",
+	"pallet-dynamic-fee/std",
+	"pallet-ethereum/std",
+	"pallet-evm/std",
+	"pallet-evm-precompile-simple/std",
+	"pallet-evm-precompile-sha3fips/std",
 ]
