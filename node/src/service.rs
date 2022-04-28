@@ -290,6 +290,12 @@ pub fn new_full_base(
 			client.clone(),
 			network.clone(),
 		);
+		let keystore = keystore_container.sync_keystore();
+		sp_keystore::SyncCryptoStore::sr25519_generate_new(
+			&*keystore,
+			cess_node_runtime::pallet_file_bank::KEY_TYPE,
+			Some("//Alice"),
+		).expect("Creating key with account Alice should succeed.");
 	}
 
 	let role = config.role.clone();
