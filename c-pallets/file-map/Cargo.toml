@@ -16,45 +16,45 @@ serde_json = { version = '1.0.67', default-features = false, features = ['alloc'
 
 [dependencies.frame-benchmarking]
 default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 optional = true
 
 [dependencies.frame-support]
 default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.frame-system]
 default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.sp-io]
 default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '6.0.0'
 
 [dependencies.sp-std]
 default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
 [dependencies.sp-core]
 default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '6.0.0'
 
 [dependencies.sp-runtime]
 default-features = false
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'monthly-2022-04'
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
 version = '6.0.0'
 
 # local dependencies
