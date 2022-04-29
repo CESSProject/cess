@@ -444,7 +444,7 @@ pub mod pallet {
 		pub fn buy_space(origin: OriginFor<T>, space_count: u128, lease_count: u128, max_price: u128) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let acc = T::FilbakPalletId::get().into_account();
-			let unit_price = Self::get_price();
+			let unit_price = TryInto::<u128>::try_into(<UnitPrice<T>>::get().unwrap()).ok().unwrap();
 			if unit_price > max_price * 1000000000000 && 0 != max_price {
 				Err(Error::<T>::ExceedExpectations)?;
 			}
@@ -512,20 +512,26 @@ pub mod pallet {
 			price: Vec<u8>
 		) -> DispatchResult {
 			let _sender = ensure_signed(origin)?;
-
-			log::info!("upchain get vec is: {:?}", price);
 			//Vec<u8> -> str
 			let str_price = str::from_utf8(&price).unwrap();
-			log::info!("upchain get str is: {:?}", str_price);
+
 			//str -> u128
-			let price_u128: u128 = str_price.parse().map_err(|_e| Error::<T>::ConversionError)?;
-			log::info!("upchain get u128 is: {:?}", price_u128);
+			let mut price_u128: u128 = str_price
+				.parse()
+				.map_err(|_e| Error::<T>::ConversionError)?;
+			
+			//One third of the price
+			price_u128 = price_u128.checked_mul(3).ok_or(Error::<T>::Overflow)?;
+				
+			//Which pricing is cheaper
+			let our_price = Self::get_price();
+			if our_price < price_u128 {
+				price_u128 = our_price;
+			}
 			//u128 -> balance
 			let price_balance: BalanceOf<T> = price_u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
 
 			<UnitPrice<T>>::put(price_balance);
-
-			log::info!("upchain get is: {}", price_u128);
 
 			Ok(())
 		}
@@ -781,7 +787,6 @@ pub mod pallet {
 	
 			let _number: u64 = block_number.try_into().unwrap_or(0);
 	
-			log::info!("shang lian qian yi ke: {:?}", value);
 			let result = signer.send_signed_transaction(|_acct| 
 				Call::update_price{price: value.clone()}
 			);
@@ -813,7 +818,6 @@ pub mod pallet {
 					log::error!("fetch_from_remote error: {:?}", e);
 					<Error<T>>::HttpFetchingError
 				})?;
-				log::info!("diao yong qian ming");
 				let _ = Self::offchain_signed_tx(block_number, resp_bytes)?;
 			
 	
@@ -840,14 +844,10 @@ pub mod pallet {
 				.wait()
 				.map_err(|_| <Error<T>>::HttpFetchingError)?;
 	
-			log::info!("getted response");
 			if response.code != 200 {
 				log::error!("Unexpected http request status code: {}", response.code);
 				return Err(<Error<T>>::HttpFetchingError);
 			}
-	
-			// let value: u128 = str::from_utf8(&response.body().collect::<Vec<u8>>()).unwrap().parse().unwrap();
-			// log::info!("responsse body is: {:?}", value);	
 					
 			Ok(response.body().collect::<Vec<u8>>())
 		}
