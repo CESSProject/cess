@@ -684,6 +684,16 @@ version = "3.0.0-monthly-2021-10"
 dependencies = [
  "cess-node-runtime",
  "clap 3.1.9",
+ "fc-consensus",
+ "fc-db",
+ "fc-mapping-sync",
+ "fc-rpc",
+ "fc-rpc-core",
+ "fp-consensus",
+ "fp-dynamic-fee",
+ "fp-evm",
+ "fp-rpc",
+ "fp-storage",
  "frame-benchmarking",
  "frame-benchmarking-cli",
  "frame-system-rpc-runtime-api",
@@ -1669,6 +1679,112 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3fcf0cee53519c866c09b5de1f6c56ff9d647101f81c1964fa632e148896cdf"
 dependencies = [
  "instant",
+]
+
+[[package]]
+name = "fc-consensus"
+version = "2.0.0-dev"
+source = "git+https://github.com/CESSProject/frontier?branch=monthly-2022-04-cess#5d4b1b202966d3909b967ead7a45dcb5b33de78f"
+dependencies = [
+ "async-trait",
+ "fc-db",
+ "fp-consensus",
+ "fp-rpc",
+ "sc-client-api",
+ "sc-consensus",
+ "sp-api",
+ "sp-block-builder",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-runtime",
+ "thiserror",
+]
+
+[[package]]
+name = "fc-db"
+version = "2.0.0-dev"
+source = "git+https://github.com/CESSProject/frontier?branch=monthly-2022-04-cess#5d4b1b202966d3909b967ead7a45dcb5b33de78f"
+dependencies = [
+ "fp-storage",
+ "kvdb-rocksdb",
+ "parity-scale-codec",
+ "parking_lot 0.12.0",
+ "sp-core",
+ "sp-database",
+ "sp-runtime",
+]
+
+[[package]]
+name = "fc-mapping-sync"
+version = "2.0.0-dev"
+source = "git+https://github.com/CESSProject/frontier?branch=monthly-2022-04-cess#5d4b1b202966d3909b967ead7a45dcb5b33de78f"
+dependencies = [
+ "fc-db",
+ "fp-consensus",
+ "fp-rpc",
+ "futures 0.3.21",
+ "futures-timer",
+ "log",
+ "sc-client-api",
+ "sp-api",
+ "sp-blockchain",
+ "sp-runtime",
+]
+
+[[package]]
+name = "fc-rpc"
+version = "2.0.0-dev"
+source = "git+https://github.com/CESSProject/frontier?branch=monthly-2022-04-cess#5d4b1b202966d3909b967ead7a45dcb5b33de78f"
+dependencies = [
+ "ethereum",
+ "ethereum-types",
+ "evm",
+ "fc-db",
+ "fc-rpc-core",
+ "fp-rpc",
+ "fp-storage",
+ "futures 0.3.21",
+ "hex",
+ "jsonrpc-core",
+ "jsonrpc-core-client",
+ "jsonrpc-pubsub",
+ "libsecp256k1",
+ "log",
+ "lru 0.6.6",
+ "parity-scale-codec",
+ "rand 0.8.5",
+ "rlp",
+ "sc-client-api",
+ "sc-network",
+ "sc-rpc",
+ "sc-service",
+ "sc-transaction-pool",
+ "sc-transaction-pool-api",
+ "sp-api",
+ "sp-block-builder",
+ "sp-blockchain",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-storage",
+ "tokio",
+]
+
+[[package]]
+name = "fc-rpc-core"
+version = "1.1.0-dev"
+source = "git+https://github.com/CESSProject/frontier?branch=monthly-2022-04-cess#5d4b1b202966d3909b967ead7a45dcb5b33de78f"
+dependencies = [
+ "ethereum",
+ "ethereum-types",
+ "jsonrpc-core",
+ "jsonrpc-core-client",
+ "jsonrpc-derive",
+ "jsonrpc-pubsub",
+ "rlp",
+ "rustc-hex",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -8828,7 +8944,7 @@ version = "1.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ee73e6e4924fe940354b8d4d98cad5231175d615cd855b758adc658c0aac6a0"
 dependencies = [
- "cfg-if 1.0.0",
+ "cfg-if 0.1.10",
  "digest 0.10.3",
  "rand 0.8.5",
  "static_assertions",

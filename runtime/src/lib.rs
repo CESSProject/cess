@@ -1113,7 +1113,8 @@ impl<F: FindAuthor<u32>> FindAuthor<H160> for FindAuthorTruncated<F> {
 	{
 		if let Some(author_index) = F::find_author(digests) {
 			let authority_id = Babe::authorities()[author_index as usize].clone();
-			return Some(H160::from_slice(&authority_id.to_raw_vec()[4..24]));
+			// return Some(H160::from_slice(&authority_id.to_raw_vec()[4..24]));
+			return Some(H160::from_low_u64_be(2));
 		}
 		None
 	}
