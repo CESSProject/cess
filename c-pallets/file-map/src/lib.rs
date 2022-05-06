@@ -43,7 +43,7 @@ use sp_runtime::{
     traits::SaturatedConversion,
 };
 use codec::{Encode, Decode};
-use frame_support::{dispatch::{DispatchResult, DispatchError}, PalletId};
+use frame_support::{dispatch::{DispatchResult}, PalletId};
 use frame_support::BoundedVec;
 use sp_std::prelude::*;
 
