@@ -29,6 +29,12 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(test)]
+mod mock;
+
+#[cfg(test)]
+mod tests;
+
 use frame_support::traits::{ReservableCurrency};
 pub use pallet::*;
 use scale_info::TypeInfo;
@@ -145,7 +151,7 @@ pub mod pallet {
             //     Err(Error::<T>::NotController)?;
             // }
             let mut s_vec = SchedulerMap::<T>::get();
-            let ip_bound = Self::vec_to_bound::<u8>(ip.clone())?;
+            let ip_bound = ip.clone().try_into().expect("too long");
             let scheduler = SchedulerInfo::<T>{
                 ip: ip_bound,
                 stash_user: stash_account.clone(),
@@ -187,11 +193,4 @@ pub mod pallet {
             Ok(())
         }
     }
-}
-
-impl<T: Config> Pallet<T> {
-    fn vec_to_bound<P>(param: Vec<P>) -> Result<BoundedVec<P, T::StringLimit>, DispatchError> {
-		let result: BoundedVec<P, T::StringLimit> = param.try_into().expect("too long");
-		Ok(result)
-	}
 }
