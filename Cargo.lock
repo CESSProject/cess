@@ -700,6 +700,7 @@ dependencies = [
  "futures 0.3.21",
  "hex-literal",
  "jsonrpc-core",
+ "jsonrpc-pubsub",
  "pallet-contracts",
  "pallet-contracts-rpc",
  "pallet-im-online",

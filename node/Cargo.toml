@@ -20,7 +20,8 @@ branch = 'monthly-2022-04-cess'
 version = '3.0.0'
 
 [dependencies]
-jsonrpc-core = '18.0.0'
+jsonrpc-core = "18.0.0"
+jsonrpc-pubsub = "18.0.0"
 structopt = '0.3.8'
 rand = "0.8"
 futures = "0.3.19"
