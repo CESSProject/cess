@@ -91,7 +91,7 @@ pub struct FullDeps<C, P, SC, B, A: ChainApi> {
 	/// EthFilterApi pool.
 	pub filter_pool: Option<FilterPool>,
 	/// Backend.
-	pub fc_backend: Arc<fc_db::Backend<Block>>,
+	pub frontier_backend: Arc<fc_db::Backend<Block>>,
 	/// Maximum number of logs in a query.
 	pub max_past_logs: u32,
 	/// Maximum fee history cache size.
@@ -198,7 +198,7 @@ where
 		enable_dev_signer,
 		network,
 		filter_pool,
-		fc_backend,
+		frontier_backend,
 		max_past_logs,
 		fee_history_limit,
 		fee_history_cache,
@@ -267,7 +267,7 @@ where
 		network.clone(),
 		signers,
 		overrides.clone(),
-		fc_backend.clone(),
+		frontier_backend.clone(),
 		is_authority,
 		block_data_cache.clone(),
 		fee_history_limit,
@@ -277,7 +277,7 @@ where
 	if let Some(filter_pool) = filter_pool {
 		io.extend_with(EthFilterApiServer::to_delegate(EthFilterApi::new(
 			client.clone(),
-			fc_backend,
+			frontier_backend,
 			filter_pool.clone(),
 			500 as usize, // max stored filters
 			max_past_logs,

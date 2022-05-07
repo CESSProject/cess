@@ -2,18 +2,26 @@
 
 use cess_node_runtime::RuntimeApi;
 use codec::Encode;
+use fc_consensus::FrontierBlockImport;
+use fc_mapping_sync::{MappingSyncWorker, SyncStrategy};
+use fc_rpc::EthTask;
+use fc_rpc_core::types::{FeeHistoryCache, FilterPool};
 use frame_system_rpc_runtime_api::AccountNonceApi;
 use futures::prelude::*;
 use sc_client_api::{BlockBackend, ExecutorProvider};
 use sc_consensus_babe::{self, SlotProportion};
 use sc_executor::NativeElseWasmExecutor;
 use sc_network::{Event, NetworkService};
-use sc_service::{config::Configuration, error::Error as ServiceError, RpcHandlers, TaskManager};
+use sc_service::{config::Configuration, error::Error as ServiceError, BasePath, RpcHandlers, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_api::ProvideRuntimeApi;
 use sp_core::crypto::Pair;
 use sp_runtime::{generic, traits::Block as BlockT, SaturatedConversion};
-use std::sync::Arc;
+use std::{
+	collections::BTreeMap,
+	sync::{Arc, Mutex},
+};
+use crate::cli::Cli;
 use crate::rpc as node_rpc;
 use crate::executor as node_executor;
 pub use crate::executor::ExecutorDispatch;
@@ -49,10 +57,33 @@ pub fn fetch_nonce(client: &FullClient, account: sp_core::sr25519::Pair) -> u32 
 ///
 /// Note: Should only be used for tests.
 
+pub fn frontier_database_dir(config: &Configuration) -> std::path::PathBuf {
+	let config_dir = config
+		.base_path
+		.as_ref()
+		.map(|base_path| base_path.config_dir(config.chain_spec.id()))
+		.unwrap_or_else(|| {
+			BasePath::from_project("", "", &crate::cli::Cli::executable_name())
+				.config_dir(config.chain_spec.id())
+		});
+	config_dir.join("frontier").join("db")
+}
+
+pub fn open_frontier_backend(config: &Configuration) -> Result<Arc<fc_db::Backend<Block>>, String> {
+	Ok(Arc::new(fc_db::Backend::<Block>::new(
+		&fc_db::DatabaseSettings {
+			source: fc_db::DatabaseSettingsSrc::RocksDb {
+				path: frontier_database_dir(&config),
+				cache_size: 0,
+			},
+		},
+	)?))
+}
 
 /// Creates a new partial node.
 pub fn new_partial(
 	config: &Configuration,
+	cli: &Cli,
 ) -> Result<
 	sc_service::PartialComponents<
 		FullClient,
@@ -182,7 +213,24 @@ pub fn new_partial(
 		let keystore = keystore_container.sync_keystore();
 		let chain_spec = config.chain_spec.cloned_box();
 
-		let rpc_backend = backend.clone();
+		let is_authority = config.role.is_authority();
+		let enable_dev_signer = cli.run.enable_dev_signer;
+
+		let filter_pool: Option<FilterPool> = Some(Arc::new(Mutex::new(BTreeMap::new())));
+		let frontier_backend = open_frontier_backend(config)?;
+		let max_past_logs = cli.run.max_past_logs;
+		let fee_history_limit = cli.run.fee_history_limit;
+		let fee_history_cache: FeeHistoryCache = Arc::new(Mutex::new(BTreeMap::new()));
+		let overrides = crate::rpc::overrides_handle(client.clone());
+		let block_data_cache = Arc::new(fc_rpc::EthBlockDataCache::new(
+			task_manager.spawn_handle(),
+			overrides.clone(),
+			50,
+			50,
+		));
+		let subscription_task_executor =
+			sc_rpc::SubscriptionTaskExecutor::new(task_manager.spawn_handle());
+
 		let rpc_extensions_builder = move |deny_unsafe, subscription_executor| {
 			let deps = node_rpc::FullDeps {
 				client: client.clone(),
@@ -202,9 +250,20 @@ pub fn new_partial(
 					subscription_executor,
 					finality_provider: finality_proof_provider.clone(),
 				},
+				graph: pool.pool().clone(),
+				is_authority,
+				enable_dev_signer,
+				network: network.clone(),
+				filter_pool: filter_pool.clone(),
+				frontier_backend: frontier_backend.clone(),
+				max_past_logs,
+				fee_history_limit,
+				fee_history_cache: fee_history_cache.clone(),
+				overrides: overrides.clone(),
+				block_data_cache: block_data_cache.clone(),
 			};
 
-			node_rpc::create_full(deps, rpc_backend.clone()).map_err(Into::into)
+			node_rpc::create_full(deps, subscription_task_executor.clone(), backend.clone()).map_err(Into::into)
 		};
 
 		(rpc_extensions_builder, rpc_setup)
@@ -239,6 +298,7 @@ pub struct NewFullBase {
 /// Creates a full service from the configuration.
 pub fn new_full_base(
 	mut config: Configuration,
+	cli: &Cli,
 	with_startup_data: impl FnOnce(
 		&sc_consensus_babe::BabeBlockImport<Block, FullClient, FullGrandpaBlockImport>,
 		&sc_consensus_babe::BabeLink<Block>,
@@ -253,7 +313,7 @@ pub fn new_full_base(
 		select_chain,
 		transaction_pool,
 		other: (rpc_extensions_builder, import_setup, rpc_setup, mut telemetry),
-	} = new_partial(&config)?;
+	} = new_partial(&config, &cli)?;
 
 	let shared_voter_state = rpc_setup;
 	let auth_disc_publish_non_global_ips = config.network.allow_non_globals_in_dht;
@@ -318,6 +378,51 @@ pub fn new_full_base(
 		system_rpc_tx,
 		telemetry: telemetry.as_mut(),
 	})?;
+
+	task_manager.spawn_essential_handle().spawn(
+		"frontier-mapping-sync-worker",
+		None,
+		MappingSyncWorker::new(
+			client.import_notification_stream(),
+			Duration::new(6, 0),
+			client.clone(),
+			backend.clone(),
+			frontier_backend.clone(),
+			3,
+			0,
+			SyncStrategy::Normal,
+		)
+		.for_each(|()| futures::future::ready(())),
+	);
+
+	// Spawn Frontier EthFilterApi maintenance task.
+	if let Some(filter_pool) = filter_pool {
+		// Each filter is allowed to stay in the pool for 100 blocks.
+		const FILTER_RETAIN_THRESHOLD: u64 = 100;
+		task_manager.spawn_essential_handle().spawn(
+			"frontier-filter-pool",
+			None,
+			EthTask::filter_pool_task(Arc::clone(&client), filter_pool, FILTER_RETAIN_THRESHOLD),
+		);
+	}
+
+	// Spawn Frontier FeeHistory cache maintenance task.
+	task_manager.spawn_essential_handle().spawn(
+		"frontier-fee-history",
+		None,
+		EthTask::fee_history_task(
+			Arc::clone(&client),
+			Arc::clone(&overrides),
+			fee_history_cache,
+			fee_history_limit,
+		),
+	);
+
+	task_manager.spawn_essential_handle().spawn(
+		"frontier-schema-cache-task",
+		None,
+		EthTask::ethereum_schema_cache_task(Arc::clone(&client), Arc::clone(&frontier_backend)),
+	);
 
 	let (block_import, grandpa_link, babe_link) = import_setup;
 
@@ -466,6 +571,6 @@ pub fn new_full_base(
 }
 
 /// Builds a new service for a full client.
-pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
-	new_full_base(config, |_, _| ()).map(|NewFullBase { task_manager, .. }| task_manager)
+pub fn new_full(config: Configuration, cli: &Cli) -> Result<TaskManager, ServiceError> {
+	new_full_base(config, &cli, |_, _| ()).map(|NewFullBase { task_manager, .. }| task_manager)
 }
