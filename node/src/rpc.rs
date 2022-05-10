@@ -104,9 +104,6 @@ pub struct FullDeps<C, P, SC, B, A: ChainApi> {
 	pub block_data_cache: Arc<EthBlockDataCache<Block>>,
 }
 
-/// A IO handler that uses all Full RPC extensions.
-pub type IoHandler = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
-
 pub fn overrides_handle<C, BE>(client: Arc<C>) -> Arc<OverrideHandle<Block>>
 where
 	C: ProvideRuntimeApi<Block> + StorageProvider<Block, BE> + AuxStore,
@@ -214,7 +211,7 @@ where
 		finality_provider,
 	} = grandpa;
 
-	io.extend_with(SystemApi::to_delegate(FullSystem::new(client.clone(), pool, deny_unsafe)));
+	io.extend_with(SystemApi::to_delegate(FullSystem::new(client.clone(), pool.clone(), deny_unsafe)));
 	// Making synchronous calls in light client freezes the browser currently,
 	// more context: https://github.com/paritytech/substrate/pull/3480
 	// These RPCs should use an asynchronous caller instead.
@@ -247,7 +244,7 @@ where
 			shared_epoch_changes,
 		)?,
 	));
-	io.extend_with(DevApi::to_delegate(Dev::new(client, deny_unsafe)));
+	io.extend_with(DevApi::to_delegate(Dev::new(client.clone(), deny_unsafe)));
 
 	// Extend this RPC with a custom API by using the following syntax.
 	// `YourRpcStruct` should have a reference to a client, which is needed

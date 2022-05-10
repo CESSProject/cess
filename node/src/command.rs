@@ -133,7 +133,7 @@ pub fn run() -> sc_cli::Result<()> {
 					.into())
 			},
 		None => {
-			let runner = cli.create_runner(&cli.run)?;
+			let runner = cli.create_runner(&cli.run.base)?;
 			runner.run_node_until_exit(|config| async move {
 				service::new_full(config, &cli).map_err(sc_cli::Error::Service)
 			})
