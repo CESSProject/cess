@@ -4361,17 +4361,24 @@ name = "pallet-file-map"
 version = "0.1.0"
 dependencies = [
  "frame-benchmarking",
+ "frame-election-provider-support",
  "frame-support",
  "frame-system",
+ "pallet-bags-list",
+ "pallet-balances",
  "pallet-cess-staking",
+ "pallet-session",
  "pallet-sminer",
+ "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",
  "serde",
  "serde_json",
  "sp-core",
  "sp-io",
+ "sp-npos-elections",
  "sp-runtime",
+ "sp-staking",
  "sp-std",
 ]
 

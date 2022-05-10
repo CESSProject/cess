@@ -236,9 +236,9 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	fn clear_challenge_info(miner_id: Vec<u8>, file_id: Vec<u8>) -> DispatchResult {
-		<ChallengeMap<T>>
-	}
+	// fn clear_challenge_info(miner_id: Vec<u8>, file_id: Vec<u8>) -> DispatchResult {
+	// 	<ChallengeMap<T>>
+	// }
 
 	fn get_current_scheduler() -> AccountOf<T> {
 		let digest = <frame_system::Pallet<T>>::digest();

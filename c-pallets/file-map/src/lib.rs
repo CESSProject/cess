@@ -172,11 +172,6 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-    fn vec_to_bound<P>(param: Vec<P>) -> Result<BoundedVec<P, T::StringLimit>, DispatchError> {
-		let result: BoundedVec<P, T::StringLimit> = param.try_into().expect("too long");
-		Ok(result)
-	}
-
     fn contains_scheduler(acc: AccountOf<T>) -> bool {
         for i in <SchedulerMap<T>>::get().to_vec().iter() {
             if i.controller_user == acc {

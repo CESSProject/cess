@@ -90,11 +90,8 @@ std = [
 	"sp-runtime/std",
 	"frame-support/std",
 	"frame-system/std",
-	"frame-support/std",
-	"frame-system/std",
 	"frame-benchmarking/std",
 	"pallet-session/std",
 	"pallet-cess-staking/std",
-
 ]
 runtime-benchmarks = ["frame-benchmarking"]
