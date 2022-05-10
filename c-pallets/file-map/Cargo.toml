@@ -63,18 +63,6 @@ default-features = false
 path = '../sminer'
 version = '0.1.0'
 
-# local dependencies
-[dependencies.pallet-segment-book]
-default-features = false
-path = '../segment-book'
-version = '0.1.0'
-
-# local dependencies
-[dependencies.pallet-file-bank]
-default-features = false
-path = '../file-bank'
-version = '0.1.0'
-
 [dependencies.pallet-cess-staking]
 default-features = false
 path = '../staking'

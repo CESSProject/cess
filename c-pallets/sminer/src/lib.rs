@@ -331,6 +331,7 @@ pub mod pallet {
 				MinerDetailInfo::<T::AccountId, BalanceOf<T>> {
 					address: sender.clone(),
 					beneficiary,
+					temp_power: 0u128,
 					power: 0u128,
 					space: 0u128,
 					total_reward: BalanceOf::<T>::from(0u32),
@@ -1399,15 +1400,15 @@ impl<T: Config> Pallet<T> {
 		}
 		current_power_num += power.checked_div(1024 * 1024).ok_or(Error::<T>::Overflow)?;
 		//2000TCESS/TB(space)
-		let limit: BalanceOf<T> = (current_power_num * 2000_000_000_000_000u128)
+		let limit: BalanceOf<T> = (current_power_num * 2_000_000_000_000_000u128)
 		.try_into()
 		.map_err(|_e| Error::<T>::ConversionError)?;
 
 		Ok(limit)
 	}
 
-	fn check_state(acc: AccountOf<T>) -> BoundedVec<u8, T::ItemLimit> {
-		<MinerItems<T>>::get(&acc).unwrap().state
+	fn check_state(acc: AccountOf<T>) -> Vec<u8> {
+		<MinerItems<T>>::get(&acc).unwrap().state.to_vec()
 	}
 
 	fn vec_to_bound<P>(param: Vec<P>) -> Result<BoundedVec<P, T::ItemLimit>, DispatchError> {
@@ -1435,5 +1436,35 @@ impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for Pallet<T> {
 		let _ = T::Currency::resolve_creating(&T::PalletId::get().into_account(), amount);
 
 		Self::deposit_event(Event::Deposit{balance: numeric_amount});
+	}
+}
+
+pub trait MinerControl {
+	fn add_temp_power(peer_id: u64, power: u128) -> DispatchResult;
+
+	fn clear_temp_power(peer_id: u64) -> DispatchResult;
+}
+
+impl<T: Config> MinerControl for Pallet<T> {
+	fn add_temp_power(peer_id: u64, power: u128) -> DispatchResult {
+		<MinerDetails<T>>::try_mutate(peer_id, |opt| -> DispatchResult {
+			let o = opt.as_mut().unwrap();
+			o.temp_power = o.temp_power.checked_add(power).ok_or(Error::<T>::Overflow)?;
+
+			Ok(())
+		})?;
+
+		Ok(())
+	}
+
+	fn clear_temp_power(peer_id: u64) -> DispatchResult {
+		<MinerDetails<T>>::try_mutate(peer_id, |opt| -> DispatchResult {
+			let o = opt.as_mut().unwrap();
+			o.temp_power = 0;
+
+			Ok(())
+		})?;
+
+		Ok(())
 	}
 }
