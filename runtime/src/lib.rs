@@ -34,7 +34,7 @@ use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys, OpaqueExtrinsic,
 	traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, Dispatchable, ConvertInto, IdentifyAccount, NumberFor, PostDispatchInfoOf, Verify, OpaqueKeys, SaturatedConversion, StaticLookup},
 	transaction_validity::{TransactionSource, TransactionValidity, TransactionValidityError, TransactionPriority},
-	ApplyExtrinsicResult, MultiSignature, FixedPointNumber, Perbill, Permill, Percent, Perquintill, 
+	ApplyExtrinsicResult, MultiSignature, FixedPointNumber, Perbill, Permill, Percent, Perquintill, RuntimeAppPublic,
 };
 use sp_runtime::generic::Era;
 use sp_std::{marker::PhantomData, prelude::*};
@@ -1113,8 +1113,7 @@ impl<F: FindAuthor<u32>> FindAuthor<H160> for FindAuthorTruncated<F> {
 	{
 		if let Some(author_index) = F::find_author(digests) {
 			let authority_id = Babe::authorities()[author_index as usize].clone();
-			// return Some(H160::from_slice(&authority_id.to_raw_vec()[4..24]));
-			return Some(H160::from_low_u64_be(2));
+			return Some(H160::from_slice(&authority_id.0.to_raw_vec()[4..24]));
 		}
 		None
 	}
