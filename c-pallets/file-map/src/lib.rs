@@ -5,6 +5,12 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(test)]
+mod mock;
+
+#[cfg(test)]
+mod tests;
+
 use frame_support::traits::{ReservableCurrency};
 pub use pallet::*;
 use scale_info::TypeInfo;
@@ -13,7 +19,7 @@ use sp_runtime::{
     traits::SaturatedConversion,
 };
 use codec::{Encode, Decode};
-use frame_support::{dispatch::{DispatchResult, DispatchError}, PalletId};
+use frame_support::{dispatch::{DispatchResult}, PalletId};
 use frame_support::BoundedVec;
 use sp_std::prelude::*;
 
@@ -121,7 +127,7 @@ pub mod pallet {
                 Err(Error::<T>::NotController)?;
             }
             let mut s_vec = SchedulerMap::<T>::get();
-            let ip_bound = Self::vec_to_bound::<u8>(ip.clone())?;
+            let ip_bound = ip.clone().try_into().expect("too long");
             let scheduler = SchedulerInfo::<T>{
                 ip: ip_bound,
                 stash_user: stash_account.clone(),

@@ -68,6 +68,17 @@ default-features = false
 path = '../staking'
 version = '4.0.0-dev'
 
+[dev-dependencies]
+pallet-balances = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2022-04-cess" }
+pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2022-04-cess" }
+sp-staking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2022-04-cess" }
+sp-npos-elections = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2022-04-cess" }
+frame-election-provider-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2022-04-cess" }
+pallet-session = { version = "4.0.0-dev", default-features = false, features = [
+	"historical",
+], git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2022-04-cess" }
+pallet-bags-list = { version = "4.0.0-dev", features = ["runtime-benchmarks"], git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2022-04-cess" }
+
 [features]
 default = ["std"]
 std = [
@@ -82,6 +93,8 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"frame-benchmarking/std",
+	"pallet-session/std",
 	"pallet-cess-staking/std",
+
 ]
 runtime-benchmarks = ["frame-benchmarking"]
