@@ -16,7 +16,7 @@ use sc_network::{Event, NetworkService};
 use sc_service::{config::Configuration, error::Error as ServiceError, BasePath, RpcHandlers, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_api::ProvideRuntimeApi;
-use sp_core::crypto::Pair;
+use sp_core::{U256, crypto::Pair};
 use sp_runtime::{generic, traits::Block as BlockT, SaturatedConversion};
 use std::{
 	collections::BTreeMap,
@@ -439,6 +439,8 @@ pub fn new_full_base(
 
 		let client_clone = client.clone();
 		let slot_duration = babe_link.config().slot_duration();
+		let target_gas_price = cli.run.target_gas_price;
+
 		let babe_config = sc_consensus_babe::BabeParams {
 			keystore: keystore_container.sync_keystore(),
 			client: client.clone(),
@@ -469,7 +471,10 @@ pub fn new_full_base(
 							&parent,
 						)?;
 
-					Ok((timestamp, slot, uncles, storage_proof))
+					let dynamic_fee =
+						fp_dynamic_fee::InherentDataProvider(U256::from(target_gas_price));
+
+					Ok((timestamp, slot, uncles, storage_proof, dynamic_fee))
 				}
 			},
 			force_authoring,
