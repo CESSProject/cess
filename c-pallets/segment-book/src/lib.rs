@@ -166,7 +166,7 @@ use frame_support::{
 			if now == deadline {
 				//After the waiting time for the challenge reaches the deadline, 
 				//the miners who fail to complete the challenge will be punished
-				
+			
 			}
 			if now > deadline {
 				if Self::trigger_challenge() {
@@ -174,7 +174,6 @@ use frame_support::{
 					Self::record_challenge_time().expect("record time failed");
 				}
 			}
-
 			0
 		}
 	}
@@ -198,6 +197,7 @@ use frame_support::{
 				if v.file_id == file_id {
 					Self::storage_prove(acc, miner_id.clone(), v.clone(), mu.clone(), sigma.clone())?;
 					Self::clear_challenge_info(miner_id.clone(), file_id.clone())?;
+
 					return Ok(())
 				}
 			}
