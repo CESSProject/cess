@@ -24,6 +24,7 @@ pub struct Mr<AccountId, Balance, BoundedString> {
 	pub(super) locked: Balance,
 	//nomal, exit, frozen, e_frozen
 	pub(super) state: BoundedString,
+	pub(super) temp_power: u128,
 	pub(super) power: u128,
 	pub(super) space: u128,
 }

@@ -289,6 +289,7 @@ pub mod pallet {
 					earnings: value.clone(),
 					locked: value.clone(),
 					state: Self::vec_to_bound::<u8>("positive".as_bytes().to_vec())?,
+					temp_power: 0,
 					power: 0,
 					space: 0,
 				}
@@ -936,7 +937,7 @@ impl<T: Config> Pallet<T> {
 	pub fn get_ids(aid: &AccountOf<T>) -> Result<(u64, u64), DispatchError> {
 		//check exist
 		if !<MinerItems<T>>::contains_key(&aid) {
-			frame_support::print("UnregisteredAccountId");
+			Err(Error::<T>::NotExisted)?;
 		}
 		let peerid = MinerItems::<T>::get(&aid).unwrap().peerid;
 		SegInfo::<T>::try_mutate(&aid, |s| -> DispatchResult {
@@ -977,12 +978,12 @@ impl<T: Config> Pallet<T> {
 	pub fn add_power(peerid: u64, increment: u128) -> DispatchResult {
 		//check exist
 		if !<MinerDetails<T>>::contains_key(peerid) {
-			frame_support::print("UnregisteredAccountId");
+			Err(Error::<T>::NotExisted)?;
 		}
 
 		
 
-		let acc = Self::get_acc(peerid);
+		let acc = Self::get_acc(peerid)?;
 		let state = Self::check_state(acc.clone());
 		if state == "exit".as_bytes().to_vec() {
 			return Ok(())
@@ -1037,10 +1038,10 @@ impl<T: Config> Pallet<T> {
 	pub fn sub_power(peerid: u64, increment: u128) -> DispatchResult {
 		//check exist
 		if !<MinerDetails<T>>::contains_key(peerid) {
-			frame_support::print("UnregisteredAccountId");
+			Err(Error::<T>::NotExisted)?;
 		}
 
-		let acc = Self::get_acc(peerid);
+		let acc = Self::get_acc(peerid)?;
 		let state = Self::check_state(acc.clone());
 		if state == "exit".as_bytes().to_vec() {
 			return Ok(())
@@ -1095,10 +1096,10 @@ impl<T: Config> Pallet<T> {
 	pub fn add_space(peerid: u64, increment: u128) -> DispatchResult {
 		//check exist
 		if !<MinerDetails<T>>::contains_key(peerid) {
-			frame_support::print("UnregisteredAccountId");
+			Err(Error::<T>::NotExisted)?;
 		}
 
-		let acc = Self::get_acc(peerid);
+		let acc = Self::get_acc(peerid)?;
 		let state = Self::check_state(acc.clone());
 		if state == "exit".as_bytes().to_vec() {
 			return Ok(())
@@ -1150,10 +1151,10 @@ impl<T: Config> Pallet<T> {
 	pub fn sub_space(peerid: u64, increment: u128) -> DispatchResult {
 		//check exist
 		if !<MinerDetails<T>>::contains_key(peerid) {
-			frame_support::print("UnregisteredAccountId");
+			Err(Error::<T>::NotExisted)?;
 		}
 
-		let acc = Self::get_acc(peerid);
+		let acc = Self::get_acc(peerid)?;
 		let state = Self::check_state(acc.clone());
 		if state == "exit".as_bytes().to_vec() {
 			return Ok(())
@@ -1201,13 +1202,16 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Parameters:
 	/// - `aid`: aid.
-	pub fn punish(aid: AccountOf<T>) -> DispatchResult {
+	pub fn punish(aid: AccountOf<T>, file_size: u128) -> DispatchResult {
 		if !<MinerItems<T>>::contains_key(&aid) {
 			Err(Error::<T>::NotMiner)?;
 		}
 		let mr = MinerItems::<T>::get(&aid).unwrap();
 		let acc = T::PalletId::get().into_account();
-		let punish_amount: BalanceOf<T> = 20_000_000_000_000u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
+		let growth: u128 = file_size / 2;
+		let punish_amount: BalanceOf<T> = 400_000_000_000_000u128
+			.checked_add(growth).ok_or(Error::<T>::Overflow)?
+			.try_into().map_err(|_e| Error::<T>::ConversionError)?;
 
 		if mr.collaterals < punish_amount {
 			Self::delete_miner_info(aid.clone())?;
@@ -1344,12 +1348,12 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Parameters:
 	/// - `peerid`: peerid.
-	pub fn get_acc(peerid: u64) -> AccountOf<T> {
+	pub fn get_acc(peerid: u64) -> Result<AccountOf<T>, DispatchError> {
 		if !<MinerDetails<T>>::contains_key(peerid) {
-			frame_support::print("UnregisteredAccountId");
+			Err(Error::<T>::NotExisted)?;
 		}
 		let acc = MinerDetails::<T>::get(peerid).unwrap();
-		acc.address
+		Ok(acc.address)
 	}
 
 	pub fn get_space() -> u128 {
@@ -1443,6 +1447,8 @@ pub trait MinerControl {
 	fn add_temp_power(peer_id: u64, power: u128) -> DispatchResult;
 
 	fn clear_temp_power(peer_id: u64) -> DispatchResult;
+
+	fn punish_miner(peer_id: u64, file_size: u64) -> DispatchResult;
 }
 
 impl<T: Config> MinerControl for Pallet<T> {
@@ -1450,7 +1456,6 @@ impl<T: Config> MinerControl for Pallet<T> {
 		<MinerDetails<T>>::try_mutate(peer_id, |opt| -> DispatchResult {
 			let o = opt.as_mut().unwrap();
 			o.temp_power = o.temp_power.checked_add(power).ok_or(Error::<T>::Overflow)?;
-
 			Ok(())
 		})?;
 
@@ -1465,6 +1470,12 @@ impl<T: Config> MinerControl for Pallet<T> {
 			Ok(())
 		})?;
 
+		Ok(())
+	}
+
+	fn punish_miner(peer_id: u64, file_size: u64) -> DispatchResult {
+		let acc = Pallet::<T>::get_acc(peer_id)?;
+		Pallet::<T>::punish(acc, file_size.into())?;
 		Ok(())
 	}
 }

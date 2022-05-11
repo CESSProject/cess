@@ -4582,6 +4582,7 @@ dependencies = [
  "log",
  "pallet-balances",
  "pallet-file-bank",
+ "pallet-file-map",
  "pallet-scheduler",
  "pallet-sminer",
  "pallet-timestamp",

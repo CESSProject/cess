@@ -345,7 +345,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
-			if T::Scheduler::contains_scheduler(sender) {
+			if !T::Scheduler::contains_scheduler(sender) {
 				Err(Error::<T>::ScheduleNonExistent)?;
 			}
 
@@ -877,20 +877,21 @@ pub mod pallet {
 			Ok(response.body().collect::<Vec<u8>>())
 		}
 
-		pub fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<u32>)>, DispatchError> {
+		pub fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<u32>, u64, u8)>, DispatchError> {
 			let file_list = Self::get_random_file()?;
-			let mut data: Vec<(u64, Vec<u8>, Vec<u32>)> = Vec::new();
+			let mut data: Vec<(u64, Vec<u8>, Vec<u32>, u64, u8)> = Vec::new();
 			for v in file_list {
 				let length = v.block_num;
 				let number_list = Self::get_random_numberlist(length)?;
 				let miner_id = v.miner_id.clone();
 				let filler_id = v.filler_id.clone().to_vec();
+				let file_size = v.filler_size.clone();
 				let mut block_list:Vec<u32> = Vec::new();
 				for i in number_list.iter() {
 					let filler_block = v.filler_block[*i as usize].clone();
 					block_list.push(filler_block.block_index);
 				}
-				data.push((miner_id, filler_id, block_list));
+				data.push((miner_id, filler_id, block_list, file_size, 1));
 			} 
 
 			Ok(data)
@@ -957,11 +958,11 @@ pub mod pallet {
 }
 
 pub trait RandomFileList {
-	fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<u32>)>, DispatchError>;
+	fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<u32>, u64, u8)>, DispatchError>;
 }
 
 impl<T: Config> RandomFileList for Pallet<T> {
-	fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<u32>)>, DispatchError> {
+	fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<u32>, u64, u8)>, DispatchError> {
 		let result = Pallet::<T>::get_random_challenge_data()?;
 		Ok(result)
 	}
