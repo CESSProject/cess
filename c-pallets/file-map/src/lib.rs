@@ -1,33 +1,15 @@
-//! # Segemnt Book Module
+//! # File Map Module
 //!
-//! Contain operations related proof of storage.
-//!
-//! ### Terminology
-//! 
-//! * **uncid:** 		Necessary parameters for generating proof (unencrypted)
-//! * **sealed_cid:** 	Necessary parameters for generating proof (encrypted)
-//! * **segment_id:**	Allocated segment ID
-//! * **is_ready:**		Used to know whether to submit a certificate
-//! * **size_type:**	Segment size
-//! * **peer_id:**		Miner's ID 
-//! 
-//! ### Interface
-//!
-//! ### Dispatchable Functions
-//!
-//! * `intent_submit` 		Pprovide miners with the necessary parameters to generate proof
-//! * `intent_submit_po_st` Provide miners with the necessary parameters to generate proof
-//! * `submit_to_vpa` 		Submit copy certificate of idle data segment
-//! * `verify_in_vpa` 		Verify replication proof of idle data segments
-//! * `submit_to_vpb` 		Submit space-time proof of idle data segments
-//! * `verify_in_vpb` 		Verify the spatiotemporal proof of idle data segments
-//! * `submit_to_vpc` 		Submit a copy certificate of the service data segment
-//! * `verify_in_vpc` 		Verify the replication certificate of the service data segment
-//! * `submit_to_vpd` 		Submit spatio-temporal proof of service data segment
-//! * `verify_in_vpd` 		Verify the spatio-temporal proof of service data segments
+
 
 
 #![cfg_attr(not(feature = "std"), no_std)]
+
+#[cfg(test)]
+mod mock;
+
+#[cfg(test)]
+mod tests;
 
 use frame_support::traits::{ReservableCurrency};
 pub use pallet::*;
@@ -37,7 +19,7 @@ use sp_runtime::{
     traits::SaturatedConversion,
 };
 use codec::{Encode, Decode};
-use frame_support::{dispatch::{DispatchResult, DispatchError}, PalletId};
+use frame_support::{dispatch::{DispatchResult}, PalletId};
 use frame_support::BoundedVec;
 use sp_std::prelude::*;
 
@@ -58,9 +40,9 @@ pub mod pallet {
     #[scale_info(skip_type_params(T))]
     #[codec(mel_bound())]
     pub struct SchedulerInfo<T: pallet::Config> {
-        ip: BoundedVec<u8, T::StringLimit>,
-        stash_user: AccountOf<T>,
-        controller_user: AccountOf<T>,
+        pub ip: BoundedVec<u8, T::StringLimit>,
+        pub stash_user: AccountOf<T>,
+        pub controller_user: AccountOf<T>,
     }
 
     #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, Default, MaxEncodedLen, TypeInfo)]
@@ -140,12 +122,12 @@ pub mod pallet {
         pub fn registration_scheduler(origin: OriginFor<T>, stash_account: AccountOf<T>, ip: Vec<u8>) -> DispatchResult {
             let sender = ensure_signed(origin)?;
 
-            // let acc = <pallet_cess_staking::Pallet<T>>::bonded(&stash_account).unwrap();
-            // if sender != acc {
-            //     Err(Error::<T>::NotController)?;
-            // }
+            let acc = <pallet_cess_staking::Pallet<T>>::bonded(&stash_account).unwrap();
+            if sender != acc {
+                Err(Error::<T>::NotController)?;
+            }
             let mut s_vec = SchedulerMap::<T>::get();
-            let ip_bound = Self::vec_to_bound::<u8>(ip.clone())?;
+            let ip_bound = ip.clone().try_into().expect("too long");
             let scheduler = SchedulerInfo::<T>{
                 ip: ip_bound,
                 stash_user: stash_account.clone(),
@@ -190,8 +172,30 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-    fn vec_to_bound<P>(param: Vec<P>) -> Result<BoundedVec<P, T::StringLimit>, DispatchError> {
-		let result: BoundedVec<P, T::StringLimit> = param.try_into().expect("too long");
-		Ok(result)
-	}
+    fn contains_scheduler(acc: AccountOf<T>) -> bool {
+        for i in <SchedulerMap<T>>::get().to_vec().iter() {
+            if i.controller_user == acc {
+                return true;
+            }
+        }
+        false
+    }
+}
+
+pub trait ScheduleFind<AccountId>
+{
+    fn contains_scheduler(acc: AccountId) -> bool;
+
+}
+
+impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<T>
+{
+    fn contains_scheduler(acc: <T as frame_system::Config>::AccountId) -> bool {
+        for i in <SchedulerMap<T>>::get().to_vec().iter() {
+            if i.controller_user == acc {
+                return true;
+            }
+        }
+        false
+    }
 }

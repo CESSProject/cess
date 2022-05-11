@@ -24,7 +24,6 @@ pub struct Mr<AccountId, Balance, BoundedString> {
 	pub(super) locked: Balance,
 	//nomal, exit, frozen, e_frozen
 	pub(super) state: BoundedString,
-	
 	pub(super) power: u128,
 	pub(super) space: u128,
 }
@@ -55,6 +54,7 @@ pub struct TableInfo<AccountId, Balance> {
 pub struct MinerDetailInfo<AccountId, Balance> {
 	pub(super) address: AccountId,
 	pub(super) beneficiary: AccountId,
+	pub(super) temp_power: u128,
 	pub(super) power: u128,
 	pub(super) space: u128,
 	pub(super) total_reward: Balance, 

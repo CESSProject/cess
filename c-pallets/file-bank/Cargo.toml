@@ -108,6 +108,12 @@ default-features = false
 path = '../segment-book'
 version = '0.1.0'
 
+# local dependencies
+[dependencies.pallet-file-map]
+default-features = false
+path = '../file-map'
+version = '0.1.0'
+
 [features]
 default = ["std"]
 std = [
