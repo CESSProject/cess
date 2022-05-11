@@ -98,6 +98,7 @@ std = [
 	"sp-runtime/std",
 	"sp-std/std",
 	"pallet-timestamp/std",
+	"pallet-scheduler/std",
 	"frame-benchmarking/std",
 ]
 runtime-benchmarks = ["frame-benchmarking"]

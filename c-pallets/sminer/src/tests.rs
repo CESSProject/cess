@@ -15,76 +15,476 @@
 // // See the License for the specific language governing permissions and
 // // limitations under the License.
 
-// //! Tests for the module.
+//! Tests for the module.
 
-// use super::*;
-// use frame_support::{assert_ok};
-// use mock::{
-// 	new_test_ext, Balances, Origin, Sminer, Test,
-// };
-// use frame_benchmarking::account;
+use super::*;
+use frame_support::{
+    assert_ok, assert_noop,
+    traits::{Len},
+};
+use mock::{
+    new_test_ext, Balances, Origin, System as Sys, Sminer, Test, consts::*
+};
+use frame_benchmarking::account;
 
-// #[test]
-// fn timing_storage_space_thirty_days_works() {
-// 	new_test_ext().execute_with(|| {
-// 		assert_ok!(Sminer::timing_storage_space_thirty_days(Origin::root()));	
-// 	});
-// }
+const UNIT_POWER_LIMIT: u128 = 2000_000_000_000_000u128;
+const STATE_POSITIVE: &str = "positive";
+const STATE_FROZEN: &str = "frozen";
+const STATE_EXIT_FROZEN: &str = "e_frozen";
+const STATE_EXIT: &str = "exit";
 
-// #[test]
-// fn timed_increase_rewards_works() {
-// 	new_test_ext().execute_with(|| {
-// 		assert_ok!(Sminer::initi(Origin::root()));
-// 		assert_ok!(Sminer::regnstk(Origin::signed(1),account("source", 0, 0),0,0,0,0));
-// 		assert_ok!(Sminer::add_power_test(Origin::root(),1,1000));	
-// 		assert_ok!(Sminer::timed_increase_rewards(Origin::root()));	
-// 	});
-// }
+#[test]
+fn sminer_has_inited() {
+    new_test_ext().execute_with(|| {
+        assert_eq!(0, MinerStatValue::<Test>::try_get().unwrap().total_miners);
+    });
+}
 
-// #[test]
-// fn timed_task_award_table_works() {
-// 	new_test_ext().execute_with(|| {
-// 		assert_ok!(Sminer::timed_task_award_table(Origin::root()));	
-// 	});
-// }
+#[test]
+fn miner_register_works() {
+    new_test_ext().execute_with(|| {
+        assert_eq!(ACCOUNT1.1, Balances::free_balance(&ACCOUNT1.0));
+        assert_eq!(ACCOUNT2.1, Balances::free_balance(&ACCOUNT2.0));
 
-// #[test]
-// fn timed_user_receive_award1_works() {
-// 	new_test_ext().execute_with(|| {
-// 		assert_ok!(Sminer::timed_user_receive_award1(Origin::root()));	
-// 	});
-// }
+        let beneficiary = account::<mock::AccountId>("beneficiary", 0, 0);
+        let stake_amount: u128 = 2000;
+        let ip: Vec<u8> = Vec::from("192.168.0.1");
 
-// #[test]
-// fn faucet_works() {
-// 	new_test_ext().execute_with(|| {
-// 		pallet_balances::GenesisConfig::<Test> {
-// 			balances: vec![
-// 				(1, 100000000000000000),
-// 			],
-// 		};
-// 		assert_ok!(Sminer::faucet_top_up(Origin::signed(1), 10000000000000000));
-// 		assert_ok!(Sminer::faucet(Origin::signed(1),5u64));
-// 		assert_eq!(Balances::free_balance(5), 10000000000000100);
-// 	});
-// }
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), beneficiary, ip.clone(), stake_amount));
 
-// #[test]
-// fn etcd_works() {
-// 	new_test_ext().execute_with(|| {
-// 		assert_ok!(Sminer::setaddress(Origin::signed(1),1,2,3,4));
-// 		assert_ok!(Sminer::updateaddress(Origin::signed(1),account("source", 0, 0)));
-// 		assert_ok!(Sminer::setetcd(Origin::signed(2),vec![127]));
-// 		assert_ok!(Sminer::setetcdtoken(Origin::signed(4),vec![127]));
-// 		assert_ok!(Sminer::setserviceport(Origin::signed(4),vec![127]));
-// 	});
-// }
+        // balance check
+        assert_eq!(ACCOUNT1.1 - stake_amount, Balances::free_balance(&ACCOUNT1.0));
+        assert_eq!(stake_amount, Balances::reserved_balance(&ACCOUNT1.0));
 
-// #[test]
-// fn redeem_works() {
-// 	new_test_ext().execute_with(|| {
-// 		assert_ok!(Sminer::initi(Origin::root()));
-// 		assert_ok!(Sminer::regnstk(Origin::signed(1),account("source", 0, 0),0,0,0,0));
-// 		assert_ok!(Sminer::redeem(Origin::signed(1)));
-// 	});
-// }
+        //miner item check
+        let mr = &MinerItems::<Test>::get(ACCOUNT1.0).unwrap();
+        assert_eq!(stake_amount, mr.collaterals);
+        assert_eq!(0, mr.locked);
+        assert_eq!(0, mr.earnings);
+        assert_eq!(Vec::from(STATE_POSITIVE), mr.state.to_vec());
+        assert_eq!(ip, mr.ip.to_vec());
+        assert!(mr.peerid > 0);
+
+        assert_eq!(mr.peerid, PeerIndex::<Test>::try_get().unwrap());
+
+        assert!(SegInfo::<Test>::contains_key(ACCOUNT1.0));
+
+        assert!(AllMiner::<Test>::try_get().unwrap().len() > 0);
+
+        assert!(MinerTable::<Test>::try_get(mr.peerid).len() > 0);
+
+        assert!(MinerDetails::<Test>::try_get(mr.peerid).len() > 0);
+
+        let stat = MinerStatValue::<Test>::try_get().unwrap();
+        assert_eq!(1, stat.total_miners);
+        assert_eq!(1, stat.active_miners);
+        assert_eq!(stake_amount, stat.staking);
+
+        let event = Sys::events().pop().expect("Expected at least one Registered to be found").event;
+        assert_eq!(mock::Event::from(Event::Registered{acc: ACCOUNT1.0, staking_val: stake_amount}), event);
+    });
+}
+
+#[test]
+fn dont_duplicate_register() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), 2000));
+        assert_noop!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.2"), 2000), Error::<Test>::AlreadyRegistered);
+    });
+}
+
+#[test]
+fn miner_register_must_least_staking() {
+    // Sminer::regnstk() do not check the staking amount
+    todo!("Sminer::regnstk() do not check the staking amount");
+}
+
+#[test]
+fn increase_collateral_works_on_normal_state() {
+    new_test_ext().execute_with(|| {
+        assert_noop!(Sminer::increase_collateral(Origin::signed(ACCOUNT1.0), 3000), Error::<Test>::NotMiner);
+
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), 2000));
+
+        assert_ok!(Sminer::increase_collateral(Origin::signed(ACCOUNT1.0), 3000));
+        // balance check
+        assert_eq!(ACCOUNT1.1 - 2000 - 3000, Balances::free_balance(&ACCOUNT1.0));
+        assert_eq!(2000 + 3000, Balances::reserved_balance(&ACCOUNT1.0));
+
+        let mi = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
+        assert_eq!(Vec::from(STATE_POSITIVE), mi.state.to_vec());
+
+        assert_eq!(2000 + 3000, mi.collaterals);
+        assert_eq!(2000 + 3000, MinerStatValue::<Test>::try_get().unwrap().staking);
+
+        let event = Sys::events().pop().expect("Expected at least one IncreaseCollateral to be found").event;
+        assert_eq!(mock::Event::from(Event::IncreaseCollateral{acc: ACCOUNT1.0, balance: mi.collaterals}), event);
+
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT2.0), 123, Vec::from("192.168.0.10"), 2000));
+        assert_eq!(2000 + 3000 + 2000, MinerStatValue::<Test>::try_get().unwrap().staking);
+    });
+}
+
+fn set_miner_state(account_id: u64, state: &str) {
+    let _ = MinerItems::<Test>::try_mutate(account_id, |opt| -> DispatchResult {
+        let mr = opt.as_mut().unwrap();
+        mr.state = Vec::from(state).try_into().unwrap();
+        Ok(())
+    });
+}
+
+#[test]
+fn increase_collateral_works_on_frozen_state() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), 2000));
+        set_miner_state(ACCOUNT1.0, STATE_FROZEN);
+        let peer_id = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap().peerid;
+        let _ = MinerDetails::<Test>::try_mutate(peer_id, |opt| -> DispatchResult {
+            let miner_info = opt.as_mut().unwrap();
+            miner_info.power = 1024 * 1024 * 2;
+            Ok(())
+        });
+        assert_eq!(2 * UNIT_POWER_LIMIT, Sminer::check_collateral_limit(peer_id).unwrap());
+        assert_ok!(Sminer::increase_collateral(Origin::signed(ACCOUNT1.0), 3000));
+        assert_eq!(Vec::from(STATE_FROZEN), MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap().state.to_vec());
+
+        assert_ok!(Sminer::increase_collateral(Origin::signed(ACCOUNT1.0), 2 * UNIT_POWER_LIMIT + 1));
+        assert_eq!(Vec::from(STATE_POSITIVE), MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap().state.to_vec());
+    });
+}
+
+
+#[test]
+fn increase_collateral_works_on_exit_frozen_state() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), 2000));
+        set_miner_state(ACCOUNT1.0, STATE_EXIT_FROZEN);
+        let peer_id = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap().peerid;
+        let _ = MinerDetails::<Test>::try_mutate(peer_id, |opt| -> DispatchResult {
+            let miner_info = opt.as_mut().unwrap();
+            miner_info.power = 1024 * 1024 * 2;
+            Ok(())
+        });
+        assert_ok!(Sminer::increase_collateral(Origin::signed(ACCOUNT1.0), 3000));
+        assert_eq!(Vec::from(STATE_EXIT_FROZEN), MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap().state.to_vec());
+
+        assert_ok!(Sminer::increase_collateral(Origin::signed(ACCOUNT1.0), 2 * UNIT_POWER_LIMIT + 1));
+        assert_eq!(Vec::from(STATE_EXIT), MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap().state.to_vec());
+    });
+}
+
+#[test]
+fn exit_miner_works() {
+    new_test_ext().execute_with(|| {
+        assert_noop!(Sminer::exit_miner(Origin::signed(ACCOUNT1.0)), Error::<Test>::NotMiner);
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT));
+
+        Sys::set_block_number(2);
+        assert_ok!(Sminer::exit_miner(Origin::signed(ACCOUNT1.0)));
+
+        assert_eq!(Vec::from(STATE_EXIT), MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap().state.to_vec());
+        assert_eq!(2, MinerColling::<Test>::try_get(ACCOUNT1.0).unwrap());
+        let event = Sys::events().pop().expect("Expected at least one MinerExit to be found").event;
+        assert_eq!(mock::Event::from(Event::MinerExit{acc: ACCOUNT1.0}), event);
+    });
+}
+
+#[test]
+fn exit_miner_on_abnormal_state() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT));
+
+        set_miner_state(ACCOUNT1.0, STATE_EXIT);
+        assert_noop!(Sminer::exit_miner(Origin::signed(ACCOUNT1.0)), Error::<Test>::NotpositiveState);
+    });
+}
+
+#[test]
+fn withdraw_should_work() {
+    new_test_ext().execute_with(|| {
+        assert_noop!(Sminer::withdraw(Origin::signed(ACCOUNT1.0)), Error::<Test>::NotMiner);
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT));
+
+        let free_balance_after_reg = Balances::free_balance(&ACCOUNT1.0);
+
+        // the miner should exit before withdraw
+        assert_noop!(Sminer::withdraw(Origin::signed(ACCOUNT1.0)), Error::<Test>::NotExisted);
+        assert_ok!(Sminer::exit_miner(Origin::signed(ACCOUNT1.0)));
+        // the miner should withdraw after 1200 blocks
+        assert_noop!(Sminer::withdraw(Origin::signed(ACCOUNT1.0)), Error::<Test>::CollingNotOver);
+
+        let total_power = TotalPower::<Test>::try_get().unwrap();
+        let total_space = TotalSpace::<Test>::try_get().unwrap();
+        let mi = MinerDetails::<Test>::try_get(ACCOUNT1.0).unwrap();
+        let all_miner_cnt = AllMiner::<Test>::try_get().unwrap().len();
+        let stat = MinerStatValue::<Test>::try_get().unwrap();
+
+        Sys::set_block_number(1200);
+        assert_ok!(Sminer::withdraw(Origin::signed(ACCOUNT1.0)));
+
+        // balance check
+        assert_eq!(free_balance_after_reg + UNIT_POWER_LIMIT, Balances::free_balance(&ACCOUNT1.0));
+        assert_eq!(0, Balances::reserved_balance(&ACCOUNT1.0));
+
+        // other states check
+        assert_eq!(total_power - mi.power, TotalPower::<Test>::try_get().unwrap());
+        assert_eq!(total_space - mi.power, TotalSpace::<Test>::try_get().unwrap());
+        assert_eq!(all_miner_cnt - 1, AllMiner::<Test>::try_get().unwrap().len());
+        assert!(!MinerItems::<Test>::contains_key(ACCOUNT1.0));
+        assert!(!MinerDetails::<Test>::contains_key(ACCOUNT1.0));
+        assert!(!SegInfo::<Test>::contains_key(ACCOUNT1.0));
+
+        assert_eq!(stat.total_miners - 1, MinerStatValue::<Test>::try_get().unwrap().total_miners);
+        assert_eq!(stat.active_miners - 1, MinerStatValue::<Test>::try_get().unwrap().active_miners);
+        assert_eq!(stat.staking - mi.collaterals, MinerStatValue::<Test>::try_get().unwrap().staking);
+
+        // event check
+        let event = Sys::events().pop().expect("Expected at least one MinerClaim to be found").event;
+        assert_eq!(mock::Event::from(Event::MinerClaim{acc: ACCOUNT1.0}), event);
+    });
+}
+
+#[test]
+fn add_reward_order1_should_work() {
+    new_test_ext().execute_with(|| {
+        let reward_amount = 100000_u128;
+        // first reward
+        Sys::set_block_number(1);
+        assert_ok!(Sminer::add_reward_order1(ACCOUNT1.0, reward_amount));
+        let reward_orders = CalculateRewardOrderMap::<Test>::try_get(ACCOUNT1.0).unwrap();
+        assert_eq!(1, reward_orders.len());
+        let ro = reward_orders.get(0).unwrap();
+        assert_eq!(reward_amount, ro.calculate_reward);
+        assert_eq!(1, ro.start_t);
+        assert_eq!(1296000u64 + 1u64, ro.deadline);  // FIXME! the 1296000 is hardcode in the tested function
+        // second reward
+        Sys::set_block_number(2);
+        assert_ok!(Sminer::add_reward_order1(ACCOUNT1.0, reward_amount));
+        let reward_orders = CalculateRewardOrderMap::<Test>::try_get(ACCOUNT1.0).unwrap();
+        assert_eq!(2, reward_orders.len());
+        let ro = reward_orders.get(1).unwrap();
+        assert_eq!(reward_amount, ro.calculate_reward);
+        assert_eq!(2, ro.start_t);
+        assert_eq!(1296000u64 + 2u64, ro.deadline);
+    });
+}
+
+#[test]
+#[should_panic(expected = "Maximum length exceeded")]
+fn add_reward_order1_should_panic_on_exceed_item_limit() {
+    new_test_ext().execute_with(|| {
+        let reward_amount = 100000_u128;
+        let n = mock::ItemLimit::get();
+        for i in 1..(n + 1) {
+            Sys::set_block_number(i as u64);
+            assert_ok!(Sminer::add_reward_order1(ACCOUNT1.0, reward_amount));
+        }
+        assert_eq!(n as usize, CalculateRewardOrderMap::<Test>::try_get(ACCOUNT1.0).unwrap().len());
+        //FIXME! Raise a panic? Is it appropriate in a production environment?
+        let _ = Sminer::add_reward_order1(ACCOUNT1.0, reward_amount);
+    });
+}
+
+#[test]
+fn add_power_should_work() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT));
+        let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
+        assert_eq!(0, m1.power);
+        let _ = Sminer::add_power(m1.peerid, 10_000);
+        let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
+        assert_eq!(10_000, m1.power);
+        assert_eq!(10_000, TotalPower::<Test>::try_get().unwrap());
+
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT2.0), 321, Vec::from("192.168.0.2"), UNIT_POWER_LIMIT));
+        let m2 = MinerItems::<Test>::try_get(ACCOUNT2.0).unwrap();
+        assert_eq!(0, m2.power);
+        let _ = Sminer::add_power(m2.peerid, 20_000);
+        let m2 = MinerItems::<Test>::try_get(ACCOUNT2.0).unwrap();
+        assert_eq!(20_000, m2.power);
+        assert_eq!(30_000, TotalPower::<Test>::try_get().unwrap());
+    });
+}
+
+/// 750_000TCESS
+const FIXED_REWARD_AMOUNT: u128 = 750_000_000000000000_u128;
+
+#[test]
+fn increase_rewards_should_work() {
+    new_test_ext().execute_with(|| {
+        assert_noop!(Sminer::timed_increase_rewards(Origin::root()), Error::<Test>::DivideByZero);
+
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT));
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT2.0), 123, Vec::from("192.168.0.2"), UNIT_POWER_LIMIT));
+
+        let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
+        let m2 = MinerItems::<Test>::try_get(ACCOUNT2.0).unwrap();
+        let _ = Sminer::add_power(m1.peerid, 10_000);
+        let _ = Sminer::add_power(m2.peerid, 20_000);
+
+        let total_power = TotalPower::<Test>::try_get().unwrap();
+        assert_eq!(30_000, total_power);
+
+        assert_ok!(Sminer::timed_increase_rewards(Origin::root()));
+
+        let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
+        let m2 = MinerItems::<Test>::try_get(ACCOUNT2.0).unwrap();
+        assert_eq!(10_000, m1.power);
+        assert_eq!(20_000, m2.power);
+
+        // the timed_increase_rewards() not reward actual, just make reward order only
+        let reward_order1 = CalculateRewardOrderMap::<Test>::try_get(ACCOUNT1.0).unwrap().to_vec().pop().unwrap();
+        assert_eq!(FIXED_REWARD_AMOUNT * m1.power / total_power, reward_order1.calculate_reward);
+        let reward_order2 = CalculateRewardOrderMap::<Test>::try_get(ACCOUNT2.0).unwrap().to_vec().pop().unwrap();
+        assert_eq!(FIXED_REWARD_AMOUNT * m2.power / total_power, reward_order2.calculate_reward);
+
+        // event check
+        let event = Sys::events().pop().expect("Expected at least one TimedTask to be found").event;
+        assert_eq!(mock::Event::from(Event::TimedTask()), event);
+    });
+}
+
+#[test]
+fn task_award_table_should_work() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT));
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT2.0), 321, Vec::from("192.168.0.2"), UNIT_POWER_LIMIT));
+
+        let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
+        let m2 = MinerItems::<Test>::try_get(ACCOUNT2.0).unwrap();
+        let _ = Sminer::add_power(m1.peerid, 10_000);
+        let _ = Sminer::add_power(m2.peerid, 20_000);
+        let total_power = TotalPower::<Test>::try_get().unwrap();
+
+        assert_eq!(30_000, total_power);
+        assert_ok!(Sminer::timed_increase_rewards(Origin::root()));  // <-- dependency method
+
+        assert_ok!(Sminer::timed_task_award_table(Origin::root()));  // <-- target method here!
+
+        let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
+        let total_reward = FIXED_REWARD_AMOUNT * m1.power / total_power;
+        assert_eq!(total_reward, MinerTable::<Test>::try_get(ACCOUNT1.0).unwrap().mining_reward);
+
+        let ro1 = CalculateRewardOrderMap::<Test>::try_get(ACCOUNT1.0).unwrap().to_vec().pop().unwrap();
+        let rc1 = RewardClaimMap::<Test>::try_get(ACCOUNT1.0).unwrap();
+        assert_eq!(total_reward, rc1.total_reward);
+        // 180 periods, 80% one period rewards(1/180) + 20% total rewards
+        assert_eq!(ro1.calculate_reward * 8/10/180 + total_reward * 2/10, rc1.current_availability);
+
+        let md = MinerDetails::<Test>::try_get(m1.peerid).unwrap();
+        assert_eq!(total_reward, md.total_reward);
+        assert_eq!(total_reward, md.totald_not_receive);
+        assert_eq!(rc1.current_availability, md.total_rewards_currently_available);
+
+        // second reward period
+        Sys::set_block_number(1200);
+        assert_ok!(Sminer::timed_increase_rewards(Origin::root()));
+        assert_ok!(Sminer::timed_task_award_table(Origin::root()));
+        assert_eq!(2, CalculateRewardOrderMap::<Test>::try_get(ACCOUNT1.0).unwrap().len());
+        let ro2 = CalculateRewardOrderMap::<Test>::try_get(ACCOUNT1.0).unwrap().to_vec().pop().unwrap();
+        let rc2 = RewardClaimMap::<Test>::try_get(ACCOUNT1.0).unwrap();
+        let total_reward = total_reward * 2;
+        assert_eq!(total_reward, MinerTable::<Test>::try_get(ACCOUNT1.0).unwrap().mining_reward);
+        assert_eq!(total_reward, rc2.total_reward);
+        let t = ro1.calculate_reward * 8/10/180 + ro2.calculate_reward * 8/10/180;
+        assert_eq!(rc1.current_availability + t + ro2.calculate_reward * 2/10, rc2.current_availability);
+
+        let md = MinerDetails::<Test>::try_get(m1.peerid).unwrap();
+        assert_eq!(total_reward, md.total_reward);
+        assert_eq!(total_reward, md.totald_not_receive);
+        assert_eq!(rc2.current_availability, md.total_rewards_currently_available);
+
+        // event check
+        let event = Sys::events().pop().expect("Expected at least one TimedTask to be found").event;
+        assert_eq!(mock::Event::from(Event::TimedTask()), event);
+    });
+}
+
+#[test]
+fn timed_user_receive_award1_should_work() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT));
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT2.0), 321, Vec::from("192.168.0.2"), UNIT_POWER_LIMIT));
+        let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
+        let m2 = MinerItems::<Test>::try_get(ACCOUNT2.0).unwrap();
+        let _ = Sminer::add_power(m1.peerid, 10_000);
+        let _ = Sminer::add_power(m2.peerid, 20_000);
+        let total_power = TotalPower::<Test>::try_get().unwrap();
+        assert_eq!(30_000, total_power);
+
+        assert_ok!(Sminer::timed_increase_rewards(Origin::root()));  // <-- dependency method
+        assert_ok!(Sminer::timed_task_award_table(Origin::root()));  // <-- dependency method
+
+        let rc1 = RewardClaimMap::<Test>::try_get(ACCOUNT1.0).unwrap();
+        let rc2 = RewardClaimMap::<Test>::try_get(ACCOUNT2.0).unwrap();
+        assert_eq!(250000000000000000, rc1.total_reward);
+        assert_eq!(51111111111111111, rc1.current_availability);
+        assert_eq!(250000000000000000, rc1.total_not_receive);
+        assert_eq!(0, rc1.have_to_receive);
+        assert_eq!(500000000000000000, rc2.total_reward);
+        assert_eq!(102222222222222222, rc2.current_availability);
+        assert_eq!(500000000000000000, rc2.total_not_receive);
+        assert_eq!(0, rc2.have_to_receive);
+
+        let jackpot_balance = Balances::free_balance(&mock::RewardPalletId::get().into_account());
+        assert_ok!(Sminer::timed_user_receive_award1(Origin::root()));  // <-- target method here!
+
+        let rc1b = RewardClaimMap::<Test>::try_get(ACCOUNT1.0).unwrap();
+        let rc2b = RewardClaimMap::<Test>::try_get(ACCOUNT2.0).unwrap();
+        assert_eq!(rc1.total_reward, rc1b.total_reward);
+        assert_eq!(0, rc1b.current_availability);
+        assert_eq!(rc1.total_reward - rc1.current_availability, rc1b.total_not_receive);
+        assert_eq!(rc1.current_availability, rc1b.have_to_receive);
+        assert_eq!(rc2.total_reward, rc2b.total_reward);
+        assert_eq!(0, rc2b.current_availability);
+        assert_eq!(rc2.total_reward - rc2.current_availability, rc2b.total_not_receive);
+        assert_eq!(rc2.current_availability, rc2b.have_to_receive);
+
+        assert_eq!(rc1b.have_to_receive, Balances::free_balance(&123));
+        assert_eq!(rc2b.have_to_receive, Balances::free_balance(&321));
+        assert_eq!(jackpot_balance - rc1b.have_to_receive - rc2b.have_to_receive, Balances::free_balance(&mock::RewardPalletId::get().into_account()));
+    });
+}
+
+#[test]
+fn timed_user_receive_award1_total_award() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT));
+        let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
+        let _ = Sminer::add_power(m1.peerid, 10_000);
+
+        assert_ok!(Sminer::timed_increase_rewards(Origin::root()));
+
+        for _ in 0..180 {
+            assert_ok!(Sminer::timed_task_award_table(Origin::root()));
+            assert_ok!(Sminer::timed_user_receive_award1(Origin::root()));
+            let rc1a = RewardClaimMap::<Test>::try_get(ACCOUNT1.0).unwrap();
+            if rc1a.have_to_receive == rc1a.total_reward {
+                break;
+            }
+        }
+        assert!(!CalculateRewardOrderMap::<Test>::contains_key(ACCOUNT1.0));
+        assert!(!RewardClaimMap::<Test>::contains_key(ACCOUNT1.0));
+    });
+}
+
+const FIXED_CHARGE_AMOUNT: u128 = 10000000000000000u128;
+#[test]
+fn faucet_should_work() {
+    new_test_ext().execute_with(|| {
+        assert_ok!(Sminer::faucet(Origin::signed(ACCOUNT1.0), 777));
+        assert_eq!(FIXED_CHARGE_AMOUNT, Balances::free_balance(&777));
+
+        //FIXME! the assert_noop! not work, why?
+        //assert_noop!(Sminer::faucet(Origin::signed(ACCOUNT1.0), 777), Error::<Test>::LessThan24Hours);
+        if let Err(e) = Sminer::faucet(Origin::signed(ACCOUNT1.0), 777) {
+            if let DispatchError::Module(m) = e {
+                assert_eq!("LessThan24Hours", m.message.unwrap());
+            }
+        }
+        Sys::set_block_number(1u64 + 28800u64);
+        assert_ok!(Sminer::faucet(Origin::signed(ACCOUNT1.0), 777));
+    });
+}
+
+//TODO! Scheduler method to test

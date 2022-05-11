@@ -267,8 +267,6 @@ pub mod pallet {
 		/// Parameters:
 		/// - `beneficiary`: The beneficiary related to signer account.
 		/// - `ip`: The registered IP of storage miner.
-		/// - `port`: The number of staking.
-		/// - `fileport`: The number of staking.
 		/// - `staking_val`: The number of staking.
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
 		pub fn regnstk(origin: OriginFor<T>, beneficiary: <T::Lookup as StaticLookup>::Source, ip: Vec<u8>, #[pallet::compact] staking_val: BalanceOf<T>) -> DispatchResult {
@@ -446,6 +444,7 @@ pub mod pallet {
 		/// Redeem for storage miner.
 		///
 		/// The dispatch origin of this call must be _Signed_.
+		#[deprecated]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::redeem())]
 		pub fn redeem(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -474,6 +473,7 @@ pub mod pallet {
 		/// Storage miner gets mi.earnings bonus.
 		///
 		/// The dispatch origin of this call must be _Signed_.
+		#[deprecated]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::claim())]
 		pub fn claim(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
