@@ -57,6 +57,7 @@ use scale_info::TypeInfo;
 pub use weights::WeightInfo;
 use pallet_file_bank::RandomFileList;
 use sp_core::H256;
+use pallet_file_map::ScheduleFind;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
@@ -69,7 +70,6 @@ pub mod pallet {
 	// use frame_benchmarking::baseline::Config;
 use frame_support::{
 		ensure,
-		
 		traits::Get,
 	};
 	use frame_system::{ensure_signed, pallet_prelude::*};
@@ -84,7 +84,6 @@ use frame_support::{
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		/// The currency trait.
 		type Currency: ReservableCurrency<Self::AccountId>;
-
 		//the weights
 		type WeightInfo: WeightInfo;
 		#[pallet::constant]
@@ -106,8 +105,10 @@ use frame_support::{
 		type MyRandomness: Randomness<Self::Hash, Self::BlockNumber>;
 		//Find the consensus of the current block
 		type FindAuthor: FindAuthor<Self::AccountId>;
-
+		//Random files used to obtain this batch of challenges
 		type RandomChallenge: RandomFileList;
+		//Judge whether it is the trait of the consensus node
+		type Scheduler: ScheduleFind<Self::AccountId>;
 	}
 
 	#[pallet::event]
@@ -127,6 +128,10 @@ use frame_support::{
 		Overflow,
 		//The miner submits a certificate, but there is no error in the challenge list
 		NoChallenge,
+		//Not a consensus node or not registered
+		ScheduleNonExistent,
+		//The certificate does not exist or the certificate is not verified by this dispatcher
+		NonProof,
 	}
 
 	//Information about storage challenges
@@ -156,15 +161,12 @@ use frame_support::{
 		//and the corresponding data segment will be removed
 		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
 			let number: u128 = now.saturated_into();
-			let deadline = Self::challenge_duration();
-			log::info!("start --------------------------------- ");
-			
+			let deadline = Self::challenge_duration();	
 
 			if now == deadline {
 				//After the waiting time for the challenge reaches the deadline, 
 				//the miners who fail to complete the challenge will be punished
 				
-
 			}
 			if now > deadline {
 				if Self::trigger_challenge() {
@@ -173,14 +175,13 @@ use frame_support::{
 				}
 			}
 
-
 			0
 		}
 	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(10_000)]
 		pub fn submit_challenge_prove(
 			origin: OriginFor<T>, 
 			miner_id: u64, 
@@ -196,12 +197,38 @@ use frame_support::{
 			for v in challenge_list.iter() {
 				if v.file_id == file_id {
 					Self::storage_prove(acc, miner_id.clone(), v.clone(), mu.clone(), sigma.clone())?;
-
+					Self::clear_challenge_info(miner_id.clone(), file_id.clone())?;
 					return Ok(())
 				}
 			}
 
 			Err(Error::<T>::NoChallenge)?
+		}
+
+		#[pallet::weight(9_700)]
+		pub fn verify_proof(
+			origin: OriginFor<T>, 
+			miner_id: u64, 
+			file_id: Vec<u8>, 
+			result: bool
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			if !T::Scheduler::contains_scheduler(sender.clone()) {
+				Err(Error::<T>::ScheduleNonExistent)?;
+			}
+
+			let verify_list = Self::unverify_proof(&sender);
+			for value in verify_list.iter() {
+				if (value.miner_id == miner_id) && (value.challenge_info.file_id == file_id) {
+					Self::clear_verify_proof(sender.clone(), miner_id.clone(), file_id.clone())?;
+					if !result {
+
+					}
+					return Ok(())
+				}
+			}
+			
+			Err(Error::<T>::NonProof)?
 		}
 
 	}
@@ -213,6 +240,7 @@ use frame_support::{
 
 
 impl<T: Config> Pallet<T> {
+	//Storage proof method
 	fn storage_prove(
 		acc: AccountOf<T>,
 		miner_id: u64, 
@@ -236,10 +264,25 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	// fn clear_challenge_info(miner_id: Vec<u8>, file_id: Vec<u8>) -> DispatchResult {
-	// 	<ChallengeMap<T>>
-	// }
+	//Clean up the verified certificate corresponding to the consensus
+	fn clear_verify_proof(acc: AccountOf<T>, miner_id: u64, file_id: Vec<u8>) -> DispatchResult {
+		<UnVerifyProof<T>>::try_mutate(&acc, |o| -> DispatchResult {
+			o.retain(|x| x.miner_id != miner_id && x.challenge_info.file_id != file_id);
+			Ok(())
+		})?;
+		Ok(())
+	}
 
+	//Clean up the corresponding challenges in the miner's challenge pool
+	fn clear_challenge_info(miner_id: u64, file_id: Vec<u8>) -> DispatchResult {
+		<ChallengeMap<T>>::try_mutate(miner_id, |o| -> DispatchResult {
+			o.retain(|x| x.file_id != file_id);
+			Ok(())
+		})?;
+		Ok(())
+	}
+
+	//Obtain the consensus of the current block
 	fn get_current_scheduler() -> AccountOf<T> {
 		let digest = <frame_system::Pallet<T>>::digest();
 			let pre_runtime_digests = digest.logs.iter().filter_map(|d| d.as_pre_runtime());
@@ -249,6 +292,7 @@ impl<T: Config> Pallet<T> {
 			acc.unwrap()
 	}
 
+	//Record challenge time
 	fn record_challenge_time() -> DispatchResult {
 		let mut now = <frame_system::Pallet<T>>::block_number();
 		let one_hours = T::OneHours::get();
@@ -260,6 +304,7 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
+	//Trigger: whether to trigger the challenge
 	fn trigger_challenge() -> bool {
 
 		let time_point = Self::random_time_number(20220509);
@@ -272,15 +317,17 @@ impl<T: Config> Pallet<T> {
 		false
 	}
 
+	//Ways to generate challenges
 	fn generation_challenge() -> DispatchResult {
 		let result = T::RandomChallenge::get_random_challenge_data()?;
-		for (miner_id, file_id, block_list) in result {
+		for (miner_id, file_id, block_list, file_size, file_type) in result {
 			loop {
 				let random = Self::generate_random_number(20220510);
-				
 				//Create a single challenge message in files
 				let challenge_info = ChallengeInfo::<T>{
+					file_type: file_type,
 					file_id: file_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
+					file_size: file_size,
 					block_list: block_list.try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
 					random: random[0..47].to_vec().try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
 				};
@@ -290,9 +337,7 @@ impl<T: Config> Pallet<T> {
 					Ok(())
 				})?;
 				break;
-				
 			}
-			
 		}
 
 		Ok(())
@@ -306,6 +351,7 @@ impl<T: Config> Pallet<T> {
 			random_number
 	}
 
+	//The number of pieces generated is VEC
 	fn generate_random_number(seed: u32) -> Vec<u8> {
 		let (r_seed, _) = T::MyRandomness::random(&(T::MyPalletId::get(), seed).encode());
 		let random_seed = <H256>::decode(&mut r_seed.as_ref())
