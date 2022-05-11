@@ -1,5 +1,4 @@
 use super::*;
-
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
@@ -30,76 +29,13 @@ pub struct FileInfo<T: pallet::Config> {
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct FileDuplicateInfo<T: pallet::Config> {
+	pub(super) miner_id: u64,
+	pub(super) block_num: u32,
+	pub(super) acc: AccountOf<T>,
+	pub(super) miner_ip: BoundedVec<u8, T::StringLimit>,
 	pub(super) dupl_id: BoundedVec<u8, T::StringLimit>,
 	pub(super) rand_key: BoundedVec<u8, T::StringLimit>,
-	pub(super) slice_num: u16,
-	pub(super) file_slice: BoundedVec<FileSliceInfo<T>, T::StringLimit>,
-}
-
-#[derive(Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-pub struct TestFileDuplicateInfo<T: pallet::Config> {
-	pub(super) dupl_id: BoundedVec<u8, T::StringLimit>,
-	pub(super) rand_key: BoundedVec<u8, T::StringLimit>,
-	pub(super) slice_num: u16,
-}
-// impl<T: pallet::Config> Copy for FileInfo<T> {}
-
-// impl<T, S> Copy for BoundedVec<T, S> {}
-
-// impl<T: pallet::Config> Copy for FileDuplicateInfo<T> {}
-// #[cfg(feature = "std")]
-// impl<T: pallet::Config> core::clone::Clone for TestFileDuplicateInfo<T> {
-//     fn clone(&self) -> Self {
-//         self.clone()
-//     }
-// }
-
-
-
-// impl<T: pallet::Config> PartialEq for FileDuplicateInfo<T> {
-//     fn eq(&self, other: &FileDuplicateInfo<T>) -> bool {
-//         true
-//     }
-
-// 	fn ne(&self, other: &FileDuplicateInfo<T>) -> bool {
-//         true
-//     }
-// }
-
-// impl<T: pallet::Config> PartialEq for FileInfo<T> {
-//     fn eq(&self, other: &Self) -> bool {
-//         true
-//     }
-
-// 	fn ne(&self, other: &Self) -> bool {
-//         true
-//     }
-// }
-
-//slice info
-//Slice consists of shard
-#[derive(PartialEq, Eq, Clone, Default, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-#[codec(mel_bound())]
-pub struct FileSliceInfo<T: pallet::Config> {
-	pub(super) slice_id: BoundedVec<u8, T::StringLimit>,
-	pub(super) slice_size: u32,
-	pub(super) slice_hash: BoundedVec<u8, T::StringLimit>,
-	pub(super) file_shard: FileShardInfo<T>,
-}
-
-//shard info
-//Slice consists of shard
-#[derive(PartialEq, Eq, Clone, Default, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-#[codec(mel_bound())]
-pub struct FileShardInfo<T: pallet::Config> {
-	pub(super) data_shard_num: u8,
-	pub(super) redun_shard_num: u8,
-	pub(super) shard_hash: BoundedVec<BoundedVec<u8, T::StringLimit>, T::StringLimit>,
-	pub(super) shard_addr: BoundedVec<BoundedVec<u8, T::StringLimit>, T::StringLimit>,
-	pub(super) wallet_addr: BoundedVec<u64, T::StringLimit>,
+	pub(super) block_info: BoundedVec<FileBlock, T::StringLimit>,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
@@ -122,4 +58,26 @@ pub struct SpaceInfo<T: pallet::Config> {
 #[codec(mel_bound())]
 pub struct UserInfo<T: pallet::Config> {
 	pub(super) collaterals: BalanceOf<T>,
+}
+
+//Fill in file structure information
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+#[codec(mel_bound())]
+pub struct FillerInfo<T: pallet::Config> {	
+	pub(super) miner_id: u64,
+	pub(super) filler_size: u64,
+	pub(super) block_num: u32,
+	pub(super) miner_address: AccountOf<T>,	
+	pub(super) filler_block: BoundedVec<FileBlock, T::StringLimit>,
+	pub(super) filler_id: BoundedVec<u8, T::StringLimit>,
+	pub(super) filler_hash: BoundedVec<u8, T::StringLimit>,
+}
+
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+#[codec(mel_bound())]
+pub struct FileBlock {
+	pub(super) block_index: u32,
+	pub(super) block_size: u32,
+	pub(super) segment_size: u32,
 }

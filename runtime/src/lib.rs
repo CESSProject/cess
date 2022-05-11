@@ -869,6 +869,9 @@ parameter_types! {
 	pub const SegbkPalletId: PalletId = PalletId(*b"rewardpt");
 	#[derive(Clone, PartialEq, Eq)]
 	pub const StringLimit: u32 = 1024;
+	#[derive(Clone, PartialEq, Eq)]
+	pub const RandomLimit: u32 = 1024;
+	pub const OneHours: BlockNumber = HOURS;
 }
 
 impl pallet_segment_book::Config for Runtime {
@@ -878,7 +881,12 @@ impl pallet_segment_book::Config for Runtime {
 	type MyPalletId = SegbkPalletId;
 	type MyRandomness = RandomnessCollectiveFlip;
 	type WeightInfo = pallet_segment_book::weights::SubstrateWeight<Runtime>;
-	type SegStringLimit = StringLimit;
+	type StringLimit = StringLimit;
+	type RandomLimit = RandomLimit;
+	type OneDay = OneDay;
+	type OneHours = OneHours;
+	type RandomChallenge = FileBank;
+	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
 }
 
 parameter_types! {
@@ -894,6 +902,9 @@ impl pallet_file_bank::Config for Runtime {
 	type FilbakPalletId = FilbakPalletId;
 	type AuthorityId = pallet_file_bank::crypto::TestAuthId;
 	type WeightInfo = pallet_file_bank::weights::SubstrateWeight<Runtime>;
+	type MinerControl = Sminer;
+	type MyRandomness = RandomnessCollectiveFlip;
+	type Scheduler = FileMap;
 	type StringLimit = StringLimit;
 	type OneDay = OneDay;
 }

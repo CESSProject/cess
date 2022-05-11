@@ -24,7 +24,7 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-use frame_support::traits::{Currency, ReservableCurrency, ExistenceRequirement::AllowDeath};
+use frame_support::traits::{Currency, ReservableCurrency, ExistenceRequirement::AllowDeath, Randomness};
 pub use pallet::*;
 mod benchmarking;
 pub mod weights;
@@ -48,28 +48,20 @@ use frame_support::{
 	pallet_prelude::*,
 	dispatch::DispatchResult, 
 	PalletId,
-	ensure,
 };
 use sp_runtime::{
 	traits::{
-		CheckedAdd,
-		CheckedSub,
 		BlockNumberProvider
 	},
 	offchain as rt_offchain,
-	offchain::{
-		storage::StorageValueRef,
-		storage_lock::{BlockAndTime, StorageLock},
-	},
 };
 use frame_system::{
 	offchain::{
-		AppCrypto, CreateSignedTransaction, SendSignedTransaction, SendUnsignedTransaction,
-		SignedPayload, Signer, SigningTypes, SubmitTransaction,
+		AppCrypto, CreateSignedTransaction, SendSignedTransaction, Signer, 
 	},
 };
 pub use weights::WeightInfo;
-use sp_core::{crypto::KeyTypeId};
+use sp_core::{crypto::KeyTypeId, U256};
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -86,24 +78,22 @@ pub mod pallet {
 		ensure,
 		traits::Get,
 	};
+	use pallet_file_map::ScheduleFind;
+	use pallet_sminer::MinerControl;
 	//pub use crate::weights::WeightInfo;
 	use frame_system::{ensure_signed, pallet_prelude::*};
+	
 
 	const HTTP_REQUEST_STR: &str = "https://arweave.net/price/1048576";
 		// const HTTP_REQUEST_STR: &str = "https://api.coincap.io/v2/assets/polkadot";
 	pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"demo");
 	const FETCH_TIMEOUT_PERIOD: u64 = 60_000; // in milli-seconds
-	const LOCK_TIMEOUT_EXPIRATION: u64 = FETCH_TIMEOUT_PERIOD + 1000; // in milli-seconds
-	const LOCK_BLOCK_EXPIRATION: u32 = 3; // in block number
-	const UNSIGNED_TXS_PRIORITY: u64 = 100;
 
 	pub mod crypto {
 		use super::KEY_TYPE;
 		use sp_core::sr25519::Signature as Sr25519Signature;
 		use sp_runtime::app_crypto::{app_crypto, sr25519};
 		use sp_runtime::{traits::Verify, MultiSignature, MultiSigner};
-
-		
 
 		app_crypto!(sr25519, KEY_TYPE);
 
@@ -126,7 +116,7 @@ pub mod pallet {
 	}
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_sminer::Config + sp_std::fmt::Debug  + CreateSignedTransaction<Call<Self>>{
+	pub trait Config: frame_system::Config + pallet_sminer::Config + sp_std::fmt::Debug  + CreateSignedTransaction<Call<Self>> {
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		/// The currency trait.
@@ -137,6 +127,12 @@ pub mod pallet {
 		type Call: From<Call<Self>>;
 
 		type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
+		//Used to find out whether the schedule exists
+		type Scheduler: ScheduleFind<Self::AccountId>;
+		//It is used to control the computing power and space of miners
+		type MinerControl: MinerControl;
+		//Interface that can generate random seeds
+		type MyRandomness: Randomness<Self::Hash, Self::BlockNumber>;
 		/// pallet address.
 		#[pallet::constant]
 		type FilbakPalletId: Get<PalletId>;
@@ -203,12 +199,14 @@ pub mod pallet {
 		AlreadyReceive,
 
 		NotUser,
-
+		//HTTP interaction error of offline working machine
 		HttpFetchingError,
-
+		//Signature error of offline working machine
 		OffchainSignedTxError,
-
+		//Signature error of offline working machine
 		NoLocalAcctForSigning,
+		//It is not an error message for scheduling operation
+		ScheduleNonExistent,
 	}
 	#[pallet::storage]
 	#[pallet::getter(fn file)]
@@ -245,6 +243,10 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn unit_price)]
 	pub(super) type UnitPrice<T: Config> = StorageValue<_, BalanceOf<T>>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn filler_map)]
+	pub(super) type FillerMap<T: Config> = StorageMap<_, Twox64Concat, BoundedString<T>, FillerInfo<T> >;
 
 
 	#[pallet::pallet]
@@ -297,7 +299,7 @@ pub mod pallet {
 
 			let number: u128 = block_number.saturated_into();
 			let one_day: u128 = <T as Config>::OneDay::get().saturated_into();
-			if number % 5 == 0 {
+			if number % one_day == 0 {
 				let result = Self::offchain_fetch_price(block_number);
 				if let Err(e) = result {
 					log::error!("offchain_worker error: {:?}", e);
@@ -333,6 +335,31 @@ pub mod pallet {
 			Self::upload_file(&sender, &address, &filename, &fileid, &filehash, public, backups, filesize, downloadfee)?;
 			Self::deposit_event(Event::<T>::FileUpload{acc: sender.clone()});
 			Ok(())
+		}
+
+		//The filler upload interface can only be called by scheduling, and the list has a maximum length limit
+		#[pallet::weight(1_000_000)]
+		pub fn upload_filler(
+			origin: OriginFor<T>,
+			filler_list: Vec<FillerInfo<T>>,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			if T::Scheduler::contains_scheduler(sender) {
+				Err(Error::<T>::ScheduleNonExistent)?;
+			}
+
+			for i in filler_list.iter() {
+				<FillerMap<T>>::insert(
+					i.filler_id.clone(),
+					i
+				);
+
+				T::MinerControl::add_temp_power(i.miner_id.clone(), 8)?;
+			}
+
+			Ok(())
+
 		}
 
 		/// Update info of uploaded file.
@@ -744,8 +771,11 @@ pub mod pallet {
 		//Available space divided by 1024 is the unit price
 		fn get_price() -> u128 {
 			let space = pallet_sminer::Pallet::<T>::get_space();
-			let price: u128 = 1024 * 1_000_000_000_000 * 1000 / space ;
-			price
+			if space != 0 {
+				let price: u128 = 1024 * 1_000_000_000_000 * 1000 / space ;
+				return price;
+			}
+			1_000_000_000_000_000_000
 		}
 	
 		fn check_lease_expired_forfileid(fileid: Vec<u8>) -> bool {
@@ -808,17 +838,12 @@ pub mod pallet {
 	
 		pub fn offchain_fetch_price(block_number: T::BlockNumber) -> Result<(), Error<T>> {
 	
-			let mut lock = StorageLock::<BlockAndTime<Self>>::with_block_and_time_deadline(
-				b"offchain-demo::lock", LOCK_BLOCK_EXPIRATION,
-				rt_offchain::Duration::from_millis(LOCK_TIMEOUT_EXPIRATION)
-			);
-	
 		
-				let resp_bytes = Self::offchain_http_req().map_err(|e| {
-					log::error!("fetch_from_remote error: {:?}", e);
-					<Error<T>>::HttpFetchingError
-				})?;
-				let _ = Self::offchain_signed_tx(block_number, resp_bytes)?;
+			let resp_bytes = Self::offchain_http_req().map_err(|e| {
+				log::error!("fetch_from_remote error: {:?}", e);
+				<Error<T>>::HttpFetchingError
+			})?;
+			let _ = Self::offchain_signed_tx(block_number, resp_bytes)?;
 			
 	
 			Ok(())
@@ -851,7 +876,94 @@ pub mod pallet {
 					
 			Ok(response.body().collect::<Vec<u8>>())
 		}
-	
+
+		pub fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<u32>)>, DispatchError> {
+			let file_list = Self::get_random_file()?;
+			let mut data: Vec<(u64, Vec<u8>, Vec<u32>)> = Vec::new();
+			for v in file_list {
+				let length = v.block_num;
+				let number_list = Self::get_random_numberlist(length)?;
+				let miner_id = v.miner_id.clone();
+				let filler_id = v.filler_id.clone().to_vec();
+				let mut block_list:Vec<u32> = Vec::new();
+				for i in number_list.iter() {
+					let filler_block = v.filler_block[*i as usize].clone();
+					block_list.push(filler_block.block_index);
+				}
+				data.push((miner_id, filler_id, block_list));
+			} 
+
+			Ok(data)
+		}
+		//Get random file block list
+		fn get_random_file() -> Result<Vec<FillerInfo<T>>, DispatchError> {
+			
+			let length = Self::get_fillermap_length()?;
+			let number_list = Self::get_random_numberlist(length)?;
+			let mut filler_list: Vec<FillerInfo<T>> = Vec::new();
+			for i in number_list.iter() {
+				let mut counter: u32 = 0;
+				for (_, value) in <FillerMap<T>>::iter() {
+					counter = counter + 1;
+					if counter == *i {
+						filler_list.push(value);
+						break;
+					}
+				}
+			}
+			Ok(filler_list)
+		}
+
+		fn get_random_numberlist(length: u32) -> Result<Vec<u32>, DispatchError> {		
+			let seed: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
+			let num: u32 = length
+				.checked_mul(1000).ok_or(Error::<T>::Overflow)?
+				.checked_div(46).ok_or(Error::<T>::Overflow)?
+				.checked_add(1).ok_or(Error::<T>::Overflow)?;			
+			let mut number_list: Vec<u32> = Vec::new();
+			loop {
+				if number_list.len() >= num as usize {
+					number_list.sort();
+					number_list.dedup();
+					if number_list.len() >= num as usize {
+						break;
+					}
+				}
+				let random = Self::generate_random_number(seed) % length;
+				number_list.push(random);
+			}
+			Ok(number_list)
+		}
+
+		//Get storagemap filler length 
+		fn get_fillermap_length() -> Result<u32, DispatchError> {
+			let mut length: u32 = 0;
+			for _ in <FillerMap<T>>::iter() {
+				length = length.checked_add(1).ok_or(Error::<T>::Overflow)?;
+			}
+			Ok(length)
+		}
+
+		//Get random number
+		pub fn generate_random_number(seed: u32) -> u32 {
+			let (random_seed, _) = T::MyRandomness::random(&(T::FilbakPalletId::get(), seed).encode());
+			let random_number = <u32>::decode(&mut random_seed.as_ref())
+				.expect("secure hashes should always be bigger than u32; qed");
+			random_number
+		}
+		//Get Storage FillerMap Length
+		
+	}
+}
+
+pub trait RandomFileList {
+	fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<u32>)>, DispatchError>;
+}
+
+impl<T: Config> RandomFileList for Pallet<T> {
+	fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<u32>)>, DispatchError> {
+		let result = Pallet::<T>::get_random_challenge_data()?;
+		Ok(result)
 	}
 }
 
