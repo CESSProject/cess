@@ -125,8 +125,6 @@ std = [
 	"sp-runtime/std",
 	"frame-support/std",
 	"frame-system/std",
-	"frame-support/std",
-	"frame-system/std",
 	"frame-benchmarking/std",
 ]
 runtime-benchmarks = ["frame-benchmarking"]

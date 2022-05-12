@@ -232,7 +232,7 @@ pub mod pallet {
 	/// Store all miner details information 
 	#[pallet::storage]
 	#[pallet::getter(fn miner_details)]
-	pub(super) type MinerDetails<T: Config> = StorageMap<_, Twox64Concat, u64, MinerDetailInfo<T::AccountId, BalanceOf<T>>>;
+	pub(super) type MinerDetails<T: Config> = StorageMap<_, Twox64Concat, u64, MinerDetailInfo<T::AccountId, BalanceOf<T>, BoundedVec<u8, T::ItemLimit>>>;
 
 	/// Store all miner stat information 
 	#[pallet::storage]
@@ -269,7 +269,14 @@ pub mod pallet {
 		/// - `ip`: The registered IP of storage miner.
 		/// - `staking_val`: The number of staking.
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
-		pub fn regnstk(origin: OriginFor<T>, beneficiary: <T::Lookup as StaticLookup>::Source, ip: Vec<u8>, #[pallet::compact] staking_val: BalanceOf<T>) -> DispatchResult {
+		pub fn regnstk(
+				origin: OriginFor<T>, 
+				beneficiary: <T::Lookup as StaticLookup>::Source, 
+				ip: Vec<u8>, 
+				#[pallet::compact] 
+				staking_val: BalanceOf<T>,
+				public_key: Vec<u8>,
+			) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let beneficiary = T::Lookup::lookup(beneficiary)?;
 			ensure!(!(<MinerItems<T>>::contains_key(&sender)), Error::<T>::AlreadyRegistered);
@@ -287,9 +294,9 @@ pub mod pallet {
 					earnings: value.clone(),
 					locked: value.clone(),
 					state: Self::vec_to_bound::<u8>("positive".as_bytes().to_vec())?,
-					temp_power: 0,
 					power: 0,
 					space: 0,
+					public_key: Self::vec_to_bound::<u8>(public_key)?,
 				}
 			);
 
@@ -304,7 +311,7 @@ pub mod pallet {
 			let bounded_ip = Self::vec_to_bound::<u8>(ip)?;
 			let add_minerinfo = MinerInfo::<BoundedVec<u8, T::ItemLimit>> {
 				peerid: peerid,
-				ip: bounded_ip,
+				ip: bounded_ip.clone(),
 				power: 0 as u128,
 				space: 0 as u128,
 			};
@@ -327,12 +334,12 @@ pub mod pallet {
 
 			<MinerDetails<T>>::insert(
 				peerid,
-				MinerDetailInfo::<T::AccountId, BalanceOf<T>> {
+				MinerDetailInfo::<T::AccountId, BalanceOf<T>, BoundedVec<u8, T::ItemLimit>> {
 					address: sender.clone(),
 					beneficiary,
-					temp_power: 0u128,
 					power: 0u128,
 					space: 0u128,
+					ip: bounded_ip,
 					total_reward: BalanceOf::<T>::from(0u32),
 					total_rewards_currently_available: BalanceOf::<T>::from(0u32),
 					totald_not_receive: BalanceOf::<T>::from(0u32),
@@ -439,55 +446,7 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::MinerClaim{acc: sender});
 			Ok(())
 		}
-
-	
-		 
-		/// Redeem for storage miner.
-		///
-		/// The dispatch origin of this call must be _Signed_.
-		#[deprecated]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::redeem())]
-		pub fn redeem(origin: OriginFor<T>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			let peerid = MinerItems::<T>::get(&sender).unwrap().peerid;
-			let mut allminer = <AllMiner<T>>::get();
-			let mut k = 0;
-			for i in allminer.clone().iter() {
-				if i.peerid == peerid {
-					allminer.remove(k);
-				}
-				k = k.checked_add(1).ok_or(Error::<T>::Overflow)?;
-			}
-			// let allminer_bounded = Self::vec_to_bound(allminer)?;
-			AllMiner::<T>::put(allminer);
-
-			let mi = MinerItems::<T>::get(&sender).unwrap();
-			ensure!(mi.locked == <BalanceOf<T>>::from(0 as u32), Error::<T>::LockedNotEmpty);
-			let deposit = mi.collaterals;
-			let _ = T::Currency::unreserve(&sender, deposit.clone());
-
-			<MinerItems<T>>::remove(&sender);
-			<SegInfo<T>>::remove(&sender);
-			Self::deposit_event(Event::<T>::Redeemed{acc: sender.clone(), deposit: deposit.clone()});
-			Ok(())
-		}
-		/// Storage miner gets mi.earnings bonus.
-		///
-		/// The dispatch origin of this call must be _Signed_.
-		#[deprecated]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::claim())]
-		pub fn claim(origin: OriginFor<T>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			let _peerid = MinerItems::<T>::get(&sender).unwrap().peerid;
-
-			let mi = MinerItems::<T>::get(&sender).unwrap();
-			ensure!(mi.earnings != <BalanceOf<T>>::from(0 as u32), Error::<T>::EarningsIsEmpty);
-			let deposit = mi.earnings;
-			let reward_pot = T::PalletId::get().into_account();
-			let _ = T::Currency::transfer(&reward_pot, &sender, deposit.clone(), AllowDeath);
-			Self::deposit_event(Event::<T>::Claimed{acc: sender.clone(), deposit: deposit.clone()});
-			Ok(())
-		}
+		
 		/// Miner information initialization.
 		///
 		/// The dispatch origin of this call must be _root_.
@@ -981,14 +940,12 @@ impl<T: Config> Pallet<T> {
 			Err(Error::<T>::NotExisted)?;
 		}
 
-		
-
 		let acc = Self::get_acc(peerid)?;
 		let state = Self::check_state(acc.clone());
 		if state == "exit".as_bytes().to_vec() {
 			return Ok(())
 		}
-
+		Self::add_available_space(increment.clone())?;
 		MinerItems::<T>::try_mutate(&acc, |s_opt| -> DispatchResult{
 			let s = s_opt.as_mut().unwrap();
 			s.power = s.power.checked_add(increment).ok_or(Error::<T>::Overflow)?;
@@ -1046,6 +1003,7 @@ impl<T: Config> Pallet<T> {
 		if state == "exit".as_bytes().to_vec() {
 			return Ok(())
 		}
+		Self::sub_available_space(increment.clone())?;
 		MinerItems::<T>::try_mutate(&acc, |s_opt| -> DispatchResult{
 			let s = s_opt.as_mut().unwrap();
 			s.power = s.power.checked_sub(increment).ok_or(Error::<T>::Overflow)?;
@@ -1444,32 +1402,32 @@ impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for Pallet<T> {
 }
 
 pub trait MinerControl {
-	fn add_temp_power(peer_id: u64, power: u128) -> DispatchResult;
-
-	fn clear_temp_power(peer_id: u64) -> DispatchResult;
-
+	fn add_power(peer_id: u64, power: u128) -> DispatchResult;
+	fn sub_power(peer_id: u64, power: u128) -> DispatchResult;
+	fn add_space(peer_id: u64, power: u128) -> DispatchResult;
+	fn sub_space(peer_id: u64, power: u128) -> DispatchResult;
+	fn get_power_and_space(peer_id: u64) -> Result<(u128, u128), DispatchError>;
 	fn punish_miner(peer_id: u64, file_size: u64) -> DispatchResult;
 }
 
 impl<T: Config> MinerControl for Pallet<T> {
-	fn add_temp_power(peer_id: u64, power: u128) -> DispatchResult {
-		<MinerDetails<T>>::try_mutate(peer_id, |opt| -> DispatchResult {
-			let o = opt.as_mut().unwrap();
-			o.temp_power = o.temp_power.checked_add(power).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
-
+	fn add_power(peer_id: u64, power: u128) -> DispatchResult {
+		Pallet::<T>::add_power(peer_id, power)?;
 		Ok(())
 	}
 
-	fn clear_temp_power(peer_id: u64) -> DispatchResult {
-		<MinerDetails<T>>::try_mutate(peer_id, |opt| -> DispatchResult {
-			let o = opt.as_mut().unwrap();
-			o.temp_power = 0;
+	fn sub_power(peer_id: u64, power: u128) -> DispatchResult {
+		Pallet::<T>::sub_power(peer_id, power)?;
+		Ok(())
+	}
 
-			Ok(())
-		})?;
+	fn add_space(peer_id: u64, power: u128) -> DispatchResult {
+		Pallet::<T>::add_space(peer_id, power)?;
+		Ok(())
+	}
 
+	fn sub_space(peer_id: u64, power: u128) -> DispatchResult {
+		Pallet::<T>::sub_space(peer_id, power)?;
 		Ok(())
 	}
 
@@ -1477,5 +1435,13 @@ impl<T: Config> MinerControl for Pallet<T> {
 		let acc = Pallet::<T>::get_acc(peer_id)?;
 		Pallet::<T>::punish(acc, file_size.into())?;
 		Ok(())
+	}
+
+	fn get_power_and_space(peer_id: u64) -> Result<(u128, u128), DispatchError> {
+		if !<MinerDetails<T>>::contains_key(peer_id) {
+			Err(Error::<T>::NotMiner)?;
+		}
+		let miner = <MinerDetails<T>>::get(peer_id).unwrap();
+		Ok((miner.power, miner.space))
 	}
 }
