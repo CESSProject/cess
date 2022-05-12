@@ -322,7 +322,7 @@ pub mod pallet {
 
 			let number: u128 = block_number.saturated_into();
 			let one_day: u128 = <T as Config>::OneDay::get().saturated_into();
-			if number % one_day == 0 {
+			if number % one_day == 0 || number == 1 {
 				//Query price
 				let result = Self::offchain_fetch_price(block_number);
 				if let Err(e) = result {
