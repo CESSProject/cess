@@ -885,7 +885,9 @@ impl pallet_segment_book::Config for Runtime {
 	type RandomLimit = RandomLimit;
 	type OneDay = OneDay;
 	type OneHours = OneHours;
-	type RandomChallenge = FileBank;
+	type File = FileBank;
+	type Scheduler = FileMap;
+	type MinerControl = Sminer;
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
 }
 
@@ -900,6 +902,7 @@ impl pallet_file_bank::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
 	type FilbakPalletId = FilbakPalletId;
+	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
 	type AuthorityId = pallet_file_bank::crypto::TestAuthId;
 	type WeightInfo = pallet_file_bank::weights::SubstrateWeight<Runtime>;
 	type MinerControl = Sminer;

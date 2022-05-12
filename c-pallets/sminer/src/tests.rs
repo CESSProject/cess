@@ -50,7 +50,7 @@ fn miner_register_works() {
         let stake_amount: u128 = 2000;
         let ip: Vec<u8> = Vec::from("192.168.0.1");
 
-        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), beneficiary, ip.clone(), stake_amount));
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), beneficiary, ip.clone(), stake_amount, Vec::from("public_key")));
 
         // balance check
         assert_eq!(ACCOUNT1.1 - stake_amount, Balances::free_balance(&ACCOUNT1.0));
@@ -88,8 +88,8 @@ fn miner_register_works() {
 #[test]
 fn dont_duplicate_register() {
     new_test_ext().execute_with(|| {
-        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), 2000));
-        assert_noop!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.2"), 2000), Error::<Test>::AlreadyRegistered);
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), 2000, Vec::from("public_key")));
+        assert_noop!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.2"), 2000, Vec::from("public_key")), Error::<Test>::AlreadyRegistered);
     });
 }
 
@@ -104,7 +104,7 @@ fn increase_collateral_works_on_normal_state() {
     new_test_ext().execute_with(|| {
         assert_noop!(Sminer::increase_collateral(Origin::signed(ACCOUNT1.0), 3000), Error::<Test>::NotMiner);
 
-        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), 2000));
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), 2000, Vec::from("public_key")));
 
         assert_ok!(Sminer::increase_collateral(Origin::signed(ACCOUNT1.0), 3000));
         // balance check
@@ -120,7 +120,7 @@ fn increase_collateral_works_on_normal_state() {
         let event = Sys::events().pop().expect("Expected at least one IncreaseCollateral to be found").event;
         assert_eq!(mock::Event::from(Event::IncreaseCollateral{acc: ACCOUNT1.0, balance: mi.collaterals}), event);
 
-        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT2.0), 123, Vec::from("192.168.0.10"), 2000));
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT2.0), 123, Vec::from("192.168.0.10"), 2000, Vec::from("public_key")));
         assert_eq!(2000 + 3000 + 2000, MinerStatValue::<Test>::try_get().unwrap().staking);
     });
 }
@@ -136,7 +136,7 @@ fn set_miner_state(account_id: u64, state: &str) {
 #[test]
 fn increase_collateral_works_on_frozen_state() {
     new_test_ext().execute_with(|| {
-        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), 2000));
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), 2000, Vec::from("public_key")));
         set_miner_state(ACCOUNT1.0, STATE_FROZEN);
         let peer_id = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap().peerid;
         let _ = MinerDetails::<Test>::try_mutate(peer_id, |opt| -> DispatchResult {
@@ -157,7 +157,7 @@ fn increase_collateral_works_on_frozen_state() {
 #[test]
 fn increase_collateral_works_on_exit_frozen_state() {
     new_test_ext().execute_with(|| {
-        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), 2000));
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), 2000, Vec::from("public_key")));
         set_miner_state(ACCOUNT1.0, STATE_EXIT_FROZEN);
         let peer_id = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap().peerid;
         let _ = MinerDetails::<Test>::try_mutate(peer_id, |opt| -> DispatchResult {
@@ -177,7 +177,7 @@ fn increase_collateral_works_on_exit_frozen_state() {
 fn exit_miner_works() {
     new_test_ext().execute_with(|| {
         assert_noop!(Sminer::exit_miner(Origin::signed(ACCOUNT1.0)), Error::<Test>::NotMiner);
-        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT));
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT, Vec::from("public_key")));
 
         Sys::set_block_number(2);
         assert_ok!(Sminer::exit_miner(Origin::signed(ACCOUNT1.0)));
@@ -192,7 +192,7 @@ fn exit_miner_works() {
 #[test]
 fn exit_miner_on_abnormal_state() {
     new_test_ext().execute_with(|| {
-        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT));
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT, Vec::from("public_key")));
 
         set_miner_state(ACCOUNT1.0, STATE_EXIT);
         assert_noop!(Sminer::exit_miner(Origin::signed(ACCOUNT1.0)), Error::<Test>::NotpositiveState);
@@ -203,7 +203,7 @@ fn exit_miner_on_abnormal_state() {
 fn withdraw_should_work() {
     new_test_ext().execute_with(|| {
         assert_noop!(Sminer::withdraw(Origin::signed(ACCOUNT1.0)), Error::<Test>::NotMiner);
-        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT));
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT, Vec::from("public_key")));
 
         let free_balance_after_reg = Balances::free_balance(&ACCOUNT1.0);
 
@@ -288,7 +288,7 @@ fn add_reward_order1_should_panic_on_exceed_item_limit() {
 #[test]
 fn add_power_should_work() {
     new_test_ext().execute_with(|| {
-        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT));
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT, Vec::from("public_key")));
         let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
         assert_eq!(0, m1.power);
         let _ = Sminer::add_power(m1.peerid, 10_000);
@@ -296,7 +296,7 @@ fn add_power_should_work() {
         assert_eq!(10_000, m1.power);
         assert_eq!(10_000, TotalPower::<Test>::try_get().unwrap());
 
-        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT2.0), 321, Vec::from("192.168.0.2"), UNIT_POWER_LIMIT));
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT2.0), 321, Vec::from("192.168.0.2"), UNIT_POWER_LIMIT, Vec::from("public_key")));
         let m2 = MinerItems::<Test>::try_get(ACCOUNT2.0).unwrap();
         assert_eq!(0, m2.power);
         let _ = Sminer::add_power(m2.peerid, 20_000);
@@ -314,8 +314,8 @@ fn increase_rewards_should_work() {
     new_test_ext().execute_with(|| {
         assert_noop!(Sminer::timed_increase_rewards(Origin::root()), Error::<Test>::DivideByZero);
 
-        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT));
-        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT2.0), 123, Vec::from("192.168.0.2"), UNIT_POWER_LIMIT));
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT, Vec::from("public_key")));
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT2.0), 123, Vec::from("192.168.0.2"), UNIT_POWER_LIMIT, Vec::from("public_key")));
 
         let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
         let m2 = MinerItems::<Test>::try_get(ACCOUNT2.0).unwrap();
@@ -347,8 +347,8 @@ fn increase_rewards_should_work() {
 #[test]
 fn task_award_table_should_work() {
     new_test_ext().execute_with(|| {
-        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT));
-        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT2.0), 321, Vec::from("192.168.0.2"), UNIT_POWER_LIMIT));
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT, Vec::from("public_key")));
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT2.0), 321, Vec::from("192.168.0.2"), UNIT_POWER_LIMIT, Vec::from("public_key")));
 
         let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
         let m2 = MinerItems::<Test>::try_get(ACCOUNT2.0).unwrap();
@@ -403,8 +403,8 @@ fn task_award_table_should_work() {
 #[test]
 fn timed_user_receive_award1_should_work() {
     new_test_ext().execute_with(|| {
-        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT));
-        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT2.0), 321, Vec::from("192.168.0.2"), UNIT_POWER_LIMIT));
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT, Vec::from("public_key")));
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT2.0), 321, Vec::from("192.168.0.2"), UNIT_POWER_LIMIT, Vec::from("public_key")));
         let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
         let m2 = MinerItems::<Test>::try_get(ACCOUNT2.0).unwrap();
         let _ = Sminer::add_power(m1.peerid, 10_000);
@@ -449,7 +449,7 @@ fn timed_user_receive_award1_should_work() {
 #[test]
 fn timed_user_receive_award1_total_award() {
     new_test_ext().execute_with(|| {
-        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT));
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), 123, Vec::from("192.168.0.1"), UNIT_POWER_LIMIT, Vec::from("public_key")));
         let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
         let _ = Sminer::add_power(m1.peerid, 10_000);
 
