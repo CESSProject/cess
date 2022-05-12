@@ -394,7 +394,6 @@ use frame_support::{
 					T::MinerControl::punish_miner(miner_id, file_size)?;
 					T::File::add_invalid_file(miner_id, file_id.clone())?;
 					T::File::add_recovery_file(file_id.clone())?;
-					T::File::delete_file_dupl(file_id)?;
 				}
 				_ => {
 					Err(Error::<T>::FileTypeError)?;

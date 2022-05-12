@@ -434,7 +434,7 @@ pub mod pallet {
 			}
 			let now: u128 = <frame_system::Pallet<T>>::block_number().saturated_into();
 			let colling_line: u128 = MinerColling::<T>::get(&sender).unwrap().saturated_into();
-			if colling_line + 1200 < now {
+			if colling_line + 1200 > now {
 				Err(Error::<T>::CollingNotOver)?;
 			}
 
@@ -1314,9 +1314,15 @@ impl<T: Config> Pallet<T> {
 		Ok(acc.address)
 	}
 
+	//Get the available space on the current chain.
 	pub fn get_space() -> u128 {
 		let purchased_space = <PurchasedSpace<T>>::get();
 		let total_space = <AvailableSpace<T>>::get();
+		//If the total space on the current chain is less than the purchased space, 0 will be returned.
+		if total_space < purchased_space {
+			return 0;
+		}
+		//Calculate available space.
 		let value = total_space - purchased_space;
 		return value
 	}

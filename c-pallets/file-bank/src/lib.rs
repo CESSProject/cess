@@ -564,16 +564,16 @@ pub mod pallet {
 			Ok(())
 		}
 
-		//
+		//Update current storage unit price
 		#[pallet::weight(2_000_000)]
 		pub fn update_price(
 			origin: OriginFor<T>,
 			price: Vec<u8>
 		) -> DispatchResult {
 			let _sender = ensure_signed(origin)?;
+			//Convert price of string type to balance
 			//Vec<u8> -> str
 			let str_price = str::from_utf8(&price).unwrap();
-
 			//str -> u128
 			let mut price_u128: u128 = str_price
 				.parse()
@@ -582,14 +582,14 @@ pub mod pallet {
 			//One third of the price
 			price_u128 = price_u128.checked_mul(3).ok_or(Error::<T>::Overflow)?;
 				
-			//Which pricing is cheaper
+			//Get the current price on the chain
 			let our_price = Self::get_price();
+			//Which pricing is cheaper
 			if our_price < price_u128 {
 				price_u128 = our_price;
 			}
 			//u128 -> balance
 			let price_balance: BalanceOf<T> = price_u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
-
 			<UnitPrice<T>>::put(price_balance);
 
 			Ok(())
@@ -597,14 +597,26 @@ pub mod pallet {
 
 		//Scheduling is the notification chain after file recovery
 		#[pallet::weight(10_000)]
-		pub fn recover_file(origin: OriginFor<T>, file_id: Vec<u8>) -> DispatchResult {
+		pub fn recover_file(origin: OriginFor<T>, dupl_id: Vec<u8>) -> DispatchResult {
+			let length = dupl_id.len() - 4;
+			let file_id = dupl_id[0..length].to_vec();
+			let file_id_bounded: BoundedString<T> = file_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
 			let sender = ensure_signed(origin)?;
-			let bounded_string: BoundedString<T> = file_id.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+			let bounded_string: BoundedString<T> = dupl_id.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+
 			<FileRecovery<T>>::try_mutate(&sender, |o| -> DispatchResult {
 				o.retain(|x| *x != bounded_string);
 				Ok(())
 			})?;
-			Self::deposit_event(Event::<T>::RecoverFile{acc: sender, file_id: file_id});
+			if !<File<T>>::contains_key(&file_id_bounded) {
+				Err(Error::<T>::FileNonExistent)?;
+			}
+			<File<T>>::try_mutate(&file_id_bounded, |opt| -> DispatchResult {
+				let o = opt.as_mut().unwrap();
+				o.file_state = "active".as_bytes().to_vec().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+				Ok(())
+			})?;
+			Self::deposit_event(Event::<T>::RecoverFile{acc: sender, file_id: dupl_id});
 			Ok(())
 		}
 
@@ -739,11 +751,17 @@ pub mod pallet {
 		// }
 		//Available space divided by 1024 is the unit price
 		fn get_price() -> u128 {
+			//Get the available space on the current chain
 			let space = pallet_sminer::Pallet::<T>::get_space();
+			//If it is not 0, the logic is executed normally
 			if space != 0 {
+				//Calculation rules
+				//The price is based on 1024 / available space on the current chain
+				//Multiply by the base value 1 tcess * 1_000 (1_000_000_000_000 * 1_000)
 				let price: u128 = 1024 * 1_000_000_000_000 * 1000 / space ;
 				return price;
 			}
+			//If it is 0, an extra large price will be returned
 			1_000_000_000_000_000_000
 		}
 	
@@ -777,15 +795,16 @@ pub mod pallet {
 		}
 	
 		//offchain helper
+		//Signature chaining method
 		fn offchain_signed_tx(block_number: T::BlockNumber, value: Vec<u8>) -> Result<(), Error<T>> {
 			// We retrieve a signer and check if it is valid.
 			//   Since this pallet only has one key in the keystore. We use `any_account()1 to
 			//   retrieve it. If there are multiple keys and we want to pinpoint it, `with_filter()` can be chained,
 			let signer = Signer::<T, T::AuthorityId>::any_account();
-	
-	
+			//Data not currently used
 			let _number: u64 = block_number.try_into().unwrap_or(0);
-	
+			//Send signed transaction
+			//call update_price transaction
 			let result = signer.send_signed_transaction(|_acct| 
 				Call::update_price{price: value.clone()}
 			);
@@ -794,39 +813,41 @@ pub mod pallet {
 			if let Some((acc, res)) = result {
 				if res.is_err() {
 					log::error!("failure: offchain_signed_tx: tx sent: {:?}", acc.id);
-					return Err(<Error<T>>::OffchainSignedTxError);
+					Err(<Error<T>>::OffchainSignedTxError)?;
 				}
 	
 				return Ok(());
 			}
-	
-	
+
 			log::error!("No local account available");
 			Err(<Error<T>>::NoLocalAcctForSigning)
 		}
 	
 		pub fn offchain_fetch_price(block_number: T::BlockNumber) -> Result<(), Error<T>> {
-	
-		
+			//Call HTTP request method
 			let resp_bytes = Self::offchain_http_req().map_err(|e| {
 				log::error!("fetch_from_remote error: {:?}", e);
 				<Error<T>>::HttpFetchingError
 			})?;
+			//Pass the value returned from the request to the signing authority
 			let _ = Self::offchain_signed_tx(block_number, resp_bytes)?;
 			
-	
 			Ok(())
 		}
-	
+		//Offline worker, HTTP request method.
 		fn offchain_http_req() -> Result<Vec<u8>, Error<T>> {
 			log::info!("send request to {}", HTTP_REQUEST_STR);
-			
+			//Create request
+			//The request address is: https://arweave.net/price/1048576
+			//Arweave's official API is used to query prices
+			//Request price of 1MB
 			let request = rt_offchain::http::Request::get(HTTP_REQUEST_STR);
-			
+			//Set timeout wait
 			let timeout = sp_io::offchain::timestamp()
 			.add(rt_offchain::Duration::from_millis(FETCH_TIMEOUT_PERIOD));
 	
 			log::info!("send request");
+			//Send request
 			let pending = request
 			.add_header("User-Agent","PostmanRuntime/7.28.4")
 				.deadline(timeout) // Setting the timeout time
@@ -834,13 +855,14 @@ pub mod pallet {
 				.map_err(|_| <Error<T>>::HttpFetchingError)?;
 			
 			log::info!("wating response");
+			//Waiting for response
 			let response = pending
 				.wait()
 				.map_err(|_| <Error<T>>::HttpFetchingError)?;
-	
+			//Determine whether the response is wrong
 			if response.code != 200 {
 				log::error!("Unexpected http request status code: {}", response.code);
-				return Err(<Error<T>>::HttpFetchingError);
+				Err(<Error<T>>::HttpFetchingError)?;
 			}
 					
 			Ok(response.body().collect::<Vec<u8>>())
@@ -907,13 +929,15 @@ pub mod pallet {
 			for i in number_list.iter() {
 				let mut counter: u32 = 0;
 				for (_, value) in <File<T>>::iter() {	
-					if counter == *i {
-						file_list.push((value.file_size, value.file_dupl[0].clone()));
-						file_list.push((value.file_size, value.file_dupl[1].clone()));
-						file_list.push((value.file_size, value.file_dupl[2].clone()));
-						break;
+					if value.file_state.to_vec() == "active".as_bytes().to_vec() {
+						if counter == *i {
+							file_list.push((value.file_size, value.file_dupl[0].clone()));
+							file_list.push((value.file_size, value.file_dupl[1].clone()));
+							file_list.push((value.file_size, value.file_dupl[2].clone()));
+							break;
+						}
+						counter = counter + 1;
 					}
-					counter = counter + 1;
 				}
 			}
 			Ok(file_list)
@@ -952,8 +976,10 @@ pub mod pallet {
 		//Get Storage FillerMap Length
 		fn get_file_map_length() -> Result<u32, DispatchError> {
 			let mut length: u32 = 0;
-			for _ in <File<T>>::iter() {
-				length = length.checked_add(1).ok_or(Error::<T>::Overflow)?;
+			for (_, v) in <File<T>>::iter() {
+				if v.file_state.to_vec() == "active".as_bytes().to_vec() {
+					length = length.checked_add(1).ok_or(Error::<T>::Overflow)?;
+				}
 			}
 			Ok(length)
 		}
@@ -996,10 +1022,21 @@ pub mod pallet {
 		}
 		
 		//Add the list of files to be recovered and notify the scheduler to recover
-		pub fn add_recovery_file(file_id: Vec<u8>) -> DispatchResult {
+		pub fn add_recovery_file(dupl_id: Vec<u8>) -> DispatchResult {
 			let acc = Self::get_current_scheduler();
+			let length = dupl_id.len() - 4;
+			let file_id = dupl_id[0..length].to_vec();
+			let file_id_bounded: BoundedString<T> = file_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+			if !<File<T>>::contains_key(&file_id_bounded) {
+				Err(Error::<T>::FileNonExistent)?;
+			}
+			<File<T>>::try_mutate(&file_id_bounded, |opt| -> DispatchResult {
+				let o = opt.as_mut().unwrap();
+				o.file_state = "repairing".as_bytes().to_vec().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+				Ok(())
+			})?;
 			<FileRecovery<T>>::try_mutate(&acc, |o| -> DispatchResult {
-				o.try_push(file_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?).map_err(|_e| Error::<T>::StorageLimitReached)?;
+				o.try_push(dupl_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?).map_err(|_e| Error::<T>::StorageLimitReached)?;
 				Ok(())
 			})?;
 
