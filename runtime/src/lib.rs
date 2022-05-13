@@ -569,8 +569,8 @@ impl pallet_cess_staking::BenchmarkingConfig for StakingBenchmarkingConfig {
 
 impl pallet_cess_staking::Config for Runtime {
 	const ERAS_PER_YEAR: u64 = ERAS_PER_YEAR;
-	const FIRST_YEAR_VALIDATOR_REWARDS: Balance = 477_000_000 * CENTS;
-	const FIRST_YEAR_SMINER_REWARDS: Balance = 238_500_000 * CENTS;
+	const FIRST_YEAR_VALIDATOR_REWARDS: Balance = 238_500_000 * CENTS;
+	const FIRST_YEAR_SMINER_REWARDS: Balance = 477_000_000 * CENTS;
 	const REWARD_DECREASE_RATIO: Perbill = Perbill::from_perthousand(841);
 	type SminerRewardPool = Sminer;
 	type MaxNominations = MaxNominations;
