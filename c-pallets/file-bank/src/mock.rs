@@ -191,12 +191,28 @@ parameter_types! {
 pub struct MockingMinerControl;
 
 impl pallet_sminer::MinerControl for MockingMinerControl {
-    fn add_temp_power(_peer_id: u64, _power: u128) -> DispatchResult {
-        Ok(())
+    fn add_power(_peer_id: u64, _power: u128) -> DispatchResult {
+        todo!()
     }
 
-    fn clear_temp_power(_peer_id: u64) -> DispatchResult {
-        Ok(())
+    fn sub_power(_peer_id: u64, _power: u128) -> DispatchResult {
+        todo!()
+    }
+
+    fn add_space(_peer_id: u64, _power: u128) -> DispatchResult {
+        todo!()
+    }
+
+    fn sub_space(_peer_id: u64, _power: u128) -> DispatchResult {
+        todo!()
+    }
+
+    fn get_power_and_space(_peer_id: u64) -> Result<(u128, u128), DispatchError> {
+        todo!()
+    }
+
+    fn punish_miner(_peer_id: u64, _file_size: u64) -> DispatchResult {
+        todo!()
     }
 }
 
@@ -213,6 +229,7 @@ impl Config for Test {
     type Currency = Balances;
     type WeightInfo = ();
     type Call = Call;
+    type FindAuthor = ();
     type AuthorityId = file_bank::crypto::TestAuthId;
     type Scheduler = MockingScheduleFind;
     type MinerControl = MockingMinerControl;
