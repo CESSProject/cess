@@ -403,7 +403,7 @@ fn testnet_genesis(
 				);
 				map.insert(
 					// H160 address of CI test runner account
-					H160::from_str("6be02d1d3665660d22ff9624b7be0551ee1ac91b")
+					H160::from_str("8097c3c354652cb1eeed3e5b65fba2576470678a")
 						.expect("internal H160 is valid; qed"),
 					fp_evm::GenesisAccount {
 						balance: U256::from_str("0xffffffffffffffffffffffffffffffff")
