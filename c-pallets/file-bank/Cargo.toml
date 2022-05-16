@@ -10,14 +10,7 @@ readme = "README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[package.metadata.substrate]
-categories = [
-	"pallet",
-	"offchain worker",
-]
-
 [dependencies]
-
 parking_lot = "0.11"
 serde = { version = "1.0.136", optional = true }
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }

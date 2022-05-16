@@ -271,14 +271,12 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
 		pub fn regnstk(
 				origin: OriginFor<T>, 
-				beneficiary: <T::Lookup as StaticLookup>::Source, 
+				beneficiary: AccountOf<T>,
 				ip: Vec<u8>, 
-				#[pallet::compact] 
 				staking_val: BalanceOf<T>,
 				public_key: Vec<u8>,
 			) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			let beneficiary = T::Lookup::lookup(beneficiary)?;
 			ensure!(!(<MinerItems<T>>::contains_key(&sender)), Error::<T>::AlreadyRegistered);
 			T::Currency::reserve(&sender, staking_val.clone())?;
 			let value = BalanceOf::<T>::from(0 as u32);

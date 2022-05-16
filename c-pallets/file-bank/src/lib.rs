@@ -221,7 +221,9 @@ pub mod pallet {
 		//Error that the storage has reached the upper limit.
 		StorageLimitReached,
 		//The miner's calculation power is insufficient, resulting in an error that cannot be replaced
-		MinerPowerInsufficient
+		MinerPowerInsufficient,
+
+		IsZero,
 	}
 	#[pallet::storage]
 	#[pallet::getter(fn file)]
@@ -946,6 +948,9 @@ pub mod pallet {
 
 		fn get_random_numberlist(length: u32) -> Result<Vec<u32>, DispatchError> {		
 			let seed: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
+			if length == 0 {
+				Err(Error::<T>::IsZero)?;
+			}
 			let num: u32 = length
 				.checked_mul(1000).ok_or(Error::<T>::Overflow)?
 				.checked_div(46).ok_or(Error::<T>::Overflow)?
@@ -960,6 +965,7 @@ pub mod pallet {
 					}
 				}
 				let random = Self::generate_random_number(seed) % length;
+				log::info!("List addition: {}", random);
 				number_list.push(random);
 			}
 			Ok(number_list)
@@ -970,6 +976,9 @@ pub mod pallet {
 			let mut length: u32 = 0;
 			for _ in <FillerMap<T>>::iter() {
 				length = length.checked_add(1).ok_or(Error::<T>::Overflow)?;
+			}
+			if length == 0 {
+				Err(Error::<T>::IsZero)?;
 			}
 			Ok(length)
 		}
@@ -982,16 +991,26 @@ pub mod pallet {
 					length = length.checked_add(1).ok_or(Error::<T>::Overflow)?;
 				}
 			}
+			if length == 0 {
+				Err(Error::<T>::IsZero)?;
+			}
 			Ok(length)
 		}
 
 		//Get random number
 		pub fn generate_random_number(seed: u32) -> u32 {
-			let (random_seed, _) = T::MyRandomness::random(&(T::FilbakPalletId::get(), seed).encode());
-			let random_number = <u32>::decode(&mut random_seed.as_ref())
-				.expect("secure hashes should always be bigger than u32; qed");
-			random_number
+			loop {
+				let (random_seed, _) = T::MyRandomness::random(&(T::FilbakPalletId::get(), seed).encode());
+				let random_number = <u32>::decode(&mut random_seed.as_ref())
+					.expect("secure hashes should always be bigger than u32; qed");
+				if random_number != 0 {
+					return random_number
+				}
+				
+			}
 		}
+
+		
 
 		//Specific implementation method of deleting filler file
 		pub fn delete_filler(miner_id: u64, filler_id: Vec<u8>) -> DispatchResult {

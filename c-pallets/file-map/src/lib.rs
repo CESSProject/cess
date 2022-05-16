@@ -132,6 +132,13 @@ pub mod pallet {
 
     #[pallet::call]
 	impl<T: Config> Pallet<T> {
+        #[pallet::weight(1_000_000)]
+        pub fn delete_scheduler(origin: OriginFor<T>) -> DispatchResult {
+            let sender = ensure_signed(origin)?;
+            let valid: BoundedVec<SchedulerInfo<T>, T::StringLimit> = Vec::new().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+            SchedulerMap::<T>::put(valid);
+            Ok(())
+        }
         //Scheduling registration method
         #[pallet::weight(1_000_000)]
         pub fn registration_scheduler(origin: OriginFor<T>, stash_account: AccountOf<T>, ip: Vec<u8>) -> DispatchResult {
