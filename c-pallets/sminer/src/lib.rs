@@ -271,8 +271,14 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
 		pub fn regnstk(
 				origin: OriginFor<T>, 
+<<<<<<< HEAD
 				beneficiary: AccountOf<T>,
 				ip: Vec<u8>, 
+=======
+				beneficiary: <T::Lookup as StaticLookup>::Source, 
+				ip: Vec<u8>, 
+				#[pallet::compact] 
+>>>>>>> origin/main
 				staking_val: BalanceOf<T>,
 				public_key: Vec<u8>,
 			) -> DispatchResult {

@@ -221,9 +221,13 @@ pub mod pallet {
 		//Error that the storage has reached the upper limit.
 		StorageLimitReached,
 		//The miner's calculation power is insufficient, resulting in an error that cannot be replaced
+<<<<<<< HEAD
 		MinerPowerInsufficient,
 
 		IsZero,
+=======
+		MinerPowerInsufficient
+>>>>>>> origin/main
 	}
 	#[pallet::storage]
 	#[pallet::getter(fn file)]
@@ -997,6 +1001,17 @@ pub mod pallet {
 			Ok(length)
 		}
 
+		//Get Storage FillerMap Length
+		fn get_file_map_length() -> Result<u32, DispatchError> {
+			let mut length: u32 = 0;
+			for (_, v) in <File<T>>::iter() {
+				if v.file_state.to_vec() == "active".as_bytes().to_vec() {
+					length = length.checked_add(1).ok_or(Error::<T>::Overflow)?;
+				}
+			}
+			Ok(length)
+		}
+
 		//Get random number
 		pub fn generate_random_number(seed: u32) -> u32 {
 			loop {
@@ -1040,6 +1055,38 @@ pub mod pallet {
 
 			Ok(())
 		}
+<<<<<<< HEAD
+=======
+
+		//Specific implementation method of deleting filler file
+		pub fn delete_filler(miner_id: u64, filler_id: Vec<u8>) -> DispatchResult {
+			let filler_boud: BoundedString<T> = filler_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+			if !<FillerMap<T>>::contains_key(miner_id, filler_boud.clone()) {
+				Err(Error::<T>::FileNonExistent)?;
+			}
+			<FillerMap<T>>::remove(miner_id, filler_boud.clone());
+
+			Ok(())
+		}
+
+		//Delete the next backup under the file
+		pub fn delete_file_dupl(dupl_id: Vec<u8>) -> DispatchResult {
+			let length = dupl_id.len() - 4;
+			let file_id = dupl_id[0..length].to_vec();
+			let file_id_bounded: BoundedString<T> = file_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+			if !<File<T>>::contains_key(&file_id_bounded) {
+				Err(Error::<T>::FileNonExistent)?;
+			} 
+
+			<File<T>>::try_mutate(&file_id_bounded, |opt| -> DispatchResult {
+				let o = opt.as_mut().unwrap();
+				o.file_dupl.retain(|x| x.dupl_id.to_vec() != dupl_id);
+				Ok(())
+			})?;
+
+			Ok(())
+		}
+>>>>>>> origin/main
 		
 		//Add the list of files to be recovered and notify the scheduler to recover
 		pub fn add_recovery_file(dupl_id: Vec<u8>) -> DispatchResult {
