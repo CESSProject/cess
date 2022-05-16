@@ -1289,7 +1289,6 @@ construct_runtime!(
 		EVM: pallet_evm,
 		DynamicFee: pallet_dynamic_fee,
 		BaseFee: pallet_base_fee,
-
 	}
 );
 

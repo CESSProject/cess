@@ -1,6 +1,6 @@
 use cess_node_runtime::{
 	AccountId, AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, Balance, CouncilConfig,
-	EVMConfig, EthereumConfig, GenesisConfig, GrandpaConfig, Block
+	EVMConfig, EthereumConfig, GenesisConfig, GrandpaConfig, Block,
 	ImOnlineConfig, SessionConfig, Signature, StakingConfig, SessionKeys, SudoConfig, StakerStatus,
 	SystemConfig, TechnicalCommitteeConfig, wasm_binary_unwrap, MaxNominations, DOLLARS
 };
