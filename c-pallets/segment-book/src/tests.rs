@@ -17,151 +17,130 @@
 
 // //! Tests for the module.
 
-// use super::*;
-// use frame_support::{assert_ok, assert_noop};
-// use mock::{
-// 	new_test_ext, Origin, SegmentBook,
-// };
-// use frame_benchmarking::account;
-// use crate::mock::Sminer;
-// use crate::{Error, mock::*};
+use super::*;
+use frame_support::{assert_ok, assert_noop};
+use frame_benchmarking::account;
+use crate::{mock::*, Event, Error, mock::System as Sys};
 
-// #[test]
-// fn vpa_vpb_works() {
-// 	new_test_ext().execute_with(|| {
-// 		assert_ok!(Sminer::initi(Origin::root()));
-// 		assert_ok!(Sminer::regnstk(Origin::signed(1),account("source", 0, 0),0,0,0,0));
-// 		assert_ok!(SegmentBook::intent_submit(Origin::signed(1),1,1,1,vec![vec![5]],vec![6],vec![7]));	
-// 		assert_ok!(SegmentBook::submit_to_vpa(Origin::signed(1),1,1,vec![4],vec![5]));	
-// 		assert_ok!(SegmentBook::verify_in_vpa(Origin::signed(1),1,1,true));	
-// 	});
-// }
+fn to_bounded_vec<T>(v: Vec<T>) -> BoundedVec<T, StringLimit> {
+    let bv: BoundedVec<T, StringLimit> = v.try_into().unwrap();
+    bv
+}
 
-// #[test]
-// fn vpc_vpd_works() {
-// 	new_test_ext().execute_with(|| {
-// 		assert_ok!(Sminer::initi(Origin::root()));
-// 		assert_ok!(Sminer::regnstk(Origin::signed(1),account("source", 0, 0),0,0,0,0));
-// 		assert_ok!(SegmentBook::intent_submit(Origin::signed(1),1,2,1,vec![vec![5]],vec![6],vec![7]));	
-// 		assert_ok!(SegmentBook::submit_to_vpc(Origin::signed(1),1,1,vec![vec![4]],vec![vec![5]]));	
-// 		assert_ok!(SegmentBook::verify_in_vpc(Origin::signed(1),1,1,vec![vec![4]],true));	
-// 	});
-// }
+fn to_bounded_vec2<T: Clone>(vv: Vec<Vec<T>>) -> BoundedVec<BoundedVec<T, StringLimit>, StringLimit> {
+    let mut r: BoundedVec<BoundedVec<T, StringLimit>, StringLimit> = Vec::new().try_into().unwrap();
+    // let mut t = &r;
+    // vv.iter().map(|v| {
+    //     t.push(to_bounded_vec::<T>(v.to_vec()))
+    // });
+    for v in vv {
+        r.try_push(v.try_into().unwrap()).unwrap();
+    }
+    r
+}
 
-// #[test]
-// fn size_type_error_works() {
-// 	new_test_ext().execute_with(|| {
-// 		assert_ok!(Sminer::initi(Origin::root()));
-// 		assert_ok!(Sminer::regnstk(Origin::signed(1),account("source", 0, 0),0,0,0,0));
+#[test]
+fn submit_challenge_prove_works() {
+    new_test_ext().execute_with(|| {
+        let miner_id = 1_u64;
+        let file_id = vec![1_u8];
+        let mu = vec![vec![2_u8]];
+        let sigma = vec![1_u8];
 
-//         assert_noop!(
-//             SegmentBook::intent_submit(Origin::signed(1),3,1,1,vec![vec![5]],vec![6],vec![7]),
-//             Error::<Test>::SizeTypeError
-//         );
-// 	});
-// }
+        assert_noop!(SegmentBook::submit_challenge_prove(Origin::signed(ACCOUNT1.0), miner_id, file_id.clone(), mu.clone(), sigma.clone()), Error::<Test>::NoChallenge);
+        assert_ok!(ChallengeMap::<Test>::try_mutate(miner_id, |value| -> DispatchResult {
+            let challenge_info = ChallengeInfo::<Test>{
+                file_type: 1,
+                file_id: to_bounded_vec(file_id.clone()),
+                file_size: 1024,
+                segment_size: 256,
+                block_list: to_bounded_vec(vec![1_u32]),
+                random: to_bounded_vec2(vec![vec![1,3],vec![4,5]]),
+            };
+            value.try_push(challenge_info).map_err(|_| Error::<Test>::BoundedVecError)?;
+            Ok(())
+        }));
 
-// #[test]
-// fn submit_type_error_works() {
-// 	new_test_ext().execute_with(|| {
-// 		assert_ok!(Sminer::initi(Origin::root()));
-// 		assert_ok!(Sminer::regnstk(Origin::signed(1),account("source", 0, 0),0,0,0,0));
+        assert_ok!(SegmentBook::submit_challenge_prove(Origin::signed(ACCOUNT1.0), miner_id, file_id, mu, sigma));
 
-//         assert_noop!(
-//             SegmentBook::intent_submit(Origin::signed(1),1,3,1,vec![vec![5]],vec![6],vec![7]),
-//             Error::<Test>::SubmitTypeError
-//         );
-// 	});
-// }
+        assert!(UnVerifyProof::<Test>::contains_key(&ACCOUNT1.0));
+        let prove_info = UnVerifyProof::<Test>::try_get(ACCOUNT1.0).unwrap().pop().unwrap();
+        assert_eq!(miner_id, prove_info.miner_id);
+        assert_eq!(0, ChallengeMap::<Test>::try_get(miner_id).unwrap().len());
 
-// #[test]
-// fn no_intent_submit_yet_works() {
-// 	new_test_ext().execute_with(|| {
-// 		assert_ok!(Sminer::initi(Origin::root()));
-// 		assert_ok!(Sminer::regnstk(Origin::signed(1),account("source", 0, 0),0,0,0,0));
-	
-//         assert_noop!(
-//             SegmentBook::submit_to_vpa(Origin::signed(1),1,1,vec![4],vec![5]),
-//             Error::<Test>::NoIntentSubmitYet
-//         );
-// 		assert_noop!(
-//             SegmentBook::submit_to_vpb(Origin::signed(1),1,1,vec![4],vec![5]),
-//             Error::<Test>::NoIntentSubmitYet
-//         );
-// 		assert_noop!(
-// 			SegmentBook::submit_to_vpc(Origin::signed(1),1,1,vec![vec![4]],vec![vec![5]]),
-//             Error::<Test>::NoIntentSubmitYet
-//         );
-// 		assert_noop!(
-//             SegmentBook::submit_to_vpd(Origin::signed(1),1,1,vec![vec![4]],vec![vec![5]]),
-//             Error::<Test>::NoIntentSubmitYet
-//         );
-// 	});
-// }
+        let event = Sys::events().pop().expect("Expected at least one ChallengeProof to be found").event;
+        assert_eq!(mock::Event::from(Event::ChallengeProof { peer_id: miner_id }), event);
+    });
+}
 
-// #[test]
-// fn not_exist_in_vpa_works() {
-// 	new_test_ext().execute_with(|| {
-// 		assert_ok!(Sminer::initi(Origin::root()));
-// 		assert_ok!(Sminer::regnstk(Origin::signed(1),account("source", 0, 0),0,0,0,0));
-	
-//         assert_noop!(
-//             SegmentBook::verify_in_vpa(Origin::signed(1),1,1,true),
-//             Error::<Test>::NotExistInVPA
-//         );
-// 	});
-// }
+#[test]
+fn verify_proof_works() {
+    new_test_ext().execute_with(|| {
+        let miner_id = 1_u64;
+        let file_id = vec![1_u8];
 
-// #[test]
-// fn not_exist_in_vpc_works() {
-// 	new_test_ext().execute_with(|| {
-// 		assert_ok!(Sminer::initi(Origin::root()));
-// 		assert_ok!(Sminer::regnstk(Origin::signed(1),account("source", 0, 0),0,0,0,0));
-	
-//         assert_noop!(
-//             SegmentBook::verify_in_vpc(Origin::signed(1),1,1,vec![vec![4]],true),
-//             Error::<Test>::NotExistInVPC
-//         );
-// 	});
-// }
+        assert_noop!(SegmentBook::verify_proof(Origin::signed(ACCOUNT1.0), miner_id, file_id.clone(), true), Error::<Test>::NonProof);
 
-// #[test]
-// fn not_exist_in_vpd_works() {
-// 	new_test_ext().execute_with(|| {
-// 		assert_ok!(Sminer::initi(Origin::root()));
-// 		assert_ok!(Sminer::regnstk(Origin::signed(1),account("source", 0, 0),0,0,0,0));
-	
-//         assert_noop!(
-//             SegmentBook::verify_in_vpd(Origin::signed(1),1,1,true),
-//             Error::<Test>::NotExistInVPD
-//         );
-// 	});
-// }
+        let challenge_info = ChallengeInfo::<Test> {
+            file_type: 1,
+            file_id: to_bounded_vec(file_id.clone()),
+            file_size: 1024,
+            segment_size: 256,
+            block_list: to_bounded_vec(vec![10_u32]),
+            random: to_bounded_vec2(vec![vec![10, 3], vec![4, 5]]),
+        };
 
-// #[test]
-// fn not_ready_in_vpa_works() {
-// 	new_test_ext().execute_with(|| {
-// 		assert_ok!(Sminer::initi(Origin::root()));
-// 		assert_ok!(Sminer::regnstk(Origin::signed(1),account("source", 0, 0),0,0,0,0));
-// 		assert_ok!(SegmentBook::intent_submit(Origin::signed(1),1,1,1,vec![vec![5]],vec![6],vec![7]));	
-		
-//         assert_noop!(
-//             SegmentBook::verify_in_vpa(Origin::signed(1),1,1,true),
-//             Error::<Test>::NotReadyInVPA
-//         );
-// 	});
-// }
+        assert_ok!(UnVerifyProof::<Test>::try_mutate(ACCOUNT1.0, |value| -> DispatchResult {
+            value.try_push(ProveInfo {
+                miner_id,
+                challenge_info,
+                mu: to_bounded_vec2(vec![vec![1, 3], vec![4, 5]]),
+                sigma: to_bounded_vec(vec![1]),
+            }).map_err(|_| Error::<Test>::BoundedVecError)?;
+            Ok(())
+        }));
 
-// #[test]
-// fn not_ready_in_vpc_works() {
-// 	new_test_ext().execute_with(|| {
-// 		assert_ok!(Sminer::initi(Origin::root()));
-// 		assert_ok!(Sminer::regnstk(Origin::signed(1),account("source", 0, 0),0,0,0,0));
-// 		assert_ok!(SegmentBook::intent_submit(Origin::signed(1),1,2,1,vec![vec![5]],vec![6],vec![7]));	
-		
-//         assert_noop!(
-//             SegmentBook::verify_in_vpc(Origin::signed(1),1,1,vec![vec![4]],true),
-//             Error::<Test>::NotReadyInVPC
-//         );
-// 	});
-// }
+        assert_ok!(SegmentBook::verify_proof(Origin::signed(ACCOUNT1.0), miner_id, file_id, true));
+        assert_eq!(0, UnVerifyProof::<Test>::try_get(ACCOUNT1.0).unwrap().len());
+
+        let event = Sys::events().pop().expect("Expected at least one VerifyProof to be found").event;
+        assert_eq!(mock::Event::from(Event::VerifyProof { peer_id: miner_id }), event);
+    });
+}
+
+#[test]
+fn verify_proof_on_punish() {
+    new_test_ext().execute_with(|| {
+        let beneficiary = account::<mock::AccountId>("beneficiary", 0, 0);
+        let stake_amount: u128 = 2000;
+        let ip: Vec<u8> = Vec::from("192.168.0.1");
+        assert_ok!(Sminer::regnstk(Origin::signed(ACCOUNT1.0), beneficiary, ip.clone(), stake_amount, Vec::from("public_key")));
+        let miner_id = Sminer::get_peerid(&ACCOUNT1.0);
+        assert_ok!(Sminer::add_power(miner_id, 10_000));
+        let file_id = vec![1_u8];
+        let mu = vec![vec![2_u8]];
+        let sigma = vec![1_u8];
+        let challenge_info = ChallengeInfo::<Test> {
+            file_type: 1,
+            file_id: to_bounded_vec(file_id.clone()),
+            file_size: 1024,
+            segment_size: 256,
+            block_list: to_bounded_vec(vec![10_u32]),
+            random: to_bounded_vec2(vec![vec![10, 5], vec![4, 5]]),
+        };
+
+        assert_ok!(ChallengeMap::<Test>::try_mutate(miner_id, |value| -> DispatchResult {
+            value.try_push(challenge_info.clone()).map_err(|_| Error::<Test>::BoundedVecError)?;
+            Ok(())
+        }));
+
+        assert_ok!(SegmentBook::submit_challenge_prove(Origin::signed(ACCOUNT1.0), miner_id, file_id.clone(), mu, sigma));
+
+        //FIXME! the punish action is hard to test now, as it's depend concrete pallet: sminer. Suggest doing this use Trait instead.
+        assert_ok!(SegmentBook::verify_proof(Origin::signed(ACCOUNT1.0), miner_id, file_id.clone(), false));  // the last parameter indicate whether punish
+        assert_eq!(0, UnVerifyProof::<Test>::try_get(ACCOUNT1.0).unwrap().len());
+
+        let event = Sys::events().pop().expect("Expected at least one VerifyProof to be found").event;
+        assert_eq!(mock::Event::from(Event::VerifyProof { peer_id: miner_id }), event);
+    });
+}

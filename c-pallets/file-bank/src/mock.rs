@@ -191,33 +191,33 @@ parameter_types! {
 pub struct MockingMinerControl;
 
 impl pallet_sminer::MinerControl for MockingMinerControl {
-    fn add_power(peer_id: u64, power: u128) -> DispatchResult {
-		Ok(())
-	}
+    fn add_power(_peer_id: u64, _power: u128) -> DispatchResult {
+        todo!()
+    }
 
-	fn sub_power(peer_id: u64, power: u128) -> DispatchResult {
-		Ok(())
-	}
+    fn sub_power(_peer_id: u64, _power: u128) -> DispatchResult {
+        todo!()
+    }
 
-	fn add_space(peer_id: u64, power: u128) -> DispatchResult {
-		Ok(())
-	}
+    fn add_space(_peer_id: u64, _power: u128) -> DispatchResult {
+        todo!()
+    }
 
-	fn sub_space(peer_id: u64, power: u128) -> DispatchResult {
-		Ok(())
-	}
+    fn sub_space(_peer_id: u64, _power: u128) -> DispatchResult {
+        todo!()
+    }
 
-	fn punish_miner(peer_id: u64, file_size: u64) -> DispatchResult {
-		Ok(())
-	}
+    fn get_power_and_space(_peer_id: u64) -> Result<(u128, u128), DispatchError> {
+        todo!()
+    }
 
-	fn get_power_and_space(peer_id: u64) -> Result<(u128, u128), DispatchError> {
-		Ok((1, 1))
-	}
+    fn punish_miner(_peer_id: u64, _file_size: u64) -> DispatchResult {
+        todo!()
+    }
 
     fn miner_is_exist(peer_id: u64) -> bool {
-		true
-	}
+        todo!()
+    }
 }
 
 pub struct MockingScheduleFind;
@@ -233,6 +233,7 @@ impl Config for Test {
     type Currency = Balances;
     type WeightInfo = ();
     type Call = Call;
+    type FindAuthor = ();
     type AuthorityId = file_bank::crypto::TestAuthId;
     type Scheduler = MockingScheduleFind;
     type FindAuthor = ();
