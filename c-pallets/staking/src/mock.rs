@@ -256,15 +256,15 @@ impl onchain::ExecutionConfig for OnChainSeqPhragmen {
 
 impl crate::pallet::pallet::Config for Test {
 	const ERAS_PER_YEAR: u64 = 8766;
-	const FIRST_YEAR_VALIDATOR_REWARDS: BalanceOf<Test> = 618_000_000;
-	const FIRST_YEAR_SMINER_REWARDS: BalanceOf<Test> = 309_000_000;
-	const REWARD_DECREASE_RATIO: Perbill = Perbill::from_perthousand(794);
-	type SminerRewardPool = ();
+	const FIRST_YEAR_VALIDATOR_REWARDS: BalanceOf<Test> = 238_500_000;
+	const FIRST_YEAR_SMINER_REWARDS: BalanceOf<Test> = 477_000_000;
+	const REWARD_DECREASE_RATIO: Perbill = Perbill::from_perthousand(841);
+	type SminerRewardPool = RewardRemainderMock;
 	type MaxNominations = MaxNominations;
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = frame_support::traits::SaturatingCurrencyToVote;
-	type RewardRemainder = RewardRemainderMock;
+	type RewardRemainder = ();
 	type Event = Event;
 	type Slash = ();
 	type Reward = ();
@@ -273,7 +273,7 @@ impl crate::pallet::pallet::Config for Test {
 	type SlashCancelOrigin = frame_system::EnsureRoot<Self::AccountId>;
 	type BondingDuration = BondingDuration;
 	type SessionInterface = Self;
-	type EraPayout = ConvertCurve<RewardCurve>;
+	type EraPayout = ();
 	type NextNewSession = Session;
 	type MaxNominatorRewardedPerValidator = ConstU32<64>;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
@@ -718,23 +718,28 @@ pub(crate) fn start_active_era(era_index: EraIndex) {
 	assert_eq!(current_era(), active_era());
 }
 
-pub(crate) fn current_total_payout_for_duration(duration: u64) -> Balance {
-	let (payout, _rest) = <Test as Config>::EraPayout::era_payout(
-		Staking::eras_total_stake(active_era()),
-		Balances::total_issuance(),
-		duration,
-	);
-	assert!(payout > 0);
-	payout
+pub(crate) fn current_total_payout_for_duration(_duration: u64) -> Balance {
+	// let (payout, _rest) = <Test as Config>::EraPayout::era_payout(
+	// 	Staking::eras_total_stake(active_era()),
+	// 	Balances::total_issuance(),
+	// 	duration,
+	// );
+	// assert!(payout > 0);
+	// payout
+	let (validator_payout, _sminer_payout) = Staking::rewards_in_era(active_era());
+	assert!(validator_payout > 0);
+	validator_payout
 }
 
-pub(crate) fn maximum_payout_for_duration(duration: u64) -> Balance {
-	let (payout, rest) = <Test as Config>::EraPayout::era_payout(
-		Staking::eras_total_stake(active_era()),
-		Balances::total_issuance(),
-		duration,
-	);
-	payout + rest
+pub(crate) fn maximum_payout_for_duration(_duration: u64) -> Balance {
+	// let (payout, rest) = <Test as Config>::EraPayout::era_payout(
+	// 	Staking::eras_total_stake(active_era()),
+	// 	Balances::total_issuance(),
+	// 	duration,
+	// );
+	// payout + rest
+	let (validator_payout, sminer_payout) = Staking::rewards_in_era(active_era());
+	validator_payout + sminer_payout
 }
 
 /// Time it takes to finish a session.
