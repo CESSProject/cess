@@ -133,7 +133,7 @@ The Staking module contains many public storage items and (im)mutable functions.
 ### Example: Rewarding a validator by id.
 
 ```rust
-use pallet_staking::{self as staking};
+use pallet_cess_staking::{self as staking};
 
 #[frame_support::pallet]
 pub mod pallet {
