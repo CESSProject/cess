@@ -302,7 +302,7 @@ impl frame_system::Config for Runtime {
 	type Hash = Hash;
 	type Hashing = BlakeTwo256;
 	type AccountId = AccountId;
-	type Lookup = AccountIdLookup<AccountId, ()>;
+	type Lookup = Indices;
 	type Header = generic::Header<BlockNumber, BlakeTwo256>;
 	type Event = Event;
 	type BlockHashCount = BlockHashCount;
@@ -968,8 +968,11 @@ where
 			})
 			.ok()?;
 		let signature = raw_payload.using_encoded(|payload| C::sign(payload, public))?;
+		let address = Indices::unlookup(account);
 		let (call, extra, _) = raw_payload.deconstruct();
-		Some((call, (sp_runtime::MultiAddress::Index(()), signature.into(), extra)))
+		Some((call, (address, signature.into(), extra)))
+		// let (call, extra, _) = raw_payload.deconstruct();
+		// Some((call, (sp_runtime::MultiAddress::Index(()), signature.into(), extra)))
 	}
 }
 
@@ -1082,6 +1085,26 @@ impl pallet_mmr::Config for Runtime {
 	type LeafData = frame_system::Pallet<Self>;
 	type OnNewRoot = ();
 	type WeightInfo = ();
+}
+
+impl pallet_asset_tx_payment::Config for Runtime {
+	type Fungibles = Assets;
+	type OnChargeAssetTransaction = pallet_asset_tx_payment::FungiblesAdapter<
+		pallet_assets::BalanceToAssetBalance<Balances, Runtime, ConvertInto>,
+		CreditToBlockAuthor,
+	>;
+}
+
+parameter_types! {
+	pub const IndexDeposit: Balance = 1 * DOLLARS;
+}
+
+impl pallet_indices::Config for Runtime {
+	type AccountIndex = AccountIndex;
+	type Currency = Balances;
+	type Deposit = IndexDeposit;
+	type Event = Event;
+	type WeightInfo = pallet_indices::weights::SubstrateWeight<Runtime>;
 }
 
 
@@ -1254,6 +1277,7 @@ construct_runtime!(
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		System: frame_system,
+		AssetTxPayment: pallet_asset_tx_payment,
 		RandomnessCollectiveFlip: pallet_randomness_collective_flip,
 		Timestamp: pallet_timestamp,
 		Babe: pallet_babe,
@@ -1285,6 +1309,7 @@ construct_runtime!(
 		Preimage: pallet_preimage,
 		Assets: pallet_assets,
 		Mmr: pallet_mmr,
+		Indices: pallet_indices,
 		Ethereum: pallet_ethereum,
 		EVM: pallet_evm,
 		DynamicFee: pallet_dynamic_fee,
@@ -1304,7 +1329,7 @@ mod mmr {
 pub type AccountIndex = u32;
 
 /// The address format for describing accounts.
-pub type Address = sp_runtime::MultiAddress<AccountId, ()>;
+pub type Address = sp_runtime::MultiAddress<AccountId, AccountIndex>;
 /// Block header type as expected by this runtime.
 pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 /// Block type as expected by this runtime.

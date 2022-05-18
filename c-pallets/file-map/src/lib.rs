@@ -213,7 +213,7 @@ pub mod pallet {
 pub trait ScheduleFind<AccountId>
 {
     fn contains_scheduler(acc: AccountId) -> bool;
-
+    fn get_controller_acc(acc: AccountId) -> AccountId;
 }
 
 impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<T>
@@ -225,5 +225,15 @@ impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<
             }
         }
         false
+    }
+
+    fn get_controller_acc(acc: <T as frame_system::Config>::AccountId) -> <T as frame_system::Config>::AccountId {
+        let scheduler_list = SchedulerMap::<T>::get();
+        for v in scheduler_list {
+            if v.stash_user == acc {
+                return v.controller_user;
+            }
+        }
+        acc
     }
 }

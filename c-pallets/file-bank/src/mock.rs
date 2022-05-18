@@ -191,13 +191,33 @@ parameter_types! {
 pub struct MockingMinerControl;
 
 impl pallet_sminer::MinerControl for MockingMinerControl {
-    fn add_temp_power(_peer_id: u64, _power: u128) -> DispatchResult {
-        Ok(())
-    }
+    fn add_power(peer_id: u64, power: u128) -> DispatchResult {
+		Ok(())
+	}
 
-    fn clear_temp_power(_peer_id: u64) -> DispatchResult {
-        Ok(())
-    }
+	fn sub_power(peer_id: u64, power: u128) -> DispatchResult {
+		Ok(())
+	}
+
+	fn add_space(peer_id: u64, power: u128) -> DispatchResult {
+		Ok(())
+	}
+
+	fn sub_space(peer_id: u64, power: u128) -> DispatchResult {
+		Ok(())
+	}
+
+	fn punish_miner(peer_id: u64, file_size: u64) -> DispatchResult {
+		Ok(())
+	}
+
+	fn get_power_and_space(peer_id: u64) -> Result<(u128, u128), DispatchError> {
+		Ok((1, 1))
+	}
+
+    fn miner_is_exist(peer_id: u64) -> bool {
+		true
+	}
 }
 
 pub struct MockingScheduleFind;
@@ -215,6 +235,7 @@ impl Config for Test {
     type Call = Call;
     type AuthorityId = file_bank::crypto::TestAuthId;
     type Scheduler = MockingScheduleFind;
+    type FindAuthor = ();
     type MinerControl = MockingMinerControl;
     type MyRandomness = TestRandomness<Self>;
     type FilbakPalletId = FilbakPalletId;
