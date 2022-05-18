@@ -226,6 +226,10 @@ impl<AccountId> pallet_file_map::ScheduleFind<AccountId> for MockingScheduleFind
     fn contains_scheduler(_acc: AccountId) -> bool {
         false
     }
+
+    fn get_controller_acc(acc: AccountId) -> AccountId {
+        acc
+    }
 }
 
 impl Config for Test {
@@ -236,7 +240,6 @@ impl Config for Test {
     type FindAuthor = ();
     type AuthorityId = file_bank::crypto::TestAuthId;
     type Scheduler = MockingScheduleFind;
-    type FindAuthor = ();
     type MinerControl = MockingMinerControl;
     type MyRandomness = TestRandomness<Self>;
     type FilbakPalletId = FilbakPalletId;

@@ -348,7 +348,7 @@ use frame_support::{
 						file_id: file_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
 						file_size: file_size,
 						segment_size: segment_size,
-						block_list: block_list.try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
+						block_list: Self::vec_to_bounded(block_list)?,
 						random: Self::vec_to_bounded(random)?,
 					};
 					//Push storage

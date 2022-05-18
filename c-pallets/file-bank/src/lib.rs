@@ -875,9 +875,9 @@ pub mod pallet {
 			Ok(response.body().collect::<Vec<u8>>())
 		}
 
-		pub fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<u32>, u64, u8, u32)>, DispatchError> {
+		pub fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<Vec<u8>>, u64, u8, u32)>, DispatchError> {
 			let filler_list = Self::get_random_filler()?;
-			let mut data: Vec<(u64, Vec<u8>, Vec<u32>, u64, u8, u32)> = Vec::new();
+			let mut data: Vec<(u64, Vec<u8>, Vec<Vec<u8>>, u64, u8, u32)> = Vec::new();
 			for v in filler_list {
 				let length = v.block_num;
 				let number_list = Self::get_random_numberlist(length)?;
@@ -885,10 +885,10 @@ pub mod pallet {
 				let filler_id = v.filler_id.clone().to_vec();
 				let file_size = v.filler_size.clone();
 				let segment_size = v.segment_size.clone();
-				let mut block_list:Vec<u32> = Vec::new();
+				let mut block_list:Vec<Vec<u8>> = Vec::new();
 				for i in number_list.iter() {
 					let filler_block = v.filler_block[*i as usize].clone();
-					block_list.push(filler_block.block_index);
+					block_list.push(filler_block.block_index.to_vec());
 				}
 				data.push((miner_id, filler_id, block_list, file_size, 1, segment_size));
 			}
@@ -901,10 +901,10 @@ pub mod pallet {
 				let file_id = v.dupl_id.clone().to_vec();
 				let file_size = size.clone();
 				let segment_size = v.segment_size.clone();
-				let mut block_list:Vec<u32> = Vec::new();
+				let mut block_list:Vec<Vec<u8>> = Vec::new();
 				for i in number_list.iter() {
 					let file_block = v.block_info[*i as usize].clone();
-					block_list.push(file_block.block_index);
+					block_list.push(file_block.block_index.to_vec());
 				}
 				data.push((miner_id, file_id, block_list, file_size, 2, segment_size));
 			}
@@ -1116,7 +1116,7 @@ pub mod pallet {
 
 pub trait RandomFileList {
 	//Get random challenge data
-	fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<u32>, u64, u8, u32)>, DispatchError>;
+	fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<Vec<u8>>, u64, u8, u32)>, DispatchError>;
 	//Delete filler file
 	fn delete_filler(miner: u64, filler_id: Vec<u8>) -> DispatchResult;
 	//Delete file backup
@@ -1128,7 +1128,7 @@ pub trait RandomFileList {
 }
 
 impl<T: Config> RandomFileList for Pallet<T> {
-	fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<u32>, u64, u8, u32)>, DispatchError> {
+	fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<Vec<u8>>, u64, u8, u32)>, DispatchError> {
 		let result = Pallet::<T>::get_random_challenge_data()?;
 		Ok(result)
 	}

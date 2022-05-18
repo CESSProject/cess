@@ -36,7 +36,7 @@ pub struct FileDuplicateInfo<T: pallet::Config> {
 	pub(super) miner_ip: BoundedVec<u8, T::StringLimit>,
 	pub(super) dupl_id: BoundedVec<u8, T::StringLimit>,
 	pub(super) rand_key: BoundedVec<u8, T::StringLimit>,
-	pub(super) block_info: BoundedVec<FileBlock, T::StringLimit>,
+	pub(super) block_info: BoundedVec<FileBlock<T>, T::StringLimit>,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
@@ -71,14 +71,15 @@ pub struct FillerInfo<T: pallet::Config> {
 	pub(super) block_num: u32,
 	pub(super) segment_size: u32,
 	pub(super) miner_address: AccountOf<T>,	
-	pub(super) filler_block: BoundedVec<FileBlock, T::StringLimit>,
+	pub(super) filler_block: BoundedVec<FileBlock<T>, T::StringLimit>,
 	pub(super) filler_id: BoundedVec<u8, T::StringLimit>,
 	pub(super) filler_hash: BoundedVec<u8, T::StringLimit>,
 }
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+#[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
-pub struct FileBlock {
-	pub(super) block_index: u32,
+pub struct FileBlock<T: pallet::Config> {
+	pub(super) block_index: BoundedVec<u8, T::StringLimit>,
 	pub(super) block_size: u32,
 }

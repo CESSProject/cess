@@ -151,12 +151,12 @@ parameter_types! {
 pub struct MockingRandomFileList;
 
 impl RandomFileList for MockingRandomFileList {
-    fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<u32>, u64, u8, u32)>, DispatchError> {
+    fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<Vec<u8>>, u64, u8, u32)>, DispatchError> {
         todo!()
     }
 
     fn delete_filler(_miner: u64, _filler_id: Vec<u8>) -> DispatchResult {
-        todo!()
+        Ok(())
     }
 
     fn delete_file_dupl(_dupl_id: Vec<u8>) -> DispatchResult {
@@ -168,7 +168,7 @@ impl RandomFileList for MockingRandomFileList {
     }
 
     fn add_invalid_file(_miner_id: u64, _file_id: Vec<u8>) -> DispatchResult {
-        todo!()
+        Ok(())
     }
 }
 
@@ -177,6 +177,10 @@ pub struct MockingScheduleFind;
 impl ScheduleFind<AccountId> for MockingScheduleFind {
     fn contains_scheduler(_acc: AccountId) -> bool {
         true
+    }
+
+    fn get_controller_acc(acc: AccountId) -> AccountId {
+        acc
     }
 }
 

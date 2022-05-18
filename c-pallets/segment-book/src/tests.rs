@@ -49,12 +49,13 @@ fn submit_challenge_prove_works() {
 
         assert_noop!(SegmentBook::submit_challenge_prove(Origin::signed(ACCOUNT1.0), miner_id, file_id.clone(), mu.clone(), sigma.clone()), Error::<Test>::NoChallenge);
         assert_ok!(ChallengeMap::<Test>::try_mutate(miner_id, |value| -> DispatchResult {
+            let list: Vec<u8> = vec![1];
             let challenge_info = ChallengeInfo::<Test>{
                 file_type: 1,
                 file_id: to_bounded_vec(file_id.clone()),
                 file_size: 1024,
                 segment_size: 256,
-                block_list: to_bounded_vec(vec![1_u32]),
+                block_list: to_bounded_vec2(vec![list]),
                 random: to_bounded_vec2(vec![vec![1,3],vec![4,5]]),
             };
             value.try_push(challenge_info).map_err(|_| Error::<Test>::BoundedVecError)?;
@@ -80,13 +81,12 @@ fn verify_proof_works() {
         let file_id = vec![1_u8];
 
         assert_noop!(SegmentBook::verify_proof(Origin::signed(ACCOUNT1.0), miner_id, file_id.clone(), true), Error::<Test>::NonProof);
-
         let challenge_info = ChallengeInfo::<Test> {
             file_type: 1,
             file_id: to_bounded_vec(file_id.clone()),
             file_size: 1024,
             segment_size: 256,
-            block_list: to_bounded_vec(vec![10_u32]),
+            block_list: to_bounded_vec2(vec![vec![10]]),
             random: to_bounded_vec2(vec![vec![10, 3], vec![4, 5]]),
         };
 
@@ -125,7 +125,7 @@ fn verify_proof_on_punish() {
             file_id: to_bounded_vec(file_id.clone()),
             file_size: 1024,
             segment_size: 256,
-            block_list: to_bounded_vec(vec![10_u32]),
+            block_list: to_bounded_vec2(vec![vec![10]]),
             random: to_bounded_vec2(vec![vec![10, 5], vec![4, 5]]),
         };
 
