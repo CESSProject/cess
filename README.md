@@ -88,15 +88,6 @@ Now you can launch node again:
 ./target/release/cess-node --base-path /tmp/cess --chain cess-testnet
 ```
 
-### Run in Docker
-
-Install [Docker](https://docs.docker.com/get-docker/) first, and run the following command to start a node on the cess-testnet:
-
-```
-docker pull cesslab/cess-testnet:0.3.0
-docker run -itd --name=cess --network=host cesslab/cess_testnet:0.3.0 && docker logs -f cess
-```
-
 ## Storage Mining
 
 CESS supports to obtain incentives by contributing idle storage with [storage mining tool](https://github.com/CESSProject/storage-mining-tool), and click [here](https://github.com/CESSProject/cess/tree/main/docs/designs-of-storage-mining.md) to learn more.
@@ -111,24 +102,13 @@ CESS has Rust unit tests, and can be run locally.
 cargo test --release
 ```
 
-## Run Tests with Benchmarks
-
-
-CESS has Rust unit tests with benckmarks also. Currently, testing this feature in docker is not supported. Please execute belows after clone this repo.
-
-```
-# Run unit tests with benchmarks
-cargo test -p pallet-sminer --features runtime-benchmarks
-cargo test -p pallet-segment-book --features runtime-benchmarks
-cargo test -p pallet-file-bank --features runtime-benchmarks
-```
-
 ## Module Documentation
 
 
 * [Files Bank](https://github.com/CESSProject/cess/tree/main/c-pallets/file-bank)
 * [Segment Book](https://github.com/CESSProject/cess/tree/main/c-pallets/segment-book)
 * [Sminer](https://github.com/CESSProject/cess/tree/main/c-pallets/sminer)
+* [File Map](https://github.com/CESSProject/cess/tree/main/c-pallets/file-map)
 
 ## Contribute
 
