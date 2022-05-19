@@ -57,7 +57,7 @@ use sp_runtime::{
 };
 use frame_system::{
 	offchain::{
-		AppCrypto, CreateSignedTransaction, SendSignedTransaction, Signer, 
+		AppCrypto, CreateSignedTransaction, SendSignedTransaction, Signer, SubmitTransaction,
 	},
 };
 pub use weights::WeightInfo;
@@ -88,6 +88,8 @@ pub mod pallet {
 		// const HTTP_REQUEST_STR: &str = "https://api.coincap.io/v2/assets/polkadot";
 	pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"demo");
 	const FETCH_TIMEOUT_PERIOD: u64 = 60_000; // in milli-seconds
+	//1MB converted byte size
+	const M_BYTE: u128 = 1_048_576;
 
 	pub mod crypto {
 		use super::KEY_TYPE;
@@ -112,6 +114,26 @@ pub mod pallet {
 			type RuntimeAppPublic = Public;
 			type GenericSignature = sp_core::sr25519::Signature;
 			type GenericPublic = sp_core::sr25519::Public;
+		}
+	}
+
+	#[pallet::validate_unsigned]
+	impl<T: Config> ValidateUnsigned for Pallet<T> {
+		type Call = Call<T>;
+
+		/// Validate unsigned call to this module.
+		///
+		/// By default unsigned transactions are disallowed, but implementing the validator
+		/// here we make sure that some particular calls (the ones produced by offchain worker)
+		/// are being whitelisted and marked as valid.
+		fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+			// Firstly let's check that we call the right function.
+			let block_number = <frame_system::Pallet<T>>::block_number();
+			if let Call::update_price { price: new_price } = call {
+				Self::validate_transaction_parameters(&block_number, new_price.to_vec())
+			} else {
+				InvalidTransaction::Call.into()
+			}
 		}
 	}
 
@@ -212,6 +234,8 @@ pub mod pallet {
 		HttpFetchingError,
 		//Signature error of offline working machine
 		OffchainSignedTxError,
+
+		OffchainUnSignedTxError,
 		//Signature error of offline working machine
 		NoLocalAcctForSigning,
 		//It is not an error message for scheduling operation
@@ -221,8 +245,14 @@ pub mod pallet {
 		//Error that the storage has reached the upper limit.
 		StorageLimitReached,
 		//The miner's calculation power is insufficient, resulting in an error that cannot be replaced
-		MinerPowerInsufficient
+		MinerPowerInsufficient,
+
+		IsZero,
 	}
+	#[pallet::storage]
+	#[pallet::getter(fn next_unsigned_at)]
+	pub(super) type NextUnsignedAt<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
+
 	#[pallet::storage]
 	#[pallet::getter(fn file)]
 	pub(super) type File<T: Config> = StorageMap<_, Twox64Concat, BoundedString<T>, FileInfo<T>>;
@@ -284,9 +314,10 @@ pub mod pallet {
 		//and the corresponding data segment will be removed
 		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
 			let number: u128 = now.saturated_into();
-			let block_oneday: BlockNumberOf<T> = (28800 as u32).into();
+			let block_oneday: BlockNumberOf<T> = T::OneDay::get();
+			let oneday: u128 = block_oneday.saturated_into();
 			let mut count: u8 = 0;
-			if number % 28800 == 0 {
+			if number % oneday == 0 {
 				for (key, value) in <UserSpaceList<T>>::iter() {
 					let mut k = 0;
 					let mut list = <UserSpaceList<T>>::get(&key);
@@ -296,9 +327,9 @@ pub mod pallet {
 							list.remove(k);
 							<UserHoldSpaceDetails<T>>::mutate(&key, |s_opt|{
 								let v = s_opt.as_mut().unwrap();
-								v.purchased_space = v.purchased_space - size * 1024;
-								if v.remaining_space > size * 1024 {
-									v.remaining_space = v.remaining_space - size * 1024;
+								v.purchased_space = v.purchased_space - size;
+								if v.remaining_space > size{
+									v.remaining_space = v.remaining_space - size;
 								}
 							});
 							let _ = pallet_sminer::Pallet::<T>::sub_purchased_space(size);
@@ -381,8 +412,8 @@ pub mod pallet {
 					i
 				);
 			}
-			T::MinerControl::add_power(miner_id.clone(), 8 * filler_list.len() as u128 )?;
-			Self::deposit_event(Event::<T>::FillerUpload{acc: sender, file_size: 8 * filler_list.len() as u64});
+			T::MinerControl::add_power(miner_id.clone(), M_BYTE * 8 * filler_list.len() as u128 )?;
+			Self::deposit_event(Event::<T>::FillerUpload{acc: sender, file_size: (M_BYTE * 8 * filler_list.len() as u128) as u64});
 			Ok(())
 
 		}
@@ -447,10 +478,12 @@ pub mod pallet {
 			if file.user_addr != sender.clone() {
 				Err(Error::<T>::NotOwner)?;
 			}
-
+			for v in file.file_dupl {
+				T::MinerControl::sub_space(v.miner_id, file.file_size.clone().into())?;
+			}
 			Self::update_user_space(sender.clone(), 2, file.file_size.into())?;
 			<File::<T>>::remove(&bounded_fileid);
-
+			
 			Self::deposit_event(Event::<T>::DeleteFile{acc: sender, fileid: fileid});
 			Ok(())
 		}
@@ -514,14 +547,14 @@ pub mod pallet {
 				.checked_div(3).ok_or(Error::<T>::Overflow)?;
 			//Increase the space purchased by users 
 			//and judge whether there is still space available for purchase
-			pallet_sminer::Pallet::<T>::add_purchased_space(space)?;
+			pallet_sminer::Pallet::<T>::add_purchased_space(space * M_BYTE)?;
 
 			let money: BalanceOf<T> = price.try_into().map_err(|_e| Error::<T>::ConversionError)?;
 			<T as pallet::Config>::Currency::transfer(&sender, &acc, money, AllowDeath)?;
 			let now = <frame_system::Pallet<T>>::block_number();
-			let deadline: BlockNumberOf<T> = ((864000 * lease_count) as u32).into();
+			let deadline: BlockNumberOf<T> = ((1200 * lease_count) as u32).into();
 			let list: SpaceInfo<T> = SpaceInfo::<T>{
-				size: space, 
+				size: space * M_BYTE, 
 				deadline: now + deadline,
 			};
 
@@ -529,8 +562,8 @@ pub mod pallet {
 				s.try_push(list).expect("Length exceeded");
 				Ok(())
 			})?;
-			//Convert MB to KB
-			Self::user_buy_space_update(sender.clone(), space * 1024)?;
+			//Convert MB to BYTE
+			Self::user_buy_space_update(sender.clone(), space * M_BYTE)?;
 
 			Self::deposit_event(Event::<T>::BuySpace{acc: sender.clone(), size: space, fee: money});
 			Ok(())
@@ -541,7 +574,7 @@ pub mod pallet {
 		pub fn receive_free_space(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!<UserFreeRecord<T>>::contains_key(&sender), Error::<T>::AlreadyReceive);
-			pallet_sminer::Pallet::<T>::add_purchased_space(1024)?;
+			pallet_sminer::Pallet::<T>::add_purchased_space(1024 * M_BYTE)?;
 			
 			let deadline: BlockNumberOf<T> = 999999999u32.into();
 			let list: SpaceInfo<T> = SpaceInfo::<T>{size: 1024, deadline};
@@ -551,7 +584,7 @@ pub mod pallet {
 				Ok(())
 			})?;
 
-			Self::user_buy_space_update(sender.clone(), 1024 * 1024)?;
+			Self::user_buy_space_update(sender.clone(), 1024 * M_BYTE)?;
 			<UserFreeRecord<T>>::insert(&sender, 1);
 			Ok(())
 		}
@@ -566,12 +599,12 @@ pub mod pallet {
 		}
 
 		//Update current storage unit price
-		#[pallet::weight(2_000_000)]
+		#[pallet::weight(0)]
 		pub fn update_price(
 			origin: OriginFor<T>,
 			price: Vec<u8>
 		) -> DispatchResult {
-			let _sender = ensure_signed(origin)?;
+			ensure_none(origin)?;
 			//Convert price of string type to balance
 			//Vec<u8> -> str
 			let str_price = str::from_utf8(&price).unwrap();
@@ -581,7 +614,7 @@ pub mod pallet {
 				.map_err(|_e| Error::<T>::ConversionError)?;
 			
 			//One third of the price
-			price_u128 = price_u128.checked_mul(3).ok_or(Error::<T>::Overflow)?;
+			price_u128 = price_u128.checked_div(3).ok_or(Error::<T>::Overflow)?;
 				
 			//Get the current price on the chain
 			let our_price = Self::get_price();
@@ -719,7 +752,6 @@ pub mod pallet {
 		}
 	
 		fn user_buy_space_update(acc: AccountOf<T>, size: u128) -> DispatchResult{
-			
 			if <UserHoldSpaceDetails<T>>::contains_key(&acc) {
 				<UserHoldSpaceDetails<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
 					let s = s_opt.as_mut().unwrap();
@@ -759,7 +791,7 @@ pub mod pallet {
 				//Calculation rules
 				//The price is based on 1024 / available space on the current chain
 				//Multiply by the base value 1 tcess * 1_000 (1_000_000_000_000 * 1_000)
-				let price: u128 = 1024 * 1_000_000_000_000 * 1000 / space ;
+				let price: u128 = M_BYTE * 1024 * 1_000_000_000_000 * 1000 / space ;
 				return price;
 			}
 			//If it is 0, an extra large price will be returned
@@ -797,31 +829,13 @@ pub mod pallet {
 	
 		//offchain helper
 		//Signature chaining method
-		fn offchain_signed_tx(block_number: T::BlockNumber, value: Vec<u8>) -> Result<(), Error<T>> {
-			// We retrieve a signer and check if it is valid.
-			//   Since this pallet only has one key in the keystore. We use `any_account()1 to
-			//   retrieve it. If there are multiple keys and we want to pinpoint it, `with_filter()` can be chained,
-			let signer = Signer::<T, T::AuthorityId>::any_account();
-			//Data not currently used
-			let _number: u64 = block_number.try_into().unwrap_or(0);
-			//Send signed transaction
-			//call update_price transaction
-			let result = signer.send_signed_transaction(|_acct| 
-				Call::update_price{price: value.clone()}
-			);
-	
-			// Display error if the signed tx fails.
-			if let Some((acc, res)) = result {
-				if res.is_err() {
-					log::error!("failure: offchain_signed_tx: tx sent: {:?}", acc.id);
-					Err(<Error<T>>::OffchainSignedTxError)?;
-				}
-	
-				return Ok(());
-			}
+		fn offchain_signed_tx(block_number: T::BlockNumber, price: Vec<u8>) -> Result<(), Error<T>> {
+			let call = Call::update_price{price: price};
 
-			log::error!("No local account available");
-			Err(<Error<T>>::NoLocalAcctForSigning)
+			SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into())
+			.map_err(|()| Error::<T>::OffchainUnSignedTxError)?;
+
+			Ok(())
 		}
 	
 		pub fn offchain_fetch_price(block_number: T::BlockNumber) -> Result<(), Error<T>> {
@@ -869,9 +883,57 @@ pub mod pallet {
 			Ok(response.body().collect::<Vec<u8>>())
 		}
 
-		pub fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<u32>, u64, u8, u32)>, DispatchError> {
+		fn validate_transaction_parameters(
+			block_number: &T::BlockNumber,
+			new_price: Vec<u8>,
+		) -> TransactionValidity {
+			// Now let's check if the transaction has any chance to succeed.
+			let next_unsigned_at = <NextUnsignedAt<T>>::get();
+			if &next_unsigned_at > block_number {
+				return InvalidTransaction::Stale.into()
+			}
+			// Let's make sure to reject transactions from the future.
+			let current_block = <frame_system::Pallet<T>>::block_number();
+			if &current_block < block_number {
+				return InvalidTransaction::Future.into()
+			}
+			let variable: u128 = current_block.saturated_into();
+			// We prioritize transactions that are more far away from current average.
+			//
+			// Note this doesn't make much sense when building an actual oracle, but this example
+			// is here mostly to show off offchain workers capabilities, not about building an
+			// oracle.
+			ValidTransaction::with_tag_prefix("ExampleOffchainWorker")
+				// We set base priority to 2**20 and hope it's included before any other
+				// transactions in the pool. Next we tweak the priority depending on how much
+				// it differs from the current average. (the more it differs the more priority it
+				// has).
+				.priority(5000 + variable as u64)
+				// This transaction does not require anything else to go before into the pool.
+				// In theory we could require `previous_unsigned_at` transaction to go first,
+				// but it's not necessary in our case.
+				//.and_requires()
+				// We set the `provides` tag to be the same as `next_unsigned_at`. This makes
+				// sure only one transaction produced after `next_unsigned_at` will ever
+				// get to the transaction pool and will end up in the block.
+				// We can still have multiple transactions compete for the same "spot",
+				// and the one with higher priority will replace other one in the pool.
+				.and_provides(next_unsigned_at)
+				// The transaction is only valid for next 5 blocks. After that it's
+				// going to be revalidated by the pool.
+				.longevity(5)
+				// It's fine to propagate that transaction to other peers, which means it can be
+				// created even by nodes that don't produce blocks.
+				// Note that sometimes it's better to keep it for yourself (if you are the block
+				// producer), since for instance in some schemes others may copy your solution and
+				// claim a reward.
+				.propagate(true)
+				.build()
+		}
+
+		pub fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<Vec<u8>>, u64, u8, u32)>, DispatchError> {
 			let filler_list = Self::get_random_filler()?;
-			let mut data: Vec<(u64, Vec<u8>, Vec<u32>, u64, u8, u32)> = Vec::new();
+			let mut data: Vec<(u64, Vec<u8>, Vec<Vec<u8>>, u64, u8, u32)> = Vec::new();
 			for v in filler_list {
 				let length = v.block_num;
 				let number_list = Self::get_random_numberlist(length)?;
@@ -879,10 +941,10 @@ pub mod pallet {
 				let filler_id = v.filler_id.clone().to_vec();
 				let file_size = v.filler_size.clone();
 				let segment_size = v.segment_size.clone();
-				let mut block_list:Vec<u32> = Vec::new();
+				let mut block_list:Vec<Vec<u8>> = Vec::new();
 				for i in number_list.iter() {
 					let filler_block = v.filler_block[*i as usize].clone();
-					block_list.push(filler_block.block_index);
+					block_list.push(filler_block.block_index.to_vec());
 				}
 				data.push((miner_id, filler_id, block_list, file_size, 1, segment_size));
 			}
@@ -895,10 +957,10 @@ pub mod pallet {
 				let file_id = v.dupl_id.clone().to_vec();
 				let file_size = size.clone();
 				let segment_size = v.segment_size.clone();
-				let mut block_list:Vec<u32> = Vec::new();
+				let mut block_list:Vec<Vec<u8>> = Vec::new();
 				for i in number_list.iter() {
 					let file_block = v.block_info[*i as usize].clone();
-					block_list.push(file_block.block_index);
+					block_list.push(file_block.block_index.to_vec());
 				}
 				data.push((miner_id, file_id, block_list, file_size, 2, segment_size));
 			}
@@ -945,13 +1007,17 @@ pub mod pallet {
 		}
 
 		fn get_random_numberlist(length: u32) -> Result<Vec<u32>, DispatchError> {		
-			let seed: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
+			let mut seed: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
+			if length == 0 {
+				return Ok(Vec::new());
+			}
 			let num: u32 = length
-				.checked_mul(1000).ok_or(Error::<T>::Overflow)?
-				.checked_div(46).ok_or(Error::<T>::Overflow)?
+				.checked_mul(46).ok_or(Error::<T>::Overflow)?
+				.checked_div(1000).ok_or(Error::<T>::Overflow)?
 				.checked_add(1).ok_or(Error::<T>::Overflow)?;			
 			let mut number_list: Vec<u32> = Vec::new();
 			loop {
+				seed = seed + 1;
 				if number_list.len() >= num as usize {
 					number_list.sort();
 					number_list.dedup();
@@ -960,6 +1026,7 @@ pub mod pallet {
 					}
 				}
 				let random = Self::generate_random_number(seed) % length;
+				log::info!("List addition: {}", random);
 				number_list.push(random);
 			}
 			Ok(number_list)
@@ -987,11 +1054,18 @@ pub mod pallet {
 
 		//Get random number
 		pub fn generate_random_number(seed: u32) -> u32 {
-			let (random_seed, _) = T::MyRandomness::random(&(T::FilbakPalletId::get(), seed).encode());
-			let random_number = <u32>::decode(&mut random_seed.as_ref())
-				.expect("secure hashes should always be bigger than u32; qed");
-			random_number
+			loop {
+				let (random_seed, _) = T::MyRandomness::random(&(T::FilbakPalletId::get(), seed).encode());
+				let random_number = <u32>::decode(&mut random_seed.as_ref())
+					.expect("secure hashes should always be bigger than u32; qed");
+				if random_number != 0 {
+					return random_number
+				}
+				
+			}
 		}
+
+		
 
 		//Specific implementation method of deleting filler file
 		pub fn delete_filler(miner_id: u64, filler_id: Vec<u8>) -> DispatchResult {
@@ -1058,14 +1132,15 @@ pub mod pallet {
 		fn get_current_scheduler() -> AccountOf<T> {
 			//Current block information
 			let digest = <frame_system::Pallet<T>>::digest();
-				let pre_runtime_digests = digest.logs.iter().filter_map(|d| d.as_pre_runtime());
-				let acc = T::FindAuthor::find_author(pre_runtime_digests).map(|a| {
-					a
-				});
-				acc.unwrap()
+			let pre_runtime_digests = digest.logs.iter().filter_map(|d| d.as_pre_runtime());
+			let acc = T::FindAuthor::find_author(pre_runtime_digests).map(|a| {
+				a
+			});
+			T::Scheduler::get_controller_acc(acc.unwrap())
 		}
 
-		//The file replacement method will increase the miner's space at the same time
+		//The file replacement method will increase the miner's space at the same time.
+		//Filesize represents the size of the file, in kilobytes.
 		fn replace_file(file_dupl: Vec<FileDuplicateInfo<T>>, file_size: u64) -> DispatchResult {
 			for v in file_dupl {
 				//add space
@@ -1076,7 +1151,7 @@ pub mod pallet {
 					Err(Error::<T>::MinerPowerInsufficient)?;
 				}
 				//How many files to replace, round up
-				let replace_num = file_size / 8 + 1;
+				let replace_num = (file_size as u128) / (8 * M_BYTE) + 1;
 				let mut counter = 0;
 				for (filler_id, _) in <FillerMap<T>>::iter_prefix(v.miner_id) {
 					if counter == replace_num {
@@ -1097,7 +1172,7 @@ pub mod pallet {
 
 pub trait RandomFileList {
 	//Get random challenge data
-	fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<u32>, u64, u8, u32)>, DispatchError>;
+	fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<Vec<u8>>, u64, u8, u32)>, DispatchError>;
 	//Delete filler file
 	fn delete_filler(miner: u64, filler_id: Vec<u8>) -> DispatchResult;
 	//Delete file backup
@@ -1109,7 +1184,7 @@ pub trait RandomFileList {
 }
 
 impl<T: Config> RandomFileList for Pallet<T> {
-	fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<u32>, u64, u8, u32)>, DispatchError> {
+	fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<Vec<u8>>, u64, u8, u32)>, DispatchError> {
 		let result = Pallet::<T>::get_random_challenge_data()?;
 		Ok(result)
 	}

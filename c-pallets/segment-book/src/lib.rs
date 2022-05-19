@@ -117,9 +117,9 @@ use frame_support::{
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		ChallengeProof{peer_id: u64},
+		ChallengeProof{peer_id: u64, file_id: Vec<u8>},
 
-		VerifyProof{peer_id: u64},
+		VerifyProof{peer_id: u64, file_id: Vec<u8>},
 	}
 
 	/// Error for the segment-book pallet.
@@ -175,20 +175,24 @@ use frame_support::{
 				//the miners who fail to complete the challenge will be punished
 				for (miner_id, challenge_list) in <ChallengeMap<T>>::iter() {
 					for v in challenge_list {
-						Self::punish(miner_id, v.file_id.to_vec(), v.file_size, v.file_type)
-							.expect("challenge failed and punish failed");
-						
+						if let Err(e) = Self::punish(miner_id, v.file_id.to_vec(), v.file_size, v.file_type) {
+							log::info!("punish Err:{:?}", e);
+						}
+						<ChallengeMap<T>>::remove(miner_id);
 					}
-					<ChallengeMap<T>>::remove(miner_id);
 				}
 			}
 			//The interval between challenges must be greater than one hour
 			if now > deadline {
 				//Determine whether to trigger a challenge
-				if Self::trigger_challenge() {
-					Self::generation_challenge().expect("generation challenge failed");
-					Self::record_challenge_time().expect("record time failed");
-				}
+				// if Self::trigger_challenge() {
+					if let Err(e) = Self::generation_challenge() {
+						log::info!("punish Err:{:?}", e);
+					}
+					if let Err(e) = Self::record_challenge_time() {
+						log::info!("punish Err:{:?}", e);
+					}
+				// }
 			}
 			0
 		}
@@ -196,8 +200,6 @@ use frame_support::{
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-
-
 		#[pallet::weight(10_000)]
 		pub fn submit_challenge_prove(
 			origin: OriginFor<T>, 
@@ -215,7 +217,7 @@ use frame_support::{
 				if v.file_id == file_id {
 					Self::storage_prove(acc, miner_id.clone(), v.clone(), mu.clone(), sigma.clone())?;
 					Self::clear_challenge_info(miner_id.clone(), file_id.clone())?;
-					Self::deposit_event(Event::<T>::ChallengeProof{peer_id: miner_id});
+					Self::deposit_event(Event::<T>::ChallengeProof{peer_id: miner_id, file_id: file_id});
 					return Ok(())
 				}
 			}
@@ -243,13 +245,12 @@ use frame_support::{
 					Self::clear_verify_proof(sender.clone(), miner_id.clone(), file_id.clone())?;
 					//If the result is false, a penalty will be imposed
 					if !result {
-						Self::punish(miner_id, file_id, value.challenge_info.file_size, value.challenge_info.file_type)?;
+						Self::punish(miner_id, file_id.clone(), value.challenge_info.file_size, value.challenge_info.file_type)?;
 					}
-					Self::deposit_event(Event::<T>::VerifyProof{peer_id: miner_id});
+					Self::deposit_event(Event::<T>::VerifyProof{peer_id: miner_id, file_id: file_id});
 					return Ok(())
 				}
 			}
-			
 			
 			Err(Error::<T>::NonProof)?
 		}
@@ -300,19 +301,20 @@ use frame_support::{
 		//Obtain the consensus of the current block
 		fn get_current_scheduler() -> AccountOf<T> {
 			let digest = <frame_system::Pallet<T>>::digest();
-				let pre_runtime_digests = digest.logs.iter().filter_map(|d| d.as_pre_runtime());
-				let acc = T::FindAuthor::find_author(pre_runtime_digests).map(|a| {
-					a
-				});
-				acc.unwrap()
+			let pre_runtime_digests = digest.logs.iter().filter_map(|d| d.as_pre_runtime());
+			let acc = T::FindAuthor::find_author(pre_runtime_digests).map(|a| {
+				a
+			});
+			T::Scheduler::get_controller_acc(acc.unwrap())
 		}
 	
 		//Record challenge time
 		fn record_challenge_time() -> DispatchResult {
 			let now = <frame_system::Pallet<T>>::block_number();
-			let one_hours = T::OneHours::get();
+			// let one_hours = T::OneHours::get();
+			let test: BlockNumberOf<T> = 600u32.try_into().map_err(|_e| Error::<T>::Overflow)?;
 			<ChallengeDuration<T>>::try_mutate(|o| -> DispatchResult {	
-				*o = now.checked_add(&one_hours).ok_or(Error::<T>::Overflow)?;
+				*o = now.checked_add(&test).ok_or(Error::<T>::Overflow)?;
 				Ok(())
 			})?;
 	
@@ -335,15 +337,17 @@ use frame_support::{
 		//Ways to generate challenges
 		fn generation_challenge() -> DispatchResult {
 			let result = T::File::get_random_challenge_data()?;
+			let mut x = 0;
 			for (miner_id, file_id, block_list, file_size, file_type, segment_size) in result {
-					let random = Self::generate_random_number(20220510, block_list.len() as u32);
+					x = x + 1;
+					let random = Self::generate_random_number(20220510 + x, block_list.len() as u32);
 					//Create a single challenge message in files
 					let challenge_info = ChallengeInfo::<T>{
 						file_type: file_type,
 						file_id: file_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
 						file_size: file_size,
 						segment_size: segment_size,
-						block_list: block_list.try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
+						block_list: Self::vec_to_bounded(block_list)?,
 						random: Self::vec_to_bounded(random)?,
 					};
 					//Push storage
@@ -367,7 +371,7 @@ use frame_support::{
 		//The number of pieces generated is VEC
 		fn generate_random_number(seed: u32, length: u32) -> Vec<Vec<u8>> {
 			let mut random_list: Vec<Vec<u8>> = Vec::new();
-			for _ in 1..length {
+			for _ in 0..length {
 				loop {
 					let (r_seed, _) = T::MyRandomness::random(&(T::MyPalletId::get(), seed).encode());
 					let random_seed = <H256>::decode(&mut r_seed.as_ref())
@@ -383,17 +387,21 @@ use frame_support::{
 		}
 
 		fn punish(miner_id: u64, file_id: Vec<u8>, file_size: u64, file_type: u8) -> DispatchResult {
+			if !T::MinerControl::miner_is_exist(miner_id) {
+				return Ok(());
+			}
 			match file_type {
 				1 =>  {
-					T::MinerControl::punish_miner(miner_id, file_size)?;
 					T::MinerControl::sub_power(miner_id, file_size.into())?;
 					T::File::add_invalid_file(miner_id, file_id.clone())?;
 					T::File::delete_filler(miner_id, file_id)?;
+					T::MinerControl::punish_miner(miner_id, file_size)?;
 				}
 				2 => {
-					T::MinerControl::punish_miner(miner_id, file_size)?;
+					T::MinerControl::sub_space(miner_id, file_size.into())?;
 					T::File::add_invalid_file(miner_id, file_id.clone())?;
 					T::File::add_recovery_file(file_id.clone())?;
+					T::MinerControl::punish_miner(miner_id, file_size)?;
 				}
 				_ => {
 					Err(Error::<T>::FileTypeError)?;

@@ -271,14 +271,12 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
 		pub fn regnstk(
 				origin: OriginFor<T>, 
-				beneficiary: <T::Lookup as StaticLookup>::Source, 
+				beneficiary: AccountOf<T>,
 				ip: Vec<u8>, 
-				#[pallet::compact] 
 				staking_val: BalanceOf<T>,
 				public_key: Vec<u8>,
 			) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			let beneficiary = T::Lookup::lookup(beneficiary)?;
 			ensure!(!(<MinerItems<T>>::contains_key(&sender)), Error::<T>::AlreadyRegistered);
 			T::Currency::reserve(&sender, staking_val.clone())?;
 			let value = BalanceOf::<T>::from(0 as u32);
@@ -1414,6 +1412,7 @@ pub trait MinerControl {
 	fn sub_space(peer_id: u64, power: u128) -> DispatchResult;
 	fn get_power_and_space(peer_id: u64) -> Result<(u128, u128), DispatchError>;
 	fn punish_miner(peer_id: u64, file_size: u64) -> DispatchResult;
+	fn miner_is_exist(peer_id: u64) -> bool;
 }
 
 impl<T: Config> MinerControl for Pallet<T> {
@@ -1449,5 +1448,12 @@ impl<T: Config> MinerControl for Pallet<T> {
 		}
 		let miner = <MinerDetails<T>>::get(peer_id).unwrap();
 		Ok((miner.power, miner.space))
+	}
+
+	fn miner_is_exist(peer_id: u64) -> bool {
+		if <MinerDetails<T>>::contains_key(peer_id) {
+			return true;
+		}
+		false
 	}
 }

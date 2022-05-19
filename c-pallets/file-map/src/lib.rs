@@ -132,6 +132,13 @@ pub mod pallet {
 
     #[pallet::call]
 	impl<T: Config> Pallet<T> {
+        #[pallet::weight(1_000_000)]
+        pub fn delete_scheduler(origin: OriginFor<T>) -> DispatchResult {
+            let sender = ensure_signed(origin)?;
+            let valid: BoundedVec<SchedulerInfo<T>, T::StringLimit> = Vec::new().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+            SchedulerMap::<T>::put(valid);
+            Ok(())
+        }
         //Scheduling registration method
         #[pallet::weight(1_000_000)]
         pub fn registration_scheduler(origin: OriginFor<T>, stash_account: AccountOf<T>, ip: Vec<u8>) -> DispatchResult {
@@ -206,7 +213,7 @@ pub mod pallet {
 pub trait ScheduleFind<AccountId>
 {
     fn contains_scheduler(acc: AccountId) -> bool;
-
+    fn get_controller_acc(acc: AccountId) -> AccountId;
 }
 
 impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<T>
@@ -218,5 +225,15 @@ impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<
             }
         }
         false
+    }
+
+    fn get_controller_acc(acc: <T as frame_system::Config>::AccountId) -> <T as frame_system::Config>::AccountId {
+        let scheduler_list = SchedulerMap::<T>::get();
+        for v in scheduler_list {
+            if v.stash_user == acc {
+                return v.controller_user;
+            }
+        }
+        acc
     }
 }

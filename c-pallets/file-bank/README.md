@@ -19,3 +19,8 @@ Contain operations related info of files on multi-direction.
 * `delete_file` - Delete file meta information.
 * `buy_space` - Buy storage.
 * `receive_free_space` - New users receive free 1GB of space.
+* `upload_filler` - File upload of filler type.
+* `update_price` - Modified pricing transactions.
+* `clear_invalid_file` - Feedback method after miners clear invalid files.
+* `recover_file` - Feedback method after scheduling and restoring files.
+

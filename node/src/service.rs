@@ -271,7 +271,7 @@ pub fn new_full_base(
 		sp_keystore::SyncCryptoStore::sr25519_generate_new(
 			&*keystore,
 			cess_node_runtime::pallet_file_bank::KEY_TYPE,
-			Some("//Alice"),
+			Some("0x9050cf30a2c3ba7b49ce4a5ea8db75dad0caf0d189f5ce417dedce82bc69ea55"),
 		).expect("Creating key with account Alice should succeed.");
 	}
 

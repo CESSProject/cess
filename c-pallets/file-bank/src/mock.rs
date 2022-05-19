@@ -214,6 +214,10 @@ impl pallet_sminer::MinerControl for MockingMinerControl {
     fn punish_miner(_peer_id: u64, _file_size: u64) -> DispatchResult {
         todo!()
     }
+
+    fn miner_is_exist(peer_id: u64) -> bool {
+        todo!()
+    }
 }
 
 pub struct MockingScheduleFind;
@@ -221,6 +225,10 @@ pub struct MockingScheduleFind;
 impl<AccountId> pallet_file_map::ScheduleFind<AccountId> for MockingScheduleFind {
     fn contains_scheduler(_acc: AccountId) -> bool {
         false
+    }
+
+    fn get_controller_acc(acc: AccountId) -> AccountId {
+        acc
     }
 }
 
