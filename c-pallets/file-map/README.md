@@ -10,9 +10,8 @@ Store scheduling related information
 ## Interface
 ScheduleFind
     A series of methods for finding consensus scheduling.  
-    
-    * `contains_scheduler` - Judge whether the controller account exists.
-    * `get_controller_acc` - Obtain controller account through stash account.
+ * `contains_scheduler` - Judge whether the controller account exists.
+ * `get_controller_acc` - Obtain controller account through stash account.
 ### Dispatchable Functions
 
 * `registration_scheduler` - The interface for scheduling registration has no special restrictions at present.
