@@ -71,7 +71,7 @@ fn buy_space_works() {
 
         let space_info = UserSpaceList::<Test>::try_get(acc1).unwrap().pop().unwrap();
         assert_eq!(space_gb * 1024 * 1_048_576, space_info.size); // MB unit
-        assert_eq!(864000 * lease_count + bn as u128, space_info.deadline as u128);
+        assert_eq!(1200 * lease_count + bn as u128, space_info.deadline as u128);
 
         let uhsd = UserHoldSpaceDetails::<Test>::try_get(acc1).unwrap();
         assert_eq!(space_gb * 1024 * 1_048_576, uhsd.purchased_space);  //KB unit
@@ -222,14 +222,14 @@ fn receive_free_space_works() {
     });
 }
 
-#[test]
-fn update_price_works() {
-    new_test_ext().execute_with(|| {
-        let acc1 = mock::account1();
-        assert_ok!(FileBank::update_price(Origin::signed(acc1), Vec::from("1000")));
-        assert_eq!(1000 / 3, UnitPrice::<Test>::try_get().unwrap());
-    });
-}
+// #[test]
+// fn update_price_works() {
+//     new_test_ext().execute_with(|| {
+//         let acc1 = mock::account1();
+//         assert_ok!(FileBank::update_price(Origin::signed(acc1), Vec::from("1000")));
+//         assert_eq!(1000 / 3, UnitPrice::<Test>::try_get().unwrap());
+//     });
+// }
 
 #[test]
 fn update_file_state_works() {

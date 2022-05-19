@@ -62,7 +62,7 @@ fn submit_challenge_prove_works() {
             Ok(())
         }));
 
-        assert_ok!(SegmentBook::submit_challenge_prove(Origin::signed(ACCOUNT1.0), miner_id, file_id, mu, sigma));
+        assert_ok!(SegmentBook::submit_challenge_prove(Origin::signed(ACCOUNT1.0), miner_id, file_id.clone(), mu, sigma));
 
         assert!(UnVerifyProof::<Test>::contains_key(&ACCOUNT1.0));
         let prove_info = UnVerifyProof::<Test>::try_get(ACCOUNT1.0).unwrap().pop().unwrap();
@@ -70,7 +70,7 @@ fn submit_challenge_prove_works() {
         assert_eq!(0, ChallengeMap::<Test>::try_get(miner_id).unwrap().len());
 
         let event = Sys::events().pop().expect("Expected at least one ChallengeProof to be found").event;
-        assert_eq!(mock::Event::from(Event::ChallengeProof { peer_id: miner_id }), event);
+        assert_eq!(mock::Event::from(Event::ChallengeProof { peer_id: miner_id, file_id: file_id }), event);
     });
 }
 
@@ -100,11 +100,11 @@ fn verify_proof_works() {
             Ok(())
         }));
 
-        assert_ok!(SegmentBook::verify_proof(Origin::signed(ACCOUNT1.0), miner_id, file_id, true));
+        assert_ok!(SegmentBook::verify_proof(Origin::signed(ACCOUNT1.0), miner_id, file_id.clone(), true));
         assert_eq!(0, UnVerifyProof::<Test>::try_get(ACCOUNT1.0).unwrap().len());
 
         let event = Sys::events().pop().expect("Expected at least one VerifyProof to be found").event;
-        assert_eq!(mock::Event::from(Event::VerifyProof { peer_id: miner_id }), event);
+        assert_eq!(mock::Event::from(Event::VerifyProof { peer_id: miner_id, file_id: file_id }), event);
     });
 }
 
@@ -141,6 +141,6 @@ fn verify_proof_on_punish() {
         assert_eq!(0, UnVerifyProof::<Test>::try_get(ACCOUNT1.0).unwrap().len());
 
         let event = Sys::events().pop().expect("Expected at least one VerifyProof to be found").event;
-        assert_eq!(mock::Event::from(Event::VerifyProof { peer_id: miner_id }), event);
+        assert_eq!(mock::Event::from(Event::VerifyProof { peer_id: miner_id, file_id: file_id }), event);
     });
 }

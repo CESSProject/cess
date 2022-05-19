@@ -117,9 +117,9 @@ use frame_support::{
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		ChallengeProof{peer_id: u64},
+		ChallengeProof{peer_id: u64, file_id: Vec<u8>},
 
-		VerifyProof{peer_id: u64},
+		VerifyProof{peer_id: u64, file_id: Vec<u8>},
 	}
 
 	/// Error for the segment-book pallet.
@@ -217,7 +217,7 @@ use frame_support::{
 				if v.file_id == file_id {
 					Self::storage_prove(acc, miner_id.clone(), v.clone(), mu.clone(), sigma.clone())?;
 					Self::clear_challenge_info(miner_id.clone(), file_id.clone())?;
-					Self::deposit_event(Event::<T>::ChallengeProof{peer_id: miner_id});
+					Self::deposit_event(Event::<T>::ChallengeProof{peer_id: miner_id, file_id: file_id});
 					return Ok(())
 				}
 			}
@@ -245,13 +245,12 @@ use frame_support::{
 					Self::clear_verify_proof(sender.clone(), miner_id.clone(), file_id.clone())?;
 					//If the result is false, a penalty will be imposed
 					if !result {
-						Self::punish(miner_id, file_id, value.challenge_info.file_size, value.challenge_info.file_type)?;
+						Self::punish(miner_id, file_id.clone(), value.challenge_info.file_size, value.challenge_info.file_type)?;
 					}
-					Self::deposit_event(Event::<T>::VerifyProof{peer_id: miner_id});
+					Self::deposit_event(Event::<T>::VerifyProof{peer_id: miner_id, file_id: file_id});
 					return Ok(())
 				}
 			}
-			
 			
 			Err(Error::<T>::NonProof)?
 		}

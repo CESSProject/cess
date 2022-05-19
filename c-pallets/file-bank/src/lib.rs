@@ -57,7 +57,7 @@ use sp_runtime::{
 };
 use frame_system::{
 	offchain::{
-		AppCrypto, CreateSignedTransaction, SendSignedTransaction, Signer, 
+		AppCrypto, CreateSignedTransaction, SendSignedTransaction, Signer, SubmitTransaction,
 	},
 };
 pub use weights::WeightInfo;
@@ -114,6 +114,26 @@ pub mod pallet {
 			type RuntimeAppPublic = Public;
 			type GenericSignature = sp_core::sr25519::Signature;
 			type GenericPublic = sp_core::sr25519::Public;
+		}
+	}
+
+	#[pallet::validate_unsigned]
+	impl<T: Config> ValidateUnsigned for Pallet<T> {
+		type Call = Call<T>;
+
+		/// Validate unsigned call to this module.
+		///
+		/// By default unsigned transactions are disallowed, but implementing the validator
+		/// here we make sure that some particular calls (the ones produced by offchain worker)
+		/// are being whitelisted and marked as valid.
+		fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+			// Firstly let's check that we call the right function.
+			let block_number = <frame_system::Pallet<T>>::block_number();
+			if let Call::update_price { price: new_price } = call {
+				Self::validate_transaction_parameters(&block_number, new_price.to_vec())
+			} else {
+				InvalidTransaction::Call.into()
+			}
 		}
 	}
 
@@ -214,6 +234,8 @@ pub mod pallet {
 		HttpFetchingError,
 		//Signature error of offline working machine
 		OffchainSignedTxError,
+
+		OffchainUnSignedTxError,
 		//Signature error of offline working machine
 		NoLocalAcctForSigning,
 		//It is not an error message for scheduling operation
@@ -227,6 +249,10 @@ pub mod pallet {
 
 		IsZero,
 	}
+	#[pallet::storage]
+	#[pallet::getter(fn next_unsigned_at)]
+	pub(super) type NextUnsignedAt<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
+
 	#[pallet::storage]
 	#[pallet::getter(fn file)]
 	pub(super) type File<T: Config> = StorageMap<_, Twox64Concat, BoundedString<T>, FileInfo<T>>;
@@ -526,7 +552,7 @@ pub mod pallet {
 			let money: BalanceOf<T> = price.try_into().map_err(|_e| Error::<T>::ConversionError)?;
 			<T as pallet::Config>::Currency::transfer(&sender, &acc, money, AllowDeath)?;
 			let now = <frame_system::Pallet<T>>::block_number();
-			let deadline: BlockNumberOf<T> = ((864000 * lease_count) as u32).into();
+			let deadline: BlockNumberOf<T> = ((1200 * lease_count) as u32).into();
 			let list: SpaceInfo<T> = SpaceInfo::<T>{
 				size: space * M_BYTE, 
 				deadline: now + deadline,
@@ -573,12 +599,12 @@ pub mod pallet {
 		}
 
 		//Update current storage unit price
-		#[pallet::weight(2_000_000)]
+		#[pallet::weight(0)]
 		pub fn update_price(
 			origin: OriginFor<T>,
 			price: Vec<u8>
 		) -> DispatchResult {
-			let _sender = ensure_signed(origin)?;
+			ensure_none(origin)?;
 			//Convert price of string type to balance
 			//Vec<u8> -> str
 			let str_price = str::from_utf8(&price).unwrap();
@@ -803,31 +829,13 @@ pub mod pallet {
 	
 		//offchain helper
 		//Signature chaining method
-		fn offchain_signed_tx(block_number: T::BlockNumber, value: Vec<u8>) -> Result<(), Error<T>> {
-			// We retrieve a signer and check if it is valid.
-			//   Since this pallet only has one key in the keystore. We use `any_account()1 to
-			//   retrieve it. If there are multiple keys and we want to pinpoint it, `with_filter()` can be chained,
-			let signer = Signer::<T, T::AuthorityId>::any_account();
-			//Data not currently used
-			let _number: u64 = block_number.try_into().unwrap_or(0);
-			//Send signed transaction
-			//call update_price transaction
-			let result = signer.send_signed_transaction(|_acct| 
-				Call::update_price{price: value.clone()}
-			);
-	
-			// Display error if the signed tx fails.
-			if let Some((acc, res)) = result {
-				if res.is_err() {
-					log::error!("failure: offchain_signed_tx: tx sent: {:?}", acc.id);
-					Err(<Error<T>>::OffchainSignedTxError)?;
-				}
-	
-				return Ok(());
-			}
+		fn offchain_signed_tx(block_number: T::BlockNumber, price: Vec<u8>) -> Result<(), Error<T>> {
+			let call = Call::update_price{price: price};
 
-			log::error!("No local account available");
-			Err(<Error<T>>::NoLocalAcctForSigning)
+			SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into())
+			.map_err(|()| Error::<T>::OffchainUnSignedTxError)?;
+
+			Ok(())
 		}
 	
 		pub fn offchain_fetch_price(block_number: T::BlockNumber) -> Result<(), Error<T>> {
@@ -873,6 +881,54 @@ pub mod pallet {
 			}
 					
 			Ok(response.body().collect::<Vec<u8>>())
+		}
+
+		fn validate_transaction_parameters(
+			block_number: &T::BlockNumber,
+			new_price: Vec<u8>,
+		) -> TransactionValidity {
+			// Now let's check if the transaction has any chance to succeed.
+			let next_unsigned_at = <NextUnsignedAt<T>>::get();
+			if &next_unsigned_at > block_number {
+				return InvalidTransaction::Stale.into()
+			}
+			// Let's make sure to reject transactions from the future.
+			let current_block = <frame_system::Pallet<T>>::block_number();
+			if &current_block < block_number {
+				return InvalidTransaction::Future.into()
+			}
+			let variable: u128 = current_block.saturated_into();
+			// We prioritize transactions that are more far away from current average.
+			//
+			// Note this doesn't make much sense when building an actual oracle, but this example
+			// is here mostly to show off offchain workers capabilities, not about building an
+			// oracle.
+			ValidTransaction::with_tag_prefix("ExampleOffchainWorker")
+				// We set base priority to 2**20 and hope it's included before any other
+				// transactions in the pool. Next we tweak the priority depending on how much
+				// it differs from the current average. (the more it differs the more priority it
+				// has).
+				.priority(5000 + variable as u64)
+				// This transaction does not require anything else to go before into the pool.
+				// In theory we could require `previous_unsigned_at` transaction to go first,
+				// but it's not necessary in our case.
+				//.and_requires()
+				// We set the `provides` tag to be the same as `next_unsigned_at`. This makes
+				// sure only one transaction produced after `next_unsigned_at` will ever
+				// get to the transaction pool and will end up in the block.
+				// We can still have multiple transactions compete for the same "spot",
+				// and the one with higher priority will replace other one in the pool.
+				.and_provides(next_unsigned_at)
+				// The transaction is only valid for next 5 blocks. After that it's
+				// going to be revalidated by the pool.
+				.longevity(5)
+				// It's fine to propagate that transaction to other peers, which means it can be
+				// created even by nodes that don't produce blocks.
+				// Note that sometimes it's better to keep it for yourself (if you are the block
+				// producer), since for instance in some schemes others may copy your solution and
+				// claim a reward.
+				.propagate(true)
+				.build()
 		}
 
 		pub fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<Vec<u8>>, u64, u8, u32)>, DispatchError> {
