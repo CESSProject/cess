@@ -20,6 +20,7 @@ branch = 'monthly-2022-04-cess'
 version = '3.0.0'
 
 [dependencies]
+serde_json = "1.0"
 jsonrpc-core = "18.0.0"
 jsonrpc-pubsub = "18.0.0"
 structopt = '0.3.8'

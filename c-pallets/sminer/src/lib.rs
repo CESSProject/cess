@@ -935,7 +935,7 @@ impl<T: Config> Pallet<T> {
 	pub fn add_power(peerid: u64, increment: u128) -> DispatchResult {
 		//check exist
 		if !<MinerDetails<T>>::contains_key(peerid) {
-			Err(Error::<T>::NotExisted)?;
+			return Ok(());
 		}
 
 		let acc = Self::get_acc(peerid)?;
@@ -993,7 +993,7 @@ impl<T: Config> Pallet<T> {
 	pub fn sub_power(peerid: u64, increment: u128) -> DispatchResult {
 		//check exist
 		if !<MinerDetails<T>>::contains_key(peerid) {
-			Err(Error::<T>::NotExisted)?;
+			return Ok(());
 		}
 
 		let acc = Self::get_acc(peerid)?;
@@ -1052,7 +1052,7 @@ impl<T: Config> Pallet<T> {
 	pub fn add_space(peerid: u64, increment: u128) -> DispatchResult {
 		//check exist
 		if !<MinerDetails<T>>::contains_key(peerid) {
-			Err(Error::<T>::NotExisted)?;
+			return Ok(());
 		}
 
 		let acc = Self::get_acc(peerid)?;
@@ -1107,7 +1107,7 @@ impl<T: Config> Pallet<T> {
 	pub fn sub_space(peerid: u64, increment: u128) -> DispatchResult {
 		//check exist
 		if !<MinerDetails<T>>::contains_key(peerid) {
-			Err(Error::<T>::NotExisted)?;
+			return Ok(());
 		}
 
 		let acc = Self::get_acc(peerid)?;
@@ -1160,11 +1160,11 @@ impl<T: Config> Pallet<T> {
 	/// - `aid`: aid.
 	pub fn punish(aid: AccountOf<T>, file_size: u128) -> DispatchResult {
 		if !<MinerItems<T>>::contains_key(&aid) {
-			Err(Error::<T>::NotMiner)?;
+			return Ok(());
 		}
 		let mr = MinerItems::<T>::get(&aid).unwrap();
 		let acc = T::PalletId::get().into_account();
-		let growth: u128 = file_size / 2;
+		let growth: u128 =  file_size / 1_048_576 / 2;
 		let punish_amount: BalanceOf<T> = 400_000_000_000_000u128
 			.checked_add(growth).ok_or(Error::<T>::Overflow)?
 			.try_into().map_err(|_e| Error::<T>::ConversionError)?;
@@ -1223,6 +1223,11 @@ impl<T: Config> Pallet<T> {
 
 		TotalSpace::<T>::try_mutate(|s| -> DispatchResult {
 			*s = s.checked_sub(miner.space).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})?;
+
+		AvailableSpace::<T>::try_mutate(|s| -> DispatchResult {
+			*s = s.checked_sub(miner.power).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})?;
 

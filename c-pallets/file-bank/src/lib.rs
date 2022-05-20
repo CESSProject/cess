@@ -317,7 +317,7 @@ pub mod pallet {
 			let block_oneday: BlockNumberOf<T> = T::OneDay::get();
 			let oneday: u128 = block_oneday.saturated_into();
 			let mut count: u8 = 0;
-			if number % oneday == 0 {
+			if number % 1200 == 0 {
 				for (key, value) in <UserSpaceList<T>>::iter() {
 					let mut k = 0;
 					let mut list = <UserSpaceList<T>>::get(&key);
@@ -473,7 +473,7 @@ pub mod pallet {
 		pub fn delete_file(origin: OriginFor<T>, fileid: Vec<u8>) -> DispatchResult{
 			let sender = ensure_signed(origin)?;
 			let bounded_fileid = Self::vec_to_bound::<u8>(fileid.clone())?;
-			ensure!((<File<T>>::contains_key(bounded_fileid.clone())), Error::<T>::FileNonExistent);
+			ensure!(<File<T>>::contains_key(bounded_fileid.clone()), Error::<T>::FileNonExistent);
 			let file = <File<T>>::get(&bounded_fileid).unwrap();
 			if file.user_addr != sender.clone() {
 				Err(Error::<T>::NotOwner)?;
