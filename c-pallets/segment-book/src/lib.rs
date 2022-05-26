@@ -120,6 +120,8 @@ use frame_support::{
 		ChallengeProof{peer_id: u64, file_id: Vec<u8>},
 
 		VerifyProof{peer_id: u64, file_id: Vec<u8>},
+
+		OutstandingChallenges{peer_id: u64, file_id: Vec<u8>},
 	}
 
 	/// Error for the segment-book pallet.
@@ -178,7 +180,9 @@ use frame_support::{
 						if let Err(e) = Self::punish(miner_id, v.file_id.to_vec(), v.file_size, v.file_type) {
 							log::info!("punish Err:{:?}", e);
 						}
-						<ChallengeMap<T>>::remove(miner_id);
+						log::info!("challenge draw a blank, miner_id:{:?}, file_id: {:?}", miner_id.clone(), v.file_id.to_vec());
+						<ChallengeMap<T>>::remove(miner_id.clone());
+						Self::deposit_event(Event::<T>::OutstandingChallenges{peer_id: miner_id, file_id: v.file_id.to_vec()});
 					}
 				}
 			}
@@ -200,7 +204,7 @@ use frame_support::{
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		#[pallet::weight(10_000)]
+		#[pallet::weight(1000)]
 		pub fn submit_challenge_prove(
 			origin: OriginFor<T>, 
 			miner_id: u64, 
@@ -225,7 +229,7 @@ use frame_support::{
 			Err(Error::<T>::NoChallenge)?
 		}
 
-		#[pallet::weight(9_700)]
+		#[pallet::weight(1000)]
 		pub fn verify_proof(
 			origin: OriginFor<T>, 
 			miner_id: u64, 
@@ -281,9 +285,9 @@ use frame_support::{
 		}
 	
 		//Clean up the verified certificate corresponding to the consensus
-		fn clear_verify_proof(acc: AccountOf<T>, miner_id: u64, file_id: Vec<u8>) -> DispatchResult {
+		fn clear_verify_proof(acc: AccountOf<T>, _miner_id: u64, file_id: Vec<u8>) -> DispatchResult {
 			<UnVerifyProof<T>>::try_mutate(&acc, |o| -> DispatchResult {
-				o.retain(|x| ((x.miner_id != miner_id)&&(x.challenge_info.file_id != file_id)));
+				o.retain(|x| (x.challenge_info.file_id != file_id));
 				Ok(())
 			})?;
 			Ok(())
@@ -399,6 +403,7 @@ use frame_support::{
 				}
 				2 => {
 					T::MinerControl::sub_space(miner_id, file_size.into())?;
+					T::MinerControl::sub_power(miner_id, file_size.into())?;
 					T::File::add_invalid_file(miner_id, file_id.clone())?;
 					T::File::add_recovery_file(file_id.clone())?;
 					T::MinerControl::punish_miner(miner_id, file_size)?;

@@ -10,21 +10,21 @@ pub struct FrontierPrecompiles<R>(PhantomData<R>);
 
 impl<R> FrontierPrecompiles<R>
 where
-	R: pallet_evm::Config,
+    R: pallet_evm::Config,
 {
-	pub fn new() -> Self {
-		Self(Default::default())
-	}
-	pub fn used_addresses() -> sp_std::vec::Vec<H160> {
-		sp_std::vec![1, 2, 3, 4, 5, 1024, 1025]
-			.into_iter()
-			.map(|x| hash(x))
-			.collect()
-	}
+    pub fn new() -> Self {
+        Self(Default::default())
+ 	}
+pub fn used_addresses() -> sp_std::vec::Vec<H160> {
+	sp_std::vec![1, 2, 3, 4, 5, 1024, 1025]
+		.into_iter()
+		.map(|x| hash(x))
+		.collect()
+}
 }
 impl<R> PrecompileSet for FrontierPrecompiles<R>
 where
-	R: pallet_evm::Config,
+    R: pallet_evm::Config,
 {
 	fn execute(
 		&self,

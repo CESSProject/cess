@@ -173,6 +173,9 @@ fn cess_testnet_config_genesis() -> GenesisConfig {
 		hex!["b4ac8b37a20935b0b390c61cd849ea533b060bb97e32b68801ec3b6220a8e131"].into(),
 		hex!["c4060f93e5bb97ed21491e90ff78268caa67ec84a5d3663ffd65332509fe0dd9"].into(),
 		hex!["2a66038471e6a62a2df2195efef9d25263858711337cf8dc31804f196bdb7840"].into(),
+		hex!["2ed4a2c67291bf3eaa4de538ab120ba21b302db5704551864226d2fae8f87937"].into(),
+		hex!["d0a9eef85d7762e89280b8fdfd4ce031530b95421214fcc28c554dbb4d9fe927"].into(),
+		hex!["5ce2722592557b41c2359fec3367f782703706784f193abc735b937abae71e30"].into(),
 	];
 
 	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts))
