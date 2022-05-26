@@ -1,7 +1,7 @@
 use cess_node_runtime::{
 	AccountId, AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, Balance, CouncilConfig,
 	EVMConfig, EthereumConfig, GenesisConfig, GrandpaConfig, Block, IndicesConfig,
-	ImOnlineConfig, SessionConfig, Signature, StakingConfig, SessionKeys, SudoConfig, StakerStatus,
+	ImOnlineConfig, SessionConfig, Signature, StakingConfig, opaque::SessionKeys, SudoConfig, StakerStatus,
 	SystemConfig, TechnicalCommitteeConfig, wasm_binary_unwrap, MaxNominations, DOLLARS
 };
 use sc_service::ChainType;
