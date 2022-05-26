@@ -478,7 +478,8 @@ pub mod pallet {
 				Err(Error::<T>::NotOwner)?;
 			}
 			for v in file.file_dupl {
-				T::MinerControl::sub_space(v.miner_id, (file.file_size.clone()  * file.backups as u64).into())?;
+				T::MinerControl::sub_space(v.miner_id, (file.file_size.clone()).into())?;
+				T::MinerControl::sub_power(v.miner_id, (file.file_size.clone()).into())?;
 			}
 			Self::update_user_space(sender.clone(), 2, (file.file_size.clone()  * file.backups as u64).into())?;
 			<File::<T>>::remove(&bounded_fileid);
@@ -742,8 +743,12 @@ pub mod pallet {
 				2 => {
 					<UserHoldSpaceDetails<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
 						let s = s_opt.as_mut().unwrap();
-						s.remaining_space = s.remaining_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
 						s.used_space = s.used_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
+						if s.purchased_space > s.used_space {
+							s.remaining_space = s.purchased_space.checked_sub(s.used_space).ok_or(Error::<T>::Overflow)?;
+						} else {
+							s.remaining_space = 0;
+						}
 						Ok(())
 					})?
 				}

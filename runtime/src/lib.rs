@@ -876,9 +876,9 @@ parameter_types! {
 parameter_types! {
 	pub const SegbkPalletId: PalletId = PalletId(*b"rewardpt");
 	#[derive(Clone, PartialEq, Eq)]
-	pub const StringLimit: u32 = 1024;
+	pub const StringLimit: u32 = 10240;
 	#[derive(Clone, PartialEq, Eq)]
-	pub const RandomLimit: u32 = 1024;
+	pub const RandomLimit: u32 = 10240;
 	pub const OneHours: BlockNumber = HOURS;
 }
 

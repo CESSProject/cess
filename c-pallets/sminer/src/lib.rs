@@ -1329,7 +1329,7 @@ impl<T: Config> Pallet<T> {
 		<MinerItems<T>>::get(&acc).unwrap().state.to_vec()
 	}
 
-	fn vec_to_bound<P>(param: Vec<P>) -> Result<BounAdedVec<P, T::ItemLimit>, DispatchError> {
+	fn vec_to_bound<P>(param: Vec<P>) -> Result<BoundedVec<P, T::ItemLimit>, DispatchError> {
 		let result: BoundedVec<P, T::ItemLimit> = param.try_into().expect("too long");
 		Ok(result)
 	}
