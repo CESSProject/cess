@@ -1,6 +1,6 @@
 use cess_node_runtime::{
 	AccountId, AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, Balance, CouncilConfig,
-	EVMConfig, EthereumConfig, GenesisConfig, GrandpaConfig, Block, IndicesConfig,
+	GenesisConfig, GrandpaConfig, Block, IndicesConfig,
 	ImOnlineConfig, SessionConfig, Signature, StakingConfig, SessionKeys, SudoConfig, StakerStatus,
 	SystemConfig, TechnicalCommitteeConfig, wasm_binary_unwrap, MaxNominations, DOLLARS
 };
@@ -8,7 +8,7 @@ use sc_service::ChainType;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
-use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public, H160, U256};
+use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public};
 use grandpa_primitives::AuthorityId as GrandpaId;
 use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
@@ -18,7 +18,6 @@ use hex_literal::hex;
 use serde::{Deserialize, Serialize};
 use sc_chain_spec::ChainSpecExtension;
 use sc_telemetry::TelemetryEndpoints;
-use std::{collections::BTreeMap, str::FromStr};
 
 
 // The URL for the telemetry server.
@@ -98,87 +97,85 @@ fn cess_testnet_config_genesis() -> GenesisConfig {
 		AuthorityDiscoveryId,
 	)> = vec![
 		(
-			// 5Fbsd6WXDGiLTxunqeK5BATNiocfCqu9bS1yArVjCgeBLkVy
-			hex!["9c7a2ee14e565db0c69f78c7b4cd839fbf52b607d867e9e9c5a79042898a0d12"].into(),
-			// 5EnCiV7wSHeNhjW3FSUwiJNkcc2SBkPLn5Nj93FmbLtBjQUq
-			hex!["781ead1e2fa9ccb74b44c19d29cb2a7a4b5be3972927ae98cd3877523976a276"].into(),
-			// 5Fb9ayurnxnaXj56CjmyQLBiadfRCqUbL2VWNbbe1nZU6wiC
-			hex!["9becad03e6dcac03cee07edebca5475314861492cdfc96a2144a67bbe9699332"]
+			// cXfg2SYcq85nyZ1U4ccx6QnAgSeLQB8aXZ2jstbw9CPGSmhXY
+			hex!["1ec940be673d3613e94c4d44e3f4621422c1a0778a53a34b2b45f3118f823c03"].into(),
+			// cXffK7BmstE5rXcK8pxKLufkffp9iASMntxUm6ctpR6xS3icV
+			hex!["1e3e1c69dfbd27d398e92da4844a9abdc2786ac01588d87a2e1f5ec06ea2a936"].into(),
+			// cXiHP2jLVk4iUrJdQVjBc2txoKjHANpomxcfHeCkKcxpesfDy
+			hex!["92389e795eef50e9af11c997f82d7bb809b0bb9a76f96b6fb29bd60b7a2cbef7"]
 				.unchecked_into(),
-			// 5EZaeQ8djPcq9pheJUhgerXQZt9YaHnMJpiHMRhwQeinqUW8
-			hex!["6e7e4eb42cbd2e0ab4cae8708ce5509580b8c04d11f6758dbf686d50fe9f9106"]
+			// cXfw8G7ThY48EqDMnQdZbwjmu69yELy3dMcuWyacG9snCMdPx
+			hex!["2a4d86b50b2d98c3bfb02c00f9731753b01f8151774544f4e78e11ef4bb1eb79"]
 				.unchecked_into(),
-			// 5EZaeQ8djPcq9pheJUhgerXQZt9YaHnMJpiHMRhwQeinqUW8
-			hex!["6e7e4eb42cbd2e0ab4cae8708ce5509580b8c04d11f6758dbf686d50fe9f9106"]
+			// cXfw8G7ThY48EqDMnQdZbwjmu69yELy3dMcuWyacG9snCMdPx
+			hex!["2a4d86b50b2d98c3bfb02c00f9731753b01f8151774544f4e78e11ef4bb1eb79"]
 				.unchecked_into(),
-			// 5EZaeQ8djPcq9pheJUhgerXQZt9YaHnMJpiHMRhwQeinqUW8
-			hex!["6e7e4eb42cbd2e0ab4cae8708ce5509580b8c04d11f6758dbf686d50fe9f9106"]
-				.unchecked_into(),
-		),
-		(
-			// 5ERawXCzCWkjVq3xz1W5KGNtVx2VdefvZ62Bw1FEuZW4Vny2
-			hex!["68655684472b743e456907b398d3a44c113f189e56d1bbfd55e889e295dfde78"].into(),
-			// 5Gc4vr42hH1uDZc93Nayk5G7i687bAQdHHc9unLuyeawHipF
-			hex!["c8dc79e36b29395413399edaec3e20fcca7205fb19776ed8ddb25d6f427ec40e"].into(),
-			// 5EockCXN6YkiNCDjpqqnbcqd4ad35nU4RmA1ikM4YeRN4WcE
-			hex!["7932cff431e748892fa48e10c63c17d30f80ca42e4de3921e641249cd7fa3c2f"]
-				.unchecked_into(),
-			// 5DhLtiaQd1L1LU9jaNeeu9HJkP6eyg3BwXA7iNMzKm7qqruQ
-			hex!["482dbd7297a39fa145c570552249c2ca9dd47e281f0c500c971b59c9dcdcd82e"]
-				.unchecked_into(),
-			// 5DhLtiaQd1L1LU9jaNeeu9HJkP6eyg3BwXA7iNMzKm7qqruQ
-			hex!["482dbd7297a39fa145c570552249c2ca9dd47e281f0c500c971b59c9dcdcd82e"]
-				.unchecked_into(),
-			// 5DhLtiaQd1L1LU9jaNeeu9HJkP6eyg3BwXA7iNMzKm7qqruQ
-			hex!["482dbd7297a39fa145c570552249c2ca9dd47e281f0c500c971b59c9dcdcd82e"]
+			// cXfw8G7ThY48EqDMnQdZbwjmu69yELy3dMcuWyacG9snCMdPx
+			hex!["2a4d86b50b2d98c3bfb02c00f9731753b01f8151774544f4e78e11ef4bb1eb79"]
 				.unchecked_into(),
 		),
 		(
-			// 5DyVtKWPidondEu8iHZgi6Ffv9yrJJ1NDNLom3X9cTDi98qp
-			hex!["547ff0ab649283a7ae01dbc2eb73932eba2fb09075e9485ff369082a2ff38d65"].into(),
-			// 5FeD54vGVNpFX3PndHPXJ2MDakc462vBCD5mgtWRnWYCpZU9
-			hex!["9e42241d7cd91d001773b0b616d523dd80e13c6c2cab860b1234ef1b9ffc1526"].into(),
-			// 5E1jLYfLdUQKrFrtqoKgFrRvxM3oQPMbf6DfcsrugZZ5Bn8d
-			hex!["5633b70b80a6c8bb16270f82cca6d56b27ed7b76c8fd5af2986a25a4788ce440"]
+			// cXiHpiCFn6xkypa2Q8SroghuME1hBtDDrJYEEAXLwkfy6y277
+			hex!["928f11288d2ba2a6c625fbf34366ea533566e6f6b85661d2ea6df4fb6158b14b"].into(),
+			// cXiKthh2dyY1taTydtdxiqQwXY1HKZcXvYGmjS2UmuPi2qNDS
+			hex!["9422fe68db986721051c6cd9841a6afc2c3edc6de3cd74c7b0e45f50b3d6c671"].into(),
+			// cXhWdqfECn1yMd9E6eKT6MD3NqyWGve8F1gLAvM9CAH4RH6LR
+			hex!["70186d841754d9f4225f922976682d580e58fce0cfd07696cb6d4324b1ede379"]
 				.unchecked_into(),
-			// 5DhKqkHRkndJu8vq7pi2Q5S3DfftWJHGxbEUNH43b46qNspH
-			hex!["482a3389a6cf42d8ed83888cfd920fec738ea30f97e44699ada7323f08c3380a"]
+			// cXfvtwoYtMD1Z8nZrK5JptFSdBAVyjQ1t2i6scvMLYK75ChrP
+			hex!["2a20b3a025722789f18ca7e459ec21d4f232b1a1d245272f14248d3cfa8b412a"]
 				.unchecked_into(),
-			// 5DhKqkHRkndJu8vq7pi2Q5S3DfftWJHGxbEUNH43b46qNspH
-			hex!["482a3389a6cf42d8ed83888cfd920fec738ea30f97e44699ada7323f08c3380a"]
+			// cXfvtwoYtMD1Z8nZrK5JptFSdBAVyjQ1t2i6scvMLYK75ChrP
+			hex!["2a20b3a025722789f18ca7e459ec21d4f232b1a1d245272f14248d3cfa8b412a"]
 				.unchecked_into(),
-			// 5DhKqkHRkndJu8vq7pi2Q5S3DfftWJHGxbEUNH43b46qNspH
-			hex!["482a3389a6cf42d8ed83888cfd920fec738ea30f97e44699ada7323f08c3380a"]
+			// cXfvtwoYtMD1Z8nZrK5JptFSdBAVyjQ1t2i6scvMLYK75ChrP
+			hex!["2a20b3a025722789f18ca7e459ec21d4f232b1a1d245272f14248d3cfa8b412a"]
 				.unchecked_into(),
 		),
 		(
-			// 5HYZnKWe5FVZQ33ZRJK1rG3WaLMztxWrrNDb1JRwaHHVWyP9
-			hex!["f26cdb14b5aec7b2789fd5ca80f979cef3761897ae1f37ffb3e154cbcc1c2663"].into(),
-			// 5EPQdAQ39WQNLCRjWsCk5jErsCitHiY5ZmjfWzzbXDoAoYbn
-			hex!["66bc1e5d275da50b72b15de072a2468a5ad414919ca9054d2695767cf650012f"].into(),
-			// 5DMa31Hd5u1dwoRKgC4uvqyrdK45RHv3CpwvpUC1EzuwDit4
-			hex!["3919132b851ef0fd2dae42a7e734fe547af5a6b809006100f48944d7fae8e8ef"]
+			// cXic3WhctsJ9cExmjE9vog49xaLuVbDLcFi2odeEnvV5Sbq4f
+			hex!["a0749440bc4322cc700bc3678d986f50d2fe91d9322a4a1b3046c3f1bd944940"].into(),
+			// cXj4Z6VmYHkD64xEadQCNgFUDaV4F4ibeupuU4ELJa8uWH7mw
+			hex!["b4ac8b37a20935b0b390c61cd849ea533b060bb97e32b68801ec3b6220a8e131"].into(),
+			// cXjQgQVu9Zuitzkb8oiTYTKt7QUm9jupKbzqVNVwPELwz26rT
+			hex!["c4060f93e5bb97ed21491e90ff78268caa67ec84a5d3663ffd65332509fe0dd9"]
 				.unchecked_into(),
-			// 5C4vDQxA8LTck2xJEy4Yg1hM9qjDt4LvTQaMo4Y8ne43aU6x
-			hex!["00299981a2b92f878baaf5dbeba5c18d4e70f2a1fcd9c61b32ea18daf38f4378"]
+			// cXfwFY2GaMueyyaSrjMRSQM48mLU7Z5JRmdB4FJE7weicJ7pu
+			hex!["2a66038471e6a62a2df2195efef9d25263858711337cf8dc31804f196bdb7840"]
 				.unchecked_into(),
-			// 5C4vDQxA8LTck2xJEy4Yg1hM9qjDt4LvTQaMo4Y8ne43aU6x
-			hex!["00299981a2b92f878baaf5dbeba5c18d4e70f2a1fcd9c61b32ea18daf38f4378"]
+			// cXfwFY2GaMueyyaSrjMRSQM48mLU7Z5JRmdB4FJE7weicJ7pu
+			hex!["2a66038471e6a62a2df2195efef9d25263858711337cf8dc31804f196bdb7840"]
 				.unchecked_into(),
-			// 5C4vDQxA8LTck2xJEy4Yg1hM9qjDt4LvTQaMo4Y8ne43aU6x
-			hex!["00299981a2b92f878baaf5dbeba5c18d4e70f2a1fcd9c61b32ea18daf38f4378"]
+			// cXfwFY2GaMueyyaSrjMRSQM48mLU7Z5JRmdB4FJE7weicJ7pu
+			hex!["2a66038471e6a62a2df2195efef9d25263858711337cf8dc31804f196bdb7840"]
 				.unchecked_into(),
 		),
 	];
 
 	// generated with secret: subkey inspect "$secret"/fir
 	let root_key: AccountId = hex![
-		// 5Ff3iXP75ruzroPWRP2FYBHWnmGGBSb63857BgnzCoXNxfPo
-		"9ee5e5bdc0ec239eb164f865ecc345ce4c88e76ee002e0f7e318097347471809"
+		// cXffK7BmstE5rXcK8pxKLufkffp9iASMntxUm6ctpR6xS3icV
+		"1e3e1c69dfbd27d398e92da4844a9abdc2786ac01588d87a2e1f5ec06ea2a936"
 	]
 	.into();
 
-	let endowed_accounts: Vec<AccountId> = vec![root_key.clone()];
+	let endowed_accounts: Vec<AccountId> = vec![
+		root_key.clone(),
+		hex!["1ec940be673d3613e94c4d44e3f4621422c1a0778a53a34b2b45f3118f823c03"].into(),
+		hex!["92389e795eef50e9af11c997f82d7bb809b0bb9a76f96b6fb29bd60b7a2cbef7"].into(),
+		hex!["2a4d86b50b2d98c3bfb02c00f9731753b01f8151774544f4e78e11ef4bb1eb79"].into(),
+		hex!["928f11288d2ba2a6c625fbf34366ea533566e6f6b85661d2ea6df4fb6158b14b"].into(),
+		hex!["9422fe68db986721051c6cd9841a6afc2c3edc6de3cd74c7b0e45f50b3d6c671"].into(),
+		hex!["70186d841754d9f4225f922976682d580e58fce0cfd07696cb6d4324b1ede379"].into(),
+		hex!["2a20b3a025722789f18ca7e459ec21d4f232b1a1d245272f14248d3cfa8b412a"].into(),
+		hex!["a0749440bc4322cc700bc3678d986f50d2fe91d9322a4a1b3046c3f1bd944940"].into(),
+		hex!["b4ac8b37a20935b0b390c61cd849ea533b060bb97e32b68801ec3b6220a8e131"].into(),
+		hex!["c4060f93e5bb97ed21491e90ff78268caa67ec84a5d3663ffd65332509fe0dd9"].into(),
+		hex!["2a66038471e6a62a2df2195efef9d25263858711337cf8dc31804f196bdb7840"].into(),
+		hex!["2ed4a2c67291bf3eaa4de538ab120ba21b302db5704551864226d2fae8f87937"].into(),
+		hex!["d0a9eef85d7762e89280b8fdfd4ce031530b95421214fcc28c554dbb4d9fe927"].into(),
+		hex!["5ce2722592557b41c2359fec3367f782703706784f193abc735b937abae71e30"].into(),
+	];
 
 	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts))
 }
@@ -192,9 +189,14 @@ pub fn cess_testnet_config() -> ChainSpec {
 		cess_testnet_config_genesis,
 		boot_nodes,
 		None,
+		Some("TCESS"),
 		None,
-		None,
-		None,
+		Some(
+			serde_json::from_str(
+				"{\"tokenDecimals\": 12, \"tokenSymbol\": \"TCESS\", \"SS58Prefix\": 11330}",
+			)
+			.expect("Provided valid json map"),
+		),
 		Default::default(),
 	)
 }
@@ -335,7 +337,7 @@ fn testnet_genesis(
 		system: SystemConfig { code: wasm_binary_unwrap().to_vec() },
 		balances: BalancesConfig {
 			// Configure endowed accounts with initial balance of 1 << 60.
-			balances: endowed_accounts.iter().cloned().map(|k| (k, 1 << 60)).collect(),
+			balances: endowed_accounts.iter().cloned().map(|k| (k, 1 << 65)).collect(),
 		},
 		indices: IndicesConfig { indices: vec![] },
 		session: SessionConfig {
@@ -352,7 +354,7 @@ fn testnet_genesis(
 		},
 		staking: StakingConfig {
 			validator_count: initial_authorities.len() as u32,
-			minimum_validator_count: initial_authorities.len() as u32,
+			minimum_validator_count: 1,
 			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
 			slash_reward_fraction: Perbill::from_percent(10),
 			stakers,
@@ -382,42 +384,5 @@ fn testnet_genesis(
 		},
 		assets: Default::default(),
 		transaction_payment: Default::default(),
-		evm: EVMConfig {
-			accounts: {
-				let mut map = BTreeMap::new();
-				map.insert(
-					// H160 address of Alice dev account
-					// Derived from SS58 (42 prefix) address
-					// SS58: 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
-					// hex: 0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d
-					// Using the full hex key, truncating to the first 20 bytes (the first 40 hex chars)
-					H160::from_str("d43593c715fdd31c61141abd04a99fd6822c8558")
-						.expect("internal H160 is valid; qed"),
-					fp_evm::GenesisAccount {
-						balance: U256::from_str("0xffffffffffffffffffffffffffffffff")
-							.expect("internal U256 is valid; qed"),
-						code: Default::default(),
-						nonce: Default::default(),
-						storage: Default::default(),
-					},
-				);
-				map.insert(
-					// H160 address of CI test runner account
-					H160::from_str("8097c3c354652cb1eeed3e5b65fba2576470678a")
-						.expect("internal H160 is valid; qed"),
-					fp_evm::GenesisAccount {
-						balance: U256::from_str("0xffffffffffffffffffffffffffffffff")
-							.expect("internal U256 is valid; qed"),
-						code: Default::default(),
-						nonce: Default::default(),
-						storage: Default::default(),
-					},
-				);
-				map
-			},
-		},
-		ethereum: EthereumConfig {},
-		dynamic_fee: Default::default(),
-		base_fee: Default::default(),
 	}
 }

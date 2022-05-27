@@ -33,13 +33,7 @@ pub struct Mr<AccountId, Balance, BoundedString> {
 pub struct SegmentInfo {
 	pub(super) segment_index: u64,
 }
-/// The custom struct for storing info of storage StorageInfo.
-#[derive(PartialEq, Eq, Default, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-pub struct StorageInfo {
-	pub(super) used_storage: u128,
-	pub(super) available_storage: u128,
-	pub(super) time: u128,
-}
+
 /// The custom struct for miner table of block explorer.
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct TableInfo<AccountId, Balance> {
@@ -61,7 +55,6 @@ pub struct MinerDetailInfo<AccountId, Balance, BoundedString> {
 	pub(super) total_reward: Balance, 
 	pub(super) total_rewards_currently_available: Balance,
 	pub(super) totald_not_receive: Balance,
-	pub(super) collaterals: Balance,
 }
 /// The custom struct for miner detail of block explorer.
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]

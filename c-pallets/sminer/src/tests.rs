@@ -67,8 +67,6 @@ fn miner_register_works() {
 
         assert_eq!(mr.peerid, PeerIndex::<Test>::try_get().unwrap());
 
-        assert!(SegInfo::<Test>::contains_key(ACCOUNT1.0));
-
         assert!(AllMiner::<Test>::try_get().unwrap().len() > 0);
 
         assert!(MinerTable::<Test>::try_get(mr.peerid).len() > 0);
@@ -232,11 +230,9 @@ fn withdraw_should_work() {
         assert_eq!(all_miner_cnt - 1, AllMiner::<Test>::try_get().unwrap().len());
         assert!(!MinerItems::<Test>::contains_key(ACCOUNT1.0));
         assert!(!MinerDetails::<Test>::contains_key(ACCOUNT1.0));
-        assert!(!SegInfo::<Test>::contains_key(ACCOUNT1.0));
 
         assert_eq!(stat.total_miners - 1, MinerStatValue::<Test>::try_get().unwrap().total_miners);
         assert_eq!(stat.active_miners - 1, MinerStatValue::<Test>::try_get().unwrap().active_miners);
-        assert_eq!(stat.staking - mi.collaterals, MinerStatValue::<Test>::try_get().unwrap().staking);
 
         // event check
         let event = Sys::events().pop().expect("Expected at least one MinerClaim to be found").event;
