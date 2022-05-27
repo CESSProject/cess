@@ -462,7 +462,7 @@ pub mod pallet {
 				if detail.power == 0 {
 					continue;
 				}
-				let tmp1:u128 = 750000000000000000_u128.checked_mul(detail.power).ok_or(Error::<T>::Overflow)?;
+				let tmp1:u128 = 750_000_000_000_000_000_u128.checked_mul(detail.power).ok_or(Error::<T>::Overflow)?;
 				let tmp2:u128 = tmp1.checked_div(total_power).ok_or(Error::<T>::Overflow)?;
 				let _ = Self::add_reward_order1(detail.address,tmp2);
 
@@ -1225,7 +1225,8 @@ impl<T: Config> Pallet<T> {
 		// // test 5 minutes
 		// let deadline = now + T::BlockNumber::from(18000u32);
 		// test 6 hours
-		let deadline = now.checked_add(&T::BlockNumber::from(1296000u32)).ok_or(Error::<T>::Overflow)?;
+		// test 1 hours
+		let deadline = now.checked_add(&T::BlockNumber::from(216000u32)).ok_or(Error::<T>::Overflow)?;
 
 		if !<CalculateRewardOrderMap<T>>::contains_key(&acc) {
 			let order: CalculateRewardOrder<T> = CalculateRewardOrder::<T>{
