@@ -339,8 +339,8 @@ use frame_support::{
 			let result = T::File::get_random_challenge_data()?;
 			let mut x = 0;
 			for (miner_id, file_id, block_list, file_size, file_type, segment_size) in result {
-					x = x + 1;
-					let random = Self::generate_random_number(20220510 + x, block_list.len() as u32);
+					x = x.checked_add(&1).ok_or(Error::<T>::Overflow)?;
+					let random = Self::generate_random_number(x.checked_add(&20220510).ok_or(Error::<T>::Overflow)?, block_list.len() as u32);
 					//Create a single challenge message in files
 					let challenge_info = ChallengeInfo::<T>{
 						file_type: file_type,

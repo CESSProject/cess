@@ -179,6 +179,10 @@ fn cess_testnet_config_genesis() -> GenesisConfig {
 }
 
 pub fn cess_testnet_config() -> ChainSpec {
+	ChainSpec::from_json_bytes(&include_bytes!("../ccg/cess-testnet-spec-raw.json")[..]).unwrap()
+}
+
+pub fn cess_testnet_generate_config() -> ChainSpec {
 	let boot_nodes = vec![];
 	ChainSpec::from_genesis(
 		"cess-testnet",
