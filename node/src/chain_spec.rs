@@ -1,6 +1,6 @@
 use cess_node_runtime::{
 	AccountId, AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, Balance, CouncilConfig,
-	EVMConfig, EthereumConfig, GenesisConfig, GrandpaConfig, Block, IndicesConfig,
+	GenesisConfig, GrandpaConfig, Block, IndicesConfig,
 	ImOnlineConfig, SessionConfig, Signature, StakingConfig, SessionKeys, SudoConfig, StakerStatus,
 	SystemConfig, TechnicalCommitteeConfig, wasm_binary_unwrap, MaxNominations, DOLLARS
 };
@@ -8,7 +8,7 @@ use sc_service::ChainType;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
-use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public, H160, U256};
+use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public};
 use grandpa_primitives::AuthorityId as GrandpaId;
 use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
@@ -18,7 +18,6 @@ use hex_literal::hex;
 use serde::{Deserialize, Serialize};
 use sc_chain_spec::ChainSpecExtension;
 use sc_telemetry::TelemetryEndpoints;
-use std::{collections::BTreeMap, str::FromStr};
 
 
 // The URL for the telemetry server.
@@ -173,6 +172,12 @@ fn cess_testnet_config_genesis() -> GenesisConfig {
 		hex!["b4ac8b37a20935b0b390c61cd849ea533b060bb97e32b68801ec3b6220a8e131"].into(),
 		hex!["c4060f93e5bb97ed21491e90ff78268caa67ec84a5d3663ffd65332509fe0dd9"].into(),
 		hex!["2a66038471e6a62a2df2195efef9d25263858711337cf8dc31804f196bdb7840"].into(),
+<<<<<<< HEAD
+=======
+		hex!["2ed4a2c67291bf3eaa4de538ab120ba21b302db5704551864226d2fae8f87937"].into(),
+		hex!["d0a9eef85d7762e89280b8fdfd4ce031530b95421214fcc28c554dbb4d9fe927"].into(),
+		hex!["5ce2722592557b41c2359fec3367f782703706784f193abc735b937abae71e30"].into(),
+>>>>>>> origin/main
 	];
 
 	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts))
@@ -386,42 +391,5 @@ fn testnet_genesis(
 		},
 		assets: Default::default(),
 		transaction_payment: Default::default(),
-		evm: EVMConfig {
-			accounts: {
-				let mut map = BTreeMap::new();
-				map.insert(
-					// H160 address of Alice dev account
-					// Derived from SS58 (42 prefix) address
-					// SS58: 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
-					// hex: 0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d
-					// Using the full hex key, truncating to the first 20 bytes (the first 40 hex chars)
-					H160::from_str("d43593c715fdd31c61141abd04a99fd6822c8558")
-						.expect("internal H160 is valid; qed"),
-					fp_evm::GenesisAccount {
-						balance: U256::from_str("0xffffffffffffffffffffffffffffffff")
-							.expect("internal U256 is valid; qed"),
-						code: Default::default(),
-						nonce: Default::default(),
-						storage: Default::default(),
-					},
-				);
-				map.insert(
-					// H160 address of CI test runner account
-					H160::from_str("8097c3c354652cb1eeed3e5b65fba2576470678a")
-						.expect("internal H160 is valid; qed"),
-					fp_evm::GenesisAccount {
-						balance: U256::from_str("0xffffffffffffffffffffffffffffffff")
-							.expect("internal U256 is valid; qed"),
-						code: Default::default(),
-						nonce: Default::default(),
-						storage: Default::default(),
-					},
-				);
-				map
-			},
-		},
-		ethereum: EthereumConfig {},
-		dynamic_fee: Default::default(),
-		base_fee: Default::default(),
 	}
 }
