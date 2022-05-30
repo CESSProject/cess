@@ -307,7 +307,7 @@ pub mod pallet {
 			let block_oneday: BlockNumberOf<T> = T::OneDay::get();
 			let oneday: u128 = block_oneday.saturated_into();
 			let mut count: u8 = 0;
-			if number % 1200 == 0 {
+			if number % oneday == 0 {
 				for (key, value) in <UserSpaceList<T>>::iter() {
 					let mut k = 0;
 					let mut list = <UserSpaceList<T>>::get(&key);
@@ -554,7 +554,8 @@ pub mod pallet {
 			let money: BalanceOf<T> = price.try_into().map_err(|_e| Error::<T>::ConversionError)?;
 			<T as pallet::Config>::Currency::transfer(&sender, &acc, money, AllowDeath)?;
 			let now = <frame_system::Pallet<T>>::block_number();
-			let deadline: BlockNumberOf<T> = ((lease_count.checked_mul(1200).ok_or(Error::<T>::Overflow)?) as u32).into();
+			let one_day: u128 = <T as Config>::OneDay::get().saturated_into();
+			let deadline: BlockNumberOf<T> = ((lease_count.checked_mul(one_day).ok_or(Error::<T>::Overflow)?) as u32).into();
 			let list: SpaceInfo<T> = SpaceInfo::<T>{
 				size: space.checked_mul(M_BYTE).ok_or(Error::<T>::Overflow)?, 
 				deadline: now.checked_add(&deadline).ok_or(Error::<T>::Overflow)?,
@@ -714,7 +715,7 @@ pub mod pallet {
 					file_dupl: BoundedVec::default(),
 				}
 			);
-			
+
 			Self::update_user_space(acc.clone(), 1, filesize.checked_mul(backups as u64).ok_or(Error::<T>::Overflow)? as u128)?;
 			Self::add_user_hold_file(acc.clone(), fileid.clone());
 			Ok(())

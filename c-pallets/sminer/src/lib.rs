@@ -400,7 +400,7 @@ pub mod pallet {
 		}
 
 		//Method for miners to redeem deposit
-		#[pallet::weight(2_000_000)]
+		#[pallet::weight(200_000)]
 		pub fn withdraw(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
@@ -410,7 +410,7 @@ pub mod pallet {
 			}
 			let now: u128 = <frame_system::Pallet<T>>::block_number().saturated_into();
 			let colling_line: u128 = MinerColling::<T>::get(&sender).unwrap().saturated_into();
-			if colling_line + 1200 > now {
+			if colling_line + 57600 > now {
 				Err(Error::<T>::CollingNotOver)?;
 			}
 

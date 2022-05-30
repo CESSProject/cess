@@ -189,14 +189,14 @@ use frame_support::{
 			//The interval between challenges must be greater than one hour
 			if now > deadline {
 				//Determine whether to trigger a challenge
-				// if Self::trigger_challenge() {
+				if Self::trigger_challenge() {
 					if let Err(e) = Self::generation_challenge() {
 						log::info!("punish Err:{:?}", e);
 					}
 					if let Err(e) = Self::record_challenge_time() {
 						log::info!("punish Err:{:?}", e);
 					}
-				// }
+				}
 			}
 			0
 		}
@@ -258,7 +258,6 @@ use frame_support::{
 			
 			Err(Error::<T>::NonProof)?
 		}
-
 	}
 
 	impl<T: Config> Pallet<T> {
@@ -315,13 +314,11 @@ use frame_support::{
 		//Record challenge time
 		fn record_challenge_time() -> DispatchResult {
 			let now = <frame_system::Pallet<T>>::block_number();
-			// let one_hours = T::OneHours::get();
-			let test: BlockNumberOf<T> = 600u32.try_into().map_err(|_e| Error::<T>::Overflow)?;
+			let one_hours = T::OneHours::get();
 			<ChallengeDuration<T>>::try_mutate(|o| -> DispatchResult {	
-				*o = now.checked_add(&test).ok_or(Error::<T>::Overflow)?;
+				*o = now.checked_add(&one_hours).ok_or(Error::<T>::Overflow)?;
 				Ok(())
 			})?;
-	
 			Ok(())
 		}
 	
