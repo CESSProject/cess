@@ -344,7 +344,7 @@ pub mod pallet {
 			let mut balance: BalanceOf<T> = 0u32.saturated_into();
 			<MinerItems<T>>::try_mutate(&sender, |s_opt| -> DispatchResult {
 				let s = s_opt.as_mut().unwrap();
-				s.collaterals = s.collaterals + collaterals;
+				s.collaterals = s.collaterals.checked_add(&collaterals).ok_or(Error::<T>::Overflow)?;
 				balance = s.collaterals;
 				if s.state == "frozen".as_bytes().to_vec() || s.state == "e_frozen".as_bytes().to_vec() {
 					let limit = Self::check_collateral_limit(s.peerid)?;
@@ -400,7 +400,7 @@ pub mod pallet {
 		}
 
 		//Method for miners to redeem deposit
-		#[pallet::weight(2_000_000)]
+		#[pallet::weight(200_000)]
 		pub fn withdraw(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
@@ -410,7 +410,7 @@ pub mod pallet {
 			}
 			let now: u128 = <frame_system::Pallet<T>>::block_number().saturated_into();
 			let colling_line: u128 = MinerColling::<T>::get(&sender).unwrap().saturated_into();
-			if colling_line + 1200 > now {
+			if colling_line + 57600 > now {
 				Err(Error::<T>::CollingNotOver)?;
 			}
 
@@ -1114,7 +1114,9 @@ impl<T: Config> Pallet<T> {
 		}
 		let mr = MinerItems::<T>::get(&aid).unwrap();
 		let acc = T::PalletId::get().into_account();
-		let growth: u128 =  file_size / 1_048_576 / 2 * 1_000_000_000_000;
+		let growth: u128 =  file_size
+		    .checked_div(1_048_576).ok_or(Error::<T>::Overflow)?
+		    .checked_div(2).ok_or(Error::<T>::Overflow)?;
 		let punish_amount: BalanceOf<T> = 400_000_000_000_000u128
 			.checked_add(growth).ok_or(Error::<T>::Overflow)?
 			.try_into().map_err(|_e| Error::<T>::ConversionError)?;
@@ -1269,16 +1271,16 @@ impl<T: Config> Pallet<T> {
 	}
 
 	//Get the available space on the current chain.
-	pub fn get_space() -> u128 {
+	pub fn get_space() -> Result<u128, DispatchError> {
 		let purchased_space = <PurchasedSpace<T>>::get();
 		let total_space = <AvailableSpace<T>>::get();
 		//If the total space on the current chain is less than the purchased space, 0 will be returned.
 		if total_space < purchased_space {
-			return 0;
+			return Ok(0);
 		}
 		//Calculate available space.
-		let value = total_space - purchased_space;
-		return value
+		let value = total_space.checked_sub(purchased_space).ok_or(Error::<T>::Overflow)?;
+		return Ok(value)
 	}
 
 	pub fn add_purchased_space(size: u128) -> DispatchResult{
@@ -1319,7 +1321,7 @@ impl<T: Config> Pallet<T> {
 		let mut current_power_num:u128 = 1;
 		current_power_num += power.checked_div(1024 * 1024 * M_BYTE).ok_or(Error::<T>::Overflow)?;
 		//2000TCESS/TB(space)
-		let limit: BalanceOf<T> = (current_power_num * 2_000_000_000_000_000u128)
+		let limit: BalanceOf<T> = (current_power_num.checked_mul(2_000_000_000_000_000u128).ok_or(Error::<T>::Overflow)?)
 		.try_into()
 		.map_err(|_e| Error::<T>::ConversionError)?;
 

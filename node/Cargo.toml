@@ -32,7 +32,6 @@ hex-literal = "0.3.4"
 
 [dependencies.cess-node-runtime]
 path = '../runtime'
-# version = '3.0.0-monthly-2021-10'
 
 [dependencies.frame-system-rpc-runtime-api]
 git = 'https://github.com/CESSProject/substrate.git'

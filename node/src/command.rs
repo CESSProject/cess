@@ -53,6 +53,7 @@ impl SubstrateCli for Cli {
 	fn load_spec(&self, id: &str) -> Result<Box<dyn sc_service::ChainSpec>, String> {
 		Ok(match id {
 			"" | "cess-testnet" => Box::new(chain_spec::cess_testnet_config()),
+			"cess-staking-testnet" => Box::new(chain_spec::cess_testnet_generate_config()),
 			"dev" => Box::new(chain_spec::development_config()),
 			"local" => Box::new(chain_spec::local_testnet_config()),
 			path =>
