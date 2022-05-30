@@ -287,11 +287,7 @@ use frame_support::{
 		//Clean up the verified certificate corresponding to the consensus
 		fn clear_verify_proof(acc: AccountOf<T>, _miner_id: u64, file_id: Vec<u8>) -> DispatchResult {
 			<UnVerifyProof<T>>::try_mutate(&acc, |o| -> DispatchResult {
-<<<<<<< HEAD
-				o.retain(|x| ((x.miner_id != miner_id)&&(x.challenge_info.file_id != file_id)));
-=======
 				o.retain(|x| (x.challenge_info.file_id != file_id));
->>>>>>> origin/main
 				Ok(())
 			})?;
 			Ok(())

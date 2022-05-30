@@ -20,7 +20,7 @@ branch = 'monthly-2022-04-cess'
 version = '3.0.0'
 
 [dependencies]
-serde-json = "1.0"
+serde_json = "1.0"
 jsonrpc-core = '18.0.0'
 structopt = '0.3.8'
 rand = "0.8"
@@ -32,7 +32,6 @@ hex-literal = "0.3.4"
 
 [dependencies.cess-node-runtime]
 path = '../runtime'
-# version = '3.0.0-monthly-2022-04'
 
 [dependencies.frame-system-rpc-runtime-api]
 git = 'https://github.com/CESSProject/substrate.git'

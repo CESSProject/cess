@@ -714,10 +714,7 @@ pub mod pallet {
 					file_dupl: BoundedVec::default(),
 				}
 			);
-			UserFileSize::<T>::try_mutate(acc.clone(), |s| -> DispatchResult{
-				*s = (*s).checked_add(filesize as u128).ok_or(Error::<T>::Overflow)?;
-				Ok(())
-			})?;
+			
 			Self::update_user_space(acc.clone(), 1, filesize.checked_mul(backups as u64).ok_or(Error::<T>::Overflow)? as u128)?;
 			Self::add_user_hold_file(acc.clone(), fileid.clone());
 			Ok(())
