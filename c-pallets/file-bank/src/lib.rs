@@ -568,7 +568,7 @@ pub mod pallet {
 			};
 
 			<UserSpaceList<T>>::try_mutate(&sender, |s| -> DispatchResult{
-				s.try_push(list).map_err(|_e| Error::<T>::StorageLimitReached);
+				s.try_push(list).map_err(|_e| Error::<T>::StorageLimitReached)?;
 				Ok(())
 			})?;
 			//Convert MB to BYTE
@@ -1010,7 +1010,7 @@ pub mod pallet {
 				for (_, value) in <File<T>>::iter() {	
 					if value.file_state.to_vec() == "active".as_bytes().to_vec() {
 						if counter == *i {
-							let random_index = Self::generate_random_number(20220523 + counter) % value.file_dupl.len() as u32;
+							let random_index = Self::generate_random_number(20220523 + counter)? % value.file_dupl.len() as u32;
 							file_list.push((value.file_size, value.file_dupl[random_index as usize].clone()));
 							break;
 						}
@@ -1050,7 +1050,7 @@ pub mod pallet {
 						break;
 					}
 				}
-				let random = Self::generate_random_number(seed) % length;
+				let random = Self::generate_random_number(seed)? % length;
 				log::info!("List addition: {}", random);
 				number_list.push(random);
 			}
@@ -1078,20 +1078,18 @@ pub mod pallet {
 		}
 
 		//Get random number
-		pub fn generate_random_number(seed: u32) -> u32 {
+		pub fn generate_random_number(seed: u32) -> Result<u32, DispatchError> {
 			let mut counter = 0;
 			loop {
 				let (random_seed, _) = T::MyRandomness::random(&(T::FilbakPalletId::get(), seed + counter).encode());
 				let random_number = <u32>::decode(&mut random_seed.as_ref())
 					.unwrap_or(0);
 				if random_number != 0 {
-					return random_number
+					return Ok(random_number)
 				}
-				counter = counter + 1;
+				counter = counter.checked_add(1).ok_or(Error::<T>::Overflow)?;
 			}
 		}
-
-		
 
 		//Specific implementation method of deleting filler file
 		pub fn delete_filler(miner_id: u64, filler_id: Vec<u8>) -> DispatchResult {

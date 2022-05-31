@@ -171,6 +171,8 @@ pub mod pallet {
 		CollingNotOver,
 
 		NotpositiveState,
+
+		StorageLimitReached,
 	}
 
 	#[pallet::storage]
@@ -293,7 +295,7 @@ pub mod pallet {
 				space: 0 as u128,
 			};
 			AllMiner::<T>::try_mutate(|s| -> DispatchResult {
-				s.try_push(add_minerinfo).expect("Maximum length exceeded");
+				s.try_push(add_minerinfo).map_err(|_e| Error::<T>::StorageLimitReached)?;
 				Ok(())
 			})?;
 
@@ -928,7 +930,7 @@ impl<T: Config> Pallet<T> {
 					space: i.space,
 				};
 				allminer.remove(k);
-				allminer.try_push(newminer).expect("Maximum length exceeded");
+				allminer.try_push(newminer).map_err(|_e| Error::<T>::StorageLimitReached);
 			}
 			k = k.checked_add(1).ok_or(Error::<T>::Overflow)?;
 		}
@@ -986,7 +988,7 @@ impl<T: Config> Pallet<T> {
 					space: i.space,
 				};
 				allminer.remove(k);
-				allminer.try_push(newminer).expect("Maximum length exceeded");
+				allminer.try_push(newminer).map_err(|_e| Error::<T>::StorageLimitReached)?;
 			}
 			k = k.checked_add(1).ok_or(Error::<T>::Overflow)?;
 		}
@@ -1042,7 +1044,7 @@ impl<T: Config> Pallet<T> {
 					space: i.space.checked_add(increment).ok_or(Error::<T>::Overflow)?,
 				};
 				allminer.remove(k);
-				allminer.try_push(newminer).expect("Maximum length exceeded");
+				allminer.try_push(newminer).map_err(|_e| Error::<T>::StorageLimitReached)?;
 			}
 			k = k.checked_add(1).ok_or(Error::<T>::Overflow)?;
 		}
@@ -1097,7 +1099,7 @@ impl<T: Config> Pallet<T> {
 					space: i.space.checked_sub(increment).ok_or(Error::<T>::Overflow)?,
 				};
 				allminer.remove(k);
-				allminer.try_push(newminer).expect("Maximum length exceeded");
+				allminer.try_push(newminer).map_err(|_e| Error::<T>::StorageLimitReached)?;
 			}
 			k = k.checked_add(1).ok_or(Error::<T>::Overflow)?;
 		}
@@ -1250,7 +1252,7 @@ impl<T: Config> Pallet<T> {
 				deadline: deadline,
 			};
 			let mut order_vec = CalculateRewardOrderMap::<T>::get(&acc);
-			order_vec.try_push(order1).expect("Maximum length exceeded");
+			order_vec.try_push(order1).map_err(|_e| Error::<T>::StorageLimitReached)?;
 			<CalculateRewardOrderMap<T>>::insert(
 				acc,
 				order_vec,
@@ -1333,20 +1335,9 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn vec_to_bound<P>(param: Vec<P>) -> Result<BoundedVec<P, T::ItemLimit>, DispatchError> {
-		let result: BoundedVec<P, T::ItemLimit> = param.try_into().expect("too long");
+		let result: BoundedVec<P, T::ItemLimit> = param.try_into().map_err(|_e| Error::<T>::StorageLimitReached)?;
 		Ok(result)
 	}
-
-	// fn veclist_to_bounde(param: Vec<Vec<u8>>) -> Result<StringList<T>, DispatchError> {
-	// 	let mut result: StringList<T> = Vec::new().try_into().expect("...");
-
-	// 	for v in param {
-	// 		let string: BoundedVec<u8, T::StringLimit> = v.try_into().expect("keywords too long");
-	// 		result.try_push(string).expect("keywords too long");
-	// 	}
-
-	// 	Ok(result)
-	// }
 }
 
 impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for Pallet<T> {
