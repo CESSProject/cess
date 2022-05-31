@@ -35,7 +35,7 @@ pub use types::*;
 use scale_info::TypeInfo;
 use sp_runtime::{
 	RuntimeDebug,
-	traits::{AccountIdConversion,SaturatedConversion, BlockNumberProvider, CheckedAdd, CheckedSub},
+	traits::{AccountIdConversion,SaturatedConversion, BlockNumberProvider, CheckedAdd, CheckedSub, CheckedMul, CheckedDiv},
 	offchain as rt_offchain,
 };
 use sp_std::{
@@ -277,7 +277,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn unit_price)]
-	pub(super) type UnitPrice<T: Config> = StorageValue<_, BalanceOf<T>>;
+	pub(super) type UnitPrice<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn filler_map)]
@@ -472,6 +472,7 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 			let bounded_fileid = Self::vec_to_bound::<u8>(fileid.clone())?;
 			ensure!(<File<T>>::contains_key(bounded_fileid.clone()), Error::<T>::FileNonExistent);
+			//The above has been judged. Unwrap will be performed only if the key exists
 			let file = <File<T>>::get(&bounded_fileid).unwrap();
 			if file.user_addr != sender.clone() {
 				Err(Error::<T>::NotOwner)?;
@@ -497,6 +498,7 @@ pub mod pallet {
 			let bounded_fileid = Self::vec_to_bound::<u8>(fileid.clone())?;
 			ensure!((<File<T>>::contains_key(bounded_fileid.clone())), Error::<T>::FileNonExistent);
 			ensure!(Self::check_lease_expired_forfileid(fileid.clone()), Error::<T>::LeaseExpired);
+			//The above has been judged. Unwrap will be performed only if the key exists
 			let group_id = <File<T>>::get(bounded_fileid.clone()).unwrap();
 
 			let mut invoice: Vec<u8> = Vec::new();
@@ -510,9 +512,9 @@ pub mod pallet {
 			if <Invoice<T>>::contains_key(bounded_invoice.clone()) {
 				Self::deposit_event(Event::<T>::Purchased{acc: sender.clone(), fileid: fileid.clone()});
 			} else {
-				let zh = TryInto::<u128>::try_into(group_id.downloadfee).ok().unwrap();
-				let umoney = zh.checked_mul(8).ok_or(Error::<T>::Overflow)?
-					.checked_div(10).ok_or(Error::<T>::Overflow)?;
+				let umoney = group_id.downloadfee
+				    .checked_mul(&8u32.saturated_into()).ok_or(Error::<T>::Overflow)?
+					.checked_div(&10u32.saturated_into()).ok_or(Error::<T>::Overflow)?;
 				let money: BalanceOf<T> = umoney.try_into().map_err(|_e| Error::<T>::Overflow)?;
 				let acc = T::FilbakPalletId::get().into_account();
 				<T as pallet::Config>::Currency::transfer(&sender, &group_id.user_addr, money, AllowDeath)?;
@@ -536,7 +538,11 @@ pub mod pallet {
 		pub fn buy_space(origin: OriginFor<T>, space_count: u128, lease_count: u128, max_price: u128) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let acc = T::FilbakPalletId::get().into_account();
-			let unit_price = TryInto::<u128>::try_into(<UnitPrice<T>>::get().unwrap()).ok().unwrap();
+			let cur_price = <UnitPrice<T>>::get();
+			if cur_price == 0u32.saturated_into() {
+				Err(Error::<T>::IsZero)?;
+			}
+			let unit_price = TryInto::<u128>::try_into(cur_price).map_err(|_e| Error::<T>::Overflow)?;
 			if unit_price > max_price * 1000000000000 && 0 != max_price {
 				Err(Error::<T>::ExceedExpectations)?;
 			}
@@ -562,7 +568,7 @@ pub mod pallet {
 			};
 
 			<UserSpaceList<T>>::try_mutate(&sender, |s| -> DispatchResult{
-				s.try_push(list).expect("Length exceeded");
+				s.try_push(list).map_err(|_e| Error::<T>::StorageLimitReached);
 				Ok(())
 			})?;
 			//Convert MB to BYTE
@@ -583,7 +589,7 @@ pub mod pallet {
 			let list: SpaceInfo<T> = SpaceInfo::<T>{size: 1024, deadline};
 		
 			<UserSpaceList<T>>::try_mutate(&sender, |s| -> DispatchResult{
-				s.try_push(list).expect("Length exceeded");
+				s.try_push(list).map_err(|_e| Error::<T>::StorageLimitReached)?;
 				Ok(())
 			})?;
 
@@ -611,7 +617,7 @@ pub mod pallet {
 			ensure_none(origin)?;
 			//Convert price of string type to balance
 			//Vec<u8> -> str
-			let str_price = str::from_utf8(&price).unwrap();
+			let str_price = str::from_utf8(&price).unwrap_or_default();
 			//str -> u128
 			let mut price_u128: u128 = str_price
 				.parse()
@@ -717,7 +723,7 @@ pub mod pallet {
 			);
 
 			Self::update_user_space(acc.clone(), 1, filesize.checked_mul(backups as u64).ok_or(Error::<T>::Overflow)? as u128)?;
-			Self::add_user_hold_file(acc.clone(), fileid.clone());
+			Self::add_user_hold_file(acc.clone(), fileid.clone())?;
 			Ok(())
 		}
 	
@@ -780,11 +786,13 @@ pub mod pallet {
 			Ok(())
 		}
 		
-		fn add_user_hold_file(acc: AccountOf<T>, fileid: Vec<u8>){
-			let bounded_fileid = Self::vec_to_bound::<u8>(fileid).unwrap();
-			<UserHoldFileList<T>>::mutate(&acc, |s|{
-				s.try_push(bounded_fileid).expect("Length exceeded");
-			});
+		fn add_user_hold_file(acc: AccountOf<T>, fileid: Vec<u8>) -> DispatchResult {
+			let bounded_fileid = Self::vec_to_bound::<u8>(fileid).unwrap_or_default();
+			<UserHoldFileList<T>>::try_mutate(&acc, |s| -> DispatchResult {
+				s.try_push(bounded_fileid).map_err(|_e| Error::<T>::StorageLimitReached)?;
+				Ok(())
+			})?;
+			Ok(())
 		}
 	
 		// fn remove_user_hold_file(acc: &AccountOf<T>, fileid: Vec<u8>) {
@@ -812,12 +820,14 @@ pub mod pallet {
 			Ok(1_000_000_000_000_000_000)
 		}
 	
+		//Before using this method, you must determine whether the primary key fileid exists
 		fn check_lease_expired_forfileid(fileid: Vec<u8>) -> bool {
+			//The above has been judged. Unwrap will be performed only if the key exists
 			let bounded_fileid = Self::vec_to_bound::<u8>(fileid).unwrap();
 			let file = <File<T>>::get(&bounded_fileid).unwrap();
 			Self::check_lease_expired(file.user_addr)
 		}
-		//ture is Not expired;  false is expired
+		//Before using this method, you must determine whether the primary key fileid exists
 		fn check_lease_expired(acc: AccountOf<T>) -> bool {
 			let details = <UserHoldSpaceDetails<T>>::get(&acc).unwrap();
 			if details.used_space > details.purchased_space {
@@ -827,17 +837,8 @@ pub mod pallet {
 			}
 		}
 	
-		pub fn check_file_exist(fileid: Vec<u8>) -> bool {
-			let bounded_fileid = Self::vec_to_bound::<u8>(fileid).unwrap();
-			if <File<T>>::contains_key(bounded_fileid) {
-				true
-			} else {
-				false
-			}
-		}
-	
 		fn vec_to_bound<P>(param: Vec<P>) -> Result<BoundedVec<P, T::StringLimit>, DispatchError> {
-			let result: BoundedVec<P, T::StringLimit> = param.try_into().expect("too long");
+			let result: BoundedVec<P, T::StringLimit> = param.try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
 			Ok(result)
 		}
 	
@@ -1078,14 +1079,15 @@ pub mod pallet {
 
 		//Get random number
 		pub fn generate_random_number(seed: u32) -> u32 {
+			let mut counter = 0;
 			loop {
-				let (random_seed, _) = T::MyRandomness::random(&(T::FilbakPalletId::get(), seed).encode());
+				let (random_seed, _) = T::MyRandomness::random(&(T::FilbakPalletId::get(), seed + counter).encode());
 				let random_number = <u32>::decode(&mut random_seed.as_ref())
-					.expect("secure hashes should always be bigger than u32; qed");
+					.unwrap_or(0);
 				if random_number != 0 {
 					return random_number
 				}
-				
+				counter = counter + 1;
 			}
 		}
 
@@ -1157,6 +1159,7 @@ pub mod pallet {
 			//Current block information
 			let digest = <frame_system::Pallet<T>>::digest();
 			let pre_runtime_digests = digest.logs.iter().filter_map(|d| d.as_pre_runtime());
+			//TODO
 			let acc = T::FindAuthor::find_author(pre_runtime_digests).map(|a| {
 				a
 			});
