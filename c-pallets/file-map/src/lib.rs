@@ -87,14 +87,16 @@ pub mod pallet {
     pub enum Error<T> {
         //Already registered
         AlreadyRegistration,
-
+        //Not a controller account
         NotController,
-
+        //The scheduled error report has been reported once
         AlreadyReport,
-
+        //Boundedvec conversion error
         BoundedVecError,
-
+        //Storage reaches upper limit error
         StorageLimitReached,
+        //data overrun error
+        Overflow,
     }
 
     #[pallet::storage]
@@ -178,7 +180,7 @@ pub mod pallet {
                         Err(Error::<T>::AlreadyReport)?;
                     }
                 }
-                o.count = o.count.checked_add(1).map_err(|_e| Error::<T>::Overflow)?;
+                o.count = o.count.checked_add(1).ok_or(Error::<T>::Overflow)?;
                 o.reporters.try_push(account.clone()).map_err(|_e| Error::<T>::StorageLimitReached)?;
                 Ok(())
             })?; 
