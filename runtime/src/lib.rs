@@ -184,7 +184,7 @@ impl OnUnbalanced<NegativeImbalance> for DealWithFees {
 	}
 }
 
-pub const MILLICENTS: Balance = 1_000_000_000;
+pub const MILLICENTS: Balance = 10_000_000;
 pub const CENTS: Balance = 1_000 * MILLICENTS; // assume this is worth about a cent.
 pub const DOLLARS: Balance = 100 * CENTS;
 
@@ -561,8 +561,8 @@ impl pallet_cess_staking::BenchmarkingConfig for StakingBenchmarkingConfig {
 
 impl pallet_cess_staking::Config for Runtime {
 	const ERAS_PER_YEAR: u64 = ERAS_PER_YEAR;
-	const FIRST_YEAR_VALIDATOR_REWARDS: Balance = 238_500_000 * CENTS;
-	const FIRST_YEAR_SMINER_REWARDS: Balance = 477_000_000 * CENTS;
+	const FIRST_YEAR_VALIDATOR_REWARDS: Balance = 238_500_000 * DOLLARS;
+	const FIRST_YEAR_SMINER_REWARDS: Balance = 477_000_000 * DOLLARS;
 	const REWARD_DECREASE_RATIO: Perbill = Perbill::from_perthousand(841);
 	type SminerRewardPool = Sminer;
 	type MaxNominations = MaxNominations;

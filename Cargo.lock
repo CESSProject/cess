@@ -668,7 +668,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node"
-version = "3.0.0-monthly-2021-10"
+version = "3.0.0-monthly-2022-04"
 dependencies = [
  "cess-node-runtime",
  "clap 3.1.9",
