@@ -19,10 +19,9 @@ use crate::{
 	chain_spec,
 	cli::{Cli, Subcommand},
 	service,
-	executor::ExecutorDispatch,
 };
 use cess_node_runtime::Block;
-use sc_cli::{ChainSpec, Role, RuntimeVersion, SubstrateCli};
+use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
 use sc_service::PartialComponents;
 
 impl SubstrateCli for Cli {

@@ -52,7 +52,7 @@ use frame_support::{
 };
 use frame_system::{
 	offchain::{
-		AppCrypto, CreateSignedTransaction, SendSignedTransaction, Signer, SubmitTransaction,
+		AppCrypto, CreateSignedTransaction, Signer, SubmitTransaction,
 	},
 };
 pub use weights::WeightInfo;
@@ -80,7 +80,7 @@ pub mod pallet {
 	
 
 	const HTTP_REQUEST_STR: &str = "https://arweave.net/price/1048576";
-		// const HTTP_REQUEST_STR: &str = "https://api.coincap.io/v2/assets/polkadot";
+	// const HTTP_REQUEST_STR: &str = "https://api.coincap.io/v2/assets/polkadot";
 	pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"demo");
 	const FETCH_TIMEOUT_PERIOD: u64 = 60_000; // in milli-seconds
 	//1MB converted byte size

@@ -1,8 +1,6 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
 use cess_node_runtime::RuntimeApi;
-use codec::Encode;
-use frame_system_rpc_runtime_api::AccountNonceApi;
 use futures::prelude::*;
 use sc_client_api::{BlockBackend, ExecutorProvider};
 use sc_consensus_babe::{self, SlotProportion};
@@ -10,12 +8,9 @@ use sc_executor::NativeElseWasmExecutor;
 use sc_network::{Event, NetworkService};
 use sc_service::{config::Configuration, error::Error as ServiceError, RpcHandlers, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
-use sp_api::ProvideRuntimeApi;
-use sp_core::crypto::Pair;
-use sp_runtime::{generic, traits::Block as BlockT, SaturatedConversion};
+use sp_runtime::{traits::Block as BlockT};
 use std::sync::Arc;
 use crate::rpc as node_rpc;
-use crate::executor as node_executor;
 pub use crate::executor::ExecutorDispatch;
 use crate::primitives as node_primitives;
 use node_primitives::Block;
@@ -34,13 +29,13 @@ pub type TransactionPool = sc_transaction_pool::FullPool<Block, FullClient>;
 /// Fetch the nonce of the given `account` from the chain state.
 ///
 /// Note: Should only be used for tests.
-pub fn fetch_nonce(client: &FullClient, account: sp_core::sr25519::Pair) -> u32 {
-	let best_hash = client.chain_info().best_hash;
-	client
-		.runtime_api()
-		.account_nonce(&generic::BlockId::Hash(best_hash), account.public().into())
-		.expect("Fetching account nonce works; qed")
-}
+// pub fn fetch_nonce(client: &FullClient, account: sp_core::sr25519::Pair) -> u32 {
+// 	let best_hash = client.chain_info().best_hash;
+// 	client
+// 		.runtime_api()
+// 		.account_nonce(&generic::BlockId::Hash(best_hash), account.public().into())
+// 		.expect("Fetching account nonce works; qed")
+// }
 
 /// Create a transaction using the given `call`.
 ///

@@ -215,7 +215,7 @@ impl pallet_sminer::MinerControl for MockingMinerControl {
         todo!()
     }
 
-    fn miner_is_exist(peer_id: u64) -> bool {
+    fn miner_is_exist(_peer_id: u64) -> bool {
         todo!()
     }
 }
