@@ -1,30 +1,40 @@
 //! # Segemnt Book Module
-//!
-//! Contain operations related proof of storage.
-//!
+//! 
+//!  This file is the exclusive pallet of cess and the proof of podr2 adaptation
+//! 
+//! ## OverView
+//! 
+//!  The job of this segment Book pallet is to process the proof of miner's service file and filling file, 
+//!  and generate random challenges. Call some traits of Smith pallet to punish miners. 
+//!  Call the trail of file bank pallet to obtain random files or files with problems in handling challenges.
+//! 
 //! ### Terminology
 //! 
-//! * **uncid:** 		Necessary parameters for generating proof (unencrypted)
-//! * **sealed_cid:** 	Necessary parameters for generating proof (encrypted)
-//! * **segment_id:**	Allocated segment ID
-//! * **is_ready:**		Used to know whether to submit a certificate
-//! * **size_type:**	Segment size
-//! * **peer_id:**		Miner's ID 
+//! * **random_challenge:** The random time trigger initiates a challenge to the random documents. 
+//!  						The miners need to complete the challenge within a limited time and submit 
+//!  						the certificates of the corresponding documents.
 //! 
-//! ### Interface
+//! * **deadline:** 		Expiration time of challenge, stored in challengeduration
+//! * **mu:**				Miner generated challenge related information
+//! * **sigma:**			Miner generated challenge related information
+//! 
+//! ### Interface 
 //!
 //! ### Dispatchable Functions
 //!
-//! * `intent_submit` 		Pprovide miners with the necessary parameters to generate proof
-//! * `intent_submit_po_st` Provide miners with the necessary parameters to generate proof
-//! * `submit_to_vpa` 		Submit copy certificate of idle data segment
-//! * `verify_in_vpa` 		Verify replication proof of idle data segments
-//! * `submit_to_vpb` 		Submit space-time proof of idle data segments
-//! * `verify_in_vpb` 		Verify the spatiotemporal proof of idle data segments
-//! * `submit_to_vpc` 		Submit a copy certificate of the service data segment
-//! * `verify_in_vpc` 		Verify the replication certificate of the service data segment
-//! * `submit_to_vpd` 		Submit spatio-temporal proof of service data segment
-//! * `verify_in_vpd` 		Verify the spatio-temporal proof of service data segments
+//! * `submit_challange_prove`   Miner submits challenge certificate.
+//! * `verify_proof`             Consensus submission verification challenge proof results.
+//! 
+//! ### Scenarios
+//! 
+//! #### Punishment
+//! 
+//!   When the verification result of the miner's certificate is false, 
+//!   or the miner fails to complete the challenge on time, the miner 
+//!   will be punished in both cases. Decide whether to reduce power 
+//!   or space according to the file type of punishment
+//! 
+//! 
 
 #![cfg_attr(not(feature = "std"), no_std)]
 

@@ -113,3 +113,13 @@ cargo test --release
 ## Contribute
 
 Please follow the contributions guidelines as outlined in [`docs/CONTRIBUTING.adoc`](https://github.com/CESSProject/cess/tree/main/docs/CONTRIBUTING.adoc). In all communications and contributions, this project follows the [Contributor Covenant Code of Conduct](https://github.com/paritytech/substrate/blob/master/docs/CODE_OF_CONDUCT.md).
+
+## cess-bootstrap
+
+Please download the code of the current latest release
+```
+cd cess
+#Under the /cess root directory
+cargo build --release
+```
+Go to the /cess/target/release directory to obtain the cess node file

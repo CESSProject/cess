@@ -87,12 +87,16 @@ pub mod pallet {
     pub enum Error<T> {
         //Already registered
         AlreadyRegistration,
-
+        //Not a controller account
         NotController,
-
+        //The scheduled error report has been reported once
         AlreadyReport,
-
+        //Boundedvec conversion error
         BoundedVecError,
+        //Storage reaches upper limit error
+        StorageLimitReached,
+        //data overrun error
+        Overflow,
     }
 
     #[pallet::storage]
@@ -132,24 +136,17 @@ pub mod pallet {
 
     #[pallet::call]
 	impl<T: Config> Pallet<T> {
-        #[pallet::weight(1_000_000)]
-        pub fn delete_scheduler(origin: OriginFor<T>) -> DispatchResult {
-            let sender = ensure_signed(origin)?;
-            let valid: BoundedVec<SchedulerInfo<T>, T::StringLimit> = Vec::new().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
-            SchedulerMap::<T>::put(valid);
-            Ok(())
-        }
         //Scheduling registration method
         #[pallet::weight(1_000_000)]
         pub fn registration_scheduler(origin: OriginFor<T>, stash_account: AccountOf<T>, ip: Vec<u8>) -> DispatchResult {
             let sender = ensure_signed(origin)?;
-
+            //Even if the primary key is not present here, panic will not be caused
             let acc = <pallet_cess_staking::Pallet<T>>::bonded(&stash_account).unwrap();
             if sender != acc {
                 Err(Error::<T>::NotController)?;
             }
             let mut s_vec = SchedulerMap::<T>::get();
-            let ip_bound = ip.clone().try_into().expect("too long");
+            let ip_bound = ip.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
             let scheduler = SchedulerInfo::<T>{
                 ip: ip_bound,
                 stash_user: stash_account.clone(),
@@ -159,7 +156,7 @@ pub mod pallet {
             if s_vec.to_vec().contains(&scheduler) {
                 Err(Error::<T>::AlreadyRegistration)?;
             }
-            s_vec.try_push(scheduler).expect("Length exceeded");
+            s_vec.try_push(scheduler).map_err(|_e| Error::<T>::StorageLimitReached)?;
             SchedulerMap::<T>::put(s_vec);
             Self::deposit_event(Event::<T>::RegistrationScheduler{acc: sender, ip: ip});
             Ok(())
@@ -183,8 +180,8 @@ pub mod pallet {
                         Err(Error::<T>::AlreadyReport)?;
                     }
                 }
-                o.count += 1;
-                o.reporters.try_push(account.clone()).expect("Length exceeded");
+                o.count = o.count.checked_add(1).ok_or(Error::<T>::Overflow)?;
+                o.reporters.try_push(account.clone()).map_err(|_e| Error::<T>::StorageLimitReached)?;
                 Ok(())
             })?; 
 
