@@ -686,7 +686,7 @@ pub mod pallet {
 						//Convert balance to U128 for multiplication and division
 						let reward_claim = reward_claim_opt.as_mut().unwrap();
 						let diff = reward2.checked_sub(&reward_claim.total_reward).ok_or(Error::<T>::Overflow)?;
-						let diff128 = TryInto::<u128>::try_into(diff).map_err(Error::<T>::Overflow)?;
+						let diff128 = TryInto::<u128>::try_into(diff).map_err(|_e| Error::<T>::Overflow)?;
 						let diff_20_percent: BalanceOf<T> = diff128
 							.checked_mul(2).ok_or(Error::<T>::Overflow)?
 							.checked_div(10).ok_or(Error::<T>::Overflow)?
@@ -703,7 +703,7 @@ pub mod pallet {
 						Ok(())
 					})?;
 
-					let peerid = MinerItems::<T>::get(&_acc).try_get(&_acc).map_err(|_e| Error::<T>::NotMiner)?.peerid;
+					let peerid = MinerItems::<T>::try_get(&_acc).map_err(|_e| Error::<T>::NotMiner)?.peerid;
 					if <MinerDetails<T>>::contains_key(peerid) {
 						MinerDetails::<T>::try_mutate(peerid, |miner_detail_opt| -> DispatchResult {
 							let miner_detail = miner_detail_opt.as_mut().unwrap();
@@ -800,7 +800,7 @@ pub mod pallet {
 					}
 				);
 			} else {
-				let faucet_record = FaucetRecordMap::<T>::try_get(&to).map_err(|_e| {
+				let faucet_record = FaucetRecordMap::<T>::try_get(&to).map_err(|e| {
 					log::error!("faucet error is: {:?}", e);
 					Error::<T>::DataNotExist
 				})?;
