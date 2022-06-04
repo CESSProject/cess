@@ -52,7 +52,7 @@ use frame_support::{
 };
 use frame_system::{
 	offchain::{
-		AppCrypto, CreateSignedTransaction, Signer, SubmitTransaction,
+		AppCrypto, CreateSignedTransaction, Signer, SubmitTransaction, SendSignedTransaction,
 	},
 };
 pub use weights::WeightInfo;
@@ -345,7 +345,7 @@ pub mod pallet {
 
 			let number: u128 = block_number.saturated_into();
 			let one_day: u128 = <T as Config>::OneDay::get().saturated_into();
-			if number % one_day == 0 || number == 1 {
+			if number % 5 == 0 || number == 1 {
 				//Query price
 				let result = Self::offchain_fetch_price(block_number);
 				if let Err(e) = result {
@@ -614,7 +614,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			price: Vec<u8>
 		) -> DispatchResult {
-			ensure_none(origin)?;
+			let _sender = ensure_signed(origin)?;
 			//Convert price of string type to balance
 			//Vec<u8> -> str
 			let str_price = str::from_utf8(&price).unwrap_or_default();
@@ -845,10 +845,16 @@ pub mod pallet {
 		//offchain helper
 		//Signature chaining method
 		fn offchain_signed_tx(_block_number: T::BlockNumber, price: Vec<u8>) -> Result<(), Error<T>> {
-			let call = Call::update_price{price: price};
+			let signer = Signer::<T, T::AuthorityId>::any_account();
 
-			SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into())
-			.map_err(|()| Error::<T>::OffchainUnSignedTxError)?;
+			let results = signer.send_signed_transaction(|_account| {
+				Call::update_price{price: price.clone()}
+			});
+			let (_acc, res) = results.unwrap();
+			match res {
+				Ok(()) => log::info!(" Submitted price of cents"),
+				Err(e) => log::error!("[{:?}] Failed to submit transaction", e),
+			}
 
 			Ok(())
 		}

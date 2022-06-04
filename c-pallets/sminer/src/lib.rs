@@ -607,6 +607,11 @@ pub mod pallet {
 		pub fn timed_task_award_table(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 			for (_acc, order_vec) in <CalculateRewardOrderMap<T>>::iter() {
+				if !<MinerItems<T>>::contains_key(&_acc) {
+					Self::clean_reward_map(_acc.clone());
+					continue;
+				}
+
 				let mut total:u128 = 0;
 
 				let now = <frame_system::Pallet<T>>::block_number();
