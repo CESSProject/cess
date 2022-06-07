@@ -17,7 +17,6 @@ use sp_runtime::{
 use hex_literal::hex;
 use serde::{Deserialize, Serialize};
 use sc_chain_spec::ChainSpecExtension;
-use sc_telemetry::TelemetryEndpoints;
 
 
 // The URL for the telemetry server.

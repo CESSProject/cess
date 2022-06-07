@@ -114,7 +114,6 @@ fn upload_works() {
 
         let file_id: BoundedVec<u8, StringLimit> = mfi.file_id.try_into().unwrap();
         assert!(File::<Test>::contains_key(&file_id));
-        assert_eq!(mfi.file_size as u128, UserFileSize::<Test>::try_get(acc1).unwrap());
         let t = UserHoldSpaceDetails::<Test>::try_get(acc1).unwrap();
         assert_eq!(mfi.file_size as u128 * 3, t.used_space);
         assert_eq!(t.purchased_space - mfi.file_size as u128 * 3, t.remaining_space);

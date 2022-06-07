@@ -607,6 +607,11 @@ pub mod pallet {
 		pub fn timed_task_award_table(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 			for (_acc, order_vec) in <CalculateRewardOrderMap<T>>::iter() {
+				if !<MinerItems<T>>::contains_key(&_acc) {
+					Self::clean_reward_map(_acc.clone());
+					continue;
+				}
+
 				let mut total:u128 = 0;
 
 				let now = <frame_system::Pallet<T>>::block_number();
@@ -916,7 +921,7 @@ impl<T: Config> Pallet<T> {
 					space: i.space,
 				};
 				allminer.remove(k);
-				allminer.try_push(newminer).map_err(|_e| Error::<T>::StorageLimitReached);
+				allminer.try_push(newminer).map_err(|_e| Error::<T>::StorageLimitReached)?;
 			}
 			k = k.checked_add(1).ok_or(Error::<T>::Overflow)?;
 		}
@@ -1219,7 +1224,7 @@ impl<T: Config> Pallet<T> {
 		// let deadline = now + T::BlockNumber::from(18000u32);
 		// test 6 hours
 		// test 1 hours
-		let deadline = now.checked_add(&T::BlockNumber::from(216000u32)).ok_or(Error::<T>::Overflow)?;
+		let deadline = now.checked_add(&T::BlockNumber::from(5184000u32)).ok_or(Error::<T>::Overflow)?;
 
 		if !<CalculateRewardOrderMap<T>>::contains_key(&acc) {
 			let order: CalculateRewardOrder<T> = CalculateRewardOrder::<T>{
