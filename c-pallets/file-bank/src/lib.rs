@@ -52,7 +52,7 @@ use frame_support::{
 };
 use frame_system::{
 	offchain::{
-		AppCrypto, CreateSignedTransaction, Signer, SubmitTransaction, SendSignedTransaction,
+		AppCrypto, CreateSignedTransaction, Signer, SendSignedTransaction,
 	},
 };
 pub use weights::WeightInfo;
@@ -81,7 +81,7 @@ pub mod pallet {
 
 	const HTTP_REQUEST_STR: &str = "https://arweave.net/price/1048576";
 	// const HTTP_REQUEST_STR: &str = "https://api.coincap.io/v2/assets/polkadot";
-	pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"demo");
+	pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"cess");
 	const FETCH_TIMEOUT_PERIOD: u64 = 60_000; // in milli-seconds
 	//1MB converted byte size
 	const M_BYTE: u128 = 1_048_576;
@@ -109,26 +109,6 @@ pub mod pallet {
 			type RuntimeAppPublic = Public;
 			type GenericSignature = sp_core::sr25519::Signature;
 			type GenericPublic = sp_core::sr25519::Public;
-		}
-	}
-
-	#[pallet::validate_unsigned]
-	impl<T: Config> ValidateUnsigned for Pallet<T> {
-		type Call = Call<T>;
-
-		/// Validate unsigned call to this module.
-		///
-		/// By default unsigned transactions are disallowed, but implementing the validator
-		/// here we make sure that some particular calls (the ones produced by offchain worker)
-		/// are being whitelisted and marked as valid.
-		fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
-			// Firstly let's check that we call the right function.
-			let block_number = <frame_system::Pallet<T>>::block_number();
-			if let Call::update_price { price: new_price } = call {
-				Self::validate_transaction_parameters(&block_number, new_price.to_vec())
-			} else {
-				InvalidTransaction::Call.into()
-			}
 		}
 	}
 
@@ -224,6 +204,10 @@ pub mod pallet {
 
 		AlreadyReceive,
 
+		AlreadyExist,
+
+		NotQualified,
+
 		NotUser,
 		//HTTP interaction error of offline working machine
 		HttpFetchingError,
@@ -291,6 +275,9 @@ pub mod pallet {
 	#[pallet::getter(fn invalid_file)]
 	pub(super) type InvalidFile<T: Config> = StorageMap<_, Twox64Concat, u64, BoundedList<T>, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn members)]
+	pub(super) type Members<T: Config> = StorageValue<_, BoundedVec<AccountOf<T>, T::StringLimit>, ValueQuery>;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -342,15 +329,26 @@ pub mod pallet {
 
 		fn offchain_worker(block_number: T::BlockNumber) {
 			let _signer = Signer::<T, T::AuthorityId>::all_accounts();
-
 			let number: u128 = block_number.saturated_into();
 			let one_day: u128 = <T as Config>::OneDay::get().saturated_into();
-			if number % one_day == 0 || number == 1 {
+			if number % one_day == 0 || number == 30 {
 				//Query price
-				let result = Self::offchain_fetch_price(block_number);
-				if let Err(e) = result {
-					log::error!("offchain_worker error: {:?}", e);
+				let mut counter = 0;
+				loop {
+					log::info!("Current offchain machine execution rounds: {:?}", counter + 1);
+					if counter == 5 {
+						break;
+					}
+					let result = Self::offchain_fetch_price(block_number);
+					if let Err(e) = result {
+						log::error!("offchain_worker error: {:?}", e);
+					} else {
+						log::info!("Update price succeeded");
+						break;
+					}
+					counter = counter + 1;
 				}
+				
 			}
 		}
 
@@ -614,7 +612,11 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			price: Vec<u8>
 		) -> DispatchResult {
-			let _sender = ensure_signed(origin)?;
+			let sender = ensure_signed(origin)?;
+			let member_list = Self::members();
+			if !member_list.contains(&sender) {
+				Err(Error::<T>::NotQualified)?;
+			}
 			//Convert price of string type to balance
 			//Vec<u8> -> str
 			let str_price = str::from_utf8(&price).unwrap_or_default();
@@ -676,7 +678,30 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::ClearInvalidFile{acc: sender, file_id: file_id});
 			Ok(())
 		}
+
+		#[pallet::weight(10_000)]
+		pub fn add_member(origin: OriginFor<T>, acc: AccountOf<T>) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+			let member_list = Self::members();
+			if member_list.contains(&acc) {
+				Err(Error::<T>::AlreadyExist)?;
+			}
+			<Members<T>>::try_mutate(|o| -> DispatchResult {
+				o.try_push(acc).map_err(|_e| Error::<T>::StorageLimitReached)?;
+				Ok(())
+			})?;
+			Ok(())
+		}
 		
+		#[pallet::weight(10_000)]
+		pub fn del_member(origin: OriginFor<T>, acc: AccountOf<T>) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+			<Members<T>>::try_mutate(|o| -> DispatchResult {
+				o.retain(|x| x != &acc);
+				Ok(())
+			})?;
+			Ok(())
+		}
 	}
 
 	impl<T: Config> Pallet<T> {
@@ -845,12 +870,24 @@ pub mod pallet {
 		//offchain helper
 		//Signature chaining method
 		fn offchain_signed_tx(_block_number: T::BlockNumber, price: Vec<u8>) -> Result<(), Error<T>> {
-			let call = Call::update_price{price: price};
+			let signer = Signer::<T, T::AuthorityId>::any_account();
 
-			SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into())
-			.map_err(|()| Error::<T>::OffchainUnSignedTxError)?;
+			let result = signer.send_signed_transaction(|_account| {
+				Call::update_price {price: price.clone()}
+			});
 
-			Ok(())
+			if let Some((acc, res)) = result {
+				if res.is_err() {
+					log::error!("failure: offchain_signed_tx: tx sent: {:?}", acc.id);
+					return Err(<Error<T>>::OffchainSignedTxError);
+				}
+				// Transaction is sent successfully
+				return Ok(());
+			}
+
+			// The case of `None`: no account is available for sending
+			log::error!("No local account available");
+			Err(<Error<T>>::NoLocalAcctForSigning)
 		}
 	
 		pub fn offchain_fetch_price(block_number: T::BlockNumber) -> Result<(), Error<T>> {
@@ -896,54 +933,6 @@ pub mod pallet {
 			}
 					
 			Ok(response.body().collect::<Vec<u8>>())
-		}
-
-		fn validate_transaction_parameters(
-			block_number: &T::BlockNumber,
-			_new_price: Vec<u8>,
-		) -> TransactionValidity {
-			// Now let's check if the transaction has any chance to succeed.
-			let next_unsigned_at = <NextUnsignedAt<T>>::get();
-			if &next_unsigned_at > block_number {
-				return InvalidTransaction::Stale.into()
-			}
-			// Let's make sure to reject transactions from the future.
-			let current_block = <frame_system::Pallet<T>>::block_number();
-			if &current_block < block_number {
-				return InvalidTransaction::Future.into()
-			}
-			let variable: u128 = current_block.saturated_into();
-			// We prioritize transactions that are more far away from current average.
-			//
-			// Note this doesn't make much sense when building an actual oracle, but this example
-			// is here mostly to show off offchain workers capabilities, not about building an
-			// oracle.
-			ValidTransaction::with_tag_prefix("ExampleOffchainWorker")
-				// We set base priority to 2**20 and hope it's included before any other
-				// transactions in the pool. Next we tweak the priority depending on how much
-				// it differs from the current average. (the more it differs the more priority it
-				// has).
-				.priority(5000 + variable as u64)
-				// This transaction does not require anything else to go before into the pool.
-				// In theory we could require `previous_unsigned_at` transaction to go first,
-				// but it's not necessary in our case.
-				//.and_requires()
-				// We set the `provides` tag to be the same as `next_unsigned_at`. This makes
-				// sure only one transaction produced after `next_unsigned_at` will ever
-				// get to the transaction pool and will end up in the block.
-				// We can still have multiple transactions compete for the same "spot",
-				// and the one with higher priority will replace other one in the pool.
-				.and_provides(next_unsigned_at)
-				// The transaction is only valid for next 5 blocks. After that it's
-				// going to be revalidated by the pool.
-				.longevity(5)
-				// It's fine to propagate that transaction to other peers, which means it can be
-				// created even by nodes that don't produce blocks.
-				// Note that sometimes it's better to keep it for yourself (if you are the block
-				// producer), since for instance in some schemes others may copy your solution and
-				// claim a reward.
-				.propagate(true)
-				.build()
 		}
 
 		pub fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<Vec<u8>>, u64, u8, u32)>, DispatchError> {
