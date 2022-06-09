@@ -26,7 +26,8 @@ mod tests;
 
 use frame_support::traits::{Currency, ReservableCurrency, ExistenceRequirement::AllowDeath, Randomness, FindAuthor};
 pub use pallet::*;
-mod benchmarking;
+#[cfg(feature = "runtime-benchmarks")]
+pub mod benchmarking;
 pub mod weights;
 
 mod types;
@@ -63,8 +64,6 @@ type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as frame_sys
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 type BoundedString<T> = BoundedVec<u8, <T as Config>::StringLimit>;
 type BoundedList<T> = BoundedVec<BoundedVec<u8, <T as Config>::StringLimit>, <T as Config>::StringLimit>;
-
-
 
 #[frame_support::pallet]
 pub mod pallet {

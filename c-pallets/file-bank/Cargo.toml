@@ -17,6 +17,8 @@ codec = { package = "parity-scale-codec", version = "3.0.0", default-features = 
 scale-info = { default-features = false, features = ['derive'], version = "2.0.1" }
 serde_json = { version = '1.0.67', default-features = false, features = ['alloc'] }
 log = { version = "0.4.14", default-features = false }
+pallet-cess-staking = { path = '../staking', features = ["runtime-benchmarks"], version = '4.0.0-dev', default-features = false }
+rand_chacha = { version = "0.2", default-features = false, optional = true }
 
 [dependencies.frame-benchmarking]
 default-features = false
@@ -80,9 +82,12 @@ version = '0.1.0'
 
 # dev dependencies
 [dev-dependencies]
+frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "monthly-2022-04-cess" }
+pallet-cess-staking = { path = '../staking', version = '4.0.0-dev' }
 frame-support-test = { git = 'https://github.com/CESSProject/substrate.git', branch = 'monthly-2022-04-cess', version = '3.0.0' }
 pallet-scheduler = { git = 'https://github.com/CESSProject/substrate.git', branch = 'monthly-2022-04-cess', version = '4.0.0-dev' }
 pallet-timestamp = { git = 'https://github.com/CESSProject/substrate.git', branch = 'monthly-2022-04-cess', version = '4.0.0-dev' }
+rand_chacha = { version = "0.2", default-features = false }
 
 [features]
 default = ["std"]
@@ -95,8 +100,13 @@ std = [
 	"sp-runtime/std",
 	"frame-support/std",
 	"frame-system/std",
-	"frame-benchmarking/std",
 	"pallet-balances/std",
+	"frame-benchmarking/std",
 	"pallet-file-map/std",
 ]
-runtime-benchmarks = ["frame-benchmarking"]
+
+runtime-benchmarks = [
+	"frame-benchmarking/runtime-benchmarks",
+	"pallet-cess-staking/runtime-benchmarks",
+	"rand_chacha",
+]
