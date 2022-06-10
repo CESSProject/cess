@@ -2,9 +2,11 @@ name: build-and-test
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main" , "dev"]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main" , "dev"]
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -15,8 +17,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose
+      - uses: actions/checkout@v3
+      - name: install toolchain
+        uses: 0xbillw/install-rust-substrate-action@main
+      - name: Build
+        run: cargo build -r --verbose
+      - name: Run tests
+        run: cargo test -r --verbose
