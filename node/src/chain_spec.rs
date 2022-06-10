@@ -1,6 +1,6 @@
 use cess_node_runtime::{
 	AccountId, AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, Balance, CouncilConfig,
-	EVMConfig, EthereumConfig, GenesisConfig, GrandpaConfig, Block, IndicesConfig,
+	GenesisConfig, GrandpaConfig, Block, IndicesConfig,
 	ImOnlineConfig, SessionConfig, Signature, StakingConfig, opaque::SessionKeys, SudoConfig, StakerStatus,
 	SystemConfig, TechnicalCommitteeConfig, wasm_binary_unwrap, MaxNominations, DOLLARS
 };
@@ -382,41 +382,8 @@ fn testnet_genesis(
 		},
 		assets: Default::default(),
 		transaction_payment: Default::default(),
-		evm: EVMConfig {
-			accounts: {
-				let mut map = BTreeMap::new();
-				map.insert(
-					// H160 address of Alice dev account
-					// Derived from SS58 (42 prefix) address
-					// SS58: 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
-					// hex: 0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d
-					// Using the full hex key, truncating to the first 20 bytes (the first 40 hex chars)
-					H160::from_str("d43593c715fdd31c61141abd04a99fd6822c8558")
-						.expect("internal H160 is valid; qed"),
-					fp_evm::GenesisAccount {
-						balance: U256::from_str("0xffffffffffffffffffffffffffffffff")
-							.expect("internal U256 is valid; qed"),
-						code: Default::default(),
-						nonce: Default::default(),
-						storage: Default::default(),
-					},
-				);
-				map.insert(
-					// H160 address of CI test runner account
-					H160::from_str("8097c3c354652cb1eeed3e5b65fba2576470678a")
-						.expect("internal H160 is valid; qed"),
-					fp_evm::GenesisAccount {
-						balance: U256::from_str("0xffffffffffffffffffffffffffffffff")
-							.expect("internal U256 is valid; qed"),
-						code: Default::default(),
-						nonce: Default::default(),
-						storage: Default::default(),
-					},
-				);
-				map
-			},
-		},
-		ethereum: EthereumConfig {},
+		evm: Default::default(),
+		ethereum: Default::default(),
 		dynamic_fee: Default::default(),
 		base_fee: Default::default(),
 	}
