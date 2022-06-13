@@ -330,7 +330,7 @@ pub mod pallet {
 			let _signer = Signer::<T, T::AuthorityId>::all_accounts();
 			let number: u128 = block_number.saturated_into();
 			let one_day: u128 = <T as Config>::OneDay::get().saturated_into();
-			if number % one_day == 0 || number == 30 {
+			if number % one_day == 0 || number == 500 {
 				//Query price
 				let mut counter = 0;
 				loop {
@@ -1186,7 +1186,7 @@ pub mod pallet {
 	}
 }
 
-pub trait RandomFileList {
+pub trait RandomFileList<AccountId> {
 	//Get random challenge data
 	fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<Vec<u8>>, u64, u8, u32)>, DispatchError>;
 	//Delete filler file
@@ -1197,9 +1197,11 @@ pub trait RandomFileList {
 	fn add_recovery_file(file_id: Vec<u8>) -> DispatchResult;
 	//The function executed when the challenge fails to let the consensus schedule recover the file
 	fn add_invalid_file(miner_id: u64, file_id: Vec<u8>) -> DispatchResult;
+	//Judge whether it is a user who can initiate transactions on the off chain machine
+	fn contains_member(acc: AccountId) -> bool;
 }
 
-impl<T: Config> RandomFileList for Pallet<T> {
+impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Pallet<T> {
 	fn get_random_challenge_data() -> Result<Vec<(u64, Vec<u8>, Vec<Vec<u8>>, u64, u8, u32)>, DispatchError> {
 		let result = Pallet::<T>::get_random_challenge_data()?;
 		Ok(result)
@@ -1223,6 +1225,15 @@ impl<T: Config> RandomFileList for Pallet<T> {
 	fn add_invalid_file(miner_id: u64, file_id: Vec<u8>) -> DispatchResult {
 		Pallet::<T>::add_invalid_file(miner_id, file_id)?;
 		Ok(())
+	}
+
+	fn contains_member(acc: AccountOf<T>) -> bool {
+		let member_list = Self::members();
+			if member_list.contains(&acc) {
+				return true
+			} else {
+				return false
+			}
 	}
 }
 
