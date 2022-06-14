@@ -22,19 +22,22 @@ use sp_std::prelude::*;
 
 use frame_system::RawOrigin;
 
+
 pub struct Pallet<T: Config>(FileBank<T>);
 pub trait Config:
 	crate::Config + pallet_cess_staking::Config + pallet_file_map::Config + pallet_sminer::Config
 {
 }
+type SminerBalanceOf<T> = <<T as pallet_sminer::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+
 const SEED: u32 = 2190502;
 const MAX_SPANS: u32 = 100;
 
-fn upload_file() -> Result<BoundedString<T>> {
+pub fn add_file<T: Config>() -> Result<BoundedString<T>, &'static str> {
     let caller = account("user1", 100, SEED);
     let address = "user1".as_bytes().to_vec();
     let filename = "file1".as_bytes().to_vec();
-    let fileid = "1".as_bytes().to_vec();
+    let fileid = "testfileid1".as_bytes().to_vec();
     let filehash = "filehash".as_bytes().to_vec();
     let public = false;
     let backup: u8 = 3;
@@ -50,13 +53,13 @@ fn upload_file() -> Result<BoundedString<T>> {
             used_space: 0,
         }
     );
-    FileBank::<T>::upload(RawOrigin::Signed(caller).into(), address, filename, fileid, filehash, public, backup, filesize, downloadfee)?;
+    FileBank::<T>::upload(RawOrigin::Signed(caller).into(), address, filename, fileid.clone(), filehash, public, backup, filesize, downloadfee)?;
     Ok(fileid.try_into().map_err(|_| "fileid convert failed")?)
 }
 
-fn add_filler(len: u32) -> Result<u32> {
-    let controller = testing_utils::create_funded_user::<T>("controller", SEED, 100);
-    let stash = testing_utils::create_funded_user::<T>("stash", SEED, 100);
+pub fn add_filler<T: Config>(len: u32) -> Result<u32, &'static str> {
+    let controller = testing_utils::create_funded_user::<T>("controller2", SEED, 100);
+    let stash = testing_utils::create_funded_user::<T>("stash2", SEED, 100);
     let controller_lookup: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(controller.clone());
     let reward_destination = RewardDestination::Staked;
 	let amount = <T as pallet_cess_staking::Config>::Currency::minimum_balance() * 10u32.into();
@@ -81,17 +84,19 @@ fn add_filler(len: u32) -> Result<u32> {
         };
         filler_list.push(new_filler);
     }
+
+
     Ok(1)
 }
 
-fn add_miner() -> Result<T::AccountId> {
-    let miner1 = account("miner1", 100, SEED);
-    let ip = "127.0.0.0:8080".as_bytes().to_vec();
-    let staking_val: BalanceOf<T> = BalanceOf::<T>::try_from(2_000u128).map_err(|_| "balance expected to be a u128")?;
-    let public_key = "this is a test publickey".as_bytes().to_vec();
-    Sminer::<T>::regnstk(RawOrigin::Signed(miner1).into(), miner, ip, staking_val, public_key)?;
-
-    Ok(miner1)
+pub fn add_miner<T: Config>() -> Result<T::AccountId, &'static str> {
+    let miner: T::AccountId = account("miner1", 100, SEED);
+    let ip = "1270008080".as_bytes().to_vec();
+    let public_key = "thisisatestpublickey".as_bytes().to_vec();
+    <T as pallet_sminer::Config>::Currency::make_free_balance_be(&miner, SminerBalanceOf::<T>::max_value());
+    whitelist_account!(miner);
+    Sminer::<T>::regnstk(RawOrigin::Signed(miner.clone()).into(), miner.clone(), ip, 0u32.into(), public_key)?;
+    Ok(miner.clone())
 }
 
 benchmarks! {
@@ -154,17 +159,49 @@ benchmarks! {
         }
     }: _(RawOrigin::Signed(controller), 1, filler_list)
     verify {
-        let miner = account("miner1", 100, SEED);
         for i in 0 .. v {
             let filler_id: BoundedString<T> = i.to_string().as_bytes().to_vec().try_into().map_err(|_| "uint convert to BoundedVec Error")?;
-            assert!(FillerMap::<T>::contains_key(&miner, &filler_id));
+            assert!(FillerMap::<T>::contains_key(&1, &filler_id));
         }
     }
 
     update_dupl {
-
-    }: _()
+        log::info!("test point start");
+        let caller: T::AccountId = account("user1", 100, SEED);
+        pallet_sminer::Pallet::<T>::init_benchmark();
+        log::info!("point 1");
+        let file_id = add_file::<T>()?;
+        log::info!("point 2");
+        let _ = add_miner::<T>()?;
+        log::info!("point 3");
+        let miner_id = add_filler::<T>(5)?;
+        log::info!("point 4");
+        let mut dupl_list: Vec<FileDuplicateInfo<T>> = Vec::new();
+        let dupl_info = FileDuplicateInfo::<T>{
+            miner_id: miner_id.clone() as u64,
+            block_num: 0,
+            segment_size: 123,
+            acc: caller.clone(),
+            miner_ip: Default::default(),
+            dupl_id: "dupl1".as_bytes().to_vec().try_into().map_err(|_| "duplid convert err")?,
+            rand_key: Default::default(),
+            block_info: Default::default(),
+        };
+        dupl_list.push(dupl_info);
+        log::info!("point 5");
+    }: _(RawOrigin::Signed(caller), file_id.to_vec(), dupl_list)
     verify {
-
+        log::info!("point 6");
+        let file = FileBank::<T>::file(&file_id).unwrap();
+        let dupl_id: BoundedString<T> = "dupl1".as_bytes().to_vec().try_into().map_err(|_| "duplid convert err")?;
+        assert_eq!(file.file_dupl[0].dupl_id, dupl_id);
     }
+
+    // delete_file {
+    //     let caller: T::AccountId = account("user1", 100, SEED);
+    //     let file_id = add_file::<T>()?;
+    // }: _(RawOrigin::Signed(caller), file_id)
+    // verify {
+    //     assert!(File::<T>::contains_key(&file_id.try_into().map_err(|_| "fileid convert err")?));
+    // }
 }
