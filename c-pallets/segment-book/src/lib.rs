@@ -38,11 +38,11 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(test)]
-mod mock;
+// #[cfg(test)]
+// mod mock;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
 pub use pallet::*;
 mod benchmarking;
@@ -69,6 +69,13 @@ use pallet_file_bank::RandomFileList;
 use sp_core::H256;
 use pallet_file_map::ScheduleFind;
 use pallet_sminer::MinerControl;
+use sp_std::collections::btree_map::BTreeMap;
+use frame_system::{
+	offchain::{
+		AppCrypto, CreateSignedTransaction, Signer, SendSignedTransaction,
+	},
+};
+use sp_core::{crypto::KeyTypeId};
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
@@ -90,7 +97,7 @@ use frame_support::{
 	pub const LIMIT: u64 = 18446744073709551615;
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config: frame_system::Config + sp_std::fmt::Debug + CreateSignedTransaction<Call<Self>> {
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		/// The currency trait.
@@ -117,11 +124,13 @@ use frame_support::{
 		//Find the consensus of the current block
 		type FindAuthor: FindAuthor<Self::AccountId>;
 		//Random files used to obtain this batch of challenges
-		type File: RandomFileList;
+		type File: RandomFileList<Self::AccountId>;
 		//Judge whether it is the trait of the consensus node
 		type Scheduler: ScheduleFind<Self::AccountId>;
 		//It is used to increase or decrease the miners' computing power, space, and execute punishment
 		type MinerControl: MinerControl;
+		//Configuration to be used for offchain worker
+		type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
 	}
 
 	#[pallet::event]
@@ -151,6 +160,14 @@ use frame_support::{
 		NonProof,
 		//filetype error
 		FileTypeError,
+		//The user does not have permission to call this method
+		NotQualified,
+		//Error recording time
+		RecordTimeError,
+
+		OffchainSignedTxError,
+
+		NoLocalAcctForSigning,
 	}
 
 	//Information about storage challenges
@@ -197,18 +214,22 @@ use frame_support::{
 				}
 			}
 			//The interval between challenges must be greater than one hour
+			
+			0
+		}
+
+		fn offchain_worker(now: T::BlockNumber) {
+			let deadline = Self::challenge_duration();	
 			if now > deadline {
 				//Determine whether to trigger a challenge
 				if Self::trigger_challenge() {
+					log::info!("offchain worker random challenge start");
 					if let Err(e) = Self::generation_challenge() {
 						log::info!("punish Err:{:?}", e);
 					}
-					if let Err(e) = Self::record_challenge_time() {
-						log::info!("punish Err:{:?}", e);
-					}
+					log::info!("offchain worker random challenge end");
 				}
 			}
-			0
 		}
 	}
 
@@ -267,6 +288,44 @@ use frame_support::{
 			}
 			
 			Err(Error::<T>::NonProof)?
+		}
+
+		#[pallet::weight(1000)]
+		pub fn save_challenge_info(
+			origin: OriginFor<T>,
+			miner_id: u64,
+			challenge_info: Vec<ChallengeInfo<T>>
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			if !T::File::contains_member(sender) {
+				Err(Error::<T>::NotQualified)?;
+			}
+			let mut convert: BoundedVec<ChallengeInfo<T>, T::StringLimit> = Default::default();
+			for v in challenge_info {
+				convert.try_push(v).map_err(|_e| Error::<T>::BoundedVecError)?;
+			} 
+			ChallengeMap::<T>::insert(
+				&miner_id,
+				convert,
+			);
+
+			Ok(())
+		}
+
+		#[pallet::weight(1000)]
+		pub fn save_challenge_time(
+			origin: OriginFor<T>,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			if !T::File::contains_member(sender) {
+				Err(Error::<T>::NotQualified)?;
+			}
+			if let Err(e) = Self::record_challenge_time() {
+				log::info!("punish Err:{:?}", e);
+				Err(Error::<T>::RecordTimeError)?;
+			}
+
+			Ok(())
 		}
 	}
 
@@ -334,7 +393,6 @@ use frame_support::{
 	
 		//Trigger: whether to trigger the challenge
 		fn trigger_challenge() -> bool {
-	
 			let time_point = Self::random_time_number(20220509);
 			//The chance to trigger a challenge is once a day
 			let probability: u32 = T::OneDay::get().saturated_into();
@@ -349,26 +407,67 @@ use frame_support::{
 		fn generation_challenge() -> DispatchResult {
 			let result = T::File::get_random_challenge_data()?;
 			let mut x = 0;
+			let mut new_challenge_map: BTreeMap<u64, Vec<ChallengeInfo<T>>> = BTreeMap::new();
 			for (miner_id, file_id, block_list, file_size, file_type, segment_size) in result {
-					x = x.checked_add(&1).ok_or(Error::<T>::Overflow)?;
-					let random = Self::generate_random_number(x.checked_add(&20220510).ok_or(Error::<T>::Overflow)?, block_list.len() as u32);
-					//Create a single challenge message in files
-					let challenge_info = ChallengeInfo::<T>{
-						file_type: file_type,
-						file_id: file_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
-						file_size: file_size,
-						segment_size: segment_size,
-						block_list: Self::vec_to_bounded(block_list)?,
-						random: Self::vec_to_bounded(random)?,
-					};
-					//Push storage
-					<ChallengeMap<T>>::try_mutate(&miner_id, |o| -> DispatchResult {
-						o.try_push(challenge_info).map_err(|_e| Error::<T>::StorageLimitReached)?;
-						Ok(())
-					})?;
+				x = x.checked_add(&1).ok_or(Error::<T>::Overflow)?;
+				let random = Self::generate_random_number(x.checked_add(&20220510).ok_or(Error::<T>::Overflow)?, block_list.len() as u32);
+				//Create a single challenge message in files
+				let challenge_info = ChallengeInfo::<T>{
+					file_type: file_type,
+					file_id: file_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
+					file_size: file_size,
+					segment_size: segment_size,
+					block_list: Self::vec_to_bounded(block_list)?,
+					random: Self::vec_to_bounded(random)?,
+				};
+				//Push Map
+
+				if new_challenge_map.contains_key(&miner_id) {
+					if let Some(e) = new_challenge_map.get_mut(&miner_id) {
+						(*e).push(challenge_info);
+					} else {
+						log::error!("offchain worker read BTreeMap Err");
+					}
+				} else {
+					let new_vec = vec![challenge_info];
+					new_challenge_map.insert(miner_id, new_vec);
+				}
 			}
-	
+			Self::offchain_signed_tx(new_challenge_map)?;
 			Ok(())
+		}
+
+		fn offchain_signed_tx(new_challenge_map: BTreeMap<u64, Vec<ChallengeInfo<T>>>) -> Result<(), Error<T>> {
+			let signer = Signer::<T, T::AuthorityId>::any_account();
+
+			for (k, v) in new_challenge_map {
+				let result = signer.send_signed_transaction(|_account| {
+					Call::save_challenge_info {miner_id: k.clone(), challenge_info: v.clone()}
+				});
+
+				if let Some((acc, res)) = result {
+					if res.is_err() {
+						log::error!("failure: offchain_signed_tx: tx sent: {:?} miner_id: {:?}", acc.id, k);
+					}
+					// Transaction is sent successfully
+				}
+			}
+
+			let result = signer.send_signed_transaction(|_account| {
+				Call::save_challenge_time {}
+			});
+
+			if let Some((_acc, res)) = result {
+				if res.is_err() {
+					log::error!("failure: offchain_signed_tx: tx sent save_challenge_time");
+				} else {
+					return Ok(());
+				}
+				// Transaction is sent successfully
+			}
+			log::error!("No local account available");
+			Err(<Error<T>>::NoLocalAcctForSigning)
+
 		}
 	
 		// Generate a random number from a given seed.

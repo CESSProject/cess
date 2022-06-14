@@ -879,6 +879,7 @@ impl pallet_segment_book::Config for Runtime {
 	type MyPalletId = SegbkPalletId;
 	type MyRandomness = RandomnessCollectiveFlip;
 	type WeightInfo = pallet_segment_book::weights::SubstrateWeight<Runtime>;
+	type AuthorityId = pallet_file_bank::crypto::TestAuthId;
 	type StringLimit = StringLimit;
 	type RandomLimit = RandomLimit;
 	type OneDay = OneDay;
