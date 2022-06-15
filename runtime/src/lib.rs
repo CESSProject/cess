@@ -1119,40 +1119,53 @@ construct_runtime!(
 		NodeBlock = NodeBlock,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
-		System: frame_system,
-		AssetTxPayment: pallet_asset_tx_payment,
-		RandomnessCollectiveFlip: pallet_randomness_collective_flip,
-		Timestamp: pallet_timestamp,
-		Babe: pallet_babe,
-		Grandpa: pallet_grandpa,
-		Balances: pallet_balances,
-		TransactionPayment: pallet_transaction_payment,
-		Sudo: pallet_sudo,
-		Contracts: pallet_contracts,
-		ImOnline: pallet_im_online,
-		Session: pallet_session,
-		Historical: pallet_session_historical,
-		Authorship: pallet_authorship,
-		Offences: pallet_offences,
-		Staking: pallet_cess_staking,
-		ElectionProviderMultiPhase: pallet_election_provider_multi_phase,
-		Council: pallet_collective::<Instance1>,
-		TechnicalCommittee: pallet_collective::<Instance2>,
-		TechnicalMembership: pallet_membership::<Instance1>,
-		Treasury: pallet_treasury,
-		Bounties: pallet_bounties,
-		AuthorityDiscovery: pallet_authority_discovery,
-		Scheduler: pallet_scheduler,
-		Sminer: pallet_sminer,
-		SegmentBook: pallet_segment_book,
-		FileBank: pallet_file_bank,
-		BagsList: pallet_bags_list,
-		FileMap: pallet_file_map,
-		ChildBounties: pallet_child_bounties,
-		Preimage: pallet_preimage,
-		Assets: pallet_assets,
-		Mmr: pallet_mmr,
-		Indices: pallet_indices,
+		// Basic stuff
+		System: frame_system = 0,
+		RandomnessCollectiveFlip: pallet_randomness_collective_flip = 1,
+		Timestamp: pallet_timestamp = 2,
+		Sudo: pallet_sudo = 3,
+		Scheduler: pallet_scheduler = 4,
+		Preimage: pallet_preimage = 5,
+		Mmr: pallet_mmr = 6,
+
+		// Account lookup
+		Indices: pallet_indices = 7,
+
+		// Tokens & Fees
+		Balances: pallet_balances = 10,
+		TransactionPayment: pallet_transaction_payment = 11,
+		Assets: pallet_assets = 12,
+		AssetTxPayment: pallet_asset_tx_payment = 13,
+		
+		// Consensus
+		Authorship: pallet_authorship = 20,
+		Babe: pallet_babe = 21,
+		Grandpa: pallet_grandpa = 22,
+		Staking: pallet_cess_staking = 23,
+		Session: pallet_session = 24,
+		Historical: pallet_session_historical = 25,
+		Offences: pallet_offences = 26,
+		ImOnline: pallet_im_online = 27,
+		AuthorityDiscovery: pallet_authority_discovery = 28,
+		BagsList: pallet_bags_list = 29,
+		ElectionProviderMultiPhase: pallet_election_provider_multi_phase = 30,
+		
+		// Governance
+		Council: pallet_collective::<Instance1> = 40,
+		TechnicalCommittee: pallet_collective::<Instance2> = 41,
+		TechnicalMembership: pallet_membership::<Instance1> = 42,
+		Treasury: pallet_treasury = 43,
+		Bounties: pallet_bounties = 44,
+		ChildBounties: pallet_child_bounties = 45,
+		
+		// Smart contracts
+		Contracts: pallet_contracts = 50,
+
+		// CESS pallets
+		FileBank: pallet_file_bank = 60,
+		FileMap: pallet_file_map = 61,
+		SegmentBook: pallet_segment_book = 62,
+		Sminer: pallet_sminer = 63,
 	}
 );
 
