@@ -173,7 +173,7 @@ use frame_support::{
 	//Information about storage challenges
 	#[pallet::storage]
 	#[pallet::getter(fn challenge_map)]
-	pub type ChallengeMap<T: Config> = StorageMap<_, Twox64Concat, u64, BoundedVec<ChallengeInfo<T>, T::StringLimit>, ValueQuery>;
+	pub type ChallengeMap<T: Config> = StorageMap<_, Blake2_128Concat, u64, BoundedVec<ChallengeInfo<T>, T::StringLimit>, ValueQuery>;
 
 	//Relevant time nodes for storage challenges
 	#[pallet::storage]
@@ -183,7 +183,7 @@ use frame_support::{
 	//Store the certification information submitted by the miner and wait for the specified scheduling verification
 	#[pallet::storage]
 	#[pallet::getter(fn unverify_proof)]
-	pub(super) type UnVerifyProof<T: Config> = StorageMap<_, Twox64Concat, AccountOf<T>, BoundedVec<ProveInfo<T>, T::StringLimit>, ValueQuery>;
+	pub(super) type UnVerifyProof<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<ProveInfo<T>, T::StringLimit>, ValueQuery>;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
