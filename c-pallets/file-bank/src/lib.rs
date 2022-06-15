@@ -233,30 +233,30 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn file)]
-	pub(super) type File<T: Config> = StorageMap<_, Twox64Concat, BoundedString<T>, FileInfo<T>>;
+	pub(super) type File<T: Config> = StorageMap<_, Blake2_128Concat, BoundedString<T>, FileInfo<T>>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn invoice)]
-	pub(super) type Invoice<T: Config> = StorageMap<_, Twox64Concat, BoundedString<T>, u8, ValueQuery>;
+	pub(super) type Invoice<T: Config> = StorageMap<_, Blake2_128Concat, BoundedString<T>, u8, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn user_hold_file_list)]
-	pub(super) type UserHoldFileList<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BoundedList<T>, ValueQuery>;
+	pub(super) type UserHoldFileList<T: Config> = StorageMap<_, Blake2_128Concat, T::AccountId, BoundedList<T>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn user_hold_storage_space)]
-	pub(super) type UserHoldSpaceDetails<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, StorageSpace>;
+	pub(super) type UserHoldSpaceDetails<T: Config> = StorageMap<_, Blake2_128Concat, T::AccountId, StorageSpace>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn user_spance_details)]
-	pub(super) type UserSpaceList<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BoundedVec<SpaceInfo<T>, T::ItemLimit>, ValueQuery>;
+	pub(super) type UserSpaceList<T: Config> = StorageMap<_, Blake2_128Concat, T::AccountId, BoundedVec<SpaceInfo<T>, T::ItemLimit>, ValueQuery>;
 
 	#[pallet::storage]
-	pub(super) type UserFreeRecord<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, u8, ValueQuery>;
+	pub(super) type UserFreeRecord<T: Config> = StorageMap<_, Blake2_128Concat, T::AccountId, u8, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn user_info_map)]
-	pub(super) type UserInfoMap<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, UserInfo<T>>;
+	pub(super) type UserInfoMap<T: Config> = StorageMap<_, Blake2_128Concat, T::AccountId, UserInfo<T>>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn unit_price)]
@@ -264,15 +264,15 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn filler_map)]
-	pub(super) type FillerMap<T: Config> = StorageDoubleMap<_, Twox64Concat, u64, Twox64Concat, BoundedString<T>, FillerInfo<T> >;
+	pub(super) type FillerMap<T: Config> = StorageDoubleMap<_, Blake2_128Concat, u64, Blake2_128Concat, BoundedString<T>, FillerInfo<T> >;
 
 	#[pallet::storage]
 	#[pallet::getter(fn file_recovery)]
-	pub(super) type FileRecovery<T: Config> = StorageMap<_, Twox64Concat, AccountOf<T>, BoundedList<T>, ValueQuery>;
+	pub(super) type FileRecovery<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedList<T>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn invalid_file)]
-	pub(super) type InvalidFile<T: Config> = StorageMap<_, Twox64Concat, u64, BoundedList<T>, ValueQuery>;
+	pub(super) type InvalidFile<T: Config> = StorageMap<_, Blake2_128Concat, u64, BoundedList<T>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn members)]

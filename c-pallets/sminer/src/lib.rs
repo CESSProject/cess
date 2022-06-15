@@ -181,12 +181,12 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn miner_cooling)]
-	pub(super) type MinerColling<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BlockNumberOf<T>>;
+	pub(super) type MinerColling<T: Config> = StorageMap<_, Blake2_128Concat, T::AccountId, BlockNumberOf<T>>;
 
 	/// The hashmap for info of storage miners.
 	#[pallet::storage]
 	#[pallet::getter(fn miner_items)]
-	pub(super) type MinerItems<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, Mr<T::AccountId, BalanceOf<T>, BoundedVec<u8, T::ItemLimit>> >;
+	pub(super) type MinerItems<T: Config> = StorageMap<_, Blake2_128Concat, T::AccountId, Mr<T::AccountId, BalanceOf<T>, BoundedVec<u8, T::ItemLimit>> >;
 
 	/// The hashmap for index of storage miners, it's unique to whole system.
 	#[pallet::storage]
@@ -218,12 +218,12 @@ pub mod pallet {
 	/// Store all miner table information 
 	#[pallet::storage]
 	#[pallet::getter(fn miner_table)]
-	pub(super) type MinerTable<T: Config> = StorageMap<_, Twox64Concat, u64, TableInfo<T::AccountId, BalanceOf<T>>>;
+	pub(super) type MinerTable<T: Config> = StorageMap<_, Blake2_128Concat, u64, TableInfo<T::AccountId, BalanceOf<T>>>;
 
 	/// Store all miner details information 
 	#[pallet::storage]
 	#[pallet::getter(fn miner_details)]
-	pub(super) type MinerDetails<T: Config> = StorageMap<_, Twox64Concat, u64, MinerDetailInfo<T::AccountId, BalanceOf<T>, BoundedVec<u8, T::ItemLimit>>>;
+	pub(super) type MinerDetails<T: Config> = StorageMap<_, Blake2_128Concat, u64, MinerDetailInfo<T::AccountId, BalanceOf<T>, BoundedVec<u8, T::ItemLimit>>>;
 
 	/// Store all miner stat information 
 	#[pallet::storage]
@@ -233,17 +233,17 @@ pub mod pallet {
 	/// The hashmap for info of storage miners.
 	#[pallet::storage]
 	#[pallet::getter(fn calculate_reward_order)]
-	pub(super) type CalculateRewardOrderMap<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BoundedVec<CalculateRewardOrder<T>, T::ItemLimit>, ValueQuery>;
+	pub(super) type CalculateRewardOrderMap<T: Config> = StorageMap<_, Blake2_128Concat, T::AccountId, BoundedVec<CalculateRewardOrder<T>, T::ItemLimit>, ValueQuery>;
 
 	/// The hashmap for checking registered or not.
 	#[pallet::storage]
 	#[pallet::getter(fn reward_claim)]
-	pub(super) type RewardClaimMap<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, RewardClaim<T::AccountId, BalanceOf<T>>>;
+	pub(super) type RewardClaimMap<T: Config> = StorageMap<_, Blake2_128Concat, T::AccountId, RewardClaim<T::AccountId, BalanceOf<T>>>;
 
 	/// The hashmap for checking registered or not.
 	#[pallet::storage]
 	#[pallet::getter(fn faucet_record)]
-	pub(super) type FaucetRecordMap<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, FaucetRecord<BlockNumberOf<T>>>;
+	pub(super) type FaucetRecordMap<T: Config> = StorageMap<_, Blake2_128Concat, T::AccountId, FaucetRecord<BlockNumberOf<T>>>;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]

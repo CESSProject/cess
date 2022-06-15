@@ -53,13 +53,13 @@ pub fn add_file<T: Config>() -> Result<BoundedString<T>, &'static str> {
             used_space: 0,
         }
     );
-    FileBank::<T>::upload(RawOrigin::Signed(caller).into(), address, filename, fileid.clone(), filehash, public, backup, filesize, downloadfee)?;
+    FileBank::<T>::upload(RawOrigin::Signed(caller).into(), address, filename, fileid, filehash, public, backup, filesize, downloadfee)?;
     Ok(fileid.try_into().map_err(|_| "fileid convert failed")?)
 }
 
-pub fn add_filler<T: Config>(len: u32) -> Result<u32, &'static str> {
-    let controller = testing_utils::create_funded_user::<T>("controller2", SEED, 100);
-    let stash = testing_utils::create_funded_user::<T>("stash2", SEED, 100);
+fn add_filler(len: u32) -> Result<u32, &'static str> {
+    let controller = testing_utils::create_funded_user::<T>("controller", SEED, 100);
+    let stash = testing_utils::create_funded_user::<T>("stash", SEED, 100);
     let controller_lookup: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(controller.clone());
     let reward_destination = RewardDestination::Staked;
 	let amount = <T as pallet_cess_staking::Config>::Currency::minimum_balance() * 10u32.into();
@@ -67,7 +67,6 @@ pub fn add_filler<T: Config>(len: u32) -> Result<u32, &'static str> {
     Staking::<T>::bond(RawOrigin::Signed(stash.clone()).into(), controller_lookup, amount, reward_destination)?;
     whitelist_account!(controller);
 
-     FileMap::<T>::registration_scheduler(RawOrigin::Signed(controller.clone()).into(), stash, "127.0.0.1:8080".as_bytes().to_vec())?;
         
     let mut filler_list: Vec<FillerInfo<T>> = Vec::new();
     for i in 0 .. len {

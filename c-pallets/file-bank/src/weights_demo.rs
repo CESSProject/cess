@@ -61,15 +61,17 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: FileBank UserHoldFileList (r:1 w:1)
 	// Storage: FileBank Invoice (r:0 w:1)
 	fn upload() -> Weight {
-		(60_499_000 as Weight)
+		(53_098_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(4 as Weight))
 	}
 	// Storage: FileMap SchedulerMap (r:1 w:0)
 	// Storage: Sminer MinerDetails (r:1 w:0)
-	// Storage: FileBank FillerMap (r:0 w:100)
-	fn upload_filler(_v: u32, ) -> Weight {
-		(349_694_000 as Weight)
+	// Storage: FileBank FillerMap (r:0 w:2)
+	fn upload_filler(v: u32, ) -> Weight {
+		(48_895_000 as Weight)
+			// Standard Error: 39_000
+			.saturating_add((2_727_000 as Weight).saturating_mul(v as Weight))
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(100 as Weight))
 	}
@@ -93,15 +95,17 @@ impl WeightInfo for () {
 	// Storage: FileBank UserHoldFileList (r:1 w:1)
 	// Storage: FileBank Invoice (r:0 w:1)
 	fn upload() -> Weight {
-		(60_499_000 as Weight)
+		(53_098_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(3 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(4 as Weight))
 	}
 	// Storage: FileMap SchedulerMap (r:1 w:0)
 	// Storage: Sminer MinerDetails (r:1 w:0)
-	// Storage: FileBank FillerMap (r:0 w:100)
-	fn upload_filler(_v: u32, ) -> Weight {
-		(349_694_000 as Weight)
+	// Storage: FileBank FillerMap (r:0 w:2)
+	fn upload_filler(v: u32, ) -> Weight {
+		(48_895_000 as Weight)
+			// Standard Error: 39_000
+			.saturating_add((2_727_000 as Weight).saturating_mul(v as Weight))
 			.saturating_add(RocksDbWeight::get().reads(2 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(100 as Weight))
 	}
