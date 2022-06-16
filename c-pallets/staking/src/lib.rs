@@ -377,10 +377,7 @@ pub struct EraRewardPoints<AccountId: Ord> {
 
 impl<AccountId: Ord> Default for EraRewardPoints<AccountId> {
 	fn default() -> Self {
-		EraRewardPoints {
-			total: Default::default(),
-			individual: BTreeMap::new(),
-		}
+		EraRewardPoints { total: Default::default(), individual: BTreeMap::new() }
 	}
 }
 
@@ -527,7 +524,7 @@ impl<AccountId, Balance: HasCompact + Copy + Saturating + AtLeast32BitUnsigned +
 			}
 
 			if unlocking_balance >= value {
-				break;
+				break
 			}
 		}
 
@@ -630,11 +627,7 @@ pub struct Exposure<AccountId, Balance: HasCompact> {
 
 impl<AccountId, Balance: Default + HasCompact> Default for Exposure<AccountId, Balance> {
 	fn default() -> Self {
-		Self {
-			total: Default::default(),
-			own: Default::default(),
-			others: vec![],
-		}
+		Self { total: Default::default(), own: Default::default(), others: vec![] }
 	}
 }
 
@@ -840,11 +833,7 @@ where
 		let offence_session = offence.session_index();
 		let bonded_eras = BondedEras::<T>::get();
 
-		if bonded_eras
-			.first()
-			.filter(|(_, start)| offence_session >= *start)
-			.is_some()
-		{
+		if bonded_eras.first().filter(|(_, start)| offence_session >= *start).is_some() {
 			R::report_offence(reporters, offence)
 		} else {
 			<Pallet<T>>::deposit_event(Event::<T>::OldSlashingReportDiscarded(offence_session));

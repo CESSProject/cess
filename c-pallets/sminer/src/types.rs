@@ -2,7 +2,8 @@ use super::*;
 use frame_support::pallet_prelude::MaxEncodedLen;
 
 // type AccountOf<T> = <T as frame_system::Config>::AccountId;
-// type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+// type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as
+// frame_system::Config>::AccountId>>::Balance;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 /// The custom struct for storing info of storage MinerInfo.
 #[derive(PartialEq, Eq, Default, Encode, Decode, Clone, MaxEncodedLen, RuntimeDebug, TypeInfo)]

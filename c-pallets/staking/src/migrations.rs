@@ -101,10 +101,7 @@ pub mod v8 {
 			"must upgrade linearly"
 		);
 
-		crate::log!(
-			info,
-			"👜 staking bags-list migration passes PRE migrate checks ✅",
-		);
+		crate::log!(info, "👜 staking bags-list migration passes PRE migrate checks ✅",);
 		Ok(())
 	}
 
@@ -135,10 +132,7 @@ pub mod v8 {
 	#[cfg(feature = "try-runtime")]
 	pub fn post_migrate<T: Config>() -> Result<(), &'static str> {
 		T::VoterList::sanity_check().map_err(|_| "VoterList is not in a sane state.")?;
-		crate::log!(
-			info,
-			"👜 staking bags-list migration passes POST migrate checks ✅",
-		);
+		crate::log!(info, "👜 staking bags-list migration passes POST migrate checks ✅",);
 		Ok(())
 	}
 }
@@ -159,14 +153,8 @@ pub mod v7 {
 			CounterForNominators::get().unwrap().is_zero(),
 			"CounterForNominators already set."
 		);
-		assert!(
-			Validators::<T>::count().is_zero(),
-			"Validators already set."
-		);
-		assert!(
-			Nominators::<T>::count().is_zero(),
-			"Nominators already set."
-		);
+		assert!(Validators::<T>::count().is_zero(), "Validators already set.");
+		assert!(Nominators::<T>::count().is_zero(), "Nominators already set.");
 		assert!(StorageVersion::<T>::get() == Releases::V6_0_0);
 		Ok(())
 	}
@@ -201,27 +189,13 @@ pub mod v6 {
 	/// check to execute prior to migration.
 	pub fn pre_migrate<T: Config>() -> Result<(), &'static str> {
 		// these may or may not exist.
-		log!(
-			info,
-			"SnapshotValidators.exits()? {:?}",
-			SnapshotValidators::exists()
-		);
-		log!(
-			info,
-			"SnapshotNominators.exits()? {:?}",
-			SnapshotNominators::exists()
-		);
+		log!(info, "SnapshotValidators.exits()? {:?}", SnapshotValidators::exists());
+		log!(info, "SnapshotNominators.exits()? {:?}", SnapshotNominators::exists());
 		log!(info, "QueuedElected.exits()? {:?}", QueuedElected::exists());
 		log!(info, "QueuedScore.exits()? {:?}", QueuedScore::exists());
 		// these must exist.
-		assert!(
-			IsCurrentSessionFinal::exists(),
-			"IsCurrentSessionFinal storage item not found!"
-		);
-		assert!(
-			EraElectionStatus::exists(),
-			"EraElectionStatus storage item not found!"
-		);
+		assert!(IsCurrentSessionFinal::exists(), "IsCurrentSessionFinal storage item not found!");
+		assert!(EraElectionStatus::exists(), "EraElectionStatus storage item not found!");
 		Ok(())
 	}
 

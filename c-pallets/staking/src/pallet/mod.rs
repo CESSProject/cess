@@ -519,12 +519,8 @@ pub mod pallet {
 		pub force_era: Forcing,
 		pub slash_reward_fraction: Perbill,
 		pub canceled_payout: BalanceOf<T>,
-		pub stakers: Vec<(
-			T::AccountId,
-			T::AccountId,
-			BalanceOf<T>,
-			crate::StakerStatus<T::AccountId>,
-		)>,
+		pub stakers:
+			Vec<(T::AccountId, T::AccountId, BalanceOf<T>, crate::StakerStatus<T::AccountId>)>,
 		pub min_nominator_bond: BalanceOf<T>,
 		pub min_validator_bond: BalanceOf<T>,
 		pub max_validator_count: Option<u32>,
@@ -596,10 +592,7 @@ pub mod pallet {
 					),
 					crate::StakerStatus::Nominator(votes) => <Pallet<T>>::nominate(
 						T::Origin::from(Some(controller.clone()).into()),
-						votes
-							.iter()
-							.map(|l| T::Lookup::unlookup(l.clone()))
-							.collect(),
+						votes.iter().map(|l| T::Lookup::unlookup(l.clone())).collect(),
 					),
 					_ => Ok(()),
 				});
@@ -920,10 +913,7 @@ pub mod pallet {
 
 				// Make sure that the user maintains enough active bond for their role.
 				// If a user runs into this error, they should chill first.
-				ensure!(
-					ledger.active >= min_active_bond,
-					Error::<T>::InsufficientBond
-				);
+				ensure!(ledger.active >= min_active_bond, Error::<T>::InsufficientBond);
 
 				// Note: in case there is no current era it is fine to bond one era more.
 				let era = Self::current_era().unwrap_or(0) + T::BondingDuration::get();
@@ -980,23 +970,24 @@ pub mod pallet {
 				ledger = ledger.consolidate_unlocked(current_era)
 			}
 
-			let post_info_weight =
-				if ledger.unlocking.is_empty() && ledger.active < T::Currency::minimum_balance() {
-					// This account must have called `unbond()` with some value that caused the active
-					// portion to fall below existential deposit + will have no more unlocking chunks
-					// left. We can now safely remove all staking-related information.
-					Self::kill_stash(&stash, num_slashing_spans)?;
-					// Remove the lock.
-					T::Currency::remove_lock(STAKING_ID, &stash);
-					// This is worst case scenario, so we use the full weight and return None
-					None
-				} else {
-					// This was the consequence of a partial unbond. just update the ledger and move on.
-					Self::update_ledger(&controller, &ledger);
+			let post_info_weight = if ledger.unlocking.is_empty() &&
+				ledger.active < T::Currency::minimum_balance()
+			{
+				// This account must have called `unbond()` with some value that caused the active
+				// portion to fall below existential deposit + will have no more unlocking chunks
+				// left. We can now safely remove all staking-related information.
+				Self::kill_stash(&stash, num_slashing_spans)?;
+				// Remove the lock.
+				T::Currency::remove_lock(STAKING_ID, &stash);
+				// This is worst case scenario, so we use the full weight and return None
+				None
+			} else {
+				// This was the consequence of a partial unbond. just update the ledger and move on.
+				Self::update_ledger(&controller, &ledger);
 
-					// This is only an update, so we use less overall weight.
-					Some(T::WeightInfo::withdraw_unbonded_update(num_slashing_spans))
-				};
+				// This is only an update, so we use less overall weight.
+				Some(T::WeightInfo::withdraw_unbonded_update(num_slashing_spans))
+			};
 
 			// `old_total` should never be less than the new total because
 			// `consolidate_unlocked` strictly subtracts balance.
@@ -1020,17 +1011,11 @@ pub mod pallet {
 
 			let ledger = Self::ledger(&controller).ok_or(Error::<T>::NotController)?;
 
-			ensure!(
-				ledger.active >= MinValidatorBond::<T>::get(),
-				Error::<T>::InsufficientBond
-			);
+			ensure!(ledger.active >= MinValidatorBond::<T>::get(), Error::<T>::InsufficientBond);
 			let stash = &ledger.stash;
 
 			// ensure their commission is correct.
-			ensure!(
-				prefs.commission >= MinCommission::<T>::get(),
-				Error::<T>::CommissionTooLow
-			);
+			ensure!(prefs.commission >= MinCommission::<T>::get(), Error::<T>::CommissionTooLow);
 
 			// Only check limits if they are not already a validator.
 			if !Validators::<T>::contains_key(stash) {
@@ -1069,10 +1054,7 @@ pub mod pallet {
 			let controller = ensure_signed(origin)?;
 
 			let ledger = Self::ledger(&controller).ok_or(Error::<T>::NotController)?;
-			ensure!(
-				ledger.active >= MinNominatorBond::<T>::get(),
-				Error::<T>::InsufficientBond
-			);
+			ensure!(ledger.active >= MinNominatorBond::<T>::get(), Error::<T>::InsufficientBond);
 			let stash = &ledger.stash;
 
 			// Only check limits if they are not already a nominator.
@@ -1089,10 +1071,7 @@ pub mod pallet {
 			}
 
 			ensure!(!targets.is_empty(), Error::<T>::EmptyTargets);
-			ensure!(
-				targets.len() <= T::MaxNominations::get() as usize,
-				Error::<T>::TooManyTargets
-			);
+			ensure!(targets.len() <= T::MaxNominations::get() as usize, Error::<T>::TooManyTargets);
 
 			let old = Nominators::<T>::get(stash).map_or_else(Vec::new, |x| x.targets.into_inner());
 
@@ -1363,17 +1342,11 @@ pub mod pallet {
 			T::SlashCancelOrigin::ensure_origin(origin)?;
 
 			ensure!(!slash_indices.is_empty(), Error::<T>::EmptyTargets);
-			ensure!(
-				is_sorted_and_unique(&slash_indices),
-				Error::<T>::NotSortedAndUnique
-			);
+			ensure!(is_sorted_and_unique(&slash_indices), Error::<T>::NotSortedAndUnique);
 
 			let mut unapplied = <Self as Store>::UnappliedSlashes::get(&era);
 			let last_item = slash_indices[slash_indices.len() - 1];
-			ensure!(
-				(last_item as usize) < unapplied.len(),
-				Error::<T>::InvalidSlashIndex
-			);
+			ensure!((last_item as usize) < unapplied.len(), Error::<T>::InvalidSlashIndex);
 
 			for (removed, index) in slash_indices.into_iter().enumerate() {
 				let index = (index as usize) - removed;
@@ -1438,10 +1411,7 @@ pub mod pallet {
 			let initial_unlocking = ledger.unlocking.len() as u32;
 			let (ledger, rebonded_value) = ledger.rebond(value);
 			// Last check: the new active amount of ledger must be more than ED.
-			ensure!(
-				ledger.active >= T::Currency::minimum_balance(),
-				Error::<T>::InsufficientBond
-			);
+			ensure!(ledger.active >= T::Currency::minimum_balance(), Error::<T>::InsufficientBond);
 
 			Self::deposit_event(Event::<T>::Bonded(ledger.stash.clone(), rebonded_value));
 
@@ -1520,8 +1490,8 @@ pub mod pallet {
 			let _ = ensure_signed(origin)?;
 
 			let ed = T::Currency::minimum_balance();
-			let reapable = T::Currency::total_balance(&stash) < ed
-				|| Self::ledger(Self::bonded(stash.clone()).ok_or(Error::<T>::NotStash)?)
+			let reapable = T::Currency::total_balance(&stash) < ed ||
+				Self::ledger(Self::bonded(stash.clone()).ok_or(Error::<T>::NotStash)?)
 					.map(|l| l.total)
 					.unwrap_or_default() < ed;
 			ensure!(reapable, Error::<T>::FundedTarget);
@@ -1678,7 +1648,7 @@ pub mod pallet {
 
 			if Nominators::<T>::contains_key(&stash) && Nominators::<T>::get(&stash).is_none() {
 				Self::chill_stash(&stash);
-				return Ok(());
+				return Ok(())
 			}
 
 			if caller != controller {
@@ -1705,10 +1675,7 @@ pub mod pallet {
 					Zero::zero()
 				};
 
-				ensure!(
-					ledger.active < min_active_bond,
-					Error::<T>::CannotChillOther
-				);
+				ensure!(ledger.active < min_active_bond, Error::<T>::CannotChillOther);
 			}
 
 			Self::chill_stash(&stash);
