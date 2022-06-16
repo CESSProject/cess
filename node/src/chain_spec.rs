@@ -52,12 +52,7 @@ fn session_keys(
 	im_online: ImOnlineId,
 	authority_discovery: AuthorityDiscoveryId,
 ) -> SessionKeys {
-	SessionKeys {
-		grandpa,
-		babe,
-		im_online,
-		authority_discovery,
-	}
+	SessionKeys { grandpa, babe, im_online, authority_discovery }
 }
 
 /// Generate an account ID from seed.
@@ -71,14 +66,7 @@ where
 /// Helper function to generate stash, controller and session key from seed
 pub fn authority_keys_from_seed(
 	seed: &str,
-) -> (
-	AccountId,
-	AccountId,
-	GrandpaId,
-	BabeId,
-	ImOnlineId,
-	AuthorityDiscoveryId,
-) {
+) -> (AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId) {
 	(
 		get_account_id_from_seed::<sr25519::Public>(&format!("{}//stash", seed)),
 		get_account_id_from_seed::<sr25519::Public>(seed),
@@ -188,12 +176,7 @@ fn cess_testnet_config_genesis() -> GenesisConfig {
 		hex!["5ce2722592557b41c2359fec3367f782703706784f193abc735b937abae71e30"].into(),
 	];
 
-	testnet_genesis(
-		initial_authorities,
-		vec![],
-		root_key,
-		Some(endowed_accounts),
-	)
+	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts))
 }
 
 pub fn cess_testnet_config() -> ChainSpec {
@@ -254,10 +237,7 @@ pub fn development_config() -> ChainSpec {
 
 fn local_testnet_genesis() -> GenesisConfig {
 	testnet_genesis(
-		vec![
-			authority_keys_from_seed("Alice"),
-			authority_keys_from_seed("Bob"),
-		],
+		vec![authority_keys_from_seed("Alice"), authority_keys_from_seed("Bob")],
 		vec![],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
@@ -343,12 +323,7 @@ fn testnet_genesis(
 				.into_iter()
 				.map(|choice| choice.0.clone())
 				.collect::<Vec<_>>();
-			(
-				x.clone(),
-				x.clone(),
-				STASH,
-				StakerStatus::Nominator(nominations),
-			)
+			(x.clone(), x.clone(), STASH, StakerStatus::Nominator(nominations))
 		}))
 		.collect::<Vec<_>>();
 
@@ -358,16 +333,10 @@ fn testnet_genesis(
 	const STASH: Balance = ENDOWMENT / 10;
 
 	GenesisConfig {
-		system: SystemConfig {
-			code: wasm_binary_unwrap().to_vec(),
-		},
+		system: SystemConfig { code: wasm_binary_unwrap().to_vec() },
 		balances: BalancesConfig {
 			// Configure endowed accounts with initial balance of 1 << 60.
-			balances: endowed_accounts
-				.iter()
-				.cloned()
-				.map(|k| (k, 1 << 65))
-				.collect(),
+			balances: endowed_accounts.iter().cloned().map(|k| (k, 1 << 65)).collect(),
 		},
 		indices: IndicesConfig { indices: vec![] },
 		session: SessionConfig {
@@ -405,9 +374,7 @@ fn testnet_genesis(
 		},
 		im_online: ImOnlineConfig { keys: vec![] },
 		authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },
-		grandpa: GrandpaConfig {
-			authorities: vec![],
-		},
+		grandpa: GrandpaConfig { authorities: vec![] },
 		technical_membership: Default::default(),
 		treasury: Default::default(),
 		sudo: SudoConfig {

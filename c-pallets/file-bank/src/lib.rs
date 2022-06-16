@@ -79,8 +79,11 @@ pub mod pallet {
 	pub mod crypto {
 		use super::KEY_TYPE;
 		use sp_core::sr25519::Signature as Sr25519Signature;
-		use sp_runtime::app_crypto::{app_crypto, sr25519};
-		use sp_runtime::{traits::Verify, MultiSignature, MultiSigner};
+		use sp_runtime::{
+			app_crypto::{app_crypto, sr25519},
+			traits::Verify,
+			MultiSignature, MultiSigner,
+		};
 
 		app_crypto!(sr25519, KEY_TYPE);
 
@@ -146,74 +149,33 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		//file uploaded.
-		FileUpload {
-			acc: AccountOf<T>,
-		},
+		FileUpload { acc: AccountOf<T> },
 		//file updated.
-		FileUpdate {
-			acc: AccountOf<T>,
-			fileid: Vec<u8>,
-		},
+		FileUpdate { acc: AccountOf<T>, fileid: Vec<u8> },
 
-		FileChangeState {
-			acc: AccountOf<T>,
-			fileid: Vec<u8>,
-		},
+		FileChangeState { acc: AccountOf<T>, fileid: Vec<u8> },
 		//file bought.
-		BuyFile {
-			acc: AccountOf<T>,
-			money: BalanceOf<T>,
-			fileid: Vec<u8>,
-		},
+		BuyFile { acc: AccountOf<T>, money: BalanceOf<T>, fileid: Vec<u8> },
 		//file purchased before.
-		Purchased {
-			acc: AccountOf<T>,
-			fileid: Vec<u8>,
-		},
+		Purchased { acc: AccountOf<T>, fileid: Vec<u8> },
 		//Storage information of scheduling storage file slice
-		InsertFileSlice {
-			fileid: Vec<u8>,
-		},
+		InsertFileSlice { fileid: Vec<u8> },
 		//User purchase space
-		BuySpace {
-			acc: AccountOf<T>,
-			size: u128,
-			fee: BalanceOf<T>,
-		},
+		BuySpace { acc: AccountOf<T>, size: u128, fee: BalanceOf<T> },
 		//Expired storage space
-		LeaseExpired {
-			acc: AccountOf<T>,
-			size: u128,
-		},
+		LeaseExpired { acc: AccountOf<T>, size: u128 },
 		//Storage space expiring within 24 hours
-		LeaseExpireIn24Hours {
-			acc: AccountOf<T>,
-			size: u128,
-		},
+		LeaseExpireIn24Hours { acc: AccountOf<T>, size: u128 },
 		//File deletion event
-		DeleteFile {
-			acc: AccountOf<T>,
-			fileid: Vec<u8>,
-		},
+		DeleteFile { acc: AccountOf<T>, fileid: Vec<u8> },
 		//Filler chain success event
-		FillerUpload {
-			acc: AccountOf<T>,
-			file_size: u64,
-		},
+		FillerUpload { acc: AccountOf<T>, file_size: u64 },
 		//File recovery
-		RecoverFile {
-			acc: AccountOf<T>,
-			file_id: Vec<u8>,
-		},
+		RecoverFile { acc: AccountOf<T>, file_id: Vec<u8> },
 		//The miner cleaned up an invalid file event
-		ClearInvalidFile {
-			acc: AccountOf<T>,
-			file_id: Vec<u8>,
-		},
+		ClearInvalidFile { acc: AccountOf<T>, file_id: Vec<u8> },
 		//Users receive free space events
-		ReceiveSpace {
-			acc: AccountOf<T>,
-		},
+		ReceiveSpace { acc: AccountOf<T> },
 	}
 	#[pallet::error]
 	pub enum Error<T> {
@@ -262,7 +224,8 @@ pub mod pallet {
 		BoundedVecError,
 		//Error that the storage has reached the upper limit.
 		StorageLimitReached,
-		//The miner's calculation power is insufficient, resulting in an error that cannot be replaced
+		//The miner's calculation power is insufficient, resulting in an error that cannot be
+		// replaced
 		MinerPowerInsufficient,
 
 		IsZero,
@@ -354,8 +317,8 @@ pub mod pallet {
 	impl<T: Config> Hooks<BlockNumberOf<T>> for Pallet<T> {
 		//Used to calculate whether it is implied to submit spatiotemporal proof
 		//Cycle every 7.2 hours
-		//When there is an uncommitted space-time certificate, the corresponding miner will be punished
-		//and the corresponding data segment will be removed
+		//When there is an uncommitted space-time certificate, the corresponding miner will be
+		// punished and the corresponding data segment will be removed
 		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
 			let number: u128 = now.saturated_into();
 			let block_oneday: BlockNumberOf<T> = T::OneDay::get();
@@ -381,7 +344,7 @@ pub mod pallet {
 							let _ = pallet_sminer::Pallet::<T>::sub_purchased_space(size);
 							Self::deposit_event(Event::<T>::LeaseExpired {
 								acc: key.clone(),
-								size: size,
+								size,
 							});
 							k -= 1;
 						} else if s.deadline < now && now >= s.deadline - block_oneday {
@@ -407,19 +370,16 @@ pub mod pallet {
 				//Query price
 				let mut counter = 0;
 				loop {
-					log::info!(
-						"Current offchain machine execution rounds: {:?}",
-						counter + 1
-					);
+					log::info!("Current offchain machine execution rounds: {:?}", counter + 1);
 					if counter == 5 {
-						break;
+						break
 					}
 					let result = Self::offchain_fetch_price(block_number);
 					if let Err(e) = result {
 						log::error!("offchain_worker error: {:?}", e);
 					} else {
 						log::info!("Update price succeeded");
-						break;
+						break
 					}
 					counter = counter + 1;
 				}
@@ -432,7 +392,6 @@ pub mod pallet {
 		/// Upload info of stored file.
 		///
 		/// The dispatch origin of this call must be _Signed_.
-		///
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload())]
 		pub fn upload(
 			origin: OriginFor<T>,
@@ -460,13 +419,12 @@ pub mod pallet {
 				filesize,
 				downloadfee,
 			)?;
-			Self::deposit_event(Event::<T>::FileUpload {
-				acc: sender.clone(),
-			});
+			Self::deposit_event(Event::<T>::FileUpload { acc: sender.clone() });
 			Ok(())
 		}
 
-		//The filler upload interface can only be called by scheduling, and the list has a maximum length limit
+		//The filler upload interface can only be called by scheduling, and the list has a maximum
+		// length limit
 		#[pallet::weight(1_000)]
 		pub fn upload_filler(
 			origin: OriginFor<T>,
@@ -489,10 +447,7 @@ pub mod pallet {
 				.checked_mul(filler_list.len() as u128)
 				.ok_or(Error::<T>::Overflow)?;
 			T::MinerControl::add_power(miner_id.clone(), power)?;
-			Self::deposit_event(Event::<T>::FillerUpload {
-				acc: sender,
-				file_size: power as u64,
-			});
+			Self::deposit_event(Event::<T>::FillerUpload { acc: sender, file_size: power as u64 });
 			Ok(())
 		}
 
@@ -512,10 +467,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let bounded_fileid = Self::vec_to_bound::<u8>(fileid.clone())?;
-			ensure!(
-				(<File<T>>::contains_key(bounded_fileid.clone())),
-				Error::<T>::FileNonExistent
-			);
+			ensure!((<File<T>>::contains_key(bounded_fileid.clone())), Error::<T>::FileNonExistent);
 			//Judge whether it is a consensus node
 
 			<File<T>>::try_mutate(bounded_fileid.clone(), |s_opt| -> DispatchResult {
@@ -524,17 +476,12 @@ pub mod pallet {
 				Self::replace_file(file_dupl.clone(), s.file_size)?;
 				let value = Self::vec_to_bound::<FileDuplicateInfo<T>>(file_dupl)?;
 				for v in value {
-					s.file_dupl
-						.try_push(v)
-						.map_err(|_e| Error::<T>::StorageLimitReached)?;
+					s.file_dupl.try_push(v).map_err(|_e| Error::<T>::StorageLimitReached)?;
 				}
 				s.file_state = Self::vec_to_bound::<u8>("active".as_bytes().to_vec())?;
 				Ok(())
 			})?;
-			Self::deposit_event(Event::<T>::FileUpdate {
-				acc: sender.clone(),
-				fileid: fileid,
-			});
+			Self::deposit_event(Event::<T>::FileUpdate { acc: sender.clone(), fileid });
 
 			Ok(())
 		}
@@ -547,17 +494,14 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let bounded_fileid = Self::vec_to_bound::<u8>(fileid.clone())?;
-			ensure!(
-				(<File<T>>::contains_key(bounded_fileid.clone())),
-				Error::<T>::FileNonExistent
-			);
+			ensure!((<File<T>>::contains_key(bounded_fileid.clone())), Error::<T>::FileNonExistent);
 			//Judge whether it is a consensus node
 
 			<File<T>>::try_mutate(bounded_fileid.clone(), |s_opt| -> DispatchResult {
 				let s = s_opt.as_mut().unwrap();
 				//To prevent multiple scheduling
-				if s.file_state == "repairing".as_bytes().to_vec()
-					&& state == "repairing".as_bytes().to_vec()
+				if s.file_state == "repairing".as_bytes().to_vec() &&
+					state == "repairing".as_bytes().to_vec()
 				{
 					Err(Error::<T>::AlreadyRepair)?;
 				}
@@ -566,10 +510,7 @@ pub mod pallet {
 				Ok(())
 			})?;
 
-			Self::deposit_event(Event::<T>::FileChangeState {
-				acc: sender.clone(),
-				fileid: fileid,
-			});
+			Self::deposit_event(Event::<T>::FileChangeState { acc: sender.clone(), fileid });
 			Ok(())
 		}
 
@@ -577,10 +518,7 @@ pub mod pallet {
 		pub fn delete_file(origin: OriginFor<T>, fileid: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let bounded_fileid = Self::vec_to_bound::<u8>(fileid.clone())?;
-			ensure!(
-				<File<T>>::contains_key(bounded_fileid.clone()),
-				Error::<T>::FileNonExistent
-			);
+			ensure!(<File<T>>::contains_key(bounded_fileid.clone()), Error::<T>::FileNonExistent);
 			//The above has been judged. Unwrap will be performed only if the key exists
 			let file = <File<T>>::get(&bounded_fileid).unwrap();
 			if file.user_addr != sender.clone() {
@@ -601,10 +539,7 @@ pub mod pallet {
 				Ok(())
 			})?;
 
-			Self::deposit_event(Event::<T>::DeleteFile {
-				acc: sender,
-				fileid: fileid,
-			});
+			Self::deposit_event(Event::<T>::DeleteFile { acc: sender, fileid });
 			Ok(())
 		}
 
@@ -612,14 +547,8 @@ pub mod pallet {
 		pub fn buyfile(origin: OriginFor<T>, fileid: Vec<u8>, address: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let bounded_fileid = Self::vec_to_bound::<u8>(fileid.clone())?;
-			ensure!(
-				(<File<T>>::contains_key(bounded_fileid.clone())),
-				Error::<T>::FileNonExistent
-			);
-			ensure!(
-				Self::check_lease_expired_forfileid(fileid.clone()),
-				Error::<T>::LeaseExpired
-			);
+			ensure!((<File<T>>::contains_key(bounded_fileid.clone())), Error::<T>::FileNonExistent);
+			ensure!(Self::check_lease_expired_forfileid(fileid.clone()), Error::<T>::LeaseExpired);
 			//The above has been judged. Unwrap will be performed only if the key exists
 			let group_id = <File<T>>::get(bounded_fileid.clone()).unwrap();
 
@@ -654,10 +583,7 @@ pub mod pallet {
 				<T as pallet::Config>::Currency::transfer(
 					&sender,
 					&acc,
-					group_id
-						.downloadfee
-						.checked_sub(&money)
-						.ok_or(Error::<T>::Overflow)?,
+					group_id.downloadfee.checked_sub(&money).ok_or(Error::<T>::Overflow)?,
 					AllowDeath,
 				)?;
 				<Invoice<T>>::insert(bounded_invoice, 0);
@@ -672,7 +598,10 @@ pub mod pallet {
 		}
 
 		//**********************************************************************************************************************************************
-		//************************************************************Storage space lease***************************************************************
+		//************************************************************Storage space lease***********
+		//************************************************************Storage **********************
+		//************************************************************Storage **********************
+		//************************************************************Storage ********
 		//**********************************************************************************************************************************************
 		//The parameter "space_count" is calculated in gigabyte.
 		//parameter "lease_count" is calculated on the monthly basis.
@@ -714,18 +643,16 @@ pub mod pallet {
 			<T as pallet::Config>::Currency::transfer(&sender, &acc, money, AllowDeath)?;
 			let now = <frame_system::Pallet<T>>::block_number();
 			let one_day: u128 = <T as Config>::OneDay::get().saturated_into();
-			let deadline: BlockNumberOf<T> = ((lease_count
-				.checked_mul(one_day * 30)
-				.ok_or(Error::<T>::Overflow)?) as u32)
-				.into();
+			let deadline: BlockNumberOf<T> =
+				((lease_count.checked_mul(one_day * 30).ok_or(Error::<T>::Overflow)?) as u32)
+					.into();
 			let list: SpaceInfo<T> = SpaceInfo::<T> {
 				size: space.checked_mul(M_BYTE).ok_or(Error::<T>::Overflow)?,
 				deadline: now.checked_add(&deadline).ok_or(Error::<T>::Overflow)?,
 			};
 
 			<UserSpaceList<T>>::try_mutate(&sender, |s| -> DispatchResult {
-				s.try_push(list)
-					.map_err(|_e| Error::<T>::StorageLimitReached)?;
+				s.try_push(list).map_err(|_e| Error::<T>::StorageLimitReached)?;
 				Ok(())
 			})?;
 			//Convert MB to BYTE
@@ -746,23 +673,16 @@ pub mod pallet {
 		#[pallet::weight(2_000_000)]
 		pub fn receive_free_space(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			ensure!(
-				!<UserFreeRecord<T>>::contains_key(&sender),
-				Error::<T>::AlreadyReceive
-			);
+			ensure!(!<UserFreeRecord<T>>::contains_key(&sender), Error::<T>::AlreadyReceive);
 			pallet_sminer::Pallet::<T>::add_purchased_space(
 				M_BYTE.checked_mul(1024).ok_or(Error::<T>::Overflow)?,
 			)?;
 
 			let deadline: BlockNumberOf<T> = 999999999u32.into();
-			let list: SpaceInfo<T> = SpaceInfo::<T> {
-				size: 1024,
-				deadline,
-			};
+			let list: SpaceInfo<T> = SpaceInfo::<T> { size: 1024, deadline };
 
 			<UserSpaceList<T>>::try_mutate(&sender, |s| -> DispatchResult {
-				s.try_push(list)
-					.map_err(|_e| Error::<T>::StorageLimitReached)?;
+				s.try_push(list).map_err(|_e| Error::<T>::StorageLimitReached)?;
 				Ok(())
 			})?;
 
@@ -770,9 +690,7 @@ pub mod pallet {
 				sender.clone(),
 				M_BYTE.checked_mul(1024).ok_or(Error::<T>::Overflow)?,
 			)?;
-			Self::deposit_event(Event::<T>::ReceiveSpace {
-				acc: sender.clone(),
-			});
+			Self::deposit_event(Event::<T>::ReceiveSpace { acc: sender.clone() });
 			<UserFreeRecord<T>>::insert(&sender, 1);
 			Ok(())
 		}
@@ -804,9 +722,8 @@ pub mod pallet {
 			//Vec<u8> -> str
 			let str_price = str::from_utf8(&price).unwrap_or_default();
 			//str -> u128
-			let mut price_u128: u128 = str_price
-				.parse()
-				.map_err(|_e| Error::<T>::ConversionError)?;
+			let mut price_u128: u128 =
+				str_price.parse().map_err(|_e| Error::<T>::ConversionError)?;
 
 			//One third of the price
 			price_u128 = price_u128.checked_div(3).ok_or(Error::<T>::Overflow)?;
@@ -818,13 +735,10 @@ pub mod pallet {
 				price_u128 = our_price;
 			}
 			//u128 -> balance
-			let price_balance: BalanceOf<T> = price_u128
-				.try_into()
-				.map_err(|_e| Error::<T>::ConversionError)?;
+			let price_balance: BalanceOf<T> =
+				price_u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
 			<UnitPrice<T>>::put(price_balance);
-			let deadline = now
-				.checked_add(&5000u32.into())
-				.ok_or(Error::<T>::Overflow)?;
+			let deadline = now.checked_add(&5000u32.into()).ok_or(Error::<T>::Overflow)?;
 			<LockTime<T>>::put(deadline);
 			Ok(())
 		}
@@ -834,14 +748,11 @@ pub mod pallet {
 		pub fn recover_file(origin: OriginFor<T>, dupl_id: Vec<u8>) -> DispatchResult {
 			let length = dupl_id.len().checked_sub(4).ok_or(Error::<T>::Overflow)?;
 			let file_id = dupl_id[0..length].to_vec();
-			let file_id_bounded: BoundedString<T> = file_id
-				.try_into()
-				.map_err(|_e| Error::<T>::BoundedVecError)?;
+			let file_id_bounded: BoundedString<T> =
+				file_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
 			let sender = ensure_signed(origin)?;
-			let bounded_string: BoundedString<T> = dupl_id
-				.clone()
-				.try_into()
-				.map_err(|_e| Error::<T>::BoundedVecError)?;
+			let bounded_string: BoundedString<T> =
+				dupl_id.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
 
 			<FileRecovery<T>>::try_mutate(&sender, |o| -> DispatchResult {
 				o.retain(|x| *x != bounded_string);
@@ -859,10 +770,7 @@ pub mod pallet {
 					.map_err(|_e| Error::<T>::BoundedVecError)?;
 				Ok(())
 			})?;
-			Self::deposit_event(Event::<T>::RecoverFile {
-				acc: sender,
-				file_id: dupl_id,
-			});
+			Self::deposit_event(Event::<T>::RecoverFile { acc: sender, file_id: dupl_id });
 			Ok(())
 		}
 
@@ -874,18 +782,13 @@ pub mod pallet {
 			file_id: Vec<u8>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			let bounded_string: BoundedString<T> = file_id
-				.clone()
-				.try_into()
-				.map_err(|_e| Error::<T>::BoundedVecError)?;
+			let bounded_string: BoundedString<T> =
+				file_id.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
 			<InvalidFile<T>>::try_mutate(&miner_id, |o| -> DispatchResult {
 				o.retain(|x| *x != bounded_string);
 				Ok(())
 			})?;
-			Self::deposit_event(Event::<T>::ClearInvalidFile {
-				acc: sender,
-				file_id: file_id,
-			});
+			Self::deposit_event(Event::<T>::ClearInvalidFile { acc: sender, file_id });
 			Ok(())
 		}
 
@@ -897,8 +800,7 @@ pub mod pallet {
 				Err(Error::<T>::AlreadyExist)?;
 			}
 			<Members<T>>::try_mutate(|o| -> DispatchResult {
-				o.try_push(acc)
-					.map_err(|_e| Error::<T>::StorageLimitReached)?;
+				o.try_push(acc).map_err(|_e| Error::<T>::StorageLimitReached)?;
 				Ok(())
 			})?;
 			Ok(())
@@ -927,15 +829,9 @@ pub mod pallet {
 			filesize: u64,
 			downloadfee: BalanceOf<T>,
 		) -> DispatchResult {
-			ensure!(
-				<UserHoldSpaceDetails<T>>::contains_key(&acc),
-				Error::<T>::NotPurchasedSpace
-			);
+			ensure!(<UserHoldSpaceDetails<T>>::contains_key(&acc), Error::<T>::NotPurchasedSpace);
 			let bounded_fileid = Self::vec_to_bound::<u8>(fileid.to_vec())?;
-			ensure!(
-				!<File<T>>::contains_key(bounded_fileid.clone()),
-				Error::<T>::FileExistent
-			);
+			ensure!(!<File<T>>::contains_key(bounded_fileid.clone()), Error::<T>::FileExistent);
 			let mut invoice: Vec<u8> = Vec::new();
 			for i in fileid {
 				invoice.push(*i);
@@ -952,11 +848,11 @@ pub mod pallet {
 					file_name: Self::vec_to_bound::<u8>(filename.to_vec())?,
 					file_size: filesize,
 					file_hash: Self::vec_to_bound::<u8>(filehash.to_vec())?,
-					public: public,
+					public,
 					user_addr: acc.clone(),
 					file_state: Self::vec_to_bound::<u8>("normal".as_bytes().to_vec())?,
-					backups: backups,
-					downloadfee: downloadfee,
+					backups,
+					downloadfee,
 					file_dupl: BoundedVec::default(),
 				},
 			);
@@ -964,9 +860,7 @@ pub mod pallet {
 			Self::update_user_space(
 				acc.clone(),
 				1,
-				filesize
-					.checked_mul(backups as u64)
-					.ok_or(Error::<T>::Overflow)? as u128,
+				filesize.checked_mul(backups as u64).ok_or(Error::<T>::Overflow)? as u128,
 			)?;
 			Self::add_user_hold_file(acc.clone(), fileid.clone())?;
 			Ok(())
@@ -981,16 +875,11 @@ pub mod pallet {
 						Err(Error::<T>::InsufficientStorage)?;
 					}
 					if false == Self::check_lease_expired(acc.clone()) {
-						Self::deposit_event(Event::<T>::LeaseExpired {
-							acc: acc.clone(),
-							size: 0,
-						});
+						Self::deposit_event(Event::<T>::LeaseExpired { acc: acc.clone(), size: 0 });
 						Err(Error::<T>::LeaseExpired)?;
 					}
-					s.remaining_space = s
-						.remaining_space
-						.checked_sub(size)
-						.ok_or(Error::<T>::Overflow)?;
+					s.remaining_space =
+						s.remaining_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
 					s.used_space = s.used_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
 					Ok(())
 				})?,
@@ -1016,10 +905,8 @@ pub mod pallet {
 			if <UserHoldSpaceDetails<T>>::contains_key(&acc) {
 				<UserHoldSpaceDetails<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
 					let s = s_opt.as_mut().unwrap();
-					s.purchased_space = s
-						.purchased_space
-						.checked_add(size)
-						.ok_or(Error::<T>::Overflow)?;
+					s.purchased_space =
+						s.purchased_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
 					if s.purchased_space > s.used_space {
 						s.remaining_space = s
 							.purchased_space
@@ -1032,11 +919,8 @@ pub mod pallet {
 					Ok(())
 				})?;
 			} else {
-				let value = StorageSpace {
-					purchased_space: size,
-					used_space: 0,
-					remaining_space: size,
-				};
+				let value =
+					StorageSpace { purchased_space: size, used_space: 0, remaining_space: size };
 				<UserHoldSpaceDetails<T>>::insert(&acc, value);
 			}
 			Ok(())
@@ -1045,8 +929,7 @@ pub mod pallet {
 		fn add_user_hold_file(acc: AccountOf<T>, fileid: Vec<u8>) -> DispatchResult {
 			let bounded_fileid = Self::vec_to_bound::<u8>(fileid).unwrap_or_default();
 			<UserHoldFileList<T>>::try_mutate(&acc, |s| -> DispatchResult {
-				s.try_push(bounded_fileid)
-					.map_err(|_e| Error::<T>::StorageLimitReached)?;
+				s.try_push(bounded_fileid).map_err(|_e| Error::<T>::StorageLimitReached)?;
 				Ok(())
 			})?;
 			Ok(())
@@ -1075,7 +958,7 @@ pub mod pallet {
 					.ok_or(Error::<T>::Overflow)?
 					.checked_div(space)
 					.ok_or(Error::<T>::Overflow)?;
-				return Ok(price);
+				return Ok(price)
 			}
 			//If it is 0, an extra large price will be returned
 			Ok(1_000_000_000_000_000_000)
@@ -1112,17 +995,16 @@ pub mod pallet {
 		) -> Result<(), Error<T>> {
 			let signer = Signer::<T, T::AuthorityId>::any_account();
 
-			let result = signer.send_signed_transaction(|_account| Call::update_price {
-				price: price.clone(),
-			});
+			let result = signer
+				.send_signed_transaction(|_account| Call::update_price { price: price.clone() });
 
 			if let Some((acc, res)) = result {
 				if res.is_err() {
 					log::error!("failure: offchain_signed_tx: tx sent: {:?}", acc.id);
-					return Err(<Error<T>>::OffchainSignedTxError);
+					return Err(<Error<T>>::OffchainSignedTxError)
 				}
 				// Transaction is sent successfully
-				return Ok(());
+				return Ok(())
 			}
 
 			// The case of `None`: no account is available for sending
@@ -1220,7 +1102,7 @@ pub mod pallet {
 				for (_, _, value) in <FillerMap<T>>::iter() {
 					if counter == *i {
 						filler_list.push(value);
-						break;
+						break
 					}
 					counter = counter.checked_add(1).ok_or(Error::<T>::Overflow)?;
 				}
@@ -1238,13 +1120,13 @@ pub mod pallet {
 				for (_, value) in <File<T>>::iter() {
 					if value.file_state.to_vec() == "active".as_bytes().to_vec() {
 						if counter == *i {
-							let random_index = Self::generate_random_number(20220523 + counter)?
-								% value.file_dupl.len() as u32;
+							let random_index = Self::generate_random_number(20220523 + counter)? %
+								value.file_dupl.len() as u32;
 							file_list.push((
 								value.file_size,
 								value.file_dupl[random_index as usize].clone(),
 							));
-							break;
+							break
 						}
 						counter = counter.checked_add(1).ok_or(Error::<T>::Overflow)?;
 					}
@@ -1256,7 +1138,7 @@ pub mod pallet {
 		fn get_random_numberlist(length: u32, random_type: u8) -> Result<Vec<u32>, DispatchError> {
 			let mut seed: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
 			if length == 0 {
-				return Ok(Vec::new());
+				return Ok(Vec::new())
 			}
 			let num = match random_type {
 				1 => length
@@ -1288,7 +1170,7 @@ pub mod pallet {
 					number_list.sort();
 					number_list.dedup();
 					if number_list.len() >= num as usize {
-						break;
+						break
 					}
 				}
 				let random = Self::generate_random_number(seed)? % length;
@@ -1326,7 +1208,7 @@ pub mod pallet {
 					T::MyRandomness::random(&(T::FilbakPalletId::get(), seed + counter).encode());
 				let random_number = <u32>::decode(&mut random_seed.as_ref()).unwrap_or(0);
 				if random_number != 0 {
-					return Ok(random_number);
+					return Ok(random_number)
 				}
 				counter = counter.checked_add(1).ok_or(Error::<T>::Overflow)?;
 			}
@@ -1334,9 +1216,8 @@ pub mod pallet {
 
 		//Specific implementation method of deleting filler file
 		pub fn delete_filler(miner_id: u64, filler_id: Vec<u8>) -> DispatchResult {
-			let filler_boud: BoundedString<T> = filler_id
-				.try_into()
-				.map_err(|_e| Error::<T>::BoundedVecError)?;
+			let filler_boud: BoundedString<T> =
+				filler_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
 			if !<FillerMap<T>>::contains_key(miner_id, filler_boud.clone()) {
 				Err(Error::<T>::FileNonExistent)?;
 			}
@@ -1349,9 +1230,8 @@ pub mod pallet {
 		pub fn delete_file_dupl(dupl_id: Vec<u8>) -> DispatchResult {
 			let length = dupl_id.len().checked_sub(4).ok_or(Error::<T>::Overflow)?;
 			let file_id = dupl_id[0..length].to_vec();
-			let file_id_bounded: BoundedString<T> = file_id
-				.try_into()
-				.map_err(|_e| Error::<T>::BoundedVecError)?;
+			let file_id_bounded: BoundedString<T> =
+				file_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
 			if !<File<T>>::contains_key(&file_id_bounded) {
 				Err(Error::<T>::FileNonExistent)?;
 			}
@@ -1370,9 +1250,8 @@ pub mod pallet {
 			let acc = Self::get_current_scheduler();
 			let length = dupl_id.len().checked_sub(4).ok_or(Error::<T>::Overflow)?;
 			let file_id = dupl_id[0..length].to_vec();
-			let file_id_bounded: BoundedString<T> = file_id
-				.try_into()
-				.map_err(|_e| Error::<T>::BoundedVecError)?;
+			let file_id_bounded: BoundedString<T> =
+				file_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
 			if !<File<T>>::contains_key(&file_id_bounded) {
 				Err(Error::<T>::FileNonExistent)?;
 			}
@@ -1386,12 +1265,8 @@ pub mod pallet {
 				Ok(())
 			})?;
 			<FileRecovery<T>>::try_mutate(&acc, |o| -> DispatchResult {
-				o.try_push(
-					dupl_id
-						.try_into()
-						.map_err(|_e| Error::<T>::BoundedVecError)?,
-				)
-				.map_err(|_e| Error::<T>::StorageLimitReached)?;
+				o.try_push(dupl_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?)
+					.map_err(|_e| Error::<T>::StorageLimitReached)?;
 				Ok(())
 			})?;
 
@@ -1401,12 +1276,8 @@ pub mod pallet {
 		//Add invalid file list, notify miner to delete
 		pub fn add_invalid_file(miner_id: u64, file_id: Vec<u8>) -> DispatchResult {
 			<InvalidFile<T>>::try_mutate(&miner_id, |o| -> DispatchResult {
-				o.try_push(
-					file_id
-						.try_into()
-						.map_err(|_e| Error::<T>::BoundedVecError)?,
-				)
-				.map_err(|_e| Error::<T>::StorageLimitReached)?;
+				o.try_push(file_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?)
+					.map_err(|_e| Error::<T>::StorageLimitReached)?;
 				Ok(())
 			})?;
 
@@ -1445,7 +1316,7 @@ pub mod pallet {
 				let mut counter = 0;
 				for (filler_id, _) in <FillerMap<T>>::iter_prefix(v.miner_id) {
 					if counter == replace_num {
-						break;
+						break
 					}
 					//Clear information on the chain
 					Self::delete_filler(v.miner_id, filler_id.to_vec())?;
@@ -1506,9 +1377,9 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 	fn contains_member(acc: AccountOf<T>) -> bool {
 		let member_list = Self::members();
 		if member_list.contains(&acc) {
-			return true;
+			return true
 		} else {
-			return false;
+			return false
 		}
 	}
 }

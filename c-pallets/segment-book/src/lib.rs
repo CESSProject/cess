@@ -4,15 +4,16 @@
 //!
 //! ## OverView
 //!
-//!  The job of this segment Book pallet is to process the proof of miner's service file and filling file,
-//!  and generate random challenges. Call some traits of Smith pallet to punish miners.
-//!  Call the trail of file bank pallet to obtain random files or files with problems in handling challenges.
+//!  The job of this segment Book pallet is to process the proof of miner's service file and filling
+//! file,  and generate random challenges. Call some traits of Smith pallet to punish miners.
+//!  Call the trail of file bank pallet to obtain random files or files with problems in handling
+//! challenges.
 //!
 //! ### Terminology
 //!
 //! * **random_challenge:** The random time trigger initiates a challenge to the random documents.
-//!  						The miners need to complete the challenge within a limited time and submit
-//!  						the certificates of the corresponding documents.
+//!   The miners need to complete the challenge within a limited time and submit the certificates of
+//!   the corresponding documents.
 //!
 //! * **deadline:** 		Expiration time of challenge, stored in challengeduration
 //! * **mu:**				Miner generated challenge related information
@@ -33,8 +34,6 @@
 //!   or the miner fails to complete the challenge on time, the miner
 //!   will be punished in both cases. Decide whether to reduce power
 //!   or space according to the file type of punishment
-//!
-//!
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -55,9 +54,9 @@ mod types;
 use types::*;
 
 use codec::{Decode, Encode};
-use frame_support::pallet_prelude::*;
 use frame_support::{
 	dispatch::DispatchResult,
+	pallet_prelude::*,
 	storage::bounded_vec::BoundedVec,
 	traits::{FindAuthor, Randomness, ReservableCurrency},
 	PalletId,
@@ -67,10 +66,8 @@ use pallet_file_bank::RandomFileList;
 use pallet_file_map::ScheduleFind;
 use pallet_sminer::MinerControl;
 use scale_info::TypeInfo;
-use sp_core::crypto::KeyTypeId;
-use sp_core::H256;
-use sp_std::collections::btree_map::BTreeMap;
-use sp_std::prelude::*;
+use sp_core::{crypto::KeyTypeId, H256};
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -122,7 +119,8 @@ pub mod pallet {
 		type File: RandomFileList<Self::AccountId>;
 		//Judge whether it is the trait of the consensus node
 		type Scheduler: ScheduleFind<Self::AccountId>;
-		//It is used to increase or decrease the miners' computing power, space, and execute punishment
+		//It is used to increase or decrease the miners' computing power, space, and execute
+		// punishment
 		type MinerControl: MinerControl;
 		//Configuration to be used for offchain worker
 		type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
@@ -181,7 +179,8 @@ pub mod pallet {
 	#[pallet::getter(fn challenge_duration)]
 	pub(super) type ChallengeDuration<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
 
-	//Store the certification information submitted by the miner and wait for the specified scheduling verification
+	//Store the certification information submitted by the miner and wait for the specified
+	// scheduling verification
 	#[pallet::storage]
 	#[pallet::getter(fn unverify_proof)]
 	pub(super) type UnVerifyProof<T: Config> = StorageMap<
@@ -200,8 +199,8 @@ pub mod pallet {
 	impl<T: Config> Hooks<BlockNumberOf<T>> for Pallet<T> {
 		//Used to calculate whether it is implied to submit spatiotemporal proof
 		//Cycle every 7.2 hours
-		//When there is an uncommitted space-time certificate, the corresponding miner will be punished
-		//and the corresponding data segment will be removed
+		//When there is an uncommitted space-time certificate, the corresponding miner will be
+		// punished and the corresponding data segment will be removed
 		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
 			let _number: u128 = now.saturated_into();
 			let deadline = Self::challenge_duration();
@@ -274,11 +273,8 @@ pub mod pallet {
 						sigma.clone(),
 					)?;
 					Self::clear_challenge_info(miner_id.clone(), file_id.clone())?;
-					Self::deposit_event(Event::<T>::ChallengeProof {
-						peer_id: miner_id,
-						file_id: file_id,
-					});
-					return Ok(());
+					Self::deposit_event(Event::<T>::ChallengeProof { peer_id: miner_id, file_id });
+					return Ok(())
 				}
 			}
 
@@ -312,11 +308,8 @@ pub mod pallet {
 							value.challenge_info.file_type,
 						)?;
 					}
-					Self::deposit_event(Event::<T>::VerifyProof {
-						peer_id: miner_id,
-						file_id: file_id,
-					});
-					return Ok(());
+					Self::deposit_event(Event::<T>::VerifyProof { peer_id: miner_id, file_id });
+					return Ok(())
 				}
 			}
 
@@ -335,9 +328,7 @@ pub mod pallet {
 			}
 			let mut convert: BoundedVec<ChallengeInfo<T>, T::StringLimit> = Default::default();
 			for v in challenge_info {
-				convert
-					.try_push(v)
-					.map_err(|_e| Error::<T>::BoundedVecError)?;
+				convert.try_push(v).map_err(|_e| Error::<T>::BoundedVecError)?;
 			}
 			ChallengeMap::<T>::insert(&miner_id, convert);
 
@@ -369,18 +360,14 @@ pub mod pallet {
 			sigma: Vec<u8>,
 		) -> DispatchResult {
 			let proveinfo = ProveInfo::<T> {
-				miner_id: miner_id,
-				challenge_info: challenge_info,
+				miner_id,
+				challenge_info,
 				mu: Self::vec_to_bounded(mu.clone())?,
-				sigma: sigma
-					.clone()
-					.try_into()
-					.map_err(|_e| Error::<T>::BoundedVecError)?,
+				sigma: sigma.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
 			};
 
 			<UnVerifyProof<T>>::try_mutate(&acc, |o| -> DispatchResult {
-				o.try_push(proveinfo)
-					.map_err(|_e| Error::<T>::StorageLimitReached)?;
+				o.try_push(proveinfo).map_err(|_e| Error::<T>::StorageLimitReached)?;
 				Ok(())
 			})?;
 			Ok(())
@@ -434,7 +421,7 @@ pub mod pallet {
 			let probability: u32 = T::OneDay::get().saturated_into();
 			let range = LIMIT / probability as u64;
 			if (time_point > 2190502) && (time_point < (range + 2190502)) {
-				return true;
+				return true
 			}
 			false
 		}
@@ -452,12 +439,10 @@ pub mod pallet {
 				);
 				//Create a single challenge message in files
 				let challenge_info = ChallengeInfo::<T> {
-					file_type: file_type,
-					file_id: file_id
-						.try_into()
-						.map_err(|_e| Error::<T>::BoundedVecError)?,
-					file_size: file_size,
-					segment_size: segment_size,
+					file_type,
+					file_id: file_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
+					file_size,
+					segment_size,
 					block_list: Self::vec_to_bounded(block_list)?,
 					random: Self::vec_to_bounded(random)?,
 				};
@@ -507,7 +492,7 @@ pub mod pallet {
 				if res.is_err() {
 					log::error!("failure: offchain_signed_tx: tx sent save_challenge_time");
 				} else {
-					return Ok(());
+					return Ok(())
 				}
 				// Transaction is sent successfully
 			}
@@ -535,7 +520,7 @@ pub mod pallet {
 					let random_vec = random_seed.as_bytes().to_vec();
 					if random_vec.len() >= 20 {
 						random_list.push(random_vec[0..19].to_vec());
-						break;
+						break
 					}
 				}
 			}
@@ -549,7 +534,7 @@ pub mod pallet {
 			file_type: u8,
 		) -> DispatchResult {
 			if !T::MinerControl::miner_is_exist(miner_id) {
-				return Ok(());
+				return Ok(())
 			}
 			match file_type {
 				1 => {
@@ -557,33 +542,30 @@ pub mod pallet {
 					T::File::add_invalid_file(miner_id, file_id.clone())?;
 					T::File::delete_filler(miner_id, file_id)?;
 					T::MinerControl::punish_miner(miner_id, file_size)?;
-				}
+				},
 				2 => {
 					T::MinerControl::sub_space(miner_id, file_size.into())?;
 					T::MinerControl::sub_power(miner_id, file_size.into())?;
 					T::File::add_invalid_file(miner_id, file_id.clone())?;
 					T::File::add_recovery_file(file_id.clone())?;
 					T::MinerControl::punish_miner(miner_id, file_size)?;
-				}
+				},
 				_ => {
 					Err(Error::<T>::FileTypeError)?;
-				}
+				},
 			}
 
 			Ok(())
 		}
 
 		fn vec_to_bounded(param: Vec<Vec<u8>>) -> Result<BoundedList<T>, DispatchError> {
-			let mut result: BoundedList<T> = Vec::new()
-				.try_into()
-				.map_err(|_| Error::<T>::BoundedVecError)?;
+			let mut result: BoundedList<T> =
+				Vec::new().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
 
 			for v in param {
 				let string: BoundedVec<u8, T::StringLimit> =
 					v.try_into().map_err(|_| Error::<T>::BoundedVecError)?;
-				result
-					.try_push(string)
-					.map_err(|_| Error::<T>::BoundedVecError)?;
+				result.try_push(string).map_err(|_| Error::<T>::BoundedVecError)?;
 			}
 
 			Ok(result)
