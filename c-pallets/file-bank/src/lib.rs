@@ -70,7 +70,7 @@ pub mod pallet {
 	use super::*;
 	use frame_support::{
 		ensure,
-		traits::Get,
+		traits::Get, inherent::BlockT,
 	};
 	use pallet_file_map::ScheduleFind;
 	use pallet_sminer::MinerControl;
@@ -226,6 +226,8 @@ pub mod pallet {
 		MinerPowerInsufficient,
 
 		IsZero,
+		//Multi consensus query restriction of off chain workers
+		Locked,
 	}
 	#[pallet::storage]
 	#[pallet::getter(fn next_unsigned_at)]
@@ -277,6 +279,10 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn members)]
 	pub(super) type Members<T: Config> = StorageValue<_, BoundedVec<AccountOf<T>, T::StringLimit>, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn lock_time)]
+	pub(super) type LockTime<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -616,6 +622,11 @@ pub mod pallet {
 			if !member_list.contains(&sender) {
 				Err(Error::<T>::NotQualified)?;
 			}
+			let now = <frame_system::Pallet<T>>::block_number();
+			let lock_time = <LockTime<T>>::get();
+			if lock_time > now {
+				Err(Error::<T>::Locked)?;
+			}
 			//Convert price of string type to balance
 			//Vec<u8> -> str
 			let str_price = str::from_utf8(&price).unwrap_or_default();
@@ -636,7 +647,8 @@ pub mod pallet {
 			//u128 -> balance
 			let price_balance: BalanceOf<T> = price_u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
 			<UnitPrice<T>>::put(price_balance);
-
+			let deadline = now.checked_add(&5000u32.into()).ok_or(Error::<T>::Overflow)?;
+			<LockTime<T>>::put(deadline);
 			Ok(())
 		}
 
