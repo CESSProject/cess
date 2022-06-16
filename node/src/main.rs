@@ -6,9 +6,9 @@ mod chain_spec;
 mod service;
 mod cli;
 mod command;
-mod rpc;
-mod primitives;
 mod executor;
+mod primitives;
+mod rpc;
 
 fn main() -> sc_cli::Result<()> {
 	command::run()

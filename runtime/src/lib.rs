@@ -16,47 +16,51 @@ pub fn wasm_binary_unwrap() -> &'static [u8] {
 	)
 }
 
-use pallet_grandpa::{
-	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
-};
-use sp_api::impl_runtime_apis;
-use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
-use pallet_session::historical as pallet_session_historical;
-pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier, TargetedFeeAdjustment};
-use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use codec::Decode;
 use codec::Encode;
 use frame_election_provider_support::{onchain, ExtendedBalance, SequentialPhragmen, VoteWeight};
-use sp_inherents::{CheckInherentsResult, InherentData};
-use sp_runtime::{
-	create_runtime_str, generic, impl_opaque_keys, OpaqueExtrinsic,
-	traits::{BlakeTwo256, Block as BlockT, ConvertInto, IdentifyAccount, NumberFor, Verify, OpaqueKeys, SaturatedConversion, StaticLookup},
-	transaction_validity::{TransactionSource, TransactionValidity, TransactionPriority},
-	ApplyExtrinsicResult, MultiSignature, FixedPointNumber, Perbill, Permill, Percent, Perquintill, 
+pub use pallet_file_bank;
+use pallet_grandpa::{
+	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
+use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
+use pallet_session::historical as pallet_session_historical;
+pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier, TargetedFeeAdjustment};
+use sp_api::impl_runtime_apis;
+use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
+use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
+use sp_inherents::{CheckInherentsResult, InherentData};
 use sp_runtime::generic::Era;
+use sp_runtime::{
+	create_runtime_str, generic, impl_opaque_keys,
+	traits::{
+		BlakeTwo256, Block as BlockT, ConvertInto, IdentifyAccount, NumberFor, OpaqueKeys,
+		SaturatedConversion, StaticLookup, Verify,
+	},
+	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
+	ApplyExtrinsicResult, FixedPointNumber, MultiSignature, OpaqueExtrinsic, Perbill, Percent,
+	Permill, Perquintill,
+};
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
-pub use pallet_file_bank;
 
 // A few exports that help ease life for downstream crates.
 pub use frame_support::{
 	construct_runtime,
 	pallet_prelude::Get,
 	parameter_types,
-	traits::{ConstU32, ConstU16, ConstU128, KeyOwnerProofSystem, Randomness, 
-		StorageInfo, U128CurrencyToVote, Nothing, EnsureOneOf, Currency,
-		EqualPrivilegeOnly, OnUnbalanced, Imbalance, InstanceFilter, Everything,
+	traits::{
+		ConstU128, ConstU16, ConstU32, Currency, EnsureOneOf, EqualPrivilegeOnly, Everything,
+		Imbalance, InstanceFilter, KeyOwnerProofSystem, Nothing, OnUnbalanced, Randomness,
+		StorageInfo, U128CurrencyToVote,
 	},
 	weights::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
 		DispatchClass, IdentityFee, Weight,
 	},
-	StorageValue,
-	PalletId,
+	PalletId, StorageValue,
 };
 
 use frame_system::{
@@ -110,7 +114,6 @@ pub type Signature = MultiSignature;
 /// to the public key of our transaction signing scheme.
 pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
 
-
 /// Balance of an account.
 pub type Balance = u128;
 
@@ -135,7 +138,6 @@ pub type NodeBlock = generic::Block<Header, OpaqueExtrinsic>;
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats
 /// of data like extrinsics, allowing for them to continue syncing the network through upgrades
 /// to even the core data structures.
-
 
 // To learn more about runtime versioning and what each of the following value means:
 //   https://substrate.dev/docs/en/knowledgebase/runtime/upgrades#runtime-versioning
@@ -216,7 +218,6 @@ pub const MILLISECS_PER_BLOCK: u64 = 3000;
 //       Attempting to do so will brick block production.
 pub const SLOT_DURATION: u64 = MILLISECS_PER_BLOCK;
 
-
 // 1 in 4 blocks (on average, not counting collisions) will be primary BABE blocks.
 pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
 
@@ -237,7 +238,10 @@ pub const DAYS: BlockNumber = HOURS * 24;
 /// The version information used to identify this runtime when compiled natively.
 #[cfg(feature = "std")]
 pub fn native_version() -> NativeVersion {
-	NativeVersion { runtime_version: VERSION, can_author_with: Default::default() }
+	NativeVersion {
+		runtime_version: VERSION,
+		can_author_with: Default::default(),
+	}
 }
 
 const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
@@ -548,7 +552,9 @@ parameter_types! {
 pub const ERAS_PER_YEAR: u64 = {
 	// Milliseconds per year for the Julian year (365.25 days).
 	const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
-	MILLISECONDS_PER_YEAR / MILLISECS_PER_BLOCK / (EPOCH_DURATION_IN_BLOCKS * SessionsPerEra::get()) as u64
+	MILLISECONDS_PER_YEAR
+		/ MILLISECS_PER_BLOCK
+		/ (EPOCH_DURATION_IN_BLOCKS * SessionsPerEra::get()) as u64
 };
 
 pub struct StakingBenchmarkingConfig;
@@ -714,10 +720,10 @@ impl Get<Option<(usize, ExtendedBalance)>> for OffchainRandomBalancing {
 			max @ _ => {
 				let seed = sp_io::offchain::random_seed();
 				let random = <u32>::decode(&mut TrailingZeroInput::new(&seed))
-					.expect("input is padded with zeroes; qed") %
-					max.saturating_add(1);
+					.expect("input is padded with zeroes; qed")
+					% max.saturating_add(1);
 				random as usize
-			},
+			}
 		};
 
 		Some((iters, 0))
@@ -849,10 +855,10 @@ impl pallet_sudo::Config for Runtime {
 
 /*** Add This Block ***/
 parameter_types! {
-	pub const RewardPalletId: PalletId = PalletId(*b"rewardpt");
-  }
-  
-  impl pallet_sminer::Config for Runtime {
+  pub const RewardPalletId: PalletId = PalletId(*b"rewardpt");
+}
+
+impl pallet_sminer::Config for Runtime {
 	type Currency = Balances;
 	// The ubiquitous event type.
 	type Event = Event;
@@ -862,7 +868,7 @@ parameter_types! {
 	type SProposal = Call;
 	type WeightInfo = pallet_sminer::weights::SubstrateWeight<Runtime>;
 	type ItemLimit = ConstU32<10_000>;
-  }
+}
 parameter_types! {
 	pub const SegbkPalletId: PalletId = PalletId(*b"rewardpt");
 	#[derive(Clone, PartialEq, Eq)]
@@ -932,11 +938,16 @@ where
 		public: <Signature as sp_runtime::traits::Verify>::Signer,
 		account: AccountId,
 		nonce: Index,
-	) -> Option<(Call, <UncheckedExtrinsic as sp_runtime::traits::Extrinsic>::SignaturePayload)> {
+	) -> Option<(
+		Call,
+		<UncheckedExtrinsic as sp_runtime::traits::Extrinsic>::SignaturePayload,
+	)> {
 		let tip = 0;
 		// take the biggest period possible.
-		let period =
-			BlockHashCount::get().checked_next_power_of_two().map(|c| c / 2).unwrap_or(2) as u64;
+		let period = BlockHashCount::get()
+			.checked_next_power_of_two()
+			.map(|c| c / 2)
+			.unwrap_or(2) as u64;
 		let current_block = System::block_number()
 			.saturated_into::<u64>()
 			// The `System::block_number` is initialized with `n+1`,
@@ -1043,7 +1054,6 @@ impl pallet_child_bounties::Config for Runtime {
 	type WeightInfo = pallet_child_bounties::weights::SubstrateWeight<Runtime>;
 }
 
-
 parameter_types! {
 	pub const AssetDeposit: Balance = 100 * DOLLARS;
 	pub const ApprovalDeposit: Balance = 1 * DOLLARS;
@@ -1098,7 +1108,6 @@ impl pallet_indices::Config for Runtime {
 	type WeightInfo = pallet_indices::weights::SubstrateWeight<Runtime>;
 }
 
-
 impl_opaque_keys! {
 	pub struct SessionKeys {
 		pub babe: Babe,
@@ -1136,7 +1145,7 @@ construct_runtime!(
 		TransactionPayment: pallet_transaction_payment = 11,
 		Assets: pallet_assets = 12,
 		AssetTxPayment: pallet_asset_tx_payment = 13,
-		
+
 		// Consensus
 		Authorship: pallet_authorship = 20,
 		Babe: pallet_babe = 21,
@@ -1149,7 +1158,7 @@ construct_runtime!(
 		AuthorityDiscovery: pallet_authority_discovery = 28,
 		BagsList: pallet_bags_list = 29,
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase = 30,
-		
+
 		// Governance
 		Council: pallet_collective::<Instance1> = 40,
 		TechnicalCommittee: pallet_collective::<Instance2> = 41,
@@ -1157,7 +1166,7 @@ construct_runtime!(
 		Treasury: pallet_treasury = 43,
 		Bounties: pallet_bounties = 44,
 		ChildBounties: pallet_child_bounties = 45,
-		
+
 		// Smart contracts
 		Contracts: pallet_contracts = 50,
 
@@ -1507,7 +1516,7 @@ impl_runtime_apis! {
 
 			let mut list = Vec::<BenchmarkList>::new();
 			list_benchmarks!(list, extra);
-					
+
 			let storage_info = AllPalletsWithSystem::storage_info();
 
 			return (list, storage_info)

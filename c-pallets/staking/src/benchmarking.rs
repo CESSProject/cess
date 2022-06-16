@@ -51,7 +51,7 @@ type MaxNominators<T> = <<T as Config>::BenchmarkingConfig as BenchmarkingConfig
 // read and write operations.
 fn add_slashing_spans<T: Config>(who: &T::AccountId, spans: u32) {
 	if spans == 0 {
-		return
+		return;
 	}
 
 	// For the first slashing span, we initialize
@@ -80,8 +80,10 @@ pub fn create_validator_with_nominators<T: Config>(
 	let mut points_individual = Vec::new();
 
 	let (v_stash, v_controller) = create_stash_controller::<T>(0, 100, destination.clone())?;
-	let validator_prefs =
-		ValidatorPrefs { commission: Perbill::from_percent(50), ..Default::default() };
+	let validator_prefs = ValidatorPrefs {
+		commission: Perbill::from_percent(50),
+		..Default::default()
+	};
 	Staking::<T>::validate(RawOrigin::Signed(v_controller).into(), validator_prefs)?;
 	let stash_lookup: <T::Lookup as StaticLookup>::Source = T::Lookup::unlookup(v_stash.clone());
 
@@ -112,7 +114,10 @@ pub fn create_validator_with_nominators<T: Config>(
 	let new_validators = Staking::<T>::try_trigger_new_era(SessionIndex::one(), true).unwrap();
 
 	assert_eq!(new_validators.len(), 1);
-	assert_eq!(new_validators[0], v_stash, "Our validator was not selected!");
+	assert_eq!(
+		new_validators[0], v_stash,
+		"Our validator was not selected!"
+	);
 	assert_ne!(Validators::<T>::count(), 0);
 	assert_ne!(Nominators::<T>::count(), 0);
 
@@ -158,7 +163,10 @@ impl<T: Config> ListScenario<T> {
 	/// also elicit a worst case for other known `VoterList` implementations; although
 	/// this may not be true against unknown `VoterList` implementations.
 	fn new(origin_weight: BalanceOf<T>, is_increase: bool) -> Result<Self, &'static str> {
-		ensure!(!origin_weight.is_zero(), "origin weight must be greater than 0");
+		ensure!(
+			!origin_weight.is_zero(),
+			"origin weight must be greater than 0"
+		);
 
 		// burn the entire issuance.
 		let i = T::Currency::burn(T::Currency::total_issuance());
@@ -207,7 +215,11 @@ impl<T: Config> ListScenario<T> {
 			vec![T::Lookup::unlookup(account("random_validator", 0, SEED))],
 		)?;
 
-		Ok(ListScenario { origin_stash1, origin_controller1, dest_weight })
+		Ok(ListScenario {
+			origin_stash1,
+			origin_controller1,
+			dest_weight,
+		})
 	}
 }
 
@@ -1000,7 +1012,11 @@ mod tests {
 			let current_era = CurrentEra::<Test>::get().unwrap();
 
 			let original_free_balance = Balances::free_balance(&validator_stash);
-			assert_ok!(Staking::payout_stakers(Origin::signed(1337), validator_stash, current_era));
+			assert_ok!(Staking::payout_stakers(
+				Origin::signed(1337),
+				validator_stash,
+				current_era
+			));
 			let new_free_balance = Balances::free_balance(&validator_stash);
 
 			assert!(original_free_balance < new_free_balance);
@@ -1025,7 +1041,10 @@ mod tests {
 			add_slashing_spans::<Test>(&validator_stash, num_of_slashing_spans);
 
 			let slashing_spans = SlashingSpans::<Test>::get(&validator_stash).unwrap();
-			assert_eq!(slashing_spans.iter().count(), num_of_slashing_spans as usize);
+			assert_eq!(
+				slashing_spans.iter().count(),
+				num_of_slashing_spans as usize
+			);
 			for i in 0..num_of_slashing_spans {
 				assert!(SpanSlash::<Test>::contains_key((&validator_stash, i)));
 			}

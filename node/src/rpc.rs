@@ -5,10 +5,17 @@
 
 #![warn(missing_docs)]
 
-use std::sync::Arc;
-use sc_client_api::AuxStore;
 use crate::primitives as node_primitives;
-use node_primitives::{Block, AccountId, Balance, BlockNumber, Hash, Index, };
+use grandpa::{
+	FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState,
+};
+use node_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Index};
+use sc_client_api::AuxStore;
+use sc_consensus_babe::{Config, Epoch};
+use sc_consensus_babe_rpc::BabeRpcHandler;
+use sc_consensus_epochs::SharedEpochChanges;
+use sc_finality_grandpa_rpc::GrandpaRpcHandler;
+use sc_rpc::SubscriptionTaskExecutor;
 pub use sc_rpc_api::DenyUnsafe;
 use sc_transaction_pool_api::TransactionPool;
 use sp_api::ProvideRuntimeApi;
@@ -16,15 +23,8 @@ use sp_block_builder::BlockBuilder;
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
 use sp_consensus::SelectChain;
 use sp_consensus_babe::BabeApi;
-use sc_consensus_babe::{Config, Epoch};
-use sc_consensus_babe_rpc::BabeRpcHandler;
-use sc_consensus_epochs::SharedEpochChanges;
-use sc_finality_grandpa_rpc::GrandpaRpcHandler;
-use grandpa::{
-	FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState,
-};
-use sc_rpc::SubscriptionTaskExecutor;
 use sp_keystore::SyncCryptoStorePtr;
+use std::sync::Arc;
 
 use pallet_contracts_rpc::{Contracts, ContractsApi};
 
@@ -75,7 +75,7 @@ pub type IoHandler = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
 
 /// Instantiate all full RPC extensions.
 pub fn create_full<C, P, SC, B>(
-	deps: FullDeps<C, P, SC, B>, 
+	deps: FullDeps<C, P, SC, B>,
 	backend: Arc<B>,
 ) -> Result<jsonrpc_core::IoHandler<sc_rpc_api::Metadata>, Box<dyn std::error::Error + Send + Sync>>
 where
@@ -104,8 +104,20 @@ where
 	use substrate_frame_rpc_system::{FullSystem, SystemApi};
 
 	let mut io = jsonrpc_core::IoHandler::default();
-	let FullDeps { client, pool, select_chain, chain_spec, deny_unsafe, babe, grandpa } = deps;
-	let BabeDeps { keystore, babe_config, shared_epoch_changes } = babe;
+	let FullDeps {
+		client,
+		pool,
+		select_chain,
+		chain_spec,
+		deny_unsafe,
+		babe,
+		grandpa,
+	} = deps;
+	let BabeDeps {
+		keystore,
+		babe_config,
+		shared_epoch_changes,
+	} = babe;
 	let GrandpaDeps {
 		shared_voter_state,
 		shared_authority_set,
@@ -114,31 +126,47 @@ where
 		finality_provider,
 	} = grandpa;
 
-	io.extend_with(SystemApi::to_delegate(FullSystem::new(client.clone(), pool, deny_unsafe)));
+	io.extend_with(SystemApi::to_delegate(FullSystem::new(
+		client.clone(),
+		pool,
+		deny_unsafe,
+	)));
 	// Making synchronous calls in light client freezes the browser currently,
 	// more context: https://github.com/paritytech/substrate/pull/3480
 	// These RPCs should use an asynchronous caller instead.
 	io.extend_with(ContractsApi::to_delegate(Contracts::new(client.clone())));
 	io.extend_with(MmrApi::to_delegate(Mmr::new(client.clone())));
-	io.extend_with(TransactionPaymentApi::to_delegate(TransactionPayment::new(client.clone())));
-	io.extend_with(sc_consensus_babe_rpc::BabeApi::to_delegate(BabeRpcHandler::new(
+	io.extend_with(TransactionPaymentApi::to_delegate(TransactionPayment::new(
 		client.clone(),
-		shared_epoch_changes.clone(),
-		keystore,
-		babe_config,
-		select_chain,
-		deny_unsafe,
 	)));
-	io.extend_with(sc_finality_grandpa_rpc::GrandpaApi::to_delegate(GrandpaRpcHandler::new(
-		shared_authority_set.clone(),
-		shared_voter_state,
-		justification_stream,
-		subscription_executor,
-		finality_provider,
-	)));
-	io.extend_with(substrate_state_trie_migration_rpc::StateMigrationApi::to_delegate(
-		substrate_state_trie_migration_rpc::MigrationRpc::new(client.clone(), backend, deny_unsafe),
+	io.extend_with(sc_consensus_babe_rpc::BabeApi::to_delegate(
+		BabeRpcHandler::new(
+			client.clone(),
+			shared_epoch_changes.clone(),
+			keystore,
+			babe_config,
+			select_chain,
+			deny_unsafe,
+		),
 	));
+	io.extend_with(sc_finality_grandpa_rpc::GrandpaApi::to_delegate(
+		GrandpaRpcHandler::new(
+			shared_authority_set.clone(),
+			shared_voter_state,
+			justification_stream,
+			subscription_executor,
+			finality_provider,
+		),
+	));
+	io.extend_with(
+		substrate_state_trie_migration_rpc::StateMigrationApi::to_delegate(
+			substrate_state_trie_migration_rpc::MigrationRpc::new(
+				client.clone(),
+				backend,
+				deny_unsafe,
+			),
+		),
+	);
 	io.extend_with(sc_sync_state_rpc::SyncStateRpcApi::to_delegate(
 		sc_sync_state_rpc::SyncStateRpcHandler::new(
 			chain_spec,
