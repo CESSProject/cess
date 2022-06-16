@@ -1,5 +1,4 @@
 //! # File Map Module
-//!
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -10,9 +9,7 @@
 // mod tests;
 
 use codec::{Decode, Encode};
-use frame_support::traits::ReservableCurrency;
-use frame_support::BoundedVec;
-use frame_support::{dispatch::DispatchResult, PalletId};
+use frame_support::{dispatch::DispatchResult, traits::ReservableCurrency, BoundedVec, PalletId};
 pub use pallet::*;
 use scale_info::TypeInfo;
 use sp_runtime::{traits::SaturatedConversion, RuntimeDebug};
@@ -145,10 +142,7 @@ pub mod pallet {
 				Err(Error::<T>::NotController)?;
 			}
 			let mut s_vec = SchedulerMap::<T>::get();
-			let ip_bound = ip
-				.clone()
-				.try_into()
-				.map_err(|_e| Error::<T>::BoundedVecError)?;
+			let ip_bound = ip.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
 			let scheduler = SchedulerInfo::<T> {
 				ip: ip_bound,
 				stash_user: stash_account.clone(),
@@ -158,14 +152,9 @@ pub mod pallet {
 			if s_vec.to_vec().contains(&scheduler) {
 				Err(Error::<T>::AlreadyRegistration)?;
 			}
-			s_vec
-				.try_push(scheduler)
-				.map_err(|_e| Error::<T>::StorageLimitReached)?;
+			s_vec.try_push(scheduler).map_err(|_e| Error::<T>::StorageLimitReached)?;
 			SchedulerMap::<T>::put(s_vec);
-			Self::deposit_event(Event::<T>::RegistrationScheduler {
-				acc: sender,
-				ip: ip,
-			});
+			Self::deposit_event(Event::<T>::RegistrationScheduler { acc: sender, ip });
 			Ok(())
 		}
 
@@ -179,10 +168,7 @@ pub mod pallet {
 			if !<SchedulerException<T>>::contains_key(&account) {
 				<SchedulerException<T>>::insert(
 					&account,
-					ExceptionReport::<T> {
-						count: 0,
-						reporters: Default::default(),
-					},
+					ExceptionReport::<T> { count: 0, reporters: Default::default() },
 				);
 			}
 
@@ -253,11 +239,7 @@ pub mod pallet {
 			.try_into()
 			.map_err(|_e| Error::<T>::BoundedVecError)?;
 
-			let public_key = PublicKey::<T> {
-				spk: spk,
-				shared_params: shared_params,
-				shared_g: shared_g,
-			};
+			let public_key = PublicKey::<T> { spk, shared_params, shared_g };
 			<SchedulerPuk<T>>::put(public_key);
 
 			Ok(())
@@ -274,7 +256,7 @@ impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<
 	fn contains_scheduler(acc: <T as frame_system::Config>::AccountId) -> bool {
 		for i in <SchedulerMap<T>>::get().to_vec().iter() {
 			if i.controller_user == acc {
-				return true;
+				return true
 			}
 		}
 		false
@@ -286,7 +268,7 @@ impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<
 		let scheduler_list = SchedulerMap::<T>::get();
 		for v in scheduler_list {
 			if v.stash_user == acc {
-				return v.controller_user;
+				return v.controller_user
 			}
 		}
 		acc
