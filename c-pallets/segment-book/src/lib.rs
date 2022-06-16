@@ -34,7 +34,6 @@
 //!   or the miner fails to complete the challenge on time, the miner
 //!   will be punished in both cases. Decide whether to reduce power
 //!   or space according to the file type of punishment
-//!
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
