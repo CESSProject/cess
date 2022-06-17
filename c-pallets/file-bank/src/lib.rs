@@ -131,7 +131,7 @@ pub mod pallet {
 		//Used to find out whether the schedule exists
 		type Scheduler: ScheduleFind<Self::AccountId>;
 		//It is used to control the computing power and space of miners
-		type MinerControl: MinerControl;
+		type MinerControl: MinerControl<Self::AccountId>;
 		//Interface that can generate random seeds
 		type MyRandomness: Randomness<Self::Hash, Self::BlockNumber>;
 		/// pallet address.
@@ -284,7 +284,7 @@ pub mod pallet {
 	pub(super) type FillerMap<T: Config> = StorageDoubleMap<
 		_,
 		Blake2_128Concat,
-		u64,
+		AccountOf<T>,
 		Blake2_128Concat,
 		BoundedString<T>,
 		FillerInfo<T>,
@@ -389,6 +389,30 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[pallet::weight(6_231_000)]
+		pub fn upload_declaration(
+			origin: OriginFor<T>,
+			file_hash: Vec<u8>,
+			file_name: Vec<u8>,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			let file_hash_bound = file_hash.try_into().map_err(|_| Error::<T>::Overflow)?;
+			let file_name_bound = file_name.try_into().map_err(|_| Error::<T>::Overflow)?;
+			if <File<T>>::contains_key(&file_hash_bound) {
+				<File<T>>::try_mutate(&file_hash_bound, |s_opt| -> DispatchResult {
+					let s = s_opt.as_mut().map_err(|_| Error::<T>::FileNonExistent)?;
+					*s.user.try_push(sender.clone()).map_err(|_| Error::<T>::StorageLimitReached)?;
+					*s.file_name.try_push(file_name_bound.clone()).map_err(|_| Error::<T>::StorageLimitReached)?;
+				})?;
+			} else {
+				let mut 
+				<File<T>>::insert(
+					&file_hash_bound,
+					
+				)
+			}
+			
+		}
 		/// Upload info of stored file.
 		///
 		/// The dispatch origin of this call must be _Signed_.
@@ -428,7 +452,7 @@ pub mod pallet {
 		#[pallet::weight(1_000)]
 		pub fn upload_filler(
 			origin: OriginFor<T>,
-			miner_id: u64,
+			miner: AccountOf<T>,
 			filler_list: Vec<FillerInfo<T>>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -438,7 +462,7 @@ pub mod pallet {
 			}
 
 			for i in filler_list.iter() {
-				<FillerMap<T>>::insert(miner_id, i.filler_id.clone(), i);
+				<FillerMap<T>>::insert(miner, i.filler_id.clone(), i);
 			}
 
 			let power = M_BYTE
@@ -446,43 +470,8 @@ pub mod pallet {
 				.ok_or(Error::<T>::Overflow)?
 				.checked_mul(filler_list.len() as u128)
 				.ok_or(Error::<T>::Overflow)?;
-			T::MinerControl::add_power(miner_id.clone(), power)?;
+			T::MinerControl::add_power(miner.clone(), power)?;
 			Self::deposit_event(Event::<T>::FillerUpload { acc: sender, file_size: power as u64 });
-			Ok(())
-		}
-
-		/// Update info of uploaded file.
-		///
-		/// The dispatch origin of this call must be _Signed_.
-		///
-		/// Parameters:
-		/// - `fileid`: id of file, each file will have different number, even for the same file.
-		/// - `is_public`: public or private.
-		/// - `similarityhash`: hash of file, used for checking similarity.
-		#[pallet::weight(1_000_000)]
-		pub fn update_dupl(
-			origin: OriginFor<T>,
-			fileid: Vec<u8>,
-			file_dupl: Vec<FileDuplicateInfo<T>>,
-		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			let bounded_fileid = Self::vec_to_bound::<u8>(fileid.clone())?;
-			ensure!((<File<T>>::contains_key(bounded_fileid.clone())), Error::<T>::FileNonExistent);
-			//Judge whether it is a consensus node
-
-			<File<T>>::try_mutate(bounded_fileid.clone(), |s_opt| -> DispatchResult {
-				let s = s_opt.as_mut().unwrap();
-				//Replace idle files with service files
-				Self::replace_file(file_dupl.clone(), s.file_size)?;
-				let value = Self::vec_to_bound::<FileDuplicateInfo<T>>(file_dupl)?;
-				for v in value {
-					s.file_dupl.try_push(v).map_err(|_e| Error::<T>::StorageLimitReached)?;
-				}
-				s.file_state = Self::vec_to_bound::<u8>("active".as_bytes().to_vec())?;
-				Ok(())
-			})?;
-			Self::deposit_event(Event::<T>::FileUpdate { acc: sender.clone(), fileid });
-
 			Ok(())
 		}
 

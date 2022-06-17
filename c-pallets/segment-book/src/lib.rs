@@ -121,7 +121,7 @@ pub mod pallet {
 		type Scheduler: ScheduleFind<Self::AccountId>;
 		//It is used to increase or decrease the miners' computing power, space, and execute
 		// punishment
-		type MinerControl: MinerControl;
+		type MinerControl: MinerControl<Self::AccountId>;
 		//Configuration to be used for offchain worker
 		type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
 	}
@@ -129,11 +129,11 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		ChallengeProof { peer_id: u64, file_id: Vec<u8> },
+		ChallengeProof { miner: AccountOf<T>, file_id: Vec<u8> },
 
-		VerifyProof { peer_id: u64, file_id: Vec<u8> },
+		VerifyProof { miner: AccountOf<T>, file_id: Vec<u8> },
 
-		OutstandingChallenges { peer_id: u64, file_id: Vec<u8> },
+		OutstandingChallenges { miner: AccountOf<T>, file_id: Vec<u8> },
 	}
 
 	/// Error for the segment-book pallet.
@@ -169,7 +169,7 @@ pub mod pallet {
 	pub type ChallengeMap<T: Config> = StorageMap<
 		_,
 		Blake2_128Concat,
-		u64,
+		AccountOf<T>,
 		BoundedVec<ChallengeInfo<T>, T::StringLimit>,
 		ValueQuery,
 	>;
@@ -208,21 +208,21 @@ pub mod pallet {
 			if now == deadline {
 				//After the waiting time for the challenge reaches the deadline,
 				//the miners who fail to complete the challenge will be punished
-				for (miner_id, challenge_list) in <ChallengeMap<T>>::iter() {
+				for (acc, challenge_list) in <ChallengeMap<T>>::iter() {
 					for v in challenge_list {
 						if let Err(e) =
-							Self::punish(miner_id, v.file_id.to_vec(), v.file_size, v.file_type)
+							Self::punish(acc, v.file_id.to_vec(), v.file_size, v.file_type)
 						{
 							log::info!("punish Err:{:?}", e);
 						}
 						log::info!(
-							"challenge draw a blank, miner_id:{:?}, file_id: {:?}",
-							miner_id.clone(),
+							"challenge draw a blank, miner_acc:{:?}, file_id: {:?}",
+							acc.clone(),
 							v.file_id.to_vec()
 						);
-						<ChallengeMap<T>>::remove(miner_id.clone());
+						<ChallengeMap<T>>::remove(acc.clone());
 						Self::deposit_event(Event::<T>::OutstandingChallenges {
-							peer_id: miner_id,
+							miner: acc.clone(),
 							file_id: v.file_id.to_vec(),
 						});
 					}
@@ -253,27 +253,26 @@ pub mod pallet {
 		#[pallet::weight(1000)]
 		pub fn submit_challenge_prove(
 			origin: OriginFor<T>,
-			miner_id: u64,
 			file_id: Vec<u8>,
 			mu: Vec<Vec<u8>>,
 			sigma: Vec<u8>,
 		) -> DispatchResult {
-			let _sender = ensure_signed(origin)?;
+			let sender = ensure_signed(origin)?;
 			let acc = Self::get_current_scheduler();
 
-			let challenge_list = Self::challenge_map(miner_id);
+			let challenge_list = Self::challenge_map(sender.clone());
 
 			for v in challenge_list.iter() {
 				if v.file_id == file_id {
 					Self::storage_prove(
-						acc,
+						acc.clone(),
 						miner_id.clone(),
 						v.clone(),
 						mu.clone(),
 						sigma.clone(),
 					)?;
-					Self::clear_challenge_info(miner_id.clone(), file_id.clone())?;
-					Self::deposit_event(Event::<T>::ChallengeProof { peer_id: miner_id, file_id });
+					Self::clear_challenge_info(acc.clone(), file_id.clone())?;
+					Self::deposit_event(Event::<T>::ChallengeProof { miner: sender, file_id });
 					return Ok(())
 				}
 			}
@@ -284,7 +283,7 @@ pub mod pallet {
 		#[pallet::weight(1000)]
 		pub fn verify_proof(
 			origin: OriginFor<T>,
-			miner_id: u64,
+			miner_address: AccountOf<T>,
 			file_id: Vec<u8>,
 			result: bool,
 		) -> DispatchResult {
@@ -302,13 +301,13 @@ pub mod pallet {
 					//If the result is false, a penalty will be imposed
 					if !result {
 						Self::punish(
-							miner_id,
+							miner_address,
 							file_id.clone(),
 							value.challenge_info.file_size,
 							value.challenge_info.file_type,
 						)?;
 					}
-					Self::deposit_event(Event::<T>::VerifyProof { peer_id: miner_id, file_id });
+					Self::deposit_event(Event::<T>::VerifyProof { miner: miner_address, file_id });
 					return Ok(())
 				}
 			}
@@ -387,8 +386,8 @@ pub mod pallet {
 		}
 
 		//Clean up the corresponding challenges in the miner's challenge pool
-		fn clear_challenge_info(miner_id: u64, file_id: Vec<u8>) -> DispatchResult {
-			<ChallengeMap<T>>::try_mutate(miner_id, |o| -> DispatchResult {
+		fn clear_challenge_info(acc: AccountOf<T>, file_id: Vec<u8>) -> DispatchResult {
+			<ChallengeMap<T>>::try_mutate(acc, |o| -> DispatchResult {
 				o.retain(|x| x.file_id != file_id);
 				Ok(())
 			})?;
@@ -528,27 +527,27 @@ pub mod pallet {
 		}
 
 		fn punish(
-			miner_id: u64,
+			acc: AccountId,
 			file_id: Vec<u8>,
 			file_size: u64,
 			file_type: u8,
 		) -> DispatchResult {
-			if !T::MinerControl::miner_is_exist(miner_id) {
+			if !T::MinerControl::miner_is_exist(acc) {
 				return Ok(())
 			}
 			match file_type {
 				1 => {
-					T::MinerControl::sub_power(miner_id, file_size.into())?;
-					T::File::add_invalid_file(miner_id, file_id.clone())?;
-					T::File::delete_filler(miner_id, file_id)?;
-					T::MinerControl::punish_miner(miner_id, file_size)?;
+					T::MinerControl::sub_power(acc, file_size.into())?;
+					T::File::add_invalid_file(acc, file_id.clone())?;
+					T::File::delete_filler(acc, file_id)?;
+					T::MinerControl::punish_miner(acc, file_size)?;
 				},
 				2 => {
-					T::MinerControl::sub_space(miner_id, file_size.into())?;
-					T::MinerControl::sub_power(miner_id, file_size.into())?;
+					T::MinerControl::sub_space(acc, file_size.into())?;
+					T::MinerControl::sub_power(acc, file_size.into())?;
 					T::File::add_invalid_file(miner_id, file_id.clone())?;
 					T::File::add_recovery_file(file_id.clone())?;
-					T::MinerControl::punish_miner(miner_id, file_size)?;
+					T::MinerControl::punish_miner(acc, file_size)?;
 				},
 				_ => {
 					Err(Error::<T>::FileTypeError)?;
