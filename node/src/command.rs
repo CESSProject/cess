@@ -116,7 +116,7 @@ pub fn run() -> sc_cli::Result<()> {
 					service::new_partial(&config)?;
 				let revert_aux = Box::new(|client, backend, blocks| {
 					sc_consensus_babe::revert(client, backend, blocks)?;
-						// TODO: grandpa revert
+					// TODO: grandpa revert
 					Ok(())
 				});
 				Ok((cmd.run(client, backend, Some(revert_aux)), task_manager))

@@ -39,12 +39,12 @@ use sp_staking::{
 	offence::{DisableStrategy, OffenceDetails, OnOffenceHandler},
 	EraIndex, SessionIndex,
 };
-use sp_std::{convert::TryInto, collections::btree_map::BTreeMap, prelude::*};
+use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::*};
 
 use crate::{
-	log, slashing, weights::WeightInfo, ActiveEraInfo, BalanceOf, Exposure, ExposureOf,
-	Forcing, IndividualExposure, Nominations, PositiveImbalanceOf, RewardDestination,
-	SessionInterface, StakingLedger, ValidatorPrefs,
+	log, slashing, weights::WeightInfo, ActiveEraInfo, BalanceOf, Exposure, ExposureOf, Forcing,
+	IndividualExposure, Nominations, PositiveImbalanceOf, RewardDestination, SessionInterface,
+	StakingLedger, ValidatorPrefs,
 };
 
 use super::{pallet::*, STAKING_ID};
@@ -379,7 +379,11 @@ impl<T: Config> Pallet<T> {
 		if let Some(_active_era_start) = active_era.start {
 			let (validator_payout, sminer_payout) = Self::rewards_in_era(active_era.index);
 
-			Self::deposit_event(Event::<T>::EraPaid(active_era.index, validator_payout, sminer_payout));
+			Self::deposit_event(Event::<T>::EraPaid(
+				active_era.index,
+				validator_payout,
+				sminer_payout,
+			));
 
 			// Set ending era reward.
 			<ErasValidatorReward<T>>::insert(&active_era.index, validator_payout);
@@ -393,8 +397,10 @@ impl<T: Config> Pallet<T> {
 	/// Compute rewards for validator and sminer for era.
 	pub(crate) fn rewards_in_era(active_era_index: EraIndex) -> (BalanceOf<T>, BalanceOf<T>) {
 		let mut year_num = active_era_index as u64 / T::ERAS_PER_YEAR;
-		let mut validator_rewards_this_year = TryInto::<u128>::try_into(T::FIRST_YEAR_VALIDATOR_REWARDS).ok().unwrap();
-		let mut sminer_rewards_this_year = TryInto::<u128>::try_into(T::FIRST_YEAR_SMINER_REWARDS).ok().unwrap();
+		let mut validator_rewards_this_year =
+			TryInto::<u128>::try_into(T::FIRST_YEAR_VALIDATOR_REWARDS).ok().unwrap();
+		let mut sminer_rewards_this_year =
+			TryInto::<u128>::try_into(T::FIRST_YEAR_SMINER_REWARDS).ok().unwrap();
 		// No longer decrease from the 41st year.
 		if year_num > 30 {
 			year_num = 30;
@@ -406,7 +412,10 @@ impl<T: Config> Pallet<T> {
 
 		let validator_rewards_this_era = validator_rewards_this_year / T::ERAS_PER_YEAR as u128;
 		let sminer_rewards_this_era = sminer_rewards_this_year / T::ERAS_PER_YEAR as u128;
-		(validator_rewards_this_era.try_into().ok().unwrap(), sminer_rewards_this_era.try_into().ok().unwrap())
+		(
+			validator_rewards_this_era.try_into().ok().unwrap(),
+			sminer_rewards_this_era.try_into().ok().unwrap(),
+		)
 	}
 
 	/// Plan a new era.

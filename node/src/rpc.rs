@@ -5,20 +5,29 @@
 
 #![warn(missing_docs)]
 
-use std::{collections::BTreeMap, sync::Arc};
+use crate::primitives as node_primitives;
 use fc_rpc::{
 	EthBlockDataCache, OverrideHandle, RuntimeApiStorageOverride, SchemaV1Override,
 	SchemaV2Override, SchemaV3Override, StorageOverride,
 };
 use fc_rpc_core::types::{FeeHistoryCache, FilterPool};
 use fp_storage::EthereumStorageSchema;
+use grandpa::{
+	FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState,
+};
 use jsonrpc_pubsub::manager::SubscriptionManager;
+use node_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Index};
+use pallet_contracts_rpc::{Contracts, ContractsApi};
 use sc_client_api::{
 	backend::{AuxStore, Backend, StateBackend, StorageProvider},
 	client::BlockchainEvents,
 };
-use crate::primitives as node_primitives;
-use node_primitives::{Block, AccountId, Balance, BlockNumber, Hash, Index, };
+use sc_consensus_babe::{Config, Epoch};
+use sc_consensus_babe_rpc::BabeRpcHandler;
+use sc_consensus_epochs::SharedEpochChanges;
+use sc_finality_grandpa_rpc::GrandpaRpcHandler;
+use sc_network::NetworkService;
+use sc_rpc::SubscriptionTaskExecutor;
 pub use sc_rpc_api::DenyUnsafe;
 use sc_service::TransactionPool;
 use sc_transaction_pool::{ChainApi, Pool};
@@ -27,18 +36,9 @@ use sp_block_builder::BlockBuilder;
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
 use sp_consensus::SelectChain;
 use sp_consensus_babe::BabeApi;
-use sc_consensus_babe::{Config, Epoch};
-use sc_consensus_babe_rpc::BabeRpcHandler;
-use sc_consensus_epochs::SharedEpochChanges;
-use sc_finality_grandpa_rpc::GrandpaRpcHandler;
-use sc_network::NetworkService;
-use grandpa::{
-	FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState,
-};
-use sc_rpc::SubscriptionTaskExecutor;
 use sp_keystore::SyncCryptoStorePtr;
 use sp_runtime::traits::BlakeTwo256;
-use pallet_contracts_rpc::{Contracts, ContractsApi};
+use std::{collections::BTreeMap, sync::Arc};
 
 /// Extra dependencies for BABE.
 pub struct BabeDeps {
@@ -201,7 +201,7 @@ where
 		fee_history_cache,
 		overrides,
 		block_data_cache,
-	 } = deps;
+	} = deps;
 	let BabeDeps { keystore, babe_config, shared_epoch_changes } = babe;
 	let GrandpaDeps {
 		shared_voter_state,
@@ -211,7 +211,11 @@ where
 		finality_provider,
 	} = grandpa;
 
-	io.extend_with(SystemApi::to_delegate(FullSystem::new(client.clone(), pool.clone(), deny_unsafe)));
+	io.extend_with(SystemApi::to_delegate(FullSystem::new(
+		client.clone(),
+		pool.clone(),
+		deny_unsafe,
+	)));
 	// Making synchronous calls in light client freezes the browser currently,
 	// more context: https://github.com/paritytech/substrate/pull/3480
 	// These RPCs should use an asynchronous caller instead.

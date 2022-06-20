@@ -1,5 +1,7 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
+pub use crate::executor::ExecutorDispatch;
+use crate::{cli::Cli, primitives as node_primitives, rpc as node_rpc};
 use cess_node_runtime::RuntimeApi;
 use codec::Encode;
 use fc_consensus::FrontierBlockImport;
@@ -8,26 +10,24 @@ use fc_rpc::EthTask;
 use fc_rpc_core::types::{FeeHistoryCache, FilterPool};
 use frame_system_rpc_runtime_api::AccountNonceApi;
 use futures::prelude::*;
+use node_primitives::Block;
 use sc_cli::SubstrateCli;
 use sc_client_api::{BlockBackend, BlockchainEvents, ExecutorProvider};
 use sc_consensus_babe::{self, SlotProportion};
 use sc_executor::NativeElseWasmExecutor;
 use sc_network::{Event, NetworkService};
-use sc_service::{config::Configuration, error::Error as ServiceError, BasePath, RpcHandlers, TaskManager};
+use sc_service::{
+	config::Configuration, error::Error as ServiceError, BasePath, RpcHandlers, TaskManager,
+};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_api::ProvideRuntimeApi;
-use sp_core::{U256, crypto::Pair};
+use sp_core::{crypto::Pair, U256};
 use sp_runtime::{generic, traits::Block as BlockT, SaturatedConversion};
 use std::{
 	collections::BTreeMap,
 	sync::{Arc, Mutex},
 	time::Duration,
 };
-use crate::cli::Cli;
-use crate::rpc as node_rpc;
-pub use crate::executor::ExecutorDispatch;
-use crate::primitives as node_primitives;
-use node_primitives::Block;
 
 // Our native executor instance.
 pub type FullClient =
@@ -71,19 +71,17 @@ pub fn frontier_database_dir(config: &Configuration) -> std::path::PathBuf {
 }
 
 pub fn open_frontier_backend(config: &Configuration) -> Result<Arc<fc_db::Backend<Block>>, String> {
-	Ok(Arc::new(fc_db::Backend::<Block>::new(
-		&fc_db::DatabaseSettings {
-			source: fc_db::DatabaseSettingsSrc::RocksDb {
-				path: frontier_database_dir(&config),
-				cache_size: 0,
-			},
+	Ok(Arc::new(fc_db::Backend::<Block>::new(&fc_db::DatabaseSettings {
+		source: fc_db::DatabaseSettingsSrc::RocksDb {
+			path: frontier_database_dir(&config),
+			cache_size: 0,
 		},
-	)?))
+	})?))
 }
 
 /// Creates a new partial node.
 pub fn new_partial(
-	config: &Configuration
+	config: &Configuration,
 ) -> Result<
 	sc_service::PartialComponents<
 		FullClient,
@@ -352,7 +350,8 @@ pub fn new_full_base(
 				block_data_cache: block_data_cache.clone(),
 			};
 
-			node_rpc::create_full(deps, subscription_task_executor.clone(), backend.clone()).map_err(Into::into)
+			node_rpc::create_full(deps, subscription_task_executor.clone(), backend.clone())
+				.map_err(Into::into)
 		})
 	};
 

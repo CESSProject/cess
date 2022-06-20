@@ -1,9 +1,8 @@
 use super::*;
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
-type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type BalanceOf<T> =
+	<<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
-
-
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
@@ -65,12 +64,12 @@ pub struct UserInfo<T: pallet::Config> {
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
-pub struct FillerInfo<T: pallet::Config> {	
+pub struct FillerInfo<T: pallet::Config> {
 	pub(super) miner_id: u64,
 	pub(super) filler_size: u64,
 	pub(super) block_num: u32,
 	pub(super) segment_size: u32,
-	pub(super) miner_address: AccountOf<T>,	
+	pub(super) miner_address: AccountOf<T>,
 	pub(super) filler_block: BoundedVec<FileBlock<T>, T::StringLimit>,
 	pub(super) filler_id: BoundedVec<u8, T::StringLimit>,
 	pub(super) filler_hash: BoundedVec<u8, T::StringLimit>,
