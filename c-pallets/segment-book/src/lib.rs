@@ -161,6 +161,8 @@ pub mod pallet {
 		OffchainSignedTxError,
 
 		NoLocalAcctForSigning,
+
+		LengthExceedsLimit,
 	}
 
 	//Information about storage challenges
@@ -253,66 +255,74 @@ pub mod pallet {
 		#[pallet::weight(1000)]
 		pub fn submit_challenge_prove(
 			origin: OriginFor<T>,
-			file_id: Vec<u8>,
-			mu: Vec<Vec<u8>>,
-			sigma: Vec<u8>,
+			miner_id: u64,
+			prove_info: Vec<ProveInfo<T>>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let acc = Self::get_current_scheduler();
-
-			let challenge_list = Self::challenge_map(sender.clone());
-
-			for v in challenge_list.iter() {
-				if v.file_id == file_id {
-					Self::storage_prove(
-						acc.clone(),
-						miner_id.clone(),
-						v.clone(),
-						mu.clone(),
-						sigma.clone(),
-					)?;
-					Self::clear_challenge_info(acc.clone(), file_id.clone())?;
-					Self::deposit_event(Event::<T>::ChallengeProof { miner: sender, file_id });
-					return Ok(())
-				}
+			if prove_info.len() > 100 {
+				Err(Error::<T>::LengthExceedsLimit)?;
 			}
 
-			Err(Error::<T>::NoChallenge)?
+			let challenge_list = Self::challenge_map(miner_id);
+			let mut fileid_list: Vec<Vec<u8>> = Vec::new();
+			for v in challenge_list.iter() {
+				fileid_list.push(v.file_id.to_vec());
+			}
+			for prove in prove_info.iter() {
+				if !fileid_list.contains(&prove.file_id) {
+					Err(Error::<T>::NoChallenge)?;
+				}
+			}
+			Self::storage_prove(
+				acc,
+				prove_info.clone(),
+			)?;
+			Self::clear_challenge_info(miner_id.clone(), prove_info.clone())?;
+			
+			Ok(())
 		}
 
 		#[pallet::weight(1000)]
 		pub fn verify_proof(
 			origin: OriginFor<T>,
-			miner_address: AccountOf<T>,
-			file_id: Vec<u8>,
-			result: bool,
+			result_list: Vec<VerifyResult<T>>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			if !T::Scheduler::contains_scheduler(sender.clone()) {
 				Err(Error::<T>::ScheduleNonExistent)?;
 			}
+			if result_list.len() > 50 {
+				Err(Error::<T>::LengthExceedsLimit)?;
+			}
 
 			let verify_list = Self::unverify_proof(&sender);
 			//Clean up the corresponding data in the pool that is not verified by consensus,
 			//and judge whether to punish according to the structure
-			for value in verify_list.iter() {
-				if (value.miner_id == miner_id) && (value.challenge_info.file_id == file_id) {
-					Self::clear_verify_proof(sender.clone(), miner_id.clone(), file_id.clone())?;
-					//If the result is false, a penalty will be imposed
-					if !result {
-						Self::punish(
-							miner_address,
-							file_id.clone(),
-							value.challenge_info.file_size,
-							value.challenge_info.file_type,
-						)?;
+			<UnVerifyProof<T>>::try_mutate(&sender, |o| -> DispatchResult {
+				for result in result_list.iter() {
+					for value in verify_list.iter() {
+						if (value.miner_id == result.miner_id) && (value.challenge_info.file_id == result.file_id) {
+							o.retain(|x| (x.challenge_info.file_id != result.file_id.to_vec()));
+							//If the result is false, a penalty will be imposed
+							if !result.result {
+								Self::punish(
+									result.miner_id,
+									result.file_id.clone().to_vec(),
+									value.challenge_info.file_size,
+									value.challenge_info.file_type,
+								)?;
+							}
+							Self::deposit_event(Event::<T>::VerifyProof { peer_id: result.miner_id, file_id: result.file_id.to_vec() });
+							break;
+						}
 					}
-					Self::deposit_event(Event::<T>::VerifyProof { miner: miner_address, file_id });
-					return Ok(())
 				}
-			}
+				Ok(())
+			})?;
+			
 
-			Err(Error::<T>::NonProof)?
+			Ok(())
 		}
 
 		#[pallet::weight(1000)]
@@ -335,12 +345,12 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(1000)]
-		pub fn save_challenge_time(origin: OriginFor<T>) -> DispatchResult {
+		pub fn save_challenge_time(origin: OriginFor<T>, duration: BlockNumberOf<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			if !T::File::contains_member(sender) {
 				Err(Error::<T>::NotQualified)?;
 			}
-			if let Err(e) = Self::record_challenge_time() {
+			if let Err(e) = Self::record_challenge_time(duration) {
 				log::info!("punish Err:{:?}", e);
 				Err(Error::<T>::RecordTimeError)?;
 			}
@@ -353,42 +363,25 @@ pub mod pallet {
 		//Storage proof method
 		fn storage_prove(
 			acc: AccountOf<T>,
-			miner_id: u64,
-			challenge_info: ChallengeInfo<T>,
-			mu: Vec<Vec<u8>>,
-			sigma: Vec<u8>,
-		) -> DispatchResult {
-			let proveinfo = ProveInfo::<T> {
-				miner_id,
-				challenge_info,
-				mu: Self::vec_to_bounded(mu.clone())?,
-				sigma: sigma.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
-			};
-
-			<UnVerifyProof<T>>::try_mutate(&acc, |o| -> DispatchResult {
-				o.try_push(proveinfo).map_err(|_e| Error::<T>::StorageLimitReached)?;
-				Ok(())
-			})?;
-			Ok(())
-		}
-
-		//Clean up the verified certificate corresponding to the consensus
-		fn clear_verify_proof(
-			acc: AccountOf<T>,
-			_miner_id: u64,
-			file_id: Vec<u8>,
+			prove_list: Vec<ProveInfo<T>>,
 		) -> DispatchResult {
 			<UnVerifyProof<T>>::try_mutate(&acc, |o| -> DispatchResult {
-				o.retain(|x| (x.challenge_info.file_id != file_id));
+				for v in prove_list.iter() {
+					o.try_push(v.clone()).map_err(|_e| Error::<T>::StorageLimitReached)?;
+				}
 				Ok(())
 			})?;
 			Ok(())
 		}
 
 		//Clean up the corresponding challenges in the miner's challenge pool
-		fn clear_challenge_info(acc: AccountOf<T>, file_id: Vec<u8>) -> DispatchResult {
-			<ChallengeMap<T>>::try_mutate(acc, |o| -> DispatchResult {
-				o.retain(|x| x.file_id != file_id);
+		fn clear_challenge_info(miner_id: u64, prove_list: Vec<ProveInfo<T>>) -> DispatchResult {
+			<ChallengeMap<T>>::try_mutate(miner_id, |o| -> DispatchResult {
+				for v in prove_list.iter() {
+					o.retain(|x| x.file_id != *v.file_id);
+					Self::deposit_event(Event::<T>::ChallengeProof { peer_id: v.miner_id, file_id: v.file_id.to_vec() });
+				}
+				
 				Ok(())
 			})?;
 			Ok(())
@@ -403,11 +396,10 @@ pub mod pallet {
 		}
 
 		//Record challenge time
-		fn record_challenge_time() -> DispatchResult {
+		fn record_challenge_time(duration: BlockNumberOf<T>) -> DispatchResult {
 			let now = <frame_system::Pallet<T>>::block_number();
-			let one_hours = T::OneHours::get();
 			<ChallengeDuration<T>>::try_mutate(|o| -> DispatchResult {
-				*o = now.checked_add(&one_hours).ok_or(Error::<T>::Overflow)?;
+				*o = now.checked_add(&duration).ok_or(Error::<T>::Overflow)?;
 				Ok(())
 			})?;
 			Ok(())
@@ -466,8 +458,11 @@ pub mod pallet {
 			new_challenge_map: BTreeMap<u64, Vec<ChallengeInfo<T>>>,
 		) -> Result<(), Error<T>> {
 			let signer = Signer::<T, T::AuthorityId>::any_account();
-
+			let mut max_len: u32 = 0;
 			for (k, v) in new_challenge_map {
+				if v.len() as u32 > max_len {
+					max_len = v.len() as u32;
+				}
 				let result = signer.send_signed_transaction(|_account| Call::save_challenge_info {
 					miner_id: k.clone(),
 					challenge_info: v.clone(),
@@ -485,7 +480,12 @@ pub mod pallet {
 				}
 			}
 
-			let result = signer.send_signed_transaction(|_account| Call::save_challenge_time {});
+			let duration:BlockNumberOf<T> = max_len
+				.checked_mul(3).ok_or(Error::<T>::Overflow)?
+				.checked_mul(120).ok_or(Error::<T>::Overflow)?
+				.checked_div(100).ok_or(Error::<T>::Overflow)?
+				.saturated_into();
+			let result = signer.send_signed_transaction(|_account| Call::save_challenge_time {duration: duration});
 
 			if let Some((_acc, res)) = result {
 				if res.is_err() {
