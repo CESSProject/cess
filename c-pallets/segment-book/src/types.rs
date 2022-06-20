@@ -22,6 +22,7 @@ pub struct ChallengeInfo<T: pallet::Config> {
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct ProveInfo<T: pallet::Config> {
+	pub(super) file_id: BoundedVec<u8, T::StringLimit>,
 	pub(super) miner_id: u64,
 	//Verify required parameters
 	pub(super) challenge_info: ChallengeInfo<T>,
@@ -29,4 +30,13 @@ pub struct ProveInfo<T: pallet::Config> {
 	pub(super) mu: BoundedList<T>,
 	//Proof of relevant information
 	pub(super) sigma: BoundedVec<u8, T::StringLimit>,
+}
+
+#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+#[codec(mel_bound())]
+pub struct VerifyResult<T: pallet::Config> {
+	pub(super) miner_id: u64,
+	pub(super) file_id: BoundedVec<u8, T::StringLimit>,
+	pub(super) result: bool,
 }
