@@ -255,7 +255,6 @@ pub mod pallet {
 		#[pallet::weight(1000)]
 		pub fn submit_challenge_prove(
 			origin: OriginFor<T>,
-			miner_id: u64,
 			prove_info: Vec<ProveInfo<T>>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -264,7 +263,7 @@ pub mod pallet {
 				Err(Error::<T>::LengthExceedsLimit)?;
 			}
 
-			let challenge_list = Self::challenge_map(miner_id);
+			let challenge_list = Self::challenge_map(sender);
 			let mut fileid_list: Vec<Vec<u8>> = Vec::new();
 			for v in challenge_list.iter() {
 				fileid_list.push(v.file_id.to_vec());
