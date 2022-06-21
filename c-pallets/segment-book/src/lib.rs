@@ -301,7 +301,7 @@ pub mod pallet {
 			<UnVerifyProof<T>>::try_mutate(&sender, |o| -> DispatchResult {
 				for result in result_list.iter() {
 					for value in verify_list.iter() {
-						if (value.miner_id == result.miner_id) &&
+						if (value.miner_acc == result.miner_acc.clone()) &&
 							(value.challenge_info.file_id == result.file_id)
 						{
 							o.retain(|x| (x.challenge_info.file_id != result.file_id.to_vec()));
@@ -315,7 +315,7 @@ pub mod pallet {
 								)?;
 							}
 							Self::deposit_event(Event::<T>::VerifyProof {
-								peer_id: result.miner_id,
+								miner: result.miner_acc.clone(),
 								file_id: result.file_id.to_vec(),
 							});
 							break
