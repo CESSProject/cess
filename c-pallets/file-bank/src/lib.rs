@@ -338,15 +338,19 @@ pub mod pallet {
 						if now >= s.deadline {
 							list.remove(k);
 							<UserHoldSpaceDetails<T>>::mutate(&key, |s_opt| {
-								let v = s_opt.as_mut().unwrap();
-								v.purchased_space = v.purchased_space - size;
-								if v.purchased_space > v.used_space {
-									v.remaining_space = v.purchased_space - v.used_space;
-								} else {
-
-									v.remaining_space = 0;
-								}
+								let s = s_opt.as_mut().unwrap();
+								s.purchased_space = s.purchased_space - size;
 							});
+							let v = <UserHoldSpaceDetails<T>>::get(&key).unwrap();
+							if v.purchased_space > v.used_space {
+								<UserHoldSpaceDetails<T>>::mutate(&key, |s_opt| {
+									let s = s_opt.as_mut().unwrap();
+									s.remaining_space = s.purchased_space - s.used_space;
+								});
+							} else {
+								let _ = Self::clear_expired_file(&key, v.used_space.clone(), v.purchased_space.clone());
+							}
+							
 							let _ = pallet_sminer::Pallet::<T>::sub_purchased_space(size);
 							Self::deposit_event(Event::<T>::LeaseExpired {
 								acc: key.clone(),
@@ -549,39 +553,7 @@ pub mod pallet {
 			let bounded_fileid = Self::vec_to_bound::<u8>(fileid.clone())?;
 			ensure!(<File<T>>::contains_key(bounded_fileid.clone()), Error::<T>::FileNonExistent);
 			//The above has been judged. Unwrap will be performed only if the key exists
-			let file = <File<T>>::get(&bounded_fileid).unwrap();
-			ensure!(file.user.contains(&sender),  Error::<T>::NotOwner);
-			Self::update_user_space(
-				sender.clone(),
-				2,
-				file.file_size.clone().into(),
-			)?;
-			//If the file still has an owner, only the corresponding owner will be cleared. 
-			//If the owner is unique, the file meta information will be cleared.
-			if file.user.len() > 1 {
-				<File<T>>::try_mutate(&bounded_fileid, |s_opt| -> DispatchResult {
-					let s = s_opt.as_mut().unwrap();
-					let mut index = 0;
-					for user in s.user.iter() {
-						if *user == sender {
-							break;
-						}
-						index = index.checked_add(&1).ok_or(Error::<T>::Overflow)?;
-					}
-					s.user.remove(index);
-					s.file_name.remove(index);
-					Ok(())
-				})?;
-			} else {
-				<File<T>>::remove(&bounded_fileid);
-				T::MinerControl::sub_power(file.miner_acc.clone(), file.file_size.into())?;
-				T::MinerControl::sub_space(file.miner_acc.clone(), file.file_size.into())?;
-			}
-			
-			<UserHoldFileList<T>>::try_mutate(&sender, |s| -> DispatchResult {
-				s.retain(|x| x.file_hash.to_vec() != fileid);
-				Ok(())
-			})?;
+			Self::clear_user_file(bounded_fileid, &sender)?;
 
 			Self::deposit_event(Event::<T>::DeleteFile { acc: sender, fileid });
 			Ok(())
@@ -1170,6 +1142,43 @@ pub mod pallet {
 			Ok(())
 		}
 
+		pub fn clear_user_file(file_hash: BoundedVec<u8, T::StringLimit>, user: &AccountOf<T>) -> DispatchResult {
+			let file = <File<T>>::get(&file_hash).unwrap();
+			ensure!(file.user.contains(user),  Error::<T>::NotOwner);
+			Self::update_user_space(
+				user.clone(),
+				2,
+				file.file_size.clone().into(),
+			)?;
+			//If the file still has an owner, only the corresponding owner will be cleared. 
+			//If the owner is unique, the file meta information will be cleared.
+			if file.user.len() > 1 {
+				<File<T>>::try_mutate(&file_hash, |s_opt| -> DispatchResult {
+					let s = s_opt.as_mut().unwrap();
+					let mut index = 0;
+					for acc in s.user.iter() {
+						if *acc == user.clone() {
+							break;
+						}
+						index = index.checked_add(&1).ok_or(Error::<T>::Overflow)?;
+					}
+					s.user.remove(index);
+					s.file_name.remove(index);
+					Ok(())
+				})?;
+			} else {
+				<File<T>>::remove(&file_hash);
+				T::MinerControl::sub_power(file.miner_acc.clone(), file.file_size.into())?;
+				T::MinerControl::sub_space(file.miner_acc.clone(), file.file_size.into())?;
+			}
+			
+			<UserHoldFileList<T>>::try_mutate(&user, |s| -> DispatchResult {
+				s.retain(|x| x.file_hash != file_hash.clone());
+				Ok(())
+			})?;
+			Ok(())
+		}
+
 		fn replace_file(miner_acc: AccountOf<T>, file_size: u64) -> DispatchResult {
 			//add space
 			T::MinerControl::add_space(miner_acc.clone(), file_size.into())?;
@@ -1206,7 +1215,7 @@ pub mod pallet {
 				}
 				Ok(())
 			})?;
-			
+
 			Ok(())
 		}
 
@@ -1259,6 +1268,20 @@ pub mod pallet {
 			T::Scheduler::get_controller_acc(acc.unwrap())
 		}
 	
+		fn clear_expired_file(acc: &AccountOf<T>, used_space: u128, purchased_space: u128) -> DispatchResult {
+			let diff = used_space.checked_div(purchased_space).ok_or(Error::<T>::Overflow)?;
+			let mut clear_file_size: u128 = 0;
+			let file_list = <UserHoldFileList<T>>::try_get(&acc).map_err(|_| Error::<T>::Overflow)?;
+			for v in file_list.iter() {
+				if clear_file_size > diff {
+					break;
+				}
+				Self::clear_user_file(v.file_hash.clone(), acc)?;
+				clear_file_size = clear_file_size.checked_add(v.file_size.into()).ok_or(Error::<T>::Overflow)?;
+			}
+
+			Ok(())
+		}
 	}
 }
 
