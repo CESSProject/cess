@@ -21,7 +21,8 @@ version = '3.0.0'
 
 [dependencies]
 serde_json = "1.0"
-jsonrpc-core = '18.0.0'
+jsonrpc-core = "18.0.0"
+jsonrpc-pubsub = "18.0.0"
 structopt = '0.3.8'
 rand = "0.8"
 futures = "0.3.19"
@@ -29,6 +30,18 @@ codec = { package = "parity-scale-codec", version = "3.0.0" }
 clap = { version = "3.1.6", features = ["derive"], optional = true }
 serde = { version = "1.0.136", features = ["derive"] }
 hex-literal = "0.3.4"
+
+# Frontier
+fc-consensus = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
+fc-db = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
+fc-mapping-sync = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
+fc-rpc = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
+fc-rpc-core = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
+fp-consensus = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
+fp-dynamic-fee = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
+fp-evm = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
+fp-rpc = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
+fp-storage = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
 
 [dependencies.cess-node-runtime]
 path = '../runtime'

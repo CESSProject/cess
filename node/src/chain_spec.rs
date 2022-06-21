@@ -1,22 +1,24 @@
 use cess_node_runtime::{
-	wasm_binary_unwrap, AccountId, AuthorityDiscoveryConfig, BabeConfig, Balance, BalancesConfig,
-	Block, CouncilConfig, GenesisConfig, GrandpaConfig, ImOnlineConfig, IndicesConfig,
-	MaxNominations, SessionConfig, SessionKeys, Signature, StakerStatus, StakingConfig, SudoConfig,
-	SystemConfig, TechnicalCommitteeConfig, DOLLARS,
+	opaque::SessionKeys, wasm_binary_unwrap, AccountId, AuthorityDiscoveryConfig, BabeConfig,
+	Balance, BalancesConfig, Block, CouncilConfig, GenesisConfig, GrandpaConfig, ImOnlineConfig,
+	IndicesConfig, MaxNominations, SessionConfig, Signature, StakerStatus, StakingConfig,
+	SudoConfig, SystemConfig, TechnicalCommitteeConfig, DOLLARS,
 };
 use grandpa_primitives::AuthorityId as GrandpaId;
 use hex_literal::hex;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sc_chain_spec::ChainSpecExtension;
 use sc_service::ChainType;
+use sc_telemetry::TelemetryEndpoints;
 use serde::{Deserialize, Serialize};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
-use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public};
+use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public, H160, U256};
 use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
 	Perbill,
 };
+use std::{collections::BTreeMap, str::FromStr};
 
 // The URL for the telemetry server.
 // const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
@@ -383,5 +385,9 @@ fn testnet_genesis(
 		},
 		assets: Default::default(),
 		transaction_payment: Default::default(),
+		evm: Default::default(),
+		ethereum: Default::default(),
+		dynamic_fee: Default::default(),
+		base_fee: Default::default(),
 	}
 }
