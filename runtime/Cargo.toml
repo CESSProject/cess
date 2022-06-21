@@ -12,6 +12,17 @@ targets = ['x86_64-unknown-linux-gnu']
 [dependencies]
 log = { version = "0.4.14", default-features = false }
 
+# Frontier
+fp-rpc = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
+fp-self-contained = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
+pallet-base-fee = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
+pallet-dynamic-fee = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
+pallet-ethereum = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
+pallet-evm = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
+pallet-evm-precompile-modexp = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
+pallet-evm-precompile-sha3fips = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
+pallet-evm-precompile-simple = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
+
 [build-dependencies.substrate-wasm-builder]
 git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
@@ -381,6 +392,8 @@ runtime-benchmarks = [
     'pallet-sminer/runtime-benchmarks',
     'sp-runtime/runtime-benchmarks',
     "pallet-contracts/runtime-benchmarks",
+    "pallet-ethereum/runtime-benchmarks",
+	"pallet-evm/runtime-benchmarks",
 ]
 std = [
     "pallet-authority-discovery/std",
@@ -437,4 +450,12 @@ std = [
     'sp-std/std',
     'sp-transaction-pool/std',
     'sp-version/std',
+    "fp-rpc/std",
+	"fp-self-contained/std",
+	"pallet-base-fee/std",
+	"pallet-dynamic-fee/std",
+	"pallet-ethereum/std",
+	"pallet-evm/std",
+	"pallet-evm-precompile-simple/std",
+	"pallet-evm-precompile-sha3fips/std",
 ]
