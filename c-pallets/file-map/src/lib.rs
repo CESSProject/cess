@@ -21,7 +21,7 @@ type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_support::{pallet_prelude::*, traits::Get, Blake2_128Concat};
+	use frame_support::{pallet_prelude::{*, ValueQuery}, traits::Get, Blake2_128Concat};
 	use frame_system::{ensure_signed, pallet_prelude::*};
 
 	#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
@@ -103,6 +103,10 @@ pub mod pallet {
 	#[pallet::getter(fn scheduler_puk)]
 	pub(super) type SchedulerPuk<T: Config> = StorageValue<_, PublicKey<T>>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn bond_acc)]
+	pub(super) type BondAcc<T: Config> = StorageValue<_, BoundedVec<AccountOf<T>, T::StringLimit>, ValueQuery>;
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
@@ -114,6 +118,35 @@ pub mod pallet {
 			let number: u128 = now.saturated_into();
 			let count: usize = Self::scheduler_map().len();
 			if number % 1200 == 0 {
+				let alregister_list = SchedulerMap::<T>::get();
+				let mut alregister_controller_list: BoundedVec<AccountOf<T>, T::StringLimit> = Default::default();
+				for alregister in alregister_list.iter() {
+					if let Err(e) =
+						alregister_controller_list.try_push(alregister.controller_user.clone()).map_err(|_| Error::<T>::StorageLimitReached)
+					{
+						log::error!("FileMap error: {:?}", e);
+					}
+				}
+
+				for v in BondAcc::<T>::get().iter() {
+					if !alregister_controller_list.contains(&v) {
+						for v2 in alregister_list.iter() {
+							if v2.controller_user == v.clone() {
+								pallet_cess_staking::slashing::slash_scheduler::<T>(&v2.stash_user);
+							}
+						}
+					}
+				}
+
+				let mut ctl: BoundedVec<AccountOf<T>, T::StringLimit> = Default::default();
+				for (_stash, controller) in pallet_cess_staking::Bonded::<T>::iter() {
+					if let Err(e) = 
+						ctl.try_push(controller.clone()).map_err(|_| Error::<T>::StorageLimitReached)
+					{
+						log::error!("FileMap error: {:?}", e);
+					}
+				}
+				BondAcc::<T>::put(ctl);
 				for (key, value) in <SchedulerException<T>>::iter() {
 					if value.count > (count / 2) as u32 {
 						pallet_cess_staking::slashing::slash_scheduler::<T>(&key);

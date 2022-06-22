@@ -4850,6 +4850,7 @@ dependencies = [
  "frame-election-provider-support",
  "frame-support",
  "frame-system",
+ "log",
  "pallet-bags-list",
  "pallet-balances",
  "pallet-cess-staking",
