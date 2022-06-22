@@ -158,6 +158,35 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::weight(1_000)]
+		pub fn update_scheduler(
+			origin: OriginFor<T>,
+			ip: Vec<u8>,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			SchedulerMap::<T>::try_mutate(|s| -> DispatchResult {
+				let mut count = 0;
+				for i in s.iter() {
+					if i.controller_user == sender {
+						let scheduler = SchedulerInfo::<T> {
+							ip: ip.try_into().map_err(|_| Error::<T>::BoundedVecError)?,
+							stash_user: i.stash_user.clone(),
+							controller_user: sender.clone(),
+						};
+						s.remove(count);
+						s.try_push(scheduler).map_err(|_| Error::<T>::StorageLimitReached)?;
+						return Ok(())
+					}
+					count = count.checked_add(1).ok_or(Error::<T>::Overflow)?;
+				}
+
+				Err(Error::<T>::NotController)?
+			})?;
+		
+			Ok(())
+		}
+
 		#[pallet::weight(1_000_000)]
 		pub fn scheduler_exception_report(
 			origin: OriginFor<T>,
