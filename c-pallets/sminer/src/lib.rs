@@ -1034,6 +1034,7 @@ impl<T: Config> Pallet<T> {
 		if mr.collaterals < punish_amount {
 			T::Currency::unreserve(&aid, mr.collaterals);
 			Self::delete_miner_info(aid.clone())?;
+			Self::clean_reward_map(aid.clone());
 			return Ok(())
 		}
 		T::Currency::unreserve(&aid, punish_amount);
