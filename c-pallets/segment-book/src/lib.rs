@@ -163,6 +163,8 @@ pub mod pallet {
 		NoLocalAcctForSigning,
 
 		LengthExceedsLimit,
+
+		Locked,
 	}
 
 	//Information about storage challenges
@@ -192,6 +194,10 @@ pub mod pallet {
 		BoundedVec<ProveInfo<T>, T::StringLimit>,
 		ValueQuery,
 	>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn lock_time)]
+	pub(super) type LockTime<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -338,12 +344,17 @@ pub mod pallet {
 			if !T::File::contains_member(sender) {
 				Err(Error::<T>::NotQualified)?;
 			}
+			let now = <frame_system::Pallet<T>>::block_number();
+			let lock_time = <LockTime<T>>::get();
+			if lock_time > now {
+				Err(Error::<T>::Locked)?;
+			}
 			let mut convert: BoundedVec<ChallengeInfo<T>, T::StringLimit> = Default::default();
 			for v in challenge_info {
 				convert.try_push(v).map_err(|_e| Error::<T>::BoundedVecError)?;
 			}
 			ChallengeMap::<T>::insert(&miner_acc, convert);
-
+			
 			Ok(())
 		}
 
@@ -353,14 +364,17 @@ pub mod pallet {
 			duration: BlockNumberOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
+			
 			if !T::File::contains_member(sender) {
 				Err(Error::<T>::NotQualified)?;
 			}
-			if let Err(e) = Self::record_challenge_time(duration) {
+			if let Err(e) = Self::record_challenge_time(duration.clone()) {
 				log::info!("punish Err:{:?}", e);
 				Err(Error::<T>::RecordTimeError)?;
 			}
-
+			let now = <frame_system::Pallet<T>>::block_number();
+			let deadline = now.checked_add(&duration).ok_or(Error::<T>::Overflow)?;
+			<LockTime<T>>::put(deadline);
 			Ok(())
 		}
 	}
@@ -553,7 +567,6 @@ pub mod pallet {
 					T::MinerControl::sub_space(acc.clone(), file_size.into())?;
 					T::MinerControl::sub_power(acc.clone(), file_size.into())?;
 					T::File::add_invalid_file(acc.clone(), file_id.clone())?;
-					T::File::add_recovery_file(file_id.clone())?;
 					T::MinerControl::punish_miner(acc.clone(), file_size)?;
 				},
 				_ => {
