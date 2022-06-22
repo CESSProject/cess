@@ -235,6 +235,8 @@ pub mod pallet {
 		Locked,
 
 		LengthExceedsLimit,
+
+		Declarated,
 	}
 	#[pallet::storage]
 	#[pallet::getter(fn next_unsigned_at)]
@@ -294,11 +296,6 @@ pub mod pallet {
 		BoundedString<T>,
 		FillerInfo<T>,
 	>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn file_recovery)]
-	pub(super) type FileRecovery<T: Config> =
-		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedList<T>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn invalid_file)]
@@ -410,12 +407,15 @@ pub mod pallet {
 			let file_name_bound: BoundedString<T> = file_name.clone().try_into().map_err(|_| Error::<T>::Overflow)?;
 			if <File<T>>::contains_key(&file_hash_bound) {
 				<File<T>>::try_mutate(&file_hash_bound, |s_opt| -> DispatchResult {
-					let s = s_opt.as_mut().unwrap();
+					let s = s_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
+					if s.user.contains(&sender) {
+						Err(Error::<T>::Declarated)?;
+					}
+					Self::update_user_space(sender.clone(), 1, s.file_size.into())?;
 					let file_info = UserFileSliceInfo::<T>{
 						file_hash: file_hash_bound.clone(),
 						file_size: s.file_size,
 					};
-					Self::update_user_space(sender.clone(), 1, s.file_size.into())?;
 					<UserHoldFileList<T>>::try_mutate(&sender, |v| -> DispatchResult {
 						v.try_push(file_info).map_err(|_| Error::<T>::StorageLimitReached)?;
 						Ok(())
@@ -516,34 +516,6 @@ pub mod pallet {
 				.ok_or(Error::<T>::Overflow)?;
 			T::MinerControl::add_power(miner.clone(), power)?;
 			Self::deposit_event(Event::<T>::FillerUpload { acc: sender, file_size: power as u64 });
-			Ok(())
-		}
-
-		#[pallet::weight(1_000_000)]
-		pub fn update_file_state(
-			origin: OriginFor<T>,
-			fileid: Vec<u8>,
-			state: Vec<u8>,
-		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			let bounded_fileid = Self::vec_to_bound::<u8>(fileid.clone())?;
-			ensure!((<File<T>>::contains_key(bounded_fileid.clone())), Error::<T>::FileNonExistent);
-			//Judge whether it is a consensus node
-
-			<File<T>>::try_mutate(bounded_fileid.clone(), |s_opt| -> DispatchResult {
-				let s = s_opt.as_mut().unwrap();
-				//To prevent multiple scheduling
-				if s.file_state == "repairing".as_bytes().to_vec() &&
-					state == "repairing".as_bytes().to_vec()
-				{
-					Err(Error::<T>::AlreadyRepair)?;
-				}
-
-				s.file_state = Self::vec_to_bound::<u8>(state)?;
-				Ok(())
-			})?;
-
-			Self::deposit_event(Event::<T>::FileChangeState { acc: sender.clone(), fileid });
 			Ok(())
 		}
 
@@ -657,15 +629,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		//Test method：Clear the storage space owned by the user
-		#[pallet::weight(2_000_000)]
-		pub fn initi_acc(origin: OriginFor<T>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			<UserSpaceList<T>>::remove(&sender);
-			<UserHoldSpaceDetails<T>>::remove(&sender);
-			Ok(())
-		}
-
 		//Update current storage unit price
 		#[pallet::weight(0)]
 		pub fn update_price(origin: OriginFor<T>, price: Vec<u8>) -> DispatchResult {
@@ -702,37 +665,6 @@ pub mod pallet {
 			<UnitPrice<T>>::put(price_balance);
 			let deadline = now.checked_add(&5000u32.into()).ok_or(Error::<T>::Overflow)?;
 			<LockTime<T>>::put(deadline);
-			Ok(())
-		}
-
-		//Scheduling is the notification chain after file recovery
-		#[pallet::weight(10_000)]
-		pub fn recover_file(origin: OriginFor<T>, dupl_id: Vec<u8>) -> DispatchResult {
-			let length = dupl_id.len().checked_sub(4).ok_or(Error::<T>::Overflow)?;
-			let file_hash = dupl_id[0..length].to_vec();
-			let file_hash_bounded: BoundedString<T> =
-				file_hash.try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
-			let sender = ensure_signed(origin)?;
-			let bounded_string: BoundedString<T> =
-				dupl_id.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
-
-			<FileRecovery<T>>::try_mutate(&sender, |o| -> DispatchResult {
-				o.retain(|x| *x != bounded_string);
-				Ok(())
-			})?;
-			if !<File<T>>::contains_key(&file_hash_bounded) {
-				Err(Error::<T>::FileNonExistent)?;
-			}
-			<File<T>>::try_mutate(&file_hash_bounded, |opt| -> DispatchResult {
-				let o = opt.as_mut().unwrap();
-				o.file_state = "active"
-					.as_bytes()
-					.to_vec()
-					.try_into()
-					.map_err(|_e| Error::<T>::BoundedVecError)?;
-				Ok(())
-			})?;
-			Self::deposit_event(Event::<T>::RecoverFile { acc: sender, file_hash: dupl_id });
 			Ok(())
 		}
 
@@ -1168,6 +1100,7 @@ pub mod pallet {
 				})?;
 			} else {
 				<File<T>>::remove(&file_hash);
+				Self::add_invalid_file(file.miner_acc.clone(), file_hash.to_vec())?;
 				T::MinerControl::sub_power(file.miner_acc.clone(), file.file_size.into())?;
 				T::MinerControl::sub_space(file.miner_acc.clone(), file.file_size.into())?;
 			}
@@ -1219,34 +1152,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		//Add the list of files to be recovered and notify the scheduler to recover
-		pub fn add_recovery_file(dupl_id: Vec<u8>) -> DispatchResult {
-			let acc = Self::get_current_scheduler();
-			let length = dupl_id.len().checked_sub(4).ok_or(Error::<T>::Overflow)?;
-			let file_hash = dupl_id[0..length].to_vec();
-			let file_hash_bounded: BoundedString<T> =
-				file_hash.try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
-			if !<File<T>>::contains_key(&file_hash_bounded) {
-				Err(Error::<T>::FileNonExistent)?;
-			}
-			<File<T>>::try_mutate(&file_hash_bounded, |opt| -> DispatchResult {
-				let o = opt.as_mut().unwrap();
-				o.file_state = "repairing"
-					.as_bytes()
-					.to_vec()
-					.try_into()
-					.map_err(|_e| Error::<T>::BoundedVecError)?;
-				Ok(())
-			})?;
-			<FileRecovery<T>>::try_mutate(&acc, |o| -> DispatchResult {
-				o.try_push(dupl_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?)
-					.map_err(|_e| Error::<T>::StorageLimitReached)?;
-				Ok(())
-			})?;
-
-			Ok(())
-		}
-
 		//Add invalid file list, notify miner to delete
 		pub fn add_invalid_file(miner_acc: AccountOf<T>, file_hash: Vec<u8>) -> DispatchResult {
 			<InvalidFile<T>>::try_mutate(&miner_acc, |o| -> DispatchResult {
@@ -1277,6 +1182,7 @@ pub mod pallet {
 					break;
 				}
 				Self::clear_user_file(v.file_hash.clone(), acc)?;
+				
 				clear_file_size = clear_file_size.checked_add(v.file_size.into()).ok_or(Error::<T>::Overflow)?;
 			}
 
@@ -1293,8 +1199,6 @@ pub trait RandomFileList<AccountId> {
 	fn delete_filler(miner_acc: AccountId, filler_id: Vec<u8>) -> DispatchResult;
 	//Delete file backup
 	fn clear_file(file_hash: Vec<u8>) -> DispatchResult;
-	//The function executed when the challenge fails, allowing the miner to delete invalid files
-	fn add_recovery_file(file_hash: Vec<u8>) -> DispatchResult;
 	//The function executed when the challenge fails to let the consensus schedule recover the file
 	fn add_invalid_file(miner_acc: AccountId, file_hash: Vec<u8>) -> DispatchResult;
 	//Judge whether it is a user who can initiate transactions on the off chain machine
@@ -1315,11 +1219,6 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 
 	fn clear_file(file_hash: Vec<u8>) -> DispatchResult {
 		Pallet::<T>::clear_file(file_hash)?;
-		Ok(())
-	}
-
-	fn add_recovery_file(file_hash: Vec<u8>) -> DispatchResult {
-		Pallet::<T>::add_recovery_file(file_hash)?;
 		Ok(())
 	}
 
