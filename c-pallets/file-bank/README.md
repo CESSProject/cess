@@ -13,5 +13,5 @@ Contain operations related infomation of files on multi-direction.
 ### Dispatchable Functions
 
 * `upload` - Upload meta information of the stored file.
-* `update` - Update meta information of uploaded file.
+* `update` - Update meta information of the uploaded file.
 * `buyfile` - Buy file with download fee.
