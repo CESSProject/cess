@@ -50,8 +50,8 @@ subkey generate --scheme sr25519
 Now see the `ed25519` key and address associated with the same mnemonic (phrase seed).
 
 ```
-# subkey command
-subkey inspect --scheme ed25519 "SECRET PHRASE YOU JUST GENERATED"
+# subkeycommand
+subkeyinspect --scheme ed25519 "SECRET PHRASE YOU JUST GENERATED"
 ```
 
 We recommend that you record the above outputs and keep mnemonic in safe.
