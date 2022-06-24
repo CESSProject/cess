@@ -93,10 +93,10 @@ Now you can launch node again:
 
 CESS supports to obtain incentives by contributing idle storage with [storage mining tool](https://github.com/CESSProject/storage-mining-tool), and click [here](https://github.com/CESSProject/cess/tree/main/docs/designs-of-storage-mining.md) to learn more.
 
-## Run Tests
+## Run Node Tests
 
 
-CESS has Rust unit tests, and enable to run locally.
+CESS has Rust environment unit tests, and enable to run locally.
 
 ```
 # Run all the Rust unit tests
