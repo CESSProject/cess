@@ -573,7 +573,9 @@ pub mod pallet {
 					Err(Error::<T>::FileTypeError)?;
 				},
 			}
-
+			if !T::MinerControl::miner_is_exist(acc.clone()) {
+				T::File::delete_miner_all_filler(acc.clone())?;
+			}
 			Ok(())
 		}
 

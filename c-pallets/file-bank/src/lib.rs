@@ -18,11 +18,11 @@
 //! * `buyfile` - Buy file with download fee.
 #![cfg_attr(not(feature = "std"), no_std)]
 
-// #[cfg(test)]
-// mod mock;
+#[cfg(test)]
+mod mock;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 use frame_support::traits::{
 	Currency, ExistenceRequirement::AllowDeath, FindAuthor, Randomness, ReservableCurrency,
@@ -433,6 +433,7 @@ pub mod pallet {
 						scan_size: 0,			
 						segment_size: 0,	
 						miner_acc: sender.clone(),
+						miner_id: 0,
 						miner_ip: Default::default(),
 						user: vec![sender.clone()].try_into().map_err(|_| Error::<T>::BoundedVecError)?,
 						file_name: vec![file_name_bound].try_into().map_err(|_| Error::<T>::BoundedVecError)?,
@@ -455,6 +456,7 @@ pub mod pallet {
 			scan_size: u32,
 			segment_size: u32,
 			miner_acc: AccountOf<T>,
+			miner_id: u64,
 			miner_ip: Vec<u8>,
 			user: AccountOf<T>,
 		) -> DispatchResult {
@@ -463,8 +465,8 @@ pub mod pallet {
 				Err(Error::<T>::ScheduleNonExistent)?;
 			}
 			let file_hash_bounded: BoundedString<T> = file_hash.try_into().map_err(|_| Error::<T>::BoundedVecError)?;
-			if <File<T>>::contains_key(&file_hash_bounded) {
-				Err(Error::<T>::FileExistent)?;
+			if !<File<T>>::contains_key(&file_hash_bounded) {
+				Err(Error::<T>::FileNonExistent)?;
 			}
 			Self::update_user_space(user.clone(), 1, file_size.into())?;
 
@@ -473,11 +475,15 @@ pub mod pallet {
 				if !s.user.contains(&user) {
 					Err(Error::<T>::UserNotDeclared)?;
 				}
+				if s.file_state.to_vec() == "active".as_bytes().to_vec() {
+					Err(Error::<T>::FileExistent)?;
+				}
 				s.file_size = file_size;
 				s.block_num = block_num;
 				s.scan_size = scan_size;
 				s.segment_size = segment_size;
 				s.miner_acc = miner_acc.clone();
+				s.miner_id = miner_id;
 				s.miner_ip = miner_ip.try_into().map_err(|_| Error::<T>::BoundedVecError)?;
 				s.file_state = "active".as_bytes().to_vec().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
 				Ok(())
@@ -913,6 +919,10 @@ pub mod pallet {
 
 			let file_list = Self::get_random_file()?;
 			for (file_hash, file) in file_list {
+				let miner_id = T::MinerControl::get_miner_id(file.miner_acc.clone())?;
+				if file.miner_id != miner_id {
+					continue;
+				}
 				let length = file.block_num;
 				let number_list = Self::get_random_numberlist(length, 1)?;
 				let miner_acc = file.miner_acc.clone();
@@ -1197,6 +1207,8 @@ pub trait RandomFileList<AccountId> {
 	) -> Result<Vec<(AccountId, Vec<u8>, Vec<u8>, u64, u8, u32)>, DispatchError>;
 	//Delete filler file
 	fn delete_filler(miner_acc: AccountId, filler_id: Vec<u8>) -> DispatchResult;
+	//Delete all filler according to miner_acc
+	fn delete_miner_all_filler(miner_acc: AccountId) -> DispatchResult;
 	//Delete file backup
 	fn clear_file(file_hash: Vec<u8>) -> DispatchResult;
 	//The function executed when the challenge fails to let the consensus schedule recover the file
@@ -1214,6 +1226,11 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 
 	fn delete_filler(miner_acc: AccountOf<T>, filler_id: Vec<u8>) -> DispatchResult {
 		Pallet::<T>::delete_filler(miner_acc, filler_id)?;
+		Ok(())
+	}
+	
+	fn delete_miner_all_filler(miner_acc: AccountOf<T>) -> DispatchResult {
+		let _ = FillerMap::<T>::remove_prefix(&miner_acc, Option::None);
 		Ok(())
 	}
 

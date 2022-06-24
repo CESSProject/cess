@@ -47,6 +47,49 @@ impl Default for MockingFileInfo {
     }
 }
 
+
+fn upload_declaration_alias(account: AccountId, file_name: Vec<u8>, file_hash: Vec<u8>) -> DispatchResult {
+    FileBank::upload_declaration(
+        Origin::signed(account),
+        file_hash,
+        file_name,
+    )
+}
+
+fn upload_file_alias(account: AccountId, controller: AccountId, file_info: &MockingFileInfo) -> DispatchResult {
+    let MockingFileInfo { file_hash, file_size, block_num, scan_size, segment_size, miner_acc, miner_ip } = file_info.clone();
+    FileBank::upload(
+        Origin::signed(controller),
+        file_hash,
+        file_size,
+        block_num,
+        scan_size,
+        segment_size,
+        miner_acc,
+        miner_ip,
+        account,
+    )
+}
+
+fn register_scheduler(stash: AccountId, controller: AccountId) -> DispatchResult {
+    pallet_cess_staking::Bonded::<Test>::insert(&stash, controller.clone());
+    FileMap::registration_scheduler(
+        Origin::signed(controller),
+        stash, 
+        "132.168.191.67:3033".as_bytes().to_vec(),
+    )
+
+}
+
+fn register_miner(miner: AccountId) -> DispatchResult {
+    Sminer::regnstk(
+        Origin::signed(miner),
+        miner.clone(),
+        "132.168.191.67:3033".as_bytes().to_vec(),
+        2_000u128.try_into().unwrap(),
+    )
+}
+
 #[test]
 fn buy_space_works() {
     new_test_ext().execute_with(|| {
@@ -71,7 +114,7 @@ fn buy_space_works() {
 
         let space_info = UserSpaceList::<Test>::try_get(acc1).unwrap().pop().unwrap();
         assert_eq!(space_gb * 1024 * 1_048_576, space_info.size); // MB unit
-        assert_eq!(1200 * lease_count + bn as u128, space_info.deadline as u128);
+        assert_eq!(864000 * lease_count + bn as u128, space_info.deadline as u128);
 
         let uhsd = UserHoldSpaceDetails::<Test>::try_get(acc1).unwrap();
         assert_eq!(space_gb * 1024 * 1_048_576, uhsd.purchased_space);  //KB unit
@@ -82,50 +125,50 @@ fn buy_space_works() {
     });
 }
 
-fn upload_declaration_alias(account: AccountId, file_name: Vec<u8>, file_hash: Vec<u8>) -> DispatchResult {
-    FileBank::upload_declaration(
-        Origin::signed(account),
-        file_hash,
-        file_name,
-    )
-}
 
-fn upload_file_alias(account: AccountId, address: Vec<u8>, file_info: &MockingFileInfo) -> DispatchResult {
-    let MockingFileInfo { file_hash, file_size, block_num, scan_size, segment_size, miner_ip } = file_info.clone();
-    FileBank::upload(
-        Origin::signed(account),
-        file_hash,
-        file_size,
-        block_num,
-        scan_size,
-        segment_size,
-        backups,
-        miner_ip,
-        download_fee,
-    )
+#[test]
+fn upload_declaration() {
+    new_test_ext().execute_with(|| {
+        let acc1 = mock::account1();
+        let file_name = "cess-book".as_bytes().to_vec();
+        let file_hash = "cess056237k7k439902190502".as_bytes().to_vec();
+        assert_ok!(upload_declaration_alias(acc1, file_name, file_hash));
+    });
 }
 
 #[test]
 fn upload_works() {
     new_test_ext().execute_with(|| {
         let acc1 = mock::account1();
+        let miner1 = mock::miner1();
+        let stash1 = mock::stash1();
+        let controller1 = mock::controller1();
         let mfi = MockingFileInfo::default();
+        assert_ok!(upload_declaration_alias(acc1, "cess-book".as_bytes().to_vec(), mfi.file_hash.to_vec()));
+        assert_noop!(upload_file_alias(acc1, controller1, &mfi), Error::<Test>::ScheduleNonExistent);
+        assert_ok!(register_miner(miner1));
+        assert_ok!(register_scheduler(stash1.clone(), controller1.clone()));
         //upload() file not work have not buy space
-        assert_noop!(upload_file_alias(acc1, vec![1], &mfi), Error::<Test>::NotPurchasedSpace);
+        
 
         let space_gb = 10_u128;
         assert_ok!(Sminer::add_available_space(1_048_576 * 1024 * space_gb));
         UnitPrice::<Test>::put(100);
-        assert_ok!(FileBank::buy_space(Origin::signed(acc1), space_gb, 100, 1000));
+        assert_ok!(FileBank::buy_space(Origin::signed(acc1), 1, 1, 0));
 
-        assert_ok!(upload_file_alias(acc1, vec![1], &mfi));
+        assert_ok!(upload_file_alias(acc1, controller1, &mfi));
 
-        let file_id: BoundedVec<u8, StringLimit> = mfi.file_id.try_into().unwrap();
-        assert!(File::<Test>::contains_key(&file_id));
+        let file_hash: BoundedVec<u8, StringLimit> = mfi.file_hash.try_into().unwrap();
+        let file_size = mfi.file_size;
+        let file_slice_info = UserFileSliceInfo::<Test>{
+            file_hash: file_hash.clone(),
+            file_size: file_size,
+        };
+        assert!(File::<Test>::contains_key(&file_hash));
         let t = UserHoldSpaceDetails::<Test>::try_get(acc1).unwrap();
         assert_eq!(mfi.file_size as u128 * 3, t.used_space);
         assert_eq!(t.purchased_space - mfi.file_size as u128 * 3, t.remaining_space);
-        assert!(UserHoldFileList::<Test>::try_get(acc1).unwrap().contains(&file_id));
+        assert!(UserHoldFileList::<Test>::try_get(acc1).unwrap().contains(&file_slice_info));
 
         let event = Sys::events().pop().expect("Expected at least one FileUpload to be found").event;
         assert_eq!(mock::Event::from(Event::FileUpload { acc: acc1 }), event);
@@ -136,6 +179,7 @@ fn upload_works() {
 fn upload_should_not_work_when_insufficient_storage() {
     new_test_ext().execute_with(|| {
         let acc1 = mock::account1();
+        let controller1 = mock::controller1();
         let mut mfi = MockingFileInfo::default();
         let space_gb = 1_u128;
         assert_ok!(Sminer::add_available_space(1_048_576 * 1024 * space_gb));
@@ -144,7 +188,7 @@ fn upload_should_not_work_when_insufficient_storage() {
         mfi.file_size = 2 * 1024 * 1024 * 1024;  // large file
         //FIXME! the assert_noop! not work, why? it's need to solve
         //assert_noop!(upload_file_alias(acc1, vec![1], &mfi), Error::<Test>::InsufficientStorage);
-        if let Err(e) = upload_file_alias(acc1, vec![1], &mfi) {
+        if let Err(e) = upload_file_alias(acc1, controller1, &mfi) {
             if let DispatchError::Module(m) = e {
                 assert_eq!("InsufficientStorage", m.message.unwrap());
             }
@@ -156,27 +200,31 @@ fn upload_should_not_work_when_insufficient_storage() {
 fn delete_file_works() {
     new_test_ext().execute_with(|| {
         let acc1 = mock::account1();
+        let stash1 = mock::stash1();
+        let controller1 = mock::controller1();
         let mfi = MockingFileInfo::default();
-        assert_noop!(FileBank::delete_file(Origin::signed(acc1), mfi.file_id.clone()), Error::<Test>::FileNonExistent);
+        assert_noop!(FileBank::delete_file(Origin::signed(acc1), mfi.file_hash.clone()), Error::<Test>::FileNonExistent);
 
         let space_gb = 10_u128;
         assert_ok!(Sminer::add_available_space(1_048_576 * 1024 * space_gb));
         UnitPrice::<Test>::put(100);
         assert_ok!(FileBank::buy_space(Origin::signed(acc1), space_gb, 100, 1000));
         // acc1 upload file
-        assert_ok!(upload_file_alias(acc1, vec![1,1,1,1], &mfi));
-        assert_noop!(FileBank::delete_file(Origin::signed(mock::account2()), mfi.file_id.clone()), Error::<Test>::NotOwner);
+        assert_ok!(register_scheduler(stash1.clone(), controller1.clone()));
+        assert_ok!(upload_declaration_alias(acc1, "cess-book".as_bytes().to_vec(), mfi.file_hash.to_vec()));
+        assert_ok!(upload_file_alias(acc1, controller1, &mfi));
+        assert_noop!(FileBank::delete_file(Origin::signed(mock::account2()), mfi.file_hash.clone()), Error::<Test>::NotOwner);
         let ss_before = UserHoldSpaceDetails::<Test>::try_get(acc1).unwrap();
 
-        assert_ok!(FileBank::delete_file(Origin::signed(acc1), mfi.file_id.clone()));
+        assert_ok!(FileBank::delete_file(Origin::signed(acc1), mfi.file_hash.clone()));
 
         let ss_after = UserHoldSpaceDetails::<Test>::try_get(acc1).unwrap();
-        let bounded_file_id: BoundedVec<u8, StringLimit> = mfi.file_id.to_vec().try_into().unwrap();
-        assert!(!File::<Test>::contains_key(bounded_file_id));
+        let bounded_file_hash: BoundedVec<u8, StringLimit> = mfi.file_hash.to_vec().try_into().unwrap();
+        assert!(!File::<Test>::contains_key(bounded_file_hash));
         assert_ne!(ss_before.remaining_space, ss_after.remaining_space);
 
         let event = Sys::events().pop().expect("Expected at least one DeleteFile to be found").event;
-        assert_eq!(mock::Event::from(Event::DeleteFile { acc: acc1, fileid: mfi.file_id }), event);
+        assert_eq!(mock::Event::from(Event::DeleteFile { acc: acc1, fileid: mfi.file_hash }), event);
     });
 }
 
@@ -205,23 +253,3 @@ fn receive_free_space_works() {
 //         assert_eq!(1000 / 3, UnitPrice::<Test>::try_get().unwrap());
 //     });
 // }
-
-#[test]
-fn update_file_state_works() {
-    new_test_ext().execute_with(|| {
-        let acc1 = mock::account1();
-        let mfi = MockingFileInfo::default();
-        //upload() file not work have not buy space
-        let space_gb = 10_u128;
-        assert_ok!(Sminer::add_available_space(1_048_576 * 1024 * space_gb));
-        UnitPrice::<Test>::put(100);
-        assert_ok!(FileBank::buy_space(Origin::signed(acc1), space_gb, 100, 1000));
-        assert_ok!(upload_file_alias(acc1, vec![1], &mfi));
-
-        assert_ok!(FileBank::update_file_state(Origin::signed(acc1), mfi.file_id.clone(), Vec::from("?")));
-        let bounded_file_id: BoundedVec<u8, StringLimit> = mfi.file_id.to_vec().try_into().unwrap();
-        let fi = File::<Test>::try_get(bounded_file_id).unwrap();
-        //FIXME! How much file states dose they have? Why not use enum instead string?
-        assert_eq!(Vec::from("?"), fi.file_state.to_vec());
-    });
-}

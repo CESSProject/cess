@@ -6,6 +6,7 @@ type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct FileInfo<T: pallet::Config> {
+	pub(super) miner_id: u64,
 	pub(super) file_size: u64,
 	pub(super) block_num: u32,
 	pub(super) scan_size: u32,

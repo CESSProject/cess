@@ -904,7 +904,7 @@ impl<T: Config> Pallet<T> {
 	pub fn add_power(acc: AccountOf<T>, increment: u128) -> DispatchResult {
 		//check exist
 		if !<MinerItems<T>>::contains_key(&acc) {
-			return Ok(())
+			Err(Error::<T>::NotMiner)?;
 		}
 
 		let state = Self::check_state(acc.clone());
@@ -1234,6 +1234,7 @@ pub trait MinerControl<AccountId> {
 	fn add_space(acc: AccountId, power: u128) -> DispatchResult;
 	fn sub_space(acc: AccountId, power: u128) -> DispatchResult;
 	fn get_power_and_space(acc: AccountId) -> Result<(u128, u128), DispatchError>;
+	fn get_miner_id(acc: AccountId) -> Result<u64, DispatchError>;
 	fn punish_miner(acc: AccountId, file_size: u64) -> DispatchResult;
 	fn miner_is_exist(acc: AccountId) -> bool;
 }
@@ -1278,5 +1279,10 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 			return true
 		}
 		false
+	}
+
+	fn get_miner_id(acc: AccountOf<T>) -> Result<u64, DispatchError> {
+		let miner = <MinerItems<T>>::try_get(&acc).map_err(|_| Error::<T>::NotMiner)?;
+		Ok(miner.peerid)
 	}
 }
