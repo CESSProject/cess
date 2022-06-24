@@ -1,6 +1,6 @@
 # Segment Book Module
 
-Contain operations related proof of storage. 
+Contains operations related the proof of storage. 
 
 ### Terminology
 
