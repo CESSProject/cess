@@ -7,7 +7,7 @@ Contains operations related the proof of storage.
 * **uncid:** 		Require parameters for generating proof (unencrypted).
 * **sealed_cid:** 	Require parameters for generating proof (encrypted).
 * **segment_id:**	Allocated segment ID.
-* **is_ready:**		Used to know whether to submit a certificate.
+* **is_ready:**		Used to know whether to submit the certificate.
 * **size_type:**	Segment size.
 * **peer_id:**		Miner's ID.
 
