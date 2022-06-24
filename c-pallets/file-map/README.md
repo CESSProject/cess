@@ -17,5 +17,5 @@ A series of methods for finding consensus scheduling.
 ### Dispatchable Functions
 
 * `registration_scheduler` - The interface for scheduling registration has no special restrictions at present.
-* `scheduler_exception_report` - Error information feedback report of consensus. If one consensus finds that another consensus is not online, it will be reported through this method.
+* `scheduler_exception_report` - Error information feedback report of consensus. If a consensus node finds out that another consensus is not online, it will be reported through this method.
 * `init_public_key` - Initialize the public key related to the certificate.
