@@ -15,8 +15,8 @@ Contains operations related the proof of storage.
 
 ### Dispatchable Functions
 
-* `intent_submit` 		Outputs parameters such as segment-id, random number and other parameters required by miners to generate the PoRep, and submit some proof parameters to the unverified pool in advance.
-* `intent_submit_po_st` Outputs parameters such as random number and other parameters required by miners to generate the PoSt, and submit some proof parameters to the unverified pool in advance.
+* `intent_submit` 		Outputs parameters included segment-id, random number and other parameters required by miners to generate the PoRep, and submit some proof parameters to the unverified pool in advance.
+* `intent_submit_po_st` Outputs parameters included random number and other parameters required by miners to generate the PoSt, and submit some proof parameters to the unverified pool in advance.
 * `submit_to_vpa` 		Submits the PoRep to the unverified pool to verify for scheduler node.
 * `verify_in_vpa` 		Verifies the PoRep from unverified pool, and submit the results.
 * `submit_to_vpb` 		Submits the PoSt to the unverified pool to verify for scheduler node.

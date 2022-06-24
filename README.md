@@ -21,7 +21,7 @@ Follow [Setup](https://github.com/CESSProject/cess/tree/main/docs/setup.md) to g
 The `cargo run` command will perform an initial build. Use the following command to build the node without launching it:
 
 ```
-# Fetch the code
+# Fetch the source code
 git clone https://github.com/CESSProject/cess.git
 cd cess
 
