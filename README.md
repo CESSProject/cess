@@ -96,7 +96,7 @@ CESS supports to obtain incentives by contributing idle storage with [storage mi
 ## Run Node Tests
 
 
-CESS has Rust environment unit tests, and enable to run locally.
+CESS has Rust unit tests, and enable to run locally.
 
 ```
 # Run all the Rust unit tests
@@ -117,7 +117,7 @@ Please follow the contributions guidelines as outlined in [`docs/CONTRIBUTING.ad
 
 ## cess-bootstrap
 
-Please download the code of the current latest release
+Please download the code of the newest release
 ```
 cd cess
 #Under the /cess root directory
