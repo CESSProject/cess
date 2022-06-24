@@ -14,4 +14,4 @@ Contain operations related infomation of files on multi-direction.
 
 * `upload` - Upload meta information of the stored file.
 * `update` - Update meta information of the uploaded file.
-* `buyfile` - Buy file with download fee.
+* `buyfile` - Buy the specific file with download fee.
