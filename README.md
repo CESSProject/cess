@@ -40,7 +40,7 @@ If you already have the keys for Substrate using the [SS58 address encoding form
 
 Begin by compiling and installing the utility ([instructions and more info here](https://substrate.dev/docs/en/knowledgebase/integrate/subkey)). 
 
-Generate a mnemonic (Secret phrase) and see the `sr25519` key and address associated with it.
+Generate a mnemonic (phrase seed) and see the `sr25519` key and address associated with it.
 
 ```
 # subkey command
