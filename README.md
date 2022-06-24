@@ -29,14 +29,14 @@ cd cess
 cargo build --release
 ```
 
-## Run The CESS Node
+## Run the CESS Node
 
 
 After the node has finished compiling, you can follow these steps below to run it. 
 
 ### Generate Keys
 
-If you already have keys for Substrate using the [SS58 address encoding format](https://docs.substrate.io/v3/advanced/ss58/), please see the next section.
+If you already have the keys for Substrate using the [SS58 address encoding format](https://docs.substrate.io/v3/advanced/ss58/), please see the next section.
 
 Begin by compiling and installing the utility ([instructions and more info here](https://substrate.dev/docs/en/knowledgebase/integrate/subkey)). 
 
