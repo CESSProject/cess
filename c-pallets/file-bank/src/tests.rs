@@ -66,6 +66,7 @@ fn upload_file_alias(account: AccountId, controller: AccountId, file_info: &Mock
         scan_size,
         segment_size,
         miner_acc,
+        1,
         miner_ip,
         account,
     )
@@ -88,6 +89,25 @@ fn register_miner(miner: AccountId) -> DispatchResult {
         "132.168.191.67:3033".as_bytes().to_vec(),
         2_000u128.try_into().unwrap(),
     )
+}
+
+fn add_power_for_miner(controller: AccountId, miner: AccountId) -> DispatchResult {
+    let mut filler_list: Vec<u8> = Vec::new();
+    for i in 0 .. 100 {
+        filler_list.push(
+            FillerInfo<T: pallet::Config> {
+                filler_size: 8 * 1_048_576,
+                block_num: 8,
+                segment_size: 1_048_576,
+                scan_size: 1_048_576,
+                miner_address: ,
+                filler_id: ,
+                filler_hash: ,
+            }
+        )
+    }
+
+    Ok
 }
 
 #[test]
@@ -179,9 +199,13 @@ fn upload_works() {
 fn upload_should_not_work_when_insufficient_storage() {
     new_test_ext().execute_with(|| {
         let acc1 = mock::account1();
+        let stash1 = mock::stash1();
+        let miner1 = mock::miner1();
         let controller1 = mock::controller1();
         let mut mfi = MockingFileInfo::default();
         let space_gb = 1_u128;
+        assert_ok!(register_miner(miner1));
+        assert_ok!(register_scheduler(stash1.clone(), controller1.clone()));
         assert_ok!(Sminer::add_available_space(1_048_576 * 1024 * space_gb));
         UnitPrice::<Test>::put(100);
         assert_ok!(FileBank::buy_space(Origin::signed(acc1), space_gb, 100, 1000));
@@ -201,6 +225,7 @@ fn delete_file_works() {
     new_test_ext().execute_with(|| {
         let acc1 = mock::account1();
         let stash1 = mock::stash1();
+        let miner1 = mock::miner1();
         let controller1 = mock::controller1();
         let mfi = MockingFileInfo::default();
         assert_noop!(FileBank::delete_file(Origin::signed(acc1), mfi.file_hash.clone()), Error::<Test>::FileNonExistent);
@@ -212,6 +237,7 @@ fn delete_file_works() {
         // acc1 upload file
         assert_ok!(register_scheduler(stash1.clone(), controller1.clone()));
         assert_ok!(upload_declaration_alias(acc1, "cess-book".as_bytes().to_vec(), mfi.file_hash.to_vec()));
+        assert_ok!(register_miner(miner1.clone()));
         assert_ok!(upload_file_alias(acc1, controller1, &mfi));
         assert_noop!(FileBank::delete_file(Origin::signed(mock::account2()), mfi.file_hash.clone()), Error::<Test>::NotOwner);
         let ss_before = UserHoldSpaceDetails::<Test>::try_get(acc1).unwrap();

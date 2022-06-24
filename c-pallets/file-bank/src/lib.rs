@@ -412,14 +412,7 @@ pub mod pallet {
 						Err(Error::<T>::Declarated)?;
 					}
 					Self::update_user_space(sender.clone(), 1, s.file_size.into())?;
-					let file_info = UserFileSliceInfo::<T>{
-						file_hash: file_hash_bound.clone(),
-						file_size: s.file_size,
-					};
-					<UserHoldFileList<T>>::try_mutate(&sender, |v| -> DispatchResult {
-						v.try_push(file_info).map_err(|_| Error::<T>::StorageLimitReached)?;
-						Ok(())
-					})?;
+					Self::add_user_hold_fileslice(sender.clone(), file_hash_bound.clone(), s.file_size)?;
 					s.user.try_push(sender.clone()).map_err(|_| Error::<T>::StorageLimitReached)?;
 					s.file_name.try_push(file_name_bound.clone()).map_err(|_| Error::<T>::StorageLimitReached)?;
 					Ok(())
@@ -489,6 +482,8 @@ pub mod pallet {
 				Ok(())
 			})?;
 
+			Self::add_user_hold_fileslice(user.clone() ,file_hash_bounded.clone(), file_size)?;
+
 			Self::replace_file(miner_acc.clone(), file_size)?;
 
 			Self::deposit_event(Event::<T>::FileUpload { acc: user.clone() });
@@ -512,6 +507,9 @@ pub mod pallet {
 			}
 
 			for i in filler_list.iter() {
+				if <FillerMap<T>>::contains_key(&miner, i.filler_id.clone()) {
+					Err(Error::<T>::FileExistent)?;
+				}
 				<FillerMap<T>>::insert(miner.clone(), i.filler_id.clone(), i);
 			}
 
@@ -714,6 +712,17 @@ pub mod pallet {
 			})?;
 			Ok(())
 		}
+
+		#[pallet::weight(10_000)]
+		pub fn clear_all_filler(origin: OriginFor<T>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			let state = T::MinerControl::get_miner_state(sender.clone())?;
+			if state != "exit".as_bytes().to_vec() {
+				Err(Error::<T>::NotQualified)?;
+			}
+			let _ = FillerMap::<T>::remove_prefix(&sender, Option::None);
+			Ok(())
+		} 
 	}
 
 	impl<T: Config> Pallet<T> {
@@ -775,19 +784,6 @@ pub mod pallet {
 					StorageSpace { purchased_space: size, used_space: 0, remaining_space: size };
 				<UserHoldSpaceDetails<T>>::insert(&acc, value);
 			}
-			Ok(())
-		}
-
-		fn add_user_hold_file(acc: AccountOf<T>, fileid: Vec<u8>, file_size: u64) -> DispatchResult {
-			let bounded_fileid = Self::vec_to_bound::<u8>(fileid).unwrap_or_default();
-			let file_info = UserFileSliceInfo::<T>{
-				file_hash: bounded_fileid,
-				file_size: file_size,
-			};
-			<UserHoldFileList<T>>::try_mutate(&acc, |s| -> DispatchResult {
-				s.try_push(file_info).map_err(|_e| Error::<T>::StorageLimitReached)?;
-				Ok(())
-			})?;
 			Ok(())
 		}
 
@@ -1127,9 +1123,14 @@ pub mod pallet {
 			T::MinerControl::add_space(miner_acc.clone(), file_size.into())?;
 			let (power, space) = T::MinerControl::get_power_and_space(miner_acc.clone())?;
 			//Judge whether the current miner's remaining is enough to store files
-			if power - space < file_size.into() {
-				Err(Error::<T>::MinerPowerInsufficient)?;
+			if power - space > 0 {
+				if power - space < file_size.into() {
+					Err(Error::<T>::MinerPowerInsufficient)?;
+				}
+			} else {
+				Err(Error::<T>::Overflow)?;
 			}
+			
 			//How many files to replace, round up
 			let replace_num = (file_size as u128)
 				.checked_div(8)
@@ -1167,6 +1168,19 @@ pub mod pallet {
 			<InvalidFile<T>>::try_mutate(&miner_acc, |o| -> DispatchResult {
 				o.try_push(file_hash.try_into().map_err(|_e| Error::<T>::BoundedVecError)?)
 					.map_err(|_e| Error::<T>::StorageLimitReached)?;
+				Ok(())
+			})?;
+
+			Ok(())
+		}
+
+		fn add_user_hold_fileslice(user: AccountOf<T>, file_hash_bound: BoundedVec<u8, T::StringLimit>, file_size: u64) -> DispatchResult {
+			let file_info = UserFileSliceInfo::<T>{
+				file_hash: file_hash_bound.clone(),
+				file_size: file_size,
+			};
+			<UserHoldFileList<T>>::try_mutate(&user, |v| -> DispatchResult {
+				v.try_push(file_info).map_err(|_| Error::<T>::StorageLimitReached)?;
 				Ok(())
 			})?;
 

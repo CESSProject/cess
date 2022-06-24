@@ -385,7 +385,6 @@ pub mod pallet {
 				s.state = Self::vec_to_bound("exit".as_bytes().to_vec())?;
 				Ok(())
 			})?;
-
 			let now = <frame_system::Pallet<T>>::block_number();
 			MinerColling::<T>::insert(&sender, now);
 
@@ -1237,6 +1236,7 @@ pub trait MinerControl<AccountId> {
 	fn get_miner_id(acc: AccountId) -> Result<u64, DispatchError>;
 	fn punish_miner(acc: AccountId, file_size: u64) -> DispatchResult;
 	fn miner_is_exist(acc: AccountId) -> bool;
+	fn get_miner_state(acc: AccountId) -> Result<Vec<u8>, DispatchError>;
 }
 
 impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -1284,5 +1284,10 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 	fn get_miner_id(acc: AccountOf<T>) -> Result<u64, DispatchError> {
 		let miner = <MinerItems<T>>::try_get(&acc).map_err(|_| Error::<T>::NotMiner)?;
 		Ok(miner.peerid)
+	}
+
+	fn get_miner_state(acc: AccountOf<T>) -> Result<Vec<u8>, DispatchError> {
+		let miner = <MinerItems<T>>::try_get(&acc).map_err(|_| Error::<T>::NotMiner)?;
+		Ok(miner.state.to_vec())
 	}
 }
