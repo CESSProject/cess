@@ -4,8 +4,8 @@ Contains operations related the proof of storage.
 
 ### Terminology
 
-* **uncid:** 		Necessary parameters for generating proof (unencrypted).
-* **sealed_cid:** 	Necessary parameters for generating proof (encrypted).
+* **uncid:** 		Require parameters for generating proof (unencrypted).
+* **sealed_cid:** 	Require parameters for generating proof (encrypted).
 * **segment_id:**	Allocated segment ID.
 * **is_ready:**		Used to know whether to submit a certificate.
 * **size_type:**	Segment size.
