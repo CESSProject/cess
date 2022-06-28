@@ -12,7 +12,7 @@ Contains operations related to storage miners.
 
 ### Dispatchable Functions
 
-* `regnstk` - Staking and register for storage miner.
+* `regnstk` - Storage miner Staking and registering operation.
 * `redeem` - Redeem for storage miner.
 * `claim` - Storage miner gets rewards from earnings.
 * `initi` - Miner information initialization.
