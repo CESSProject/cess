@@ -13,7 +13,7 @@ Contains operations related to storage miners.
 ### Dispatchable Functions
 
 * `regnstk` - Storage miner Staking and registering operation.
-* `redeem` - Redeem for storage miner.
+* `redeem` - Redeem staking amount for storage miner.
 * `claim` - Storage miner gets rewards from earnings.
 * `initi` - Miner information initialization.
 * `setaddress` - Set the ETCD registration address.
