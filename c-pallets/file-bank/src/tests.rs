@@ -21,6 +21,7 @@ use super::*;
 use crate::{mock::*, Event};
 use mock::System as Sys;
 use frame_support::{assert_ok, assert_noop};
+use pallet_sminer::MinerControl;
 
 #[derive(Debug, Clone)]
 pub struct MockingFileInfo {
@@ -46,7 +47,6 @@ impl Default for MockingFileInfo {
         }
     }
 }
-
 
 fn upload_declaration_alias(account: AccountId, file_name: Vec<u8>, file_hash: Vec<u8>) -> DispatchResult {
     FileBank::upload_declaration(
@@ -92,22 +92,26 @@ fn register_miner(miner: AccountId) -> DispatchResult {
 }
 
 fn add_power_for_miner(controller: AccountId, miner: AccountId) -> DispatchResult {
-    let mut filler_list: Vec<u8> = Vec::new();
-    for i in 0 .. 100 {
+    let max: u8 = 10;
+    let mut filler_list: Vec<FillerInfo<Test>> = Vec::new();
+    let filler_hash: BoundedVec<u8, StringLimit> = "hash".as_bytes().to_vec().try_into().unwrap();
+    for i in 0 .. max {
+        let filler_id: BoundedVec<u8, StringLimit> = i.to_string().as_bytes().to_vec().try_into().unwrap();
         filler_list.push(
-            FillerInfo<T: pallet::Config> {
+            FillerInfo::<Test> {
                 filler_size: 8 * 1_048_576,
                 block_num: 8,
                 segment_size: 1_048_576,
                 scan_size: 1_048_576,
-                miner_address: ,
-                filler_id: ,
-                filler_hash: ,
+                miner_address: miner.clone(),
+                filler_id: filler_id,
+                filler_hash: filler_hash.clone(),
             }
         )
     }
+    FileBank::upload_filler(Origin::signed(controller), miner, filler_list)?;
 
-    Ok
+    Ok(())
 }
 
 #[test]
@@ -175,6 +179,7 @@ fn upload_works() {
         assert_ok!(Sminer::add_available_space(1_048_576 * 1024 * space_gb));
         UnitPrice::<Test>::put(100);
         assert_ok!(FileBank::buy_space(Origin::signed(acc1), 1, 1, 0));
+        assert_ok!(add_power_for_miner(controller1, miner1));
 
         assert_ok!(upload_file_alias(acc1, controller1, &mfi));
 
@@ -186,8 +191,8 @@ fn upload_works() {
         };
         assert!(File::<Test>::contains_key(&file_hash));
         let t = UserHoldSpaceDetails::<Test>::try_get(acc1).unwrap();
-        assert_eq!(mfi.file_size as u128 * 3, t.used_space);
-        assert_eq!(t.purchased_space - mfi.file_size as u128 * 3, t.remaining_space);
+        assert_eq!(mfi.file_size as u128, t.used_space);
+        assert_eq!(t.purchased_space - mfi.file_size as u128, t.remaining_space);
         assert!(UserHoldFileList::<Test>::try_get(acc1).unwrap().contains(&file_slice_info));
 
         let event = Sys::events().pop().expect("Expected at least one FileUpload to be found").event;
@@ -204,14 +209,16 @@ fn upload_should_not_work_when_insufficient_storage() {
         let controller1 = mock::controller1();
         let mut mfi = MockingFileInfo::default();
         let space_gb = 1_u128;
-        assert_ok!(register_miner(miner1));
+        assert_ok!(register_miner(miner1)); 
         assert_ok!(register_scheduler(stash1.clone(), controller1.clone()));
+        assert_ok!(add_power_for_miner(controller1, miner1));
         assert_ok!(Sminer::add_available_space(1_048_576 * 1024 * space_gb));
         UnitPrice::<Test>::put(100);
         assert_ok!(FileBank::buy_space(Origin::signed(acc1), space_gb, 100, 1000));
         mfi.file_size = 2 * 1024 * 1024 * 1024;  // large file
         //FIXME! the assert_noop! not work, why? it's need to solve
         //assert_noop!(upload_file_alias(acc1, vec![1], &mfi), Error::<Test>::InsufficientStorage);
+        assert_ok!(upload_declaration_alias(acc1, "cess-book".as_bytes().to_vec(), mfi.file_hash.to_vec()));
         if let Err(e) = upload_file_alias(acc1, controller1, &mfi) {
             if let DispatchError::Module(m) = e {
                 assert_eq!("InsufficientStorage", m.message.unwrap());
@@ -238,6 +245,7 @@ fn delete_file_works() {
         assert_ok!(register_scheduler(stash1.clone(), controller1.clone()));
         assert_ok!(upload_declaration_alias(acc1, "cess-book".as_bytes().to_vec(), mfi.file_hash.to_vec()));
         assert_ok!(register_miner(miner1.clone()));
+        assert_ok!(add_power_for_miner(controller1, miner1));
         assert_ok!(upload_file_alias(acc1, controller1, &mfi));
         assert_noop!(FileBank::delete_file(Origin::signed(mock::account2()), mfi.file_hash.clone()), Error::<Test>::NotOwner);
         let ss_before = UserHoldSpaceDetails::<Test>::try_get(acc1).unwrap();
@@ -271,6 +279,48 @@ fn receive_free_space_works() {
     });
 }
 
+#[test]
+fn upload_filler_work() {
+    new_test_ext().execute_with(|| {
+        let stash1 = mock::stash1();
+        let miner1 = mock::miner1();
+        let controller1 = mock::controller1();
+        assert_noop!(add_power_for_miner(controller1.clone(), miner1.clone()), Error::<Test>::ScheduleNonExistent);
+        assert_ok!(register_scheduler(stash1.clone(), controller1.clone()));
+        assert_noop!(add_power_for_miner(controller1.clone(), miner1.clone()), pallet_sminer::Error::<Test>::NotMiner);
+        assert_ok!(register_miner(miner1));
+        assert_ok!(add_power_for_miner(controller1.clone(), miner1.clone()));
+
+        let (power, _) = Sminer::get_power_and_space(miner1.clone()).unwrap();
+        assert_eq!(1_048_576 * 8 * 10, power);
+    });
+}
+
+#[test]
+fn clear_invalid_file_work() {
+    new_test_ext().execute_with(|| {
+        let acc1 = mock::account1();
+        let stash1 = mock::stash1();
+        let miner1 = mock::miner1();
+        let controller1 = mock::controller1();
+        let mfi = MockingFileInfo::default();
+
+        let unit_price = 100_u64;
+        UnitPrice::<Test>::put(unit_price);
+        assert_ok!(Sminer::add_available_space(1_048_576 * 1024));
+        assert_ok!(register_miner(miner1));
+        assert_ok!(register_scheduler(stash1.clone(), controller1.clone()));
+        assert_ok!(upload_declaration_alias(acc1, "cess-book".as_bytes().to_vec(), mfi.file_hash.to_vec()));
+        assert_ok!(add_power_for_miner(controller1, miner1));
+        assert_ok!(FileBank::buy_space(Origin::signed(acc1), 1, 1, 0));
+        assert_ok!(upload_file_alias(acc1, controller1, &mfi));
+
+        let mut file_hash_list = InvalidFile::<Test>::get(miner1.clone());
+        assert_ok!(FileBank::clear_invalid_file(Origin::signed(miner1.clone()), file_hash_list[0].to_vec()));
+        file_hash_list.remove(0);
+        assert_eq!(file_hash_list, InvalidFile::<Test>::get(miner1.clone()));
+    });
+}
 // #[test]
 // fn update_price_works() {
 //     new_test_ext().execute_with(|| {

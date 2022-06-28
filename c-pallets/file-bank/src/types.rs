@@ -39,13 +39,13 @@ pub struct SpaceInfo<T: pallet::Config> {
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct FillerInfo<T: pallet::Config> {
-	pub(super) filler_size: u64,
-	pub(super) block_num: u32,
-	pub(super) segment_size: u32,
-	pub(super) scan_size: u32,
-	pub(super) miner_address: AccountOf<T>,
-	pub(super) filler_id: BoundedVec<u8, T::StringLimit>,
-	pub(super) filler_hash: BoundedVec<u8, T::StringLimit>,
+	pub filler_size: u64,
+	pub block_num: u32,
+	pub segment_size: u32,
+	pub scan_size: u32,
+	pub miner_address: AccountOf<T>,
+	pub filler_id: BoundedVec<u8, T::StringLimit>,
+	pub filler_hash: BoundedVec<u8, T::StringLimit>,
 }
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
