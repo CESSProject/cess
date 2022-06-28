@@ -18,11 +18,11 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-// #[cfg(test)]
-// mod mock;
+#[cfg(test)]
+mod mock;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 use frame_support::{
 	storage::bounded_vec::BoundedVec,
@@ -182,7 +182,6 @@ pub mod pallet {
 		DivideByZero,
 
 		InsufficientAvailableSpace,
-
 		//The account has been frozen
 		AlreadyFrozen,
 
@@ -429,26 +428,28 @@ pub mod pallet {
 			let total_power = <TotalPower<T>>::get();
 			ensure!(total_power != 0, Error::<T>::DivideByZero);
 			// let reward_pot = T::PalletId::get().into_account();
-
+			let mut award: u128 = <CurrencyReward<T>>::get().try_into().map_err(|_| Error::<T>::Overflow)?;
+			if award > 1_306_849_000_000_000_000 {
+				<CurrencyReward<T>>::try_mutate(|v| -> DispatchResult {
+					*v = v.checked_sub(
+						&1_306_849_000_000_000_000u128.try_into().map_err(|_| Error::<T>::Overflow)?
+					).ok_or(Error::<T>::Overflow)?;
+					Ok(())
+				})?;
+				award = 1_306_849_000_000_000_000;
+			} else {
+				<CurrencyReward<T>>::try_mutate(|v| -> DispatchResult {
+					*v = 0u128.try_into().map_err(|_| Error::<T>::Overflow)?;
+					Ok(())
+				})?;
+			}
+			
 			for (acc, detail) in <MinerItems<T>>::iter() {
 				if detail.power == 0 {
 					continue
 				}
-				let mut award: u128 = <CurrencyReward<T>>::get().try_into().map_err(|_| Error::<T>::Overflow)?;
-				if award > 1_306_849 {
-					<CurrencyReward<T>>::try_mutate(|v| -> DispatchResult {
-						*v = v.checked_sub(
-							&1306849u128.try_into().map_err(|_| Error::<T>::Overflow)?
-						).ok_or(Error::<T>::Overflow)?;
-						Ok(())
-					})?;
-					award = 1306849;
-				} else {
-					<CurrencyReward<T>>::try_mutate(|v| -> DispatchResult {
-						*v = 0u128.try_into().map_err(|_| Error::<T>::Overflow)?;
-						Ok(())
-					})?;
-				}
+				
+				
 				let tmp1: u128 = award
 					.checked_mul(detail.power)
 					.ok_or(Error::<T>::Overflow)?;
@@ -1164,6 +1165,7 @@ impl<T: Config> Pallet<T> {
 		})?;
 		Ok(())
 	}
+
 	pub fn sub_purchased_space(size: u128) -> DispatchResult {
 		<PurchasedSpace<T>>::try_mutate(|s| -> DispatchResult {
 			*s = s.checked_sub(size).ok_or(Error::<T>::Overflow)?;
