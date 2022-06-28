@@ -14,7 +14,7 @@ Contains operations related to storage miners.
 
 * `regnstk` - Storage miner Staking and registering operation.
 * `redeem` - Redeem staking amount for storage miner.
-* `claim` - Storage miner gets rewards from earnings.
+* `claim` - Storage miner claim mining rewards.
 * `initi` - Miner information initialization.
 * `setaddress` - Set the ETCD registration address.
 * `updateaddress` - Update the ETCD registration address.
