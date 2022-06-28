@@ -21,8 +21,8 @@ Contain operations related storage miners.
 * `timed_increase_rewards` - Add reward orders.
 * `timing_task_increase_power_rewards` - Added timed tasks for reward orders.
 * `timed_user_receive_award1` - Users receive rewards for scheduled tasks.
-* `faucet_top_up` - The faucet top up.
+* `faucet_top_up` - Obtain transaction token from faucet.
 * `faucet` - Users receive money through the faucet.
-* `increase_collateral` - Additional deposit for miners.
-* `exit_miner` - Miner exit.
+* `increase_collateral` - Increase additional deposit for miners.
+* `exit_miner` - Storage Miner exit system.
 * `withdraw` - Miners redeem deposit.
