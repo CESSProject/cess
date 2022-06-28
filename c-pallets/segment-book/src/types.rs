@@ -11,7 +11,7 @@ pub struct ChallengeInfo<T: pallet::Config> {
 	pub(super) file_size: u64,
 	pub(super) segment_size: u32,
 	pub(super) file_type: u8,
-	pub(super) block_list: BoundedVec<BoundedVec<u8, T::StringLimit>, T::StringLimit>,
+	pub(super) block_list: BoundedVec<u8, T::StringLimit>,
 	pub(super) file_id: BoundedVec<u8, T::StringLimit>,
 	//48 bit random number
 	pub(super) random: BoundedList<T>,
@@ -23,7 +23,7 @@ pub struct ChallengeInfo<T: pallet::Config> {
 #[codec(mel_bound())]
 pub struct ProveInfo<T: pallet::Config> {
 	pub(super) file_id: BoundedVec<u8, T::StringLimit>,
-	pub(super) miner_id: u64,
+	pub(super) miner_acc: AccountOf<T>,
 	//Verify required parameters
 	pub(super) challenge_info: ChallengeInfo<T>,
 	//Proof of relevant information
@@ -36,7 +36,7 @@ pub struct ProveInfo<T: pallet::Config> {
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct VerifyResult<T: pallet::Config> {
-	pub(super) miner_id: u64,
+	pub(super) miner_acc: AccountOf<T>,
 	pub(super) file_id: BoundedVec<u8, T::StringLimit>,
 	pub(super) result: bool,
 }

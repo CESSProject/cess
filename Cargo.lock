@@ -4820,14 +4820,17 @@ name = "pallet-file-bank"
 version = "0.1.0"
 dependencies = [
  "frame-benchmarking",
+ "frame-election-provider-support",
  "frame-support",
  "frame-support-test",
  "frame-system",
  "log",
+ "pallet-bags-list",
  "pallet-balances",
  "pallet-cess-staking",
  "pallet-file-map",
  "pallet-scheduler",
+ "pallet-session",
  "pallet-sminer",
  "pallet-timestamp",
  "parity-scale-codec",
@@ -4838,7 +4841,9 @@ dependencies = [
  "serde_json",
  "sp-core",
  "sp-io",
+ "sp-npos-elections",
  "sp-runtime",
+ "sp-staking",
  "sp-std",
 ]
 
@@ -4850,6 +4855,7 @@ dependencies = [
  "frame-election-provider-support",
  "frame-support",
  "frame-system",
+ "log",
  "pallet-bags-list",
  "pallet-balances",
  "pallet-cess-staking",
@@ -5062,14 +5068,18 @@ name = "pallet-segment-book"
 version = "0.1.0"
 dependencies = [
  "frame-benchmarking",
+ "frame-election-provider-support",
  "frame-support",
  "frame-support-test",
  "frame-system",
  "log",
+ "pallet-bags-list",
  "pallet-balances",
+ "pallet-cess-staking",
  "pallet-file-bank",
  "pallet-file-map",
  "pallet-scheduler",
+ "pallet-session",
  "pallet-sminer",
  "pallet-timestamp",
  "parity-scale-codec",
@@ -5077,7 +5087,9 @@ dependencies = [
  "serde",
  "sp-core",
  "sp-io",
+ "sp-npos-elections",
  "sp-runtime",
+ "sp-staking",
  "sp-std",
 ]
 

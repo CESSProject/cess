@@ -82,10 +82,18 @@ version = '0.1.0'
 
 # dev dependencies
 [dev-dependencies]
-pallet-cess-staking = { path = '../staking', version = '4.0.0-dev' }
+pallet-cess-staking = { path = '../staking', version = '4.0.0-dev', default-features = false}
 frame-support-test = { git = 'https://github.com/CESSProject/substrate.git', branch = 'monthly-2022-04-cess', version = '3.0.0' }
 pallet-scheduler = { git = 'https://github.com/CESSProject/substrate.git', branch = 'monthly-2022-04-cess', version = '4.0.0-dev' }
 pallet-timestamp = { git = 'https://github.com/CESSProject/substrate.git', branch = 'monthly-2022-04-cess', version = '4.0.0-dev' }
+sp-staking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2022-04-cess" }
+sp-npos-elections = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2022-04-cess" }
+frame-election-provider-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2022-04-cess" }
+pallet-session = { version = "4.0.0-dev", default-features = false, features = [
+	"historical",
+], git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2022-04-cess" }
+pallet-bags-list = { version = "4.0.0-dev", features = ["runtime-benchmarks"], git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2022-04-cess" }
+
 
 [features]
 default = ["std"]
