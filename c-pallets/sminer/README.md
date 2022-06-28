@@ -1,6 +1,6 @@
 # Sminer Module
 
-Contain operations related storage miners.
+Contains operations related to storage miners.
 
 ### Terminology
 
