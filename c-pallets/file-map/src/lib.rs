@@ -2,11 +2,11 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-// #[cfg(test)]
-// mod mock;
+#[cfg(test)]
+mod mock;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 use codec::{Decode, Encode};
 use frame_support::{dispatch::DispatchResult, traits::ReservableCurrency, BoundedVec, PalletId};
