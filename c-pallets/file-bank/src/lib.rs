@@ -63,7 +63,7 @@ type BoundedList<T> =
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_support::{ensure, inherent::BlockT, traits::Get};
+	use frame_support::{ensure, traits::Get};
 	use pallet_file_map::ScheduleFind;
 	use pallet_sminer::MinerControl;
 	//pub use crate::weights::WeightInfo;
@@ -556,21 +556,16 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 			let acc = T::FilbakPalletId::get().into_account();
 			let cur_price = <UnitPrice<T>>::get();
-			log::info!("logo 1");
 			if cur_price == 0u32.saturated_into() {
 				Err(Error::<T>::IsZero)?;
 			}
-			log::info!("logo 2");
 			let unit_price =
 				TryInto::<u128>::try_into(cur_price).map_err(|_e| Error::<T>::Overflow)?;
-			log::info!("logo 3");
 			if unit_price > max_price * 1000000000000 && 0 != max_price {
 				Err(Error::<T>::ExceedExpectations)?;
 			}
-			log::info!("logo 4");
 			//space_count, Represents how many GB of space the user wants to buy
 			let space = space_count.checked_mul(1024).ok_or(Error::<T>::Overflow)?;
-			log::info!("logo 5");
 			//Because there are three backups, it is charged at one-third of the price
 			let price: u128 = unit_price
 				.checked_mul(space)
@@ -579,41 +574,32 @@ pub mod pallet {
 				.ok_or(Error::<T>::Overflow)?
 				.checked_div(3)
 				.ok_or(Error::<T>::Overflow)?;
-			log::info!("logo 6");
 			//Increase the space purchased by users
 			//and judge whether there is still space available for purchase
-			log::info!("logo 7");
 			let money: BalanceOf<T> = price.try_into().map_err(|_e| Error::<T>::ConversionError)?;
-			log::info!("logo 8");
 			<T as pallet::Config>::Currency::transfer(&sender, &acc, money, AllowDeath)?;
-			log::info!("logo 9");
 			let now = <frame_system::Pallet<T>>::block_number();
 			let one_day: u128 = <T as Config>::OneDay::get().saturated_into();
 			let deadline: BlockNumberOf<T> =
 				((lease_count.checked_mul(one_day * 30).ok_or(Error::<T>::Overflow)?) as u32)
 					.into();
-			log::info!("logo 10");
 			let list: SpaceInfo<T> = SpaceInfo::<T> {
 				size: space.checked_mul(M_BYTE).ok_or(Error::<T>::Overflow)?,
 				deadline: now.checked_add(&deadline).ok_or(Error::<T>::Overflow)?,
 			};
-			log::info!("logo 11");
 
 			<UserSpaceList<T>>::try_mutate(&sender, |s| -> DispatchResult {
 				s.try_push(list).map_err(|_e| Error::<T>::StorageLimitReached)?;
 				Ok(())
 			})?;
-			log::info!("logo 12");
 			//Convert MB to BYTE
 			Self::user_buy_space_update(
 				sender.clone(),
 				space.checked_mul(M_BYTE).ok_or(Error::<T>::Overflow)?,
 			)?;
-			log::info!("logo 13");
 			pallet_sminer::Pallet::<T>::add_purchased_space(
 				space.checked_mul(M_BYTE).ok_or(Error::<T>::Overflow)?,
 			)?;
-			log::info!("logo 14");
 			Self::deposit_event(Event::<T>::BuySpace {
 				acc: sender.clone(),
 				size: space,
