@@ -160,7 +160,6 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     }.assimilate_storage(&mut t).unwrap();
     let mut ext = sp_io::TestExternalities::new(t);
     ext.execute_with(|| {
-        let _ = Sminer::initi(Origin::root());
         System::set_block_number(1); //must set block_number, otherwise the deposit_event() don't work
     });
     ext

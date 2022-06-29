@@ -14,16 +14,15 @@ Contain operations related storage miners.
 
 * `regnstk` - Staking and register for storage miner.
 * `redeem` - Redeem for storage miner.
-* `claim` - Storage miner gets rewards from earnings.
+* `claim` - Storage miner claim rewards from earnings.
 * `initi` - Miner information initialization.
 * `timing_storage_space` - A scheduled task for computing power trend data of the entire network.
 * `timing_storage_space_thirty_days` - Generate power trend data for the first 30 days.
 * `timed_increase_rewards` - Add reward orders.
 * `timing_task_increase_power_rewards` - Added timed tasks for reward orders.
-* `timed_increase_rewards` - Add reward orders.
 * `timed_user_receive_award1` - Users receive rewards for scheduled tasks.
-* `faucet_top_up` - The faucet top up.
+* `faucet_top_up` - Obtain transaction token from faucet.
 * `faucet` - Users receive money through the faucet.
-* `increase_collateral` - Additional deposit for miners.
-* `exit_miner` - Miner exit.
+* `increase_collateral` - Increase additional deposit for miners.
+* `exit_miner` - Storage Miner exit system.
 * `withdraw` - Miners redeem deposit.

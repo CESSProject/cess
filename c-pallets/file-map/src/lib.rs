@@ -2,11 +2,11 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-// #[cfg(test)]
-// mod mock;
+#[cfg(test)]
+mod mock;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 use codec::{Decode, Encode};
 use frame_support::{dispatch::DispatchResult, traits::ReservableCurrency, BoundedVec, PalletId};
@@ -21,7 +21,7 @@ type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_support::{pallet_prelude::*, traits::Get, Blake2_128Concat};
+	use frame_support::{pallet_prelude::{*, ValueQuery}, traits::Get, Blake2_128Concat};
 	use frame_system::{ensure_signed, pallet_prelude::*};
 
 	#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
@@ -103,6 +103,10 @@ pub mod pallet {
 	#[pallet::getter(fn scheduler_puk)]
 	pub(super) type SchedulerPuk<T: Config> = StorageValue<_, PublicKey<T>>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn bond_acc)]
+	pub(super) type BondAcc<T: Config> = StorageValue<_, BoundedVec<AccountOf<T>, T::StringLimit>, ValueQuery>;
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
@@ -114,6 +118,35 @@ pub mod pallet {
 			let number: u128 = now.saturated_into();
 			let count: usize = Self::scheduler_map().len();
 			if number % 1200 == 0 {
+				let alregister_list = SchedulerMap::<T>::get();
+				let mut alregister_controller_list: BoundedVec<AccountOf<T>, T::StringLimit> = Default::default();
+				for alregister in alregister_list.iter() {
+					if let Err(e) =
+						alregister_controller_list.try_push(alregister.controller_user.clone()).map_err(|_| Error::<T>::StorageLimitReached)
+					{
+						log::error!("FileMap error: {:?}", e);
+					}
+				}
+
+				for v in BondAcc::<T>::get().iter() {
+					if !alregister_controller_list.contains(&v) {
+						for v2 in alregister_list.iter() {
+							if v2.controller_user == v.clone() {
+								pallet_cess_staking::slashing::slash_scheduler::<T>(&v2.stash_user);
+							}
+						}
+					}
+				}
+
+				let mut ctl: BoundedVec<AccountOf<T>, T::StringLimit> = Default::default();
+				for (_stash, controller) in pallet_cess_staking::Bonded::<T>::iter() {
+					if let Err(e) = 
+						ctl.try_push(controller.clone()).map_err(|_| Error::<T>::StorageLimitReached)
+					{
+						log::error!("FileMap error: {:?}", e);
+					}
+				}
+				BondAcc::<T>::put(ctl);
 				for (key, value) in <SchedulerException<T>>::iter() {
 					if value.count > (count / 2) as u32 {
 						pallet_cess_staking::slashing::slash_scheduler::<T>(&key);
@@ -155,6 +188,35 @@ pub mod pallet {
 			s_vec.try_push(scheduler).map_err(|_e| Error::<T>::StorageLimitReached)?;
 			SchedulerMap::<T>::put(s_vec);
 			Self::deposit_event(Event::<T>::RegistrationScheduler { acc: sender, ip });
+			Ok(())
+		}
+
+		#[pallet::weight(1_000)]
+		pub fn update_scheduler(
+			origin: OriginFor<T>,
+			ip: Vec<u8>,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			SchedulerMap::<T>::try_mutate(|s| -> DispatchResult {
+				let mut count = 0;
+				for i in s.iter() {
+					if i.controller_user == sender {
+						let scheduler = SchedulerInfo::<T> {
+							ip: ip.try_into().map_err(|_| Error::<T>::BoundedVecError)?,
+							stash_user: i.stash_user.clone(),
+							controller_user: sender.clone(),
+						};
+						s.remove(count);
+						s.try_push(scheduler).map_err(|_| Error::<T>::StorageLimitReached)?;
+						return Ok(())
+					}
+					count = count.checked_add(1).ok_or(Error::<T>::Overflow)?;
+				}
+
+				Err(Error::<T>::NotController)?
+			})?;
+		
 			Ok(())
 		}
 
