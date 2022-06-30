@@ -721,14 +721,16 @@ pub mod pallet {
 		//Scheduling is the notification chain after file recovery
 		#[pallet::weight(10_000)]
 		pub fn recover_file(origin: OriginFor<T>, shard_id: Vec<u8>, slice_info: SliceInfo<T>, avail: bool) -> DispatchResult {
+			//Get fileid from shardid,
 			let length = shard_id.len().checked_sub(4).ok_or(Error::<T>::Overflow)?;
 			let file_id = shard_id[0..length].to_vec();
+			//Vec to BoundedVec
 			let file_id_bounded: BoundedString<T> =
 				file_id.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
 			let sender = ensure_signed(origin)?;
 			let bounded_string: BoundedString<T> =
 			shard_id.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
-
+			//Delete the corresponding recovery slice request pool
 			<FileRecovery<T>>::try_mutate(&sender, |o| -> DispatchResult {
 				o.retain(|x| *x != bounded_string);
 				Ok(())
@@ -938,7 +940,7 @@ pub mod pallet {
 				let file_size = v.filler_size.clone();
 				let mut block_list: Vec<u8> = Vec::new();
 				for i in number_list.iter() {
-					block_list.push(*i as u8);
+					block_list.push((*i as u8) + 1);
 				}
 				data.push((miner_acc, filler_id, block_list, file_size, 1));
 			}
@@ -958,7 +960,7 @@ pub mod pallet {
 					let miner_acc = file.slice_info[*slice_index as usize].miner_acc.clone();
 					let slice_size = file.slice_info[*slice_index as usize].shard_size;
 					for i in number_list.iter() {
-						block_list.push(*i as u8);
+						block_list.push((*i as u8) + 1);
 					}
 					data.push((miner_acc, file_hash, block_list, slice_size, 2));
 				}		
