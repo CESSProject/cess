@@ -720,7 +720,7 @@ pub mod pallet {
 
 		//Scheduling is the notification chain after file recovery
 		#[pallet::weight(10_000)]
-		pub fn recover_file(origin: OriginFor<T>, shard_id: Vec<u8>, avail: bool) -> DispatchResult {
+		pub fn recover_file(origin: OriginFor<T>, shard_id: Vec<u8>, slice_info: SliceInfo<T>, avail: bool) -> DispatchResult {
 			let length = shard_id.len().checked_sub(4).ok_or(Error::<T>::Overflow)?;
 			let file_id = shard_id[0..length].to_vec();
 			let file_id_bounded: BoundedString<T> =
@@ -739,6 +739,7 @@ pub mod pallet {
 			if avail {
 				<File<T>>::try_mutate(&file_id_bounded, |opt| -> DispatchResult {
 					let o = opt.as_mut().unwrap();
+					o.slice_info.try_push(slice_info).map_err(|_| Error::<T>::StorageLimitReached)?;
 					o.file_state = "active"
 						.as_bytes()
 						.to_vec()
