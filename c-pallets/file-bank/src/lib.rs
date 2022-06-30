@@ -279,6 +279,11 @@ pub mod pallet {
 	>;
 
 	#[pallet::storage]
+	#[pallet::getter(fn file_recovery)]
+	pub(super) type FileRecovery<T: Config> =
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedList<T>, ValueQuery>;
+
+	#[pallet::storage]
 	pub(super) type UserFreeRecord<T: Config> =
 		StorageMap<_, Blake2_128Concat, T::AccountId, u8, ValueQuery>;
 
@@ -347,8 +352,8 @@ pub mod pallet {
 							} else {
 								let _ = Self::clear_expired_file(&key, v.used_space.clone(), v.purchased_space.clone());
 							}
-							
-							let _ = pallet_sminer::Pallet::<T>::sub_purchased_space(size);
+							let div2space = size / 2;
+							let _ = pallet_sminer::Pallet::<T>::sub_purchased_space(size + div2space);
 							Self::deposit_event(Event::<T>::LeaseExpired {
 								acc: key.clone(),
 								size,
@@ -422,15 +427,10 @@ pub mod pallet {
 					&file_hash_bound,
 					FileInfo::<T>{
 						file_size: 0,
-						block_num: 0,		
-						scan_size: 0,			
-						segment_size: 0,	
-						miner_acc: sender.clone(),
-						miner_id: 0,
-						miner_ip: Default::default(),
+						file_state: "pending".as_bytes().to_vec().try_into().map_err(|_| Error::<T>::BoundedVecError)?,
 						user: vec![sender.clone()].try_into().map_err(|_| Error::<T>::BoundedVecError)?,
 						file_name: vec![file_name_bound].try_into().map_err(|_| Error::<T>::BoundedVecError)?,
-						file_state: "pending".as_bytes().to_vec().try_into().map_err(|_| Error::<T>::BoundedVecError)?,
+						slice_info: Default::default(),
 					},
 				);
 			}
@@ -445,12 +445,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			file_hash: Vec<u8>,
 			file_size: u64,
-			block_num: u32,
-			scan_size: u32,
-			segment_size: u32,
-			miner_acc: AccountOf<T>,
-			miner_id: u64,
-			miner_ip: Vec<u8>,
+			slice_info: Vec<SliceInfo<T>>,
 			user: AccountOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -472,20 +467,17 @@ pub mod pallet {
 					Err(Error::<T>::FileExistent)?;
 				}
 				s.file_size = file_size;
-				s.block_num = block_num;
-				s.scan_size = scan_size;
-				s.segment_size = segment_size;
-				s.miner_acc = miner_acc.clone();
-				s.miner_id = miner_id;
-				s.miner_ip = miner_ip.try_into().map_err(|_| Error::<T>::BoundedVecError)?;
+				s.slice_info = slice_info.clone().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
 				s.file_state = "active".as_bytes().to_vec().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
 				Ok(())
 			})?;
 
 			Self::add_user_hold_fileslice(user.clone() ,file_hash_bounded.clone(), file_size)?;
-
-			Self::replace_file(miner_acc.clone(), file_size)?;
-
+			//To be tested
+			for v in slice_info.iter() {
+				Self::replace_file(v.miner_acc.clone(), v.shard_size)?;
+			}
+		
 			Self::deposit_event(Event::<T>::FileUpload { acc: user.clone() });
 			Ok(())
 		}
@@ -597,8 +589,10 @@ pub mod pallet {
 				sender.clone(),
 				space.checked_mul(M_BYTE).ok_or(Error::<T>::Overflow)?,
 			)?;
+			let div2space = space.checked_div(2).ok_or(Error::<T>::Overflow)?;
+			let true_space = space.checked_add(div2space).ok_or(Error::<T>::Overflow)?;
 			pallet_sminer::Pallet::<T>::add_purchased_space(
-				space.checked_mul(M_BYTE).ok_or(Error::<T>::Overflow)?,
+				true_space.checked_mul(M_BYTE).ok_or(Error::<T>::Overflow)?
 			)?;
 			Self::deposit_event(Event::<T>::BuySpace {
 				acc: sender.clone(),
@@ -614,7 +608,7 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 			ensure!(!<UserFreeRecord<T>>::contains_key(&sender), Error::<T>::AlreadyReceive);
 			pallet_sminer::Pallet::<T>::add_purchased_space(
-				M_BYTE.checked_mul(1024).ok_or(Error::<T>::Overflow)?,
+				M_BYTE.checked_mul(1024 + 512).ok_or(Error::<T>::Overflow)?,
 			)?;
 
 			let deadline: BlockNumberOf<T> = 999999999u32.into();
@@ -723,7 +717,43 @@ pub mod pallet {
 			}
 			let _ = FillerMap::<T>::remove_prefix(&sender, Option::None);
 			Ok(())
-		} 
+		}
+
+		//Scheduling is the notification chain after file recovery
+		#[pallet::weight(10_000)]
+		pub fn recover_file(origin: OriginFor<T>, shard_id: Vec<u8>, avail: bool) -> DispatchResult {
+			let length = shard_id.len().checked_sub(4).ok_or(Error::<T>::Overflow)?;
+			let file_id = shard_id[0..length].to_vec();
+			let file_id_bounded: BoundedString<T> =
+				file_id.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+			let sender = ensure_signed(origin)?;
+			let bounded_string: BoundedString<T> =
+			shard_id.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+
+			<FileRecovery<T>>::try_mutate(&sender, |o| -> DispatchResult {
+				o.retain(|x| *x != bounded_string);
+				Ok(())
+			})?;
+			if !<File<T>>::contains_key(&file_id_bounded) {
+				Err(Error::<T>::FileNonExistent)?;
+			}
+			if avail {
+				<File<T>>::try_mutate(&file_id_bounded, |opt| -> DispatchResult {
+					let o = opt.as_mut().unwrap();
+					o.file_state = "active"
+						.as_bytes()
+						.to_vec()
+						.try_into()
+						.map_err(|_e| Error::<T>::BoundedVecError)?;
+					Ok(())
+				})?;
+			} else {
+				Self::clear_file(file_id.clone())?;
+			}
+			
+			Self::deposit_event(Event::<T>::RecoverFile { acc: sender, file_hash: shard_id });
+			Ok(())
+		}
 	}
 
 	impl<T: Config> Pallet<T> {
@@ -897,40 +927,41 @@ pub mod pallet {
 		}
 
 		pub fn get_random_challenge_data(
-		) -> Result<Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, u8, u32)>, DispatchError> {
+		) -> Result<Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, u8)>, DispatchError> {
 			let filler_list = Self::get_random_filler()?;
-			let mut data: Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, u8, u32)> = Vec::new();
+			let mut data: Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, u8)> = Vec::new();
 			for v in filler_list {
 				let length = v.block_num;
 				let number_list = Self::get_random_numberlist(length, 1)?;
 				let miner_acc = v.miner_address.clone();
 				let filler_id = v.filler_id.clone().to_vec();
 				let file_size = v.filler_size.clone();
-				let segment_size = v.segment_size.clone();
 				let mut block_list: Vec<u8> = Vec::new();
 				for i in number_list.iter() {
 					block_list.push(*i as u8);
 				}
-				data.push((miner_acc, filler_id, block_list, file_size, 1, segment_size));
+				data.push((miner_acc, filler_id, block_list, file_size, 1));
 			}
 
 			let file_list = Self::get_random_file()?;
-			for (file_hash, file) in file_list {
-				let miner_id = T::MinerControl::get_miner_id(file.miner_acc.clone())?;
-				if file.miner_id != miner_id {
-					continue;
-				}
-				let length = file.block_num;
-				let number_list = Self::get_random_numberlist(length, 1)?;
-				let miner_acc = file.miner_acc.clone();
-				let file_hash = file_hash.clone().to_vec();
-				let file_size = file.file_size.clone();
-				let segment_size = file.segment_size.clone();
-				let mut block_list: Vec<u8> = Vec::new();
-				for i in number_list.iter() {
-					block_list.push(*i as u8);
-				}
-				data.push((miner_acc, file_hash, block_list, file_size, 2, segment_size));
+			for (_, file) in file_list {
+				let slice_number_list = Self::get_random_numberlist(file.slice_info.len() as u32, 1)?;
+				for slice_index in slice_number_list.iter() {
+					let miner_id = T::MinerControl::get_miner_id(file.slice_info[*slice_index as usize].miner_acc.clone())?;
+					if file.slice_info[*slice_index as usize].miner_id != miner_id {
+						continue;
+					}
+					let mut block_list: Vec<u8> = Vec::new();
+					let length = file.slice_info[*slice_index as usize].block_num;
+					let number_list = Self::get_random_numberlist(length, 1)?;
+					let file_hash = file.slice_info[*slice_index as usize].shard_id.to_vec();
+					let miner_acc = file.slice_info[*slice_index as usize].miner_acc.clone();
+					let slice_size = file.slice_info[*slice_index as usize].shard_size;
+					for i in number_list.iter() {
+						block_list.push(*i as u8);
+					}
+					data.push((miner_acc, file_hash, block_list, slice_size, 2));
+				}		
 			}
 
 			Ok(data)
@@ -956,7 +987,7 @@ pub mod pallet {
 		fn get_random_file() -> Result<Vec<(BoundedString<T>, FileInfo<T>)>, DispatchError> {
 			let length = Self::get_file_map_length()?;
 			//Extract according to the probability of 4.6% * 3
-			let number_list = Self::get_random_numberlist(length, 2)?;
+			let number_list = Self::get_random_numberlist(length, 1)?;
 			let mut file_list: Vec<(BoundedString<T>, FileInfo<T>)> = Vec::new();
 			for i in number_list.iter() {
 				let mut counter: u32 = 0;
@@ -1073,11 +1104,11 @@ pub mod pallet {
 		pub fn clear_file(file_hash: Vec<u8>) -> DispatchResult {
 			let file_hash_bounded: BoundedString<T> =
 				file_hash.try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
-			if !<File<T>>::contains_key(&file_hash_bounded) {
-				Err(Error::<T>::FileNonExistent)?;
+			let file = <File<T>>::try_get(&file_hash_bounded).map_err(|_| Error::<T>::FileNonExistent)?;
+			for user in file.user.iter() {
+				Self::update_user_space(user.clone(), 2, file.file_size.into())?;
 			}
 			<File<T>>::remove(file_hash_bounded);
-
 			Ok(())
 		}
 
@@ -1107,9 +1138,11 @@ pub mod pallet {
 				})?;
 			} else {
 				<File<T>>::remove(&file_hash);
-				Self::add_invalid_file(file.miner_acc.clone(), file_hash.to_vec())?;
-				T::MinerControl::sub_power(file.miner_acc.clone(), file.file_size.into())?;
-				T::MinerControl::sub_space(file.miner_acc.clone(), file.file_size.into())?;
+				for slice in file.slice_info.iter() {
+					Self::add_invalid_file(slice.miner_acc.clone(), slice.shard_id.to_vec())?;
+					T::MinerControl::sub_space(slice.miner_acc.clone(), slice.shard_size.into())?;
+				}
+				
 			}
 			
 			<UserHoldFileList<T>>::try_mutate(&user, |s| -> DispatchResult {
@@ -1119,9 +1152,32 @@ pub mod pallet {
 			Ok(())
 		}
 
+		//Add the list of files to be recovered and notify the scheduler to recover
+		pub fn add_recovery_file(shard_id: Vec<u8>) -> DispatchResult {
+			let acc = Self::get_current_scheduler();
+			let length = shard_id.len().checked_sub(4).ok_or(Error::<T>::Overflow)?;
+			let file_id = shard_id[0..length].to_vec();
+			let file_id_bounded: BoundedString<T> =
+				file_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+			if !<File<T>>::contains_key(&file_id_bounded) {
+				Err(Error::<T>::FileNonExistent)?;
+			}
+			<File<T>>::try_mutate(&file_id_bounded, |opt| -> DispatchResult {
+				let o = opt.as_mut().unwrap();
+				o.slice_info.retain(|x| x.shard_id.to_vec() != shard_id);
+				Ok(())
+			})?;
+			<FileRecovery<T>>::try_mutate(&acc, |o| -> DispatchResult {
+				o.try_push(shard_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?)
+					.map_err(|_e| Error::<T>::StorageLimitReached)?;
+				Ok(())
+			})?;
+
+			Ok(())
+		}
+
 		fn replace_file(miner_acc: AccountOf<T>, file_size: u64) -> DispatchResult {
-			//add space
-			T::MinerControl::add_space(miner_acc.clone(), file_size.into())?;
+			
 			let (power, space) = T::MinerControl::get_power_and_space(miner_acc.clone())?;
 			//Judge whether the current miner's remaining is enough to store files
 			if power > space {
@@ -1160,7 +1216,9 @@ pub mod pallet {
 				}
 				Ok(())
 			})?;
-
+			//add space
+			T::MinerControl::add_space(miner_acc.clone(), file_size.into())?;
+			T::MinerControl::sub_power(miner_acc.clone(), replace_num * M_BYTE * 8)?;
 			Ok(())
 		}
 
@@ -1225,13 +1283,15 @@ pub mod pallet {
 pub trait RandomFileList<AccountId> {
 	//Get random challenge data
 	fn get_random_challenge_data(
-	) -> Result<Vec<(AccountId, Vec<u8>, Vec<u8>, u64, u8, u32)>, DispatchError>;
+	) -> Result<Vec<(AccountId, Vec<u8>, Vec<u8>, u64, u8)>, DispatchError>;
 	//Delete filler file
 	fn delete_filler(miner_acc: AccountId, filler_id: Vec<u8>) -> DispatchResult;
 	//Delete all filler according to miner_acc
 	fn delete_miner_all_filler(miner_acc: AccountId) -> DispatchResult;
 	//Delete file backup
 	fn clear_file(file_hash: Vec<u8>) -> DispatchResult;
+	//The function executed when the challenge fails, allowing the miner to delete invalid files
+	fn add_recovery_file(file_id: Vec<u8>) -> DispatchResult;
 	//The function executed when the challenge fails to let the consensus schedule recover the file
 	fn add_invalid_file(miner_acc: AccountId, file_hash: Vec<u8>) -> DispatchResult;
 	//Judge whether it is a user who can initiate transactions on the off chain machine
@@ -1240,7 +1300,7 @@ pub trait RandomFileList<AccountId> {
 
 impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Pallet<T> {
 	fn get_random_challenge_data(
-	) -> Result<Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, u8, u32)>, DispatchError> {
+	) -> Result<Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, u8)>, DispatchError> {
 		let result = Pallet::<T>::get_random_challenge_data()?;
 		Ok(result)
 	}
@@ -1257,6 +1317,11 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 
 	fn clear_file(file_hash: Vec<u8>) -> DispatchResult {
 		Pallet::<T>::clear_file(file_hash)?;
+		Ok(())
+	}
+
+	fn add_recovery_file(file_id: Vec<u8>) -> DispatchResult {
+		Pallet::<T>::add_recovery_file(file_id)?;
 		Ok(())
 	}
 
