@@ -651,7 +651,6 @@ pub mod pallet {
 
 			//One third of the price
 			price_u128 = price_u128.checked_div(3).ok_or(Error::<T>::Overflow)?;
-
 			//Get the current price on the chain
 			let our_price = Self::get_price()?;
 			//Which pricing is cheaper
