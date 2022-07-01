@@ -1,9 +1,10 @@
 use cess_node_runtime::{
-	opaque::SessionKeys, wasm_binary_unwrap, AccountId, AuthorityDiscoveryConfig, BabeConfig,
+	opaque::SessionKeys, wasm_binary_unwrap, AccountId, AuthorityDiscoveryConfig, RRSCConfig,
 	Balance, BalancesConfig, Block, CouncilConfig, GenesisConfig, GrandpaConfig, ImOnlineConfig,
 	IndicesConfig, MaxNominations, SessionConfig, Signature, StakerStatus, StakingConfig,
 	SudoConfig, SystemConfig, TechnicalCommitteeConfig, DOLLARS,
 };
+use cessp_consensus_rrsc::AuthorityId as RRSCId;
 use grandpa_primitives::AuthorityId as GrandpaId;
 use hex_literal::hex;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
@@ -12,7 +13,7 @@ use sc_service::ChainType;
 use sc_telemetry::TelemetryEndpoints;
 use serde::{Deserialize, Serialize};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use sp_consensus_babe::AuthorityId as BabeId;
+
 use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public, H160, U256};
 use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
@@ -40,7 +41,7 @@ pub struct Extensions {
 	/// Known bad block hashes.
 	pub bad_blocks: sc_client_api::BadBlocks<Block>,
 	/// The light sync state extension used by the sync-state rpc.
-	pub light_sync_state: sc_sync_state_rpc::LightSyncStateExtension,
+	pub light_sync_state: cessc_sync_state_rpc::LightSyncStateExtension,
 }
 
 /// Specialized `ChainSpec`.
@@ -50,11 +51,11 @@ type AccountPublic = <Signature as Verify>::Signer;
 
 fn session_keys(
 	grandpa: GrandpaId,
-	babe: BabeId,
+	rrsc: RRSCId,
 	im_online: ImOnlineId,
 	authority_discovery: AuthorityDiscoveryId,
 ) -> SessionKeys {
-	SessionKeys { grandpa, babe, im_online, authority_discovery }
+	SessionKeys { grandpa, rrsc, im_online, authority_discovery }
 }
 
 /// Generate an account ID from seed.
@@ -68,12 +69,12 @@ where
 /// Helper function to generate stash, controller and session key from seed
 pub fn authority_keys_from_seed(
 	seed: &str,
-) -> (AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId) {
+) -> (AccountId, AccountId, GrandpaId, RRSCId, ImOnlineId, AuthorityDiscoveryId) {
 	(
 		get_account_id_from_seed::<sr25519::Public>(&format!("{}//stash", seed)),
 		get_account_id_from_seed::<sr25519::Public>(seed),
 		get_from_seed::<GrandpaId>(seed),
-		get_from_seed::<BabeId>(seed),
+		get_from_seed::<RRSCId>(seed),
 		get_from_seed::<ImOnlineId>(seed),
 		get_from_seed::<AuthorityDiscoveryId>(seed),
 	)
@@ -93,7 +94,7 @@ fn cess_testnet_config_genesis() -> GenesisConfig {
 		AccountId,
 		AccountId,
 		GrandpaId,
-		BabeId,
+		RRSCId,
 		ImOnlineId,
 		AuthorityDiscoveryId,
 	)> = vec![
@@ -274,7 +275,7 @@ fn testnet_genesis(
 		AccountId,
 		AccountId,
 		GrandpaId,
-		BabeId,
+		RRSCId,
 		ImOnlineId,
 		AuthorityDiscoveryId,
 	)>,
@@ -370,9 +371,11 @@ fn testnet_genesis(
 				.collect(),
 			phantom: Default::default(),
 		},
-		babe: BabeConfig {
+		rrsc: RRSCConfig {
 			authorities: vec![],
-			epoch_config: Some(cess_node_runtime::BABE_GENESIS_EPOCH_CONFIG),
+			primary_authorities: vec![],
+			secondary_authorities: vec![],
+			epoch_config: Some(cess_node_runtime::RRSC_GENESIS_EPOCH_CONFIG),
 		},
 		im_online: ImOnlineConfig { keys: vec![] },
 		authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },
