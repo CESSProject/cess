@@ -183,6 +183,11 @@ pub mod pallet {
 	#[pallet::getter(fn challenge_duration)]
 	pub(super) type ChallengeDuration<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
 
+	//Relevant time nodes for storage challenges
+	#[pallet::storage]
+	#[pallet::getter(fn verify_duration)]
+	pub(super) type VerifyDuration<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
+
 	//Store the certification information submitted by the miner and wait for the specified
 	// scheduling verification
 	#[pallet::storage]
@@ -211,9 +216,11 @@ pub mod pallet {
 		// punished and the corresponding data segment will be removed
 		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
 			let _number: u128 = now.saturated_into();
-			let deadline = Self::challenge_duration();
+			let challenge_deadline = Self::challenge_duration();
+
+			let verify_deadline = Self::verify_duration();
 			//The waiting time for the challenge has reached the deadline
-			if now == deadline {
+			if now == challenge_deadline {
 				//After the waiting time for the challenge reaches the deadline,
 				//the miners who fail to complete the challenge will be punished
 				for (acc, challenge_list) in <ChallengeMap<T>>::iter() {
@@ -236,13 +243,25 @@ pub mod pallet {
 					}
 				}
 			}
-			//The interval between challenges must be greater than one hour
+
+			//Punish the scheduler who fails to verify the results for a long time
+			if now == verify_deadline {
+				let mut verify_list: Vec<ProveInfo<T>> = Vec::new();
+				for (acc, v_list) in <UnVerifyProof<T>>::iter() {
+					if v_list.len() > 0 {
+						verify_list.append(&mut v_list.to_vec());
+						T::Scheduler::punish_scheduler(acc.clone());
+					}
+				}
+				let cur_acc = Self::get_current_scheduler();
+				let _ = Self::storage_prove(cur_acc, verify_list);
+			}
 
 			0
 		}
 
 		fn offchain_worker(now: T::BlockNumber) {
-			let deadline = Self::challenge_duration();
+			let deadline = Self::verify_duration();
 			if now > deadline {
 				//Determine whether to trigger a challenge
 				if Self::trigger_challenge() {
@@ -375,6 +394,7 @@ pub mod pallet {
 			let now = <frame_system::Pallet<T>>::block_number();
 			let deadline = now.checked_add(&duration).ok_or(Error::<T>::Overflow)?;
 			<LockTime<T>>::put(deadline);
+			
 			Ok(())
 		}
 	}
@@ -415,6 +435,13 @@ pub mod pallet {
 		//Record challenge time
 		fn record_challenge_time(duration: BlockNumberOf<T>) -> DispatchResult {
 			let now = <frame_system::Pallet<T>>::block_number();
+			let verify_deadline = now
+				.checked_add(&duration).ok_or(Error::<T>::Overflow)?
+				.checked_add(&2000u32.saturated_into()).ok_or(Error::<T>::Overflow)?;
+			<VerifyDuration<T>>::try_mutate(|o| -> DispatchResult {
+				*o = verify_deadline;
+				Ok(())
+			})?;
 			<ChallengeDuration<T>>::try_mutate(|o| -> DispatchResult {
 				*o = now.checked_add(&duration).ok_or(Error::<T>::Overflow)?;
 				Ok(())
@@ -439,7 +466,7 @@ pub mod pallet {
 			let result = T::File::get_random_challenge_data()?;
 			let mut x = 0;
 			let mut new_challenge_map: BTreeMap<AccountOf<T>, Vec<ChallengeInfo<T>>> = BTreeMap::new();
-			for (miner_acc, file_id, block_list, file_size, file_type, segment_size) in result {
+			for (miner_acc, file_id, block_list, file_size, file_type) in result {
 				x = x.checked_add(&1).ok_or(Error::<T>::Overflow)?;
 				let random = Self::generate_random_number(
 					x.checked_add(&20220510).ok_or(Error::<T>::Overflow)?,
@@ -447,10 +474,9 @@ pub mod pallet {
 				);
 				//Create a single challenge message in files
 				let challenge_info = ChallengeInfo::<T> {
+					file_size,
 					file_type,
 					file_id: file_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
-					file_size,
-					segment_size,
 					block_list: block_list.try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
 					random: Self::vec_to_bounded(random)?,
 				};
@@ -565,7 +591,7 @@ pub mod pallet {
 				},
 				2 => {
 					T::MinerControl::sub_space(acc.clone(), file_size.into())?;
-					T::MinerControl::sub_power(acc.clone(), file_size.into())?;
+					T::File::add_recovery_file(file_id.clone())?;
 					T::File::add_invalid_file(acc.clone(), file_id.clone())?;
 					T::MinerControl::punish_miner(acc.clone(), file_size)?;
 				},

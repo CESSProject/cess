@@ -109,6 +109,7 @@ std = [
 	"pallet-balances/std",
 	"frame-benchmarking/std",
 	"pallet-file-map/std",
+	"pallet-sminer/std",
 ]
 
 runtime-benchmarks = [
