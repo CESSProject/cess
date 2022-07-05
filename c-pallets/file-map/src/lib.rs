@@ -312,6 +312,7 @@ pub mod pallet {
 pub trait ScheduleFind<AccountId> {
 	fn contains_scheduler(acc: AccountId) -> bool;
 	fn get_controller_acc(acc: AccountId) -> AccountId;
+	fn punish_scheduler(acc: AccountId);
 }
 
 impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -334,5 +335,14 @@ impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<
 			}
 		}
 		acc
+	}
+
+	fn punish_scheduler(acc: <T as frame_system::Config>::AccountId) {
+		let scheduler_list = SchedulerMap::<T>::get();
+		for v in scheduler_list {
+			if v.controller_user == acc {
+				pallet_cess_staking::slashing::slash_scheduler::<T>(&v.stash_user);
+			}
+		}
 	}
 }
