@@ -60,6 +60,7 @@ subkey inspect --scheme ed25519 "SECRET PHRASE YOU JUST GENERATED"
 
 We recommend a point that you record the above outputs and keep mnemonic in safe.
 
+
 ### Run on the Testnet
 
 Launch node on the cess-testnet with:
