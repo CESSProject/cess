@@ -50,10 +50,11 @@ Generate a mnemonic (phrase seed) and see the `sr25519` key and address associat
 subkey generate --scheme sr25519
 ```
 
-Now keepthe `ed25519` key and address associated with the same mnemonic (phrase seed).
+Now keep the `ed25519` key and address associated with the same mnemonic (phrase seed).
 
 ```
 # subkey command
+
 subkey inspect --scheme ed25519 "SECRET PHRASE YOU JUST GENERATED"
 ```
 
