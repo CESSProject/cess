@@ -79,6 +79,7 @@ Then you can add an account with:
 vim secretKey.txt
 
 # add secret phrase for the node in the file
+
 YOUR ACCOUNT'S SECRET PHRASE
 ```
 
@@ -92,6 +93,7 @@ YOUR ACCOUNT'S SECRET PHRASE
 Now you can launch node again:
 
 ```
+
 # start
 ./target/release/cess-node --base-path /tmp/cess --chain cess-testnet
 ```
