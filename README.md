@@ -67,6 +67,7 @@ Launch node on the cess-testnet with:
 
 ```
 # start
+
 ./target/release/cess-node --base-path /tmp/cess --chain cess-testnet
 ```
 
