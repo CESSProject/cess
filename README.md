@@ -34,7 +34,7 @@ cargo build --release
 ## Run the CESS Node
 
 
-Afterthe node has finished compiling, you can follow these steps below to run it. 
+After the node has finished compiling, you can follow these steps below to run it. 
 
 ### Generate Keys
 
