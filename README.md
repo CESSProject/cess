@@ -93,7 +93,6 @@ YOUR ACCOUNT'S SECRET PHRASE
 Now you can launch node again:
 
 ```
-
 # start
 ./target/release/cess-node --base-path /tmp/cess --chain cess-testnet
 ```
