@@ -75,6 +75,7 @@ Then you can add an account with:
 
 ```
 # create key file
+
 vim secretKey.txt
 
 # add secret phrase for the node in the file
