@@ -16,7 +16,7 @@
 
 Follow [Setup](https://github.com/CESSProject/cess/tree/main/docs/setup.md) to guide you install the CESS development.
 
-### Build Node
+### Build node
 
 The `cargo run` command will perform an initial build. Use the following command to build the node without launching it:
 
