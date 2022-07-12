@@ -44,6 +44,7 @@ Generate a mnemonic (Secret phrase) and see the `sr25519` key and address associ
 
 ```
 # subkey command
+
 subkey generate --scheme sr25519
 ```
 
