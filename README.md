@@ -34,7 +34,7 @@ cargo build --release
 
 After the node has finished compiling, you can follow these steps below to run it. 
 
-### Generate Keys
+### Generate keys
 
 If you already have keys for Substrate using the [SS58 address encoding format](https://docs.substrate.io/v3/advanced/ss58/), please see the next section.
 
