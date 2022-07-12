@@ -29,7 +29,7 @@ cd cess
 cargo build --release
 ```
 
-## Run the CESS Node
+## Run the CESS node
 
 
 After the node has finished compiling, you can follow these steps below to run it. 
