@@ -107,6 +107,7 @@ CESS has Rust unit tests, and can be run locally.
 
 ```
 # Run all the Rust unit tests
+
 cargo test --release
 ```
 
