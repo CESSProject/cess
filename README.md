@@ -52,6 +52,7 @@ Now see the `ed25519` key and address associated with the same mnemonic (secret 
 
 ```
 # subkey command
+
 subkey inspect --scheme ed25519 "SECRET PHRASE YOU JUST GENERATED"
 ```
 
