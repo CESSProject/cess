@@ -118,8 +118,8 @@ cargo test --release
 
 * [Segment Book](https://github.com/CESSProject/cess/tree/main/c-pallets/segment-book)
 
-
 * [Sminer](https://github.com/CESSProject/cess/tree/main/c-pallets/sminer)
+
 * [File Map](https://github.com/CESSProject/cess/tree/main/c-pallets/file-map)
 
 ## Contribute
