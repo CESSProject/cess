@@ -204,6 +204,10 @@ pub mod pallet {
 	#[pallet::getter(fn lock_time)]
 	pub(super) type LockTime<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn lock)]
+	pub(super) type Lock<T: Config> = StorageValue<_, bool, ValueQuery>;
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
@@ -264,19 +268,50 @@ pub mod pallet {
 			let deadline = Self::verify_duration();
 			if now > deadline {
 				//Determine whether to trigger a challenge
-				if Self::trigger_challenge() {
-					log::info!("offchain worker random challenge start");
-					if let Err(e) = Self::generation_challenge() {
-						log::info!("punish Err:{:?}", e);
+				// if Self::trigger_challenge() {
+					let lock = <Lock<T>>::get();
+					if lock {
+						log::info!("offchain worker random challenge start");
+						log::info!("lock offchain worker");
+						if let Err(e) = Self::offchain_signed_lock() {
+							log::info!("lock offchain worker failed:{:?}", e);
+						}
+						if let Err(e) = Self::generation_challenge() {
+							log::info!("generation challenge failed:{:?}", e);
+						}
+						log::info!("unlock offchain worker");
+						if let Err(e) = Self::offchain_signed_unlock() {
+							log::info!("unlock offchain worker failed:{:?}", e);
+						}
+						log::info!("offchain worker random challenge end");
 					}
-					log::info!("offchain worker random challenge end");
-				}
+				// }
 			}
 		}
 	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[pallet::weight(1000)]
+		pub fn lock_challenge(origin: OriginFor<T>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			if !T::File::contains_member(sender) {
+				Err(Error::<T>::NotQualified)?;
+			}
+			<Lock<T>>::put(false);
+			Ok(())
+		}
+
+		#[pallet::weight(1000)]
+		pub fn unlock_challenge(origin: OriginFor<T>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			if !T::File::contains_member(sender) {
+				Err(Error::<T>::NotQualified)?;
+			}
+			<Lock<T>>::put(true);
+			Ok(())
+		}
+
 		#[pallet::weight(1000)]
 		pub fn submit_challenge_prove(
 			origin: OriginFor<T>,
@@ -463,6 +498,7 @@ pub mod pallet {
 
 		//Ways to generate challenges
 		fn generation_challenge() -> DispatchResult {
+			log::info!("");
 			let result = T::File::get_random_challenge_data()?;
 			let mut x = 0;
 			let mut new_challenge_map: BTreeMap<AccountOf<T>, Vec<ChallengeInfo<T>>> = BTreeMap::new();
@@ -497,6 +533,42 @@ pub mod pallet {
 			Ok(())
 		}
 
+		fn offchain_signed_lock() -> Result<(), Error<T>> {
+			let signer = Signer::<T, T::AuthorityId>::any_account();
+			let result = signer.send_signed_transaction(|_account| Call::lock_challenge{} );
+
+			if let Some((_acc, res)) = result {
+				if res.is_err() {
+					log::error!("failure: offchain_signed_tx: tx sent lock_challenge");
+
+				} else {
+					return Ok(())
+				}
+				// Transaction is sent successfully
+			}
+
+			log::error!("No local account available for lock_challenge");
+			Err(<Error<T>>::NoLocalAcctForSigning)
+		}
+
+		fn offchain_signed_unlock() -> Result<(), Error<T>> {
+			let signer = Signer::<T, T::AuthorityId>::any_account();
+			let result = signer.send_signed_transaction(|_account| Call::unlock_challenge{} );
+
+			if let Some((_acc, res)) = result {
+				if res.is_err() {
+					log::error!("failure: offchain_signed_tx: tx sent unlock_challenge");
+
+				} else {
+					return Ok(())
+				}
+				// Transaction is sent successfully
+			}
+
+			log::error!("No local account available for unlock_challenge");
+			Err(<Error<T>>::NoLocalAcctForSigning)
+		}
+
 		fn offchain_signed_tx(
 			new_challenge_map: BTreeMap<AccountOf<T>, Vec<ChallengeInfo<T>>>,
 		) -> Result<(), Error<T>> {
@@ -529,6 +601,8 @@ pub mod pallet {
 				.checked_mul(120)
 				.ok_or(Error::<T>::Overflow)?
 				.checked_div(100)
+				.ok_or(Error::<T>::Overflow)?
+				.checked_add(200)
 				.ok_or(Error::<T>::Overflow)?
 				.saturated_into();
 			let result =

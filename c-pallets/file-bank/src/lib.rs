@@ -237,6 +237,8 @@ pub mod pallet {
 		LengthExceedsLimit,
 
 		Declarated,
+
+		BugInvalid,
 	}
 	#[pallet::storage]
 	#[pallet::getter(fn next_unsigned_at)]
@@ -315,6 +317,22 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn lock_time)]
 	pub(super) type LockTime<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn file_keys_map)]
+	pub(super) type FileKeysMap<T: Config> = CountedStorageMap<_, Blake2_128Concat, u32, (bool, BoundedString<T>)>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn file_index_count)]
+	pub(super) type FileIndexCount<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn filler_keys_map)]
+	pub(super) type FillerKeysMap<T: Config> = CountedStorageMap<_, Blake2_128Concat, u32, (AccountOf<T>, BoundedString<T>)>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn filler_index_count)]
+	pub(super) type FillerIndexCount<T: Config> = StorageValue<_, u32, ValueQuery>;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -423,16 +441,20 @@ pub mod pallet {
 					Ok(())
 				})?;
 			} else {
+				let count = <FileIndexCount<T>>::get().checked_add(1).ok_or(Error::<T>::Overflow)?;
 				<File<T>>::insert(
 					&file_hash_bound,
 					FileInfo::<T>{
 						file_size: 0,
+						index: count,
 						file_state: "pending".as_bytes().to_vec().try_into().map_err(|_| Error::<T>::BoundedVecError)?,
 						user: vec![sender.clone()].try_into().map_err(|_| Error::<T>::BoundedVecError)?,
 						file_name: vec![file_name_bound].try_into().map_err(|_| Error::<T>::BoundedVecError)?,
 						slice_info: Default::default(),
 					},
 				);
+				<FileIndexCount<T>>::put(count);
+				<FileKeysMap<T>>::insert(count, (false, file_hash_bound.clone()));
 			}
 			Self::deposit_event(Event::<T>::UploadDeclaration { acc: sender, file_hash: file_hash, file_name: file_name });
 			Ok(())
@@ -459,7 +481,7 @@ pub mod pallet {
 			Self::update_user_space(user.clone(), 1, file_size.into())?;
 
 			<File<T>>::try_mutate(&file_hash_bounded, |s_opt| -> DispatchResult {
-				let s = s_opt.as_mut().unwrap();
+				let s = s_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
 				if !s.user.contains(&user) {
 					Err(Error::<T>::UserNotDeclared)?;
 				}
@@ -469,6 +491,11 @@ pub mod pallet {
 				s.file_size = file_size;
 				s.slice_info = slice_info.clone().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
 				s.file_state = "active".as_bytes().to_vec().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
+				<FileKeysMap<T>>::try_mutate(s.index, |v_opt| -> DispatchResult{
+					let v = v_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
+					v.0 = true;
+					Ok(())
+				})?;
 				Ok(())
 			})?;
 
@@ -484,7 +511,7 @@ pub mod pallet {
 
 		//The filler upload interface can only be called by scheduling, and the list has a maximum
 		// length limit
-		#[pallet::weight(1_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_filler(filler_list.len() as u32))]
 		pub fn upload_filler(
 			origin: OriginFor<T>,
 			miner: AccountOf<T>,
@@ -501,12 +528,18 @@ pub mod pallet {
 			if !(miner_state == "positive".as_bytes().to_vec()) {
 				Err(Error::<T>::NotQualified)?;
 			}
+			let mut count: u32 = <FillerIndexCount<T>>::get();
 			for i in filler_list.iter() {
+				count = count.checked_add(1).ok_or(Error::<T>::Overflow)?;
 				if <FillerMap<T>>::contains_key(&miner, i.filler_id.clone()) {
 					Err(Error::<T>::FileExistent)?;
 				}
-				<FillerMap<T>>::insert(miner.clone(), i.filler_id.clone(), i);
+				let mut value = i.clone();
+				value.index = count;
+				<FillerMap<T>>::insert(miner.clone(), i.filler_id.clone(), value);
+				<FillerKeysMap<T>>::insert(count, (miner.clone(), i.filler_id.clone()));
 			}
+			<FillerIndexCount<T>>::put(count);
 
 			let power = M_BYTE
 				.checked_mul(8)
@@ -714,6 +747,10 @@ pub mod pallet {
 			if state != "exit".as_bytes().to_vec() {
 				Err(Error::<T>::NotQualified)?;
 			}
+			for (_, value) in FillerMap::<T>::iter_prefix(&sender) {
+				<FillerKeysMap<T>>::remove(value.index);
+			}
+			
 			let _ = FillerMap::<T>::remove_prefix(&sender, Option::None);
 			Ok(())
 		}
@@ -934,7 +971,7 @@ pub mod pallet {
 			let mut data: Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, u8)> = Vec::new();
 			for v in filler_list {
 				let length = v.block_num;
-				let number_list = Self::get_random_numberlist(length, 1)?;
+				let number_list = Self::get_random_numberlist(length, 3, length)?;
 				let miner_acc = v.miner_address.clone();
 				let filler_id = v.filler_id.clone().to_vec();
 				let file_size = v.filler_size.clone();
@@ -947,7 +984,7 @@ pub mod pallet {
 
 			let file_list = Self::get_random_file()?;
 			for (_, file) in file_list {
-				let slice_number_list = Self::get_random_numberlist(file.slice_info.len() as u32, 1)?;
+				let slice_number_list = Self::get_random_numberlist(file.slice_info.len() as u32, 3, file.slice_info.len() as u32)?;
 				for slice_index in slice_number_list.iter() {
 					let miner_id = T::MinerControl::get_miner_id(file.slice_info[*slice_index as usize].miner_acc.clone())?;
 					if file.slice_info[*slice_index as usize].miner_id != miner_id {
@@ -955,7 +992,7 @@ pub mod pallet {
 					}
 					let mut block_list: Vec<u8> = Vec::new();
 					let length = file.slice_info[*slice_index as usize].block_num;
-					let number_list = Self::get_random_numberlist(length, 1)?;
+					let number_list = Self::get_random_numberlist(length, 3, length)?;
 					let file_hash = file.slice_info[*slice_index as usize].shard_id.to_vec();
 					let miner_acc = file.slice_info[*slice_index as usize].miner_acc.clone();
 					let slice_size = file.slice_info[*slice_index as usize].shard_size;
@@ -971,47 +1008,44 @@ pub mod pallet {
 		//Get random file block list
 		fn get_random_filler() -> Result<Vec<FillerInfo<T>>, DispatchError> {
 			let length = Self::get_fillermap_length()?;
-			let number_list = Self::get_random_numberlist(length, 1)?;
+			let limit = <FillerIndexCount<T>>::get();
+			let number_list = Self::get_random_numberlist(length, 1, limit)?;
 			let mut filler_list: Vec<FillerInfo<T>> = Vec::new();
 			for i in number_list.iter() {
-				let mut counter: u32 = 0;
-				for (_, _, value) in <FillerMap<T>>::iter() {
-					if counter == *i {
-						filler_list.push(value);
-						break
-					}
-					counter = counter.checked_add(1).ok_or(Error::<T>::Overflow)?;
-				}
+				let result = <FillerKeysMap<T>>::get(i);
+				let (acc, filler_id) = match result {
+					Some(x) => x,
+					None => {
+						Err(Error::<T>::BugInvalid)?
+					},
+				};
+				let filler = <FillerMap<T>>::try_get(acc, filler_id).map_err(|_e| Error::<T>::BugInvalid)?;
+				filler_list.push(filler);
 			}
 			Ok(filler_list)
 		}
 
 		fn get_random_file() -> Result<Vec<(BoundedString<T>, FileInfo<T>)>, DispatchError> {
 			let length = Self::get_file_map_length()?;
-			//Extract according to the probability of 4.6% * 3
-			let number_list = Self::get_random_numberlist(length, 1)?;
+			let limit = <FileIndexCount<T>>::get();
+			let number_list = Self::get_random_numberlist(length, 2, limit)?;
 			let mut file_list: Vec<(BoundedString<T>, FileInfo<T>)> = Vec::new();
 			for i in number_list.iter() {
-				let mut counter: u32 = 0;
-				for (key, value) in <File<T>>::iter() {
-					if value.file_state.to_vec() == "active".as_bytes().to_vec() {
-						if counter == *i {
-							file_list.push(
-								(
-									key,
-									value,
-								)
-							);
-							break
-						}
-						counter = counter.checked_add(1).ok_or(Error::<T>::Overflow)?;
-					}
+				let file_id = <FileKeysMap<T>>::try_get(i).map_err(|_e| Error::<T>::FileNonExistent)?.1;
+				let value = <File<T>>::try_get(&file_id).map_err(|_e| Error::<T>::FileNonExistent)?;
+				if value.file_state.to_vec() == "active".as_bytes().to_vec() {
+					file_list.push(
+						(
+							file_id.clone(),
+							value,
+						)
+					);
 				}
 			}
 			Ok(file_list)
 		}
 
-		fn get_random_numberlist(length: u32, random_type: u8) -> Result<Vec<u32>, DispatchError> {
+		fn get_random_numberlist(length: u32, random_type: u8, limit: u32) -> Result<Vec<u32>, DispatchError> {
 			let mut seed: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
 			if length == 0 {
 				return Ok(Vec::new())
@@ -1025,7 +1059,7 @@ pub mod pallet {
 					.checked_add(1)
 					.ok_or(Error::<T>::Overflow)?,
 				2 => length
-					.checked_mul(46 * 3)
+					.checked_mul(46)
 					.ok_or(Error::<T>::Overflow)?
 					.checked_div(1000)
 					.ok_or(Error::<T>::Overflow)?
@@ -1049,31 +1083,49 @@ pub mod pallet {
 						break
 					}
 				}
-				let random = Self::generate_random_number(seed)? % length;
+				let random = Self::generate_random_number(seed)? % limit;
+				let result: bool = match random_type {
+					1 => Self::judge_filler_exist(random),
+					2 => Self::judge_file_exist(random),
+					_ => true, 
+				};
+				if !result {
+					//Start the next cycle if the file does not exist
+					continue;
+				}
 				log::info!("List addition: {}", random);
 				number_list.push(random);
 			}
 			Ok(number_list)
 		}
 
+		fn judge_file_exist(index: u32) -> bool {
+			let result = <FileKeysMap<T>>::get(index);
+			let result = match result {
+				Some(x) => x.0,
+				None => false,
+			};
+			result 
+		}
+
+		fn judge_filler_exist(index: u32) -> bool {
+			let result = <FillerKeysMap<T>>::get(index);
+			let result = match result {
+				Some(x) => true,
+				None => false,
+			};
+			result 
+		}
+
 		//Get storagemap filler length
 		fn get_fillermap_length() -> Result<u32, DispatchError> {
-			let mut length: u32 = 0;
-			for _ in <FillerMap<T>>::iter() {
-				length = length.checked_add(1).ok_or(Error::<T>::Overflow)?;
-			}
-			Ok(length)
+			let count = <FillerKeysMap<T>>::count();
+			Ok(count)
 		}
 
 		//Get Storage FillerMap Length
 		fn get_file_map_length() -> Result<u32, DispatchError> {
-			let mut length: u32 = 0;
-			for (_, v) in <File<T>>::iter() {
-				if v.file_state.to_vec() == "active".as_bytes().to_vec() {
-					length = length.checked_add(1).ok_or(Error::<T>::Overflow)?;
-				}
-			}
-			Ok(length)
+			Ok(<FileKeysMap<T>>::count())
 		}
 
 		//Get random number
@@ -1097,6 +1149,8 @@ pub mod pallet {
 			if !<FillerMap<T>>::contains_key(&miner_acc, filler_boud.clone()) {
 				Err(Error::<T>::FileNonExistent)?;
 			}
+			let value = <FillerMap<T>>::try_get(&miner_acc, filler_boud.clone()).map_err(|_e| Error::<T>::FileNonExistent)?;
+			<FillerKeysMap<T>>::remove(value.index);
 			<FillerMap<T>>::remove(miner_acc, filler_boud.clone());
 
 			Ok(())
@@ -1110,7 +1164,12 @@ pub mod pallet {
 			for user in file.user.iter() {
 				Self::update_user_space(user.clone(), 2, file.file_size.into())?;
 			}
+			for slice in file.slice_info.iter() {
+				Self::add_invalid_file(slice.miner_acc.clone(), slice.shard_id.to_vec())?;
+				T::MinerControl::sub_space(slice.miner_acc.clone(), slice.shard_size.into())?;
+			}
 			<File<T>>::remove(file_hash_bounded);
+			<FileKeysMap<T>>::remove(file.index);
 			Ok(())
 		}
 
@@ -1139,12 +1198,7 @@ pub mod pallet {
 					Ok(())
 				})?;
 			} else {
-				<File<T>>::remove(&file_hash);
-				for slice in file.slice_info.iter() {
-					Self::add_invalid_file(slice.miner_acc.clone(), slice.shard_id.to_vec())?;
-					T::MinerControl::sub_space(slice.miner_acc.clone(), slice.shard_size.into())?;
-				}
-				
+				Self::clear_file(file_hash.clone().to_vec())?;
 			}
 			
 			<UserHoldFileList<T>>::try_mutate(&user, |s| -> DispatchResult {
@@ -1179,7 +1233,6 @@ pub mod pallet {
 		}
 
 		fn replace_file(miner_acc: AccountOf<T>, file_size: u64) -> DispatchResult {
-			
 			let (power, space) = T::MinerControl::get_power_and_space(miner_acc.clone())?;
 			//Judge whether the current miner's remaining is enough to store files
 			if power > space {
