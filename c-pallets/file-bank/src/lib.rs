@@ -1111,7 +1111,15 @@ pub mod pallet {
 		fn judge_filler_exist(index: u32) -> bool {
 			let result = <FillerKeysMap<T>>::get(index);
 			let result = match result {
-				Some(x) => true,
+				Some(_x) => true,
+				// Some(x) => {
+				// 	let result2 = <FillerMap<T>>::get(x.0, x.1);
+				// 	let result2 = match result2 {
+				// 		Some(_v) => true,
+				// 		None => false,
+				// 	};
+				// 	result2
+				// },
 				None => false,
 			};
 			result 
@@ -1366,6 +1374,9 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 	}
 	
 	fn delete_miner_all_filler(miner_acc: AccountOf<T>) -> DispatchResult {
+		for (_, value) in FillerMap::<T>::iter_prefix(&miner_acc) {
+			<FillerKeysMap<T>>::remove(value.index);
+		}
 		let _ = FillerMap::<T>::remove_prefix(&miner_acc, Option::None);
 		Ok(())
 	}

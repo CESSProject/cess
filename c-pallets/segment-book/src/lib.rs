@@ -268,7 +268,7 @@ pub mod pallet {
 			let deadline = Self::verify_duration();
 			if now > deadline {
 				//Determine whether to trigger a challenge
-				// if Self::trigger_challenge() {
+				if Self::trigger_challenge() {
 					let lock = <Lock<T>>::get();
 					if lock {
 						log::info!("offchain worker random challenge start");
@@ -285,7 +285,7 @@ pub mod pallet {
 						}
 						log::info!("offchain worker random challenge end");
 					}
-				// }
+				}
 			}
 		}
 	}
