@@ -17,7 +17,7 @@ pub fn wasm_binary_unwrap() -> &'static [u8] {
 }
 
 use codec::{Decode, Encode};
-use frame_election_provider_support::{onchain, ExtendedBalance, SequentialPhragmen, VoteWeight};
+use frame_election_provider_support::{onchain, ExtendedBalance, VoteWeight};
 pub use pallet_file_bank;
 use pallet_grandpa::{
 	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
@@ -478,8 +478,6 @@ parameter_types! {
 	pub const ReportLongevity: u64 =
 		BondingDuration::get() as u64 * SessionsPerEra::get() as u64 * EpochDuration::get();
 	pub const MaxAuthorities: u32 = 100;
-	pub const MaxPrimaryAuthorities: u32 = 11;
-	pub const MaxSecondaryAuthorities: u32 = 11;
 }
 
 impl pallet_rrsc::Config for Runtime {
@@ -505,8 +503,6 @@ impl pallet_rrsc::Config for Runtime {
 
 	type WeightInfo = ();
 	type MaxAuthorities = MaxAuthorities;
-	type MaxPrimaryAuthorities = MaxPrimaryAuthorities;
-	type MaxSecondaryAuthorities = MaxSecondaryAuthorities;
 }
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
@@ -621,7 +617,7 @@ impl pallet_cess_staking::Config for Runtime {
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type ElectionProvider = ElectionProviderMultiPhase;
-	type GenesisElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
+	type GenesisElectionProvider = onchain::UnboundedExecution<OnChainVrf>;
 	type VoterList = BagsList;
 	type MaxUnlockingChunks = ConstU32<32>;
 	type WeightInfo = pallet_cess_staking::weights::SubstrateWeight<Runtime>;
@@ -760,17 +756,18 @@ impl Get<Option<(usize, ExtendedBalance)>> for OffchainRandomBalancing {
 	}
 }
 
-pub struct OnChainSeqPhragmen;
-impl onchain::ExecutionConfig for OnChainSeqPhragmen {
+pub struct OnChainVrf;
+impl onchain::ExecutionConfig for OnChainVrf {
 	type System = Runtime;
-	type Solver = SequentialPhragmen<
+	type Solver = pallet_rrsc::VrfSolver<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Runtime>,
+		Runtime,
 	>;
 	type DataProvider = <Runtime as pallet_election_provider_multi_phase::Config>::DataProvider;
 }
 
-impl onchain::BoundedExecutionConfig for OnChainSeqPhragmen {
+impl onchain::BoundedExecutionConfig for OnChainVrf {
 	type VotersBound = ConstU32<20_000>;
 	type TargetsBound = ConstU32<2_000>;
 }
@@ -796,9 +793,9 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type RewardHandler = (); // nothing to do upon rewards
 	type DataProvider = Staking;
 	type Solution = NposSolution16;
-	type Fallback = onchain::BoundedExecution<OnChainSeqPhragmen>;
-	type GovernanceFallback = onchain::BoundedExecution<OnChainSeqPhragmen>;
-	type Solver = SequentialPhragmen<AccountId, SolutionAccuracyOf<Self>, OffchainRandomBalancing>;
+	type Fallback = onchain::BoundedExecution<OnChainVrf>;
+	type GovernanceFallback = onchain::BoundedExecution<OnChainVrf>;
+	type Solver = pallet_rrsc::VrfSolver<AccountId, SolutionAccuracyOf<Self>, Runtime, OffchainRandomBalancing>;
 	type ForceOrigin = EnsureRootOrHalfCouncil;
 	type MaxElectableTargets = ConstU16<{ u16::MAX }>;
 	type MaxElectingVoters = MaxElectingVoters;
@@ -1479,8 +1476,6 @@ impl_runtime_apis! {
 				epoch_length: EpochDuration::get(),
 				c: RRSC_GENESIS_EPOCH_CONFIG.c,
 				genesis_authorities: RRSC::authorities().to_vec(),
-				genesis_primary_authorities: RRSC::primary_authorities().to_vec(),
-				genesis_secondary_authorities: RRSC::secondary_authorities().to_vec(),
 				randomness: RRSC::randomness(),
 				allowed_slots: RRSC_GENESIS_EPOCH_CONFIG.allowed_slots,
 			}

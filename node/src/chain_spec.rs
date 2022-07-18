@@ -373,8 +373,6 @@ fn testnet_genesis(
 		},
 		rrsc: RRSCConfig {
 			authorities: vec![],
-			primary_authorities: vec![],
-			secondary_authorities: vec![],
 			epoch_config: Some(cess_node_runtime::RRSC_GENESIS_EPOCH_CONFIG),
 		},
 		im_online: ImOnlineConfig { keys: vec![] },
