@@ -7,6 +7,7 @@ type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 #[codec(mel_bound())]
 pub struct FileInfo<T: pallet::Config> {
 	pub(super) file_size: u64,
+	pub(super) index: u32,
 	pub(super) file_state: BoundedVec<u8, T::StringLimit>,
 	pub(super) user: BoundedVec<AccountOf<T>, T::StringLimit>,
 	pub(super) file_name: BoundedVec<BoundedVec<u8, T::StringLimit>, T::StringLimit>,
@@ -46,6 +47,7 @@ pub struct SpaceInfo<T: pallet::Config> {
 #[codec(mel_bound())]
 pub struct FillerInfo<T: pallet::Config> {
 	pub filler_size: u64,
+	pub index: u32,
 	pub block_num: u32,
 	pub segment_size: u32,
 	pub scan_size: u32,
