@@ -5143,6 +5143,7 @@ source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2022-0
 dependencies = [
  "cessp-consensus-rrsc",
  "frame-benchmarking",
+ "frame-election-provider-support",
  "frame-support",
  "frame-system",
  "log",
@@ -5154,6 +5155,7 @@ dependencies = [
  "sp-application-crypto",
  "sp-consensus-vrf",
  "sp-io",
+ "sp-npos-elections",
  "sp-runtime",
  "sp-session",
  "sp-staking",
