@@ -16,3 +16,7 @@
 .direnv
 
 .idea
+.vscode
+
+docker/.cache
+docker/cess/cess-node
