@@ -70,6 +70,7 @@ pub trait WeightInfo {
 	
 	fn update() -> Weight;
 	
+	fn upload_filler(s: u32,) -> Weight;
 }
 
 /// Weights for pallet_file_bank using the Substrate node and recommended hardware.
@@ -113,6 +114,17 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 			
 			
 	}
+
+	fn upload_filler(s: u32, ) -> Weight {
+		(1_855_000 as Weight)
+
+			.saturating_add(T::DbWeight::get().reads(1 as Weight))
+
+			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+
+			.saturating_add(T::DbWeight::get().writes((2 as Weight).saturating_mul(s as Weight)))
+
+	}
 	
 }
 
@@ -153,6 +165,17 @@ impl WeightInfo for () {
 			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
 			
 			
+	}
+
+	fn upload_filler(s: u32, ) -> Weight {
+		(1_855_000 as Weight)
+
+			.saturating_add(RocksDbWeight::get().reads(1 as Weight))
+
+			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
+
+			.saturating_add(RocksDbWeight::get().writes((2 as Weight).saturating_mul(s as Weight)))
+
 	}
 	
 }
