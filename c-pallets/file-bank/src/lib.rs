@@ -292,13 +292,10 @@ pub mod pallet {
 	pub(super) type LockTime<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
 
 	#[pallet::storage]
-<<<<<<< HEAD
 	#[pallet::getter(fn purchase_package)]
 	pub(super) type PurchasedPackage<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, PackageDetails<T>>;
 	
 	#[pallet::storage]
-=======
->>>>>>> origin/cess-0.4.4
 	#[pallet::getter(fn file_keys_map)]
 	pub(super) type FileKeysMap<T: Config> = CountedStorageMap<_, Blake2_128Concat, u32, (bool, BoundedString<T>)>;
 
@@ -1003,11 +1000,7 @@ pub mod pallet {
 		fn judge_filler_exist(index: u32) -> bool {
 			let result = <FillerKeysMap<T>>::get(index);
 			let result = match result {
-<<<<<<< HEAD
 				Some(_x) => true,
-=======
-				Some(x) => true,
->>>>>>> origin/cess-0.4.4
 				None => false,
 			};
 			result 
