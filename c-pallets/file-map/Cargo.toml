@@ -1,10 +1,10 @@
 [package]
 name = "pallet-file-map"
 authors = ["CESS LAB"]
-version = "0.1.0"
+version = "0.5.0"
 edition = "2018"
 license = "Apache-2.0"
-repository = ""
+repository = "https://github.com/CESSProject/cess"
 description = "FRAME pallet for file-map management"
 readme = "README.md"
 
@@ -62,7 +62,7 @@ version = '6.0.0'
 [dependencies.pallet-sminer]
 default-features = false
 path = '../sminer'
-version = '0.1.0'
+version = '0.5.0'
 
 [dependencies.pallet-cess-staking]
 default-features = false
