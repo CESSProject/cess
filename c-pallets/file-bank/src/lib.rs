@@ -27,6 +27,7 @@ mod tests;
 use frame_support::traits::{
 	Currency, ExistenceRequirement::AllowDeath, FindAuthor, Randomness, ReservableCurrency,
 };
+
 pub use pallet::*;
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
@@ -38,18 +39,15 @@ pub use types::*;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_runtime::{
-	offchain as rt_offchain,
 	traits::{
-		AccountIdConversion, BlockNumberProvider, CheckedAdd, CheckedDiv, CheckedMul, CheckedSub,
-		SaturatedConversion,
+		BlockNumberProvider, CheckedAdd, CheckedDiv, CheckedMul, CheckedSub, SaturatedConversion, AccountIdConversion
 	},
 	RuntimeDebug,
 };
 use sp_std::{convert::TryInto, prelude::*, str};
-
-use frame_support::{dispatch::DispatchResult, pallet_prelude::*, PalletId};
-use frame_system::offchain::{AppCrypto, CreateSignedTransaction, SendSignedTransaction, Signer};
 use sp_core::crypto::KeyTypeId;
+use frame_support::{dispatch::DispatchResult, pallet_prelude::*, PalletId};
+
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -68,9 +66,6 @@ pub mod pallet {
 	use pallet_sminer::MinerControl;
 	//pub use crate::weights::WeightInfo;
 	use frame_system::{ensure_signed, pallet_prelude::*};
-
-	const HTTP_REQUEST_STR: &str = "https://arweave.net/price/1048576";
-	// const HTTP_REQUEST_STR: &str = "https://api.coincap.io/v2/assets/polkadot";
 	pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"cess");
 	const FETCH_TIMEOUT_PERIOD: u64 = 60_000; // in milli-seconds
 										  //1MB converted byte size
@@ -115,7 +110,6 @@ pub mod pallet {
 		frame_system::Config
 		+ pallet_sminer::Config
 		+ sp_std::fmt::Debug
-		+ CreateSignedTransaction<Call<Self>>
 	{
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
@@ -125,11 +119,8 @@ pub mod pallet {
 		type WeightInfo: WeightInfo;
 
 		type Call: From<Call<Self>>;
-
 		//Find the consensus of the current block
 		type FindAuthor: FindAuthor<Self::AccountId>;
-
-		type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
 		//Used to find out whether the schedule exists
 		type Scheduler: ScheduleFind<Self::AccountId>;
 		//It is used to control the computing power and space of miners
@@ -240,9 +231,6 @@ pub mod pallet {
 
 		BugInvalid,
 	}
-	#[pallet::storage]
-	#[pallet::getter(fn next_unsigned_at)]
-	pub(super) type NextUnsignedAt<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn file)]
@@ -307,6 +295,7 @@ pub mod pallet {
 	#[pallet::getter(fn purchase_package)]
 	pub(super) type PurchasedPackage<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, PackageDetails<T>>;
 	
+	#[pallet::storage]
 	#[pallet::getter(fn file_keys_map)]
 	pub(super) type FileKeysMap<T: Config> = CountedStorageMap<_, Blake2_128Concat, u32, (bool, BoundedString<T>)>;
 
@@ -336,28 +325,36 @@ pub mod pallet {
 			let number: u128 = now.saturated_into();
 			let block_oneday: BlockNumberOf<T> = T::OneDay::get();
 			let oneday: u32 = block_oneday.saturated_into();
-			let mut count: u8 = 0;
 			if number % oneday as u128 == 0 {
 				log::info!("Start lease expiration check");
 				for (acc, info) in <PurchasedPackage<T>>::iter() {
-					if info.deadline > now {
+					if  now > info.deadline {
 						let frozen_day: BlockNumberOf<T> = match info.package_type {
 							1 => (0 * oneday).saturated_into(),
 							2 => (7 * oneday).saturated_into(),
 							3 => (14 * oneday).saturated_into(),
 							4 => (20 * oneday).saturated_into(),
-							5 => (30 * oneday).saturated_into(),
+							_ => (30 * oneday).saturated_into(),
 						};
-						if info.deadline + frozen_day > now {
-							Self::
+						if  now > info.deadline + frozen_day {
+							log::info!("clear user:#{}'s files", number);
+							let _ = Self::clear_expired_file(&acc);
+						} else {
+							if info.state.to_vec() != "frozen".as_bytes().to_vec() {
+								let result = <PurchasedPackage<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+									let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedPackage)?;
+									s.state = "frozen".as_bytes().to_vec().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+									Ok(())
+								});
+								match result {
+									Ok(()) => log::info!("user space frozen: #{}", number),
+									Err(e) => log::error!("frozen failed: {:?}", e),
+								}
+							}
 						}
-
-						let result = <PurchasedPackage<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
-
-							Ok(())
-						})?;
 					}
 				}
+				log::info!("End lease expiration check");
 			}
 			0
 		}
@@ -526,7 +523,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
-			ensure!(<PurchasedPackage<T>>::contains_key(&sender), Error::<T>::PurchasedPackage);
+			ensure!(!<PurchasedPackage<T>>::contains_key(&sender), Error::<T>::PurchasedPackage);
 
 			let (space, m_unit_price, month) = match package_type {
 				1 => (10 * G_BYTE, 0, 1),
@@ -556,6 +553,85 @@ pub mod pallet {
 			let acc = T::FilbakPalletId::get().into_account();
 			<T as pallet::Config>::Currency::transfer(&sender, &acc, price, AllowDeath)?;
 			
+			Ok(())
+		}
+
+		#[pallet::weight(2_000_000)]
+		pub fn upgrade_package(
+			origin: OriginFor<T>,
+			package_type: u8,
+			count: u128,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			let cur_package = <PurchasedPackage<T>>::try_get(&sender).map_err(|_e| Error::<T>::NotPurchasedPackage)?;
+			if package_type < cur_package.package_type {
+				Err(Error::<T>::WrongOperation)?;
+			}
+			if cur_package.state.to_vec() == "frozen".as_bytes().to_vec() {
+				Err(Error::<T>::LeaseFreeze)?;
+			}
+			let cur_price = Self::get_price(cur_package.space)?;
+			let (space, up_price) = match package_type {
+				2 => (500 * G_BYTE, Self::get_price(500 * G_BYTE)?),
+				3 => (T_BYTE, Self::get_price(T_BYTE)?),
+				4 => (5 * T_BYTE, Self::get_price(5 * T_BYTE)?),
+				5 => {
+					if count < 5 {
+						 Err(Error::<T>::WrongOperation)?;
+					}
+					(count * T_BYTE, Self::get_price(count * T_BYTE)?)
+				},
+				_ => Err(Error::<T>::WrongOperation)?,
+			};
+
+			let diff_day_price = up_price
+				.checked_sub(cur_price).ok_or(Error::<T>::Overflow)?
+				.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?
+				.checked_div(30).ok_or(Error::<T>::Overflow)?;
+			
+			let now = <frame_system::Pallet<T>>::block_number();
+			let block_oneday: BlockNumberOf<T> = T::OneDay::get();
+			if now > cur_package.deadline {
+				Err(Error::<T>::LeaseExpired)?;
+			}
+			let remain_day = cur_package.deadline
+				.checked_sub(&now).ok_or(Error::<T>::Overflow)?
+				.checked_div(&block_oneday).ok_or(Error::<T>::Overflow)?
+				.checked_add(&1u32.saturated_into()).ok_or(Error::<T>::Overflow)?;
+
+			let price: BalanceOf<T> = diff_day_price
+				.checked_mul(remain_day.try_into().map_err(|_e| Error::<T>::Overflow)?).ok_or(Error::<T>::Overflow)?
+				.try_into().map_err(|_e| Error::<T>::Overflow)?;
+			let acc = T::FilbakPalletId::get().into_account();
+			<T as pallet::Config>::Currency::transfer(&sender, &acc, price, AllowDeath)?;
+			
+			Self::expension_puchased_package(sender.clone(), space, package_type)?;
+
+			Ok(())
+		}
+
+		#[pallet::weight(2_000_000)]
+		pub fn renewal_package(
+			origin: OriginFor<T>,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			let cur_package = <PurchasedPackage<T>>::try_get(&sender).map_err(|_e| Error::<T>::NotPurchasedPackage)?;
+
+			let m_unit_price = Self::get_price(cur_package.space)?;
+			let g_unit_price = m_unit_price.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
+			let price: BalanceOf<T> = cur_package.space
+				.checked_div(G_BYTE)
+				.ok_or(Error::<T>::Overflow)?
+				.checked_mul(g_unit_price)
+				.ok_or(Error::<T>::Overflow)?
+				.try_into()
+				.map_err(|_e| Error::<T>::Overflow)?;
+
+			let acc = T::FilbakPalletId::get().into_account();
+			<T as pallet::Config>::Currency::transfer(&sender, &acc, price, AllowDeath)?;
+
+			Self::update_puchased_package(sender.clone())?;
+
 			Ok(())
 		}
 
@@ -656,14 +732,49 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
+		fn update_puchased_package(acc: AccountOf<T>) -> DispatchResult {
+			<PurchasedPackage<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+				let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedPackage)?;
+				let one_day = T::OneDay::get();
+				let now = <frame_system::Pallet<T>>::block_number();
+				let sur_block: BlockNumberOf<T> = one_day
+					.checked_mul(&30u32.saturated_into())
+					.ok_or(Error::<T>::Overflow)?;
+				if now > s.deadline {
+					s.start = now;
+					s.deadline = now.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
+				} else {
+					s.deadline = s.deadline
+						.checked_add(&sur_block)
+						.ok_or(Error::<T>::Overflow)?;
+				}
+				
+				Ok(())
+			})?;
+			Ok(())
+		}
+
+		fn expension_puchased_package(acc: AccountOf<T>, space: u128, package_type: u8) -> DispatchResult {
+			<PurchasedPackage<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+				let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedPackage)?;
+				s.remaining_space = s.remaining_space
+					.checked_add(space.checked_sub(s.space).ok_or(Error::<T>::Overflow)?)
+					.ok_or(Error::<T>::Overflow)?;
+				s.space = space;
+				s.package_type = package_type;
+				Ok(())
+			})?;
+
+			Ok(())
+		}
+
 		fn add_puchased_package(acc: AccountOf<T>, space: u128, month: u32, package_type: u8) -> DispatchResult {
 			let now = <frame_system::Pallet<T>>::block_number();
+			let one_day = T::OneDay::get();
 			let sur_block: BlockNumberOf<T> = month
 				.checked_mul(30)
 				.ok_or(Error::<T>::Overflow)?
-				.checked_mul(86400)
-				.ok_or(Error::<T>::Overflow)?
-				.checked_div(3)
+				.checked_mul(one_day.saturated_into())
 				.ok_or(Error::<T>::Overflow)?
 				.saturated_into();
 			let deadline = now.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
@@ -890,14 +1001,6 @@ pub mod pallet {
 			let result = <FillerKeysMap<T>>::get(index);
 			let result = match result {
 				Some(_x) => true,
-				// Some(x) => {
-				// 	let result2 = <FillerMap<T>>::get(x.0, x.1);
-				// 	let result2 = match result2 {
-				// 		Some(_v) => true,
-				// 		None => false,
-				// 	};
-				// 	result2
-				// },
 				None => false,
 			};
 			result 
