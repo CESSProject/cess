@@ -14,8 +14,6 @@ pub struct FileInfo<T: pallet::Config> {
 	pub(super) slice_info: BoundedVec<SliceInfo<T>, T::StringLimit>,
 }
 
-<<<<<<< HEAD
-=======
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
@@ -28,14 +26,6 @@ pub struct SliceInfo<T: pallet::Config> {
 	pub(super) miner_acc: AccountOf<T>,
 }
 
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-pub struct StorageSpace {
-	pub(super) purchased_space: u128,
-	pub(super) used_space: u128,
-	pub(super) remaining_space: u128,
-}
-
->>>>>>> origin/main
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]

@@ -33,6 +33,7 @@ use frame_support::{
 		Get, Imbalance, LockIdentifier, OnUnbalanced, ReservableCurrency,
 	},
 };
+#[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 mod types;
 pub mod weights;
