@@ -934,7 +934,6 @@ impl pallet_file_bank::Config for Runtime {
 	type Call = Call;
 	type FilbakPalletId = FilbakPalletId;
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
-	type AuthorityId = pallet_file_bank::crypto::TestAuthId;
 	type WeightInfo = pallet_file_bank::weights::SubstrateWeight<Runtime>;
 	type MinerControl = Sminer;
 	type MyRandomness = RandomnessCollectiveFlip;
