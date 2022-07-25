@@ -54,9 +54,9 @@ pub use frame_support::{
 	pallet_prelude::Get,
 	parameter_types,
 	traits::{
-		ConstU128, ConstU16, ConstU32, Currency, EnsureOneOf, EqualPrivilegeOnly, Everything,
-		FindAuthor, Imbalance, InstanceFilter, KeyOwnerProofSystem, Nothing, OnUnbalanced,
-		Randomness, StorageInfo, U128CurrencyToVote,
+		ConstU128, ConstU16, ConstU32, ConstU8, Currency, EnsureOneOf, EqualPrivilegeOnly,
+		Everything, FindAuthor, Imbalance, InstanceFilter, KeyOwnerProofSystem, Nothing,
+		OnUnbalanced, Randomness, StorageInfo, U128CurrencyToVote,
 	},
 	weights::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
@@ -894,6 +894,8 @@ impl pallet_sminer::Config for Runtime {
 	type SProposal = Call;
 	type WeightInfo = pallet_sminer::weights::SubstrateWeight<Runtime>;
 	type ItemLimit = ConstU32<10_000>;
+	type MultipleFines = ConstU8<7>;
+	type CalculFailureFee = Sminer;
 }
 parameter_types! {
 	pub const SegbkPalletId: PalletId = PalletId(*b"rewardpt");

@@ -90,6 +90,8 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type ItemLimit: Get<u32>;
+		#[pallet::constant]
+		type MultipleFines: Get<u8>;
 		/// The Scheduler.
 		type SScheduler: ScheduleNamed<Self::BlockNumber, Self::SProposal, Self::SPalletsOrigin>;
 		/// Overarching type of all pallets origins.
@@ -98,6 +100,8 @@ pub mod pallet {
 		type SProposal: Parameter + Dispatchable<Origin = Self::Origin> + From<Call<Self>>;
 		/// The WeightInfo.
 		type WeightInfo: WeightInfo;
+
+		type CalculFailureFee: CalculFailureFee<Self>;
 	}
 
 	#[pallet::event]
@@ -262,6 +266,12 @@ pub mod pallet {
 		BoundedVec<CalculateRewardOrder<T>, T::ItemLimit>,
 		ValueQuery,
 	>;
+
+	/// Miner were penalized several times in a row
+	#[pallet::storage]
+	#[pallet::getter(fn consecutive_fines)]
+	pub(super) type ConsecutiveFines<T: Config> =
+		StorageMap<_, Blake2_128Concat, T::AccountId, u8, ValueQuery>;
 
 	/// The hashmap for checking registered or not.
 	#[pallet::storage]
@@ -1052,20 +1062,25 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Parameters:
 	/// - `aid`: aid.
-	pub fn punish(aid: AccountOf<T>, file_size: u128) -> DispatchResult {
+	pub fn punish(aid: AccountOf<T>, failure_num: u8, total_proof: u8) -> DispatchResult {
 		if !<MinerItems<T>>::contains_key(&aid) {
 			return Ok(());
 		}
+
 		//There is a judgment on whether the primary key exists above
 		let mr = MinerItems::<T>::get(&aid).unwrap();
+		let fines = ConsecutiveFines::<T>::get(&aid);
 		let acc = T::PalletId::get().into_account();
-		let growth: u128 = file_size
-			.checked_div(1_048_576)
-			.ok_or(Error::<T>::Overflow)?
-			.checked_div(2)
-			.ok_or(Error::<T>::Overflow)?;
-		let punish_amount: BalanceOf<T> = 400_000_000_000_000u128
-			.checked_add(growth)
+
+		let mut calcu_failure_fee =
+			T::CalculFailureFee::calcu_failure_fee(aid.clone(), failure_num, total_proof)?;
+
+		if fines + 1 >= T::MultipleFines::get() {
+			calcu_failure_fee = calcu_failure_fee * 2;
+		}
+
+		let punish_amount: BalanceOf<T> = 0u128
+			.checked_add(calcu_failure_fee.into())
 			.ok_or(Error::<T>::Overflow)?
 			.try_into()
 			.map_err(|_e| Error::<T>::ConversionError)?;
@@ -1074,28 +1089,27 @@ impl<T: Config> Pallet<T> {
 			T::Currency::unreserve(&aid, mr.collaterals);
 			Self::delete_miner_info(aid.clone())?;
 			Self::clean_reward_map(aid.clone());
-			return Ok(());
-		}
-		T::Currency::unreserve(&aid, punish_amount);
-		MinerItems::<T>::try_mutate(&aid, |s_opt| -> DispatchResult {
-			let s = s_opt.as_mut().unwrap();
-			s.collaterals =
-				s.collaterals.checked_sub(&punish_amount).ok_or(Error::<T>::Overflow)?;
-			let limit = Self::check_collateral_limit(aid.clone())?;
-			if mr.collaterals < limit
-				&& s.state != "frozen".as_bytes().to_vec()
-				&& s.state != "e_frozen".as_bytes().to_vec()
-			{
-				if s.state.to_vec() == "positive".as_bytes().to_vec() {
-					s.state = Self::vec_to_bound::<u8>("frozen".as_bytes().to_vec())?;
-				} else if s.state.to_vec() == "exit".as_bytes().to_vec() {
-					s.state = Self::vec_to_bound::<u8>("e_frozen".as_bytes().to_vec())?;
+		} else {
+			T::Currency::unreserve(&aid, punish_amount);
+			MinerItems::<T>::try_mutate(&aid, |s_opt| -> DispatchResult {
+				let s = s_opt.as_mut().unwrap();
+				s.collaterals =
+					s.collaterals.checked_sub(&punish_amount).ok_or(Error::<T>::Overflow)?;
+				let limit = Self::check_collateral_limit(aid.clone())?;
+				if mr.collaterals < limit
+					&& s.state != "frozen".as_bytes().to_vec()
+					&& s.state != "e_frozen".as_bytes().to_vec()
+				{
+					if s.state.to_vec() == "positive".as_bytes().to_vec() {
+						s.state = Self::vec_to_bound::<u8>("frozen".as_bytes().to_vec())?;
+					} else if s.state.to_vec() == "exit".as_bytes().to_vec() {
+						s.state = Self::vec_to_bound::<u8>("e_frozen".as_bytes().to_vec())?;
+					}
 				}
-			}
-			Ok(())
-		})?;
-
-		T::Currency::transfer(&aid, &acc, punish_amount, AllowDeath)?;
+				Ok(())
+			})?;
+			T::Currency::transfer(&aid, &acc, punish_amount, AllowDeath)?;
+		}
 
 		Ok(())
 	}
@@ -1273,7 +1287,7 @@ pub trait MinerControl<AccountId> {
 	fn sub_space(acc: AccountId, power: u128) -> DispatchResult;
 	fn get_power_and_space(acc: AccountId) -> Result<(u128, u128), DispatchError>;
 	fn get_miner_id(acc: AccountId) -> Result<u64, DispatchError>;
-	fn punish_miner(acc: AccountId, file_size: u64) -> DispatchResult;
+	fn punish_miner(acc: AccountId, failure_num: u8, total_proof: u8) -> DispatchResult;
 	fn miner_is_exist(acc: AccountId) -> bool;
 	fn get_miner_state(acc: AccountId) -> Result<Vec<u8>, DispatchError>;
 }
@@ -1299,8 +1313,12 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 		Ok(())
 	}
 
-	fn punish_miner(acc: <T as frame_system::Config>::AccountId, file_size: u64) -> DispatchResult {
-		Pallet::<T>::punish(acc, file_size.into())?;
+	fn punish_miner(
+		acc: <T as frame_system::Config>::AccountId,
+		failure_num: u8,
+		total_proof: u8,
+	) -> DispatchResult {
+		Pallet::<T>::punish(acc, failure_num.into(), total_proof.into())?;
 		Ok(())
 	}
 
@@ -1330,5 +1348,40 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 	fn get_miner_state(acc: AccountOf<T>) -> Result<Vec<u8>, DispatchError> {
 		let miner = <MinerItems<T>>::try_get(&acc).map_err(|_| Error::<T>::NotMiner)?;
 		Ok(miner.state.to_vec())
+	}
+}
+
+pub trait CalculFailureFee<T: Config> {
+	fn calcu_failure_fee(
+		acc: AccountOf<T>,
+		failure_num: u8,
+		total_proof: u8,
+	) -> Result<u128, Error<T>>;
+}
+
+impl<T: Config> CalculFailureFee<T> for Pallet<T> {
+	fn calcu_failure_fee(
+		acc: AccountOf<T>,
+		failure_num: u8,
+		total_proof: u8,
+	) -> Result<u128, Error<T>> {
+		let order_vec = <CalculateRewardOrderMap<T>>::try_get(&acc).unwrap();
+
+		match order_vec.len() {
+			0 => Err(Error::<T>::Overflow),
+			n => {
+				let calculate_reward = order_vec[n - 1].calculate_reward;
+				let failure_rate = failure_num
+					.checked_mul(100)
+					.ok_or(Error::<T>::Overflow)?
+					.checked_div(total_proof)
+					.ok_or(Error::<T>::Overflow)?;
+				Ok(calculate_reward
+					.checked_mul(failure_rate.into())
+					.ok_or(Error::<T>::Overflow)?
+					.checked_div(100)
+					.ok_or(Error::<T>::Overflow)?)
+			},
+		}
 	}
 }
