@@ -27,7 +27,7 @@ mod tests;
 use frame_support::{
 	storage::bounded_vec::BoundedVec,
 	traits::{
-		schedule::{DispatchTime, Named as ScheduleNamed},
+		schedule::{Anon as ScheduleAnon, DispatchTime, Named as ScheduleNamed},
 		Currency,
 		ExistenceRequirement::AllowDeath,
 		Get, Imbalance, LockIdentifier, OnUnbalanced, ReservableCurrency,
@@ -60,6 +60,7 @@ type NegativeImbalanceOf<T> = <<T as pallet::Config>::Currency as Currency<
 	<T as frame_system::Config>::AccountId,
 >>::NegativeImbalance;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
+
 const M_BYTE: u128 = 1_048_576;
 
 #[frame_support::pallet]
@@ -92,8 +93,12 @@ pub mod pallet {
 		type ItemLimit: Get<u32>;
 		#[pallet::constant]
 		type MultipleFines: Get<u8>;
+		#[pallet::constant]
+		type OneDay: Get<BlockNumberOf<Self>>;
 		/// The Scheduler.
 		type SScheduler: ScheduleNamed<Self::BlockNumber, Self::SProposal, Self::SPalletsOrigin>;
+
+		type AScheduler: ScheduleAnon<Self::BlockNumber, Self::SProposal, Self::SPalletsOrigin>;
 		/// Overarching type of all pallets origins.
 		type SPalletsOrigin: From<system::RawOrigin<Self::AccountId>>;
 		/// The SProposal.
@@ -256,6 +261,11 @@ pub mod pallet {
 	#[pallet::getter(fn available_space)]
 	pub(super) type AvailableSpace<T: Config> = StorageValue<_, u128, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn dad_miner)]
+	pub(super) type DadMiner<T: Config> =
+		StorageValue<_, BoundedVec<AccountOf<T>, T::ItemLimit>, ValueQuery>;
+
 	/// The hashmap for info of storage miners.
 	#[pallet::storage]
 	#[pallet::getter(fn calculate_reward_order)]
@@ -266,12 +276,6 @@ pub mod pallet {
 		BoundedVec<CalculateRewardOrder<T>, T::ItemLimit>,
 		ValueQuery,
 	>;
-
-	/// Miner were penalized several times in a row
-	#[pallet::storage]
-	#[pallet::getter(fn consecutive_fines)]
-	pub(super) type ConsecutiveFines<T: Config> =
-		StorageMap<_, Blake2_128Concat, T::AccountId, u8, ValueQuery>;
 
 	/// The hashmap for checking registered or not.
 	#[pallet::storage]
@@ -372,6 +376,10 @@ pub mod pallet {
 						} else {
 							s.state = Self::vec_to_bound("exit".as_bytes().to_vec())?;
 						}
+						<DadMiner<T>>::try_mutate(|o| -> DispatchResult {
+							o.retain(|x| x != &sender);
+							Ok(())
+						})?;
 					}
 				}
 
@@ -830,6 +838,22 @@ pub mod pallet {
 			// Self::deposit_event(Event::<T>::Add(sender.clone()));
 			Ok(())
 		}
+
+		#[pallet::weight(1_000_000)]
+		pub fn freeze_end(origin: OriginFor<T>) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			let dad_miner_vec = DadMiner::<T>::get();
+
+			for dad_miner in dad_miner_vec.iter() {
+				let mr = MinerItems::<T>::get(&dad_miner).unwrap();
+				T::Currency::unreserve(&dad_miner, mr.collaterals);
+				Self::delete_miner_info(dad_miner.clone())?;
+				Self::clean_reward_map(dad_miner.clone());
+			}
+			Ok(())
+		}
+
 		/// Punish offline miners.
 		///
 		/// The dispatch origin of this call must be _root_.
@@ -1062,21 +1086,25 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Parameters:
 	/// - `aid`: aid.
-	pub fn punish(aid: AccountOf<T>, failure_num: u8, total_proof: u8) -> DispatchResult {
+	pub fn punish(
+		aid: AccountOf<T>,
+		failure_num: u8,
+		total_proof: u8,
+		consecutive_fines: u8,
+	) -> DispatchResult {
 		if !<MinerItems<T>>::contains_key(&aid) {
 			return Ok(());
 		}
 
 		//There is a judgment on whether the primary key exists above
 		let mr = MinerItems::<T>::get(&aid).unwrap();
-		let fines = ConsecutiveFines::<T>::get(&aid);
 		let acc = T::PalletId::get().into_account();
 
-		let mut calcu_failure_fee =
+		let calcu_failure_fee =
 			T::CalculFailureFee::calcu_failure_fee(aid.clone(), failure_num, total_proof)?;
 
-		if fines + 1 >= T::MultipleFines::get() {
-			calcu_failure_fee = calcu_failure_fee * 2;
+		if consecutive_fines >= T::MultipleFines::get() {
+			calcu_failure_fee.checked_div(2u128).ok_or(Error::<T>::Overflow)?;
 		}
 
 		let punish_amount: BalanceOf<T> = 0u128
@@ -1086,9 +1114,16 @@ impl<T: Config> Pallet<T> {
 			.map_err(|_e| Error::<T>::ConversionError)?;
 
 		if mr.collaterals < punish_amount {
+			let collaterals = mr.collaterals.clone();
 			T::Currency::unreserve(&aid, mr.collaterals);
-			Self::delete_miner_info(aid.clone())?;
-			Self::clean_reward_map(aid.clone());
+			MinerItems::<T>::try_mutate(&aid, |s_opt| -> DispatchResult {
+				let s = s_opt.as_mut().unwrap();
+				s.collaterals =
+					s.collaterals.checked_sub(&collaterals).ok_or(Error::<T>::Overflow)?;
+				Ok(())
+			})?;
+			Self::join_freeze_period(aid.clone())?;
+			T::Currency::transfer(&aid, &acc, collaterals, AllowDeath)?;
 		} else {
 			T::Currency::unreserve(&aid, punish_amount);
 			MinerItems::<T>::try_mutate(&aid, |s_opt| -> DispatchResult {
@@ -1096,21 +1131,52 @@ impl<T: Config> Pallet<T> {
 				s.collaterals =
 					s.collaterals.checked_sub(&punish_amount).ok_or(Error::<T>::Overflow)?;
 				let limit = Self::check_collateral_limit(aid.clone())?;
-				if mr.collaterals < limit
-					&& s.state != "frozen".as_bytes().to_vec()
-					&& s.state != "e_frozen".as_bytes().to_vec()
-				{
-					if s.state.to_vec() == "positive".as_bytes().to_vec() {
-						s.state = Self::vec_to_bound::<u8>("frozen".as_bytes().to_vec())?;
-					} else if s.state.to_vec() == "exit".as_bytes().to_vec() {
-						s.state = Self::vec_to_bound::<u8>("e_frozen".as_bytes().to_vec())?;
-					}
+				if mr.collaterals < limit {
+					Self::join_freeze_period(aid.clone())?;
 				}
 				Ok(())
 			})?;
 			T::Currency::transfer(&aid, &acc, punish_amount, AllowDeath)?;
 		}
 
+		Ok(())
+	}
+
+	pub fn open_freez_schedule() -> DispatchResult {
+		if !DadMiner::<T>::get().is_empty() {
+			let now = <frame_system::Pallet<T>>::block_number();
+			let mut freez: u32 = T::OneDay::get().saturated_into();
+			freez = freez * 7;
+			let freezing_period =
+				now.checked_add(&freez.saturated_into()).ok_or(Error::<T>::Overflow)?;
+			T::AScheduler::schedule(
+				DispatchTime::At(freezing_period),
+				None,
+				66,
+				frame_system::RawOrigin::Root.into(),
+				Call::freeze_end {}.into(),
+			)?;
+		}
+		Ok(())
+	}
+
+	fn join_freeze_period(acc: AccountOf<T>) -> DispatchResult {
+		<DadMiner<T>>::try_mutate(|o| -> DispatchResult {
+			o.try_push(acc.clone()).map_err(|_e| Error::<T>::StorageLimitReached)?;
+			Ok(())
+		})?;
+		MinerItems::<T>::try_mutate(&acc, |s_opt| -> DispatchResult {
+			let s = s_opt.as_mut().unwrap();
+			if s.state != "frozen".as_bytes().to_vec() && s.state != "e_frozen".as_bytes().to_vec()
+			{
+				if s.state.to_vec() == "positive".as_bytes().to_vec() {
+					s.state = Self::vec_to_bound::<u8>("frozen".as_bytes().to_vec())?;
+				} else if s.state.to_vec() == "exit".as_bytes().to_vec() {
+					s.state = Self::vec_to_bound::<u8>("e_frozen".as_bytes().to_vec())?;
+				}
+			}
+			Ok(())
+		})?;
 		Ok(())
 	}
 
@@ -1129,6 +1195,11 @@ impl<T: Config> Pallet<T> {
 
 		AvailableSpace::<T>::try_mutate(|s| -> DispatchResult {
 			*s = s.checked_sub(miner.power).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})?;
+
+		<DadMiner<T>>::try_mutate(|o| -> DispatchResult {
+			o.retain(|x| x != &acc);
 			Ok(())
 		})?;
 
@@ -1287,9 +1358,15 @@ pub trait MinerControl<AccountId> {
 	fn sub_space(acc: AccountId, power: u128) -> DispatchResult;
 	fn get_power_and_space(acc: AccountId) -> Result<(u128, u128), DispatchError>;
 	fn get_miner_id(acc: AccountId) -> Result<u64, DispatchError>;
-	fn punish_miner(acc: AccountId, failure_num: u8, total_proof: u8) -> DispatchResult;
+	fn punish_miner(
+		acc: AccountId,
+		failure_num: u8,
+		total_proof: u8,
+		consecutive_fines: u8,
+	) -> DispatchResult;
 	fn miner_is_exist(acc: AccountId) -> bool;
 	fn get_miner_state(acc: AccountId) -> Result<Vec<u8>, DispatchError>;
+	fn open_freez_schedule() -> DispatchResult;
 }
 
 impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -1317,8 +1394,14 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 		acc: <T as frame_system::Config>::AccountId,
 		failure_num: u8,
 		total_proof: u8,
+		consecutive_fines: u8,
 	) -> DispatchResult {
-		Pallet::<T>::punish(acc, failure_num.into(), total_proof.into())?;
+		Pallet::<T>::punish(acc, failure_num.into(), total_proof.into(), consecutive_fines.into())?;
+		Ok(())
+	}
+
+	fn open_freez_schedule() -> DispatchResult {
+		Pallet::<T>::open_freez_schedule()?;
 		Ok(())
 	}
 
