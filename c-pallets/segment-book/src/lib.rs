@@ -220,6 +220,11 @@ pub mod pallet {
 	pub(super) type MinerTotalProof<T: Config> =
 		StorageMap<_, Blake2_128Concat, T::AccountId, u8, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn consecutive_fines)]
+	pub(super) type ConsecutiveFines<T: Config> =
+		StorageMap<_, Blake2_128Concat, T::AccountId, u8, ValueQuery>;
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
@@ -242,9 +247,12 @@ pub mod pallet {
 				for (acc, challenge_list) in <ChallengeMap<T>>::iter() {
 					for v in challenge_list {
 						Self::set_failure(acc.clone());
-						if let Err(e) =
-							Self::updateMinerFile(acc.clone(), v.file_id.to_vec(), v.file_size, v.file_type)
-						{
+						if let Err(e) = Self::updateMinerFile(
+							acc.clone(),
+							v.file_id.to_vec(),
+							v.file_size,
+							v.file_type,
+						) {
 							log::info!("punish Err:{:?}", e);
 						}
 						log::info!(
@@ -274,12 +282,33 @@ pub mod pallet {
 					}
 
 					if is_end {
+						for (miner, total_proof) in <MinerTotalProof<T>>::iter() {
+							if <FailureNumMap<T>>::contains_key(&miner) {
+								if <ConsecutiveFines<T>>::contains_key(&miner) {
+									<ConsecutiveFines<T>>::try_mutate(
+										miner.clone(),
+										|s_opt| -> DispatchResult {
+											s_opt.checked_add(1).ok_or(Error::<T>::Overflow)?;
+											Ok(())
+										},
+									);
+								} else {
+									<ConsecutiveFines<T>>::insert(&miner, 1);
+								}
 
-						Self::punish(
-							acc.clone(),
-							<FailureNumMap<T>>::get(acc.clone()),
-							<MinerTotalProof<T>>::get(acc.clone()),
-						);
+								Self::punish(
+									miner.clone(),
+									<FailureNumMap<T>>::get(&miner),
+									total_proof,
+									<ConsecutiveFines<T>>::get(&miner),
+								);
+							} else {
+								<ConsecutiveFines<T>>::remove(&miner);
+							}
+						}
+						Self::open_freez_schedule();
+						<FailureNumMap<T>>::remove_all(None);
+						<MinerTotalProof<T>>::remove_all(None);
 					}
 				}
 				let cur_acc = Self::get_current_scheduler();
@@ -448,8 +477,9 @@ pub mod pallet {
 				Err(Error::<T>::RecordTimeError)?;
 			}
 
-			let chanllenge_len = <ChallengeMap<T>>::get(sender.clone()).len();
-			<MinerTotalProof<T>>::insert(&sender, chanllenge_len as u8);
+			for (acc, challenge_list) in <ChallengeMap<T>>::iter() {
+				<MinerTotalProof<T>>::insert(acc, challenge_list.len() as u8);
+			}
 
 			let now = <frame_system::Pallet<T>>::block_number();
 			let deadline = now.checked_add(&duration).ok_or(Error::<T>::Overflow)?;
@@ -724,8 +754,19 @@ pub mod pallet {
 			acc: AccountOf<T>,
 			failure_num: u8,
 			total_proof: u8,
+			consecutive_fines: u8,
 		) -> DispatchResult {
-			T::MinerControl::punish_miner(acc.clone(), failure_num, total_proof)?;
+			T::MinerControl::punish_miner(
+				acc.clone(),
+				failure_num,
+				total_proof,
+				consecutive_fines,
+			)?;
+			Ok(())
+		}
+
+		fn open_freez_schedule() -> DispatchResult {
+			T::MinerControl::open_freez_schedule()?;
 			Ok(())
 		}
 

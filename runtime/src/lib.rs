@@ -890,12 +890,14 @@ impl pallet_sminer::Config for Runtime {
 	type Event = Event;
 	type PalletId = RewardPalletId;
 	type SScheduler = Scheduler;
+	type AScheduler = Scheduler;
 	type SPalletsOrigin = OriginCaller;
 	type SProposal = Call;
 	type WeightInfo = pallet_sminer::weights::SubstrateWeight<Runtime>;
 	type ItemLimit = ConstU32<10_000>;
 	type MultipleFines = ConstU8<7>;
 	type CalculFailureFee = Sminer;
+	type OneDay = OneDay;
 }
 parameter_types! {
 	pub const SegbkPalletId: PalletId = PalletId(*b"rewardpt");

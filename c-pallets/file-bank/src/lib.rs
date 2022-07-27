@@ -346,7 +346,7 @@ pub mod pallet {
 		// punished and the corresponding data segment will be removed
 		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
 			let number: u128 = now.saturated_into();
-			let block_oneday: BlockNumberOf<T> = T::OneDay::get();
+			let block_oneday: BlockNumberOf<T> = <T as pallet::Config>::OneDay::get();
 			let oneday: u128 = block_oneday.saturated_into();
 			let mut count: u8 = 0;
 			if number % oneday == 0 {
