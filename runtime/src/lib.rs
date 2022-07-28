@@ -882,6 +882,8 @@ impl pallet_sudo::Config for Runtime {
 /** * Add This Block ** */
 parameter_types! {
   pub const RewardPalletId: PalletId = PalletId(*b"rewardpt");
+  pub const MultipleFines: u8 = 7;
+  pub const DepositBufferPeriod: u32 = 3;
 }
 
 impl pallet_sminer::Config for Runtime {
@@ -895,7 +897,8 @@ impl pallet_sminer::Config for Runtime {
 	type SProposal = Call;
 	type WeightInfo = pallet_sminer::weights::SubstrateWeight<Runtime>;
 	type ItemLimit = ConstU32<10_000>;
-	type MultipleFines = ConstU8<7>;
+	type MultipleFines = MultipleFines;
+	type DepositBufferPeriod = DepositBufferPeriod;
 	type CalculFailureFee = Sminer;
 	type OneDay = OneDay;
 }
