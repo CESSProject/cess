@@ -1384,14 +1384,11 @@ pub trait MinerControl<AccountId> {
 	) -> DispatchResult;
 	fn miner_is_exist(acc: AccountId) -> bool;
 	fn get_miner_state(acc: AccountId) -> Result<Vec<u8>, DispatchError>;
-<<<<<<< HEAD
 	fn add_available_space(size: u128) -> DispatchResult;
 	fn sub_available_space(size: u128) -> DispatchResult;
 	fn add_purchased_space(size: u128) -> DispatchResult;
 	fn sub_purchased_space(size: u128) -> DispatchResult;
-=======
 	fn open_buffer_schedule() -> DispatchResult;
->>>>>>> origin/cess-0.4.4
 }
 
 impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<T> {
