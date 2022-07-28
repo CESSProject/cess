@@ -306,7 +306,7 @@ pub mod pallet {
 								<ConsecutiveFines<T>>::remove(&miner);
 							}
 						}
-						Self::open_freez_schedule();
+						Self::open_buffer_schedule();
 						<FailureNumMap<T>>::remove_all(None);
 						<MinerTotalProof<T>>::remove_all(None);
 					}
@@ -765,8 +765,8 @@ pub mod pallet {
 			Ok(())
 		}
 
-		fn open_freez_schedule() -> DispatchResult {
-			T::MinerControl::open_freez_schedule()?;
+		fn open_buffer_schedule() -> DispatchResult {
+			T::MinerControl::open_buffer_schedule()?;
 			Ok(())
 		}
 
