@@ -883,7 +883,7 @@ impl pallet_sudo::Config for Runtime {
 parameter_types! {
   pub const RewardPalletId: PalletId = PalletId(*b"rewardpt");
   pub const MultipleFines: u8 = 7;
-  pub const DepositBufferPeriod: u8 = 3;
+  pub const DepositBufferPeriod: u32 = 3;
 }
 
 impl pallet_sminer::Config for Runtime {
