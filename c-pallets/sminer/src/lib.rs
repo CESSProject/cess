@@ -1277,6 +1277,10 @@ pub trait MinerControl<AccountId> {
 	fn punish_miner(acc: AccountId, file_size: u64) -> DispatchResult;
 	fn miner_is_exist(acc: AccountId) -> bool;
 	fn get_miner_state(acc: AccountId) -> Result<Vec<u8>, DispatchError>;
+	fn add_available_space(size: u128) -> DispatchResult;
+	fn sub_available_space(size: u128) -> DispatchResult;
+	fn add_purchased_space(size: u128) -> DispatchResult;
+	fn sub_purchased_space(size: u128) -> DispatchResult;
 }
 
 impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -1331,5 +1335,25 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 	fn get_miner_state(acc: AccountOf<T>) -> Result<Vec<u8>, DispatchError> {
 		let miner = <MinerItems<T>>::try_get(&acc).map_err(|_| Error::<T>::NotMiner)?;
 		Ok(miner.state.to_vec())
+	}
+
+	fn add_available_space(size: u128) -> DispatchResult {
+		Self::add_available_space(size)?;
+		Ok(())
+	}
+
+	fn sub_available_space(size: u128) -> DispatchResult {
+		Self::sub_available_space(size)?;
+		Ok(())
+	}
+
+	fn add_purchased_space(size: u128) -> DispatchResult {
+		Self::add_purchased_space(size)?;
+		Ok(())
+	}
+
+	fn sub_purchased_space(size: u128) -> DispatchResult{
+		Self::sub_purchased_space(size)?;
+		Ok(())
 	}
 }

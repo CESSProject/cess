@@ -40,7 +40,7 @@ use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{
-		BlockNumberProvider, CheckedAdd, CheckedDiv, CheckedMul, CheckedSub, SaturatedConversion, AccountIdConversion
+		BlockNumberProvider, CheckedAdd, CheckedDiv, CheckedMul, CheckedSub, SaturatedConversion, AccountIdConversion, StaticLookup
 	},
 	RuntimeDebug,
 };
@@ -69,9 +69,9 @@ pub mod pallet {
 	pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"cess");
 	const FETCH_TIMEOUT_PERIOD: u64 = 60_000; // in milli-seconds
 										  //1MB converted byte size
-	const M_BYTE: u128 = 1_048_576;
-	const G_BYTE: u128 = 1_048_576 * 1024;
-	const T_BYTE: u128 = 1_048_576 * 1024 * 1024;
+	pub const M_BYTE: u128 = 1_048_576;
+	pub const G_BYTE: u128 = 1_048_576 * 1024;
+	pub const T_BYTE: u128 = 1_048_576 * 1024 * 1024;
 
 	pub mod crypto {
 		use super::KEY_TYPE;
@@ -338,6 +338,7 @@ pub mod pallet {
 						};
 						if  now > info.deadline + frozen_day {
 							log::info!("clear user:#{}'s files", number);
+							let _ = T::MinerControl::sub_purchased_space(info.space);
 							let _ = Self::clear_expired_file(&acc);
 						} else {
 							if info.state.to_vec() != "frozen".as_bytes().to_vec() {
@@ -422,6 +423,7 @@ pub mod pallet {
 			if !<File<T>>::contains_key(&file_hash_bounded) {
 				Err(Error::<T>::FileNonExistent)?;
 			}
+
 			Self::update_user_space(user.clone(), 1, file_size.into())?;
 
 			<File<T>>::try_mutate(&file_hash_bounded, |s_opt| -> DispatchResult {
@@ -502,7 +504,6 @@ pub mod pallet {
 			ensure!(<File<T>>::contains_key(bounded_fileid.clone()), Error::<T>::FileNonExistent);
 			//The above has been judged. Unwrap will be performed only if the key exists
 			Self::clear_user_file(bounded_fileid, &sender)?;
-
 			Self::deposit_event(Event::<T>::DeleteFile { acc: sender, fileid });
 			Ok(())
 		}
@@ -540,7 +541,7 @@ pub mod pallet {
 			};
 
 			Self::add_puchased_package(sender.clone(), space, month as u32, package_type)?;
-
+			T::MinerControl::add_purchased_space(space)?;
 			let g_unit_price = m_unit_price.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
 			let price: BalanceOf<T> = space
 				.checked_div(G_BYTE)
@@ -567,11 +568,15 @@ pub mod pallet {
 			if package_type < cur_package.package_type {
 				Err(Error::<T>::WrongOperation)?;
 			}
+			let now = <frame_system::Pallet<T>>::block_number();
+			if now > cur_package.deadline {
+				Err(Error::<T>::LeaseExpired)?;
+			}
 			if cur_package.state.to_vec() == "frozen".as_bytes().to_vec() {
 				Err(Error::<T>::LeaseFreeze)?;
 			}
-			let cur_price = Self::get_price(cur_package.space)?;
-			let (space, up_price) = match package_type {
+			let cur_byte_unit_price = Self::get_price(cur_package.space)?;
+			let (space, up_byte_unit_price) = match package_type {
 				2 => (500 * G_BYTE, Self::get_price(500 * G_BYTE)?),
 				3 => (T_BYTE, Self::get_price(T_BYTE)?),
 				4 => (5 * T_BYTE, Self::get_price(5 * T_BYTE)?),
@@ -583,30 +588,34 @@ pub mod pallet {
 				},
 				_ => Err(Error::<T>::WrongOperation)?,
 			};
-
+			let cur_gb_unit_price = cur_byte_unit_price
+				.checked_div(G_BYTE)
+				.ok_or(Error::<T>::Overflow)?;
+			let cur_price = cur_package.space
+				.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?
+				.checked_mul(cur_gb_unit_price).ok_or(Error::<T>::Overflow)?;
+			let up_gb_unit_price = up_byte_unit_price
+				.checked_div(G_BYTE)
+				.ok_or(Error::<T>::Overflow)?;
+			let up_price = space
+				.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?
+				.checked_mul(up_gb_unit_price).ok_or(Error::<T>::Overflow)?;
 			let diff_day_price = up_price
 				.checked_sub(cur_price).ok_or(Error::<T>::Overflow)?
-				.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?
 				.checked_div(30).ok_or(Error::<T>::Overflow)?;
-			
-			let now = <frame_system::Pallet<T>>::block_number();
+
 			let block_oneday: BlockNumberOf<T> = T::OneDay::get();
-			if now > cur_package.deadline {
-				Err(Error::<T>::LeaseExpired)?;
-			}
 			let remain_day = cur_package.deadline
 				.checked_sub(&now).ok_or(Error::<T>::Overflow)?
 				.checked_div(&block_oneday).ok_or(Error::<T>::Overflow)?
 				.checked_add(&1u32.saturated_into()).ok_or(Error::<T>::Overflow)?;
-
 			let price: BalanceOf<T> = diff_day_price
 				.checked_mul(remain_day.try_into().map_err(|_e| Error::<T>::Overflow)?).ok_or(Error::<T>::Overflow)?
 				.try_into().map_err(|_e| Error::<T>::Overflow)?;
-			let acc = T::FilbakPalletId::get().into_account();
-			<T as pallet::Config>::Currency::transfer(&sender, &acc, price, AllowDeath)?;
-			
+			let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
+			T::MinerControl::add_purchased_space(space.checked_sub(cur_package.space).ok_or(Error::<T>::Overflow)?)?;
 			Self::expension_puchased_package(sender.clone(), space, package_type)?;
-
+			<T as pallet::Config>::Currency::transfer(&sender, &acc, price, AllowDeath)?;
 			Ok(())
 		}
 
@@ -629,9 +638,7 @@ pub mod pallet {
 
 			let acc = T::FilbakPalletId::get().into_account();
 			<T as pallet::Config>::Currency::transfer(&sender, &acc, price, AllowDeath)?;
-
 			Self::update_puchased_package(sender.clone())?;
-
 			Ok(())
 		}
 
@@ -673,21 +680,6 @@ pub mod pallet {
 				o.retain(|x| x != &acc);
 				Ok(())
 			})?;
-			Ok(())
-		}
-
-		#[pallet::weight(10_000)]
-		pub fn clear_all_filler(origin: OriginFor<T>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			let state = T::MinerControl::get_miner_state(sender.clone())?;
-			if state != "exit".as_bytes().to_vec() {
-				Err(Error::<T>::NotQualified)?;
-			}
-			for (_, value) in FillerMap::<T>::iter_prefix(&sender) {
-				<FillerKeysMap<T>>::remove(value.index);
-			}
-			
-			let _ = FillerMap::<T>::remove_prefix(&sender, Option::None);
 			Ok(())
 		}
 
@@ -781,14 +773,13 @@ pub mod pallet {
 			let info = PackageDetails::<T>{
 				space: space,
 				used_space: 0,
-				remaining_space: 0,
+				remaining_space: space,
 				tenancy: month,
 				package_type: package_type,
 				start: now,
 				deadline: deadline,
 				state: "normal".as_bytes().to_vec().try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
 			};
-
 			<PurchasedPackage<T>>::insert(&acc, info);
 			Ok(())
 		}
@@ -1065,11 +1056,6 @@ pub mod pallet {
 		pub fn clear_user_file(file_hash: BoundedVec<u8, T::StringLimit>, user: &AccountOf<T>) -> DispatchResult {
 			let file = <File<T>>::get(&file_hash).unwrap();
 			ensure!(file.user.contains(user),  Error::<T>::NotOwner);
-			Self::update_user_space(
-				user.clone(),
-				2,
-				file.file_size.clone().into(),
-			)?;
 			//If the file still has an owner, only the corresponding owner will be cleared. 
 			//If the owner is unique, the file meta information will be cleared.
 			if file.user.len() > 1 {
@@ -1086,6 +1072,11 @@ pub mod pallet {
 					s.file_name.remove(index);
 					Ok(())
 				})?;
+				Self::update_user_space(
+					user.clone(),
+					2,
+					file.file_size.clone().into(),
+				)?;
 			} else {
 				Self::clear_file(file_hash.clone().to_vec())?;
 			}
@@ -1197,7 +1188,7 @@ pub mod pallet {
 		}
 
 		//Obtain the consensus of the current block
-		fn get_current_scheduler() -> AccountOf<T> {
+		pub fn get_current_scheduler() -> AccountOf<T> {
 			//Current block information
 			let digest = <frame_system::Pallet<T>>::digest();
 			let pre_runtime_digests = digest.logs.iter().filter_map(|d| d.as_pre_runtime());
