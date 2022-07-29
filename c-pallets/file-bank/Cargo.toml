@@ -1,10 +1,10 @@
 [package]
 name = "pallet-file-bank"
 authors = ["CESS LAB"]
-version = "0.1.0"
+version = "0.5.0"
 edition = "2018"
 license = "Apache-2.0"
-repository = ""
+repository = "https://github.com/CESSProject/cess"
 description = "FRAME pallet for file-bank management"
 readme = "README.md"
 
@@ -73,12 +73,12 @@ version = '6.0.0'
 [dependencies.pallet-sminer]
 default-features = false
 path = '../sminer'
-version = '0.1.0'
+version = '0.5.0'
 
 [dependencies.pallet-file-map]
 default-features = false
 path = '../file-map'
-version = '0.1.0'
+version = '0.5.0'
 
 # dev dependencies
 [dev-dependencies]
@@ -109,7 +109,7 @@ std = [
 	"pallet-balances/std",
 	"frame-benchmarking/std",
 	"pallet-file-map/std",
-	"pallet-sminer/std",
+
 ]
 
 runtime-benchmarks = [

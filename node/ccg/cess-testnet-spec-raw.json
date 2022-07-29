@@ -2,7 +2,7 @@
   "name": "cess-testnet",
   "id": "cess-testnet",
   "chainType": "Live",
-  "bootNodes": ["/ip4/47.242.7.37/tcp/30333/p2p/12D3KooWRjZbBxNSf7RzopP985ohGWmSx6S2J37DD4kDKqBsyu1v"],
+  "bootNodes": ["/ip4/47.242.7.37/tcp/30333/p2p/12D3KooWCwtXWavh3jx2k3Ef7jUC3CPmXtM26hAkctKZT9MqvPQg"],
   "telemetryEndpoints": null,
   "protocolId": "TCESS",
   "properties": {

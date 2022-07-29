@@ -1,10 +1,10 @@
 [package]
 name = "pallet-segment-book"
 authors = ["CESS LAB"]
-version = "0.1.0"
+version = "0.5.0"
 edition = "2018"
 license = "Apache-2.0"
-repository = ""
+repository = "https://github.com/CESSProject/cess"
 description = "FRAME pallet for segment management"
 readme = "README.md"
 
@@ -75,13 +75,13 @@ version = '6.0.0'
 [dependencies.pallet-file-bank]
 default-features = false
 path = '../file-bank'
-version = '0.1.0'
+version = '0.5.0'
 
 # local dependencies
 [dependencies.pallet-sminer]
 default-features = false
 path = '../sminer'
-version = '0.1.0'
+version = '0.5.0'
 
 [dev-dependencies.frame-support-test]
 default-features = false
@@ -105,7 +105,7 @@ version = '4.0.0-dev'
 [dependencies.pallet-file-map]
 default-features = false
 path = '../file-map'
-version = '0.1.0'
+version = '0.5.0'
 
 [dev-dependencies]
 pallet-cess-staking = { path = '../staking', version = '4.0.0-dev', default-features = false}

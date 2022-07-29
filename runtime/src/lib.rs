@@ -54,9 +54,9 @@ pub use frame_support::{
 	pallet_prelude::Get,
 	parameter_types,
 	traits::{
-		ConstU128, ConstU16, ConstU32, Currency, EnsureOneOf, EqualPrivilegeOnly, Everything,
-		FindAuthor, Imbalance, InstanceFilter, KeyOwnerProofSystem, Nothing, OnUnbalanced,
-		Randomness, StorageInfo, U128CurrencyToVote,
+		ConstU128, ConstU16, ConstU32, ConstU8, Currency, EnsureOneOf, EqualPrivilegeOnly,
+		Everything, FindAuthor, Imbalance, InstanceFilter, KeyOwnerProofSystem, Nothing,
+		OnUnbalanced, Randomness, StorageInfo, U128CurrencyToVote,
 	},
 	weights::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
@@ -578,9 +578,9 @@ parameter_types! {
 pub const ERAS_PER_YEAR: u64 = {
 	// Milliseconds per year for the Julian year (365.25 days).
 	const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
-	MILLISECONDS_PER_YEAR /
-		MILLISECS_PER_BLOCK /
-		(EPOCH_DURATION_IN_BLOCKS * SessionsPerEra::get()) as u64
+	MILLISECONDS_PER_YEAR
+		/ MILLISECS_PER_BLOCK
+		/ (EPOCH_DURATION_IN_BLOCKS * SessionsPerEra::get()) as u64
 };
 
 pub struct StakingBenchmarkingConfig;
@@ -746,8 +746,8 @@ impl Get<Option<(usize, ExtendedBalance)>> for OffchainRandomBalancing {
 			max @ _ => {
 				let seed = sp_io::offchain::random_seed();
 				let random = <u32>::decode(&mut TrailingZeroInput::new(&seed))
-					.expect("input is padded with zeroes; qed") %
-					max.saturating_add(1);
+					.expect("input is padded with zeroes; qed")
+					% max.saturating_add(1);
 				random as usize
 			},
 		};
@@ -883,6 +883,8 @@ impl pallet_sudo::Config for Runtime {
 /** * Add This Block ** */
 parameter_types! {
   pub const RewardPalletId: PalletId = PalletId(*b"rewardpt");
+  pub const MultipleFines: u8 = 7;
+  pub const DepositBufferPeriod: u32 = 3;
 }
 
 impl pallet_sminer::Config for Runtime {
@@ -891,10 +893,15 @@ impl pallet_sminer::Config for Runtime {
 	type Event = Event;
 	type PalletId = RewardPalletId;
 	type SScheduler = Scheduler;
+	type AScheduler = Scheduler;
 	type SPalletsOrigin = OriginCaller;
 	type SProposal = Call;
 	type WeightInfo = pallet_sminer::weights::SubstrateWeight<Runtime>;
 	type ItemLimit = ConstU32<10_000>;
+	type MultipleFines = MultipleFines;
+	type DepositBufferPeriod = DepositBufferPeriod;
+	type CalculFailureFee = Sminer;
+	type OneDay = OneDay;
 }
 parameter_types! {
 	pub const SegbkPalletId: PalletId = PalletId(*b"rewardpt");
@@ -935,7 +942,6 @@ impl pallet_file_bank::Config for Runtime {
 	type Call = Call;
 	type FilbakPalletId = FilbakPalletId;
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, RRSC>;
-	type AuthorityId = pallet_file_bank::crypto::TestAuthId;
 	type WeightInfo = pallet_file_bank::weights::SubstrateWeight<Runtime>;
 	type MinerControl = Sminer;
 	type MyRandomness = RandomnessCollectiveFlip;
@@ -1399,10 +1405,11 @@ mod benches {
 		[pallet_balances, Balances]
 		[pallet_timestamp, Timestamp]
 		[pallet_contracts, Contracts]
+		[pallet_sminer, Sminer]
 		[pallet_file_bank, FileBankBench::<Runtime>]
 		[pallet_collective::<Instance1>, Council]
 		[pallet_collective::<Instance2>, TechnicalCommittee]
-		[pallet_evm, PalletEvmBench::<Runtime>]
+		// [pallet_evm, PalletEvmBench::<Runtime>]
 	);
 }
 
@@ -1822,6 +1829,7 @@ impl_runtime_apis! {
 			use frame_support::traits::StorageInfoTrait;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
+			// use pallet_sminer::benchmarking::Pallet as SminerBench;
 			use baseline::Pallet as BaselineBench;
 
 			let mut list = Vec::<BenchmarkList>::new();
@@ -1839,10 +1847,12 @@ impl_runtime_apis! {
 			use pallet_evm::Pallet as PalletEvmBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
+			// use pallet_sminer::benchmarking::::Pallet as SminerBench;
 			use baseline::Pallet as BaselineBench;
 
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl pallet_file_bank::benchmarking::Config for Runtime{}
+			// impl pallet_file_bank::benchmarking::Config for Runtime{}
 			impl baseline::Config for Runtime {}
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
