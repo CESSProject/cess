@@ -323,7 +323,7 @@ pub mod pallet {
 		// punished and the corresponding data segment will be removed
 		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
 			let number: u128 = now.saturated_into();
-			let block_oneday: BlockNumberOf<T> = T::OneDay::get();
+			let block_oneday: BlockNumberOf<T> = <T as pallet::Config>::OneDay::get();
 			let oneday: u32 = block_oneday.saturated_into();
 			if number % oneday as u128 == 0 {
 				log::info!("Start lease expiration check");
@@ -604,7 +604,7 @@ pub mod pallet {
 				.checked_sub(cur_price).ok_or(Error::<T>::Overflow)?
 				.checked_div(30).ok_or(Error::<T>::Overflow)?;
 
-			let block_oneday: BlockNumberOf<T> = T::OneDay::get();
+			let block_oneday: BlockNumberOf<T> = <T as pallet::Config>::OneDay::get();
 			let remain_day = cur_package.deadline
 				.checked_sub(&now).ok_or(Error::<T>::Overflow)?
 				.checked_div(&block_oneday).ok_or(Error::<T>::Overflow)?
@@ -727,7 +727,7 @@ pub mod pallet {
 		fn update_puchased_package(acc: AccountOf<T>) -> DispatchResult {
 			<PurchasedPackage<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
 				let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedPackage)?;
-				let one_day = T::OneDay::get();
+				let one_day = <T as pallet::Config>::OneDay::get();
 				let now = <frame_system::Pallet<T>>::block_number();
 				let sur_block: BlockNumberOf<T> = one_day
 					.checked_mul(&30u32.saturated_into())
@@ -762,7 +762,7 @@ pub mod pallet {
 
 		fn add_puchased_package(acc: AccountOf<T>, space: u128, month: u32, package_type: u8) -> DispatchResult {
 			let now = <frame_system::Pallet<T>>::block_number();
-			let one_day = T::OneDay::get();
+			let one_day = <T as pallet::Config>::OneDay::get();
 			let sur_block: BlockNumberOf<T> = month
 				.checked_mul(30)
 				.ok_or(Error::<T>::Overflow)?
