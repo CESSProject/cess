@@ -1,10 +1,10 @@
 [package]
 name = "pallet-sminer"
 authors = ["CESS LAB"]
-version = "0.1.0"
+version = "0.5.0"
 edition = "2018"
 license = "Apache-2.0"
-repository = ""
+repository = "https://github.com/CESSProject/cess"
 description = "FRAME pallet for sminer management"
 readme = "README.md"
 
@@ -15,6 +15,7 @@ log = { version = "0.4.14", default-features = false }
 serde = { version = "1.0.136", optional = true }
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }
 scale-info = { default-features = false, features = ['derive'], version = "2.0.1" }
+rand_chacha = { version = "0.2", default-features = false, optional = true }
 
 [dependencies.frame-benchmarking]
 default-features = false
@@ -102,4 +103,7 @@ std = [
 	"pallet-scheduler/std",
 	"frame-benchmarking/std",
 ]
-runtime-benchmarks = ["frame-benchmarking"]
+runtime-benchmarks = [
+	"frame-benchmarking/runtime-benchmarks",
+	"rand_chacha",
+]

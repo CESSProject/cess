@@ -34,41 +34,51 @@ type SminerBalanceOf<T> = <<T as pallet_sminer::Config>::Currency as Currency<
 const SEED: u32 = 2190502;
 const MAX_SPANS: u32 = 100;
 
-pub fn add_file<T: Config>() -> Result<BoundedString<T>, &'static str> {
-	let caller = account("user1", 100, SEED);
-	let address = "user1".as_bytes().to_vec();
-	let filename = "file1".as_bytes().to_vec();
-	let fileid = "testfileid1".as_bytes().to_vec();
-	let filehash = "filehash".as_bytes().to_vec();
-	let public = false;
-	let backup: u8 = 3;
-	let filesize: u64 = 123_456;
-	let downloadfee: BalanceOf<T> = BalanceOf::<T>::try_from(1u128)
-		.map_err(|_| "balance expected to be a u128")
-		.unwrap();
-	UserHoldSpaceDetails::<T>::insert(
-		&caller,
-		StorageSpace {
-			purchased_space: 1_000_000_000,
-			remaining_space: 1_000_000_000,
-			used_space: 0,
-		},
-	);
-	FileBank::<T>::upload(
-		RawOrigin::Signed(caller).into(),
-		address,
-		filename,
-		fileid,
-		filehash,
-		public,
-		backup,
-		filesize,
-		downloadfee,
-	)?;
-	Ok(fileid.try_into().map_err(|_| "fileid convert failed")?)
+pub fn add_file<T: Config>(file_hash: Vec<u8>) -> Result<(BoundedString<T>, T::AccountId, T::AccountId, T::AccountId), &'static str> {
+	let caller: T::AccountId = whitelisted_caller();
+	let (caller, miner, controller) = bench_buy_package::<T>(caller, 1000)?;
+	let file_hash = file_hash.clone();
+	let file_name = "test-file".as_bytes().to_vec();
+	FileBank::<T>::upload_declaration(RawOrigin::Signed(caller.clone()).into(), file_hash.clone(), file_name.clone())?;
+
+	let file_size: u64 = 333;
+	let mut slice_info_list: Vec<SliceInfo<T>> = Vec::new();
+	let slice_info = SliceInfo::<T>{
+		miner_id: 1,
+		shard_size: 111,
+		block_num: 8,
+		shard_id: "1".as_bytes().to_vec().try_into().map_err(|_e| "shar_id convert err")?,
+		miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().map_err(|_e| "miner ip convert err")?,
+		miner_acc: miner.clone(),
+	};
+	slice_info_list.push(slice_info);
+
+	let slice_info2 = SliceInfo::<T>{
+		miner_id: 1,
+		shard_size: 111,
+		block_num: 8,
+		shard_id: "2".as_bytes().to_vec().try_into().map_err(|_e| "shar_id convert err")?,
+		miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().map_err(|_e| "miner ip convert err")?,
+		miner_acc: miner.clone(),
+	};
+	slice_info_list.push(slice_info2);
+
+	let slice_info3 = SliceInfo::<T>{
+		miner_id: 1,
+		shard_size: 111,
+		block_num: 8,
+		shard_id: "3".as_bytes().to_vec().try_into().map_err(|_e| "shar_id convert err")?,
+		miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().map_err(|_e| "miner ip convert err")?,
+		miner_acc: miner.clone(),
+	};
+	slice_info_list.push(slice_info3);
+
+	FileBank::<T>::upload(RawOrigin::Signed(controller.clone()).into(), file_hash.clone(), file_size, slice_info_list, caller.clone())?;
+	let file_hash: BoundedString<T> = file_hash.try_into().map_err(|_e| "file_hash Vec convert BoundedVec err")?;
+	Ok((file_hash, caller, miner, controller))
 }
 
-fn add_filler(len: u32) -> Result<u32, &'static str> {
+pub fn add_scheduler<T: Config>() -> Result<T::AccountId, &'static str> {
 	let controller = testing_utils::create_funded_user::<T>("controller", SEED, 100);
 	let stash = testing_utils::create_funded_user::<T>("stash", SEED, 100);
 	let controller_lookup: <T::Lookup as StaticLookup>::Source =
@@ -83,18 +93,22 @@ fn add_filler(len: u32) -> Result<u32, &'static str> {
 		reward_destination,
 	)?;
 	whitelist_account!(controller);
+	FileMap::<T>::registration_scheduler(RawOrigin::Signed(controller.clone()).into(), stash, "127.0.0.1:8080".as_bytes().to_vec())?;
+	Ok(controller)
+}
 
+fn add_filler<T: Config>(len: u32, index: u32, controller: AccountOf<T>) -> Result<u32, &'static str> {
+	let miner: AccountOf<T> = account("miner1", 100, SEED);
 	let mut filler_list: Vec<FillerInfo<T>> = Vec::new();
 	for i in 0..len {
-		let miner = account("miner1", 100, SEED);
 		let new_filler = FillerInfo::<T> {
-			miner_id: 1,
 			filler_size: 1024 * 1024 * 8,
+			index: i,
 			block_num: 8,
 			segment_size: 1024 * 1024,
-			miner_address: miner,
-			filler_block: Default::default(),
-			filler_id: i
+			scan_size: 16,
+			miner_address: miner.clone(),
+			filler_id: (index * 100 + i)
 				.to_string()
 				.as_bytes()
 				.to_vec()
@@ -108,6 +122,7 @@ fn add_filler(len: u32) -> Result<u32, &'static str> {
 		};
 		filler_list.push(new_filler);
 	}
+	FileBank::<T>::upload_filler(RawOrigin::Signed(controller.clone()).into(), miner.clone(), filler_list)?;
 
 	Ok(1)
 }
@@ -115,7 +130,6 @@ fn add_filler(len: u32) -> Result<u32, &'static str> {
 pub fn add_miner<T: Config>() -> Result<T::AccountId, &'static str> {
 	let miner: T::AccountId = account("miner1", 100, SEED);
 	let ip = "1270008080".as_bytes().to_vec();
-	let public_key = "thisisatestpublickey".as_bytes().to_vec();
 	<T as pallet_sminer::Config>::Currency::make_free_balance_be(
 		&miner,
 		SminerBalanceOf::<T>::max_value(),
@@ -126,41 +140,27 @@ pub fn add_miner<T: Config>() -> Result<T::AccountId, &'static str> {
 		miner.clone(),
 		ip,
 		0u32.into(),
-		public_key,
 	)?;
 	Ok(miner.clone())
 }
 
-benchmarks! {
-	upload {
-		let caller = account("user1", 100, SEED);
-		let address = "user1".as_bytes().to_vec();
-		let filename = "file1".as_bytes().to_vec();
-		let fileid = "1".as_bytes().to_vec();
-		let filehash = "filehash".as_bytes().to_vec();
-		let public = false;
-		let backup: u8 = 3;
-		let filesize: u64 = 123_456;
-		let downloadfee: BalanceOf<T> = BalanceOf::<T>::try_from(1u128)
-		.map_err(|_| "balance expected to be a u128")
-		.unwrap();
-		UserHoldSpaceDetails::<T>::insert(
-			&caller,
-			StorageSpace {
-				purchased_space: 1_000_000_000,
-				remaining_space: 1_000_000_000,
-				used_space: 0,
-			}
-		);
-	}: _(RawOrigin::Signed(caller), address, filename, fileid, filehash, public, backup, filesize, downloadfee)
-	verify {
-		let bounded_fileid: BoundedString<T> = BoundedVec::try_from("1".as_bytes().to_vec())
-		.map_err(|_| "vec convert to boundedvec error")?;
-		assert!(File::<T>::contains_key(&bounded_fileid));
+pub fn bench_buy_package<T: Config>(caller: AccountOf<T>, len: u32) -> Result<(T::AccountId, T::AccountId, T::AccountId), &'static str> {
+	<T as crate::Config>::Currency::make_free_balance_be(
+		&caller,
+		BalanceOf::<T>::max_value(),
+	);
+	let miner = add_miner::<T>()?;
+	let controller = add_scheduler::<T>()?;
+	for i in 0 .. len {
+		let _ = add_filler::<T>(10, i, controller.clone())?;
 	}
+	FileBank::<T>::buy_package(RawOrigin::Signed(caller.clone()).into(), 1, 0)?;
+	Ok((caller.clone(), miner.clone(), controller.clone()))
+}
 
+benchmarks! {
 	upload_filler {
-		let v in 0 .. MAX_SPANS;
+		let v in 0 .. 10;
 
 		let controller = testing_utils::create_funded_user::<T>("controller", SEED, 100);
 		let stash = testing_utils::create_funded_user::<T>("stash", SEED, 100);
@@ -175,65 +175,176 @@ benchmarks! {
 		FileMap::<T>::registration_scheduler(RawOrigin::Signed(controller.clone()).into(), stash, "127.0.0.1:8080".as_bytes().to_vec())?;
 
 		let mut filler_list: Vec<FillerInfo<T>> = Vec::new();
+		let miner = add_miner::<T>()?;
 		for i in 0 .. v {
-			let miner = account("miner1", 100, SEED);
 			let new_filler = FillerInfo::<T> {
-				miner_id: 1,
 				filler_size: 1024 * 1024 * 8,
+				index: 1,
 				block_num: 8,
 				segment_size: 1024 * 1024,
-				miner_address: miner,
-				filler_block: Default::default(),
+				scan_size: 16,
+				miner_address: miner.clone(),
 				filler_id: i.to_string().as_bytes().to_vec().try_into().map_err(|_| "uint convert to BoundedVec Error")?,
 				filler_hash: "fillerhashhashhashhash".as_bytes().to_vec().try_into().map_err(|_| "Vec convert to BoundedVec Error")?,
 			};
 			filler_list.push(new_filler);
 		}
-	}: _(RawOrigin::Signed(controller), 1, filler_list)
+	}: _(RawOrigin::Signed(controller), miner.clone(), filler_list)
 	verify {
 		for i in 0 .. v {
 			let filler_id: BoundedString<T> = i.to_string().as_bytes().to_vec().try_into().map_err(|_| "uint convert to BoundedVec Error")?;
-			assert!(FillerMap::<T>::contains_key(&1, &filler_id));
+			assert!(FillerMap::<T>::contains_key(&miner, &filler_id));
 		}
 	}
 
-	update_dupl {
-		log::info!("test point start");
-		let caller: T::AccountId = account("user1", 100, SEED);
-		pallet_sminer::Pallet::<T>::init_benchmark();
-		log::info!("point 1");
-		let file_id = add_file::<T>()?;
-		log::info!("point 2");
-		let _ = add_miner::<T>()?;
-		log::info!("point 3");
-		let miner_id = add_filler::<T>(5)?;
-		log::info!("point 4");
-		let mut dupl_list: Vec<FileDuplicateInfo<T>> = Vec::new();
-		let dupl_info = FileDuplicateInfo::<T>{
-			miner_id: miner_id.clone() as u64,
-			block_num: 0,
-			segment_size: 123,
-			acc: caller.clone(),
-			miner_ip: Default::default(),
-			dupl_id: "dupl1".as_bytes().to_vec().try_into().map_err(|_| "duplid convert err")?,
-			rand_key: Default::default(),
-			block_info: Default::default(),
-		};
-		dupl_list.push(dupl_info);
-		log::info!("point 5");
-	}: _(RawOrigin::Signed(caller), file_id.to_vec(), dupl_list)
+	buy_package {
+		let user: AccountOf<T> = account("user1", 100, SEED);
+		let miner = add_miner::<T>()?;
+		let controller = add_scheduler::<T>()?;
+		for i in 0 .. 1000 {
+			let _ = add_filler::<T>(10, i, controller.clone())?;
+		}
+	}: _(RawOrigin::Signed(user.clone()), 1, 0)
 	verify {
-		log::info!("point 6");
-		let file = FileBank::<T>::file(&file_id).unwrap();
-		let dupl_id: BoundedString<T> = "dupl1".as_bytes().to_vec().try_into().map_err(|_| "duplid convert err")?;
-		assert_eq!(file.file_dupl[0].dupl_id, dupl_id);
+		assert!(<PurchasedPackage<T>>::contains_key(&user));
+		let info = <PurchasedPackage<T>>::get(&user).unwrap();
+		assert_eq!(info.space, G_BYTE * 10);
 	}
 
-	// delete_file {
-	//     let caller: T::AccountId = account("user1", 100, SEED);
-	//     let file_id = add_file::<T>()?;
-	// }: _(RawOrigin::Signed(caller), file_id)
+	// upgrade_package {
+	// 	let caller: T::AccountId = whitelisted_caller();
+	// 	let (user, miner, controller) = bench_buy_package::<T>(caller.clone(), 10000)?;	
+	// 	let value: u32 = BalanceOf::<T>::max_value().saturated_into();
+	// 	let free_balance: u32 = <T as pallet::Config>::Currency::free_balance(&user).saturated_into();
+	// 	let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
+	// 	let balance: BalanceOf<T> = <T as crate::Config>::Currency::minimum_balance().checked_mul(&2u32.saturated_into()).ok_or("over flow")?;
+	// 	<T as crate::Config>::Currency::make_free_balance_be(
+	// 		&acc,
+	// 		balance,
+	// 	);
+	// 	log::info!("free_balance: {}",free_balance);
+	// }: _(RawOrigin::Signed(caller), 2, 0)
 	// verify {
-	//     assert!(File::<T>::contains_key(&file_id.try_into().map_err(|_| "fileid convert err")?));
+	// 	assert!(<PurchasedPackage<T>>::contains_key(&user));
+	// 	let info = <PurchasedPackage<T>>::get(&user).unwrap();
+	// 	assert_eq!(info.space, G_BYTE * 500);
 	// }
+
+	// renewal_package {
+	// 	let caller: T::AccountId = whitelisted_caller();
+	// 	let (user, miner, controller) = bench_buy_package::<T>(caller.clone(), 1000)?;
+	// 	let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
+	// 	let balance: BalanceOf<T> = <T as crate::Config>::Currency::minimum_balance().checked_mul(&2u32.saturated_into()).ok_or("over flow")?;
+	// 	<T as crate::Config>::Currency::make_free_balance_be(
+	// 		&acc,
+	// 		balance,
+	// 	);
+	// }: _(RawOrigin::Signed(caller))
+	// verify {
+	// 	assert!(<PurchasedPackage<T>>::contains_key(&user));
+	// 	let info = <PurchasedPackage<T>>::get(&user).unwrap();
+	// 	assert_eq!(info.start, 0u32.saturated_into());
+	// 	let day60 = T::OneDay::get() * 60u32.saturated_into();
+	// 	assert_eq!(info.deadline, day60);
+	// }
+
+	// upload_declaration {
+	// 	let caller = account("user1", 100, SEED);
+	// 	let file_hash = "cess-13540202190502".as_bytes().to_vec();
+	// 	let file_name = "test-file".as_bytes().to_vec();
+	// }: _(RawOrigin::Signed(caller), file_hash.clone(), file_name)
+	// verify {
+	// 	let file_hash: BoundedString<T> = file_hash.try_into().map_err(|_e| "convert err")?;
+	// 	assert!(<File<T>>::contains_key(file_hash));
+	// }
+
+	// upload {
+	// 	let caller: AccountOf<T> = account("user1", 100, SEED);
+	// 	let (user, miner, controller) = bench_buy_package::<T>(caller.clone(), 1000)?;
+	// 	let miner: T::AccountId = account("miner1", 100, SEED);
+	// 	let file_hash = "cess-13540202190502".as_bytes().to_vec();
+	// 	let file_name = "test-file".as_bytes().to_vec();
+	// 	FileBank::<T>::upload_declaration(RawOrigin::Signed(caller.clone()).into(), file_hash.clone(), file_name.clone())?;
+	// 	let file_size: u64 = 333;
+	// 	let mut slice_info_list: Vec<SliceInfo<T>> = Vec::new();
+	// 	let slice_info = SliceInfo::<T>{
+	// 		miner_id: 1,
+	// 		shard_size: 111,
+	// 		block_num: 8,
+	// 		shard_id: "1".as_bytes().to_vec().try_into().map_err(|_e| "shar_id convert err")?,
+	// 		miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().map_err(|_e| "miner ip convert err")?,
+	// 		miner_acc: miner.clone(),
+	// 	};
+	// 	slice_info_list.push(slice_info);
+	
+	// 	let slice_info2 = SliceInfo::<T>{
+	// 		miner_id: 1,
+	// 		shard_size: 111,
+	// 		block_num: 8,
+	// 		shard_id: "2".as_bytes().to_vec().try_into().map_err(|_e| "shar_id convert err")?,
+	// 		miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().map_err(|_e| "miner ip convert err")?,
+	// 		miner_acc: miner.clone(),
+	// 	};
+	// 	slice_info_list.push(slice_info2);
+	
+	// 	let slice_info3 = SliceInfo::<T>{
+	// 		miner_id: 1,
+	// 		shard_size: 111,
+	// 		block_num: 8,
+	// 		shard_id: "3".as_bytes().to_vec().try_into().map_err(|_e| "shar_id convert err")?,
+	// 		miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().map_err(|_e| "miner ip convert err")?,
+	// 		miner_acc: miner.clone(),
+	// 	};
+	// 	slice_info_list.push(slice_info3);
+	// }: _(RawOrigin::Signed(controller), file_hash.clone(), file_size, slice_info_list, caller.clone())
+	// verify {
+	// 	let file_hash: BoundedString<T> = file_hash.try_into().map_err(|_e| "file_hash Vec convert BoundedVec err")?;
+	// 	assert!(<File<T>>::contains_key(&file_hash));
+	// 	let info = <File<T>>::get(&file_hash).unwrap();
+	// 	assert_eq!(info.slice_info.len(), 3);
+	// 	let package_info = <PurchasedPackage<T>>::get(&user).unwrap();
+	// 	assert_eq!(package_info.used_space, 333);
+	// }
+
+	// delete_file {
+	// 	let file_hash = "cess_05020219520".as_bytes().to_vec();
+	//     let (file_hash, caller, _, _) = add_file::<T>(file_hash)?;
+	// 	assert!(File::<T>::contains_key(&file_hash));
+	// }: _(RawOrigin::Signed(caller), file_hash.to_vec())
+	// verify {
+	//     assert!(!File::<T>::contains_key(&file_hash));
+	// }
+
+	recover_file {
+		let v in 0 .. 500;
+		let mut avai = true;
+		if v % 2 == 0 {
+			avai = false;
+		}
+		<frame_system::Pallet<T>>::set_block_number(1u32.saturated_into());
+		let file_hash = "cess_05020219520".as_bytes().to_vec();
+	    let (file_hash, caller, miner, controller) = add_file::<T>(file_hash)?;
+		assert!(File::<T>::contains_key(&file_hash));
+		let info = File::<T>::get(&file_hash).unwrap();
+		let acc = FileBank::<T>::get_current_scheduler();
+		let re_shard = info.slice_info[0].shard_id.clone();
+		FileBank::<T>::add_recovery_file(re_shard.to_vec())?;
+		assert!(FileRecovery::<T>::contains_key(&acc));
+		let re_list = FileRecovery::<T>::get(&acc);
+		assert_eq!(re_list.len(), 1);
+		let slice_info = SliceInfo::<T>{
+			miner_id: 1,
+			shard_size: 111,
+			block_num: 8,
+			shard_id: "4".as_bytes().to_vec().try_into().map_err(|_e| "shar_id convert err")?,
+			miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().map_err(|_e| "miner ip convert err")?,
+			miner_acc: miner.clone(),
+		};
+		let info = File::<T>::get(&file_hash).unwrap();
+		assert_eq!(info.slice_info.len(), 2);
+	}: _(RawOrigin::Signed(acc.clone()), re_shard.to_vec(), slice_info, avai)
+	verify {
+		let info = File::<T>::get(&file_hash).unwrap();
+		assert_eq!(info.slice_info.len(), 3);
+	}
 }

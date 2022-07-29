@@ -27,6 +27,7 @@ mod tests;
 use frame_support::traits::{
 	Currency, ExistenceRequirement::AllowDeath, FindAuthor, Randomness, ReservableCurrency,
 };
+
 pub use pallet::*;
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
@@ -38,18 +39,15 @@ pub use types::*;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_runtime::{
-	offchain as rt_offchain,
 	traits::{
-		AccountIdConversion, BlockNumberProvider, CheckedAdd, CheckedDiv, CheckedMul, CheckedSub,
-		SaturatedConversion,
+		BlockNumberProvider, CheckedAdd, CheckedDiv, CheckedMul, CheckedSub, SaturatedConversion, AccountIdConversion, StaticLookup
 	},
 	RuntimeDebug,
 };
 use sp_std::{convert::TryInto, prelude::*, str};
-
-use frame_support::{dispatch::DispatchResult, pallet_prelude::*, PalletId};
-use frame_system::offchain::{AppCrypto, CreateSignedTransaction, SendSignedTransaction, Signer};
 use sp_core::crypto::KeyTypeId;
+use frame_support::{dispatch::DispatchResult, pallet_prelude::*, PalletId};
+
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -63,18 +61,17 @@ type BoundedList<T> =
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_support::{ensure, traits::Get};
+	use frame_support::{ensure, traits::Get, inherent::BlockT};
 	use pallet_file_map::ScheduleFind;
 	use pallet_sminer::MinerControl;
 	//pub use crate::weights::WeightInfo;
 	use frame_system::{ensure_signed, pallet_prelude::*};
-
-	const HTTP_REQUEST_STR: &str = "https://arweave.net/price/1048576";
-	// const HTTP_REQUEST_STR: &str = "https://api.coincap.io/v2/assets/polkadot";
 	pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"cess");
 	const FETCH_TIMEOUT_PERIOD: u64 = 60_000; // in milli-seconds
 										  //1MB converted byte size
-	const M_BYTE: u128 = 1_048_576;
+	pub const M_BYTE: u128 = 1_048_576;
+	pub const G_BYTE: u128 = 1_048_576 * 1024;
+	pub const T_BYTE: u128 = 1_048_576 * 1024 * 1024;
 
 	pub mod crypto {
 		use super::KEY_TYPE;
@@ -113,7 +110,6 @@ pub mod pallet {
 		frame_system::Config
 		+ pallet_sminer::Config
 		+ sp_std::fmt::Debug
-		+ CreateSignedTransaction<Call<Self>>
 	{
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
@@ -123,11 +119,8 @@ pub mod pallet {
 		type WeightInfo: WeightInfo;
 
 		type Call: From<Call<Self>>;
-
 		//Find the consensus of the current block
 		type FindAuthor: FindAuthor<Self::AccountId>;
-
-		type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
 		//Used to find out whether the schedule exists
 		type Scheduler: ScheduleFind<Self::AccountId>;
 		//It is used to control the computing power and space of miners
@@ -163,7 +156,7 @@ pub mod pallet {
 		//Storage information of scheduling storage file slice
 		InsertFileSlice { fileid: Vec<u8> },
 		//User purchase space
-		BuySpace { acc: AccountOf<T>, size: u128, fee: BalanceOf<T> },
+		BuyPackage { acc: AccountOf<T>, size: u128, fee: BalanceOf<T> },
 		//Expired storage space
 		LeaseExpired { acc: AccountOf<T>, size: u128 },
 		//Storage space expiring within 24 hours
@@ -191,9 +184,13 @@ pub mod pallet {
 		//Internal developer usage error
 		WrongOperation,
 		//haven't bought space at all
-		NotPurchasedSpace,
+		NotPurchasedPackage,
+
+		PurchasedPackage,
 		//Expired storage space
 		LeaseExpired,
+
+		LeaseFreeze,
 		//Exceeded the maximum amount expected by the user
 		ExceedExpectations,
 
@@ -212,12 +209,6 @@ pub mod pallet {
 		NotQualified,
 
 		UserNotDeclared,
-		//HTTP interaction error of offline working machine
-		HttpFetchingError,
-		//Signature error of offline working machine
-		OffchainSignedTxError,
-
-		OffchainUnSignedTxError,
 		//Signature error of offline working machine
 		NoLocalAcctForSigning,
 		//It is not an error message for scheduling operation
@@ -237,10 +228,9 @@ pub mod pallet {
 		LengthExceedsLimit,
 
 		Declarated,
+
+		BugInvalid,
 	}
-	#[pallet::storage]
-	#[pallet::getter(fn next_unsigned_at)]
-	pub(super) type NextUnsignedAt<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn file)]
@@ -264,19 +254,9 @@ pub mod pallet {
 		>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn user_hold_storage_space)]
-	pub(super) type UserHoldSpaceDetails<T: Config> =
-		StorageMap<_, Blake2_128Concat, T::AccountId, StorageSpace>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn user_spance_details)]
-	pub(super) type UserSpaceList<T: Config> = StorageMap<
-		_,
-		Blake2_128Concat,
-		T::AccountId,
-		BoundedVec<SpaceInfo<T>, T::ItemLimit>,
-		ValueQuery,
-	>;
+	#[pallet::getter(fn file_recovery)]
+	pub(super) type FileRecovery<T: Config> =
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedList<T>, ValueQuery>;
 
 	#[pallet::storage]
 	pub(super) type UserFreeRecord<T: Config> =
@@ -311,6 +291,26 @@ pub mod pallet {
 	#[pallet::getter(fn lock_time)]
 	pub(super) type LockTime<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn purchase_package)]
+	pub(super) type PurchasedPackage<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, PackageDetails<T>>;
+	
+	#[pallet::storage]
+	#[pallet::getter(fn file_keys_map)]
+	pub(super) type FileKeysMap<T: Config> = CountedStorageMap<_, Blake2_128Concat, u32, (bool, BoundedString<T>)>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn file_index_count)]
+	pub(super) type FileIndexCount<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn filler_keys_map)]
+	pub(super) type FillerKeysMap<T: Config> = CountedStorageMap<_, Blake2_128Concat, u32, (AccountOf<T>, BoundedString<T>)>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn filler_index_count)]
+	pub(super) type FillerIndexCount<T: Config> = StorageValue<_, u32, ValueQuery>;
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(PhantomData<T>);
@@ -323,75 +323,43 @@ pub mod pallet {
 		// punished and the corresponding data segment will be removed
 		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
 			let number: u128 = now.saturated_into();
-			let block_oneday: BlockNumberOf<T> = T::OneDay::get();
-			let oneday: u128 = block_oneday.saturated_into();
-			let mut count: u8 = 0;
-			if number % oneday == 0 {
-				for (key, value) in <UserSpaceList<T>>::iter() {
-					let mut k = 0;
-					let mut list = <UserSpaceList<T>>::get(&key);
-					for s in value.iter() {
-						let size = s.size;
-						if now >= s.deadline {
-							list.remove(k);
-							<UserHoldSpaceDetails<T>>::mutate(&key, |s_opt| {
-								let s = s_opt.as_mut().unwrap();
-								s.purchased_space = s.purchased_space - size;
-							});
-							let v = <UserHoldSpaceDetails<T>>::get(&key).unwrap();
-							if v.purchased_space > v.used_space {
-								<UserHoldSpaceDetails<T>>::mutate(&key, |s_opt| {
-									let s = s_opt.as_mut().unwrap();
-									s.remaining_space = s.purchased_space - s.used_space;
+			let block_oneday: BlockNumberOf<T> = <T as pallet::Config>::OneDay::get();
+			let oneday: u32 = block_oneday.saturated_into();
+			if number % oneday as u128 == 0 {
+				log::info!("Start lease expiration check");
+				for (acc, info) in <PurchasedPackage<T>>::iter() {
+					if  now > info.deadline {
+						let frozen_day: BlockNumberOf<T> = match info.package_type {
+							1 => (0 * oneday).saturated_into(),
+							2 => (7 * oneday).saturated_into(),
+							3 => (14 * oneday).saturated_into(),
+							4 => (20 * oneday).saturated_into(),
+							_ => (30 * oneday).saturated_into(),
+						};
+						if  now > info.deadline + frozen_day {
+							log::info!("clear user:#{}'s files", number);
+							let _ = T::MinerControl::sub_purchased_space(info.space);
+							let _ = Self::clear_expired_file(&acc);
+						} else {
+							if info.state.to_vec() != "frozen".as_bytes().to_vec() {
+								let result = <PurchasedPackage<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+									let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedPackage)?;
+									s.state = "frozen".as_bytes().to_vec().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+									Ok(())
 								});
-							} else {
-								let _ = Self::clear_expired_file(&key, v.used_space.clone(), v.purchased_space.clone());
+								match result {
+									Ok(()) => log::info!("user space frozen: #{}", number),
+									Err(e) => log::error!("frozen failed: {:?}", e),
+								}
 							}
-							
-							let _ = pallet_sminer::Pallet::<T>::sub_purchased_space(size);
-							Self::deposit_event(Event::<T>::LeaseExpired {
-								acc: key.clone(),
-								size,
-							});
-							k -= 1;
-						} else if s.deadline < now && now >= s.deadline - block_oneday {
-							count += 1;
 						}
-						k += 1;
 					}
-					<UserSpaceList<T>>::insert(&key, list);
-					Self::deposit_event(Event::<T>::LeaseExpireIn24Hours {
-						acc: key.clone(),
-						size: 1024 * (count as u128),
-					});
 				}
+				log::info!("End lease expiration check");
 			}
 			0
 		}
 
-		fn offchain_worker(block_number: T::BlockNumber) {
-			let _signer = Signer::<T, T::AuthorityId>::all_accounts();
-			let number: u128 = block_number.saturated_into();
-			let one_day: u128 = <T as Config>::OneDay::get().saturated_into();
-			if number % one_day == 0 || number == 500 {
-				//Query price
-				let mut counter = 0;
-				loop {
-					log::info!("Current offchain machine execution rounds: {:?}", counter + 1);
-					if counter == 5 {
-						break
-					}
-					let result = Self::offchain_fetch_price(block_number);
-					if let Err(e) = result {
-						log::error!("offchain_worker error: {:?}", e);
-					} else {
-						log::info!("Update price succeeded");
-						break
-					}
-					counter = counter + 1;
-				}
-			}
-		}
 	}
 
 	#[pallet::call]
@@ -418,21 +386,20 @@ pub mod pallet {
 					Ok(())
 				})?;
 			} else {
+				let count = <FileIndexCount<T>>::get().checked_add(1).ok_or(Error::<T>::Overflow)?;
 				<File<T>>::insert(
 					&file_hash_bound,
 					FileInfo::<T>{
 						file_size: 0,
-						block_num: 0,		
-						scan_size: 0,			
-						segment_size: 0,	
-						miner_acc: sender.clone(),
-						miner_id: 0,
-						miner_ip: Default::default(),
+						index: count,
+						file_state: "pending".as_bytes().to_vec().try_into().map_err(|_| Error::<T>::BoundedVecError)?,
 						user: vec![sender.clone()].try_into().map_err(|_| Error::<T>::BoundedVecError)?,
 						file_name: vec![file_name_bound].try_into().map_err(|_| Error::<T>::BoundedVecError)?,
-						file_state: "pending".as_bytes().to_vec().try_into().map_err(|_| Error::<T>::BoundedVecError)?,
+						slice_info: Default::default(),
 					},
 				);
+				<FileIndexCount<T>>::put(count);
+				<FileKeysMap<T>>::insert(count, (false, file_hash_bound.clone()));
 			}
 			Self::deposit_event(Event::<T>::UploadDeclaration { acc: sender, file_hash: file_hash, file_name: file_name });
 			Ok(())
@@ -445,12 +412,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			file_hash: Vec<u8>,
 			file_size: u64,
-			block_num: u32,
-			scan_size: u32,
-			segment_size: u32,
-			miner_acc: AccountOf<T>,
-			miner_id: u64,
-			miner_ip: Vec<u8>,
+			slice_info: Vec<SliceInfo<T>>,
 			user: AccountOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -461,10 +423,11 @@ pub mod pallet {
 			if !<File<T>>::contains_key(&file_hash_bounded) {
 				Err(Error::<T>::FileNonExistent)?;
 			}
+
 			Self::update_user_space(user.clone(), 1, file_size.into())?;
 
 			<File<T>>::try_mutate(&file_hash_bounded, |s_opt| -> DispatchResult {
-				let s = s_opt.as_mut().unwrap();
+				let s = s_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
 				if !s.user.contains(&user) {
 					Err(Error::<T>::UserNotDeclared)?;
 				}
@@ -472,27 +435,29 @@ pub mod pallet {
 					Err(Error::<T>::FileExistent)?;
 				}
 				s.file_size = file_size;
-				s.block_num = block_num;
-				s.scan_size = scan_size;
-				s.segment_size = segment_size;
-				s.miner_acc = miner_acc.clone();
-				s.miner_id = miner_id;
-				s.miner_ip = miner_ip.try_into().map_err(|_| Error::<T>::BoundedVecError)?;
+				s.slice_info = slice_info.clone().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
 				s.file_state = "active".as_bytes().to_vec().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
+				<FileKeysMap<T>>::try_mutate(s.index, |v_opt| -> DispatchResult{
+					let v = v_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
+					v.0 = true;
+					Ok(())
+				})?;
 				Ok(())
 			})?;
 
 			Self::add_user_hold_fileslice(user.clone() ,file_hash_bounded.clone(), file_size)?;
-
-			Self::replace_file(miner_acc.clone(), file_size)?;
-
+			//To be tested
+			for v in slice_info.iter() {
+				Self::replace_file(v.miner_acc.clone(), v.shard_size)?;
+			}
+		
 			Self::deposit_event(Event::<T>::FileUpload { acc: user.clone() });
 			Ok(())
 		}
 
 		//The filler upload interface can only be called by scheduling, and the list has a maximum
 		// length limit
-		#[pallet::weight(1_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_filler(filler_list.len() as u32))]
 		pub fn upload_filler(
 			origin: OriginFor<T>,
 			miner: AccountOf<T>,
@@ -509,12 +474,18 @@ pub mod pallet {
 			if !(miner_state == "positive".as_bytes().to_vec()) {
 				Err(Error::<T>::NotQualified)?;
 			}
+			let mut count: u32 = <FillerIndexCount<T>>::get();
 			for i in filler_list.iter() {
+				count = count.checked_add(1).ok_or(Error::<T>::Overflow)?;
 				if <FillerMap<T>>::contains_key(&miner, i.filler_id.clone()) {
 					Err(Error::<T>::FileExistent)?;
 				}
-				<FillerMap<T>>::insert(miner.clone(), i.filler_id.clone(), i);
+				let mut value = i.clone();
+				value.index = count;
+				<FillerMap<T>>::insert(miner.clone(), i.filler_id.clone(), value);
+				<FillerKeysMap<T>>::insert(count, (miner.clone(), i.filler_id.clone()));
 			}
+			<FillerIndexCount<T>>::put(count);
 
 			let power = M_BYTE
 				.checked_mul(8)
@@ -533,7 +504,6 @@ pub mod pallet {
 			ensure!(<File<T>>::contains_key(bounded_fileid.clone()), Error::<T>::FileNonExistent);
 			//The above has been judged. Unwrap will be performed only if the key exists
 			Self::clear_user_file(bounded_fileid, &sender)?;
-
 			Self::deposit_event(Event::<T>::DeleteFile { acc: sender, fileid });
 			Ok(())
 		}
@@ -547,129 +517,128 @@ pub mod pallet {
 		//The parameter "space_count" is calculated in gigabyte.
 		//parameter "lease_count" is calculated on the monthly basis.
 		#[pallet::weight(2_000_000)]
-		pub fn buy_space(
+		pub fn buy_package(
 			origin: OriginFor<T>,
-			space_count: u128,
-			lease_count: u128,
-			max_price: u128,
+			package_type: u8,
+			count: u128,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			let acc = T::FilbakPalletId::get().into_account();
-			let cur_price = <UnitPrice<T>>::get();
-			if cur_price == 0u32.saturated_into() {
-				Err(Error::<T>::IsZero)?;
-			}
-			let unit_price =
-				TryInto::<u128>::try_into(cur_price).map_err(|_e| Error::<T>::Overflow)?;
-			if unit_price > max_price * 1000000000000 && 0 != max_price {
-				Err(Error::<T>::ExceedExpectations)?;
-			}
-			//space_count, Represents how many GB of space the user wants to buy
-			let space = space_count.checked_mul(1024).ok_or(Error::<T>::Overflow)?;
-			//Because there are three backups, it is charged at one-third of the price
-			let price: u128 = unit_price
-				.checked_mul(space)
-				.ok_or(Error::<T>::Overflow)?
-				.checked_mul(lease_count)
-				.ok_or(Error::<T>::Overflow)?
-				.checked_div(3)
-				.ok_or(Error::<T>::Overflow)?;
-			//Increase the space purchased by users
-			//and judge whether there is still space available for purchase
-			let money: BalanceOf<T> = price.try_into().map_err(|_e| Error::<T>::ConversionError)?;
-			<T as pallet::Config>::Currency::transfer(&sender, &acc, money, AllowDeath)?;
-			let now = <frame_system::Pallet<T>>::block_number();
-			let one_day: u128 = <T as Config>::OneDay::get().saturated_into();
-			let deadline: BlockNumberOf<T> =
-				((lease_count.checked_mul(one_day * 30).ok_or(Error::<T>::Overflow)?) as u32)
-					.into();
-			let list: SpaceInfo<T> = SpaceInfo::<T> {
-				size: space.checked_mul(M_BYTE).ok_or(Error::<T>::Overflow)?,
-				deadline: now.checked_add(&deadline).ok_or(Error::<T>::Overflow)?,
+
+			ensure!(!<PurchasedPackage<T>>::contains_key(&sender), Error::<T>::PurchasedPackage);
+
+			let (space, m_unit_price, month) = match package_type {
+				1 => (10 * G_BYTE, 0, 1),
+				2 => (500 * G_BYTE ,Self::get_price(500 * G_BYTE)?, 1),
+				3 => (T_BYTE, Self::get_price(T_BYTE)?, 1),
+				4 => (T_BYTE, Self::get_price(5 * T_BYTE)?, 1),
+				5 => {
+					if count < 5 {
+						 Err(Error::<T>::WrongOperation)?;
+					}
+					(count * T_BYTE, Self::get_price(count * T_BYTE)?, 1)
+				},
+				_ => Err(Error::<T>::WrongOperation)?,
 			};
 
-			<UserSpaceList<T>>::try_mutate(&sender, |s| -> DispatchResult {
-				s.try_push(list).map_err(|_e| Error::<T>::StorageLimitReached)?;
-				Ok(())
-			})?;
-			//Convert MB to BYTE
-			Self::user_buy_space_update(
-				sender.clone(),
-				space.checked_mul(M_BYTE).ok_or(Error::<T>::Overflow)?,
-			)?;
-			pallet_sminer::Pallet::<T>::add_purchased_space(
-				space.checked_mul(M_BYTE).ok_or(Error::<T>::Overflow)?,
-			)?;
-			Self::deposit_event(Event::<T>::BuySpace {
-				acc: sender.clone(),
-				size: space,
-				fee: money,
-			});
+			Self::add_puchased_package(sender.clone(), space, month as u32, package_type)?;
+			T::MinerControl::add_purchased_space(space)?;
+			let g_unit_price = m_unit_price.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
+			let price: BalanceOf<T> = space
+				.checked_div(G_BYTE)
+				.ok_or(Error::<T>::Overflow)?
+				.checked_mul(g_unit_price)
+				.ok_or(Error::<T>::Overflow)?
+				.try_into()
+				.map_err(|_e| Error::<T>::Overflow)?;
+
+			let acc = T::FilbakPalletId::get().into_account();
+			<T as pallet::Config>::Currency::transfer(&sender, &acc, price, AllowDeath)?;
+			
 			Ok(())
 		}
 
-		//Free space for users
 		#[pallet::weight(2_000_000)]
-		pub fn receive_free_space(origin: OriginFor<T>) -> DispatchResult {
+		pub fn upgrade_package(
+			origin: OriginFor<T>,
+			package_type: u8,
+			count: u128,
+		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			ensure!(!<UserFreeRecord<T>>::contains_key(&sender), Error::<T>::AlreadyReceive);
-			pallet_sminer::Pallet::<T>::add_purchased_space(
-				M_BYTE.checked_mul(1024).ok_or(Error::<T>::Overflow)?,
-			)?;
-
-			let deadline: BlockNumberOf<T> = 999999999u32.into();
-			let list: SpaceInfo<T> = SpaceInfo::<T> { size: 1024, deadline };
-
-			<UserSpaceList<T>>::try_mutate(&sender, |s| -> DispatchResult {
-				s.try_push(list).map_err(|_e| Error::<T>::StorageLimitReached)?;
-				Ok(())
-			})?;
-
-			Self::user_buy_space_update(
-				sender.clone(),
-				M_BYTE.checked_mul(1024).ok_or(Error::<T>::Overflow)?,
-			)?;
-			Self::deposit_event(Event::<T>::ReceiveSpace { acc: sender.clone() });
-			<UserFreeRecord<T>>::insert(&sender, 1);
-			Ok(())
-		}
-
-		//Update current storage unit price
-		#[pallet::weight(0)]
-		pub fn update_price(origin: OriginFor<T>, price: Vec<u8>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			let member_list = Self::members();
-			if !member_list.contains(&sender) {
-				Err(Error::<T>::NotQualified)?;
+			let cur_package = <PurchasedPackage<T>>::try_get(&sender).map_err(|_e| Error::<T>::NotPurchasedPackage)?;
+			if package_type < cur_package.package_type {
+				Err(Error::<T>::WrongOperation)?;
 			}
 			let now = <frame_system::Pallet<T>>::block_number();
-			//Only accept the first price from offchain worker
-			let lock_time = <LockTime<T>>::get();
-			if lock_time > now {
-				Err(Error::<T>::Locked)?;
+			if now > cur_package.deadline {
+				Err(Error::<T>::LeaseExpired)?;
 			}
-			//Convert price of string type to balance
-			//Vec<u8> -> str
-			let str_price = str::from_utf8(&price).unwrap_or_default();
-			//str -> u128
-			let mut price_u128: u128 =
-				str_price.parse().map_err(|_e| Error::<T>::ConversionError)?;
-
-			//One third of the price
-			price_u128 = price_u128.checked_div(3).ok_or(Error::<T>::Overflow)?;
-
-			//Get the current price on the chain
-			let our_price = Self::get_price()?;
-			//Which pricing is cheaper
-			if our_price < price_u128 {
-				price_u128 = our_price;
+			if cur_package.state.to_vec() == "frozen".as_bytes().to_vec() {
+				Err(Error::<T>::LeaseFreeze)?;
 			}
-			//u128 -> balance
-			let price_balance: BalanceOf<T> =
-				price_u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
-			<UnitPrice<T>>::put(price_balance);
-			let deadline = now.checked_add(&5000u32.into()).ok_or(Error::<T>::Overflow)?;
-			<LockTime<T>>::put(deadline);
+			let cur_byte_unit_price = Self::get_price(cur_package.space)?;
+			let (space, up_byte_unit_price) = match package_type {
+				2 => (500 * G_BYTE, Self::get_price(500 * G_BYTE)?),
+				3 => (T_BYTE, Self::get_price(T_BYTE)?),
+				4 => (5 * T_BYTE, Self::get_price(5 * T_BYTE)?),
+				5 => {
+					if count < 5 {
+						 Err(Error::<T>::WrongOperation)?;
+					}
+					(count * T_BYTE, Self::get_price(count * T_BYTE)?)
+				},
+				_ => Err(Error::<T>::WrongOperation)?,
+			};
+			let cur_gb_unit_price = cur_byte_unit_price
+				.checked_div(G_BYTE)
+				.ok_or(Error::<T>::Overflow)?;
+			let cur_price = cur_package.space
+				.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?
+				.checked_mul(cur_gb_unit_price).ok_or(Error::<T>::Overflow)?;
+			let up_gb_unit_price = up_byte_unit_price
+				.checked_div(G_BYTE)
+				.ok_or(Error::<T>::Overflow)?;
+			let up_price = space
+				.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?
+				.checked_mul(up_gb_unit_price).ok_or(Error::<T>::Overflow)?;
+			let diff_day_price = up_price
+				.checked_sub(cur_price).ok_or(Error::<T>::Overflow)?
+				.checked_div(30).ok_or(Error::<T>::Overflow)?;
+
+			let block_oneday: BlockNumberOf<T> = <T as pallet::Config>::OneDay::get();
+			let remain_day = cur_package.deadline
+				.checked_sub(&now).ok_or(Error::<T>::Overflow)?
+				.checked_div(&block_oneday).ok_or(Error::<T>::Overflow)?
+				.checked_add(&1u32.saturated_into()).ok_or(Error::<T>::Overflow)?;
+			let price: BalanceOf<T> = diff_day_price
+				.checked_mul(remain_day.try_into().map_err(|_e| Error::<T>::Overflow)?).ok_or(Error::<T>::Overflow)?
+				.try_into().map_err(|_e| Error::<T>::Overflow)?;
+			let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
+			T::MinerControl::add_purchased_space(space.checked_sub(cur_package.space).ok_or(Error::<T>::Overflow)?)?;
+			Self::expension_puchased_package(sender.clone(), space, package_type)?;
+			<T as pallet::Config>::Currency::transfer(&sender, &acc, price, AllowDeath)?;
+			Ok(())
+		}
+
+		#[pallet::weight(2_000_000)]
+		pub fn renewal_package(
+			origin: OriginFor<T>,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			let cur_package = <PurchasedPackage<T>>::try_get(&sender).map_err(|_e| Error::<T>::NotPurchasedPackage)?;
+
+			let m_unit_price = Self::get_price(cur_package.space)?;
+			let g_unit_price = m_unit_price.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
+			let price: BalanceOf<T> = cur_package.space
+				.checked_div(G_BYTE)
+				.ok_or(Error::<T>::Overflow)?
+				.checked_mul(g_unit_price)
+				.ok_or(Error::<T>::Overflow)?
+				.try_into()
+				.map_err(|_e| Error::<T>::Overflow)?;
+
+			let acc = T::FilbakPalletId::get().into_account();
+			<T as pallet::Config>::Currency::transfer(&sender, &acc, price, AllowDeath)?;
+			Self::update_puchased_package(sender.clone())?;
 			Ok(())
 		}
 
@@ -714,48 +683,131 @@ pub mod pallet {
 			Ok(())
 		}
 
+		//Scheduling is the notification chain after file recovery
 		#[pallet::weight(10_000)]
-		pub fn clear_all_filler(origin: OriginFor<T>) -> DispatchResult {
+		pub fn recover_file(origin: OriginFor<T>, shard_id: Vec<u8>, slice_info: SliceInfo<T>, avail: bool) -> DispatchResult {
+			//Get fileid from shardid,
+			let length = shard_id.len().checked_sub(4).ok_or(Error::<T>::Overflow)?;
+			let file_id = shard_id[0..length].to_vec();
+			//Vec to BoundedVec
+			let file_id_bounded: BoundedString<T> =
+				file_id.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
 			let sender = ensure_signed(origin)?;
-			let state = T::MinerControl::get_miner_state(sender.clone())?;
-			if state != "exit".as_bytes().to_vec() {
-				Err(Error::<T>::NotQualified)?;
+			let bounded_string: BoundedString<T> =
+			shard_id.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+			//Delete the corresponding recovery slice request pool
+			<FileRecovery<T>>::try_mutate(&sender, |o| -> DispatchResult {
+				o.retain(|x| *x != bounded_string);
+				Ok(())
+			})?;
+			if !<File<T>>::contains_key(&file_id_bounded) {
+				Err(Error::<T>::FileNonExistent)?;
 			}
-			let _ = FillerMap::<T>::remove_prefix(&sender, Option::None);
+			if avail {
+				<File<T>>::try_mutate(&file_id_bounded, |opt| -> DispatchResult {
+					let o = opt.as_mut().unwrap();
+					o.slice_info.try_push(slice_info).map_err(|_| Error::<T>::StorageLimitReached)?;
+					o.file_state = "active"
+						.as_bytes()
+						.to_vec()
+						.try_into()
+						.map_err(|_e| Error::<T>::BoundedVecError)?;
+					Ok(())
+				})?;
+			} else {
+				Self::clear_file(file_id.clone())?;
+			}
+			
+			Self::deposit_event(Event::<T>::RecoverFile { acc: sender, file_hash: shard_id });
 			Ok(())
-		} 
+		}
 	}
 
 	impl<T: Config> Pallet<T> {
+		fn update_puchased_package(acc: AccountOf<T>) -> DispatchResult {
+			<PurchasedPackage<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+				let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedPackage)?;
+				let one_day = <T as pallet::Config>::OneDay::get();
+				let now = <frame_system::Pallet<T>>::block_number();
+				let sur_block: BlockNumberOf<T> = one_day
+					.checked_mul(&30u32.saturated_into())
+					.ok_or(Error::<T>::Overflow)?;
+				if now > s.deadline {
+					s.start = now;
+					s.deadline = now.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
+				} else {
+					s.deadline = s.deadline
+						.checked_add(&sur_block)
+						.ok_or(Error::<T>::Overflow)?;
+				}
+				
+				Ok(())
+			})?;
+			Ok(())
+		}
+
+		fn expension_puchased_package(acc: AccountOf<T>, space: u128, package_type: u8) -> DispatchResult {
+			<PurchasedPackage<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+				let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedPackage)?;
+				s.remaining_space = s.remaining_space
+					.checked_add(space.checked_sub(s.space).ok_or(Error::<T>::Overflow)?)
+					.ok_or(Error::<T>::Overflow)?;
+				s.space = space;
+				s.package_type = package_type;
+				Ok(())
+			})?;
+
+			Ok(())
+		}
+
+		fn add_puchased_package(acc: AccountOf<T>, space: u128, month: u32, package_type: u8) -> DispatchResult {
+			let now = <frame_system::Pallet<T>>::block_number();
+			let one_day = <T as pallet::Config>::OneDay::get();
+			let sur_block: BlockNumberOf<T> = month
+				.checked_mul(30)
+				.ok_or(Error::<T>::Overflow)?
+				.checked_mul(one_day.saturated_into())
+				.ok_or(Error::<T>::Overflow)?
+				.saturated_into();
+			let deadline = now.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
+			let info = PackageDetails::<T>{
+				space: space,
+				used_space: 0,
+				remaining_space: space,
+				tenancy: month,
+				package_type: package_type,
+				start: now,
+				deadline: deadline,
+				state: "normal".as_bytes().to_vec().try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
+			};
+			<PurchasedPackage<T>>::insert(&acc, info);
+			Ok(())
+		}
 
 		//operation: 1 upload files, 2 delete file
 		fn update_user_space(acc: AccountOf<T>, operation: u8, size: u128) -> DispatchResult {
 			match operation {
-				1 => <UserHoldSpaceDetails<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
-					let s = s_opt.as_mut().unwrap();
-					if size > s.purchased_space - s.used_space {
-						Err(Error::<T>::InsufficientStorage)?;
-					}
-					if false == Self::check_lease_expired(acc.clone()) {
-						Self::deposit_event(Event::<T>::LeaseExpired { acc: acc.clone(), size: 0 });
-						Err(Error::<T>::LeaseExpired)?;
-					}
-					s.remaining_space =
-						s.remaining_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
-					s.used_space = s.used_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
-					Ok(())
-				})?,
-				2 => <UserHoldSpaceDetails<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+				1 => {
+						<PurchasedPackage<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+							let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedPackage)?;
+							if s.state.to_vec() == "frozen".as_bytes().to_vec() {
+								Err(Error::<T>::LeaseFreeze)?;
+							}
+							if size > s.space - s.used_space {
+								Err(Error::<T>::InsufficientStorage)?;
+							}
+							s.used_space = s.used_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+							s.remaining_space =
+								s.remaining_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
+							Ok(())
+						})?;
+				}
+				2 => <PurchasedPackage<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
 					let s = s_opt.as_mut().unwrap();
 					s.used_space = s.used_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
-					if s.purchased_space > s.used_space {
-						s.remaining_space = s
-							.purchased_space
+					s.remaining_space = s.space
 							.checked_sub(s.used_space)
 							.ok_or(Error::<T>::Overflow)?;
-					} else {
-						s.remaining_space = 0;
-					}
 					Ok(())
 				})?,
 				_ => Err(Error::<T>::WrongOperation)?,
@@ -763,63 +815,28 @@ pub mod pallet {
 			Ok(())
 		}
 
-		fn user_buy_space_update(acc: AccountOf<T>, size: u128) -> DispatchResult {
-			if <UserHoldSpaceDetails<T>>::contains_key(&acc) {
-				<UserHoldSpaceDetails<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
-					let s = s_opt.as_mut().unwrap();
-					s.purchased_space =
-						s.purchased_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
-					if s.purchased_space > s.used_space {
-						s.remaining_space = s
-							.purchased_space
-							.checked_sub(s.used_space)
-							.ok_or(Error::<T>::Overflow)?;
-					} else {
-						s.remaining_space = 0;
-					}
-
-					Ok(())
-				})?;
-			} else {
-				let value =
-					StorageSpace { purchased_space: size, used_space: 0, remaining_space: size };
-				<UserHoldSpaceDetails<T>>::insert(&acc, value);
-			}
-			Ok(())
-		}
-
 		//Available space divided by 1024 is the unit price
-		fn get_price() -> Result<u128, DispatchError> {
+		fn get_price(buy_space: u128) -> Result<u128, DispatchError> {
 			//Get the available space on the current chain
-			let space = pallet_sminer::Pallet::<T>::get_space()?;
+			let total_space = pallet_sminer::Pallet::<T>::get_space()?;
 			//If it is not 0, the logic is executed normally
-			if space != 0 {
-				//Calculation rules
-				//The price is based on 1024 / available space on the current chain
-				//Multiply by the base value 1 tcess * 1_000 (1_000_000_000_000 * 1_000)
-				let price: u128 = M_BYTE
-					.checked_mul(1024)
-					.ok_or(Error::<T>::Overflow)?
-					.checked_mul(1_000_000_000_000)
-					.ok_or(Error::<T>::Overflow)?
-					.checked_mul(1000)
-					.ok_or(Error::<T>::Overflow)?
-					.checked_div(space)
-					.ok_or(Error::<T>::Overflow)?;
-				return Ok(price)
+			if total_space == 0 {
+				Err(Error::<T>::IsZero)?;
 			}
-			//If it is 0, an extra large price will be returned
-			Ok(1_000_000_000_000_000_000)
-		}
+			//Calculation rules
+			//The price is based on 1024 / available space on the current chain
+			//Multiply by the base value 1 tcess * 1_000 (1_000_000_000_000 * 1_000)
+			let price: u128 = buy_space
+				.checked_mul(1_000_000_000_000)
+				.ok_or(Error::<T>::Overflow)?
+				.checked_mul(10_000)
+				.ok_or(Error::<T>::Overflow)?
+				.checked_div(total_space)
+				.ok_or(Error::<T>::Overflow)?
+				.checked_add(1_000_000_000_000_000)
+				.ok_or(Error::<T>::Overflow)?;
 
-		//Before using this method, you must determine whether the primary key fileid exists
-		fn check_lease_expired(acc: AccountOf<T>) -> bool {
-			let details = <UserHoldSpaceDetails<T>>::get(&acc).unwrap();
-			if details.used_space > details.purchased_space {
-				false
-			} else {
-				true
-			}
+			return Ok(price)
 		}
 
 		fn vec_to_bound<P>(param: Vec<P>) -> Result<BoundedVec<P, T::StringLimit>, DispatchError> {
@@ -828,109 +845,42 @@ pub mod pallet {
 			Ok(result)
 		}
 
-		//offchain helper
-		//Signature chaining method
-		fn offchain_signed_tx(
-			_block_number: T::BlockNumber,
-			price: Vec<u8>,
-		) -> Result<(), Error<T>> {
-			let signer = Signer::<T, T::AuthorityId>::any_account();
-
-			let result = signer
-				.send_signed_transaction(|_account| Call::update_price { price: price.clone() });
-
-			if let Some((acc, res)) = result {
-				if res.is_err() {
-					log::error!("failure: offchain_signed_tx: tx sent: {:?}", acc.id);
-					return Err(<Error<T>>::OffchainSignedTxError)
-				}
-				// Transaction is sent successfully
-				return Ok(())
-			}
-
-			// The case of `None`: no account is available for sending
-			log::error!("No local account available");
-			Err(<Error<T>>::NoLocalAcctForSigning)
-		}
-
-		pub fn offchain_fetch_price(block_number: T::BlockNumber) -> Result<(), Error<T>> {
-			//Call HTTP request method
-			let resp_bytes = Self::offchain_http_req().map_err(|e| {
-				log::error!("fetch_from_remote error: {:?}", e);
-				<Error<T>>::HttpFetchingError
-			})?;
-			//Pass the value returned from the request to the signing authority
-			let _ = Self::offchain_signed_tx(block_number, resp_bytes)?;
-
-			Ok(())
-		}
-		//Offline worker, HTTP request method.
-		fn offchain_http_req() -> Result<Vec<u8>, Error<T>> {
-			log::info!("send request to {}", HTTP_REQUEST_STR);
-			//Create request
-			//The request address is: https://arweave.net/price/1048576
-			//Arweave's official API is used to query prices
-			//Request price of 1MB
-			let request = rt_offchain::http::Request::get(HTTP_REQUEST_STR);
-			//Set timeout wait
-			let timeout = sp_io::offchain::timestamp()
-				.add(rt_offchain::Duration::from_millis(FETCH_TIMEOUT_PERIOD));
-
-			log::info!("send request");
-			//Send request
-			let pending = request
-				.add_header("User-Agent", "PostmanRuntime/7.28.4")
-				.deadline(timeout) // Setting the timeout time
-				.send() // Sending the request out by the host
-				.map_err(|_| <Error<T>>::HttpFetchingError)?;
-
-			log::info!("wating response");
-			//Waiting for response
-			let response = pending.wait().map_err(|_| <Error<T>>::HttpFetchingError)?;
-			//Determine whether the response is wrong
-			if response.code != 200 {
-				log::error!("Unexpected http request status code: {}", response.code);
-				Err(<Error<T>>::HttpFetchingError)?;
-			}
-
-			Ok(response.body().collect::<Vec<u8>>())
-		}
-
 		pub fn get_random_challenge_data(
-		) -> Result<Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, u8, u32)>, DispatchError> {
+		) -> Result<Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, u8)>, DispatchError> {
 			let filler_list = Self::get_random_filler()?;
-			let mut data: Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, u8, u32)> = Vec::new();
+			let mut data: Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, u8)> = Vec::new();
 			for v in filler_list {
 				let length = v.block_num;
-				let number_list = Self::get_random_numberlist(length, 1)?;
+				let number_list = Self::get_random_numberlist(length, 3, length)?;
 				let miner_acc = v.miner_address.clone();
 				let filler_id = v.filler_id.clone().to_vec();
 				let file_size = v.filler_size.clone();
-				let segment_size = v.segment_size.clone();
 				let mut block_list: Vec<u8> = Vec::new();
 				for i in number_list.iter() {
-					block_list.push(*i as u8);
+					block_list.push((*i as u8) + 1);
 				}
-				data.push((miner_acc, filler_id, block_list, file_size, 1, segment_size));
+				data.push((miner_acc, filler_id, block_list, file_size, 1));
 			}
 
 			let file_list = Self::get_random_file()?;
-			for (file_hash, file) in file_list {
-				let miner_id = T::MinerControl::get_miner_id(file.miner_acc.clone())?;
-				if file.miner_id != miner_id {
-					continue;
-				}
-				let length = file.block_num;
-				let number_list = Self::get_random_numberlist(length, 1)?;
-				let miner_acc = file.miner_acc.clone();
-				let file_hash = file_hash.clone().to_vec();
-				let file_size = file.file_size.clone();
-				let segment_size = file.segment_size.clone();
-				let mut block_list: Vec<u8> = Vec::new();
-				for i in number_list.iter() {
-					block_list.push(*i as u8);
-				}
-				data.push((miner_acc, file_hash, block_list, file_size, 2, segment_size));
+			for (_, file) in file_list {
+				let slice_number_list = Self::get_random_numberlist(file.slice_info.len() as u32, 3, file.slice_info.len() as u32)?;
+				for slice_index in slice_number_list.iter() {
+					let miner_id = T::MinerControl::get_miner_id(file.slice_info[*slice_index as usize].miner_acc.clone())?;
+					if file.slice_info[*slice_index as usize].miner_id != miner_id {
+						continue;
+					}
+					let mut block_list: Vec<u8> = Vec::new();
+					let length = file.slice_info[*slice_index as usize].block_num;
+					let number_list = Self::get_random_numberlist(length, 3, length)?;
+					let file_hash = file.slice_info[*slice_index as usize].shard_id.to_vec();
+					let miner_acc = file.slice_info[*slice_index as usize].miner_acc.clone();
+					let slice_size = file.slice_info[*slice_index as usize].shard_size;
+					for i in number_list.iter() {
+						block_list.push((*i as u8) + 1);
+					}
+					data.push((miner_acc, file_hash, block_list, slice_size, 2));
+				}		
 			}
 
 			Ok(data)
@@ -938,47 +888,44 @@ pub mod pallet {
 		//Get random file block list
 		fn get_random_filler() -> Result<Vec<FillerInfo<T>>, DispatchError> {
 			let length = Self::get_fillermap_length()?;
-			let number_list = Self::get_random_numberlist(length, 1)?;
+			let limit = <FillerIndexCount<T>>::get();
+			let number_list = Self::get_random_numberlist(length, 1, limit)?;
 			let mut filler_list: Vec<FillerInfo<T>> = Vec::new();
 			for i in number_list.iter() {
-				let mut counter: u32 = 0;
-				for (_, _, value) in <FillerMap<T>>::iter() {
-					if counter == *i {
-						filler_list.push(value);
-						break
-					}
-					counter = counter.checked_add(1).ok_or(Error::<T>::Overflow)?;
-				}
+				let result = <FillerKeysMap<T>>::get(i);
+				let (acc, filler_id) = match result {
+					Some(x) => x,
+					None => {
+						Err(Error::<T>::BugInvalid)?
+					},
+				};
+				let filler = <FillerMap<T>>::try_get(acc, filler_id).map_err(|_e| Error::<T>::BugInvalid)?;
+				filler_list.push(filler);
 			}
 			Ok(filler_list)
 		}
 
 		fn get_random_file() -> Result<Vec<(BoundedString<T>, FileInfo<T>)>, DispatchError> {
 			let length = Self::get_file_map_length()?;
-			//Extract according to the probability of 4.6% * 3
-			let number_list = Self::get_random_numberlist(length, 2)?;
+			let limit = <FileIndexCount<T>>::get();
+			let number_list = Self::get_random_numberlist(length, 2, limit)?;
 			let mut file_list: Vec<(BoundedString<T>, FileInfo<T>)> = Vec::new();
 			for i in number_list.iter() {
-				let mut counter: u32 = 0;
-				for (key, value) in <File<T>>::iter() {
-					if value.file_state.to_vec() == "active".as_bytes().to_vec() {
-						if counter == *i {
-							file_list.push(
-								(
-									key,
-									value,
-								)
-							);
-							break
-						}
-						counter = counter.checked_add(1).ok_or(Error::<T>::Overflow)?;
-					}
+				let file_id = <FileKeysMap<T>>::try_get(i).map_err(|_e| Error::<T>::FileNonExistent)?.1;
+				let value = <File<T>>::try_get(&file_id).map_err(|_e| Error::<T>::FileNonExistent)?;
+				if value.file_state.to_vec() == "active".as_bytes().to_vec() {
+					file_list.push(
+						(
+							file_id.clone(),
+							value,
+						)
+					);
 				}
 			}
 			Ok(file_list)
 		}
 
-		fn get_random_numberlist(length: u32, random_type: u8) -> Result<Vec<u32>, DispatchError> {
+		fn get_random_numberlist(length: u32, random_type: u8, limit: u32) -> Result<Vec<u32>, DispatchError> {
 			let mut seed: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
 			if length == 0 {
 				return Ok(Vec::new())
@@ -992,7 +939,7 @@ pub mod pallet {
 					.checked_add(1)
 					.ok_or(Error::<T>::Overflow)?,
 				2 => length
-					.checked_mul(46 * 3)
+					.checked_mul(46)
 					.ok_or(Error::<T>::Overflow)?
 					.checked_div(1000)
 					.ok_or(Error::<T>::Overflow)?
@@ -1016,31 +963,49 @@ pub mod pallet {
 						break
 					}
 				}
-				let random = Self::generate_random_number(seed)? % length;
+				let random = Self::generate_random_number(seed)? % limit;
+				let result: bool = match random_type {
+					1 => Self::judge_filler_exist(random),
+					2 => Self::judge_file_exist(random),
+					_ => true, 
+				};
+				if !result {
+					//Start the next cycle if the file does not exist
+					continue;
+				}
 				log::info!("List addition: {}", random);
 				number_list.push(random);
 			}
 			Ok(number_list)
 		}
 
+		fn judge_file_exist(index: u32) -> bool {
+			let result = <FileKeysMap<T>>::get(index);
+			let result = match result {
+				Some(x) => x.0,
+				None => false,
+			};
+			result 
+		}
+
+		fn judge_filler_exist(index: u32) -> bool {
+			let result = <FillerKeysMap<T>>::get(index);
+			let result = match result {
+				Some(_x) => true,
+				None => false,
+			};
+			result 
+		}
+
 		//Get storagemap filler length
 		fn get_fillermap_length() -> Result<u32, DispatchError> {
-			let mut length: u32 = 0;
-			for _ in <FillerMap<T>>::iter() {
-				length = length.checked_add(1).ok_or(Error::<T>::Overflow)?;
-			}
-			Ok(length)
+			let count = <FillerKeysMap<T>>::count();
+			Ok(count)
 		}
 
 		//Get Storage FillerMap Length
 		fn get_file_map_length() -> Result<u32, DispatchError> {
-			let mut length: u32 = 0;
-			for (_, v) in <File<T>>::iter() {
-				if v.file_state.to_vec() == "active".as_bytes().to_vec() {
-					length = length.checked_add(1).ok_or(Error::<T>::Overflow)?;
-				}
-			}
-			Ok(length)
+			Ok(<FileKeysMap<T>>::count())
 		}
 
 		//Get random number
@@ -1064,6 +1029,8 @@ pub mod pallet {
 			if !<FillerMap<T>>::contains_key(&miner_acc, filler_boud.clone()) {
 				Err(Error::<T>::FileNonExistent)?;
 			}
+			let value = <FillerMap<T>>::try_get(&miner_acc, filler_boud.clone()).map_err(|_e| Error::<T>::FileNonExistent)?;
+			<FillerKeysMap<T>>::remove(value.index);
 			<FillerMap<T>>::remove(miner_acc, filler_boud.clone());
 
 			Ok(())
@@ -1073,22 +1040,22 @@ pub mod pallet {
 		pub fn clear_file(file_hash: Vec<u8>) -> DispatchResult {
 			let file_hash_bounded: BoundedString<T> =
 				file_hash.try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
-			if !<File<T>>::contains_key(&file_hash_bounded) {
-				Err(Error::<T>::FileNonExistent)?;
+			let file = <File<T>>::try_get(&file_hash_bounded).map_err(|_| Error::<T>::FileNonExistent)?;
+			for user in file.user.iter() {
+				Self::update_user_space(user.clone(), 2, file.file_size.into())?;
+			}
+			for slice in file.slice_info.iter() {
+				Self::add_invalid_file(slice.miner_acc.clone(), slice.shard_id.to_vec())?;
+				T::MinerControl::sub_space(slice.miner_acc.clone(), slice.shard_size.into())?;
 			}
 			<File<T>>::remove(file_hash_bounded);
-
+			<FileKeysMap<T>>::remove(file.index);
 			Ok(())
 		}
 
 		pub fn clear_user_file(file_hash: BoundedVec<u8, T::StringLimit>, user: &AccountOf<T>) -> DispatchResult {
 			let file = <File<T>>::get(&file_hash).unwrap();
 			ensure!(file.user.contains(user),  Error::<T>::NotOwner);
-			Self::update_user_space(
-				user.clone(),
-				2,
-				file.file_size.clone().into(),
-			)?;
 			//If the file still has an owner, only the corresponding owner will be cleared. 
 			//If the owner is unique, the file meta information will be cleared.
 			if file.user.len() > 1 {
@@ -1105,11 +1072,13 @@ pub mod pallet {
 					s.file_name.remove(index);
 					Ok(())
 				})?;
+				Self::update_user_space(
+					user.clone(),
+					2,
+					file.file_size.clone().into(),
+				)?;
 			} else {
-				<File<T>>::remove(&file_hash);
-				Self::add_invalid_file(file.miner_acc.clone(), file_hash.to_vec())?;
-				T::MinerControl::sub_power(file.miner_acc.clone(), file.file_size.into())?;
-				T::MinerControl::sub_space(file.miner_acc.clone(), file.file_size.into())?;
+				Self::clear_file(file_hash.clone().to_vec())?;
 			}
 			
 			<UserHoldFileList<T>>::try_mutate(&user, |s| -> DispatchResult {
@@ -1119,9 +1088,31 @@ pub mod pallet {
 			Ok(())
 		}
 
+		//Add the list of files to be recovered and notify the scheduler to recover
+		pub fn add_recovery_file(shard_id: Vec<u8>) -> DispatchResult {
+			let acc = Self::get_current_scheduler();
+			let length = shard_id.len().checked_sub(4).ok_or(Error::<T>::Overflow)?;
+			let file_id = shard_id[0..length].to_vec();
+			let file_id_bounded: BoundedString<T> =
+				file_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+			if !<File<T>>::contains_key(&file_id_bounded) {
+				Err(Error::<T>::FileNonExistent)?;
+			}
+			<File<T>>::try_mutate(&file_id_bounded, |opt| -> DispatchResult {
+				let o = opt.as_mut().unwrap();
+				o.slice_info.retain(|x| x.shard_id.to_vec() != shard_id);
+				Ok(())
+			})?;
+			<FileRecovery<T>>::try_mutate(&acc, |o| -> DispatchResult {
+				o.try_push(shard_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?)
+					.map_err(|_e| Error::<T>::StorageLimitReached)?;
+				Ok(())
+			})?;
+
+			Ok(())
+		}
+
 		fn replace_file(miner_acc: AccountOf<T>, file_size: u64) -> DispatchResult {
-			//add space
-			T::MinerControl::add_space(miner_acc.clone(), file_size.into())?;
 			let (power, space) = T::MinerControl::get_power_and_space(miner_acc.clone())?;
 			//Judge whether the current miner's remaining is enough to store files
 			if power > space {
@@ -1160,7 +1151,9 @@ pub mod pallet {
 				}
 				Ok(())
 			})?;
-
+			//add space
+			T::MinerControl::add_space(miner_acc.clone(), file_size.into())?;
+			T::MinerControl::sub_power(miner_acc.clone(), replace_num * M_BYTE * 8)?;
 			Ok(())
 		}
 
@@ -1195,7 +1188,7 @@ pub mod pallet {
 		}
 
 		//Obtain the consensus of the current block
-		fn get_current_scheduler() -> AccountOf<T> {
+		pub fn get_current_scheduler() -> AccountOf<T> {
 			//Current block information
 			let digest = <frame_system::Pallet<T>>::digest();
 			let pre_runtime_digests = digest.logs.iter().filter_map(|d| d.as_pre_runtime());
@@ -1204,17 +1197,10 @@ pub mod pallet {
 			T::Scheduler::get_controller_acc(acc.unwrap())
 		}
 	
-		fn clear_expired_file(acc: &AccountOf<T>, used_space: u128, purchased_space: u128) -> DispatchResult {
-			let diff = used_space.checked_div(purchased_space).ok_or(Error::<T>::Overflow)?;
-			let mut clear_file_size: u128 = 0;
+		fn clear_expired_file(acc: &AccountOf<T>) -> DispatchResult {
 			let file_list = <UserHoldFileList<T>>::try_get(&acc).map_err(|_| Error::<T>::Overflow)?;
 			for v in file_list.iter() {
-				if clear_file_size > diff {
-					break;
-				}
 				Self::clear_user_file(v.file_hash.clone(), acc)?;
-				
-				clear_file_size = clear_file_size.checked_add(v.file_size.into()).ok_or(Error::<T>::Overflow)?;
 			}
 
 			Ok(())
@@ -1225,13 +1211,15 @@ pub mod pallet {
 pub trait RandomFileList<AccountId> {
 	//Get random challenge data
 	fn get_random_challenge_data(
-	) -> Result<Vec<(AccountId, Vec<u8>, Vec<u8>, u64, u8, u32)>, DispatchError>;
+	) -> Result<Vec<(AccountId, Vec<u8>, Vec<u8>, u64, u8)>, DispatchError>;
 	//Delete filler file
 	fn delete_filler(miner_acc: AccountId, filler_id: Vec<u8>) -> DispatchResult;
 	//Delete all filler according to miner_acc
 	fn delete_miner_all_filler(miner_acc: AccountId) -> DispatchResult;
 	//Delete file backup
 	fn clear_file(file_hash: Vec<u8>) -> DispatchResult;
+	//The function executed when the challenge fails, allowing the miner to delete invalid files
+	fn add_recovery_file(file_id: Vec<u8>) -> DispatchResult;
 	//The function executed when the challenge fails to let the consensus schedule recover the file
 	fn add_invalid_file(miner_acc: AccountId, file_hash: Vec<u8>) -> DispatchResult;
 	//Judge whether it is a user who can initiate transactions on the off chain machine
@@ -1240,7 +1228,7 @@ pub trait RandomFileList<AccountId> {
 
 impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Pallet<T> {
 	fn get_random_challenge_data(
-	) -> Result<Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, u8, u32)>, DispatchError> {
+	) -> Result<Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, u8)>, DispatchError> {
 		let result = Pallet::<T>::get_random_challenge_data()?;
 		Ok(result)
 	}
@@ -1251,12 +1239,20 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 	}
 	
 	fn delete_miner_all_filler(miner_acc: AccountOf<T>) -> DispatchResult {
+		for (_, value) in FillerMap::<T>::iter_prefix(&miner_acc) {
+			<FillerKeysMap<T>>::remove(value.index);
+		}
 		let _ = FillerMap::<T>::remove_prefix(&miner_acc, Option::None);
 		Ok(())
 	}
 
 	fn clear_file(file_hash: Vec<u8>) -> DispatchResult {
 		Pallet::<T>::clear_file(file_hash)?;
+		Ok(())
+	}
+
+	fn add_recovery_file(file_id: Vec<u8>) -> DispatchResult {
+		Pallet::<T>::add_recovery_file(file_id)?;
 		Ok(())
 	}
 

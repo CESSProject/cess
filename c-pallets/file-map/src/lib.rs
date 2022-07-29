@@ -87,6 +87,8 @@ pub mod pallet {
 		StorageLimitReached,
 		//data overrun error
 		Overflow,
+
+		NotBond,
 	}
 
 	#[pallet::storage]
@@ -170,7 +172,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			//Even if the primary key is not present here, panic will not be caused
-			let acc = <pallet_cess_staking::Pallet<T>>::bonded(&stash_account).unwrap();
+			let acc = <pallet_cess_staking::Pallet<T>>::bonded(&stash_account).ok_or(Error::<T>::NotBond)?;
 			if sender != acc {
 				Err(Error::<T>::NotController)?;
 			}
@@ -312,6 +314,7 @@ pub mod pallet {
 pub trait ScheduleFind<AccountId> {
 	fn contains_scheduler(acc: AccountId) -> bool;
 	fn get_controller_acc(acc: AccountId) -> AccountId;
+	fn punish_scheduler(acc: AccountId);
 }
 
 impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -334,5 +337,14 @@ impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<
 			}
 		}
 		acc
+	}
+
+	fn punish_scheduler(acc: <T as frame_system::Config>::AccountId) {
+		let scheduler_list = SchedulerMap::<T>::get();
+		for v in scheduler_list {
+			if v.controller_user == acc {
+				pallet_cess_staking::slashing::slash_scheduler::<T>(&v.stash_user);
+			}
+		}
 	}
 }

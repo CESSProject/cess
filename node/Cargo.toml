@@ -5,8 +5,8 @@ description = 'A fresh FRAME-based Substrate node, ready for hacking.'
 edition = '2018'
 license = 'Unlicense'
 name = 'cess-node'
-repository = '...'
-version = '3.0.0-monthly-2022-04'
+repository = 'https://github.com/CESSProject/cess'
+version = '0.5.0'
 
 [package.metadata.docs.rs]
 targets = ['x86_64-unknown-linux-gnu']
