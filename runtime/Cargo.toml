@@ -3,8 +3,8 @@ authors = ['CESS LAB']
 edition = '2021'
 license = 'Unlicense'
 name = 'cess-node-runtime'
-repository = '...'
-version = '3.0.0-monthly-2022-04'
+repository = 'https://github.com/CESSProject/cess'
+version = '0.5.0'
 
 [package.metadata.docs.rs]
 targets = ['x86_64-unknown-linux-gnu']
@@ -355,25 +355,25 @@ version = '4.0.0-dev'
 [dependencies.pallet-sminer]
 default-features = false
 path = '../c-pallets/sminer'
-version = '0.1.0'
+version = '0.5.0'
 
 # local dependencies
 [dependencies.pallet-segment-book]
 default-features = false
 path = '../c-pallets/segment-book'
-version = '0.1.0'
+version = '0.5.0'
 
 # local dependencies
 [dependencies.pallet-file-bank]
 default-features = false
 path = '../c-pallets/file-bank'
-version = '0.1.0'
+version = '0.5.0'
 
 # local dependencies
 [dependencies.pallet-file-map]
 default-features = false
 path = '../c-pallets/file-map'
-version = '0.1.0'
+version = '0.5.0'
 
 [features]
 default = ['std']

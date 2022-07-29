@@ -680,7 +680,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node"
-version = "3.0.0-monthly-2022-04"
+version = "0.5.0"
 dependencies = [
  "cess-node-runtime",
  "clap 3.1.9",
@@ -754,7 +754,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node-runtime"
-version = "3.0.0-monthly-2022-04"
+version = "0.5.0"
 dependencies = [
  "fp-rpc",
  "fp-self-contained",
@@ -4817,7 +4817,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-file-bank"
-version = "0.1.0"
+version = "0.5.0"
 dependencies = [
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -4849,7 +4849,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-file-map"
-version = "0.1.0"
+version = "0.5.0"
 dependencies = [
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -5065,7 +5065,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-segment-book"
-version = "0.1.0"
+version = "0.5.0"
 dependencies = [
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -5116,7 +5116,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-sminer"
-version = "0.1.0"
+version = "0.5.0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5126,6 +5126,7 @@ dependencies = [
  "pallet-scheduler",
  "pallet-timestamp",
  "parity-scale-codec",
+ "rand_chacha 0.2.2",
  "scale-info",
  "serde",
  "sp-core",

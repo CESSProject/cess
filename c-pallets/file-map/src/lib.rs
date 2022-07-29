@@ -87,6 +87,8 @@ pub mod pallet {
 		StorageLimitReached,
 		//data overrun error
 		Overflow,
+
+		NotBond,
 	}
 
 	#[pallet::storage]
@@ -170,7 +172,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			//Even if the primary key is not present here, panic will not be caused
-			let acc = <pallet_cess_staking::Pallet<T>>::bonded(&stash_account).unwrap();
+			let acc = <pallet_cess_staking::Pallet<T>>::bonded(&stash_account).ok_or(Error::<T>::NotBond)?;
 			if sender != acc {
 				Err(Error::<T>::NotController)?;
 			}
