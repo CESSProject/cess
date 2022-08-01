@@ -1,5 +1,5 @@
 use super::*;
-use crate::{Pallet as Sminer, *};
+use crate::{Pallet as Sminer};
 use codec::{alloc::string::ToString, Decode};
 pub use frame_benchmarking::{
 	account, benchmarks, impl_benchmark_test_suite, whitelist_account, whitelisted_caller,
@@ -57,7 +57,7 @@ benchmarks! {
         assert_eq!(4000u32, miner_info.collaterals.saturated_into::<u32>());
     }
 
-    updata_beneficiary {
+    update_beneficiary {
         let miner = add_miner::<T>()?;
         let caller: AccountOf<T> = account("user1", 100, SEED);
     }: _(RawOrigin::Signed(miner.clone()), caller.clone())
@@ -66,7 +66,7 @@ benchmarks! {
         assert_eq!(caller, miner_info.beneficiary);
     }
 
-    updata_ip {
+    update_ip {
         let miner = add_miner::<T>()?;
         let new_ip = "192.168.1.1:8000".as_bytes().to_vec();
     }: _(RawOrigin::Signed(miner.clone()), new_ip.clone())
@@ -90,7 +90,7 @@ benchmarks! {
     withdraw {
         let miner = add_miner::<T>()?;
         Sminer::<T>::exit_miner(RawOrigin::Signed(miner.clone()).into())?;
-        let colling = MinerColling::<T>::get(&miner).unwrap();
+        let colling = MinerLockIn::<T>::get(&miner).unwrap();
         let colling_number: u32 = colling.saturated_into();
         // log::info!("{}", colling_number);
         <frame_system::Pallet<T>>::set_block_number((colling_number + 60000).saturated_into());
@@ -183,18 +183,18 @@ benchmarks! {
         assert_eq!(next_block, 10u32.saturated_into());
     }
 
-    faucet_top_up {
-        log::info!("point 1");
-        let caller: T::AccountId = whitelisted_caller();
-        let existential_deposit = T::Currency::minimum_balance();
-        T::Currency::make_free_balance_be(
-			&caller,
-			BalanceOf::<T>::max_value(),
-		);
-        let fa: BalanceOf<T> =  existential_deposit.checked_mul(&10u32.saturated_into()).ok_or("over flow")?;
-        log::info!("point 2");
-    }: _(RawOrigin::Signed(caller), fa)
-    verify {
-        assert_eq!(1, 1)
-    }
+    // faucet_top_up {
+    //     log::info!("point 1");
+    //     let caller: T::AccountId = whitelisted_caller();
+    //     let existential_deposit = T::Currency::minimum_balance();
+    //     T::Currency::make_free_balance_be(
+	// 		&caller,
+	// 		BalanceOf::<T>::max_value(),
+	// 	);
+    //     let fa: BalanceOf<T> =  existential_deposit.checked_mul(&10u32.saturated_into()).ok_or("over flow")?;
+    //     log::info!("point 2");
+    // }: _(RawOrigin::Signed(caller), fa)
+    // verify {
+    //     assert_eq!(1, 1)
+    // }
 }
