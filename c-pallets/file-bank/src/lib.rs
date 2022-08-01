@@ -238,11 +238,6 @@ pub mod pallet {
 		StorageMap<_, Blake2_128Concat, BoundedString<T>, FileInfo<T>>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn invoice)]
-	pub(super) type Invoice<T: Config> =
-		StorageMap<_, Blake2_128Concat, BoundedString<T>, u8, ValueQuery>;
-
-	#[pallet::storage]
 	#[pallet::getter(fn user_hold_file_list)]
 	pub(super) type UserHoldFileList<T: Config> =
 		StorageMap<
