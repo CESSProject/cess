@@ -247,7 +247,7 @@ pub mod pallet {
 				for (acc, challenge_list) in <ChallengeMap<T>>::iter() {
 					for v in challenge_list {
 						Self::set_failure(acc.clone());
-						if let Err(e) = Self::updateMinerFile(
+						if let Err(e) = Self::update_miner_file(
 							acc.clone(),
 							v.file_id.to_vec(),
 							v.file_size,
@@ -285,7 +285,7 @@ pub mod pallet {
 						for (miner, total_proof) in <MinerTotalProof<T>>::iter() {
 							if <FailureNumMap<T>>::contains_key(&miner) {
 								if <ConsecutiveFines<T>>::contains_key(&miner) {
-									<ConsecutiveFines<T>>::try_mutate(
+									let _ = <ConsecutiveFines<T>>::try_mutate(
 										miner.clone(),
 										|s_opt| -> DispatchResult {
 											s_opt.checked_add(1).ok_or(Error::<T>::Overflow)?;
@@ -296,7 +296,7 @@ pub mod pallet {
 									<ConsecutiveFines<T>>::insert(&miner, 1);
 								}
 
-								Self::punish(
+								let _ = Self::punish(
 									miner.clone(),
 									<FailureNumMap<T>>::get(&miner),
 									total_proof,
@@ -421,7 +421,7 @@ pub mod pallet {
 							//If the result is false, a penalty will be imposed
 							if !result.result {
 								Self::set_failure(result.miner_acc.clone());
-								Self::updateMinerFile(
+								Self::update_miner_file(
 									result.miner_acc.clone(),
 									result.file_id.clone().to_vec(),
 									value.challenge_info.file_size,
@@ -676,7 +676,7 @@ pub mod pallet {
 				.ok_or(Error::<T>::Overflow)?
 				.checked_div(100)
 				.ok_or(Error::<T>::Overflow)?
-				.checked_add(200)
+				.checked_add(1200)
 				.ok_or(Error::<T>::Overflow)?
 				.saturated_into();
 			let result =
@@ -721,7 +721,7 @@ pub mod pallet {
 			random_list
 		}
 
-		fn updateMinerFile(
+		fn update_miner_file(
 			acc: AccountOf<T>,
 			file_id: Vec<u8>,
 			file_size: u64,
