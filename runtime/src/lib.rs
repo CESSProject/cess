@@ -900,7 +900,7 @@ impl pallet_sminer::Config for Runtime {
 	type MultipleFines = MultipleFines;
 	type DepositBufferPeriod = DepositBufferPeriod;
 	type CalculFailureFee = Sminer;
-	type OneDay = OneDay;
+	type OneDayBlock = OneDay;
 }
 parameter_types! {
 	pub const SegbkPalletId: PalletId = PalletId(*b"rewardpt");
