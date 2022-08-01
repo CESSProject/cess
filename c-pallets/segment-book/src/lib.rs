@@ -674,7 +674,7 @@ pub mod pallet {
 				.ok_or(Error::<T>::Overflow)?
 				.checked_div(100)
 				.ok_or(Error::<T>::Overflow)?
-				.checked_add(200)
+				.checked_add(1200)
 				.ok_or(Error::<T>::Overflow)?
 				.saturated_into();
 			let result =
