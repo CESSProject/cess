@@ -8,6 +8,12 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+#[cfg(any(feature = "runtime-benchmarks", test))]
+pub mod testing_utils;
+
+#[cfg(feature = "runtime-benchmarks")]
+pub mod benchmarking;
+
 use codec::{Decode, Encode};
 use frame_support::{dispatch::DispatchResult, traits::ReservableCurrency, BoundedVec, PalletId};
 pub use pallet::*;
@@ -222,36 +228,36 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(1_000_000)]
-		pub fn scheduler_exception_report(
-			origin: OriginFor<T>,
-			account: AccountOf<T>,
-		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
+		// #[pallet::weight(1_000_000)]
+		// pub fn scheduler_exception_report(
+		// 	origin: OriginFor<T>,
+		// 	account: AccountOf<T>,
+		// ) -> DispatchResult {
+		// 	let sender = ensure_signed(origin)?;
 
-			if !<SchedulerException<T>>::contains_key(&account) {
-				<SchedulerException<T>>::insert(
-					&account,
-					ExceptionReport::<T> { count: 0, reporters: Default::default() },
-				);
-			}
+		// 	if !<SchedulerException<T>>::contains_key(&account) {
+		// 		<SchedulerException<T>>::insert(
+		// 			&account,
+		// 			ExceptionReport::<T> { count: 0, reporters: Default::default() },
+		// 		);
+		// 	}
 
-			<SchedulerException<T>>::try_mutate(&account, |opt| -> DispatchResult {
-				let o = opt.as_mut().unwrap();
-				for value in &o.reporters.to_vec() {
-					if &sender == value {
-						Err(Error::<T>::AlreadyReport)?;
-					}
-				}
-				o.count = o.count.checked_add(1).ok_or(Error::<T>::Overflow)?;
-				o.reporters
-					.try_push(account.clone())
-					.map_err(|_e| Error::<T>::StorageLimitReached)?;
-				Ok(())
-			})?;
+		// 	<SchedulerException<T>>::try_mutate(&account, |opt| -> DispatchResult {
+		// 		let o = opt.as_mut().unwrap();
+		// 		for value in &o.reporters.to_vec() {
+		// 			if &sender == value {
+		// 				Err(Error::<T>::AlreadyReport)?;
+		// 			}
+		// 		}
+		// 		o.count = o.count.checked_add(1).ok_or(Error::<T>::Overflow)?;
+		// 		o.reporters
+		// 			.try_push(account.clone())
+		// 			.map_err(|_e| Error::<T>::StorageLimitReached)?;
+		// 		Ok(())
+		// 	})?;
 
-			Ok(())
-		}
+		// 	Ok(())
+		// }
 
 		#[pallet::weight(10_000)]
 		pub fn init_public_key(origin: OriginFor<T>) -> DispatchResult {
