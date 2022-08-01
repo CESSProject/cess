@@ -68,6 +68,7 @@ const STATE_FROZEN: &str = "frozen";
 const STATE_EXIT_FROZEN: &str = "e_frozen";
 const STATE_EXIT: &str = "exit";
 const LOCK_IN_PERIOD: u8 = 2;
+const MAX_AWARD: u128 = 1_306_849_000_000_000_000;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -371,6 +372,10 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Increase the miner collateral.
+		///
+		/// Parameters:
+		/// - `collaterals`: Miner's TCESS.
 		#[pallet::weight(1_000_000)]
 		pub fn increase_collateral(
 			origin: OriginFor<T>,
@@ -407,7 +412,10 @@ pub mod pallet {
 			Ok(())
 		}
 
-		//updata miner beneficiary
+		/// updata miner beneficiary.
+		///
+		/// Parameters:
+		/// - `beneficiary`: The beneficiary related to signer account.
 		#[pallet::weight(1_000_000)]
 		pub fn update_beneficiary(
 			origin: OriginFor<T>,
@@ -426,6 +434,10 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// updata miner IP.
+		///
+		/// Parameters:
+		/// - `ip`: The registered IP of storage miner.
 		#[pallet::weight(1_000_000)]
 		pub fn update_ip(origin: OriginFor<T>, ip: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -478,13 +490,13 @@ pub mod pallet {
 			if state != STATE_EXIT.as_bytes().to_vec() {
 				Err(Error::<T>::NotExisted)?;
 			}
-			let now: u128 = <frame_system::Pallet<T>>::block_number().saturated_into();
+			let now_block: u128 = <frame_system::Pallet<T>>::block_number().saturated_into();
 			let lock_in_strat: u128 = MinerLockIn::<T>::try_get(&sender)
 				.map_err(|_e| Error::<T>::LockInNotOver)?
 				.saturated_into();
 			let mut lock_in_period: u128 = T::OneDayBlock::get().saturated_into();
 			lock_in_period = lock_in_period * LOCK_IN_PERIOD as u128;
-			if lock_in_strat + lock_in_period > now {
+			if lock_in_strat + lock_in_period > now_block {
 				Err(Error::<T>::LockInNotOver)?;
 			}
 			let collaterals = MinerItems::<T>::try_get(&sender)
@@ -513,18 +525,14 @@ pub mod pallet {
 			// let reward_pot = T::PalletId::get().into_account();
 			let mut award: u128 =
 				<CurrencyReward<T>>::get().try_into().map_err(|_| Error::<T>::Overflow)?;
-			if award > 1_306_849_000_000_000_000 {
+			if award > MAX_AWARD {
 				<CurrencyReward<T>>::try_mutate(|currency_reward| -> DispatchResult {
 					*currency_reward = currency_reward
-						.checked_sub(
-							&1_306_849_000_000_000_000u128
-								.try_into()
-								.map_err(|_| Error::<T>::Overflow)?,
-						)
+						.checked_sub(&MAX_AWARD.try_into().map_err(|_| Error::<T>::Overflow)?)
 						.ok_or(Error::<T>::Overflow)?;
 					Ok(())
 				})?;
-				award = 1_306_849_000_000_000_000;
+				award = MAX_AWARD;
 			} else {
 				<CurrencyReward<T>>::try_mutate(|currency_reward| -> DispatchResult {
 					*currency_reward = 0u128.try_into().map_err(|_| Error::<T>::Overflow)?;
@@ -869,6 +877,10 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// A buffer period has expired.
+		///
+		/// Parameters:
+		/// - `when`: The block when the buffer period starts.
 		#[pallet::weight(1_000_000)]
 		pub fn buffer_end(origin: OriginFor<T>, when: BlockNumberOf<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
@@ -1115,6 +1127,9 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Parameters:
 	/// - `aid`: aid.
+	/// - `failure_num`: Times miner failed to submit the proof in one challenge.
+	/// - `total_proof`: The number of proofs a miner needs.
+	/// - `consecutive_fines`: Number of successive penalties in multiple challenges.
 	pub fn punish(
 		aid: AccountOf<T>,
 		failure_num: u8,
@@ -1162,6 +1177,8 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
+	/// A buffer period begins and miners are required to make a sufficient deposit before the buffer period ends.
+	///
 	pub fn open_buffer_schedule() -> DispatchResult {
 		let now = <frame_system::Pallet<T>>::block_number();
 		if BufferPeriod::<T>::contains_key(&now) {
@@ -1173,7 +1190,7 @@ impl<T: Config> Pallet<T> {
 			T::AScheduler::schedule(
 				DispatchTime::At(buffer_period),
 				None,
-				66,
+				59,
 				frame_system::RawOrigin::Root.into(),
 				Call::buffer_end { when: now }.into(),
 			)?;
@@ -1182,6 +1199,10 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
+	/// Add miners with insufficient deposits to the buffer pool.
+	///
+	/// Parameters:
+	/// - `acc`: miner account.
 	fn join_buffer_period(acc: AccountOf<T>) -> DispatchResult {
 		let now = <frame_system::Pallet<T>>::block_number();
 

@@ -8,7 +8,7 @@ type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 /// The custom struct for storing info of storage miners.
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct MinerInfo<AccountId, Balance, BoundedString> {
-	pub(super) peerid: u64,
+	pub(super) peer_id: u64,
 	//Income account
 	pub(super) beneficiary: AccountId,
 	pub(super) ip: BoundedString,
@@ -17,14 +17,14 @@ pub struct MinerInfo<AccountId, Balance, BoundedString> {
 	pub(super) state: BoundedString,
 	pub(super) power: u128,
 	pub(super) space: u128,
-	pub(super) reward_info: ReWardInfo<Balance>,
+	pub(super) reward_info: RewardInfo<Balance>,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-pub struct ReWardInfo<Balance> {
+pub struct RewardInfo<Balance> {
     pub(super) total_reward: Balance, 
 	pub(super) total_rewards_currently_available: Balance,
-	pub(super) totald_not_receive: Balance,
+	pub(super) total_not_receive: Balance,
 }
 /// The custom struct for storing info of storage CalculateRewardOrder.
 #[derive(PartialEq, Eq, Encode, Default, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]

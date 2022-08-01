@@ -247,7 +247,7 @@ pub mod pallet {
 				for (acc, challenge_list) in <ChallengeMap<T>>::iter() {
 					for v in challenge_list {
 						Self::set_failure(acc.clone());
-						if let Err(e) = Self::updateMinerFile(
+						if let Err(e) = Self::update_miner_file(
 							acc.clone(),
 							v.file_id.to_vec(),
 							v.file_size,
@@ -271,45 +271,44 @@ pub mod pallet {
 
 			//Punish the scheduler who fails to verify the results for a long time
 			if now == verify_deadline {
+				let mut is_end = true;
+
 				let mut verify_list: Vec<ProveInfo<T>> = Vec::new();
 				for (acc, v_list) in <UnVerifyProof<T>>::iter() {
-					let mut is_end = true;
-
 					if v_list.len() > 0 {
 						is_end = false;
 						verify_list.append(&mut v_list.to_vec());
 						T::Scheduler::punish_scheduler(acc.clone());
 					}
-
-					if is_end {
-						for (miner, total_proof) in <MinerTotalProof<T>>::iter() {
-							if <FailureNumMap<T>>::contains_key(&miner) {
-								if <ConsecutiveFines<T>>::contains_key(&miner) {
-									<ConsecutiveFines<T>>::try_mutate(
-										miner.clone(),
-										|s_opt| -> DispatchResult {
-											s_opt.checked_add(1).ok_or(Error::<T>::Overflow)?;
-											Ok(())
-										},
-									);
-								} else {
-									<ConsecutiveFines<T>>::insert(&miner, 1);
-								}
-
-								Self::punish(
+				}
+				if is_end {
+					for (miner, total_proof) in <MinerTotalProof<T>>::iter() {
+						if <FailureNumMap<T>>::contains_key(&miner) {
+							if <ConsecutiveFines<T>>::contains_key(&miner) {
+								<ConsecutiveFines<T>>::try_mutate(
 									miner.clone(),
-									<FailureNumMap<T>>::get(&miner),
-									total_proof,
-									<ConsecutiveFines<T>>::get(&miner),
+									|s_opt| -> DispatchResult {
+										s_opt.checked_add(1).ok_or(Error::<T>::Overflow)?;
+										Ok(())
+									},
 								);
 							} else {
-								<ConsecutiveFines<T>>::remove(&miner);
+								<ConsecutiveFines<T>>::insert(&miner, 1);
 							}
+
+							Self::punish(
+								miner.clone(),
+								<FailureNumMap<T>>::get(&miner),
+								total_proof,
+								<ConsecutiveFines<T>>::get(&miner),
+							);
+						} else {
+							<ConsecutiveFines<T>>::remove(&miner);
 						}
-						Self::open_buffer_schedule();
-						<FailureNumMap<T>>::remove_all(None);
-						<MinerTotalProof<T>>::remove_all(None);
 					}
+					Self::open_buffer_schedule();
+					<FailureNumMap<T>>::remove_all(None);
+					<MinerTotalProof<T>>::remove_all(None);
 				}
 				let cur_acc = Self::get_current_scheduler();
 				let _ = Self::storage_prove(cur_acc, verify_list);
@@ -340,7 +339,6 @@ pub mod pallet {
 						log::info!("offchain worker random challenge end");
 					}
 				}
-
 			}
 		}
 	}
@@ -421,7 +419,7 @@ pub mod pallet {
 							//If the result is false, a penalty will be imposed
 							if !result.result {
 								Self::set_failure(result.miner_acc.clone());
-								Self::updateMinerFile(
+								Self::update_miner_file(
 									result.miner_acc.clone(),
 									result.file_id.clone().to_vec(),
 									value.challenge_info.file_size,
@@ -721,7 +719,7 @@ pub mod pallet {
 			random_list
 		}
 
-		fn updateMinerFile(
+		fn update_miner_file(
 			acc: AccountOf<T>,
 			file_id: Vec<u8>,
 			file_size: u64,
