@@ -3,12 +3,9 @@
 pub use crate::executor::ExecutorDispatch;
 use crate::{cli::Cli, primitives as node_primitives, rpc as node_rpc};
 use cess_node_runtime::RuntimeApi;
-use codec::Encode;
-use fc_consensus::FrontierBlockImport;
 use fc_mapping_sync::{MappingSyncWorker, SyncStrategy};
 use fc_rpc::EthTask;
 use fc_rpc_core::types::{FeeHistoryCache, FilterPool};
-use frame_system_rpc_runtime_api::AccountNonceApi;
 use futures::prelude::*;
 use node_primitives::Block;
 use sc_cli::SubstrateCli;
@@ -20,9 +17,8 @@ use sc_service::{
 	config::Configuration, error::Error as ServiceError, BasePath, RpcHandlers, TaskManager,
 };
 use sc_telemetry::{Telemetry, TelemetryWorker};
-use sp_api::ProvideRuntimeApi;
-use sp_core::{crypto::Pair, U256};
-use sp_runtime::{generic, traits::Block as BlockT, SaturatedConversion};
+use sp_core::U256;
+use sp_runtime::traits::Block as BlockT;
 use std::{
 	collections::BTreeMap,
 	sync::{Arc, Mutex},

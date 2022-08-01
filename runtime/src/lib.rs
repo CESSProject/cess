@@ -34,14 +34,14 @@ use sp_runtime::{
 	generic::Era,
 	impl_opaque_keys,
 	traits::{
-		AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, Dispatchable, IdentifyAccount,
-		NumberFor, OpaqueKeys, PostDispatchInfoOf, SaturatedConversion, StaticLookup, Verify,
+		BlakeTwo256, Block as BlockT, ConvertInto, Dispatchable, IdentifyAccount, NumberFor,
+		OpaqueKeys, PostDispatchInfoOf, SaturatedConversion, StaticLookup, Verify,
 	},
 	transaction_validity::{
 		TransactionPriority, TransactionSource, TransactionValidity, TransactionValidityError,
 	},
-	ApplyExtrinsicResult, FixedPointNumber, MultiSignature, OpaqueExtrinsic, Perbill, Percent,
-	Permill, Perquintill, RuntimeAppPublic,
+	ApplyExtrinsicResult, FixedPointNumber, MultiSignature, Perbill, Percent, Permill, Perquintill,
+	RuntimeAppPublic,
 };
 use sp_std::{marker::PhantomData, prelude::*};
 #[cfg(feature = "std")]
@@ -74,7 +74,6 @@ pub mod impls;
 use impls::{Author, CreditToBlockAuthor};
 
 pub mod constants;
-use constants::{currency::*, time::*};
 use fp_rpc::TransactionStatus;
 pub use pallet_balances::Call as BalancesCall;
 use pallet_ethereum::{Call::transact, Transaction as EthereumTransaction};
@@ -1406,7 +1405,6 @@ mod benches {
 		[pallet_contracts, Contracts]
 		[pallet_sminer, Sminer]
 		[pallet_file_bank, FileBankBench::<Runtime>]
-		[pallet_file_map, FileMapBench::<Runtime>]
 		[pallet_collective::<Instance1>, Council]
 		[pallet_collective::<Instance2>, TechnicalCommittee]
 		// [pallet_evm, PalletEvmBench::<Runtime>]
@@ -1829,7 +1827,6 @@ impl_runtime_apis! {
 			use frame_support::traits::StorageInfoTrait;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
-			use pallet_file_map::benchmarking::Pallet as FileMapBench;
 			// use pallet_sminer::benchmarking::Pallet as SminerBench;
 			use baseline::Pallet as BaselineBench;
 
@@ -1848,13 +1845,11 @@ impl_runtime_apis! {
 			use pallet_evm::Pallet as PalletEvmBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
-			use pallet_file_map::benchmarking::Pallet as FileMapBench;
 			// use pallet_sminer::benchmarking::::Pallet as SminerBench;
 			use baseline::Pallet as BaselineBench;
 
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl pallet_file_bank::benchmarking::Config for Runtime{}
-			impl pallet_file_map::benchmarking::Config for Runtime{}
 			// impl pallet_file_bank::benchmarking::Config for Runtime{}
 			impl baseline::Config for Runtime {}
 
