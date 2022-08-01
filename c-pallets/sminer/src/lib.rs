@@ -33,8 +33,10 @@ use frame_support::{
 		Get, Imbalance, LockIdentifier, OnUnbalanced, ReservableCurrency,
 	},
 };
+
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
+
 mod types;
 pub mod weights;
 use codec::{Decode, Encode};
@@ -256,7 +258,7 @@ pub mod pallet {
 	/// The total storage space to fill of all storage miners.
 	#[pallet::storage]
 	#[pallet::getter(fn total_space)]
-	pub(super) type TotalSpace<T: Config> = StorageValue<_, u128, ValueQuery>;
+	pub(super) type TotalServiceSpace<T: Config> = StorageValue<_, u128, ValueQuery>;
 	/// Store all miner information
 	#[pallet::storage]
 	#[pallet::getter(fn miner_info)]
@@ -266,10 +268,6 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn purchased_space)]
 	pub(super) type PurchasedSpace<T: Config> = StorageValue<_, u128, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn available_space)]
-	pub(super) type AvailableSpace<T: Config> = StorageValue<_, u128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn dad_miner)]
@@ -1009,7 +1007,6 @@ impl<T: Config> Pallet<T> {
 		if state == STATE_EXIT.as_bytes().to_vec() {
 			return Ok(());
 		}
-		Self::add_available_space(increment.clone())?;
 		MinerItems::<T>::try_mutate(&acc, |miner_info_opt| -> DispatchResult {
 			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
 			miner_info.power =
@@ -1039,7 +1036,6 @@ impl<T: Config> Pallet<T> {
 		if state == STATE_EXIT.as_bytes().to_vec() {
 			return Ok(());
 		}
-		Self::sub_available_space(increment.clone())?;
 		MinerItems::<T>::try_mutate(&acc, |miner_info_opt| -> DispatchResult {
 			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
 			miner_info.power =
@@ -1076,7 +1072,7 @@ impl<T: Config> Pallet<T> {
 				miner_info.space.checked_add(increment).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})?;
-		TotalSpace::<T>::try_mutate(|total_space| -> DispatchResult {
+		TotalServiceSpace::<T>::try_mutate(|total_space| -> DispatchResult {
 			*total_space = total_space.checked_add(increment).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})?;
@@ -1104,7 +1100,7 @@ impl<T: Config> Pallet<T> {
 				miner_info.space.checked_sub(increment).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})?;
-		TotalSpace::<T>::mutate(|total_space| -> DispatchResult {
+		TotalServiceSpace::<T>::mutate(|total_space| -> DispatchResult {
 			*total_space = total_space.checked_sub(increment).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})?;
@@ -1226,14 +1222,8 @@ impl<T: Config> Pallet<T> {
 			Ok(())
 		})?;
 
-		TotalSpace::<T>::try_mutate(|total_space| -> DispatchResult {
+		TotalServiceSpace::<T>::try_mutate(|total_space| -> DispatchResult {
 			*total_space = total_space.checked_sub(miner.space).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
-
-		AvailableSpace::<T>::try_mutate(|available_space| -> DispatchResult {
-			*available_space =
-				available_space.checked_sub(miner.power).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})?;
 
@@ -1306,7 +1296,7 @@ impl<T: Config> Pallet<T> {
 	//Get the available space on the current chain.
 	pub fn get_space() -> Result<u128, DispatchError> {
 		let purchased_space = <PurchasedSpace<T>>::get();
-		let total_space = <AvailableSpace<T>>::get();
+		let total_space = <TotalPower<T>>::get() + <TotalServiceSpace<T>>::get();
 		//If the total space on the current chain is less than the purchased space, 0 will be
 		// returned.
 		if total_space < purchased_space {
@@ -1320,8 +1310,8 @@ impl<T: Config> Pallet<T> {
 
 	pub fn add_purchased_space(size: u128) -> DispatchResult {
 		<PurchasedSpace<T>>::try_mutate(|purchased_space| -> DispatchResult {
-			let available_space = <AvailableSpace<T>>::get();
-			if *purchased_space + size > available_space {
+			let total_space = <TotalServiceSpace<T>>::get() + <TotalPower<T>>::get();
+			if *purchased_space + size > total_space {
 				Err(<Error<T>>::InsufficientAvailableSpace)?;
 			}
 			*purchased_space = purchased_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
@@ -1334,24 +1324,6 @@ impl<T: Config> Pallet<T> {
 	pub fn sub_purchased_space(size: u128) -> DispatchResult {
 		<PurchasedSpace<T>>::try_mutate(|purchased_space| -> DispatchResult {
 			*purchased_space = purchased_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
-
-		Ok(())
-	}
-
-	pub fn add_available_space(size: u128) -> DispatchResult {
-		<AvailableSpace<T>>::try_mutate(|available_space| -> DispatchResult {
-			*available_space = available_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
-
-		Ok(())
-	}
-
-	pub fn sub_available_space(size: u128) -> DispatchResult {
-		<AvailableSpace<T>>::try_mutate(|available_space| -> DispatchResult {
-			*available_space = available_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})?;
 
@@ -1415,8 +1387,6 @@ pub trait MinerControl<AccountId> {
 	) -> DispatchResult;
 	fn miner_is_exist(acc: AccountId) -> bool;
 	fn get_miner_state(acc: AccountId) -> Result<Vec<u8>, DispatchError>;
-	fn add_available_space(size: u128) -> DispatchResult;
-	fn sub_available_space(size: u128) -> DispatchResult;
 	fn add_purchased_space(size: u128) -> DispatchResult;
 	fn sub_purchased_space(size: u128) -> DispatchResult;
 	fn open_buffer_schedule() -> DispatchResult;
@@ -1484,16 +1454,6 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 	fn get_miner_state(acc: AccountOf<T>) -> Result<Vec<u8>, DispatchError> {
 		let miner = <MinerItems<T>>::try_get(&acc).map_err(|_| Error::<T>::NotMiner)?;
 		Ok(miner.state.to_vec())
-	}
-
-	fn add_available_space(size: u128) -> DispatchResult {
-		Self::add_available_space(size)?;
-		Ok(())
-	}
-
-	fn sub_available_space(size: u128) -> DispatchResult {
-		Self::sub_available_space(size)?;
-		Ok(())
 	}
 
 	fn add_purchased_space(size: u128) -> DispatchResult {
