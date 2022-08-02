@@ -68,8 +68,8 @@ use pallet_file_bank::RandomFileList;
 use pallet_file_map::ScheduleFind;
 use pallet_sminer::MinerControl;
 use scale_info::TypeInfo;
-use sp_core::{crypto::KeyTypeId, H256};
-use sp_std::{collections::btree_map::BTreeMap, if_std, prelude::*};
+use sp_core::H256;
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -273,45 +273,44 @@ pub mod pallet {
 
 			//Punish the scheduler who fails to verify the results for a long time
 			if now == verify_deadline {
+				let mut is_end = true;
+
 				let mut verify_list: Vec<ProveInfo<T>> = Vec::new();
 				for (acc, v_list) in <UnVerifyProof<T>>::iter() {
-					let mut is_end = true;
-
 					if v_list.len() > 0 {
 						is_end = false;
 						verify_list.append(&mut v_list.to_vec());
 						T::Scheduler::punish_scheduler(acc.clone());
 					}
-
-					if is_end {
-						for (miner, total_proof) in <MinerTotalProof<T>>::iter() {
-							if <FailureNumMap<T>>::contains_key(&miner) {
-								if <ConsecutiveFines<T>>::contains_key(&miner) {
-									let _ = <ConsecutiveFines<T>>::try_mutate(
-										miner.clone(),
-										|s_opt| -> DispatchResult {
-											s_opt.checked_add(1).ok_or(Error::<T>::Overflow)?;
-											Ok(())
-										},
-									);
-								} else {
-									<ConsecutiveFines<T>>::insert(&miner, 1);
-								}
-
-								let _ = Self::punish(
+				}
+				if is_end {
+					for (miner, total_proof) in <MinerTotalProof<T>>::iter() {
+						if <FailureNumMap<T>>::contains_key(&miner) {
+							if <ConsecutiveFines<T>>::contains_key(&miner) {
+								<ConsecutiveFines<T>>::try_mutate(
 									miner.clone(),
-									<FailureNumMap<T>>::get(&miner),
-									total_proof,
-									<ConsecutiveFines<T>>::get(&miner),
-								);
+									|s_opt| -> DispatchResult {
+										s_opt.checked_add(1).ok_or(Error::<T>::Overflow)?;
+										Ok(())
+									},
+								).unwrap_or(());
 							} else {
-								<ConsecutiveFines<T>>::remove(&miner);
+								<ConsecutiveFines<T>>::insert(&miner, 1);
 							}
+
+							Self::punish(
+								miner.clone(),
+								<FailureNumMap<T>>::get(&miner),
+								total_proof,
+								<ConsecutiveFines<T>>::get(&miner),
+							).unwrap_or(());
+						} else {
+							<ConsecutiveFines<T>>::remove(&miner);
 						}
-						let _ = Self::open_buffer_schedule();
-						<FailureNumMap<T>>::remove_all(None);
-						<MinerTotalProof<T>>::remove_all(None);
 					}
+					Self::open_buffer_schedule().unwrap_or(());
+					<FailureNumMap<T>>::remove_all(None);
+					<MinerTotalProof<T>>::remove_all(None);
 				}
 				let result = Self::get_current_scheduler();
 				match result {
@@ -349,7 +348,6 @@ pub mod pallet {
 						log::info!("offchain worker random challenge end");
 					}
 				}
-
 			}
 		}
 	}
@@ -429,7 +427,7 @@ pub mod pallet {
 							o.retain(|x| (x.challenge_info.file_id != result.file_id.to_vec()));
 							//If the result is false, a penalty will be imposed
 							if !result.result {
-								Self::set_failure(result.miner_acc.clone())?;
+								Self::set_failure(result.miner_acc.clone()).unwrap_or(());
 								Self::update_miner_file(
 									result.miner_acc.clone(),
 									result.file_id.clone().to_vec(),
@@ -513,7 +511,7 @@ pub mod pallet {
 		fn set_failure(acc: AccountOf<T>) -> DispatchResult {
 			if <FailureNumMap<T>>::contains_key(&acc) {
 				<FailureNumMap<T>>::try_mutate(acc.clone(), |s_opt| -> DispatchResult {
-					s_opt.checked_add(1).unwrap();
+					s_opt.checked_add(1).ok_or(Error::<T>::Overflow)?;
 					Ok(())
 				})?;
 			} else {
@@ -750,7 +748,7 @@ pub mod pallet {
 					T::File::delete_filler(acc.clone(), file_id)?;
 				},
 				2 => {
-					T::MinerControl::sub_space(acc.clone(), file_size.into())?;
+					T::MinerControl::sub_space(&acc, file_size.into())?;
 					T::File::add_recovery_file(file_id.clone())?;
 					T::File::add_invalid_file(acc.clone(), file_id.clone())?;
 				},
