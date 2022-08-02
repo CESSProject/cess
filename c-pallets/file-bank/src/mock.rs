@@ -353,7 +353,6 @@ impl Config for Test {
     type WeightInfo = ();
     type Call = Call;
     type FindAuthor = ();
-    type AuthorityId = file_bank::crypto::TestAuthId;
     type Scheduler = pallet_file_map::Pallet::<Test>;
     type MinerControl = pallet_sminer::Pallet::<Test>;
     type MyRandomness = TestRandomness<Self>;

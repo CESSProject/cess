@@ -38,7 +38,7 @@ use frame_support::{
 mod benchmarking;
 
 mod types;
-pub mod weights;
+
 use codec::{Decode, Encode};
 use frame_support::{
 	dispatch::{DispatchResult, Dispatchable},
@@ -54,6 +54,7 @@ use sp_runtime::{
 };
 use sp_std::{convert::TryInto, prelude::*};
 use types::*;
+pub mod weights;
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -381,7 +382,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `collaterals`: Miner's TCESS.
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::increase_collateral())]
 		pub fn increase_collateral(
 			origin: OriginFor<T>,
 			#[pallet::compact] collaterals: BalanceOf<T>,
@@ -421,7 +422,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `beneficiary`: The beneficiary related to signer account.
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_beneficiary())]
 		pub fn update_beneficiary(
 			origin: OriginFor<T>,
 			beneficiary: AccountOf<T>,
@@ -443,7 +444,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `ip`: The registered IP of storage miner.
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_ip())]
 		pub fn update_ip(origin: OriginFor<T>, ip: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
@@ -461,7 +462,7 @@ pub mod pallet {
 		}
 
 		//Miner exit method, Irreversible process.
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::exit_miner())]
 		pub fn exit_miner(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
@@ -486,7 +487,7 @@ pub mod pallet {
 		}
 
 		//Method for miners to redeem deposit
-		#[pallet::weight(200_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::withdraw())]
 		pub fn withdraw(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
@@ -599,7 +600,7 @@ pub mod pallet {
 		/// Delete reward orders.
 		///
 		/// The dispatch origin of this call must be _root_.
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::del_reward_order())]
+		#[pallet::weight(100_000)]
 		pub fn del_reward_order(
 			origin: OriginFor<T>,
 			acc: AccountOf<T>,
@@ -921,7 +922,7 @@ pub mod pallet {
 		/// Parameters:
 		/// - `acc`: Top-up account .
 		/// - `acc`: Top-up amount .
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::faucet_top_up())]
+		#[pallet::weight(100_000)]
 		pub fn faucet_top_up(origin: OriginFor<T>, award: BalanceOf<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
@@ -938,7 +939,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `acc`: Withdraw money account.
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::faucet())]
+		#[pallet::weight(100_000)]
 		pub fn faucet(origin: OriginFor<T>, to: AccountOf<T>) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 
