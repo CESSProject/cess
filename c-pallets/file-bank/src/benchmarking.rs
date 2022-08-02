@@ -43,31 +43,37 @@ pub fn add_file<T: Config>(file_hash: Vec<u8>) -> Result<(BoundedString<T>, T::A
 
 	let file_size: u64 = 333;
 	let mut slice_info_list: Vec<SliceInfo<T>> = Vec::new();
+	let mut file_hash1: Vec<u8> = file_hash.clone();
+	file_hash1.append("-001".as_bytes().to_vec().as_mut());
 	let slice_info = SliceInfo::<T>{
 		miner_id: 1,
 		shard_size: 111,
 		block_num: 8,
-		shard_id: "1".as_bytes().to_vec().try_into().map_err(|_e| "shar_id convert err")?,
+		shard_id: file_hash1.try_into().map_err(|_e| "shar_id convert err")?,
 		miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().map_err(|_e| "miner ip convert err")?,
 		miner_acc: miner.clone(),
 	};
 	slice_info_list.push(slice_info);
 
+	let mut file_hash2: Vec<u8> = file_hash.clone();
+	file_hash2.append("-002".as_bytes().to_vec().as_mut());
 	let slice_info2 = SliceInfo::<T>{
 		miner_id: 1,
 		shard_size: 111,
 		block_num: 8,
-		shard_id: "2".as_bytes().to_vec().try_into().map_err(|_e| "shar_id convert err")?,
+		shard_id: file_hash2.try_into().map_err(|_e| "shar_id convert err")?,
 		miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().map_err(|_e| "miner ip convert err")?,
 		miner_acc: miner.clone(),
 	};
 	slice_info_list.push(slice_info2);
 
+	let mut file_hash3: Vec<u8> = file_hash.clone();
+	file_hash3.append("-003".as_bytes().to_vec().as_mut());
 	let slice_info3 = SliceInfo::<T>{
 		miner_id: 1,
 		shard_size: 111,
 		block_num: 8,
-		shard_id: "3".as_bytes().to_vec().try_into().map_err(|_e| "shar_id convert err")?,
+		shard_id: file_hash3.try_into().map_err(|_e| "shar_id convert err")?,
 		miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().map_err(|_e| "miner ip convert err")?,
 		miner_acc: miner.clone(),
 	};
@@ -211,112 +217,112 @@ benchmarks! {
 		assert_eq!(info.space, G_BYTE * 10);
 	}
 
-	// upgrade_package {
-	// 	let caller: T::AccountId = whitelisted_caller();
-	// 	let (user, miner, controller) = bench_buy_package::<T>(caller.clone(), 10000)?;	
-	// 	let value: u32 = BalanceOf::<T>::max_value().saturated_into();
-	// 	let free_balance: u32 = <T as pallet::Config>::Currency::free_balance(&user).saturated_into();
-	// 	let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
-	// 	let balance: BalanceOf<T> = <T as crate::Config>::Currency::minimum_balance().checked_mul(&2u32.saturated_into()).ok_or("over flow")?;
-	// 	<T as crate::Config>::Currency::make_free_balance_be(
-	// 		&acc,
-	// 		balance,
-	// 	);
-	// 	log::info!("free_balance: {}",free_balance);
-	// }: _(RawOrigin::Signed(caller), 2, 0)
-	// verify {
-	// 	assert!(<PurchasedPackage<T>>::contains_key(&user));
-	// 	let info = <PurchasedPackage<T>>::get(&user).unwrap();
-	// 	assert_eq!(info.space, G_BYTE * 500);
-	// }
+	upgrade_package {
+		let caller: T::AccountId = whitelisted_caller();
+		let (user, miner, controller) = bench_buy_package::<T>(caller.clone(), 10000)?;	
+		let value: u32 = BalanceOf::<T>::max_value().saturated_into();
+		let free_balance: u32 = <T as pallet::Config>::Currency::free_balance(&user).saturated_into();
+		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
+		let balance: BalanceOf<T> = <T as crate::Config>::Currency::minimum_balance().checked_mul(&2u32.saturated_into()).ok_or("over flow")?;
+		<T as crate::Config>::Currency::make_free_balance_be(
+			&acc,
+			balance,
+		);
+		log::info!("free_balance: {}",free_balance);
+	}: _(RawOrigin::Signed(caller), 2, 0)
+	verify {
+		assert!(<PurchasedPackage<T>>::contains_key(&user));
+		let info = <PurchasedPackage<T>>::get(&user).unwrap();
+		assert_eq!(info.space, G_BYTE * 500);
+	}
 
-	// renewal_package {
-	// 	let caller: T::AccountId = whitelisted_caller();
-	// 	let (user, miner, controller) = bench_buy_package::<T>(caller.clone(), 1000)?;
-	// 	let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
-	// 	let balance: BalanceOf<T> = <T as crate::Config>::Currency::minimum_balance().checked_mul(&2u32.saturated_into()).ok_or("over flow")?;
-	// 	<T as crate::Config>::Currency::make_free_balance_be(
-	// 		&acc,
-	// 		balance,
-	// 	);
-	// }: _(RawOrigin::Signed(caller))
-	// verify {
-	// 	assert!(<PurchasedPackage<T>>::contains_key(&user));
-	// 	let info = <PurchasedPackage<T>>::get(&user).unwrap();
-	// 	assert_eq!(info.start, 0u32.saturated_into());
-	// 	let day60 = T::OneDay::get() * 60u32.saturated_into();
-	// 	assert_eq!(info.deadline, day60);
-	// }
+	renewal_package {
+		let caller: T::AccountId = whitelisted_caller();
+		let (user, miner, controller) = bench_buy_package::<T>(caller.clone(), 1000)?;
+		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
+		let balance: BalanceOf<T> = <T as crate::Config>::Currency::minimum_balance().checked_mul(&2u32.saturated_into()).ok_or("over flow")?;
+		<T as crate::Config>::Currency::make_free_balance_be(
+			&acc,
+			balance,
+		);
+	}: _(RawOrigin::Signed(caller))
+	verify {
+		assert!(<PurchasedPackage<T>>::contains_key(&user));
+		let info = <PurchasedPackage<T>>::get(&user).unwrap();
+		assert_eq!(info.start, 0u32.saturated_into());
+		let day60 = T::OneDay::get() * 60u32.saturated_into();
+		assert_eq!(info.deadline, day60);
+	}
 
-	// upload_declaration {
-	// 	let caller = account("user1", 100, SEED);
-	// 	let file_hash = "cess-13540202190502".as_bytes().to_vec();
-	// 	let file_name = "test-file".as_bytes().to_vec();
-	// }: _(RawOrigin::Signed(caller), file_hash.clone(), file_name)
-	// verify {
-	// 	let file_hash: BoundedString<T> = file_hash.try_into().map_err(|_e| "convert err")?;
-	// 	assert!(<File<T>>::contains_key(file_hash));
-	// }
+	upload_declaration {
+		let caller = account("user1", 100, SEED);
+		let file_hash = "cess-13540202190502".as_bytes().to_vec();
+		let file_name = "test-file".as_bytes().to_vec();
+	}: _(RawOrigin::Signed(caller), file_hash.clone(), file_name)
+	verify {
+		let file_hash: BoundedString<T> = file_hash.try_into().map_err(|_e| "convert err")?;
+		assert!(<File<T>>::contains_key(file_hash));
+	}
 
-	// upload {
-	// 	let caller: AccountOf<T> = account("user1", 100, SEED);
-	// 	let (user, miner, controller) = bench_buy_package::<T>(caller.clone(), 1000)?;
-	// 	let miner: T::AccountId = account("miner1", 100, SEED);
-	// 	let file_hash = "cess-13540202190502".as_bytes().to_vec();
-	// 	let file_name = "test-file".as_bytes().to_vec();
-	// 	FileBank::<T>::upload_declaration(RawOrigin::Signed(caller.clone()).into(), file_hash.clone(), file_name.clone())?;
-	// 	let file_size: u64 = 333;
-	// 	let mut slice_info_list: Vec<SliceInfo<T>> = Vec::new();
-	// 	let slice_info = SliceInfo::<T>{
-	// 		miner_id: 1,
-	// 		shard_size: 111,
-	// 		block_num: 8,
-	// 		shard_id: "1".as_bytes().to_vec().try_into().map_err(|_e| "shar_id convert err")?,
-	// 		miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().map_err(|_e| "miner ip convert err")?,
-	// 		miner_acc: miner.clone(),
-	// 	};
-	// 	slice_info_list.push(slice_info);
+	upload {
+		let caller: AccountOf<T> = account("user1", 100, SEED);
+		let (user, miner, controller) = bench_buy_package::<T>(caller.clone(), 1000)?;
+		let miner: T::AccountId = account("miner1", 100, SEED);
+		let file_hash = "cess-13540202190502".as_bytes().to_vec();
+		let file_name = "test-file".as_bytes().to_vec();
+		FileBank::<T>::upload_declaration(RawOrigin::Signed(caller.clone()).into(), file_hash.clone(), file_name.clone())?;
+		let file_size: u64 = 333;
+		let mut slice_info_list: Vec<SliceInfo<T>> = Vec::new();
+		let slice_info = SliceInfo::<T>{
+			miner_id: 1,
+			shard_size: 111,
+			block_num: 8,
+			shard_id: "1".as_bytes().to_vec().try_into().map_err(|_e| "shar_id convert err")?,
+			miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().map_err(|_e| "miner ip convert err")?,
+			miner_acc: miner.clone(),
+		};
+		slice_info_list.push(slice_info);
 	
-	// 	let slice_info2 = SliceInfo::<T>{
-	// 		miner_id: 1,
-	// 		shard_size: 111,
-	// 		block_num: 8,
-	// 		shard_id: "2".as_bytes().to_vec().try_into().map_err(|_e| "shar_id convert err")?,
-	// 		miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().map_err(|_e| "miner ip convert err")?,
-	// 		miner_acc: miner.clone(),
-	// 	};
-	// 	slice_info_list.push(slice_info2);
+		let slice_info2 = SliceInfo::<T>{
+			miner_id: 1,
+			shard_size: 111,
+			block_num: 8,
+			shard_id: "2".as_bytes().to_vec().try_into().map_err(|_e| "shar_id convert err")?,
+			miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().map_err(|_e| "miner ip convert err")?,
+			miner_acc: miner.clone(),
+		};
+		slice_info_list.push(slice_info2);
 	
-	// 	let slice_info3 = SliceInfo::<T>{
-	// 		miner_id: 1,
-	// 		shard_size: 111,
-	// 		block_num: 8,
-	// 		shard_id: "3".as_bytes().to_vec().try_into().map_err(|_e| "shar_id convert err")?,
-	// 		miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().map_err(|_e| "miner ip convert err")?,
-	// 		miner_acc: miner.clone(),
-	// 	};
-	// 	slice_info_list.push(slice_info3);
-	// }: _(RawOrigin::Signed(controller), file_hash.clone(), file_size, slice_info_list, caller.clone())
-	// verify {
-	// 	let file_hash: BoundedString<T> = file_hash.try_into().map_err(|_e| "file_hash Vec convert BoundedVec err")?;
-	// 	assert!(<File<T>>::contains_key(&file_hash));
-	// 	let info = <File<T>>::get(&file_hash).unwrap();
-	// 	assert_eq!(info.slice_info.len(), 3);
-	// 	let package_info = <PurchasedPackage<T>>::get(&user).unwrap();
-	// 	assert_eq!(package_info.used_space, 333);
-	// }
+		let slice_info3 = SliceInfo::<T>{
+			miner_id: 1,
+			shard_size: 111,
+			block_num: 8,
+			shard_id: "3".as_bytes().to_vec().try_into().map_err(|_e| "shar_id convert err")?,
+			miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().map_err(|_e| "miner ip convert err")?,
+			miner_acc: miner.clone(),
+		};
+		slice_info_list.push(slice_info3);
+	}: _(RawOrigin::Signed(controller), file_hash.clone(), file_size, slice_info_list, caller.clone())
+	verify {
+		let file_hash: BoundedString<T> = file_hash.try_into().map_err(|_e| "file_hash Vec convert BoundedVec err")?;
+		assert!(<File<T>>::contains_key(&file_hash));
+		let info = <File<T>>::get(&file_hash).unwrap();
+		assert_eq!(info.slice_info.len(), 3);
+		let package_info = <PurchasedPackage<T>>::get(&user).unwrap();
+		assert_eq!(package_info.used_space, 333);
+	}
 
-	// delete_file {
-	// 	let file_hash = "cess_05020219520".as_bytes().to_vec();
-	//     let (file_hash, caller, _, _) = add_file::<T>(file_hash)?;
-	// 	assert!(File::<T>::contains_key(&file_hash));
-	// }: _(RawOrigin::Signed(caller), file_hash.to_vec())
-	// verify {
-	//     assert!(!File::<T>::contains_key(&file_hash));
-	// }
+	delete_file {
+		let file_hash = "cess_05020219520".as_bytes().to_vec();
+	    let (file_hash, caller, _, _) = add_file::<T>(file_hash)?;
+		assert!(File::<T>::contains_key(&file_hash));
+	}: _(RawOrigin::Signed(caller), file_hash.to_vec())
+	verify {
+	    assert!(!File::<T>::contains_key(&file_hash));
+	}
 
 	recover_file {
-		let v in 0 .. 500;
+		let v in 0 .. 50;
 		let mut avai = true;
 		if v % 2 == 0 {
 			avai = false;
@@ -326,11 +332,21 @@ benchmarks! {
 	    let (file_hash, caller, miner, controller) = add_file::<T>(file_hash)?;
 		assert!(File::<T>::contains_key(&file_hash));
 		let info = File::<T>::get(&file_hash).unwrap();
-		let acc = FileBank::<T>::get_current_scheduler();
 		let re_shard = info.slice_info[0].shard_id.clone();
-		FileBank::<T>::add_recovery_file(re_shard.to_vec())?;
-		assert!(FileRecovery::<T>::contains_key(&acc));
-		let re_list = FileRecovery::<T>::get(&acc);
+
+		<File<T>>::try_mutate(&file_hash, |opt| -> DispatchResult {
+			let o = opt.as_mut().unwrap();
+			o.slice_info.retain(|x| x.shard_id != re_shard.clone());
+			Ok(())
+		})?;
+		<FileRecovery<T>>::try_mutate(&controller, |o| -> DispatchResult {
+			o.try_push(re_shard.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?)
+				.map_err(|_e| Error::<T>::StorageLimitReached)?;
+			Ok(())
+		})?;
+
+		assert!(FileRecovery::<T>::contains_key(&controller));
+		let re_list = FileRecovery::<T>::get(&controller);
 		assert_eq!(re_list.len(), 1);
 		let slice_info = SliceInfo::<T>{
 			miner_id: 1,
@@ -342,9 +358,15 @@ benchmarks! {
 		};
 		let info = File::<T>::get(&file_hash).unwrap();
 		assert_eq!(info.slice_info.len(), 2);
-	}: _(RawOrigin::Signed(acc.clone()), re_shard.to_vec(), slice_info, avai)
+	}: _(RawOrigin::Signed(controller.clone()), re_shard.to_vec(), slice_info, avai)
 	verify {
-		let info = File::<T>::get(&file_hash).unwrap();
-		assert_eq!(info.slice_info.len(), 3);
+		if avai {
+			let info = File::<T>::get(&file_hash).unwrap();
+			assert_eq!(info.slice_info.len(), 3);
+		} else {
+			assert!(!File::<T>::contains_key(&file_hash));
+		}
 	}
+
+
 }

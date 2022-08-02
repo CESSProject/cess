@@ -14,6 +14,7 @@ codec = { package = "parity-scale-codec", version = "3.0.0", default-features = 
 scale-info = { default-features = false, features = ['derive'], version = "2.0.1" }
 serde_json = { version = '1.0.67', default-features = false, features = ['alloc'] }
 log = { version = "0.4.14", default-features = false }
+rand_chacha = { version = "0.2", default-features = false, optional = true }
 
 [dependencies.frame-benchmarking]
 default-features = false
@@ -95,4 +96,7 @@ std = [
 	"pallet-session/std",
 	"pallet-cess-staking/std",
 ]
-runtime-benchmarks = ["frame-benchmarking"]
+runtime-benchmarks = [
+	"frame-benchmarking/runtime-benchmarks",
+	"rand_chacha",
+]

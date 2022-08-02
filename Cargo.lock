@@ -4952,6 +4952,7 @@ dependencies = [
  "pallet-sminer",
  "pallet-timestamp",
  "parity-scale-codec",
+ "rand_chacha 0.2.2",
  "scale-info",
  "serde",
  "serde_json",

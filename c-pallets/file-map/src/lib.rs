@@ -8,11 +8,17 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+#[cfg(any(feature = "runtime-benchmarks", test))]
+pub mod testing_utils;
+
+#[cfg(feature = "runtime-benchmarks")]
+pub mod benchmarking;
+
 use codec::{Decode, Encode};
 use frame_support::{dispatch::DispatchResult, traits::ReservableCurrency, BoundedVec, PalletId};
 pub use pallet::*;
 use scale_info::TypeInfo;
-use sp_runtime::{traits::SaturatedConversion, RuntimeDebug};
+use sp_runtime::{traits::SaturatedConversion, RuntimeDebug, DispatchError};
 use sp_std::prelude::*;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -222,36 +228,36 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(1_000_000)]
-		pub fn scheduler_exception_report(
-			origin: OriginFor<T>,
-			account: AccountOf<T>,
-		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
+		// #[pallet::weight(1_000_000)]
+		// pub fn scheduler_exception_report(
+		// 	origin: OriginFor<T>,
+		// 	account: AccountOf<T>,
+		// ) -> DispatchResult {
+		// 	let sender = ensure_signed(origin)?;
 
-			if !<SchedulerException<T>>::contains_key(&account) {
-				<SchedulerException<T>>::insert(
-					&account,
-					ExceptionReport::<T> { count: 0, reporters: Default::default() },
-				);
-			}
+		// 	if !<SchedulerException<T>>::contains_key(&account) {
+		// 		<SchedulerException<T>>::insert(
+		// 			&account,
+		// 			ExceptionReport::<T> { count: 0, reporters: Default::default() },
+		// 		);
+		// 	}
 
-			<SchedulerException<T>>::try_mutate(&account, |opt| -> DispatchResult {
-				let o = opt.as_mut().unwrap();
-				for value in &o.reporters.to_vec() {
-					if &sender == value {
-						Err(Error::<T>::AlreadyReport)?;
-					}
-				}
-				o.count = o.count.checked_add(1).ok_or(Error::<T>::Overflow)?;
-				o.reporters
-					.try_push(account.clone())
-					.map_err(|_e| Error::<T>::StorageLimitReached)?;
-				Ok(())
-			})?;
+		// 	<SchedulerException<T>>::try_mutate(&account, |opt| -> DispatchResult {
+		// 		let o = opt.as_mut().unwrap();
+		// 		for value in &o.reporters.to_vec() {
+		// 			if &sender == value {
+		// 				Err(Error::<T>::AlreadyReport)?;
+		// 			}
+		// 		}
+		// 		o.count = o.count.checked_add(1).ok_or(Error::<T>::Overflow)?;
+		// 		o.reporters
+		// 			.try_push(account.clone())
+		// 			.map_err(|_e| Error::<T>::StorageLimitReached)?;
+		// 		Ok(())
+		// 	})?;
 
-			Ok(())
-		}
+		// 	Ok(())
+		// }
 
 		#[pallet::weight(10_000)]
 		pub fn init_public_key(origin: OriginFor<T>) -> DispatchResult {
@@ -315,6 +321,7 @@ pub trait ScheduleFind<AccountId> {
 	fn contains_scheduler(acc: AccountId) -> bool;
 	fn get_controller_acc(acc: AccountId) -> AccountId;
 	fn punish_scheduler(acc: AccountId);
+	fn get_first_controller() -> Result<AccountId, DispatchError>;
 }
 
 impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -346,5 +353,13 @@ impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<
 				pallet_cess_staking::slashing::slash_scheduler::<T>(&v.stash_user);
 			}
 		}
+	}
+
+	fn get_first_controller() -> Result<<T as frame_system::Config>::AccountId, DispatchError> {
+		let s_vec = SchedulerMap::<T>::get();
+		if s_vec.len() > 0 {
+			return Ok(s_vec[0].clone().controller_user);
+		}
+		Err(Error::<T>::Overflow)?
 	}
 }
