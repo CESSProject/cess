@@ -18,7 +18,7 @@ use codec::{Decode, Encode};
 use frame_support::{dispatch::DispatchResult, traits::ReservableCurrency, BoundedVec, PalletId};
 pub use pallet::*;
 use scale_info::TypeInfo;
-use sp_runtime::{traits::SaturatedConversion, RuntimeDebug};
+use sp_runtime::{traits::SaturatedConversion, RuntimeDebug, DispatchError};
 use sp_std::prelude::*;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -321,6 +321,7 @@ pub trait ScheduleFind<AccountId> {
 	fn contains_scheduler(acc: AccountId) -> bool;
 	fn get_controller_acc(acc: AccountId) -> AccountId;
 	fn punish_scheduler(acc: AccountId);
+	fn get_first_controller() -> Result<AccountId, DispatchError>;
 }
 
 impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -352,5 +353,13 @@ impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<
 				pallet_cess_staking::slashing::slash_scheduler::<T>(&v.stash_user);
 			}
 		}
+	}
+
+	fn get_first_controller() -> Result<<T as frame_system::Config>::AccountId, DispatchError> {
+		let s_vec = SchedulerMap::<T>::get();
+		if s_vec.len() > 0 {
+			return Ok(s_vec[0].clone().controller_user);
+		}
+		Err(Error::<T>::Overflow)?
 	}
 }
