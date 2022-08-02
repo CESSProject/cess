@@ -317,7 +317,7 @@ pub mod pallet {
 					Ok(cur_acc) =>  {
 						let _ = Self::storage_prove(cur_acc, verify_list);
 					},
-					Err(e) => log::error!("get_current_scheduler err"),
+					Err(_e) => log::error!("get_current_scheduler err"),
 				} 
 				
 				
