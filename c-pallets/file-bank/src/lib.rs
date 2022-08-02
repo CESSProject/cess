@@ -284,6 +284,7 @@ pub mod pallet {
 	#[pallet::getter(fn purchase_package)]
 	pub(super) type PurchasedPackage<T: Config> =
 		StorageMap<_, Blake2_128Concat, AccountOf<T>, PackageDetails<T>>;
+		
 	#[pallet::storage]
 	#[pallet::getter(fn file_keys_map)]
 	pub(super) type FileKeysMap<T: Config> =
@@ -363,7 +364,7 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		#[pallet::weight(6_231_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_declaration())]
 		pub fn upload_declaration(
 			origin: OriginFor<T>,
 			file_hash: Vec<u8>,
@@ -522,7 +523,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(2_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::delete_file())]
 		pub fn delete_file(origin: OriginFor<T>, fileid: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let bounded_fileid = Self::vec_to_bound::<u8>(fileid.clone())?;
@@ -541,7 +542,7 @@ pub mod pallet {
 		//**********************************************************************************************************************************************
 		//The parameter "space_count" is calculated in gigabyte.
 		//parameter "lease_count" is calculated on the monthly basis.
-		#[pallet::weight(2_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_package())]
 		pub fn buy_package(origin: OriginFor<T>, package_type: u8, count: u128) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
@@ -577,7 +578,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(2_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::upgrade_package())]
 		pub fn upgrade_package(
 			origin: OriginFor<T>,
 			package_type: u8,
@@ -653,7 +654,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(2_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_package())]
 		pub fn renewal_package(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let cur_package = <PurchasedPackage<T>>::try_get(&sender)
@@ -677,7 +678,7 @@ pub mod pallet {
 		}
 
 		//Feedback results after the miner clears the invalid files
-		#[pallet::weight(10_000)]
+		#[pallet::weight(22_777_000)]
 		pub fn clear_invalid_file(origin: OriginFor<T>, file_hash: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let bounded_string: BoundedString<T> =
@@ -715,7 +716,7 @@ pub mod pallet {
 		}
 
 		//Scheduling is the notification chain after file recovery
-		#[pallet::weight(10_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::recover_file())]
 		pub fn recover_file(
 			origin: OriginFor<T>,
 			shard_id: Vec<u8>,

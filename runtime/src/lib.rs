@@ -878,7 +878,7 @@ impl pallet_sudo::Config for Runtime {
 	type Call = Call;
 }
 
-/** * Add This Block ** */
+//Add This Block
 parameter_types! {
   pub const RewardPalletId: PalletId = PalletId(*b"rewardpt");
   pub const MultipleFines: u8 = 7;
@@ -958,6 +958,7 @@ impl pallet_file_map::Config for Runtime {
 	type Event = Event;
 	type FileMapPalletId = FileMapPalletId;
 	type StringLimit = StringLimit;
+	type WeightInfo = pallet_file_map::weights::SubstrateWeight<Runtime>;
 }
 
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
@@ -1280,7 +1281,6 @@ impl fp_self_contained::SelfContainedCall for Call {
 		}
 	}
 }
-/** * Frontier End-------------------------------------------------------------------- ** */
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(

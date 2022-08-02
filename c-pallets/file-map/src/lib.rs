@@ -20,6 +20,8 @@ pub use pallet::*;
 use scale_info::TypeInfo;
 use sp_runtime::{traits::SaturatedConversion, RuntimeDebug, DispatchError};
 use sp_std::prelude::*;
+pub mod weights;
+pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
@@ -70,6 +72,8 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type StringLimit: Get<u32> + PartialEq + Eq + Clone;
+		//the weights
+		type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::event]
@@ -170,7 +174,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		//Scheduling registration method
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::registration_scheduler())]
 		pub fn registration_scheduler(
 			origin: OriginFor<T>,
 			stash_account: AccountOf<T>,
@@ -199,7 +203,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(1_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_scheduler())]
 		pub fn update_scheduler(
 			origin: OriginFor<T>,
 			ip: Vec<u8>,

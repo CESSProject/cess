@@ -47,7 +47,7 @@ pub use pallet::*;
 
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
-pub mod weights;
+
 use sp_runtime::{
 	traits::{CheckedAdd, SaturatedConversion},
 	RuntimeDebug,
@@ -70,6 +70,7 @@ use pallet_sminer::MinerControl;
 use scale_info::TypeInfo;
 use sp_core::H256;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
+pub mod weights;
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -374,7 +375,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(1000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_challenge_prove(prove_info.len() as u32))]
 		pub fn submit_challenge_prove(
 			origin: OriginFor<T>,
 			prove_info: Vec<ProveInfo<T>>,
@@ -400,7 +401,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(1000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::verify_proof(result_list.len() as u32))]
 		pub fn verify_proof(
 			origin: OriginFor<T>,
 			result_list: Vec<VerifyResult<T>>,
