@@ -44,7 +44,9 @@ mod mock;
 mod tests;
 
 pub use pallet::*;
-mod benchmarking;
+
+#[cfg(feature = "runtime-benchmarks")]
+pub mod benchmarking;
 pub mod weights;
 use sp_runtime::{
 	traits::{CheckedAdd, SaturatedConversion},
@@ -66,8 +68,8 @@ use pallet_file_bank::RandomFileList;
 use pallet_file_map::ScheduleFind;
 use pallet_sminer::MinerControl;
 use scale_info::TypeInfo;
-use sp_core::{crypto::KeyTypeId, H256};
-use sp_std::{collections::btree_map::BTreeMap, if_std, prelude::*};
+use sp_core::H256;
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -246,8 +248,8 @@ pub mod pallet {
 				//the miners who fail to complete the challenge will be punished
 				for (acc, challenge_list) in <ChallengeMap<T>>::iter() {
 					for v in challenge_list {
-						Self::set_failure(acc.clone());
-						if let Err(e) = Self::updateMinerFile(
+						let _ = Self::set_failure(acc.clone());
+						if let Err(e) = Self::update_miner_file(
 							acc.clone(),
 							v.file_id.to_vec(),
 							v.file_size,
@@ -271,48 +273,54 @@ pub mod pallet {
 
 			//Punish the scheduler who fails to verify the results for a long time
 			if now == verify_deadline {
+				let mut is_end = true;
+
 				let mut verify_list: Vec<ProveInfo<T>> = Vec::new();
 				for (acc, v_list) in <UnVerifyProof<T>>::iter() {
-					let mut is_end = true;
-
 					if v_list.len() > 0 {
 						is_end = false;
 						verify_list.append(&mut v_list.to_vec());
 						T::Scheduler::punish_scheduler(acc.clone());
 					}
-
-					if is_end {
-						for (miner, total_proof) in <MinerTotalProof<T>>::iter() {
-							if <FailureNumMap<T>>::contains_key(&miner) {
-								if <ConsecutiveFines<T>>::contains_key(&miner) {
-									<ConsecutiveFines<T>>::try_mutate(
-										miner.clone(),
-										|s_opt| -> DispatchResult {
-											s_opt.checked_add(1).ok_or(Error::<T>::Overflow)?;
-											Ok(())
-										},
-									);
-								} else {
-									<ConsecutiveFines<T>>::insert(&miner, 1);
-								}
-
-								Self::punish(
-									miner.clone(),
-									<FailureNumMap<T>>::get(&miner),
-									total_proof,
-									<ConsecutiveFines<T>>::get(&miner),
-								);
-							} else {
-								<ConsecutiveFines<T>>::remove(&miner);
-							}
-						}
-						Self::open_buffer_schedule();
-						<FailureNumMap<T>>::remove_all(None);
-						<MinerTotalProof<T>>::remove_all(None);
-					}
 				}
-				let cur_acc = Self::get_current_scheduler();
-				let _ = Self::storage_prove(cur_acc, verify_list);
+				if is_end {
+					for (miner, total_proof) in <MinerTotalProof<T>>::iter() {
+						if <FailureNumMap<T>>::contains_key(&miner) {
+							if <ConsecutiveFines<T>>::contains_key(&miner) {
+								<ConsecutiveFines<T>>::try_mutate(
+									miner.clone(),
+									|s_opt| -> DispatchResult {
+										s_opt.checked_add(1).ok_or(Error::<T>::Overflow)?;
+										Ok(())
+									},
+								).unwrap_or(());
+							} else {
+								<ConsecutiveFines<T>>::insert(&miner, 1);
+							}
+
+							Self::punish(
+								miner.clone(),
+								<FailureNumMap<T>>::get(&miner),
+								total_proof,
+								<ConsecutiveFines<T>>::get(&miner),
+							).unwrap_or(());
+						} else {
+							<ConsecutiveFines<T>>::remove(&miner);
+						}
+					}
+					Self::open_buffer_schedule().unwrap_or(());
+					<FailureNumMap<T>>::remove_all(None);
+					<MinerTotalProof<T>>::remove_all(None);
+				}
+				let result = Self::get_current_scheduler();
+				match result {
+					Ok(cur_acc) =>  {
+						let _ = Self::storage_prove(cur_acc, verify_list);
+					},
+					Err(_e) => log::error!("get_current_scheduler err"),
+				} 
+				
+				
 			}
 
 			0
@@ -340,7 +348,6 @@ pub mod pallet {
 						log::info!("offchain worker random challenge end");
 					}
 				}
-
 			}
 		}
 	}
@@ -373,7 +380,7 @@ pub mod pallet {
 			prove_info: Vec<ProveInfo<T>>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			let acc = Self::get_current_scheduler();
+			let acc = Self::get_current_scheduler()?;
 			if prove_info.len() > 100 {
 				Err(Error::<T>::LengthExceedsLimit)?;
 			}
@@ -420,8 +427,8 @@ pub mod pallet {
 							o.retain(|x| (x.challenge_info.file_id != result.file_id.to_vec()));
 							//If the result is false, a penalty will be imposed
 							if !result.result {
-								Self::set_failure(result.miner_acc.clone());
-								Self::updateMinerFile(
+								Self::set_failure(result.miner_acc.clone()).unwrap_or(());
+								Self::update_miner_file(
 									result.miner_acc.clone(),
 									result.file_id.clone().to_vec(),
 									value.challenge_info.file_size,
@@ -504,7 +511,7 @@ pub mod pallet {
 		fn set_failure(acc: AccountOf<T>) -> DispatchResult {
 			if <FailureNumMap<T>>::contains_key(&acc) {
 				<FailureNumMap<T>>::try_mutate(acc.clone(), |s_opt| -> DispatchResult {
-					s_opt.checked_add(1).unwrap();
+					s_opt.checked_add(1).ok_or(Error::<T>::Overflow)?;
 					Ok(())
 				})?;
 			} else {
@@ -533,11 +540,15 @@ pub mod pallet {
 		}
 
 		//Obtain the consensus of the current block
-		fn get_current_scheduler() -> AccountOf<T> {
+		fn get_current_scheduler() -> Result<AccountOf<T>, DispatchError> {
 			let digest = <frame_system::Pallet<T>>::digest();
 			let pre_runtime_digests = digest.logs.iter().filter_map(|d| d.as_pre_runtime());
 			let acc = T::FindAuthor::find_author(pre_runtime_digests).map(|a| a);
-			T::Scheduler::get_controller_acc(acc.unwrap())
+			let acc = match acc {
+				Some(e) => T::Scheduler::get_controller_acc(e),
+				None => T::Scheduler::get_first_controller()?,
+			};
+			Ok(acc)
 		}
 
 		//Record challenge time
@@ -676,7 +687,7 @@ pub mod pallet {
 				.ok_or(Error::<T>::Overflow)?
 				.checked_div(100)
 				.ok_or(Error::<T>::Overflow)?
-				.checked_add(200)
+				.checked_add(1200)
 				.ok_or(Error::<T>::Overflow)?
 				.saturated_into();
 			let result =
@@ -721,7 +732,7 @@ pub mod pallet {
 			random_list
 		}
 
-		fn updateMinerFile(
+		fn update_miner_file(
 			acc: AccountOf<T>,
 			file_id: Vec<u8>,
 			file_size: u64,
@@ -737,7 +748,7 @@ pub mod pallet {
 					T::File::delete_filler(acc.clone(), file_id)?;
 				},
 				2 => {
-					T::MinerControl::sub_space(acc.clone(), file_size.into())?;
+					T::MinerControl::sub_space(&acc, file_size.into())?;
 					T::File::add_recovery_file(file_id.clone())?;
 					T::File::add_invalid_file(acc.clone(), file_id.clone())?;
 				},
