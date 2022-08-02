@@ -44,7 +44,9 @@ mod mock;
 mod tests;
 
 pub use pallet::*;
-mod benchmarking;
+
+#[cfg(feature = "runtime-benchmarks")]
+pub mod benchmarking;
 pub mod weights;
 use sp_runtime::{
 	traits::{CheckedAdd, SaturatedConversion},
@@ -246,7 +248,7 @@ pub mod pallet {
 				//the miners who fail to complete the challenge will be punished
 				for (acc, challenge_list) in <ChallengeMap<T>>::iter() {
 					for v in challenge_list {
-						Self::set_failure(acc.clone());
+						let _ = Self::set_failure(acc.clone());
 						if let Err(e) = Self::update_miner_file(
 							acc.clone(),
 							v.file_id.to_vec(),
@@ -306,13 +308,20 @@ pub mod pallet {
 								<ConsecutiveFines<T>>::remove(&miner);
 							}
 						}
-						Self::open_buffer_schedule();
+						let _ = Self::open_buffer_schedule();
 						<FailureNumMap<T>>::remove_all(None);
 						<MinerTotalProof<T>>::remove_all(None);
 					}
 				}
-				let cur_acc = Self::get_current_scheduler();
-				let _ = Self::storage_prove(cur_acc, verify_list);
+				let result = Self::get_current_scheduler();
+				match result {
+					Ok(cur_acc) =>  {
+						let _ = Self::storage_prove(cur_acc, verify_list);
+					},
+					Err(e) => log::error!("get_current_scheduler err"),
+				} 
+				
+				
 			}
 
 			0
@@ -373,7 +382,7 @@ pub mod pallet {
 			prove_info: Vec<ProveInfo<T>>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			let acc = Self::get_current_scheduler();
+			let acc = Self::get_current_scheduler()?;
 			if prove_info.len() > 100 {
 				Err(Error::<T>::LengthExceedsLimit)?;
 			}
@@ -420,7 +429,7 @@ pub mod pallet {
 							o.retain(|x| (x.challenge_info.file_id != result.file_id.to_vec()));
 							//If the result is false, a penalty will be imposed
 							if !result.result {
-								Self::set_failure(result.miner_acc.clone());
+								Self::set_failure(result.miner_acc.clone())?;
 								Self::update_miner_file(
 									result.miner_acc.clone(),
 									result.file_id.clone().to_vec(),
@@ -533,11 +542,15 @@ pub mod pallet {
 		}
 
 		//Obtain the consensus of the current block
-		fn get_current_scheduler() -> AccountOf<T> {
+		fn get_current_scheduler() -> Result<AccountOf<T>, DispatchError> {
 			let digest = <frame_system::Pallet<T>>::digest();
 			let pre_runtime_digests = digest.logs.iter().filter_map(|d| d.as_pre_runtime());
 			let acc = T::FindAuthor::find_author(pre_runtime_digests).map(|a| a);
-			T::Scheduler::get_controller_acc(acc.unwrap())
+			let acc = match acc {
+				Some(e) => T::Scheduler::get_controller_acc(e),
+				None => T::Scheduler::get_first_controller()?,
+			};
+			Ok(acc)
 		}
 
 		//Record challenge time
