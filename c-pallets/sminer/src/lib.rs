@@ -38,7 +38,7 @@ use frame_support::{
 mod benchmarking;
 
 mod types;
-pub mod weights;
+
 use codec::{Decode, Encode};
 use frame_support::{
 	dispatch::{DispatchResult, Dispatchable},
@@ -54,6 +54,7 @@ use sp_runtime::{
 };
 use sp_std::{convert::TryInto, prelude::*};
 use types::*;
+pub mod weights;
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -262,7 +263,7 @@ pub mod pallet {
 	/// The total power of all storage miners.
 	#[pallet::storage]
 	#[pallet::getter(fn total_power)]
-	pub(super) type TotalPower<T: Config> = StorageValue<_, u128, ValueQuery>;
+	pub(super) type TotalIdleSpace<T: Config> = StorageValue<_, u128, ValueQuery>;
 
 	/// The total storage space to fill of all storage miners.
 	#[pallet::storage]
@@ -382,7 +383,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `collaterals`: Miner's TCESS.
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::increase_collateral())]
 		pub fn increase_collateral(
 			origin: OriginFor<T>,
 			#[pallet::compact] collaterals: BalanceOf<T>,
@@ -422,7 +423,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `beneficiary`: The beneficiary related to signer account.
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_beneficiary())]
 		pub fn update_beneficiary(
 			origin: OriginFor<T>,
 			beneficiary: AccountOf<T>,
@@ -444,7 +445,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `ip`: The registered IP of storage miner.
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_ip())]
 		pub fn update_ip(origin: OriginFor<T>, ip: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
@@ -462,7 +463,7 @@ pub mod pallet {
 		}
 
 		//Miner exit method, Irreversible process.
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::exit_miner())]
 		pub fn exit_miner(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
@@ -487,7 +488,7 @@ pub mod pallet {
 		}
 
 		//Method for miners to redeem deposit
-		#[pallet::weight(200_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::withdraw())]
 		pub fn withdraw(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
@@ -525,7 +526,7 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timed_increase_rewards())]
 		pub fn timed_increase_rewards(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
-			let total_power = <TotalPower<T>>::get();
+			let total_power = <TotalIdleSpace<T>>::get().checked_add(<TotalServiceSpace<T>>::get()).ok_or(Error::<T>::Overflow)?;
 			ensure!(total_power != 0, Error::<T>::DivideByZero);
 
 			// let reward_pot = T::PalletId::get().into_account();
@@ -546,11 +547,12 @@ pub mod pallet {
 				})?;
 			}
 			for (acc, detail) in <MinerItems<T>>::iter() {
-				if detail.power == 0 {
+				let miner_total_power = detail.power.checked_add(detail.space).ok_or(Error::<T>::Overflow)?;
+				if miner_total_power == 0 {
 					continue;
 				}
 
-				let tmp1: u128 = award.checked_mul(detail.power).ok_or(Error::<T>::Overflow)?;
+				let tmp1: u128 = award.checked_mul(miner_total_power).ok_or(Error::<T>::Overflow)?;
 				let tmp2: u128 = tmp1.checked_div(total_power).ok_or(Error::<T>::Overflow)?;
 				let _ = Self::add_reward_order1(&acc, tmp2);
 
@@ -599,7 +601,7 @@ pub mod pallet {
 		/// Delete reward orders.
 		///
 		/// The dispatch origin of this call must be _root_.
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::del_reward_order())]
+		#[pallet::weight(100_000)]
 		pub fn del_reward_order(
 			origin: OriginFor<T>,
 			acc: AccountOf<T>,
@@ -921,7 +923,7 @@ pub mod pallet {
 		/// Parameters:
 		/// - `acc`: Top-up account .
 		/// - `acc`: Top-up amount .
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::faucet_top_up())]
+		#[pallet::weight(100_000)]
 		pub fn faucet_top_up(origin: OriginFor<T>, award: BalanceOf<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
@@ -938,7 +940,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `acc`: Withdraw money account.
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::faucet())]
+		#[pallet::weight(100_000)]
 		pub fn faucet(origin: OriginFor<T>, to: AccountOf<T>) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 
@@ -1035,7 +1037,7 @@ impl<T: Config> Pallet<T> {
 			Ok(())
 		})?;
 
-		TotalPower::<T>::try_mutate(|total_power| -> DispatchResult {
+		TotalIdleSpace::<T>::try_mutate(|total_power| -> DispatchResult {
 			*total_power = total_power.checked_add(increment).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})?;
@@ -1064,7 +1066,7 @@ impl<T: Config> Pallet<T> {
 			Ok(())
 		})?;
 
-		TotalPower::<T>::try_mutate(|total_power| -> DispatchResult {
+		TotalIdleSpace::<T>::try_mutate(|total_power| -> DispatchResult {
 			*total_power = total_power.checked_sub(increment).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})?;
@@ -1246,8 +1248,8 @@ impl<T: Config> Pallet<T> {
 
 	fn delete_miner_info(acc: &AccountOf<T>) -> DispatchResult {
 		//There is a judgment on whether the primary key exists above
-		let miner = MinerItems::<T>::try_get(acc).map_err(|_e| Error::<T>::NotMiner)?;
-		TotalPower::<T>::try_mutate(|total_power| -> DispatchResult {
+		let miner = MinerItems::<T>::try_get(&acc).map_err(|_e| Error::<T>::NotMiner)?;
+		TotalIdleSpace::<T>::try_mutate(|total_power| -> DispatchResult {
 			*total_power = total_power.checked_sub(miner.power).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})?;
@@ -1327,7 +1329,7 @@ impl<T: Config> Pallet<T> {
 	//Get the available space on the current chain.
 	pub fn get_space() -> Result<u128, DispatchError> {
 		let purchased_space = <PurchasedSpace<T>>::get();
-		let total_space = <TotalPower<T>>::get() + <TotalServiceSpace<T>>::get();
+		let total_space = <TotalIdleSpace<T>>::get() + <TotalServiceSpace<T>>::get();
 		//If the total space on the current chain is less than the purchased space, 0 will be
 		// returned.
 		if total_space < purchased_space {
@@ -1341,7 +1343,7 @@ impl<T: Config> Pallet<T> {
 
 	pub fn add_purchased_space(size: u128) -> DispatchResult {
 		<PurchasedSpace<T>>::try_mutate(|purchased_space| -> DispatchResult {
-			let total_space = <TotalServiceSpace<T>>::get() + <TotalPower<T>>::get();
+			let total_space = <TotalServiceSpace<T>>::get() + <TotalIdleSpace<T>>::get();
 			if *purchased_space + size > total_space {
 				Err(<Error<T>>::InsufficientAvailableSpace)?;
 			}

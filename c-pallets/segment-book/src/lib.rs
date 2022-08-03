@@ -44,8 +44,10 @@ mod mock;
 mod tests;
 
 pub use pallet::*;
-mod benchmarking;
-pub mod weights;
+
+#[cfg(feature = "runtime-benchmarks")]
+pub mod benchmarking;
+
 use sp_runtime::{
 	traits::{CheckedAdd, SaturatedConversion},
 	RuntimeDebug,
@@ -68,6 +70,7 @@ use pallet_sminer::MinerControl;
 use scale_info::TypeInfo;
 use sp_core::H256;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
+pub mod weights;
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -246,7 +249,7 @@ pub mod pallet {
 				//the miners who fail to complete the challenge will be punished
 				for (acc, challenge_list) in <ChallengeMap<T>>::iter() {
 					for v in challenge_list {
-						Self::set_failure(acc.clone()).unwrap_or(());
+						let _ = Self::set_failure(acc.clone());
 						if let Err(e) = Self::update_miner_file(
 							acc.clone(),
 							v.file_id.to_vec(),
@@ -310,8 +313,15 @@ pub mod pallet {
 					<FailureNumMap<T>>::remove_all(None);
 					<MinerTotalProof<T>>::remove_all(None);
 				}
-				let cur_acc = Self::get_current_scheduler();
-				let _ = Self::storage_prove(cur_acc, verify_list);
+				let result = Self::get_current_scheduler();
+				match result {
+					Ok(cur_acc) =>  {
+						let _ = Self::storage_prove(cur_acc, verify_list);
+					},
+					Err(_e) => log::error!("get_current_scheduler err"),
+				} 
+				
+				
 			}
 
 			0
@@ -365,13 +375,13 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(1000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_challenge_prove(prove_info.len() as u32))]
 		pub fn submit_challenge_prove(
 			origin: OriginFor<T>,
 			prove_info: Vec<ProveInfo<T>>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			let acc = Self::get_current_scheduler();
+			let acc = Self::get_current_scheduler()?;
 			if prove_info.len() > 100 {
 				Err(Error::<T>::LengthExceedsLimit)?;
 			}
@@ -391,7 +401,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(1000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::verify_proof(result_list.len() as u32))]
 		pub fn verify_proof(
 			origin: OriginFor<T>,
 			result_list: Vec<VerifyResult<T>>,
@@ -531,11 +541,15 @@ pub mod pallet {
 		}
 
 		//Obtain the consensus of the current block
-		fn get_current_scheduler() -> AccountOf<T> {
+		fn get_current_scheduler() -> Result<AccountOf<T>, DispatchError> {
 			let digest = <frame_system::Pallet<T>>::digest();
 			let pre_runtime_digests = digest.logs.iter().filter_map(|d| d.as_pre_runtime());
 			let acc = T::FindAuthor::find_author(pre_runtime_digests).map(|a| a);
-			T::Scheduler::get_controller_acc(acc.unwrap())
+			let acc = match acc {
+				Some(e) => T::Scheduler::get_controller_acc(e),
+				None => T::Scheduler::get_first_controller()?,
+			};
+			Ok(acc)
 		}
 
 		//Record challenge time

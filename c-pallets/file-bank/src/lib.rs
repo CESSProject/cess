@@ -144,14 +144,14 @@ pub mod pallet {
 		FileUpdate { acc: AccountOf<T>, fileid: Vec<u8> },
 
 		FileChangeState { acc: AccountOf<T>, fileid: Vec<u8> },
-		//file bought.
-		BuyFile { acc: AccountOf<T>, money: BalanceOf<T>, fileid: Vec<u8> },
-		//file purchased before.
-		Purchased { acc: AccountOf<T>, fileid: Vec<u8> },
 		//Storage information of scheduling storage file slice
 		InsertFileSlice { fileid: Vec<u8> },
-		//User purchase space
+		//User buy package event
 		BuyPackage { acc: AccountOf<T>, size: u128, fee: BalanceOf<T> },
+		//Package upgrade
+		PackageUpgrade { acc: AccountOf<T>, old_type: u8, new_type: u8, fee: BalanceOf<T>},
+		//Package upgrade
+		PackageRenewal { acc: AccountOf<T>, package_type: u8, fee: BalanceOf<T> },
 		//Expired storage space
 		LeaseExpired { acc: AccountOf<T>, size: u128 },
 		//Storage space expiring within 24 hours
@@ -284,6 +284,7 @@ pub mod pallet {
 	#[pallet::getter(fn purchase_package)]
 	pub(super) type PurchasedPackage<T: Config> =
 		StorageMap<_, Blake2_128Concat, AccountOf<T>, PackageDetails<T>>;
+		
 	#[pallet::storage]
 	#[pallet::getter(fn file_keys_map)]
 	pub(super) type FileKeysMap<T: Config> =
@@ -363,7 +364,7 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		#[pallet::weight(6_231_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_declaration())]
 		pub fn upload_declaration(
 			origin: OriginFor<T>,
 			file_hash: Vec<u8>,
@@ -522,7 +523,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(2_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::delete_file())]
 		pub fn delete_file(origin: OriginFor<T>, fileid: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let bounded_fileid = Self::vec_to_bound::<u8>(fileid.clone())?;
@@ -541,7 +542,7 @@ pub mod pallet {
 		//**********************************************************************************************************************************************
 		//The parameter "space_count" is calculated in gigabyte.
 		//parameter "lease_count" is calculated on the monthly basis.
-		#[pallet::weight(2_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_package())]
 		pub fn buy_package(origin: OriginFor<T>, package_type: u8, count: u128) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
@@ -563,7 +564,7 @@ pub mod pallet {
 
 			Self::add_puchased_package(sender.clone(), space, month as u32, package_type)?;
 			T::MinerControl::add_purchased_space(space)?;
-			let g_unit_price = m_unit_price.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
+			let g_unit_price = m_unit_price.checked_div(1024).ok_or(Error::<T>::Overflow)?;
 			let price: BalanceOf<T> = space
 				.checked_div(G_BYTE)
 				.ok_or(Error::<T>::Overflow)?
@@ -573,11 +574,13 @@ pub mod pallet {
 				.map_err(|_e| Error::<T>::Overflow)?;
 
 			let acc = T::FilbakPalletId::get().into_account();
-			<T as pallet::Config>::Currency::transfer(&sender, &acc, price, AllowDeath)?;
+			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), AllowDeath)?;
+
+			Self::deposit_event(Event::<T>::BuyPackage{ acc: sender, size: space, fee: price});
 			Ok(())
 		}
 
-		#[pallet::weight(2_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::upgrade_package())]
 		pub fn upgrade_package(
 			origin: OriginFor<T>,
 			package_type: u8,
@@ -595,8 +598,11 @@ pub mod pallet {
 			}
 			if cur_package.state.to_vec() == "frozen".as_bytes().to_vec() {
 				Err(Error::<T>::LeaseFreeze)?;
-			}
-			let cur_byte_unit_price = Self::get_price(cur_package.space)?;
+			} 
+			let cur_byte_unit_price = match cur_package.package_type {
+				1 => 0,
+				_ => Self::get_price(cur_package.space)?,
+			};
 			let (space, up_byte_unit_price) = match package_type {
 				2 => (500 * G_BYTE, Self::get_price(500 * G_BYTE)?),
 				3 => (T_BYTE, Self::get_price(T_BYTE)?),
@@ -610,7 +616,7 @@ pub mod pallet {
 				_ => Err(Error::<T>::WrongOperation)?,
 			};
 			let cur_gb_unit_price =
-				cur_byte_unit_price.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
+				cur_byte_unit_price.checked_div(1024).ok_or(Error::<T>::Overflow)?;
 			let cur_price = cur_package
 				.space
 				.checked_div(G_BYTE)
@@ -618,7 +624,7 @@ pub mod pallet {
 				.checked_mul(cur_gb_unit_price)
 				.ok_or(Error::<T>::Overflow)?;
 			let up_gb_unit_price =
-				up_byte_unit_price.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
+				up_byte_unit_price.checked_div(1024).ok_or(Error::<T>::Overflow)?;
 			let up_price = space
 				.checked_div(G_BYTE)
 				.ok_or(Error::<T>::Overflow)?
@@ -631,14 +637,19 @@ pub mod pallet {
 				.ok_or(Error::<T>::Overflow)?;
 
 			let block_oneday: BlockNumberOf<T> = <T as pallet::Config>::OneDay::get();
-			let remain_day = cur_package
+			let diff_block = cur_package
 				.deadline
 				.checked_sub(&now)
-				.ok_or(Error::<T>::Overflow)?
-				.checked_div(&block_oneday)
-				.ok_or(Error::<T>::Overflow)?
-				.checked_add(&1u32.saturated_into())
 				.ok_or(Error::<T>::Overflow)?;
+			let mut remain_day = diff_block
+				.checked_div(&block_oneday)
+				.ok_or(Error::<T>::Overflow)?;		
+			if diff_block % block_oneday != 0u32.saturated_into() {
+				remain_day = remain_day
+					.checked_add(&1u32.saturated_into())
+					.ok_or(Error::<T>::Overflow)?;
+			}
+			
 			let price: BalanceOf<T> = diff_day_price
 				.checked_mul(remain_day.try_into().map_err(|_e| Error::<T>::Overflow)?)
 				.ok_or(Error::<T>::Overflow)?
@@ -649,18 +660,23 @@ pub mod pallet {
 				space.checked_sub(cur_package.space).ok_or(Error::<T>::Overflow)?,
 			)?;
 			Self::expension_puchased_package(sender.clone(), space, package_type)?;
-			<T as pallet::Config>::Currency::transfer(&sender, &acc, price, AllowDeath)?;
+			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), AllowDeath)?;
+
+			Self::deposit_event(Event::<T>::PackageUpgrade { acc: sender, old_type: cur_package.package_type, new_type: package_type, fee: price});
 			Ok(())
 		}
 
-		#[pallet::weight(2_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_package())]
 		pub fn renewal_package(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let cur_package = <PurchasedPackage<T>>::try_get(&sender)
 				.map_err(|_e| Error::<T>::NotPurchasedPackage)?;
 
-			let m_unit_price = Self::get_price(cur_package.space)?;
-			let g_unit_price = m_unit_price.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
+			let m_unit_price = match cur_package.package_type {
+				1 => 0,
+				_ => Self::get_price(cur_package.space)?,
+			};
+			let g_unit_price = m_unit_price.checked_div(1024).ok_or(Error::<T>::Overflow)?;
 			let price: BalanceOf<T> = cur_package
 				.space
 				.checked_div(G_BYTE)
@@ -671,13 +687,14 @@ pub mod pallet {
 				.map_err(|_e| Error::<T>::Overflow)?;
 
 			let acc = T::FilbakPalletId::get().into_account();
-			<T as pallet::Config>::Currency::transfer(&sender, &acc, price, AllowDeath)?;
+			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), AllowDeath)?;
 			Self::update_puchased_package(sender.clone())?;
+			Self::deposit_event(Event::<T>::PackageRenewal{ acc: sender, package_type: cur_package.package_type, fee: price});
 			Ok(())
 		}
 
 		//Feedback results after the miner clears the invalid files
-		#[pallet::weight(10_000)]
+		#[pallet::weight(22_777_000)]
 		pub fn clear_invalid_file(origin: OriginFor<T>, file_hash: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let bounded_string: BoundedString<T> =
@@ -715,7 +732,7 @@ pub mod pallet {
 		}
 
 		//Scheduling is the notification chain after file recovery
-		#[pallet::weight(10_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::recover_file())]
 		pub fn recover_file(
 			origin: OriginFor<T>,
 			shard_id: Vec<u8>,
@@ -863,7 +880,7 @@ pub mod pallet {
 		}
 
 		//Available space divided by 1024 is the unit price
-		fn get_price(buy_space: u128) -> Result<u128, DispatchError> {
+		pub fn get_price(buy_space: u128) -> Result<u128, DispatchError> {
 			//Get the available space on the current chain
 			let total_space = pallet_sminer::Pallet::<T>::get_space()?;
 			//If it is not 0, the logic is executed normally
@@ -1143,7 +1160,7 @@ pub mod pallet {
 
 		//Add the list of files to be recovered and notify the scheduler to recover
 		pub fn add_recovery_file(shard_id: Vec<u8>) -> DispatchResult {
-			let acc = Self::get_current_scheduler();
+			let acc = Self::get_current_scheduler()?;
 			let length = shard_id.len().checked_sub(4).ok_or(Error::<T>::Overflow)?;
 			let file_id = shard_id[0..length].to_vec();
 			let file_id_bounded: BoundedString<T> =
@@ -1242,14 +1259,20 @@ pub mod pallet {
 		}
 
 		//Obtain the consensus of the current block
-		pub fn get_current_scheduler() -> AccountOf<T> {
-			//Current block information
+		fn get_current_scheduler() -> Result<AccountOf<T>, DispatchError> {
 			let digest = <frame_system::Pallet<T>>::digest();
 			let pre_runtime_digests = digest.logs.iter().filter_map(|d| d.as_pre_runtime());
-			//TODO
 			let acc = T::FindAuthor::find_author(pre_runtime_digests).map(|a| a);
-			T::Scheduler::get_controller_acc(acc.unwrap())
+			let acc = match acc {
+				Some(e) => T::Scheduler::get_controller_acc(e),
+				None => T::Scheduler::get_first_controller()?,
+			};
+			Ok(acc)
 		}
+<<<<<<< HEAD
+=======
+
+>>>>>>> upstream/0.5.0-tests
 		fn clear_expired_file(acc: &AccountOf<T>) -> DispatchResult {
 			let file_list =
 				<UserHoldFileList<T>>::try_get(&acc).map_err(|_| Error::<T>::Overflow)?;

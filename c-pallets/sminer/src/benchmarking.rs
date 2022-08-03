@@ -103,7 +103,7 @@ benchmarks! {
         let miner = add_miner::<T>()?;
         let reward: BalanceOf<T> = 8000u32.saturated_into();
         <CurrencyReward<T>>::put(reward);
-        <TotalPower<T>>::put(1000);
+        <TotalIdleSpace<T>>::put(1000);
         <MinerItems<T>>::try_mutate(&miner, |s_opt| -> DispatchResult {
             let s = s_opt.as_mut().unwrap();
             s.power = 1000;
@@ -121,7 +121,7 @@ benchmarks! {
         let miner = add_miner::<T>()?;
         let reward: BalanceOf<T> = 8000u32.saturated_into();
         <CurrencyReward<T>>::put(reward);
-        <TotalPower<T>>::put(1000);
+        <TotalIdleSpace<T>>::put(1000);
         <MinerItems<T>>::try_mutate(&miner, |s_opt| -> DispatchResult {
             let s = s_opt.as_mut().unwrap();
             s.power = 1000;
@@ -145,7 +145,7 @@ benchmarks! {
         );
         let reward: BalanceOf<T> = 8000u32.saturated_into();
         <CurrencyReward<T>>::put(reward);
-        <TotalPower<T>>::put(1000);
+        <TotalIdleSpace<T>>::put(1000);
         <MinerItems<T>>::try_mutate(&miner, |s_opt| -> DispatchResult {
             let s = s_opt.as_mut().unwrap();
             s.power = 1000;
