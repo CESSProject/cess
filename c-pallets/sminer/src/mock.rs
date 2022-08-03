@@ -20,16 +20,16 @@
 use super::*;
 use crate as sminer;
 use frame_support::{
-    traits::{ConstU32, ConstU64, EqualPrivilegeOnly},
-    parameter_types,
-    weights::Weight,
+	parameter_types,
+	traits::{ConstU32, ConstU64, EqualPrivilegeOnly, OnFinalize, OnInitialize},
+	weights::Weight,
 };
-use frame_system::{EnsureRoot};
+use frame_system::EnsureRoot;
 use sp_core::H256;
 use sp_runtime::{
-    testing::Header,
-    traits::{BlakeTwo256, IdentityLookup},
-    Perbill,
+	testing::Header,
+	traits::{BlakeTwo256, IdentityLookup},
+	Perbill,
 };
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -56,30 +56,30 @@ parameter_types! {
 }
 
 impl frame_system::Config for Test {
-    type BaseCallFilter = frame_support::traits::Everything;
-    type BlockWeights = ();
-    type BlockLength = ();
-    type Origin = Origin;
-    type Call = Call;
-    type Index = u64;
-    type BlockNumber = u64;
-    type Hash = H256;
-    type Hashing = BlakeTwo256;
-    type AccountId = AccountId;
-    type Lookup = IdentityLookup<Self::AccountId>;
-    type Header = Header;
-    type Event = Event;
-    type BlockHashCount = ConstU64<250>;
-    type DbWeight = ();
-    type Version = ();
-    type PalletInfo = PalletInfo;
-    type AccountData = pallet_balances::AccountData<u128>;
-    type OnNewAccount = ();
-    type OnKilledAccount = ();
-    type SystemWeightInfo = ();
-    type SS58Prefix = ();
-    type OnSetCode = ();
-    type MaxConsumers = ConstU32<16>;
+	type BaseCallFilter = frame_support::traits::Everything;
+	type BlockWeights = ();
+	type BlockLength = ();
+	type Origin = Origin;
+	type Call = Call;
+	type Index = u64;
+	type BlockNumber = u64;
+	type Hash = H256;
+	type Hashing = BlakeTwo256;
+	type AccountId = AccountId;
+	type Lookup = IdentityLookup<Self::AccountId>;
+	type Header = Header;
+	type Event = Event;
+	type BlockHashCount = ConstU64<250>;
+	type DbWeight = ();
+	type Version = ();
+	type PalletInfo = PalletInfo;
+	type AccountData = pallet_balances::AccountData<u128>;
+	type OnNewAccount = ();
+	type OnKilledAccount = ();
+	type SystemWeightInfo = ();
+	type SS58Prefix = ();
+	type OnSetCode = ();
+	type MaxConsumers = ConstU32<16>;
 }
 
 parameter_types! {
@@ -87,15 +87,15 @@ parameter_types! {
 }
 
 impl pallet_balances::Config for Test {
-    type Balance = u128;
-    type DustRemoval = ();
-    type Event = Event;
-    type ExistentialDeposit = ExistentialDeposit;
-    type AccountStore = System;
-    type WeightInfo = ();
-    type MaxLocks = ();
-    type MaxReserves = ();
-    type ReserveIdentifier = [u8; 8];
+	type Balance = u128;
+	type DustRemoval = ();
+	type Event = Event;
+	type ExistentialDeposit = ExistentialDeposit;
+	type AccountStore = System;
+	type WeightInfo = ();
+	type MaxLocks = ();
+	type MaxReserves = ();
+	type ReserveIdentifier = [u8; 8];
 }
 
 parameter_types! {
@@ -103,10 +103,10 @@ parameter_types! {
 }
 
 impl pallet_timestamp::Config for Test {
-    type Moment = u64;
-    type OnTimestampSet = ();
-    type MinimumPeriod = MinimumPeriod;
-    type WeightInfo = ();
+	type Moment = u64;
+	type OnTimestampSet = ();
+	type MinimumPeriod = MinimumPeriod;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -114,53 +114,78 @@ parameter_types! {
 }
 
 impl pallet_scheduler::Config for Test {
-    type Event = Event;
-    type Origin = Origin;
-    type PalletsOrigin = OriginCaller;
-    type Call = Call;
-    type MaximumWeight = MaximumSchedulerWeight;
-    type ScheduleOrigin = EnsureRoot<u64>;
-    type OriginPrivilegeCmp = EqualPrivilegeOnly;
-    type MaxScheduledPerBlock = ();
-    type WeightInfo = ();
-    type PreimageProvider = ();
-    type NoPreimagePostponement = ();
+	type Event = Event;
+	type Origin = Origin;
+	type PalletsOrigin = OriginCaller;
+	type Call = Call;
+	type MaximumWeight = MaximumSchedulerWeight;
+	type ScheduleOrigin = EnsureRoot<u64>;
+	type OriginPrivilegeCmp = EqualPrivilegeOnly;
+	type MaxScheduledPerBlock = ();
+	type WeightInfo = ();
+	type PreimageProvider = ();
+	type NoPreimagePostponement = ();
 }
 
 parameter_types! {
 	pub const RewardPalletId: PalletId = PalletId(*b"sminerpt");
 	pub const ItemLimit: u32 = 32;
+	pub const MultipleFines: u8 = 7;
+	pub const DepositBufferPeriod: u32 = 3;
+	pub const OneDay: u32 = 10;
 }
 
 impl Config for Test {
-    type Event = Event;
-    type Currency = Balances;
-    type PalletId = RewardPalletId;
-    type ItemLimit = ItemLimit;
-    type SScheduler = Scheduler;
-    type SPalletsOrigin = OriginCaller;
-    type SProposal = Call;
-    type WeightInfo = ();
+	type Event = Event;
+	type Currency = Balances;
+	type PalletId = RewardPalletId;
+	type ItemLimit = ItemLimit;
+	type MultipleFines = MultipleFines;
+	type SScheduler = Scheduler;
+	type SPalletsOrigin = OriginCaller;
+	type SProposal = Call;
+	type WeightInfo = ();
+	type CalculFailureFee = Sminer;
+	type DepositBufferPeriod = DepositBufferPeriod;
+	type OneDayBlock = OneDay;
+	type AScheduler = Scheduler;
 }
 
 pub mod consts {
-    pub const ACCOUNT1: (u64, u128) = (1, 100000000000000000);
-    pub const ACCOUNT2: (u64, u128) = (2, 100000000000000000);
-    pub const ACCOUNT3: (u64, u128) = (3, 100000000000000000);
-    pub const ACCOUNT4: (u64, u128) = (4, 100000000000000000);
-    pub const ACCOUNT5: (u64, u128) = (5, 100000000000000000);
+	pub const ACCOUNT1: (u64, u128) = (1, 100000000000000000);
+	pub const ACCOUNT2: (u64, u128) = (2, 100000000000000000);
+	pub const ACCOUNT3: (u64, u128) = (3, 100000000000000000);
+	pub const ACCOUNT4: (u64, u128) = (4, 100000000000000000);
+	pub const ACCOUNT5: (u64, u128) = (5, 100000000000000000);
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {
-    use consts::*;
-    let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
-    let jackpot_account: u64 = RewardPalletId::get().into_account();
-    pallet_balances::GenesisConfig::<Test> {
-        balances: vec![ACCOUNT1, ACCOUNT2, ACCOUNT3, ACCOUNT4, ACCOUNT5, (jackpot_account, 900000000000000000)],
-    }.assimilate_storage(&mut t).unwrap();
-    let mut ext = sp_io::TestExternalities::new(t);
-    ext.execute_with(|| {
-        System::set_block_number(1); //must set block_number, otherwise the deposit_event() don't work
-    });
-    ext
+	use consts::*;
+	let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+	let jackpot_account: u64 = RewardPalletId::get().into_account();
+	pallet_balances::GenesisConfig::<Test> {
+		balances: vec![
+			ACCOUNT1,
+			ACCOUNT2,
+			ACCOUNT3,
+			ACCOUNT4,
+			ACCOUNT5,
+			(jackpot_account, 900000000000000000),
+		],
+	}
+	.assimilate_storage(&mut t)
+	.unwrap();
+	let mut ext = sp_io::TestExternalities::new(t);
+	ext.execute_with(|| {
+		System::set_block_number(1); //must set block_number, otherwise the deposit_event() don't work
+	});
+	ext
+}
+
+pub fn run_to_block(n: u64) {
+	while System::block_number() < n {
+		Scheduler::on_finalize(System::block_number());
+		System::set_block_number(System::block_number() + 1);
+		Scheduler::on_initialize(System::block_number());
+	}
 }

@@ -878,7 +878,9 @@ impl pallet_sudo::Config for Runtime {
 	type Call = Call;
 }
 
-//Add This Block
+/*** 
+ ** Add This Block
+ ***/
 parameter_types! {
   pub const RewardPalletId: PalletId = PalletId(*b"rewardpt");
   pub const MultipleFines: u8 = 7;
@@ -1010,7 +1012,9 @@ impl frame_system::offchain::SigningTypes for Runtime {
 	type Signature = Signature;
 }
 
-/** * End This Block ** */
+/*** 
+ ** End This Block 
+ ***/
 
 parameter_types! {
 	pub const DepositPerItem: Balance = deposit(1, 0);
@@ -1135,7 +1139,9 @@ impl pallet_indices::Config for Runtime {
 	type WeightInfo = pallet_indices::weights::SubstrateWeight<Runtime>;
 }
 
-/** * Frontier Start------------------------------------------------------------------ ** */
+/*** 
+ ** Frontier Start------------------------------------------------------------------
+ ***/
 pub struct FindAuthorTruncated<F>(PhantomData<F>);
 impl<F: FindAuthor<u32>> FindAuthor<H160> for FindAuthorTruncated<F> {
 	fn find_author<'a, I>(digests: I) -> Option<H160>
@@ -1281,6 +1287,9 @@ impl fp_self_contained::SelfContainedCall for Call {
 		}
 	}
 }
+/*** 
+ ** Frontier End--------------------------------------------------------------------
+ ***/
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
@@ -1388,7 +1397,7 @@ pub type Executive = frame_executive::Executive<
 	Block,
 	frame_system::ChainContext<Runtime>,
 	Runtime,
-	AllPallets,
+	AllPalletsWithSystem,
 >;
 
 #[cfg(feature = "runtime-benchmarks")]
