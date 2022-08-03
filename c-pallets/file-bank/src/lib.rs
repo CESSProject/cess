@@ -1269,10 +1269,6 @@ pub mod pallet {
 			};
 			Ok(acc)
 		}
-<<<<<<< HEAD
-=======
-
->>>>>>> upstream/0.5.0-tests
 		fn clear_expired_file(acc: &AccountOf<T>) -> DispatchResult {
 			let file_list =
 				<UserHoldFileList<T>>::try_get(&acc).map_err(|_| Error::<T>::Overflow)?;
