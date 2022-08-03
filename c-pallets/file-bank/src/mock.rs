@@ -106,21 +106,28 @@ impl pallet_scheduler::Config for Test {
 }
 
 parameter_types! {
-	pub const RewardPalletId: PalletId = PalletId(*b"sminerpt");
+    pub const RewardPalletId: PalletId = PalletId(*b"sminerpt");
+    pub const MultipleFines: u8 = 7;
+    pub const DepositBufferPeriod: u32 = 3;
     pub const ItemLimit: u32 = 1024;
 }
-
-impl pallet_sminer::Config for Test {
-    type Event = Event;
-    // type Call = Call;
-    type Currency = Balances;
-    type PalletId = RewardPalletId;
-    type ItemLimit = ItemLimit;
-    type SScheduler = Scheduler;
-    type SPalletsOrigin = OriginCaller;
-    type SProposal = Call;
-    type WeightInfo = ();
-}
+  
+  impl pallet_sminer::Config for Test {
+      type Currency = Balances;
+      // The ubiquitous event type.
+      type Event = Event;
+      type PalletId = RewardPalletId;
+      type SScheduler = Scheduler;
+      type AScheduler = Scheduler;
+      type SPalletsOrigin = OriginCaller;
+      type SProposal = Call;
+      type WeightInfo = ();
+      type ItemLimit = ItemLimit;
+      type MultipleFines = MultipleFines;
+      type DepositBufferPeriod = DepositBufferPeriod;
+      type CalculFailureFee = Sminer;
+      type OneDayBlock = OneDay;
+  }
 
 parameter_types! {
     pub const FileMapPalletId: PalletId = PalletId(*b"filmpdpt");
@@ -131,6 +138,7 @@ impl pallet_file_map::Config for Test {
     type Currency = Balances;
     type FileMapPalletId = FileMapPalletId;
     type StringLimit = StringLimit;
+    type WeightInfo = ();
 }
 
 const THRESHOLDS: [sp_npos_elections::VoteWeight; 9] =
@@ -385,7 +393,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
     pallet_balances::GenesisConfig::<Test> {
         balances: vec![
-            (account1(), 100_000_000_000_000), 
+            (account1(), 100_000_000_000_000_000), 
             (account2(), 1_000_000_000_000),
             (miner1(), 1_000_000_000_000),
             (stash1(), 1_000_000_000_000),

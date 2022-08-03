@@ -18,12 +18,12 @@ pub struct FileInfo<T: pallet::Config> {
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct SliceInfo<T: pallet::Config> {
-	pub(super) miner_id: u64,
-	pub(super) shard_size: u64,
-	pub(super) block_num: u32,
-	pub(super) shard_id: BoundedVec<u8, T::StringLimit>,
-	pub(super) miner_ip: BoundedVec<u8, T::StringLimit>,
-	pub(super) miner_acc: AccountOf<T>,
+	pub miner_id: u64,
+	pub shard_size: u64,
+	pub block_num: u32,
+	pub shard_id: BoundedVec<u8, T::StringLimit>,
+	pub miner_ip: BoundedVec<u8, T::StringLimit>,
+	pub miner_acc: AccountOf<T>,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]

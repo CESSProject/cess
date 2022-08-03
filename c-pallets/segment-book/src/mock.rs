@@ -113,6 +113,7 @@ impl pallet_file_map::Config for Test {
     type Currency = Balances;
     type FileMapPalletId = FileMapPalletId;
     type StringLimit = StringLimit;
+    type WeightInfo = ();
 }
 
 parameter_types! {
@@ -125,7 +126,6 @@ impl pallet_file_bank::Config for Test {
     type WeightInfo = ();
     type Call = Call;
     type FindAuthor = ();
-    type AuthorityId = pallet_file_bank::crypto::TestAuthId;
     type Scheduler = pallet_file_map::Pallet::<Test>;
     type MinerControl = pallet_sminer::Pallet::<Test>;
     type MyRandomness = TestRandomness<Self>;
@@ -292,18 +292,27 @@ impl pallet_scheduler::Config for Test {
 }
 
 parameter_types! {
-	pub const RewardPalletId: PalletId = PalletId(*b"rewardpt");
+    pub const RewardPalletId: PalletId = PalletId(*b"sminerpt");
+    pub const MultipleFines: u8 = 7;
+    pub const DepositBufferPeriod: u32 = 3;
+    pub const ItemLimit: u32 = 1024;
 }
 
 impl pallet_sminer::Config for Test {
     type Currency = Balances;
-    type Event = Event;
-    type PalletId = RewardPalletId;
-    type SScheduler = Scheduler;
-    type SPalletsOrigin = OriginCaller;
-    type SProposal = Call;
-    type WeightInfo = ();
-    type ItemLimit = StringLimit;
+      // The ubiquitous event type.
+      type Event = Event;
+      type PalletId = RewardPalletId;
+      type SScheduler = Scheduler;
+      type AScheduler = Scheduler;
+      type SPalletsOrigin = OriginCaller;
+      type SProposal = Call;
+      type WeightInfo = ();
+      type ItemLimit = ItemLimit;
+      type MultipleFines = MultipleFines;
+      type DepositBufferPeriod = DepositBufferPeriod;
+      type CalculFailureFee = Sminer;
+      type OneDayBlock = OneDay;
 }
 
 parameter_types! {
@@ -312,26 +321,6 @@ parameter_types! {
 	pub const StringLimit: u32 = 100;
 	pub const OneHours: u32 = 60 * 20;
 	pub const OneDay: u32 = 60 * 20 * 24;
-}
-
-pub struct MockingScheduleFind;
-
-impl ScheduleFind<AccountId> for MockingScheduleFind {
-    fn contains_scheduler(_acc: AccountId) -> bool {
-        true
-    }
-
-    fn get_controller_acc(acc: AccountId) -> AccountId {
-        acc
-    }
-}
-
-pub struct MockingFindAuthor;
-
-impl FindAuthor<AccountId> for MockingFindAuthor {
-    fn find_author<'a, I>(_digests: I) -> Option<AccountId> where I: 'a + IntoIterator<Item=(ConsensusEngineId, &'a [u8])> {
-        Some(controller1())
-    }
 }
 
 impl Config for Test {
@@ -344,9 +333,9 @@ impl Config for Test {
     type RandomLimit = StringLimit;
     type OneDay = OneDay;
     type OneHours = OneHours;
-    type FindAuthor = MockingFindAuthor;
+    type FindAuthor = ();
     type File = pallet_file_bank::Pallet::<Test>;
-    type Scheduler = MockingScheduleFind;
+    type Scheduler = pallet_file_map::Pallet::<Test>;
     type MinerControl = Sminer;
     type AuthorityId = pallet_file_bank::crypto::TestAuthId;
 }
