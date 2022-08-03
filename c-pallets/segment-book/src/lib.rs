@@ -306,7 +306,7 @@ pub mod pallet {
 							<ConsecutiveFines<T>>::remove(&miner);
 						}
 					}
-					Self::open_buffer_schedule().unwrap_or(());
+					Self::start_buffer_period_schedule().unwrap_or(());
 					<FailureNumMap<T>>::remove_all(None);
 					<MinerTotalProof<T>>::remove_all(None);
 				}
@@ -764,8 +764,8 @@ pub mod pallet {
 			Ok(())
 		}
 
-		fn open_buffer_schedule() -> DispatchResult {
-			T::MinerControl::open_buffer_schedule()?;
+		fn start_buffer_period_schedule() -> DispatchResult {
+			T::MinerControl::start_buffer_period_schedule()?;
 			Ok(())
 		}
 

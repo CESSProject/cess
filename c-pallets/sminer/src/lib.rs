@@ -72,6 +72,7 @@ const STATE_EXIT: &str = "exit";
 const LOCK_IN_PERIOD: u8 = 2;
 const MAX_AWARD: u128 = 1_306_849_000_000_000_000;
 const FAUCET_VALUE: u128 = 10000000000000000;
+const DOUBLE: u8 = 2;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -887,7 +888,7 @@ pub mod pallet {
 		/// Parameters:
 		/// - `when`: The block when the buffer period starts.
 		#[pallet::weight(1_000_000)]
-		pub fn buffer_end(origin: OriginFor<T>, when: BlockNumberOf<T>) -> DispatchResult {
+		pub fn buffer_period_end(origin: OriginFor<T>, when: BlockNumberOf<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
 			let miner_vec = <BufferPeriod<T>>::get(&when);
@@ -1141,7 +1142,7 @@ impl<T: Config> Pallet<T> {
 		consecutive_fines: u8,
 	) -> DispatchResult {
 		if !<MinerItems<T>>::contains_key(&aid) {
-			return Ok(());
+			Err(Error::<T>::NotMiner)?;
 		}
 
 		//There is a judgment on whether the primary key exists above
@@ -1152,7 +1153,7 @@ impl<T: Config> Pallet<T> {
 			T::CalculFailureFee::calcu_failure_fee(aid.clone(), failure_num, total_proof)?;
 
 		if consecutive_fines >= T::MultipleFines::get() {
-			calcu_failure_fee.checked_div(2u128).ok_or(Error::<T>::Overflow)?;
+			calcu_failure_fee.checked_div(DOUBLE as u128).ok_or(Error::<T>::Overflow)?;
 		}
 
 		let mut punish_amount: BalanceOf<T> = 0u128
@@ -1172,7 +1173,7 @@ impl<T: Config> Pallet<T> {
 				miner_info.collaterals.checked_sub(&punish_amount).ok_or(Error::<T>::Overflow)?;
 			let limit = Self::check_collateral_limit(miner_info.power)?;
 			if mr.collaterals < limit {
-				Self::join_buffer_period(aid.clone())?;
+				Self::join_buffer_pool(aid.clone())?;
 			}
 			Ok(())
 		})?;
@@ -1183,20 +1184,19 @@ impl<T: Config> Pallet<T> {
 
 	/// A buffer period begins and miners are required to make a sufficient deposit before the buffer period ends.
 	///
-	pub fn open_buffer_schedule() -> DispatchResult {
+	pub fn start_buffer_period_schedule() -> DispatchResult {
 		let now_block = <frame_system::Pallet<T>>::block_number();
 		if BufferPeriod::<T>::contains_key(&now_block) {
-			let mut buffer: u32 = T::OneDayBlock::get().saturated_into();
-			buffer = buffer * T::DepositBufferPeriod::get();
+			let mut period: u32 = T::OneDayBlock::get().saturated_into();
+			period = period * T::DepositBufferPeriod::get();
 			let buffer_period =
-				now_block.checked_add(&buffer.saturated_into()).ok_or(Error::<T>::Overflow)?;
-
+				now_block.checked_add(&period.saturated_into()).ok_or(Error::<T>::Overflow)?;
 			T::AScheduler::schedule(
 				DispatchTime::At(buffer_period),
 				None,
 				59,
 				frame_system::RawOrigin::Root.into(),
-				Call::buffer_end { when: now_block.clone() }.into(),
+				Call::buffer_period_end { when: now_block.clone() }.into(),
 			)?;
 		}
 		Self::deposit_event(Event::<T>::StartOfBufferPeriod { when: now_block });
@@ -1208,7 +1208,7 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Parameters:
 	/// - `acc`: miner account.
-	fn join_buffer_period(acc: AccountOf<T>) -> DispatchResult {
+	fn join_buffer_pool(acc: AccountOf<T>) -> DispatchResult {
 		let now = <frame_system::Pallet<T>>::block_number();
 
 		<BadMiner<T>>::insert(&acc, &now);
@@ -1417,7 +1417,7 @@ pub trait MinerControl<AccountId> {
 	fn get_miner_state(acc: AccountId) -> Result<Vec<u8>, DispatchError>;
 	fn add_purchased_space(size: u128) -> DispatchResult;
 	fn sub_purchased_space(size: u128) -> DispatchResult;
-	fn open_buffer_schedule() -> DispatchResult;
+	fn start_buffer_period_schedule() -> DispatchResult;
 }
 
 impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -1451,8 +1451,8 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 		Ok(())
 	}
 
-	fn open_buffer_schedule() -> DispatchResult {
-		Pallet::<T>::open_buffer_schedule()?;
+	fn start_buffer_period_schedule() -> DispatchResult {
+		Pallet::<T>::start_buffer_period_schedule()?;
 		Ok(())
 	}
 
@@ -1513,7 +1513,7 @@ impl<T: Config> CalculFailureFee<T> for Pallet<T> {
 			<CalculateRewardOrderMap<T>>::try_get(&acc).map_err(|_e| Error::<T>::NotExisted)?;
 
 		match order_vec.len() {
-			0 => Err(Error::<T>::Overflow),
+			0 => Err(Error::<T>::NotExisted),
 			n => {
 				let calculate_reward = order_vec[n - 1].calculate_reward;
 				let failure_rate = failure_num
