@@ -331,7 +331,7 @@ fn add_power_should_work() {
 		let _ = Sminer::add_power(&m1.peer_id, 10_000);
 		let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
 		assert_eq!(10_000, m1.power);
-		assert_eq!(10_000, TotalPower::<Test>::try_get().unwrap());
+		assert_eq!(10_000, TotalIdleSpace::<Test>::try_get().unwrap());
 
 		assert_ok!(Sminer::regnstk(
 			Origin::signed(ACCOUNT2.0),
@@ -344,7 +344,7 @@ fn add_power_should_work() {
 		let _ = Sminer::add_power(&m2.peer_id, 20_000);
 		let m2 = MinerItems::<Test>::try_get(ACCOUNT2.0).unwrap();
 		assert_eq!(20_000, m2.power);
-		assert_eq!(30_000, TotalPower::<Test>::try_get().unwrap());
+		assert_eq!(30_000, TotalIdleSpace::<Test>::try_get().unwrap());
 	});
 }
 
@@ -375,7 +375,7 @@ fn increase_rewards_should_work() {
 		let _ = Sminer::add_power(&m1.peer_id, 10_000);
 		let _ = Sminer::add_power(&m2.peer_id, 20_000);
 
-		let total_power = TotalPower::<Test>::try_get().unwrap();
+		let total_power = TotalIdleSpace::<Test>::try_get().unwrap();
 		assert_eq!(30_000, total_power);
 
 		assert_ok!(Sminer::timed_increase_rewards(Origin::root()));
@@ -426,7 +426,7 @@ fn task_award_table_should_work() {
 		let m2 = MinerItems::<Test>::try_get(ACCOUNT2.0).unwrap();
 		let _ = Sminer::add_power(&ACCOUNT1.0, 10_000);
 		let _ = Sminer::add_power(&ACCOUNT2.0, 20_000);
-		let total_power = TotalPower::<Test>::try_get().unwrap();
+		let total_power = TotalIdleSpace::<Test>::try_get().unwrap();
 
 		assert_eq!(30_000, total_power);
 		assert_ok!(Sminer::timed_increase_rewards(Origin::root())); // <-- dependency method
@@ -512,7 +512,7 @@ fn timed_user_receive_award1_should_work() {
 		let m2 = MinerItems::<Test>::try_get(ACCOUNT2.0).unwrap();
 		let _ = Sminer::add_power(&ACCOUNT1.0, 10_000);
 		let _ = Sminer::add_power(&ACCOUNT2.0, 20_000);
-		let total_power = TotalPower::<Test>::try_get().unwrap();
+		let total_power = TotalIdleSpace::<Test>::try_get().unwrap();
 		assert_eq!(30_000, total_power);
 
 		assert_ok!(Sminer::timed_increase_rewards(Origin::root())); // <-- dependency method
