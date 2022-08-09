@@ -24,7 +24,7 @@ use frame_support::{assert_ok, assert_noop};
 use pallet_sminer::MinerControl;
 
 #[derive(Debug, Clone)]
-pub struct MockingFileInfo {
+pub struct MockingFileBankInfo {
     file_hash: Vec<u8>,
     file_size: u64,
     index: u32,
@@ -33,9 +33,9 @@ pub struct MockingFileInfo {
 	slice_info: Vec<SliceInfo<Test>>,
 }
 
-impl Default for MockingFileInfo {
+impl Default for MockingFileBankInfo {
     fn default() -> Self {
-        MockingFileInfo {
+        MockingFileBankInfo {
             file_hash: vec![5,45,23,2,19,5,2],
             file_size: 12,
             index: 1,
@@ -78,8 +78,8 @@ fn upload_declaration_alias(account: AccountId, file_name: Vec<u8>, file_hash: V
     )
 }
 
-fn upload_file_alias(account: AccountId, controller: AccountId, file_info: &MockingFileInfo) -> DispatchResult {
-    let MockingFileInfo { file_hash, file_size, _index, _file_state, _file_name, slice_info } = file_info.clone();
+fn upload_file_alias(account: AccountId, controller: AccountId, file_info: &MockingFileBankInfo) -> DispatchResult {
+    let MockingFileBankInfo { file_hash, file_size, index, file_state, file_name, slice_info} = file_info.clone();
     FileBank::upload(
         Origin::signed(controller),
         file_hash,
@@ -236,7 +236,7 @@ fn upload_works() {
         let miner1 = mock::miner1();
         let stash1 = mock::stash1();
         let controller1 = mock::controller1();
-        let mfi = MockingFileInfo::default();
+        let mfi = MockingFileBankInfo::default();
         assert_ok!(upload_declaration_alias(acc1, "cess-book".as_bytes().to_vec(), mfi.file_hash.to_vec()));
         assert_noop!(upload_file_alias(acc1, controller1, &mfi), Error::<Test>::ScheduleNonExistent);
         assert_ok!(register_miner(miner1));
@@ -276,7 +276,7 @@ fn upload_should_not_work_when_insufficient_storage() {
         let stash1 = mock::stash1();
         let miner1 = mock::miner1();
         let controller1 = mock::controller1();
-        let mut mfi = MockingFileInfo::default();
+        let mut mfi = MockingFileBankInfo::default();
         let space_gb = 20_u128;
         assert_ok!(register_miner(miner1)); 
         assert_ok!(register_scheduler(stash1.clone(), controller1.clone()));
@@ -303,7 +303,7 @@ fn delete_file_works() {
         let stash1 = mock::stash1();
         let miner1 = mock::miner1();
         let controller1 = mock::controller1();
-        let mfi = MockingFileInfo::default();
+        let mfi = MockingFileBankInfo::default();
         assert_noop!(FileBank::delete_file(Origin::signed(acc1), mfi.file_hash.clone()), Error::<Test>::FileNonExistent);
 
         let space_gb = 20_u128;
@@ -355,7 +355,7 @@ fn clear_invalid_file_work() {
         let stash1 = mock::stash1();
         let miner1 = mock::miner1();
         let controller1 = mock::controller1();
-        let mfi = MockingFileInfo::default();
+        let mfi = MockingFileBankInfo::default();
         
         assert_ok!(register_miner(miner1.clone()));
         assert_ok!(Sminer::add_power(&miner1 ,1_048_576 * 1024 * 20));

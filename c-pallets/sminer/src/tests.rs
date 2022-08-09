@@ -589,7 +589,11 @@ fn failure_to_replenish_sufficient_deposit() {
 			1u128
 		));
 
+		let miner = <MinerItems<Test>>::get(&ACCOUNT1.0).unwrap();
+		assert_eq!(miner.state.to_vec(), "positive".as_bytes().to_vec());
 		assert_ok!(Sminer::join_buffer_pool(ACCOUNT1.0));
+		let miner = <MinerItems<Test>>::get(&ACCOUNT1.0).unwrap();
+		assert_eq!(miner.state.to_vec(), "frozen".as_bytes().to_vec());
 		assert_ok!(Sminer::start_buffer_period_schedule());
 		assert!(BadMiner::<Test>::contains_key(ACCOUNT1.0));
 		let event = Sys::events().pop().expect("Expected at least one MinerExit to be found").event;
