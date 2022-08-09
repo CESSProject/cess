@@ -20,6 +20,8 @@ pub use pallet::*;
 use scale_info::TypeInfo;
 use sp_runtime::{traits::SaturatedConversion, RuntimeDebug, DispatchError};
 use sp_std::prelude::*;
+pub mod weights;
+pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
@@ -70,6 +72,8 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type StringLimit: Get<u32> + PartialEq + Eq + Clone;
+		//the weights
+		type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::event]
@@ -77,6 +81,8 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		//Scheduling registration method
 		RegistrationScheduler { acc: AccountOf<T>, ip: Vec<u8> },
+
+		UpdateScheduler { acc: AccountOf<T>, endpoint: Vec<u8> },
 	}
 
 	#[pallet::error]
@@ -170,7 +176,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		//Scheduling registration method
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::registration_scheduler())]
 		pub fn registration_scheduler(
 			origin: OriginFor<T>,
 			stash_account: AccountOf<T>,
@@ -199,7 +205,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(1_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_scheduler())]
 		pub fn update_scheduler(
 			origin: OriginFor<T>,
 			ip: Vec<u8>,
@@ -221,7 +227,7 @@ pub mod pallet {
 					}
 					count = count.checked_add(1).ok_or(Error::<T>::Overflow)?;
 				}
-
+				Self::deposit_event(Event::<T>::UpdateScheduler { acc: sender, endpoint: ip });
 				Err(Error::<T>::NotController)?
 			})?;
 		

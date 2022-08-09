@@ -139,6 +139,7 @@ impl pallet_file_map::Config for Test {
     type Currency = Balances;
     type FileMapPalletId = FileMapPalletId;
     type StringLimit = StringLimit;
+    type WeightInfo = ();
 }
 
 const THRESHOLDS: [sp_npos_elections::VoteWeight; 9] =

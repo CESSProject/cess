@@ -38,7 +38,7 @@ use frame_support::{
 mod benchmarking;
 
 mod types;
-pub mod weights;
+
 use codec::{Decode, Encode};
 use frame_support::{
 	dispatch::{DispatchResult, Dispatchable},
@@ -54,6 +54,7 @@ use sp_runtime::{
 };
 use sp_std::{convert::TryInto, prelude::*};
 use types::*;
+pub mod weights;
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -72,6 +73,7 @@ const STATE_EXIT: &str = "exit";
 const LOCK_IN_PERIOD: u8 = 2;
 const MAX_AWARD: u128 = 1_306_849_000_000_000_000;
 const FAUCET_VALUE: u128 = 10000000000000000;
+const DOUBLE: u8 = 2;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -381,7 +383,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `collaterals`: Miner's TCESS.
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::increase_collateral())]
 		pub fn increase_collateral(
 			origin: OriginFor<T>,
 			#[pallet::compact] collaterals: BalanceOf<T>,
@@ -421,7 +423,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `beneficiary`: The beneficiary related to signer account.
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_beneficiary())]
 		pub fn update_beneficiary(
 			origin: OriginFor<T>,
 			beneficiary: AccountOf<T>,
@@ -443,7 +445,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `ip`: The registered IP of storage miner.
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_ip())]
 		pub fn update_ip(origin: OriginFor<T>, ip: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
@@ -461,7 +463,7 @@ pub mod pallet {
 		}
 
 		//Miner exit method, Irreversible process.
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::exit_miner())]
 		pub fn exit_miner(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
@@ -486,7 +488,7 @@ pub mod pallet {
 		}
 
 		//Method for miners to redeem deposit
-		#[pallet::weight(200_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::withdraw())]
 		pub fn withdraw(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
@@ -599,7 +601,7 @@ pub mod pallet {
 		/// Delete reward orders.
 		///
 		/// The dispatch origin of this call must be _root_.
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::del_reward_order())]
+		#[pallet::weight(100_000)]
 		pub fn del_reward_order(
 			origin: OriginFor<T>,
 			acc: AccountOf<T>,
@@ -888,7 +890,7 @@ pub mod pallet {
 		/// Parameters:
 		/// - `when`: The block when the buffer period starts.
 		#[pallet::weight(1_000_000)]
-		pub fn buffer_end(origin: OriginFor<T>, when: BlockNumberOf<T>) -> DispatchResult {
+		pub fn buffer_period_end(origin: OriginFor<T>, when: BlockNumberOf<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
 			let miner_vec = <BufferPeriod<T>>::get(&when);
@@ -921,7 +923,7 @@ pub mod pallet {
 		/// Parameters:
 		/// - `acc`: Top-up account .
 		/// - `acc`: Top-up amount .
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::faucet_top_up())]
+		#[pallet::weight(100_000)]
 		pub fn faucet_top_up(origin: OriginFor<T>, award: BalanceOf<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
@@ -938,7 +940,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `acc`: Withdraw money account.
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::faucet())]
+		#[pallet::weight(100_000)]
 		pub fn faucet(origin: OriginFor<T>, to: AccountOf<T>) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 
@@ -1137,12 +1139,12 @@ impl<T: Config> Pallet<T> {
 	/// - `consecutive_fines`: Number of successive penalties in multiple challenges.
 	pub fn punish(
 		aid: AccountOf<T>,
-		failure_num: u8,
-		total_proof: u8,
+		failure_num: u32,
+		total_proof: u32,
 		consecutive_fines: u8,
 	) -> DispatchResult {
 		if !<MinerItems<T>>::contains_key(&aid) {
-			return Ok(());
+			Err(Error::<T>::NotMiner)?;
 		}
 
 		//There is a judgment on whether the primary key exists above
@@ -1153,7 +1155,7 @@ impl<T: Config> Pallet<T> {
 			T::CalculFailureFee::calcu_failure_fee(aid.clone(), failure_num, total_proof)?;
 
 		if consecutive_fines >= T::MultipleFines::get() {
-			calcu_failure_fee.checked_div(2u128).ok_or(Error::<T>::Overflow)?;
+			calcu_failure_fee.checked_mul(DOUBLE as u128).ok_or(Error::<T>::Overflow)?;
 		}
 
 		let mut punish_amount: BalanceOf<T> = 0u128
@@ -1171,12 +1173,13 @@ impl<T: Config> Pallet<T> {
 			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
 			miner_info.collaterals =
 				miner_info.collaterals.checked_sub(&punish_amount).ok_or(Error::<T>::Overflow)?;
-			let limit = Self::check_collateral_limit(miner_info.power)?;
-			if mr.collaterals < limit {
-				Self::join_buffer_period(aid.clone())?;
-			}
 			Ok(())
 		})?;
+		let miner_info = <MinerItems<T>>::try_get(&aid).map_err(|_e| Error::<T>::NotMiner)?;
+		let limit = Self::check_collateral_limit(miner_info.power)?;
+		if miner_info.collaterals < limit {
+			Self::join_buffer_pool(aid.clone())?;
+		}
 		T::Currency::transfer(&aid, &acc, punish_amount, AllowDeath)?;
 
 		Ok(())
@@ -1184,24 +1187,22 @@ impl<T: Config> Pallet<T> {
 
 	/// A buffer period begins and miners are required to make a sufficient deposit before the buffer period ends.
 	///
-	pub fn open_buffer_schedule() -> DispatchResult {
+	pub fn start_buffer_period_schedule() -> DispatchResult {
 		let now_block = <frame_system::Pallet<T>>::block_number();
 		if BufferPeriod::<T>::contains_key(&now_block) {
-			let mut buffer: u32 = T::OneDayBlock::get().saturated_into();
-			buffer = buffer * T::DepositBufferPeriod::get();
+			let mut period: u32 = T::OneDayBlock::get().saturated_into();
+			period = period * T::DepositBufferPeriod::get();
 			let buffer_period =
-				now_block.checked_add(&buffer.saturated_into()).ok_or(Error::<T>::Overflow)?;
-
+				now_block.checked_add(&period.saturated_into()).ok_or(Error::<T>::Overflow)?;
 			T::AScheduler::schedule(
 				DispatchTime::At(buffer_period),
 				None,
 				59,
 				frame_system::RawOrigin::Root.into(),
-				Call::buffer_end { when: now_block.clone() }.into(),
+				Call::buffer_period_end { when: now_block.clone() }.into(),
 			)?;
 		}
 		Self::deposit_event(Event::<T>::StartOfBufferPeriod { when: now_block });
-
 		Ok(())
 	}
 
@@ -1209,7 +1210,7 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Parameters:
 	/// - `acc`: miner account.
-	fn join_buffer_period(acc: AccountOf<T>) -> DispatchResult {
+	fn join_buffer_pool(acc: AccountOf<T>) -> DispatchResult {
 		let now = <frame_system::Pallet<T>>::block_number();
 
 		<BadMiner<T>>::insert(&acc, &now);
@@ -1233,7 +1234,7 @@ impl<T: Config> Pallet<T> {
 				&& miner_info.state != STATE_EXIT_FROZEN.as_bytes().to_vec()
 			{
 				if miner_info.state.to_vec() == STATE_POSITIVE.as_bytes().to_vec() {
-					miner_info.state = Self::vec_to_bound::<u8>(STATE_FROZEN.as_bytes().to_vec())?;
+					miner_info.state = STATE_FROZEN.as_bytes().to_vec().try_into().map_err(|_e| Error::<T>::Overflow)?;
 				} else if miner_info.state.to_vec() == STATE_EXIT.as_bytes().to_vec() {
 					miner_info.state =
 						Self::vec_to_bound::<u8>(STATE_EXIT_FROZEN.as_bytes().to_vec())?;
@@ -1410,15 +1411,15 @@ pub trait MinerControl<AccountId> {
 	fn get_miner_id(acc: AccountId) -> Result<u64, DispatchError>;
 	fn punish_miner(
 		acc: AccountId,
-		failure_num: u8,
-		total_proof: u8,
+		failure_num: u32,
+		total_proof: u32,
 		consecutive_fines: u8,
 	) -> DispatchResult;
 	fn miner_is_exist(acc: AccountId) -> bool;
 	fn get_miner_state(acc: AccountId) -> Result<Vec<u8>, DispatchError>;
 	fn add_purchased_space(size: u128) -> DispatchResult;
 	fn sub_purchased_space(size: u128) -> DispatchResult;
-	fn open_buffer_schedule() -> DispatchResult;
+	fn start_buffer_period_schedule() -> DispatchResult;
 }
 
 impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -1444,16 +1445,16 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 
 	fn punish_miner(
 		acc: <T as frame_system::Config>::AccountId,
-		failure_num: u8,
-		total_proof: u8,
+		failure_num: u32,
+		total_proof: u32,
 		consecutive_fines: u8,
 	) -> DispatchResult {
 		Pallet::<T>::punish(acc, failure_num.into(), total_proof.into(), consecutive_fines.into())?;
 		Ok(())
 	}
 
-	fn open_buffer_schedule() -> DispatchResult {
-		Pallet::<T>::open_buffer_schedule()?;
+	fn start_buffer_period_schedule() -> DispatchResult {
+		Pallet::<T>::start_buffer_period_schedule()?;
 		Ok(())
 	}
 
@@ -1499,22 +1500,22 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 pub trait CalculFailureFee<T: Config> {
 	fn calcu_failure_fee(
 		acc: AccountOf<T>,
-		failure_num: u8,
-		total_proof: u8,
+		failure_num: u32,
+		total_proof: u32,
 	) -> Result<u128, Error<T>>;
 }
 
 impl<T: Config> CalculFailureFee<T> for Pallet<T> {
 	fn calcu_failure_fee(
 		acc: AccountOf<T>,
-		failure_num: u8,
-		total_proof: u8,
+		failure_num: u32,
+		total_proof: u32,
 	) -> Result<u128, Error<T>> {
 		let order_vec =
 			<CalculateRewardOrderMap<T>>::try_get(&acc).map_err(|_e| Error::<T>::NotExisted)?;
 
 		match order_vec.len() {
-			0 => Err(Error::<T>::Overflow),
+			0 => Err(Error::<T>::NotExisted),
 			n => {
 				let calculate_reward = order_vec[n - 1].calculate_reward;
 				let failure_rate = failure_num

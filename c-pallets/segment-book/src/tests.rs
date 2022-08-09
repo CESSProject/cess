@@ -21,6 +21,7 @@ use super::*;
 use frame_support::{assert_ok, assert_noop};
 use frame_benchmarking::account;
 use crate::{mock::*, Event, Error, mock::System as Sys};
+use pallet_file_bank::SliceInfo;
 
 fn to_bounded_vec<T>(v: Vec<T>) -> BoundedVec<T, StringLimit> {
     let bv: BoundedVec<T, StringLimit> = v.try_into().unwrap();
@@ -41,25 +42,47 @@ fn to_bounded_vec2<T: Clone>(vv: Vec<Vec<T>>) -> BoundedVec<BoundedVec<T, String
 
 #[derive(Debug, Clone)]
 pub struct MockingFileInfo {
-    pub file_hash: Vec<u8>,
-    pub file_size: u64,
-	pub block_num: u32,
-	pub scan_size: u32,
-	pub segment_size: u32,
-    pub miner_acc: AccountId,
-	pub miner_ip: Vec<u8>,
+    file_hash: Vec<u8>,
+    file_size: u64,
+    index: u32,
+	file_state: Vec<u8>,
+	file_name: Vec<u8>,
+	slice_info: Vec<SliceInfo<Test>>,
 }
 
 impl Default for MockingFileInfo {
     fn default() -> Self {
         MockingFileInfo {
-            file_hash: vec![5,45,23,2,19,5,2],
+            file_hash: vec![5,45,23],
             file_size: 12,
-            block_num: 8,
-            scan_size: 3,
-            segment_size: 3,
-            miner_acc: mock::miner1(),
-            miner_ip: vec![66,55,44,33,11],
+            index: 1,
+            file_state: "active".as_bytes().to_vec(),
+            file_name: "testname".as_bytes().to_vec(),
+            slice_info: vec![SliceInfo::<Test>{
+                miner_id: 1,
+                shard_size: 111,
+                block_num: 8,
+                shard_id: vec![5,45,23,2,19,5,1].try_into().ok().unwrap(),
+                miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().ok().unwrap(),
+                miner_acc: mock::miner1(),
+            },
+            SliceInfo::<Test>{
+                miner_id: 1,
+                shard_size: 111,
+                block_num: 8,
+                shard_id: vec![5,45,23,2,19,5,2].try_into().ok().unwrap(),
+                miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().ok().unwrap(),
+                miner_acc: mock::miner1(),
+            },
+            SliceInfo::<Test>{
+                miner_id: 1,
+                shard_size: 111,
+                block_num: 8,
+                shard_id: vec![5,45,23,2,19,5,3].try_into().ok().unwrap(),
+                miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().ok().unwrap(),
+                miner_acc: mock::miner1(),
+            },
+            ]
         }
     }
 }
@@ -73,6 +96,7 @@ fn add_power_for_miner(controller: AccountId, miner: AccountId) -> DispatchResul
         filler_list.push(
             pallet_file_bank::FillerInfo::<Test> {
                 filler_size: 8 * 1_048_576,
+                index: 0,
                 block_num: 8,
                 segment_size: 1_048_576,
                 scan_size: 1_048_576,
@@ -96,18 +120,13 @@ fn upload_declaration_alias(account: AccountId, file_name: Vec<u8>, file_hash: V
 }
 
 fn upload_file_alias(account: AccountId, controller: AccountId, file_info: &MockingFileInfo) -> DispatchResult {
-    let MockingFileInfo { file_hash, file_size, block_num, scan_size, segment_size, miner_acc, miner_ip } = file_info.clone();
+    let MockingFileInfo { file_hash, file_size, index, file_state, file_name, slice_info } = file_info.clone();
     FileBank::upload(
         Origin::signed(controller),
         file_hash,
         file_size,
-        block_num,
-        scan_size,
-        segment_size,
-        miner_acc,
-        1,
-        miner_ip,
-        account,
+        slice_info,
+        account.clone(),
     )
 }
 
@@ -137,7 +156,6 @@ fn submit_challenge_prove_works() {
             file_type: 1,
             file_id: to_bounded_vec(file_id.clone()),
             file_size: 1024,
-            segment_size: 256,
             block_list: to_bounded_vec(vec![1,2,3]),
             random: to_bounded_vec2(vec![vec![1,3],vec![4,5]]),
         };
@@ -153,7 +171,6 @@ fn submit_challenge_prove_works() {
         assert_ok!(ChallengeMap::<Test>::try_mutate(miner_acc, |value| -> DispatchResult {
             let challenge_info = ChallengeInfo::<Test>{
                 file_size: 1024,
-                segment_size: 256,
                 file_type: 1,
                 block_list: to_bounded_vec(vec![1,2,3]),
                 file_id: to_bounded_vec(file_id.clone()),
@@ -188,7 +205,6 @@ fn verify_proof_works() {
             file_type: 1,
             file_id: to_bounded_vec(file_id.clone()),
             file_size: 1024,
-            segment_size: 256,
             block_list: to_bounded_vec(vec![1,2,3]),
             random: to_bounded_vec2(vec![vec![1,3],vec![4,5]]),
         };
@@ -224,12 +240,12 @@ fn verify_proof_works() {
 fn verify_proof_on_punish() {
     new_test_ext().execute_with(|| {
         let beneficiary = account::<mock::AccountId>("beneficiary", 0, 0);
-        let stake_amount: u64 = 2_000_000_000_000_000;
+        let stake_amount: u64 = 2_000_000;
         let ip: Vec<u8> = Vec::from("192.168.0.1");
         assert_ok!(Sminer::regnstk(Origin::signed(miner1()), beneficiary, ip.clone(), stake_amount));
         let miner_acc = miner1();
-        assert_ok!(Sminer::add_power(miner_acc.clone(), 10_000));
-        let file_id = vec![5,45,23,2,19,5,2];
+        assert_ok!(Sminer::add_power(&miner_acc.clone(), 10_000));
+        let file_id = vec![5,45,23,2,19,5,1];
         let mu = vec![vec![2_u8]];
         let sigma = vec![1_u8];
         let controller1 = controller1();
@@ -238,9 +254,9 @@ fn verify_proof_on_punish() {
         let acc1 = account1();
 
         assert_ok!(upload_declaration_alias(acc1, "cess-book".as_bytes().to_vec(), mfi.file_hash.to_vec()));
-        assert_ok!(Sminer::add_available_space(1_048_576 * 1024 * 10));
+        assert_ok!(Sminer::add_power(&miner_acc, 1_048_576 * 1024 * 50));
         assert_ok!(FileBank::update_price_for_tests());
-        assert_ok!(FileBank::buy_space(Origin::signed(acc1), 1, 1, 0));
+        assert_ok!(FileBank::buy_package(Origin::signed(acc1), 1, 0));
         assert_ok!(register_scheduler(stash1.clone(), controller1.clone()));
         assert_ok!(add_power_for_miner(controller1.clone(), miner_acc.clone()));
         assert_ok!(upload_file_alias(acc1.clone(), controller1.clone(), &mfi));
@@ -252,7 +268,6 @@ fn verify_proof_on_punish() {
             file_type: 2,
             file_id: to_bounded_vec(file_id.clone()),
             file_size: 12,
-            segment_size: 3,
             block_list: to_bounded_vec(vec![1,2,3]),
             random: to_bounded_vec2(vec![vec![1,3],vec![4,5]]),
         };
@@ -279,12 +294,21 @@ fn verify_proof_on_punish() {
         }));
 
         assert_ok!(SegmentBook::submit_challenge_prove(Origin::signed(miner_acc.clone()), prove_list));
-
+        assert_ok!(Sminer::add_reward_order1(&miner_acc, 1000000));
         //FIXME! the punish action is hard to test now, as it's depend concrete pallet: sminer. Suggest doing this use Trait instead.
         assert_ok!(SegmentBook::verify_proof(Origin::signed(controller1.clone()), verify_result_list));  // the last parameter indicate whether punish
         assert_eq!(0, UnVerifyProof::<Test>::try_get(controller1.clone()).unwrap().len());
  
         let event = Sys::events().pop().expect("Expected at least one VerifyProof to be found").event;
-        assert_eq!(mock::Event::from(Event::VerifyProof { miner: miner_acc, file_id: file_id }), event);
+        assert_eq!(mock::Event::from(Event::VerifyProof { miner: miner_acc.clone(), file_id: file_id }), event);
+        <MinerTotalProof<Test>>::insert(&miner_acc, 1);
+        <VerifyDuration<Test>>::put(10);
+        <SegmentBook as Hooks<u64>>::on_initialize(10);
+        Sys::set_block_number(11);
+
+        if_std! { println!("miner_acc {:#?}", miner_acc.clone()) }
+
+        let state = Sminer::get_miner_state(miner_acc.clone()).unwrap();
+        assert_eq!(state, "frozen".as_bytes().to_vec());
     });
 }

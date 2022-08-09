@@ -8,7 +8,7 @@ use grandpa_primitives::AuthorityId as GrandpaId;
 use hex_literal::hex;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sc_chain_spec::ChainSpecExtension;
-use sc_service::ChainType;
+use sc_service::{ChainType, config::TelemetryEndpoints};
 use serde::{Deserialize, Serialize};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
@@ -19,7 +19,7 @@ use sp_runtime::{
 };
 
 // The URL for the telemetry server.
-// const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
+const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
 
@@ -191,7 +191,10 @@ pub fn cess_testnet_generate_config() -> ChainSpec {
 		ChainType::Live,
 		cess_testnet_config_genesis,
 		boot_nodes,
-		None,
+		Some(
+			TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
+			  .expect("Staging telemetry url is valid; qed"),
+		),
 		Some("TCESS"),
 		None,
 		Some(
