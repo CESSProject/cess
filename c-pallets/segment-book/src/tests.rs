@@ -240,7 +240,7 @@ fn verify_proof_works() {
 fn verify_proof_on_punish() {
     new_test_ext().execute_with(|| {
         let beneficiary = account::<mock::AccountId>("beneficiary", 0, 0);
-        let stake_amount: u64 = 2_000_000_000_000_000;
+        let stake_amount: u64 = 2_000_000;
         let ip: Vec<u8> = Vec::from("192.168.0.1");
         assert_ok!(Sminer::regnstk(Origin::signed(miner1()), beneficiary, ip.clone(), stake_amount));
         let miner_acc = miner1();
@@ -294,12 +294,21 @@ fn verify_proof_on_punish() {
         }));
 
         assert_ok!(SegmentBook::submit_challenge_prove(Origin::signed(miner_acc.clone()), prove_list));
-
+        assert_ok!(Sminer::add_reward_order1(&miner_acc, 1000000));
         //FIXME! the punish action is hard to test now, as it's depend concrete pallet: sminer. Suggest doing this use Trait instead.
         assert_ok!(SegmentBook::verify_proof(Origin::signed(controller1.clone()), verify_result_list));  // the last parameter indicate whether punish
         assert_eq!(0, UnVerifyProof::<Test>::try_get(controller1.clone()).unwrap().len());
  
         let event = Sys::events().pop().expect("Expected at least one VerifyProof to be found").event;
-        assert_eq!(mock::Event::from(Event::VerifyProof { miner: miner_acc, file_id: file_id }), event);
+        assert_eq!(mock::Event::from(Event::VerifyProof { miner: miner_acc.clone(), file_id: file_id }), event);
+        <MinerTotalProof<Test>>::insert(&miner_acc, 1);
+        <VerifyDuration<Test>>::put(10);
+        <SegmentBook as Hooks<u64>>::on_initialize(10);
+        Sys::set_block_number(11);
+
+        if_std! { println!("miner_acc {:#?}", miner_acc.clone()) }
+
+        let state = Sminer::get_miner_state(miner_acc.clone()).unwrap();
+        assert_eq!(state, "frozen".as_bytes().to_vec());
     });
 }

@@ -216,12 +216,12 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn failure_rate_map)]
 	pub(super) type FailureNumMap<T: Config> =
-		StorageMap<_, Blake2_128Concat, T::AccountId, u8, ValueQuery>;
+		StorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn miner_total_proof)]
 	pub(super) type MinerTotalProof<T: Config> =
-		StorageMap<_, Blake2_128Concat, T::AccountId, u8, ValueQuery>;
+		StorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn consecutive_fines)]
@@ -241,7 +241,6 @@ pub mod pallet {
 		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
 			let _number: u128 = now.saturated_into();
 			let challenge_deadline = Self::challenge_duration();
-
 			let verify_deadline = Self::verify_duration();
 			//The waiting time for the challenge has reached the deadline
 			if now == challenge_deadline {
@@ -282,6 +281,7 @@ pub mod pallet {
 						is_end = false;
 						verify_list.append(&mut v_list.to_vec());
 						T::Scheduler::punish_scheduler(acc.clone());
+						<UnVerifyProof<T>>::remove(&acc);
 					}
 				}
 				if is_end {
@@ -298,7 +298,6 @@ pub mod pallet {
 							} else {
 								<ConsecutiveFines<T>>::insert(&miner, 1);
 							}
-
 							Self::punish(
 								miner.clone(),
 								<FailureNumMap<T>>::get(&miner),
@@ -309,21 +308,28 @@ pub mod pallet {
 							<ConsecutiveFines<T>>::remove(&miner);
 						}
 					}
+					
 					Self::start_buffer_period_schedule().unwrap_or(());
 					<FailureNumMap<T>>::remove_all(None);
 					<MinerTotalProof<T>>::remove_all(None);
+				} else {
+					let result = Self::get_current_scheduler();
+					match result {
+						Ok(cur_acc) =>  {
+							let new_deadline = match now.checked_add(&1200u32.saturated_into()).ok_or(Error::<T>::Overflow) {
+								Ok(new_deadline) => new_deadline,
+								Err(e) => {
+									log::error!("over flow: {:?}", e);
+									return 0
+								},
+							};
+							<VerifyDuration<T>>::put(new_deadline);
+							let _ = Self::storage_prove(cur_acc, verify_list);
+						},
+						Err(_e) => log::error!("get_current_scheduler err"),
+					}
 				}
-				let result = Self::get_current_scheduler();
-				match result {
-					Ok(cur_acc) =>  {
-						let _ = Self::storage_prove(cur_acc, verify_list);
-					},
-					Err(_e) => log::error!("get_current_scheduler err"),
-				} 
-				
-				
 			}
-
 			0
 		}
 
@@ -487,7 +493,7 @@ pub mod pallet {
 			}
 
 			for (acc, challenge_list) in <ChallengeMap<T>>::iter() {
-				<MinerTotalProof<T>>::insert(acc, challenge_list.len() as u8);
+				<MinerTotalProof<T>>::insert(acc, challenge_list.len() as u32);
 			}
 
 			let now = <frame_system::Pallet<T>>::block_number();
@@ -546,7 +552,7 @@ pub mod pallet {
 			let pre_runtime_digests = digest.logs.iter().filter_map(|d| d.as_pre_runtime());
 			let acc = T::FindAuthor::find_author(pre_runtime_digests).map(|a| a);
 			let acc = match acc {
-				Some(e) => T::Scheduler::get_controller_acc(e),
+				Some(acc) => T::Scheduler::get_controller_acc(acc),
 				None => T::Scheduler::get_first_controller()?,
 			};
 			Ok(acc)
@@ -585,7 +591,6 @@ pub mod pallet {
 
 		//Ways to generate challenges
 		fn generation_challenge() -> DispatchResult {
-			log::info!("");
 			let result = T::File::get_random_challenge_data()?;
 			let mut x = 0;
 			let mut new_challenge_map: BTreeMap<AccountOf<T>, Vec<ChallengeInfo<T>>> =
@@ -745,8 +750,8 @@ pub mod pallet {
 			match file_type {
 				1 => {
 					T::MinerControl::sub_power(acc.clone(), file_size.into())?;
+					T::File::delete_filler(acc.clone(), file_id.clone())?;
 					T::File::add_invalid_file(acc.clone(), file_id.clone())?;
-					T::File::delete_filler(acc.clone(), file_id)?;
 				},
 				2 => {
 					T::MinerControl::sub_space(&acc, file_size.into())?;
@@ -765,8 +770,8 @@ pub mod pallet {
 
 		fn punish(
 			acc: AccountOf<T>,
-			failure_num: u8,
-			total_proof: u8,
+			failure_num: u32,
+			total_proof: u32,
 			consecutive_fines: u8,
 		) -> DispatchResult {
 			T::MinerControl::punish_miner(

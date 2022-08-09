@@ -1139,8 +1139,8 @@ impl<T: Config> Pallet<T> {
 	/// - `consecutive_fines`: Number of successive penalties in multiple challenges.
 	pub fn punish(
 		aid: AccountOf<T>,
-		failure_num: u8,
-		total_proof: u8,
+		failure_num: u32,
+		total_proof: u32,
 		consecutive_fines: u8,
 	) -> DispatchResult {
 		if !<MinerItems<T>>::contains_key(&aid) {
@@ -1155,7 +1155,7 @@ impl<T: Config> Pallet<T> {
 			T::CalculFailureFee::calcu_failure_fee(aid.clone(), failure_num, total_proof)?;
 
 		if consecutive_fines >= T::MultipleFines::get() {
-			calcu_failure_fee.checked_div(DOUBLE as u128).ok_or(Error::<T>::Overflow)?;
+			calcu_failure_fee.checked_mul(DOUBLE as u128).ok_or(Error::<T>::Overflow)?;
 		}
 
 		let mut punish_amount: BalanceOf<T> = 0u128
@@ -1173,12 +1173,13 @@ impl<T: Config> Pallet<T> {
 			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
 			miner_info.collaterals =
 				miner_info.collaterals.checked_sub(&punish_amount).ok_or(Error::<T>::Overflow)?;
-			let limit = Self::check_collateral_limit(miner_info.power)?;
-			if mr.collaterals < limit {
-				Self::join_buffer_pool(aid.clone())?;
-			}
 			Ok(())
 		})?;
+		let miner_info = <MinerItems<T>>::try_get(&aid).map_err(|_e| Error::<T>::NotMiner)?;
+		let limit = Self::check_collateral_limit(miner_info.power)?;
+		if miner_info.collaterals < limit {
+			Self::join_buffer_pool(aid.clone())?;
+		}
 		T::Currency::transfer(&aid, &acc, punish_amount, AllowDeath)?;
 
 		Ok(())
@@ -1202,7 +1203,6 @@ impl<T: Config> Pallet<T> {
 			)?;
 		}
 		Self::deposit_event(Event::<T>::StartOfBufferPeriod { when: now_block });
-
 		Ok(())
 	}
 
@@ -1234,7 +1234,7 @@ impl<T: Config> Pallet<T> {
 				&& miner_info.state != STATE_EXIT_FROZEN.as_bytes().to_vec()
 			{
 				if miner_info.state.to_vec() == STATE_POSITIVE.as_bytes().to_vec() {
-					miner_info.state = Self::vec_to_bound::<u8>(STATE_FROZEN.as_bytes().to_vec())?;
+					miner_info.state = STATE_FROZEN.as_bytes().to_vec().try_into().map_err(|_e| Error::<T>::Overflow)?;
 				} else if miner_info.state.to_vec() == STATE_EXIT.as_bytes().to_vec() {
 					miner_info.state =
 						Self::vec_to_bound::<u8>(STATE_EXIT_FROZEN.as_bytes().to_vec())?;
@@ -1411,8 +1411,8 @@ pub trait MinerControl<AccountId> {
 	fn get_miner_id(acc: AccountId) -> Result<u64, DispatchError>;
 	fn punish_miner(
 		acc: AccountId,
-		failure_num: u8,
-		total_proof: u8,
+		failure_num: u32,
+		total_proof: u32,
 		consecutive_fines: u8,
 	) -> DispatchResult;
 	fn miner_is_exist(acc: AccountId) -> bool;
@@ -1445,8 +1445,8 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 
 	fn punish_miner(
 		acc: <T as frame_system::Config>::AccountId,
-		failure_num: u8,
-		total_proof: u8,
+		failure_num: u32,
+		total_proof: u32,
 		consecutive_fines: u8,
 	) -> DispatchResult {
 		Pallet::<T>::punish(acc, failure_num.into(), total_proof.into(), consecutive_fines.into())?;
@@ -1500,16 +1500,16 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 pub trait CalculFailureFee<T: Config> {
 	fn calcu_failure_fee(
 		acc: AccountOf<T>,
-		failure_num: u8,
-		total_proof: u8,
+		failure_num: u32,
+		total_proof: u32,
 	) -> Result<u128, Error<T>>;
 }
 
 impl<T: Config> CalculFailureFee<T> for Pallet<T> {
 	fn calcu_failure_fee(
 		acc: AccountOf<T>,
-		failure_num: u8,
-		total_proof: u8,
+		failure_num: u32,
+		total_proof: u32,
 	) -> Result<u128, Error<T>> {
 		let order_vec =
 			<CalculateRewardOrderMap<T>>::try_get(&acc).map_err(|_e| Error::<T>::NotExisted)?;
