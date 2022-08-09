@@ -81,6 +81,8 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		//Scheduling registration method
 		RegistrationScheduler { acc: AccountOf<T>, ip: Vec<u8> },
+
+		UpdateScheduler { acc: AccountOf<T>, endpoint: Vec<u8> },
 	}
 
 	#[pallet::error]
@@ -225,7 +227,7 @@ pub mod pallet {
 					}
 					count = count.checked_add(1).ok_or(Error::<T>::Overflow)?;
 				}
-
+				Self::deposit_event(Event::<T>::UpdateScheduler { acc: sender, endpoint: ip });
 				Err(Error::<T>::NotController)?
 			})?;
 		
