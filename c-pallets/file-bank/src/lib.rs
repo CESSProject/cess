@@ -364,6 +364,19 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		/// Users need to make a declaration before uploading files.
+		/// 
+		/// This method is used to declare the file to be uploaded.
+		/// If the file already exists on the chain, 
+		/// the user directly becomes one of the holders of the file
+		/// If the file does not exist, after declaring the file, 
+		/// wait for the dispatcher to upload the meta information of the file
+		///
+		/// The dispatch origin of this call must be _Signed_.
+		///
+		/// Parameters:
+		/// - `file_hash`: Hash of the file to be uploaded.
+		/// - `file_name`: User defined file name.
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_declaration())]
 		pub fn upload_declaration(
 			origin: OriginFor<T>,
@@ -428,6 +441,15 @@ pub mod pallet {
 		/// Upload info of stored file.
 		///
 		/// The dispatch origin of this call must be _Signed_.
+		/// 
+		/// The same file will only upload meta information once, 
+		/// which will be uploaded by consensus.
+		/// 
+		/// Parameters:
+		/// - `file_hash`: The beneficiary related to signer account.
+		/// - `file_size`: File size calculated by consensus.
+		/// - `slice_info`: List of file slice information.
+		/// - `user`: The first user to upload files.
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload())]
 		pub fn upload(
 			origin: OriginFor<T>,
@@ -481,8 +503,16 @@ pub mod pallet {
 			Ok(())
 		}
 
-		//The filler upload interface can only be called by scheduling, and the list has a maximum
-		// length limit
+		/// Upload idle files for miners.
+		///
+		/// The dispatch origin of this call must be _Signed_.
+		/// 
+		/// Upload up to ten idle files for one transaction.
+		/// Currently, the size of each idle file is fixed at 8MiB.
+		/// 
+		/// Parameters:
+		/// - `miner`: For which miner, miner's wallet address.
+		/// - `filler_list`: Meta information list of idle files.
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_filler(filler_list.len() as u32))]
 		pub fn upload_filler(
 			origin: OriginFor<T>,
@@ -523,6 +553,16 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// User deletes uploaded files.
+		///
+		/// The dispatch origin of this call must be Signed.
+		/// 
+		/// If a file has multiple holders, 
+		/// only the user's ownership of the file will be deleted 
+		/// and the space purchased by the user will be released
+		/// 
+		/// Parameters:
+		/// - `fileid`: For which miner, miner's wallet address.
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::delete_file())]
 		pub fn delete_file(origin: OriginFor<T>, fileid: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -540,8 +580,13 @@ pub mod pallet {
 		//************************************************************Storage **********************
 		//************************************************************Storage ********
 		//**********************************************************************************************************************************************
-		//The parameter "space_count" is calculated in gigabyte.
-		//parameter "lease_count" is calculated on the monthly basis.
+		/// Transaction of user purchasing space.
+		///
+		/// The dispatch origin of this call must be Signed.
+		/// 
+		/// Parameters:
+		/// - `package_type`: Package type (1 / 2 / 3 / 4 / 5).
+		/// - `count`: When type = 5, it means that the user wants to buy count TIBS.
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_package())]
 		pub fn buy_package(origin: OriginFor<T>, package_type: u8, count: u128) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -579,7 +624,14 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::BuyPackage{ acc: sender, size: space, fee: price});
 			Ok(())
 		}
-
+		/// Upgrade package (expansion of storage space)
+		///
+		/// It can only be called when the package has been purchased,
+		/// And the upgrade target needs to be higher than the current package.
+		/// 
+		/// Parameters:
+		/// - `package_type`: Package type (1 / 2 / 3 / 4 / 5).
+		/// - `count`: When type = 5, it means that the user wants to buy count TIBS.
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upgrade_package())]
 		pub fn upgrade_package(
 			origin: OriginFor<T>,
@@ -665,7 +717,9 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::PackageUpgrade { acc: sender, old_type: cur_package.package_type, new_type: package_type, fee: price});
 			Ok(())
 		}
-
+		/// Package renewal
+		///
+		/// Currently, lease renewal only supports single month renewal
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_package())]
 		pub fn renewal_package(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -692,8 +746,13 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::PackageRenewal{ acc: sender, package_type: cur_package.package_type, fee: price});
 			Ok(())
 		}
-
-		//Feedback results after the miner clears the invalid files
+		/// Clean up invalid idle files
+		///
+		/// When the idle documents are replaced or proved to be invalid, 
+		/// they will become invalid documents and need to be cleared by the miners
+		/// 
+		/// Parameters:
+		/// - `file_hash`: Invalid file hash
 		#[pallet::weight(22_777_000)]
 		pub fn clear_invalid_file(origin: OriginFor<T>, file_hash: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -706,7 +765,14 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::ClearInvalidFile { acc: sender, file_hash });
 			Ok(())
 		}
-
+		/// Add offchain signed member
+		///
+		/// The dispatch origin of this call must be Root.
+		/// 
+		/// Only members can call some special functional transactions
+		/// 
+		/// Parameters:
+		/// - `acc`: Account
 		#[pallet::weight(10_000)]
 		pub fn add_member(origin: OriginFor<T>, acc: AccountOf<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
@@ -720,7 +786,14 @@ pub mod pallet {
 			})?;
 			Ok(())
 		}
-
+		/// delete offchain signed member
+		///
+		/// The dispatch origin of this call must be Root.
+		/// 
+		/// Only members can call some special functional transactions
+		/// 
+		/// Parameters:
+		/// - `acc`: Account
 		#[pallet::weight(10_000)]
 		pub fn del_member(origin: OriginFor<T>, acc: AccountOf<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
@@ -730,8 +803,19 @@ pub mod pallet {
 			})?;
 			Ok(())
 		}
-
-		//Scheduling is the notification chain after file recovery
+		/// Recover files.
+		///
+		/// The dispatch origin of this call must be Signed.
+		/// 
+		/// When one or more slices of the service file have problems, 
+		/// the file needs to be scheduled for recovery.
+		/// When more than one third of the contents of the file are damaged, 
+		/// the file cannot be recovered.
+		/// 
+		/// Parameters:
+		/// - `shard_id`: Corrupt file slice id.
+		/// - `slice_info`: New slice information.
+		/// - `avail`: Whether the file can be recovered normally.
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::recover_file())]
 		pub fn recover_file(
 			origin: OriginFor<T>,
@@ -778,6 +862,13 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
+		/// helper: update_puchased_package.
+		/// 
+		/// How to update the corresponding data after renewing the package.
+		/// Currently, it only supports and defaults to one month.
+		/// 
+		/// Parameters:
+		/// - `acc`: Account
 		fn update_puchased_package(acc: AccountOf<T>) -> DispatchResult {
 			<PurchasedPackage<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
 				let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedPackage)?;
@@ -795,7 +886,13 @@ pub mod pallet {
 			})?;
 			Ok(())
 		}
-
+		/// helper: Expand storage space.
+		/// 
+		/// Relevant data of users after updating the expansion package.
+		/// 
+		/// Parameters:
+		/// - `space`: Size after expansion.
+		/// - `package_type`: New package type.
 		fn expension_puchased_package(
 			acc: AccountOf<T>,
 			space: u128,
@@ -814,7 +911,15 @@ pub mod pallet {
 
 			Ok(())
 		}
-
+		/// helper: Initial purchase space initialization method.
+		/// 
+		/// Purchase a package and create data corresponding to the user.
+		/// PurchasedPackage Storage.
+		/// 
+		/// Parameters:
+		/// - `space`: Buy storage space size.
+		/// - `month`: Month of purchase of package, It is 1 at present.
+		/// - `package_type`: Package type.
 		fn add_puchased_package(
 			acc: AccountOf<T>,
 			space: u128,
@@ -848,7 +953,16 @@ pub mod pallet {
 			Ok(())
 		}
 
-		//operation: 1 upload files, 2 delete file
+		/// helper: update user storage space.
+		/// 
+		/// Modify the corresponding data after the user uploads the file or deletes the file
+		/// Modify used_space, remaining_space
+		/// operation = 1, add used_space
+		/// operation = 2, sub used_space
+		/// 
+		/// Parameters:
+		/// - `operation`: operation type 1 or 2.
+		/// - `size`: file size.
 		fn update_user_space(acc: AccountOf<T>, operation: u8, size: u128) -> DispatchResult {
 			match operation {
 				1 => {
@@ -878,8 +992,15 @@ pub mod pallet {
 			}
 			Ok(())
 		}
-
-		//Available space divided by 1024 is the unit price
+		/// helper: Get space unit price.
+		/// 
+		/// Calculate the unit price according to the size of the purchase space
+		/// 
+		/// Parameters:
+		/// - `buy_space`: Purchase space size, in bytes.
+		/// 
+		/// Result:
+		/// - `u128`: price.
 		pub fn get_price(buy_space: u128) -> Result<u128, DispatchError> {
 			//Get the available space on the current chain
 			let total_space = pallet_sminer::Pallet::<T>::get_space()?;
@@ -908,7 +1029,21 @@ pub mod pallet {
 				param.try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
 			Ok(result)
 		}
-
+		/// helper: Generate random challenge data.
+		/// 
+		/// Generate random challenge data, package and return.
+		/// Extract 4.6% of idle documents, 
+		/// and then extract 4.6% of service documents
+		/// 
+		/// Parameters:
+		/// 
+		/// Result:
+		/// - `Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, u8)>`: Returns a tuple.
+		/// - `tuple.0`: miner AccountId.
+		/// - `tuple.1`: filler id or shard id
+		/// - `tuple.2`: List of extracted blocks.
+		/// - `tuple.3`: file size or shard size.
+		/// - `tuple.4`: file type 1 or 2, 1 is file slice, 2 is filler.
 		pub fn get_random_challenge_data(
 		) -> Result<Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, u8)>, DispatchError> {
 			let filler_list = Self::get_random_filler()?;
@@ -955,7 +1090,14 @@ pub mod pallet {
 
 			Ok(data)
 		}
-		//Get random file block list
+		/// helper: get random filler.
+		/// 
+		/// Extract 4.6% of idle documents, 
+		/// 
+		/// Parameters:
+		/// 
+		/// Result:
+		/// - `Vec<FillerInfo<T>>`: Fill file information list.
 		fn get_random_filler() -> Result<Vec<FillerInfo<T>>, DispatchError> {
 			let length = Self::get_fillermap_length()?;
 			let limit = <FillerIndexCount<T>>::get();
@@ -973,7 +1115,14 @@ pub mod pallet {
 			}
 			Ok(filler_list)
 		}
-
+		/// helper: get random file.
+		/// 
+		/// Extract 4.6% of service documents, 
+		/// 
+		/// Parameters:
+		/// 
+		/// Result:
+		/// - `Vec<(BoundedString<T>, FileInfo<T>)>`: Fill file information list.
 		fn get_random_file() -> Result<Vec<(BoundedString<T>, FileInfo<T>)>, DispatchError> {
 			let length = Self::get_file_map_length()?;
 			let limit = <FileIndexCount<T>>::get();
@@ -990,7 +1139,16 @@ pub mod pallet {
 			}
 			Ok(file_list)
 		}
-
+		/// helper: get random number list.
+		/// 
+		/// Method to get random subscript array.
+		/// 
+		/// Parameters:
+		/// - `length`: Total number of randomly extracted files.
+		/// - `random_type`: Random type.
+		/// - `limit`: What is the upper limit of the acquisition range.
+		/// Result:
+		/// - `Vec<u32>`: random number list.
 		fn get_random_numberlist(
 			length: u32,
 			random_type: u8,
@@ -1048,7 +1206,15 @@ pub mod pallet {
 			}
 			Ok(number_list)
 		}
-
+		/// helper: judge_file_exist.
+		/// 
+		/// Help method for generating random files.
+		/// Used to determine whether the file of the subscript exists.
+		/// 
+		/// Parameters:
+		/// - `index`: file index.
+		/// Result:
+		/// - `bool`: True represents existence, False represents unexistence.
 		fn judge_file_exist(index: u32) -> bool {
 			let result = <FileKeysMap<T>>::get(index);
 			let result = match result {
@@ -1057,7 +1223,15 @@ pub mod pallet {
 			};
 			result
 		}
-
+		/// helper: judge filler exist.
+		/// 
+		/// Help method for generating random fillers.
+		/// Used to determine whether the filler of the subscript exists.
+		/// 
+		/// Parameters:
+		/// - `index`: filler index.
+		/// Result:
+		/// - `bool`: True represents existence, False represents unexistence.
 		fn judge_filler_exist(index: u32) -> bool {
 			let result = <FillerKeysMap<T>>::get(index);
 			let result = match result {
@@ -1066,19 +1240,37 @@ pub mod pallet {
 			};
 			result
 		}
-
-		//Get storagemap filler length
+		/// helper: get fillermap length.
+		/// 
+		/// Gets the length of the padding filler.
+		/// 
+		/// Parameters:
+		/// - `index`: filler index.
+		/// Result:
+		/// - `u32`: Length of the whole network filling file.
 		fn get_fillermap_length() -> Result<u32, DispatchError> {
 			let count = <FillerKeysMap<T>>::count();
 			Ok(count)
 		}
-
-		//Get Storage FillerMap Length
+		/// helper: get filemap length.
+		/// 
+		/// Gets the length of the padding file.
+		/// 
+		/// Parameters:
+		/// - `index`: filler index.
+		/// Result:
+		/// - `bool`: Length of the whole network service file.
 		fn get_file_map_length() -> Result<u32, DispatchError> {
 			Ok(<FileKeysMap<T>>::count())
 		}
-
-		//Get random number
+		/// helper: generate random number.
+		/// 
+		/// Get a random number.
+		/// 
+		/// Parameters:
+		/// - `seed`: random seed.
+		/// Result:
+		/// - `u32`: random number.
 		pub fn generate_random_number(seed: u32) -> Result<u32, DispatchError> {
 			let mut counter = 0;
 			loop {
@@ -1091,8 +1283,15 @@ pub mod pallet {
 				counter = counter.checked_add(1).ok_or(Error::<T>::Overflow)?;
 			}
 		}
-
-		//Specific implementation method of deleting filler file
+		/// helper: delete filler.
+		/// 
+		/// delete filler.
+		/// 
+		/// Parameters:
+		/// - `miner_acc`: miner AccountId.
+		/// - `filler_id`: filler id.
+		/// Result:
+		/// - DispatchResult
 		pub fn delete_filler(miner_acc: AccountOf<T>, filler_id: Vec<u8>) -> DispatchResult {
 			let filler_boud: BoundedString<T> =
 				filler_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
@@ -1106,8 +1305,15 @@ pub mod pallet {
 
 			Ok(())
 		}
-
-		//Delete the next backup under the file
+		/// helper: clear file.
+		/// 
+		/// delete file.
+		/// 
+		/// Parameters:
+		/// - `file_hash`: file hash.
+		/// 
+		/// Result:
+		/// - DispatchResult
 		pub fn clear_file(file_hash: Vec<u8>) -> DispatchResult {
 			let file_hash_bounded: BoundedString<T> =
 				file_hash.try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
@@ -1124,7 +1330,17 @@ pub mod pallet {
 			<FileKeysMap<T>>::remove(file.index);
 			Ok(())
 		}
-
+		/// helper: clear user file.
+		/// 
+		/// Remove a holder from the file.
+		/// If a file has no holder, it will be cleaned up
+		/// 
+		/// Parameters:
+		/// - `file_hash`: file hash.
+		/// - `user`: hloder AccountId
+		/// 
+		/// Result:
+		/// - DispatchResult
 		pub fn clear_user_file(
 			file_hash: BoundedVec<u8, T::StringLimit>,
 			user: &AccountOf<T>,
@@ -1157,8 +1373,16 @@ pub mod pallet {
 			})?;
 			Ok(())
 		}
-
-		//Add the list of files to be recovered and notify the scheduler to recover
+		/// helper: add recovery file.
+		/// 
+		/// Create a recovery task, 
+		/// and the executor is the consensus of the current block
+		/// 
+		/// Parameters:
+		/// - `shard id`: shard id.
+		/// 
+		/// Result:
+		/// - DispatchResult
 		pub fn add_recovery_file(shard_id: Vec<u8>) -> DispatchResult {
 			let acc = Self::get_current_scheduler()?;
 			let length = shard_id.len().checked_sub(4).ok_or(Error::<T>::Overflow)?;
@@ -1181,7 +1405,17 @@ pub mod pallet {
 
 			Ok(())
 		}
-
+		/// helper: replace file.
+		/// 
+		/// service file replace fill file.
+		/// Determine which filler files to replace according to size.
+		/// 
+		/// Parameters:
+		/// - `miner_acc`: miner AccountId.
+		/// - `file_size`: service file size
+		/// 
+		/// Result:
+		/// - DispatchResult
 		fn replace_file(miner_acc: AccountOf<T>, file_size: u64) -> DispatchResult {
 			let (power, space) = T::MinerControl::get_power_and_space(miner_acc.clone())?;
 			//Judge whether the current miner's remaining is enough to store files
@@ -1225,8 +1459,17 @@ pub mod pallet {
 			T::MinerControl::sub_power(miner_acc.clone(), replace_num * M_BYTE * 8)?;
 			Ok(())
 		}
-
-		//Add invalid file list, notify miner to delete
+		/// helper: add invalid file.
+		/// 
+		/// Clear the files that failed 
+		/// the challenge or have been replaced
+		/// 
+		/// Parameters:
+		/// - `miner_acc`: miner AccountId.
+		/// - `file_hash`: file hash.
+		/// 
+		/// Result:
+		/// - DispatchResult
 		pub fn add_invalid_file(miner_acc: AccountOf<T>, file_hash: Vec<u8>) -> DispatchResult {
 			<InvalidFile<T>>::try_mutate(&miner_acc, |o| -> DispatchResult {
 				o.try_push(file_hash.try_into().map_err(|_e| Error::<T>::BoundedVecError)?)
@@ -1236,13 +1479,33 @@ pub mod pallet {
 
 			Ok(())
 		}
-
+		/// helper: add invalid file.
+		/// 
+		/// Clear the files that failed 
+		/// the challenge or have been replaced
+		/// 
+		/// Parameters:
+		/// - `miner_acc`: miner AccountId.
+		/// - `file_hash`: file hash.
+		/// 
+		/// Result:
+		/// - DispatchResult
 		pub fn update_price_for_tests() -> DispatchResult {
 			let price: BalanceOf<T> = 100u128.try_into().map_err(|_| Error::<T>::Overflow)?;
 			UnitPrice::<T>::put(price);
 			Ok(())
 		}
-
+		/// helper: add user hold fileslice.
+		/// 
+		/// Add files held by users.
+		/// 
+		/// Parameters:
+		/// - `user`: AccountId.
+		/// - `file_hash_bound`: file hash.
+		/// - `file_size`: file size.
+		/// 
+		/// Result:
+		/// - DispatchResult
 		fn add_user_hold_fileslice(
 			user: AccountOf<T>,
 			file_hash_bound: BoundedVec<u8, T::StringLimit>,
@@ -1257,8 +1520,14 @@ pub mod pallet {
 
 			Ok(())
 		}
-
-		//Obtain the consensus of the current block
+		/// helper: get current scheduler.
+		/// 
+		/// Get the current block consensus.
+		/// 
+		/// Parameters:
+		/// 
+		/// Result:
+		/// - AccountOf: consensus
 		fn get_current_scheduler() -> Result<AccountOf<T>, DispatchError> {
 			let digest = <frame_system::Pallet<T>>::digest();
 			let pre_runtime_digests = digest.logs.iter().filter_map(|d| d.as_pre_runtime());
@@ -1269,6 +1538,17 @@ pub mod pallet {
 			};
 			Ok(acc)
 		}
+		/// helper: clear expired file.
+		/// 
+		/// It is used to perform the final step 
+		/// when the user's space expires 
+		/// and no renewal is performed within the specified time
+		/// 
+		/// Parameters:
+		/// - `acc`: AccountId.
+		/// 
+		/// Result:
+		/// - DispatchResult
 		fn clear_expired_file(acc: &AccountOf<T>) -> DispatchResult {
 			let file_list =
 				<UserHoldFileList<T>>::try_get(&acc).map_err(|_| Error::<T>::Overflow)?;
