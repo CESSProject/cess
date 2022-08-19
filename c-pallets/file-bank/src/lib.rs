@@ -25,7 +25,7 @@ mod mock;
 mod tests;
 
 use frame_support::traits::{
-	Currency, ExistenceRequirement::AllowDeath, FindAuthor, Randomness, ReservableCurrency,
+	Currency, ExistenceRequirement::AllowDeath, FindAuthor, Randomness, ReservableCurrency, StorageVersion,
 };
 
 pub use pallet::*;
@@ -59,6 +59,8 @@ type BoundedString<T> = BoundedVec<u8, <T as Config>::StringLimit>;
 type BoundedList<T> =
 	BoundedVec<BoundedVec<u8, <T as Config>::StringLimit>, <T as Config>::StringLimit>;
 
+const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -71,6 +73,16 @@ pub mod pallet {
 	pub const M_BYTE: u128 = 1_048_576;
 	pub const G_BYTE: u128 = 1_048_576 * 1024;
 	pub const T_BYTE: u128 = 1_048_576 * 1024 * 1024;
+
+	pub const PACKAGE_1_SIZE: u128 = G_BYTE * 10;
+	pub const PACKAGE_2_SIZE: u128 = G_BYTE * 500;
+	pub const PACKAGE_3_SIZE: u128 = T_BYTE * 1;
+	pub const PACKAGE_4_SIZE: u128 = T_BYTE * 5;
+
+	pub const FILE_PENDING: &str = "pending";
+	pub const FILE_ACTIVE: &str = "active";
+	pub const PACKAGE_NORMAL: &str = "normal";
+	pub const PACKAGE_FROZEN: &str = "frozen";
 
 	pub mod crypto {
 		use super::KEY_TYPE;
@@ -193,6 +205,8 @@ pub mod pallet {
 
 		InsufficientAvailableSpace,
 
+		InsufficientBalance,
+
 		AlreadyRepair,
 
 		NotOwner,
@@ -304,6 +318,7 @@ pub mod pallet {
 	pub(super) type FillerIndexCount<T: Config> = StorageValue<_, u32, ValueQuery>;
 
 	#[pallet::pallet]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(PhantomData<T>);
 
@@ -333,14 +348,14 @@ pub mod pallet {
 							let _ = T::MinerControl::sub_purchased_space(info.space);
 							let _ = Self::clear_expired_file(&acc);
 						} else {
-							if info.state.to_vec() != "frozen".as_bytes().to_vec() {
+							if info.state.to_vec() != PACKAGE_FROZEN.as_bytes().to_vec() {
 								let result = <PurchasedPackage<T>>::try_mutate(
 									&acc,
 									|s_opt| -> DispatchResult {
 										let s = s_opt
 											.as_mut()
 											.ok_or(Error::<T>::NotPurchasedPackage)?;
-										s.state = "frozen"
+										s.state = PACKAGE_FROZEN
 											.as_bytes()
 											.to_vec()
 											.try_into()
@@ -414,7 +429,7 @@ pub mod pallet {
 					FileInfo::<T> {
 						file_size: 0,
 						index: count,
-						file_state: "pending"
+						file_state: FILE_PENDING
 							.as_bytes()
 							.to_vec()
 							.try_into()
@@ -456,32 +471,25 @@ pub mod pallet {
 			file_hash: Vec<u8>,
 			file_size: u64,
 			slice_info: Vec<SliceInfo<T>>,
-			user: AccountOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			if !T::Scheduler::contains_scheduler(sender.clone()) {
-				Err(Error::<T>::ScheduleNonExistent)?;
-			}
-			let file_hash_bounded: BoundedString<T> =
-				file_hash.try_into().map_err(|_| Error::<T>::BoundedVecError)?;
-			if !<File<T>>::contains_key(&file_hash_bounded) {
-				Err(Error::<T>::FileNonExistent)?;
-			}
-
-			Self::update_user_space(user.clone(), 1, file_size.into())?;
+			ensure!(T::Scheduler::contains_scheduler(sender.clone()), Error::<T>::ScheduleNonExistent);
+			let file_hash_bounded: BoundedString<T> = file_hash.try_into().map_err(|_| Error::<T>::BoundedVecError)?;
+			ensure!(<File<T>>::contains_key(&file_hash_bounded), Error::<T>::FileNonExistent);
 
 			<File<T>>::try_mutate(&file_hash_bounded, |s_opt| -> DispatchResult {
 				let s = s_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
-				if !s.user.contains(&user) {
-					Err(Error::<T>::UserNotDeclared)?;
+				for user in s.user.iter() {
+					Self::update_user_space(user.clone(), 1, file_size.into())?;
+					Self::add_user_hold_fileslice(user.clone(), file_hash_bounded.clone(), file_size)?;
 				}
-				if s.file_state.to_vec() == "active".as_bytes().to_vec() {
+				if s.file_state.to_vec() == FILE_ACTIVE.as_bytes().to_vec() {
 					Err(Error::<T>::FileExistent)?;
 				}
 				s.file_size = file_size;
 				s.slice_info =
 					slice_info.clone().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
-				s.file_state = "active"
+				s.file_state = FILE_ACTIVE
 					.as_bytes()
 					.to_vec()
 					.try_into()
@@ -494,15 +502,14 @@ pub mod pallet {
 				Ok(())
 			})?;
 
-			Self::add_user_hold_fileslice(user.clone(), file_hash_bounded.clone(), file_size)?;
+
 			//To be tested
 			for v in slice_info.iter() {
 				Self::replace_file(v.miner_acc.clone(), v.shard_size)?;
 			}
-			Self::deposit_event(Event::<T>::FileUpload { acc: user.clone() });
+			Self::deposit_event(Event::<T>::FileUpload { acc: sender.clone() });
 			Ok(())
 		}
-
 		/// Upload idle files for miners.
 		///
 		/// The dispatch origin of this call must be _Signed_.
@@ -552,7 +559,6 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::FillerUpload { acc: sender, file_size: power as u64 });
 			Ok(())
 		}
-
 		/// User deletes uploaded files.
 		///
 		/// The dispatch origin of this call must be Signed.
@@ -590,16 +596,15 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_package())]
 		pub fn buy_package(origin: OriginFor<T>, package_type: u8, count: u128) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-
 			ensure!(!<PurchasedPackage<T>>::contains_key(&sender), Error::<T>::PurchasedPackage);
 
-			let (space, m_unit_price, month) = match package_type {
-				1 => (10 * G_BYTE, 0, 1),
-				2 => (500 * G_BYTE, Self::get_price(500 * G_BYTE)?, 1),
-				3 => (T_BYTE, Self::get_price(T_BYTE)?, 1),
-				4 => (T_BYTE, Self::get_price(5 * T_BYTE)?, 1),
+			let (space, g_unit_price, month) = match package_type {
+				1 => (PACKAGE_1_SIZE, 0, 1),
+				2 => (PACKAGE_2_SIZE, Self::get_price(PACKAGE_2_SIZE)?, 1),
+				3 => (PACKAGE_3_SIZE, Self::get_price(PACKAGE_3_SIZE)?, 1),
+				4 => (PACKAGE_4_SIZE, Self::get_price(PACKAGE_4_SIZE)?, 1),
 				5 => {
-					if count < 5 {
+					if count <= 5 {
 						Err(Error::<T>::WrongOperation)?;
 					}
 					(count * T_BYTE, Self::get_price(count * T_BYTE)?, 1)
@@ -609,15 +614,13 @@ pub mod pallet {
 
 			Self::add_puchased_package(sender.clone(), space, month as u32, package_type)?;
 			T::MinerControl::add_purchased_space(space)?;
-			let g_unit_price = m_unit_price.checked_div(1024).ok_or(Error::<T>::Overflow)?;
-			let price: BalanceOf<T> = space
-				.checked_div(G_BYTE)
-				.ok_or(Error::<T>::Overflow)?
-				.checked_mul(g_unit_price)
+			let count_gb = space.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
+			let price: BalanceOf<T> = g_unit_price
+				.checked_mul(count_gb)
 				.ok_or(Error::<T>::Overflow)?
 				.try_into()
 				.map_err(|_e| Error::<T>::Overflow)?;
-
+			ensure!(<T as pallet::Config>::Currency::can_slash(&sender, price.clone()), Error::<T>::InsufficientBalance);
 			let acc = T::FilbakPalletId::get().into_account();
 			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), AllowDeath)?;
 
@@ -641,53 +644,41 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 			let cur_package = <PurchasedPackage<T>>::try_get(&sender)
 				.map_err(|_e| Error::<T>::NotPurchasedPackage)?;
-			if package_type < cur_package.package_type {
-				Err(Error::<T>::WrongOperation)?;
-			}
+			ensure!(package_type > cur_package.package_type || package_type == 5, Error::<T>::WrongOperation);
 			let now = <frame_system::Pallet<T>>::block_number();
-			if now > cur_package.deadline {
-				Err(Error::<T>::LeaseExpired)?;
-			}
-			if cur_package.state.to_vec() == "frozen".as_bytes().to_vec() {
-				Err(Error::<T>::LeaseFreeze)?;
-			} 
-			let cur_byte_unit_price = match cur_package.package_type {
+			ensure!(now < cur_package.deadline, Error::<T>::LeaseExpired);
+			ensure!(cur_package.state.to_vec() != PACKAGE_FROZEN.as_bytes().to_vec(), Error::<T>::LeaseFreeze);
+			
+
+			let cur_gb_unit_price = match cur_package.package_type {
 				1 => 0,
 				_ => Self::get_price(cur_package.space)?,
 			};
-			let (space, up_byte_unit_price) = match package_type {
-				2 => (500 * G_BYTE, Self::get_price(500 * G_BYTE)?),
-				3 => (T_BYTE, Self::get_price(T_BYTE)?),
-				4 => (5 * T_BYTE, Self::get_price(5 * T_BYTE)?),
+			let cur_count_gb = cur_package.space.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
+			let cur_price = cur_gb_unit_price.checked_mul(cur_count_gb).ok_or(Error::<T>::Overflow)?;
+
+			let (space, up_gb_unit_price) = match package_type {
+				2 => (PACKAGE_2_SIZE, Self::get_price(PACKAGE_2_SIZE)?),
+				3 => (PACKAGE_3_SIZE, Self::get_price(PACKAGE_3_SIZE)?),
+				4 => (PACKAGE_4_SIZE, Self::get_price(PACKAGE_4_SIZE)?),
 				5 => {
-					if count < 5 {
+					let cur_count = cur_package.space.checked_div(T_BYTE).ok_or(Error::<T>::Overflow)?;
+					if count <= cur_count {
 						Err(Error::<T>::WrongOperation)?;
 					}
 					(count * T_BYTE, Self::get_price(count * T_BYTE)?)
 				},
 				_ => Err(Error::<T>::WrongOperation)?,
 			};
-			let cur_gb_unit_price =
-				cur_byte_unit_price.checked_div(1024).ok_or(Error::<T>::Overflow)?;
-			let cur_price = cur_package
-				.space
-				.checked_div(G_BYTE)
-				.ok_or(Error::<T>::Overflow)?
-				.checked_mul(cur_gb_unit_price)
-				.ok_or(Error::<T>::Overflow)?;
-			let up_gb_unit_price =
-				up_byte_unit_price.checked_div(1024).ok_or(Error::<T>::Overflow)?;
-			let up_price = space
-				.checked_div(G_BYTE)
-				.ok_or(Error::<T>::Overflow)?
-				.checked_mul(up_gb_unit_price)
-				.ok_or(Error::<T>::Overflow)?;
+			//Calculate daily average price difference.
+			let up_count_gb = space.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
+			let up_price = up_gb_unit_price.checked_mul(up_count_gb).ok_or(Error::<T>::Overflow)?;
 			let diff_day_price = up_price
 				.checked_sub(cur_price)
 				.ok_or(Error::<T>::Overflow)?
 				.checked_div(30)
 				.ok_or(Error::<T>::Overflow)?;
-
+			//Calculate remaining days.
 			let block_oneday: BlockNumberOf<T> = <T as pallet::Config>::OneDay::get();
 			let diff_block = cur_package
 				.deadline
@@ -701,12 +692,14 @@ pub mod pallet {
 					.checked_add(&1u32.saturated_into())
 					.ok_or(Error::<T>::Overflow)?;
 			}
-			
+			//Calculate the final price difference to be made up.
 			let price: BalanceOf<T> = diff_day_price
 				.checked_mul(remain_day.try_into().map_err(|_e| Error::<T>::Overflow)?)
 				.ok_or(Error::<T>::Overflow)?
 				.try_into()
 				.map_err(|_e| Error::<T>::Overflow)?;
+			//Judge whether the balance is sufficient
+			ensure!(<T as pallet::Config>::Currency::can_slash(&sender, price.clone()), Error::<T>::InsufficientBalance);
 			let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
 			T::MinerControl::add_purchased_space(
 				space.checked_sub(cur_package.space).ok_or(Error::<T>::Overflow)?,
@@ -726,20 +719,18 @@ pub mod pallet {
 			let cur_package = <PurchasedPackage<T>>::try_get(&sender)
 				.map_err(|_e| Error::<T>::NotPurchasedPackage)?;
 
-			let m_unit_price = match cur_package.package_type {
+			let g_unit_price = match cur_package.package_type {
 				1 => 0,
 				_ => Self::get_price(cur_package.space)?,
 			};
-			let g_unit_price = m_unit_price.checked_div(1024).ok_or(Error::<T>::Overflow)?;
-			let price: BalanceOf<T> = cur_package
-				.space
-				.checked_div(G_BYTE)
-				.ok_or(Error::<T>::Overflow)?
-				.checked_mul(g_unit_price)
+			let count_gb = cur_package.space
+				.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
+			let price: BalanceOf<T> = g_unit_price
+				.checked_mul(count_gb)
 				.ok_or(Error::<T>::Overflow)?
 				.try_into()
 				.map_err(|_e| Error::<T>::Overflow)?;
-
+			ensure!(<T as pallet::Config>::Currency::can_slash(&sender, price.clone()), Error::<T>::InsufficientBalance);
 			let acc = T::FilbakPalletId::get().into_account();
 			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), AllowDeath)?;
 			Self::update_puchased_package(sender.clone())?;
@@ -846,7 +837,7 @@ pub mod pallet {
 					o.slice_info
 						.try_push(slice_info)
 						.map_err(|_| Error::<T>::StorageLimitReached)?;
-					o.file_state = "active"
+					o.file_state = FILE_ACTIVE
 						.as_bytes()
 						.to_vec()
 						.try_into()
@@ -943,11 +934,7 @@ pub mod pallet {
 				package_type,
 				start: now,
 				deadline,
-				state: "normal"
-					.as_bytes()
-					.to_vec()
-					.try_into()
-					.map_err(|_e| Error::<T>::BoundedVecError)?,
+				state: PACKAGE_NORMAL.as_bytes().to_vec().try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
 			};
 			<PurchasedPackage<T>>::insert(&acc, info);
 			Ok(())
@@ -968,7 +955,7 @@ pub mod pallet {
 				1 => {
 					<PurchasedPackage<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
 						let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedPackage)?;
-						if s.state.to_vec() == "frozen".as_bytes().to_vec() {
+						if s.state.to_vec() == PACKAGE_FROZEN.as_bytes().to_vec() {
 							Err(Error::<T>::LeaseFreeze)?;
 						}
 						if size > s.space - s.used_space {
@@ -1133,7 +1120,7 @@ pub mod pallet {
 					<FileKeysMap<T>>::try_get(i).map_err(|_e| Error::<T>::FileNonExistent)?.1;
 				let value =
 					<File<T>>::try_get(&file_id).map_err(|_e| Error::<T>::FileNonExistent)?;
-				if value.file_state.to_vec() == "active".as_bytes().to_vec() {
+				if value.file_state.to_vec() == FILE_ACTIVE.as_bytes().to_vec() {
 					file_list.push((file_id.clone(), value));
 				}
 			}
