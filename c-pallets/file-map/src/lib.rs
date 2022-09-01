@@ -15,7 +15,7 @@ pub mod testing_utils;
 pub mod benchmarking;
 
 use codec::{Decode, Encode};
-use frame_support::{dispatch::DispatchResult, traits::ReservableCurrency, BoundedVec, PalletId};
+use frame_support::{dispatch::DispatchResult, traits::ReservableCurrency, BoundedVec, PalletId, transactional};
 pub use pallet::*;
 use scale_info::TypeInfo;
 use sp_runtime::{traits::SaturatedConversion, RuntimeDebug, DispatchError};
@@ -176,6 +176,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		//Scheduling registration method
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::registration_scheduler())]
 		pub fn registration_scheduler(
 			origin: OriginFor<T>,
@@ -205,6 +206,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_scheduler())]
 		pub fn update_scheduler(
 			origin: OriginFor<T>,
@@ -217,7 +219,7 @@ pub mod pallet {
 				for i in s.iter() {
 					if i.controller_user == sender {
 						let scheduler = SchedulerInfo::<T> {
-							ip: ip.try_into().map_err(|_| Error::<T>::BoundedVecError)?,
+							ip: ip.clone().try_into().map_err(|_| Error::<T>::BoundedVecError)?,
 							stash_user: i.stash_user.clone(),
 							controller_user: sender.clone(),
 						};
@@ -227,10 +229,9 @@ pub mod pallet {
 					}
 					count = count.checked_add(1).ok_or(Error::<T>::Overflow)?;
 				}
-				Self::deposit_event(Event::<T>::UpdateScheduler { acc: sender, endpoint: ip });
 				Err(Error::<T>::NotController)?
 			})?;
-		
+			Self::deposit_event(Event::<T>::UpdateScheduler { acc: sender, endpoint: ip });
 			Ok(())
 		}
 
@@ -265,6 +266,7 @@ pub mod pallet {
 		// 	Ok(())
 		// }
 
+		#[transactional]
 		#[pallet::weight(10_000)]
 		pub fn init_public_key(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;

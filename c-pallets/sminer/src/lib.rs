@@ -25,6 +25,7 @@ mod mock;
 mod tests;
 
 use frame_support::{
+	transactional,
 	storage::bounded_vec::BoundedVec,
 	traits::{
 		schedule::{Anon as ScheduleAnon, DispatchTime, Named as ScheduleNamed},
@@ -335,6 +336,7 @@ pub mod pallet {
 		/// - `beneficiary`: The beneficiary related to signer account.
 		/// - `ip`: The registered IP of storage miner.
 		/// - `staking_val`: The number of staking.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
 		pub fn regnstk(
 			origin: OriginFor<T>,
@@ -383,6 +385,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `collaterals`: Miner's TCESS.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::increase_collateral())]
 		pub fn increase_collateral(
 			origin: OriginFor<T>,
@@ -423,6 +426,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `beneficiary`: The beneficiary related to signer account.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_beneficiary())]
 		pub fn update_beneficiary(
 			origin: OriginFor<T>,
@@ -445,6 +449,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `ip`: The registered IP of storage miner.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_ip())]
 		pub fn update_ip(origin: OriginFor<T>, ip: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -463,6 +468,7 @@ pub mod pallet {
 		}
 
 		//Miner exit method, Irreversible process.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::exit_miner())]
 		pub fn exit_miner(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -488,6 +494,7 @@ pub mod pallet {
 		}
 
 		//Method for miners to redeem deposit
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::withdraw())]
 		pub fn withdraw(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -523,6 +530,7 @@ pub mod pallet {
 		// 	Ok(())
 		// }
 		/// Add reward orders.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timed_increase_rewards())]
 		pub fn timed_increase_rewards(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
@@ -564,6 +572,7 @@ pub mod pallet {
 		/// Added timed tasks for reward orders.
 		///
 		/// The dispatch origin of this call must be _root_.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timing_task_increase_power_rewards())]
 		pub fn timing_task_increase_power_rewards(
 			origin: OriginFor<T>,
@@ -591,6 +600,7 @@ pub mod pallet {
 		}
 
 		/// Users receive rewards for scheduled tasks.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timed_user_receive_award1())]
 		pub fn timed_user_receive_award1(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
@@ -652,6 +662,7 @@ pub mod pallet {
 		/// Users receive rewards for scheduled tasks.
 		///
 		/// The dispatch origin of this call must be _root_.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timing_user_receive_award())]
 		pub fn timing_user_receive_award(
 			origin: OriginFor<T>,
@@ -680,6 +691,7 @@ pub mod pallet {
 			Ok(())
 		}
 		/// Update the user reward table for scheduled tasks.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timed_task_award_table())]
 		pub fn timed_task_award_table(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
@@ -803,6 +815,7 @@ pub mod pallet {
 		/// Update the user reward table for scheduled tasks.
 		///
 		/// The dispatch origin of this call must be _root_.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timing_task_award_table())]
 		pub fn timing_task_award_table(
 			origin: OriginFor<T>,
@@ -833,6 +846,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `when`: The block when the buffer period starts.
+		#[transactional]
 		#[pallet::weight(1_000_000)]
 		pub fn buffer_period_end(origin: OriginFor<T>, when: BlockNumberOf<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
@@ -867,6 +881,7 @@ pub mod pallet {
 		/// Parameters:
 		/// - `acc`: Top-up account .
 		/// - `acc`: Top-up amount .
+		#[transactional]
 		#[pallet::weight(100_000)]
 		pub fn faucet_top_up(origin: OriginFor<T>, award: BalanceOf<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -884,6 +899,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `acc`: Withdraw money account.
+		#[transactional]
 		#[pallet::weight(100_000)]
 		pub fn faucet(origin: OriginFor<T>, to: AccountOf<T>) -> DispatchResult {
 			let _ = ensure_signed(origin)?;

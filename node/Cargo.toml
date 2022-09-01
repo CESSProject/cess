@@ -221,6 +221,11 @@ git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
+[dependencies.pallet-segment-book]
+default-features = false
+path = '../c-pallets/segment-book'
+version = '0.5.0'
+
 [dependencies.sp-authority-discovery]
 git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'

@@ -25,21 +25,23 @@ mod mock;
 mod tests;
 
 use frame_support::traits::{
-	Currency, ExistenceRequirement::AllowDeath, FindAuthor, Randomness, ReservableCurrency, StorageVersion,
+	Currency, ExistenceRequirement::AllowDeath, FindAuthor, Randomness, ReservableCurrency, StorageVersion, 
 };
 
 pub use pallet::*;
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 pub mod weights;
+// pub mod migrations;
 
 mod types;
 pub use types::*;
 
 use codec::{Decode, Encode};
-use frame_support::{dispatch::DispatchResult, pallet_prelude::*, PalletId};
+use frame_support::{dispatch::DispatchResult, pallet_prelude::*, PalletId, weights::Weight, transactional};
+use frame_system::pallet_prelude::*;
 use scale_info::TypeInfo;
-use sp_core::crypto::KeyTypeId;
+
 use sp_runtime::{
 	traits::{
 		AccountIdConversion, BlockNumberProvider, CheckedAdd, CheckedDiv, CheckedMul, CheckedSub,
@@ -68,8 +70,8 @@ pub mod pallet {
 	use pallet_file_map::ScheduleFind;
 	use pallet_sminer::MinerControl;
 	//pub use crate::weights::WeightInfo;
-	use frame_system::{ensure_signed, pallet_prelude::*};
-	pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"cess");
+	use frame_system::ensure_signed;
+
 	pub const M_BYTE: u128 = 1_048_576;
 	pub const G_BYTE: u128 = 1_048_576 * 1024;
 	pub const T_BYTE: u128 = 1_048_576 * 1024 * 1024;
@@ -83,38 +85,6 @@ pub mod pallet {
 	pub const FILE_ACTIVE: &str = "active";
 	pub const PACKAGE_NORMAL: &str = "normal";
 	pub const PACKAGE_FROZEN: &str = "frozen";
-
-	pub mod crypto {
-		use super::KEY_TYPE;
-		use sp_core::sr25519::Signature as Sr25519Signature;
-		use sp_runtime::{
-			app_crypto::{app_crypto, sr25519},
-			traits::Verify,
-			MultiSignature, MultiSigner,
-		};
-
-		app_crypto!(sr25519, KEY_TYPE);
-
-		pub struct TestAuthId;
-		// implemented for ocw-runtime
-		impl frame_system::offchain::AppCrypto<MultiSigner, MultiSignature> for TestAuthId {
-			type RuntimeAppPublic = Public;
-			type GenericSignature = sp_core::sr25519::Signature;
-			type GenericPublic = sp_core::sr25519::Public;
-		}
-
-		// implemented for mock runtime in test
-		impl
-			frame_system::offchain::AppCrypto<
-				<Sr25519Signature as Verify>::Signer,
-				Sr25519Signature,
-			> for TestAuthId
-		{
-			type RuntimeAppPublic = Public;
-			type GenericSignature = sp_core::sr25519::Signature;
-			type GenericPublic = sp_core::sr25519::Public;
-		}
-	}
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + pallet_sminer::Config + sp_std::fmt::Debug {
@@ -392,6 +362,7 @@ pub mod pallet {
 		/// Parameters:
 		/// - `file_hash`: Hash of the file to be uploaded.
 		/// - `file_name`: User defined file name.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_declaration())]
 		pub fn upload_declaration(
 			origin: OriginFor<T>,
@@ -465,6 +436,7 @@ pub mod pallet {
 		/// - `file_size`: File size calculated by consensus.
 		/// - `slice_info`: List of file slice information.
 		/// - `user`: The first user to upload files.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload())]
 		pub fn upload(
 			origin: OriginFor<T>,
@@ -520,6 +492,7 @@ pub mod pallet {
 		/// Parameters:
 		/// - `miner`: For which miner, miner's wallet address.
 		/// - `filler_list`: Meta information list of idle files.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_filler(filler_list.len() as u32))]
 		pub fn upload_filler(
 			origin: OriginFor<T>,
@@ -569,6 +542,7 @@ pub mod pallet {
 		/// 
 		/// Parameters:
 		/// - `fileid`: For which miner, miner's wallet address.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::delete_file())]
 		pub fn delete_file(origin: OriginFor<T>, fileid: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -593,6 +567,7 @@ pub mod pallet {
 		/// Parameters:
 		/// - `package_type`: Package type (1 / 2 / 3 / 4 / 5).
 		/// - `count`: When type = 5, it means that the user wants to buy count TIBS.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_package())]
 		pub fn buy_package(origin: OriginFor<T>, package_type: u8, count: u128) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -635,6 +610,7 @@ pub mod pallet {
 		/// Parameters:
 		/// - `package_type`: Package type (1 / 2 / 3 / 4 / 5).
 		/// - `count`: When type = 5, it means that the user wants to buy count TIBS.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upgrade_package())]
 		pub fn upgrade_package(
 			origin: OriginFor<T>,
@@ -713,6 +689,7 @@ pub mod pallet {
 		/// Package renewal
 		///
 		/// Currently, lease renewal only supports single month renewal
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_package())]
 		pub fn renewal_package(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -744,6 +721,7 @@ pub mod pallet {
 		/// 
 		/// Parameters:
 		/// - `file_hash`: Invalid file hash
+		#[transactional]
 		#[pallet::weight(22_777_000)]
 		pub fn clear_invalid_file(origin: OriginFor<T>, file_hash: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -764,6 +742,7 @@ pub mod pallet {
 		/// 
 		/// Parameters:
 		/// - `acc`: Account
+		#[transactional]
 		#[pallet::weight(10_000)]
 		pub fn add_member(origin: OriginFor<T>, acc: AccountOf<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
@@ -785,6 +764,7 @@ pub mod pallet {
 		/// 
 		/// Parameters:
 		/// - `acc`: Account
+		#[transactional]
 		#[pallet::weight(10_000)]
 		pub fn del_member(origin: OriginFor<T>, acc: AccountOf<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
@@ -807,6 +787,7 @@ pub mod pallet {
 		/// - `shard_id`: Corrupt file slice id.
 		/// - `slice_info`: New slice information.
 		/// - `avail`: Whether the file can be recovered normally.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::recover_file())]
 		pub fn recover_file(
 			origin: OriginFor<T>,

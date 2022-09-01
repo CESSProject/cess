@@ -163,6 +163,7 @@ pub mod opaque {
 			pub grandpa: Grandpa,
 			pub im_online: ImOnline,
 			pub authority_discovery: AuthorityDiscovery,
+			pub segment_book: SegmentBook,
 		}
 	}
 }
@@ -910,6 +911,8 @@ parameter_types! {
 	#[derive(Clone, PartialEq, Eq)]
 	pub const RandomLimit: u32 = 10240;
 	pub const OneHours: BlockNumber = HOURS;
+	pub const SegUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+	pub const LockTime: BlockNumber = HOURS / 60;
 }
 
 impl pallet_segment_book::Config for Runtime {
@@ -919,7 +922,7 @@ impl pallet_segment_book::Config for Runtime {
 	type MyPalletId = SegbkPalletId;
 	type MyRandomness = RandomnessCollectiveFlip;
 	type WeightInfo = pallet_segment_book::weights::SubstrateWeight<Runtime>;
-	type AuthorityId = pallet_file_bank::crypto::TestAuthId;
+	type AuthorityId = pallet_segment_book::sr25519::AuthorityId;
 	type StringLimit = StringLimit;
 	type RandomLimit = RandomLimit;
 	type OneDay = OneDay;
@@ -928,6 +931,10 @@ impl pallet_segment_book::Config for Runtime {
 	type Scheduler = FileMap;
 	type MinerControl = Sminer;
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
+	type ValidatorSet = Historical;
+	type NextSessionRotation = Babe;
+	type UnsignedPriority = SegUnsignedPriority;
+	type LockTime = LockTime;
 }
 
 parameter_types! {

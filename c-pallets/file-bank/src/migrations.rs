@@ -1,13 +1,19 @@
-use crate::{BalanceOf, CodeHash, Config, Pallet, TrieId, Weight};
+use crate::{AccountOf, Config, Pallet, Weight, BoundedString};
 use codec::{Decode, Encode};
 use frame_support::{
 	codec, generate_storage_alias,
 	pallet_prelude::*,
-	storage::migration,
-	traits::{Get, PalletInfoAccess},
-	Identity, Twox64Concat,
+	traits::{Get},
 };
-use sp_std::{marker::PhantomData, prelude::*};
+use frame_support::traits::OnRuntimeUpgrade;
+
+/// A struct that does not migration, but only checks that the counter prefix exists and is correct.
+pub struct TestMigrationFileBank<T: crate::Config>(sp_std::marker::PhantomData<T>);
+impl<T: crate::Config> OnRuntimeUpgrade for TestMigrationFileBank<T> {
+	fn on_runtime_upgrade() -> Weight {
+		migrate::<T>()
+	}
+}
 
 pub fn migrate<T: Config>() -> Weight {
 	use frame_support::traits::StorageVersion;
@@ -16,7 +22,7 @@ pub fn migrate<T: Config>() -> Weight {
 	let mut weight: Weight = 0;
 
 	if version < 2 {
-        weight = weight.saturated_add(v2::migrate::<T>());
+        weight = weight.saturating_add(v2::migrate::<T>());
         StorageVersion::new(2).put::<Pallet<T>>();
     }
 
@@ -24,6 +30,9 @@ pub fn migrate<T: Config>() -> Weight {
 }
 
 mod v2 {
+    use super::*;
+
+    #[derive(Decode, Encode)]
     struct OldFillerInfo<T: Config> {
         filler_size: u64,
         index: u32,
@@ -35,6 +44,7 @@ mod v2 {
         filler_hash: BoundedVec<u8, T::StringLimit>,
     }
 
+    #[derive(Decode, Encode)]
     struct NewFillerInfo<T: Config> {
         filler_size: u64,
         index: u32,
@@ -49,8 +59,8 @@ mod v2 {
     generate_storage_alias!(
 		FileBank,
 		FillerMap<T: Config> => DoubleMap< 
-            (Twox64Concat, T::AccountId), 
-            (Twox64Concat, BoundedVec<u8, T::StringLimit>),
+            (Blake2_128Concat, T::AccountId), 
+            (Blake2_128Concat, BoundedString<T>),
             NewFillerInfo<T>
         >
 	);
@@ -58,7 +68,8 @@ mod v2 {
     pub fn migrate<T: Config>() -> Weight {
         let mut weight: Weight = 0;
 
-        FillerMap::translate(|_key1, _key2, old: OldFillerInfo| {
+        <FillerMap<T>>::translate(|_key1, _key2, old: OldFillerInfo<T>| {
+            weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
             Some(NewFillerInfo::<T>{
                 filler_size: old.filler_size,
                 index: old.index,
@@ -69,6 +80,8 @@ mod v2 {
                 filler_hash: old.filler_hash,
                 is_delete: false,
             })
-        })
+        });
+
+        weight
     }
 }

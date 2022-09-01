@@ -705,6 +705,7 @@ dependencies = [
  "pallet-contracts-rpc",
  "pallet-im-online",
  "pallet-mmr-rpc",
+ "pallet-segment-book",
  "pallet-transaction-payment-rpc",
  "parity-scale-codec",
  "rand 0.8.5",
