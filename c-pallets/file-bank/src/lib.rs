@@ -1550,8 +1550,6 @@ pub trait RandomFileList<AccountId> {
 	fn add_recovery_file(file_id: Vec<u8>) -> DispatchResult;
 	//The function executed when the challenge fails to let the consensus schedule recover the file
 	fn add_invalid_file(miner_acc: AccountId, file_hash: Vec<u8>) -> DispatchResult;
-	//Judge whether it is a user who can initiate transactions on the off chain machine
-	fn contains_member(acc: AccountId) -> bool;
 }
 
 impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -1587,7 +1585,6 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 		Pallet::<T>::add_invalid_file(miner_acc, file_hash)?;
 		Ok(())
 	}
-
 }
 
 impl<T: Config> BlockNumberProvider for Pallet<T> {
