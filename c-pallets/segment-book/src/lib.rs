@@ -279,10 +279,6 @@ pub mod pallet {
 	>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn challenge_index)]
-	pub(super) type ChallengeIndex<T: Config> = StorageValue<_, u32, ValueQuery>;
-
-	#[pallet::storage]
 	#[pallet::getter(fn keys)]
 	pub(super) type Keys<T: Config> = StorageValue<_, WeakBoundedVec<T::AuthorityId, T::StringLimit>, ValueQuery>;
 
@@ -545,8 +541,15 @@ pub mod pallet {
 				<MinerTotalProof<T>>::insert(acc, challenge_list.len() as u32);
 			}
 
-			// let now = <frame_system::Pallet<T>>::block_number();
-			// let deadline = now.checked_add(&duration).ok_or(Error::<T>::Overflow)?;
+			let max = Keys::<T>::get().len() as u16;
+			let mut index = CurAuthorityIndex::<T>::get();
+			if index >= max - 1 {
+				index = 0;
+			} else {
+				index = index + 1;
+			}
+			CurAuthorityIndex::<T>::put(index);
+
 			Ok(())
 		}
 	}
@@ -859,6 +862,7 @@ pub mod pallet {
 			}
 
 			let (signature, digest) = Self::offchain_sign_digest(now, &authority_id, validators_index, validators_len)?;
+			let one_hour: u32 = T::OneHours::get().saturated_into();
 			let duration: BlockNumberOf<T> = max_len
 				.checked_mul(3)
 				.ok_or(OffchainErr::Overflow)?
@@ -866,7 +870,7 @@ pub mod pallet {
 				.ok_or(OffchainErr::Overflow)?
 				.checked_div(100)
 				.ok_or(OffchainErr::Overflow)?
-				.checked_add(1200)
+				.checked_add(one_hour)
 				.ok_or(OffchainErr::Overflow)?
 				.saturated_into();
 
