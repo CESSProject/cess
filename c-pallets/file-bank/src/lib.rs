@@ -48,6 +48,7 @@ use sp_runtime::{
 	RuntimeDebug,
 };
 use sp_std::{convert::TryInto, prelude::*, str};
+use cp_scheduler_credit::SchedulerCreditCounter;
 
 pub use weights::WeightInfo;
 
@@ -131,6 +132,8 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type OneDay: Get<BlockNumberOf<Self>>;
+
+		type CreditCounter: SchedulerCreditCounter<Self::AccountId>;
 	}
 
 	#[pallet::event]
@@ -476,6 +479,9 @@ pub mod pallet {
 			for v in slice_info.iter() {
 				Self::replace_file(v.miner_acc.clone(), v.shard_size)?;
 			}
+
+			Self::record_uploaded_files_size(&sender, file_size);
+
 			Self::deposit_event(Event::<T>::FileUpload { acc: user.clone() });
 			Ok(())
 		}
@@ -518,6 +524,9 @@ pub mod pallet {
 				.checked_mul(filler_list.len() as u128)
 				.ok_or(Error::<T>::Overflow)?;
 			T::MinerControl::add_power(&miner, power)?;
+
+			Self::record_uploaded_fillers_size(&sender, &filler_list);
+
 			Self::deposit_event(Event::<T>::FillerUpload { acc: sender, file_size: power as u64 });
 			Ok(())
 		}
@@ -1258,6 +1267,16 @@ pub mod pallet {
 			}
 
 			Ok(())
+		}
+
+		fn record_uploaded_files_size(scheduler_id: &T::AccountId, file_size: u64) {
+			T::CreditCounter::record_proceed_block_size(scheduler_id, file_size);
+		}
+
+		fn record_uploaded_fillers_size(scheduler_id: &T::AccountId, fillers: &Vec<FillerInfo<T>>) {
+			for filler in fillers {
+				T::CreditCounter::record_proceed_block_size(scheduler_id, filler.filler_size);
+			}
 		}
 	}
 }

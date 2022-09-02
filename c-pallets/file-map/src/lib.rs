@@ -20,6 +20,7 @@ pub use pallet::*;
 use scale_info::TypeInfo;
 use sp_runtime::{traits::SaturatedConversion, RuntimeDebug, DispatchError};
 use sp_std::prelude::*;
+use cp_scheduler_credit::SchedulerCreditCounter;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
@@ -70,6 +71,8 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type StringLimit: Get<u32> + PartialEq + Eq + Clone;
+
+		type CreditCounter: SchedulerCreditCounter<Self::AccountId>;
 	}
 
 	#[pallet::event]
@@ -141,6 +144,7 @@ pub mod pallet {
 						for v2 in alregister_list.iter() {
 							if v2.controller_user == v.clone() {
 								pallet_cess_staking::slashing::slash_scheduler::<T>(&v2.stash_user);
+								T::CreditCounter::record_punishment(&v2.controller_user);
 							}
 						}
 					}

@@ -71,7 +71,7 @@ use frame_system::{
 };
 
 pub mod impls;
-use impls::{Author, CreditToBlockAuthor};
+use impls::{Author, CreditToBlockAuthor, SchedulerStashAccountFinder};
 
 pub mod constants;
 use fp_rpc::TransactionStatus;
@@ -762,6 +762,7 @@ impl onchain::ExecutionConfig for OnChainVrf {
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Runtime>,
 		Runtime,
+		SchedulerCredit,
 	>;
 	type DataProvider = <Runtime as pallet_election_provider_multi_phase::Config>::DataProvider;
 }
@@ -794,7 +795,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type Solution = NposSolution16;
 	type Fallback = onchain::BoundedExecution<OnChainVrf>;
 	type GovernanceFallback = onchain::BoundedExecution<OnChainVrf>;
-	type Solver = pallet_rrsc::VrfSolver<AccountId, SolutionAccuracyOf<Self>, Runtime, OffchainRandomBalancing>;
+	type Solver = pallet_rrsc::VrfSolver<AccountId, SolutionAccuracyOf<Self>, Runtime, SchedulerCredit, OffchainRandomBalancing>;
 	type ForceOrigin = EnsureRootOrHalfCouncil;
 	type MaxElectableTargets = ConstU16<{ u16::MAX }>;
 	type MaxElectingVoters = MaxElectingVoters;
@@ -947,6 +948,7 @@ impl pallet_file_bank::Config for Runtime {
 	type Scheduler = FileMap;
 	type StringLimit = StringLimit;
 	type OneDay = OneDay;
+	type CreditCounter = SchedulerCredit;
 }
 
 parameter_types! {
@@ -959,6 +961,7 @@ impl pallet_file_map::Config for Runtime {
 	type Event = Event;
 	type FileMapPalletId = FileMapPalletId;
 	type StringLimit = StringLimit;
+	type CreditCounter = SchedulerCredit;
 }
 
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
@@ -1283,6 +1286,10 @@ impl fp_self_contained::SelfContainedCall for Call {
 }
 /** * Frontier End-------------------------------------------------------------------- ** */
 
+impl pallet_scheduler_credit::Config for Runtime {
+	type StashAccountFinder = SchedulerStashAccountFinder;
+}
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
 	pub enum Runtime where
@@ -1341,6 +1348,7 @@ construct_runtime!(
 		FileMap: pallet_file_map = 61,
 		SegmentBook: pallet_segment_book = 62,
 		Sminer: pallet_sminer = 63,
+		SchedulerCredit: pallet_scheduler_credit = 64,
 	}
 );
 

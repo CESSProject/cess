@@ -757,6 +757,7 @@ name = "cess-node-runtime"
 version = "0.5.0"
 dependencies = [
  "cessp-consensus-rrsc",
+ "cp-scheduler-credit",
  "fp-rpc",
  "fp-self-contained",
  "frame-benchmarking",
@@ -801,6 +802,7 @@ dependencies = [
  "pallet-randomness-collective-flip",
  "pallet-rrsc",
  "pallet-scheduler",
+ "pallet-scheduler-credit",
  "pallet-segment-book",
  "pallet-session",
  "pallet-sminer",
@@ -4953,6 +4955,7 @@ dependencies = [
 name = "pallet-file-map"
 version = "0.5.0"
 dependencies = [
+ "cp-scheduler-credit",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-support",
@@ -5199,6 +5202,7 @@ dependencies = [
  "cp-scheduler-credit",
  "frame-support",
  "frame-system",
+ "log",
  "parity-scale-codec",
  "scale-info",
  "sp-core",

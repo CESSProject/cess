@@ -23,6 +23,9 @@ pallet-evm-precompile-modexp = { git = "https://github.com/CESSProject/frontier"
 pallet-evm-precompile-sha3fips = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
 pallet-evm-precompile-simple = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
 
+cp-scheduler-credit = { default-features = false, version = "0.1.0", path = "../primitives/scheduler-credit" }
+pallet-scheduler-credit = { default-features = false, version = "0.1.0", path = "../c-pallets/scheduler-credit" }
+
 [build-dependencies.substrate-wasm-builder]
 git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
@@ -459,4 +462,6 @@ std = [
 	"pallet-evm/std",
 	"pallet-evm-precompile-simple/std",
 	"pallet-evm-precompile-sha3fips/std",
+    "cp-scheduler-credit/std",
+    "pallet-scheduler-credit/std",
 ]
