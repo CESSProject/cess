@@ -50,7 +50,7 @@ use frame_system::{self as system};
 pub use pallet::*;
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::{AccountIdConversion, CheckedAdd, CheckedSub, SaturatedConversion},
+	traits::{AccountIdConversion, CheckedAdd, CheckedSub, CheckedMul, SaturatedConversion},
 	RuntimeDebug, Perbill
 };
 use sp_std::{convert::TryInto, prelude::*};
@@ -914,6 +914,7 @@ pub mod pallet {
 
 				let now = <frame_system::Pallet<T>>::block_number();
 				let reward_pot = T::PalletId::get().into_account();
+				
 				<T as pallet::Config>::Currency::transfer(
 					&reward_pot,
 					&to,
@@ -925,6 +926,7 @@ pub mod pallet {
 					FaucetRecord::<BlockNumberOf<T>> { last_claim_time: now },
 				);
 			} else {
+				let one_day: u32 = T::OneDayBlock::get().saturated_into();
 				let faucet_record = FaucetRecordMap::<T>::try_get(&to).map_err(|e| {
 					log::error!("faucet error is: {:?}", e);
 					Error::<T>::DataNotExist
@@ -932,10 +934,10 @@ pub mod pallet {
 				let now = <frame_system::Pallet<T>>::block_number();
 
 				let mut flag: bool = true;
-				if now >= BlockNumberOf::<T>::from(28800u32) {
+				if now >= BlockNumberOf::<T>::from(one_day) {
 					if !(faucet_record.last_claim_time
 						<= now
-							.checked_sub(&BlockNumberOf::<T>::from(28800u32))
+							.checked_sub(&BlockNumberOf::<T>::from(one_day))
 							.ok_or(Error::<T>::Overflow)?)
 					{
 						Self::deposit_event(Event::<T>::LessThan24Hours {
@@ -1261,8 +1263,11 @@ impl<T: Config> Pallet<T> {
 		// let deadline = now + T::BlockNumber::from(18000u32);
 		// test 6 hours
 		// test 1 hours
+		let th_day = T::OneDayBlock::get()
+			.checked_mul(&30u32.saturated_into())
+			.ok_or(Error::<T>::Overflow)?;
 		let deadline = now_block
-			.checked_add(&T::BlockNumber::from(5184000u32))
+			.checked_add(&th_day)
 			.ok_or(Error::<T>::Overflow)?;
 
 		if !<CalculateRewardOrderMap<T>>::contains_key(acc) {
