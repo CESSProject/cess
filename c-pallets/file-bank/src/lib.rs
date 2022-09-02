@@ -262,11 +262,6 @@ pub mod pallet {
 		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedList<T>, ValueQuery>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn members)]
-	pub(super) type Members<T: Config> =
-		StorageValue<_, BoundedVec<AccountOf<T>, T::StringLimit>, ValueQuery>;
-
-	#[pallet::storage]
 	#[pallet::getter(fn lock_time)]
 	pub(super) type LockTime<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
 
@@ -770,46 +765,6 @@ pub mod pallet {
 				Ok(())
 			})?;
 			Self::deposit_event(Event::<T>::ClearInvalidFile { acc: sender, file_hash });
-			Ok(())
-		}
-		/// Add offchain signed member
-		///
-		/// The dispatch origin of this call must be Root.
-		///
-		/// Only members can call some special functional transactions
-		///
-		/// Parameters:
-		/// - `acc`: Account
-		#[transactional]
-		#[pallet::weight(10_000)]
-		pub fn add_member(origin: OriginFor<T>, acc: AccountOf<T>) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-			let member_list = Self::members();
-			if member_list.contains(&acc) {
-				Err(Error::<T>::AlreadyExist)?;
-			}
-			<Members<T>>::try_mutate(|o| -> DispatchResult {
-				o.try_push(acc).map_err(|_e| Error::<T>::StorageLimitReached)?;
-				Ok(())
-			})?;
-			Ok(())
-		}
-		/// delete offchain signed member
-		///
-		/// The dispatch origin of this call must be Root.
-		///
-		/// Only members can call some special functional transactions
-		///
-		/// Parameters:
-		/// - `acc`: Account
-		#[transactional]
-		#[pallet::weight(10_000)]
-		pub fn del_member(origin: OriginFor<T>, acc: AccountOf<T>) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-			<Members<T>>::try_mutate(|o| -> DispatchResult {
-				o.retain(|x| x != &acc);
-				Ok(())
-			})?;
 			Ok(())
 		}
 		/// Recover files.
@@ -1633,14 +1588,6 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 		Ok(())
 	}
 
-	fn contains_member(acc: AccountOf<T>) -> bool {
-		let member_list = Self::members();
-		if member_list.contains(&acc) {
-			return true
-		} else {
-			return false
-		}
-	}
 }
 
 impl<T: Config> BlockNumberProvider for Pallet<T> {
