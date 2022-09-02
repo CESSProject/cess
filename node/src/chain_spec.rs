@@ -1,18 +1,18 @@
 use cess_node_runtime::{
-	opaque::SessionKeys, wasm_binary_unwrap, AccountId, AuthorityDiscoveryConfig, BabeConfig,
-	Balance, BalancesConfig, Block, CouncilConfig, GenesisConfig, GrandpaConfig, ImOnlineConfig,
-	IndicesConfig, MaxNominations, SessionConfig, Signature, StakerStatus, StakingConfig,
-	SudoConfig, SystemConfig, TechnicalCommitteeConfig, DOLLARS, 
+	opaque::SessionKeys, wasm_binary_unwrap, AccountId, AuthorityDiscoveryConfig, Balance,
+	BalancesConfig, Block, CouncilConfig, GenesisConfig, GrandpaConfig, ImOnlineConfig,
+	IndicesConfig, MaxNominations, RRSCConfig, SessionConfig, Signature, StakerStatus,
+	StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig, DOLLARS,
 };
+use cessp_consensus_rrsc::AuthorityId as RRSCId;
 use grandpa_primitives::AuthorityId as GrandpaId;
 use hex_literal::hex;
-use pallet_segment_book::sr25519::AuthorityId as SegmentBookId;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
+use pallet_segment_book::sr25519::AuthorityId as SegmentBookId;
 use sc_chain_spec::ChainSpecExtension;
-use sc_service::{ChainType, config::TelemetryEndpoints};
+use sc_service::{config::TelemetryEndpoints, ChainType};
 use serde::{Deserialize, Serialize};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use sp_consensus_babe::AuthorityId as BabeId;
 use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public};
 use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
@@ -39,7 +39,7 @@ pub struct Extensions {
 	/// Known bad block hashes.
 	pub bad_blocks: sc_client_api::BadBlocks<Block>,
 	/// The light sync state extension used by the sync-state rpc.
-	pub light_sync_state: sc_sync_state_rpc::LightSyncStateExtension,
+	pub light_sync_state: cessc_sync_state_rpc::LightSyncStateExtension,
 }
 
 /// Specialized `ChainSpec`.
@@ -49,12 +49,12 @@ type AccountPublic = <Signature as Verify>::Signer;
 
 fn session_keys(
 	grandpa: GrandpaId,
-	babe: BabeId,
+	rrsc: RRSCId,
 	im_online: ImOnlineId,
 	authority_discovery: AuthorityDiscoveryId,
 	segment_book: SegmentBookId,
 ) -> SessionKeys {
-	SessionKeys { grandpa, babe, im_online, authority_discovery, segment_book }
+	SessionKeys { grandpa, rrsc, im_online, authority_discovery, segment_book }
 }
 
 /// Generate an account ID from seed.
@@ -68,12 +68,12 @@ where
 /// Helper function to generate stash, controller and session key from seed
 pub fn authority_keys_from_seed(
 	seed: &str,
-) -> (AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId, SegmentBookId) {
+) -> (AccountId, AccountId, GrandpaId, RRSCId, ImOnlineId, AuthorityDiscoveryId, SegmentBookId) {
 	(
 		get_account_id_from_seed::<sr25519::Public>(&format!("{}//stash", seed)),
 		get_account_id_from_seed::<sr25519::Public>(seed),
 		get_from_seed::<GrandpaId>(seed),
-		get_from_seed::<BabeId>(seed),
+		get_from_seed::<RRSCId>(seed),
 		get_from_seed::<ImOnlineId>(seed),
 		get_from_seed::<AuthorityDiscoveryId>(seed),
 		get_from_seed::<SegmentBookId>(seed),
@@ -94,7 +94,7 @@ fn cess_testnet_config_genesis() -> GenesisConfig {
 		AccountId,
 		AccountId,
 		GrandpaId,
-		BabeId,
+		RRSCId,
 		ImOnlineId,
 		AuthorityDiscoveryId,
 		SegmentBookId,
@@ -203,7 +203,7 @@ pub fn cess_testnet_generate_config() -> ChainSpec {
 		boot_nodes,
 		Some(
 			TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
-			  .expect("Staging telemetry url is valid; qed"),
+				.expect("Staging telemetry url is valid; qed"),
 		),
 		Some("TCESS"),
 		None,
@@ -285,7 +285,7 @@ fn testnet_genesis(
 		AccountId,
 		AccountId,
 		GrandpaId,
-		BabeId,
+		RRSCId,
 		ImOnlineId,
 		AuthorityDiscoveryId,
 		SegmentBookId,
@@ -360,7 +360,13 @@ fn testnet_genesis(
 					(
 						x.0.clone(),
 						x.0.clone(),
-						session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
+						session_keys(
+							x.2.clone(),
+							x.3.clone(),
+							x.4.clone(),
+							x.5.clone(),
+							x.6.clone(),
+						),
 					)
 				})
 				.collect::<Vec<_>>(),
@@ -382,9 +388,9 @@ fn testnet_genesis(
 				.collect(),
 			phantom: Default::default(),
 		},
-		babe: BabeConfig {
+		rrsc: RRSCConfig {
 			authorities: vec![],
-			epoch_config: Some(cess_node_runtime::BABE_GENESIS_EPOCH_CONFIG),
+			epoch_config: Some(cess_node_runtime::RRSC_GENESIS_EPOCH_CONFIG),
 		},
 		im_online: ImOnlineConfig { keys: vec![] },
 		authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },

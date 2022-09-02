@@ -4,6 +4,7 @@ use frame_support::traits::{
 	Currency, OnUnbalanced,
 };
 use pallet_asset_tx_payment::HandleCredit;
+use pallet_cess_staking::Pallet as StakingPallet;
 
 pub struct Author;
 impl OnUnbalanced<NegativeImbalance> for Author {
@@ -22,6 +23,18 @@ impl HandleCredit<AccountId, Assets> for CreditToBlockAuthor {
 		if let Some(author) = pallet_authorship::Pallet::<Runtime>::author() {
 			// Drop the result which will trigger the `OnDrop` of the imbalance in case of error.
 			let _ = Assets::resolve(&author, credit);
+		}
+	}
+}
+
+pub struct SchedulerStashAccountFinder;
+
+impl cp_scheduler_credit::SchedulerStashAccountFinder<AccountId> for SchedulerStashAccountFinder {
+	fn find_stash_account_id(ctrl_account_id: &AccountId) -> Option<AccountId> {
+		if let Some(staking_ledger) = StakingPallet::<Runtime>::ledger(ctrl_account_id) {
+			Some(staking_ledger.stash)
+		} else {
+			None
 		}
 	}
 }

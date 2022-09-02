@@ -16,6 +16,8 @@ serde_json = { version = '1.0.67', default-features = false, features = ['alloc'
 log = { version = "0.4.14", default-features = false }
 rand_chacha = { version = "0.2", default-features = false, optional = true }
 
+cp-scheduler-credit = { path = '../../primitives/scheduler-credit', version = '0.1.0', default-features = false }
+
 [dependencies.frame-benchmarking]
 default-features = false
 git = 'https://github.com/CESSProject/substrate.git'

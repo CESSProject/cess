@@ -71,7 +71,7 @@ git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
-[dependencies.sc-sync-state-rpc]
+[dependencies.cessc-sync-state-rpc]
 git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
@@ -107,7 +107,7 @@ git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
-[dependencies.sc-consensus-babe]
+[dependencies.cessc-consensus-rrsc]
 git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
@@ -191,7 +191,7 @@ git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
-[dependencies.sp-consensus-babe]
+[dependencies.cessp-consensus-rrsc]
 git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
@@ -251,7 +251,7 @@ git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
-[dependencies.sc-consensus-babe-rpc]
+[dependencies.cessc-consensus-rrsc-rpc]
 git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
