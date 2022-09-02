@@ -1,7 +1,7 @@
 use cess_node_runtime::{
 	opaque::SessionKeys, wasm_binary_unwrap, AccountId, AuthorityDiscoveryConfig, Balance,
 	BalancesConfig, Block, CouncilConfig, GenesisConfig, GrandpaConfig, ImOnlineConfig,
-	IndicesConfig, MaxNominations, RRSCConfig, SessionConfig, Signature, StakerStatus,
+	IndicesConfig, MaxNominations, BabeConfig, SessionConfig, Signature, StakerStatus,
 	StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig, DOLLARS,
 };
 use cessp_consensus_rrsc::AuthorityId as RRSCId;
@@ -388,7 +388,7 @@ fn testnet_genesis(
 				.collect(),
 			phantom: Default::default(),
 		},
-		rrsc: RRSCConfig {
+		babe: BabeConfig {
 			authorities: vec![],
 			epoch_config: Some(cess_node_runtime::RRSC_GENESIS_EPOCH_CONFIG),
 		},
