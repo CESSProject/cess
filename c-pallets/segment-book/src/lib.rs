@@ -537,7 +537,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_none(origin)?;
 			if let Err(e) = Self::record_challenge_time(duration.clone()) {
-				log::info!("punish Err:{:?}", e);
+				log::info!("save challenge time Err:{:?}", e);
 				Err(Error::<T>::RecordTimeError)?;
 			}
 
@@ -581,10 +581,11 @@ pub mod pallet {
 			signature: &<T::AuthorityId as RuntimeAppPublic>::Signature,
 		) -> TransactionValidity {
 			let current_session = T::ValidatorSet::session_index();
-				let keys = Keys::<T>::get();
+			let keys = Keys::<T>::get();
 
 				let index = CurAuthorityIndex::<T>::get();
 				if index != seg_digest.validators_index {
+					log::error!("invalid index");
 					return InvalidTransaction::Stale.into();
 				}
 				//TODO!
@@ -599,12 +600,14 @@ pub mod pallet {
 				});
 
 				if !signature_valid {
+					log::error!("bad signature.");
 					return InvalidTransaction::BadProof.into()
 				}
 
+				log::info!("build valid transaction");
 				ValidTransaction::with_tag_prefix("SegmentBook")
 					.priority(T::UnsignedPriority::get())
-					.and_provides((current_session, authority_id))
+					.and_provides((current_session, authority_id, signature))
 					.longevity(
 						TryInto::<u64>::try_into(
 							T::NextSessionRotation::average_session_length() / 2u32.into(),
