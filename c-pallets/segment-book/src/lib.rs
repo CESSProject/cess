@@ -381,7 +381,7 @@ pub mod pallet {
 							<ConsecutiveFines<T>>::remove(&miner);
 						}
 					}
-					
+
 					Self::start_buffer_period_schedule().unwrap_or(());
 					<FailureNumMap<T>>::remove_all(None);
 					<MinerTotalProof<T>>::remove_all(None);
@@ -411,16 +411,16 @@ pub mod pallet {
 			if sp_io::offchain::is_validator() {
 				if now > deadline {
 					//Determine whether to trigger a challenge
-					// if Self::trigger_challenge(now) {
+					if Self::trigger_challenge(now) {
 						log::info!("offchain worker random challenge start");
 						if let Err(e) = Self::offchain_work_start(now) {
 							match e {
 								OffchainErr::Working => log::info!("offchain working, Unable to perform a new round of work."),
 								_ => log::info!("offchain worker generation challenge failed:{:?}", e),
-							};	
+							};
 						}
 						log::info!("offchain worker random challenge end");
-					// }
+					}
 				}
 			}
 		}
@@ -557,16 +557,16 @@ pub mod pallet {
 	#[pallet::validate_unsigned]
 	impl<T: Config> ValidateUnsigned for Pallet<T> {
 		type Call = Call<T>;
-		
+
 		fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
-			if let Call::save_challenge_info { 
+			if let Call::save_challenge_info {
 				seg_digest,
 				signature,
 				miner_acc: _,
 				challenge_info: _,
 			} = call {
 				Self::check_unsign(seg_digest, signature)
-			} else if let Call::save_challenge_time { 
+			} else if let Call::save_challenge_time {
 				duration: _,
 				seg_digest,
 				signature,
@@ -620,7 +620,7 @@ pub mod pallet {
 					.propagate(true)
 					.build()
 		}
-		
+
 		//Storage proof method
 		fn storage_prove(acc: AccountOf<T>, prove_list: Vec<ProveInfo<T>>) -> DispatchResult {
 			<UnVerifyProof<T>>::try_mutate(&acc, |o| -> DispatchResult {
@@ -748,7 +748,7 @@ pub mod pallet {
 					new_challenge_map.insert(miner_acc, new_vec);
 				}
 			}
-			
+
 			Ok(new_challenge_map)
 		}
 
@@ -806,7 +806,7 @@ pub mod pallet {
 				Some(id) => id,
 				None => return Err(OffchainErr::UnexpectedError),
 			};
-		
+
 			let mut local_keys = T::AuthorityId::all();
 
 			if local_keys.len() == 0 {
@@ -817,12 +817,12 @@ pub mod pallet {
 			local_keys.sort();
 
 			let res = local_keys.binary_search(&epicycle_key);
-			
+
 			let authority_id = match res {
 				Ok(index) => local_keys.get(index),
 				Err(_e) => return Err(OffchainErr::Ineligible),
 			};
-			
+
 			let authority_id = match authority_id {
 				Some(id) => id,
 				None => return Err(OffchainErr::Ineligible),
@@ -834,7 +834,7 @@ pub mod pallet {
 		fn offchain_call_extrinsic(
 			now: BlockNumberOf<T>,
 			authority_id: T::AuthorityId,
-			challenge_map: BTreeMap<AccountOf<T>, Vec<ChallengeInfo<T>>>, 
+			challenge_map: BTreeMap<AccountOf<T>, Vec<ChallengeInfo<T>>>,
 			validators_index: u16,
 			validators_len: usize,
 		) -> Result<(), OffchainErr> {
@@ -844,10 +844,10 @@ pub mod pallet {
 					max_len = value.len() as u32;
 				}
 				let (signature, digest) = Self::offchain_sign_digest(now, &authority_id, validators_index, validators_len)?;
-				let call = Call::save_challenge_info { 
-					seg_digest: digest.clone(), 
-					signature: signature.clone(), 
-					miner_acc: key.clone(), 
+				let call = Call::save_challenge_info {
+					seg_digest: digest.clone(),
+					signature: signature.clone(),
+					miner_acc: key.clone(),
 					challenge_info: value.clone(),
 				};
 
@@ -876,8 +876,8 @@ pub mod pallet {
 
 			let call = Call::save_challenge_time {
 				duration,
-				seg_digest: digest.clone(), 
-				signature: signature, 
+				seg_digest: digest.clone(),
+				signature: signature,
 			};
 
 			let result = SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction( call.into());
@@ -893,15 +893,15 @@ pub mod pallet {
 		}
 
 		fn offchain_sign_digest(
-			now: BlockNumberOf<T>, 
-			authority_id: &T::AuthorityId, 
-			validators_index: u16, 
+			now: BlockNumberOf<T>,
+			authority_id: &T::AuthorityId,
+			validators_index: u16,
 			validators_len: usize
 		) -> Result< (<<T as pallet::Config>::AuthorityId as sp_runtime::RuntimeAppPublic>::Signature, SegDigest::<BlockNumberOf<T>>), OffchainErr> {
 
 			let network_state =
 				sp_io::offchain::network_state().map_err(|_| OffchainErr::NetworkState)?;
-			
+
 			let digest = SegDigest::<BlockNumberOf<T>>{
 				validators_len: validators_len as u32,
 				block_num: now,

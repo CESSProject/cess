@@ -242,7 +242,7 @@ pub mod pallet {
 	}
 
 	#[pallet::storage]
-	#[pallet::getter(fn miner_cooling)]
+	#[pallet::getter(fn miner_lock_in)]
 	pub(super) type MinerLockIn<T: Config> =
 		StorageMap<_, Blake2_128Concat, T::AccountId, BlockNumberOf<T>>;
 
@@ -510,6 +510,7 @@ pub mod pallet {
 				.saturated_into();
 			let mut lock_in_period: u128 = T::OneDayBlock::get().saturated_into();
 			lock_in_period = lock_in_period * LOCK_IN_PERIOD as u128;
+			// let mut lock_in_period: u128 = 50;
 			if lock_in_strat + lock_in_period > now_block {
 				Err(Error::<T>::LockInNotOver)?;
 			}
@@ -914,7 +915,7 @@ pub mod pallet {
 
 				let now = <frame_system::Pallet<T>>::block_number();
 				let reward_pot = T::PalletId::get().into_account();
-				
+
 				<T as pallet::Config>::Currency::transfer(
 					&reward_pot,
 					&to,

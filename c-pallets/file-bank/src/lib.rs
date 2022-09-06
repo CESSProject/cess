@@ -238,14 +238,6 @@ pub mod pallet {
 		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedList<T>, ValueQuery>;
 
 	#[pallet::storage]
-	pub(super) type UserFreeRecord<T: Config> =
-		StorageMap<_, Blake2_128Concat, T::AccountId, u8, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn unit_price)]
-	pub(super) type UnitPrice<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
-
-	#[pallet::storage]
 	#[pallet::getter(fn filler_map)]
 	pub(super) type FillerMap<T: Config> = StorageDoubleMap<
 		_,
@@ -260,10 +252,6 @@ pub mod pallet {
 	#[pallet::getter(fn invalid_file)]
 	pub(super) type InvalidFile<T: Config> =
 		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedList<T>, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn lock_time)]
-	pub(super) type LockTime<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn purchase_package)]
@@ -1444,22 +1432,7 @@ pub mod pallet {
 
 			Ok(())
 		}
-		/// helper: add invalid file.
-		///
-		/// Clear the files that failed
-		/// the challenge or have been replaced
-		///
-		/// Parameters:
-		/// - `miner_acc`: miner AccountId.
-		/// - `file_hash`: file hash.
-		///
-		/// Result:
-		/// - DispatchResult
-		pub fn update_price_for_tests() -> DispatchResult {
-			let price: BalanceOf<T> = 100u128.try_into().map_err(|_| Error::<T>::Overflow)?;
-			UnitPrice::<T>::put(price);
-			Ok(())
-		}
+
 		/// helper: add user hold fileslice.
 		///
 		/// Add files held by users.
