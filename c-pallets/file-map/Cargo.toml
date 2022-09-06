@@ -1,7 +1,7 @@
 [package]
 name = "pallet-file-map"
 authors = ["CESS LAB"]
-version = "0.5.0"
+version = "0.5.1"
 edition = "2018"
 license = "Apache-2.0"
 repository = "https://github.com/CESSProject/cess"
@@ -15,6 +15,8 @@ scale-info = { default-features = false, features = ['derive'], version = "2.0.1
 serde_json = { version = '1.0.67', default-features = false, features = ['alloc'] }
 log = { version = "0.4.14", default-features = false }
 rand_chacha = { version = "0.2", default-features = false, optional = true }
+
+cp-scheduler-credit = { path = '../../primitives/scheduler-credit', version = '0.1.0', default-features = false }
 
 [dependencies.frame-benchmarking]
 default-features = false
@@ -63,7 +65,7 @@ version = '6.0.0'
 [dependencies.pallet-sminer]
 default-features = false
 path = '../sminer'
-version = '0.5.0'
+version = '0.5.1'
 
 [dependencies.pallet-cess-staking]
 default-features = false

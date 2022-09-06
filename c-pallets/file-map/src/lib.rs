@@ -15,12 +15,15 @@ pub mod testing_utils;
 pub mod benchmarking;
 
 use codec::{Decode, Encode};
-use frame_support::{dispatch::DispatchResult, traits::ReservableCurrency, BoundedVec, PalletId};
+use frame_support::{
+	dispatch::DispatchResult, traits::ReservableCurrency, transactional, BoundedVec, PalletId,
+};
 pub use pallet::*;
 use scale_info::TypeInfo;
-use sp_runtime::{traits::SaturatedConversion, RuntimeDebug, DispatchError};
+use sp_runtime::{traits::SaturatedConversion, DispatchError, RuntimeDebug};
 use sp_std::prelude::*;
 pub mod weights;
+use cp_scheduler_credit::SchedulerCreditCounter;
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -29,7 +32,11 @@ type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_support::{pallet_prelude::{*, ValueQuery}, traits::Get, Blake2_128Concat};
+	use frame_support::{
+		pallet_prelude::{ValueQuery, *},
+		traits::Get,
+		Blake2_128Concat,
+	};
 	use frame_system::{ensure_signed, pallet_prelude::*};
 
 	#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
@@ -74,6 +81,8 @@ pub mod pallet {
 		type StringLimit: Get<u32> + PartialEq + Eq + Clone;
 		//the weights
 		type WeightInfo: WeightInfo;
+
+		type CreditCounter: SchedulerCreditCounter<Self::AccountId>;
 	}
 
 	#[pallet::event]
@@ -119,7 +128,8 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn bond_acc)]
-	pub(super) type BondAcc<T: Config> = StorageValue<_, BoundedVec<AccountOf<T>, T::StringLimit>, ValueQuery>;
+	pub(super) type BondAcc<T: Config> =
+		StorageValue<_, BoundedVec<AccountOf<T>, T::StringLimit>, ValueQuery>;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -133,10 +143,12 @@ pub mod pallet {
 			let count: usize = Self::scheduler_map().len();
 			if number % 1200 == 0 {
 				let alregister_list = SchedulerMap::<T>::get();
-				let mut alregister_controller_list: BoundedVec<AccountOf<T>, T::StringLimit> = Default::default();
+				let mut alregister_controller_list: BoundedVec<AccountOf<T>, T::StringLimit> =
+					Default::default();
 				for alregister in alregister_list.iter() {
-					if let Err(e) =
-						alregister_controller_list.try_push(alregister.controller_user.clone()).map_err(|_| Error::<T>::StorageLimitReached)
+					if let Err(e) = alregister_controller_list
+						.try_push(alregister.controller_user.clone())
+						.map_err(|_| Error::<T>::StorageLimitReached)
 					{
 						log::error!("FileMap error: {:?}", e);
 					}
@@ -147,6 +159,7 @@ pub mod pallet {
 						for v2 in alregister_list.iter() {
 							if v2.controller_user == v.clone() {
 								pallet_cess_staking::slashing::slash_scheduler::<T>(&v2.stash_user);
+								T::CreditCounter::record_punishment(&v2.controller_user);
 							}
 						}
 					}
@@ -154,8 +167,9 @@ pub mod pallet {
 
 				let mut ctl: BoundedVec<AccountOf<T>, T::StringLimit> = Default::default();
 				for (_stash, controller) in pallet_cess_staking::Bonded::<T>::iter() {
-					if let Err(e) = 
-						ctl.try_push(controller.clone()).map_err(|_| Error::<T>::StorageLimitReached)
+					if let Err(e) = ctl
+						.try_push(controller.clone())
+						.map_err(|_| Error::<T>::StorageLimitReached)
 					{
 						log::error!("FileMap error: {:?}", e);
 					}
@@ -176,6 +190,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		//Scheduling registration method
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::registration_scheduler())]
 		pub fn registration_scheduler(
 			origin: OriginFor<T>,
@@ -184,7 +199,8 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			//Even if the primary key is not present here, panic will not be caused
-			let acc = <pallet_cess_staking::Pallet<T>>::bonded(&stash_account).ok_or(Error::<T>::NotBond)?;
+			let acc = <pallet_cess_staking::Pallet<T>>::bonded(&stash_account)
+				.ok_or(Error::<T>::NotBond)?;
 			if sender != acc {
 				Err(Error::<T>::NotController)?;
 			}
@@ -205,11 +221,9 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_scheduler())]
-		pub fn update_scheduler(
-			origin: OriginFor<T>,
-			ip: Vec<u8>,
-		) -> DispatchResult {
+		pub fn update_scheduler(origin: OriginFor<T>, ip: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
 			SchedulerMap::<T>::try_mutate(|s| -> DispatchResult {
@@ -217,7 +231,7 @@ pub mod pallet {
 				for i in s.iter() {
 					if i.controller_user == sender {
 						let scheduler = SchedulerInfo::<T> {
-							ip: ip.try_into().map_err(|_| Error::<T>::BoundedVecError)?,
+							ip: ip.clone().try_into().map_err(|_| Error::<T>::BoundedVecError)?,
 							stash_user: i.stash_user.clone(),
 							controller_user: sender.clone(),
 						};
@@ -227,10 +241,9 @@ pub mod pallet {
 					}
 					count = count.checked_add(1).ok_or(Error::<T>::Overflow)?;
 				}
-				Self::deposit_event(Event::<T>::UpdateScheduler { acc: sender, endpoint: ip });
 				Err(Error::<T>::NotController)?
 			})?;
-		
+			Self::deposit_event(Event::<T>::UpdateScheduler { acc: sender, endpoint: ip });
 			Ok(())
 		}
 
@@ -265,6 +278,7 @@ pub mod pallet {
 		// 	Ok(())
 		// }
 
+		#[transactional]
 		#[pallet::weight(10_000)]
 		pub fn init_public_key(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
@@ -364,7 +378,7 @@ impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<
 	fn get_first_controller() -> Result<<T as frame_system::Config>::AccountId, DispatchError> {
 		let s_vec = SchedulerMap::<T>::get();
 		if s_vec.len() > 0 {
-			return Ok(s_vec[0].clone().controller_user);
+			return Ok(s_vec[0].clone().controller_user)
 		}
 		Err(Error::<T>::Overflow)?
 	}

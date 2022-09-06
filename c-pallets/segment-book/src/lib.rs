@@ -50,20 +50,30 @@ pub mod benchmarking;
 
 use sp_runtime::{
 	traits::{CheckedAdd, SaturatedConversion},
-	RuntimeDebug,
+	RuntimeDebug, Permill,
+	offchain::storage::{StorageValueRef, StorageRetrievalError},
 };
 mod types;
 use types::*;
 
 use codec::{Decode, Encode};
 use frame_support::{
+	transactional,
 	dispatch::DispatchResult,
 	pallet_prelude::*,
 	storage::bounded_vec::BoundedVec,
-	traits::{FindAuthor, Randomness, ReservableCurrency},
-	PalletId,
+	traits::{
+		FindAuthor, Randomness, ReservableCurrency, EstimateNextSessionRotation,
+		ValidatorSetWithIdentification, ValidatorSet, OneSessionHandler,
+	},
+	PalletId, WeakBoundedVec, BoundedSlice,
 };
-use frame_system::offchain::{AppCrypto, CreateSignedTransaction, SendSignedTransaction, Signer};
+use sp_core::{
+	crypto::KeyTypeId,
+	offchain::OpaqueNetworkState,
+};
+use sp_runtime::app_crypto::RuntimeAppPublic;
+use frame_system::offchain::{CreateSignedTransaction, SubmitTransaction};
 use pallet_file_bank::RandomFileList;
 use pallet_file_map::ScheduleFind;
 use pallet_sminer::MinerControl;
@@ -75,14 +85,56 @@ pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
-
+pub const SEGMENT_BOOK: KeyTypeId = KeyTypeId(*b"cess");
 // type FailureRate = u32;
+
+pub mod sr25519 {
+	mod app_sr25519 {
+		use crate::*;
+		use sp_runtime::app_crypto::{app_crypto, sr25519};
+		app_crypto!(sr25519, SEGMENT_BOOK);
+	}
+
+	sp_runtime::app_crypto::with_pair! {
+		/// An i'm online keypair using sr25519 as its crypto.
+		pub type AuthorityPair = app_sr25519::Pair;
+	}
+
+	/// An i'm online signature using sr25519 as its crypto.
+	pub type AuthoritySignature = app_sr25519::Signature;
+
+	/// An i'm online identifier using sr25519 as its crypto.
+	pub type AuthorityId = app_sr25519::Public;
+}
+enum OffchainErr {
+	UnexpectedError,
+	Ineligible,
+	GenerateInfoError,
+	NetworkState,
+	FailedSigning,
+	Overflow,
+	Working,
+}
+
+impl sp_std::fmt::Debug for OffchainErr {
+	fn fmt(&self, fmt: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
+		match *self {
+			OffchainErr::UnexpectedError => write!(fmt, "Should not appear, Unexpected error."),
+			OffchainErr::Ineligible => write!(fmt, "The current node does not have the qualification to execute offline working machines"),
+			OffchainErr::GenerateInfoError => write!(fmt, "Failed to generate random file meta information"),
+			OffchainErr::NetworkState => write!(fmt, "Failed to obtain the network status of the offline working machine"),
+			OffchainErr::FailedSigning => write!(fmt, "Signing summary information failed"),
+			OffchainErr::Overflow => write!(fmt, "Calculation data, boundary overflow"),
+			OffchainErr::Working => write!(fmt, "The offline working machine is currently executing work"),
+		}
+	}
+}
 
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
 	// use frame_benchmarking::baseline::Config;
-	use frame_support::traits::Get;
+	use frame_support::{traits::Get};
 	use frame_system::{ensure_signed, pallet_prelude::*};
 
 	pub type BoundedString<T> = BoundedVec<u8, <T as Config>::StringLimit>;
@@ -128,7 +180,24 @@ pub mod pallet {
 		// punishment
 		type MinerControl: MinerControl<Self::AccountId>;
 		//Configuration to be used for offchain worker
-		type AuthorityId: AppCrypto<Self::Public, Self::Signature>;
+		type AuthorityId: Member
+			+ Parameter
+			+ RuntimeAppPublic
+			+ Ord
+			+ MaybeSerializeDeserialize
+			+ MaxEncodedLen;
+		//Verifier of this round
+		type ValidatorSet: ValidatorSetWithIdentification<Self::AccountId>;
+		//Information for the next session
+		type NextSessionRotation: EstimateNextSessionRotation<Self::BlockNumber>;
+		/// A configuration for base priority of unsigned transactions.
+		///
+		/// This is exposed so that it can be tuned for particular runtime, when
+		/// multiple pallets send unsigned transactions.
+		#[pallet::constant]
+		type UnsignedPriority: Get<TransactionPriority>;
+		#[pallet::constant]
+		type LockTime: Get<BlockNumberOf<Self>>;
 	}
 
 	#[pallet::event]
@@ -193,6 +262,10 @@ pub mod pallet {
 	#[pallet::getter(fn verify_duration)]
 	pub(super) type VerifyDuration<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn cur_authority_index)]
+	pub(super) type CurAuthorityIndex<T: Config> = StorageValue<_, u16, ValueQuery>;
+
 	//Store the certification information submitted by the miner and wait for the specified
 	// scheduling verification
 	#[pallet::storage]
@@ -206,8 +279,8 @@ pub mod pallet {
 	>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn lock_time)]
-	pub(super) type LockTime<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
+	#[pallet::getter(fn keys)]
+	pub(super) type Keys<T: Config> = StorageValue<_, WeakBoundedVec<T::AuthorityId, T::StringLimit>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn lock)]
@@ -308,7 +381,7 @@ pub mod pallet {
 							<ConsecutiveFines<T>>::remove(&miner);
 						}
 					}
-					
+
 					Self::start_buffer_period_schedule().unwrap_or(());
 					<FailureNumMap<T>>::remove_all(None);
 					<MinerTotalProof<T>>::remove_all(None);
@@ -335,22 +408,16 @@ pub mod pallet {
 
 		fn offchain_worker(now: T::BlockNumber) {
 			let deadline = Self::verify_duration();
-			if now > deadline {
-				//Determine whether to trigger a challenge
-				if Self::trigger_challenge() {
-					let lock = <Lock<T>>::get();
-					if lock {
+			if sp_io::offchain::is_validator() {
+				if now > deadline {
+					//Determine whether to trigger a challenge
+					if Self::trigger_challenge(now) {
 						log::info!("offchain worker random challenge start");
-						log::info!("lock offchain worker");
-						if let Err(e) = Self::offchain_signed_lock() {
-							log::info!("lock offchain worker failed:{:?}", e);
-						}
-						if let Err(e) = Self::generation_challenge() {
-							log::info!("generation challenge failed:{:?}", e);
-						}
-						log::info!("unlock offchain worker");
-						if let Err(e) = Self::offchain_signed_unlock() {
-							log::info!("unlock offchain worker failed:{:?}", e);
+						if let Err(e) = Self::offchain_work_start(now) {
+							match e {
+								OffchainErr::Working => log::info!("offchain working, Unable to perform a new round of work."),
+								_ => log::info!("offchain worker generation challenge failed:{:?}", e),
+							};
 						}
 						log::info!("offchain worker random challenge end");
 					}
@@ -361,26 +428,7 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		#[pallet::weight(1000)]
-		pub fn lock_challenge(origin: OriginFor<T>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			if !T::File::contains_member(sender) {
-				Err(Error::<T>::NotQualified)?;
-			}
-			<Lock<T>>::put(false);
-			Ok(())
-		}
-
-		#[pallet::weight(1000)]
-		pub fn unlock_challenge(origin: OriginFor<T>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			if !T::File::contains_member(sender) {
-				Err(Error::<T>::NotQualified)?;
-			}
-			<Lock<T>>::put(true);
-			Ok(())
-		}
-
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_challenge_prove(prove_info.len() as u32))]
 		pub fn submit_challenge_prove(
 			origin: OriginFor<T>,
@@ -407,6 +455,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::verify_proof(result_list.len() as u32))]
 		pub fn verify_proof(
 			origin: OriginFor<T>,
@@ -455,21 +504,17 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(1000)]
+		#[transactional]
+		#[pallet::weight(0)]
 		pub fn save_challenge_info(
 			origin: OriginFor<T>,
+			_seg_digest: SegDigest<BlockNumberOf<T>>,
+			_signature: <T::AuthorityId as RuntimeAppPublic>::Signature,
 			miner_acc: AccountOf<T>,
 			challenge_info: Vec<ChallengeInfo<T>>,
 		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			if !T::File::contains_member(sender) {
-				Err(Error::<T>::NotQualified)?;
-			}
-			let now = <frame_system::Pallet<T>>::block_number();
-			let lock_time = <LockTime<T>>::get();
-			if lock_time > now {
-				Err(Error::<T>::Locked)?;
-			}
+			ensure_none(origin)?;
+			// let now = <frame_system::Pallet<T>>::block_number();
 			let mut convert: BoundedVec<ChallengeInfo<T>, T::StringLimit> = Default::default();
 			for v in challenge_info {
 				convert.try_push(v).map_err(|_e| Error::<T>::BoundedVecError)?;
@@ -478,17 +523,17 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(1000)]
+		#[transactional]
+		#[pallet::weight(0)]
 		pub fn save_challenge_time(
 			origin: OriginFor<T>,
 			duration: BlockNumberOf<T>,
+			_seg_digest: SegDigest<BlockNumberOf<T>>,
+			_signature: <T::AuthorityId as RuntimeAppPublic>::Signature,
 		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			if !T::File::contains_member(sender.clone()) {
-				Err(Error::<T>::NotQualified)?;
-			}
+			ensure_none(origin)?;
 			if let Err(e) = Self::record_challenge_time(duration.clone()) {
-				log::info!("punish Err:{:?}", e);
+				log::info!("save challenge time Err:{:?}", e);
 				Err(Error::<T>::RecordTimeError)?;
 			}
 
@@ -496,14 +541,86 @@ pub mod pallet {
 				<MinerTotalProof<T>>::insert(acc, challenge_list.len() as u32);
 			}
 
-			let now = <frame_system::Pallet<T>>::block_number();
-			let deadline = now.checked_add(&duration).ok_or(Error::<T>::Overflow)?;
-			<LockTime<T>>::put(deadline);
+			let max = Keys::<T>::get().len() as u16;
+			let mut index = CurAuthorityIndex::<T>::get();
+			if index >= max - 1 {
+				index = 0;
+			} else {
+				index = index + 1;
+			}
+			CurAuthorityIndex::<T>::put(index);
+
 			Ok(())
 		}
 	}
 
+	#[pallet::validate_unsigned]
+	impl<T: Config> ValidateUnsigned for Pallet<T> {
+		type Call = Call<T>;
+
+		fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+			if let Call::save_challenge_info {
+				seg_digest,
+				signature,
+				miner_acc: _,
+				challenge_info: _,
+			} = call {
+				Self::check_unsign(seg_digest, signature)
+			} else if let Call::save_challenge_time {
+				duration: _,
+				seg_digest,
+				signature,
+			} = call {
+				Self::check_unsign(seg_digest, signature)
+			} else {
+				InvalidTransaction::Call.into()
+			}
+		}
+	}
+
 	impl<T: Config> Pallet<T> {
+		fn check_unsign(
+			seg_digest: &SegDigest<BlockNumberOf<T>>,
+			signature: &<T::AuthorityId as RuntimeAppPublic>::Signature,
+		) -> TransactionValidity {
+			let current_session = T::ValidatorSet::session_index();
+			let keys = Keys::<T>::get();
+
+				let index = CurAuthorityIndex::<T>::get();
+				if index != seg_digest.validators_index {
+					log::error!("invalid index");
+					return InvalidTransaction::Stale.into();
+				}
+				//TODO!
+				// Convert validatorsId => T::AuthorityId
+				let authority_id = match keys.get(seg_digest.validators_index as usize) {
+					Some(authority_id) => authority_id,
+					None => return InvalidTransaction::Stale.into(),
+				};
+
+				let signature_valid = seg_digest.using_encoded(|encoded_seg_digest| {
+					authority_id.verify(&encoded_seg_digest, &signature)
+				});
+
+				if !signature_valid {
+					log::error!("bad signature.");
+					return InvalidTransaction::BadProof.into()
+				}
+
+				log::info!("build valid transaction");
+				ValidTransaction::with_tag_prefix("SegmentBook")
+					.priority(T::UnsignedPriority::get())
+					.and_provides((current_session, authority_id, signature))
+					.longevity(
+						TryInto::<u64>::try_into(
+							T::NextSessionRotation::average_session_length() / 2u32.into(),
+						)
+						.unwrap_or(64_u64),
+					)
+					.propagate(true)
+					.build()
+		}
+
 		//Storage proof method
 		fn storage_prove(acc: AccountOf<T>, prove_list: Vec<ProveInfo<T>>) -> DispatchResult {
 			<UnVerifyProof<T>>::try_mutate(&acc, |o| -> DispatchResult {
@@ -578,19 +695,28 @@ pub mod pallet {
 		}
 
 		//Trigger: whether to trigger the challenge
-		fn trigger_challenge() -> bool {
+		fn trigger_challenge(now: BlockNumberOf<T>) -> bool {
+			const START_FINAL_PERIOD: Permill = Permill::from_percent(80);
+
 			let time_point = Self::random_time_number(20220509);
 			//The chance to trigger a challenge is once a day
 			let probability: u32 = T::OneDay::get().saturated_into();
 			let range = LIMIT / probability as u64;
 			if (time_point > 2190502) && (time_point < (range + 2190502)) {
+				if let (Some(progress), _) =
+				T::NextSessionRotation::estimate_current_session_progress(now) {
+					if progress >= START_FINAL_PERIOD {
+						log::error!("TooLate!");
+						return false;
+					}
+				}
 				return true;
 			}
 			false
 		}
 
 		//Ways to generate challenges
-		fn generation_challenge() -> DispatchResult {
+		fn generation_challenge() -> Result<BTreeMap<AccountOf<T>, Vec<ChallengeInfo<T>>>, DispatchError> {
 			let result = T::File::get_random_challenge_data()?;
 			let mut x = 0;
 			let mut new_challenge_map: BTreeMap<AccountOf<T>, Vec<ChallengeInfo<T>>> =
@@ -622,93 +748,179 @@ pub mod pallet {
 					new_challenge_map.insert(miner_acc, new_vec);
 				}
 			}
-			Self::offchain_signed_tx(new_challenge_map)?;
+
+			Ok(new_challenge_map)
+		}
+
+		fn offchain_work_start(now: BlockNumberOf<T>) -> Result<(), OffchainErr> {
+			let (authority_id, validators_index, validators_len) = Self::get_authority()?;
+
+			if !Self::check_working(&now, &authority_id) {
+				return Err(OffchainErr::Working);
+			}
+
+			let challenge_map = Self::generation_challenge().map_err(|e| {
+				log::error!("generation challenge error:{:?}", e);
+				OffchainErr::GenerateInfoError
+			})?;
+
+			Self::offchain_call_extrinsic(now, authority_id, challenge_map, validators_index, validators_len)?;
+
 			Ok(())
 		}
 
-		fn offchain_signed_lock() -> Result<(), Error<T>> {
-			let signer = Signer::<T, T::AuthorityId>::any_account();
-			let result = signer.send_signed_transaction(|_account| Call::lock_challenge {});
+		fn check_working(now: &BlockNumberOf<T>, authority_id: &T::AuthorityId) -> bool {
+			let key = &authority_id.encode();
+			let storage = StorageValueRef::persistent(key);
 
-			if let Some((_acc, res)) = result {
-				if res.is_err() {
-					log::error!("failure: offchain_signed_tx: tx sent lock_challenge");
-				} else {
-					return Ok(());
+			let res = storage.mutate(|status: Result<Option<BlockNumberOf<T>>, StorageRetrievalError>| {
+				match status {
+					// we are still waiting for inclusion.
+					Ok(Some(last_block)) => {
+						let lock_time = T::LockTime::get();
+						if last_block + lock_time > *now {
+							log::info!("last_block: {:?}, lock_time: {:?}, now: {:?}", last_block, lock_time, now);
+							Err(OffchainErr::Working)
+						} else {
+							Ok(*now)
+						}
+					},
+					// attempt to set new status
+					_ => Ok(*now),
 				}
-				// Transaction is sent successfully
+			});
+
+			if res.is_err() {
+				log::error!("offchain work: {:?}", OffchainErr::Working);
+				return false
 			}
 
-			log::error!("No local account available for lock_challenge");
-			Err(<Error<T>>::NoLocalAcctForSigning)
+			true
 		}
 
-		fn offchain_signed_unlock() -> Result<(), Error<T>> {
-			let signer = Signer::<T, T::AuthorityId>::any_account();
-			let result = signer.send_signed_transaction(|_account| Call::unlock_challenge {});
+		fn get_authority() -> Result<(T::AuthorityId, u16, usize), OffchainErr> {
+			let cur_index = <CurAuthorityIndex<T>>::get();
+			let validators = Keys::<T>::get();
+			//this round key to submit transationss
+			let epicycle_key = match validators.get(cur_index as usize) {
+				Some(id) => id,
+				None => return Err(OffchainErr::UnexpectedError),
+			};
 
-			if let Some((_acc, res)) = result {
-				if res.is_err() {
-					log::error!("failure: offchain_signed_tx: tx sent unlock_challenge");
-				} else {
-					return Ok(());
-				}
-				// Transaction is sent successfully
+			let mut local_keys = T::AuthorityId::all();
+
+			if local_keys.len() == 0 {
+				log::info!("no local_keys");
+				return Err(OffchainErr::Ineligible);
 			}
 
-			log::error!("No local account available for unlock_challenge");
-			Err(<Error<T>>::NoLocalAcctForSigning)
+			local_keys.sort();
+
+			let res = local_keys.binary_search(&epicycle_key);
+
+			let authority_id = match res {
+				Ok(index) => local_keys.get(index),
+				Err(_e) => return Err(OffchainErr::Ineligible),
+			};
+
+			let authority_id = match authority_id {
+				Some(id) => id,
+				None => return Err(OffchainErr::Ineligible),
+			};
+
+			Ok((authority_id.clone(), cur_index, validators.len()))
 		}
 
-		fn offchain_signed_tx(
-			new_challenge_map: BTreeMap<AccountOf<T>, Vec<ChallengeInfo<T>>>,
-		) -> Result<(), Error<T>> {
-			let signer = Signer::<T, T::AuthorityId>::any_account();
+		fn offchain_call_extrinsic(
+			now: BlockNumberOf<T>,
+			authority_id: T::AuthorityId,
+			challenge_map: BTreeMap<AccountOf<T>, Vec<ChallengeInfo<T>>>,
+			validators_index: u16,
+			validators_len: usize,
+		) -> Result<(), OffchainErr> {
 			let mut max_len: u32 = 0;
-			for (k, v) in new_challenge_map {
-				if v.len() as u32 > max_len {
-					max_len = v.len() as u32;
+			for (key, value) in challenge_map {
+				if value.len() as u32 > max_len {
+					max_len = value.len() as u32;
 				}
-				let result = signer.send_signed_transaction(|_account| Call::save_challenge_info {
-					miner_acc: k.clone(),
-					challenge_info: v.clone(),
-				});
+				let (signature, digest) = Self::offchain_sign_digest(now, &authority_id, validators_index, validators_len)?;
+				let call = Call::save_challenge_info {
+					seg_digest: digest.clone(),
+					signature: signature.clone(),
+					miner_acc: key.clone(),
+					challenge_info: value.clone(),
+				};
 
-				if let Some((acc, res)) = result {
-					if res.is_err() {
-						log::error!(
-							"failure: offchain_signed_tx: tx sent: {:?} miner_id: {:?}",
-							acc.id,
-							k
-						);
-					}
-					// Transaction is sent successfully
+				let result = SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into());
+
+				if result.is_err() {
+					log::error!(
+						"failure: offchain_signed_tx: tx miner_id: {:?}",
+						key
+					);
 				}
 			}
 
+			let (signature, digest) = Self::offchain_sign_digest(now, &authority_id, validators_index, validators_len)?;
+			let one_hour: u32 = T::OneHours::get().saturated_into();
 			let duration: BlockNumberOf<T> = max_len
 				.checked_mul(3)
-				.ok_or(Error::<T>::Overflow)?
+				.ok_or(OffchainErr::Overflow)?
 				.checked_mul(120)
-				.ok_or(Error::<T>::Overflow)?
+				.ok_or(OffchainErr::Overflow)?
 				.checked_div(100)
-				.ok_or(Error::<T>::Overflow)?
-				.checked_add(1200)
-				.ok_or(Error::<T>::Overflow)?
+				.ok_or(OffchainErr::Overflow)?
+				.checked_add(one_hour)
+				.ok_or(OffchainErr::Overflow)?
 				.saturated_into();
-			let result =
-				signer.send_signed_transaction(|_account| Call::save_challenge_time { duration });
 
-			if let Some((_acc, res)) = result {
-				if res.is_err() {
-					log::error!("failure: offchain_signed_tx: tx sent save_challenge_time");
-				} else {
-					return Ok(());
-				}
-				// Transaction is sent successfully
+			let call = Call::save_challenge_time {
+				duration,
+				seg_digest: digest.clone(),
+				signature: signature,
+			};
+
+			let result = SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction( call.into());
+
+			if result.is_err() {
+				log::error!(
+					"failure: offchain_signed_tx: save challenge time, digest is: {:?}",
+					digest
+				);
 			}
-			log::error!("No local account available");
-			Err(<Error<T>>::NoLocalAcctForSigning)
+
+			Ok(())
+		}
+
+		fn offchain_sign_digest(
+			now: BlockNumberOf<T>,
+			authority_id: &T::AuthorityId,
+			validators_index: u16,
+			validators_len: usize
+		) -> Result< (<<T as pallet::Config>::AuthorityId as sp_runtime::RuntimeAppPublic>::Signature, SegDigest::<BlockNumberOf<T>>), OffchainErr> {
+
+			let network_state =
+				sp_io::offchain::network_state().map_err(|_| OffchainErr::NetworkState)?;
+
+			let digest = SegDigest::<BlockNumberOf<T>>{
+				validators_len: validators_len as u32,
+				block_num: now,
+				validators_index,
+				network_state,
+			};
+
+			let signature = authority_id.sign(&digest.encode()).ok_or(OffchainErr::FailedSigning)?;
+
+			Ok((signature, digest))
+		}
+
+		pub fn initialize_keys(keys: &[T::AuthorityId]) {
+			if !keys.is_empty() {
+				assert!(Keys::<T>::get().is_empty(), "Keys are already initialized!");
+				let bounded_keys = <BoundedSlice<'_, _, T::StringLimit>>::try_from(keys)
+					.expect("More than the maximum number of keys provided");
+				Keys::<T>::put(bounded_keys);
+			}
 		}
 
 		// Generate a random number from a given seed.
@@ -800,5 +1012,49 @@ pub mod pallet {
 
 			Ok(result)
 		}
+	}
+}
+
+impl<T: Config> sp_runtime::BoundToRuntimeAppPublic for Pallet<T> {
+	type Public = T::AuthorityId;
+}
+
+impl<T: Config> OneSessionHandler<T::AccountId> for Pallet<T> {
+	type Key = T::AuthorityId;
+
+	fn on_genesis_session<'a, I: 'a>(validators: I)
+	where
+		I: Iterator<Item = (&'a T::AccountId, T::AuthorityId)>,
+	{
+		let keys = validators.map(|x| x.1).collect::<Vec<_>>();
+		Self::initialize_keys(&keys);
+	}
+
+	fn on_new_session<'a, I: 'a>(_changed: bool, validators: I, _queued_validators: I)
+	where
+		I: Iterator<Item = (&'a T::AccountId, T::AuthorityId)>,
+	{
+		// Tell the offchain worker to start making the next session's heartbeats.
+		// Since we consider producing blocks as being online,
+		// the heartbeat is deferred a bit to prevent spamming.
+
+		// Remember who the authorities are for the new session.
+		let keys = validators.map(|x| x.1).collect::<Vec<_>>();
+		let bounded_keys = WeakBoundedVec::<_, T::StringLimit>::force_from(
+			keys,
+			Some(
+				"Warning: The session has more keys than expected. \
+  				A runtime configuration adjustment may be needed.",
+			),
+		);
+		Keys::<T>::put(bounded_keys);
+	}
+
+	fn on_before_session_ending() {
+		// ignore
+	}
+
+	fn on_disabled(_i: u32) {
+		// ignore
 	}
 }

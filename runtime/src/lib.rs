@@ -17,7 +17,7 @@ pub fn wasm_binary_unwrap() -> &'static [u8] {
 }
 
 use codec::{Decode, Encode};
-use frame_election_provider_support::{onchain, ExtendedBalance, SequentialPhragmen, VoteWeight};
+use frame_election_provider_support::{onchain, ExtendedBalance, VoteWeight};
 pub use pallet_file_bank;
 use pallet_grandpa::{
 	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
@@ -71,7 +71,7 @@ use frame_system::{
 };
 
 pub mod impls;
-use impls::{Author, CreditToBlockAuthor};
+use impls::{Author, CreditToBlockAuthor, SchedulerStashAccountFinder};
 
 pub mod constants;
 use fp_rpc::TransactionStatus;
@@ -159,10 +159,11 @@ pub mod opaque {
 
 	impl_opaque_keys! {
 		pub struct SessionKeys {
-			pub babe: Babe,
+			pub rrsc: Babe,
 			pub grandpa: Grandpa,
 			pub im_online: ImOnline,
 			pub authority_discovery: AuthorityDiscovery,
+			pub segment_book: SegmentBook,
 		}
 	}
 }
@@ -186,11 +187,11 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	state_version: 1,
 };
 
-/// The BABE epoch configuration at genesis.
-pub const BABE_GENESIS_EPOCH_CONFIG: sp_consensus_babe::BabeEpochConfiguration =
-	sp_consensus_babe::BabeEpochConfiguration {
+/// The Babe epoch configuration at genesis.
+pub const RRSC_GENESIS_EPOCH_CONFIG: cessp_consensus_rrsc::RRSCEpochConfiguration =
+	cessp_consensus_rrsc::RRSCEpochConfiguration {
 		c: PRIMARY_PROBABILITY,
-		allowed_slots: sp_consensus_babe::AllowedSlots::PrimaryAndSecondaryPlainSlots,
+		allowed_slots: cessp_consensus_rrsc::AllowedSlots::PrimaryAndSecondaryPlainSlots,
 	};
 
 /// Money matters.
@@ -223,30 +224,30 @@ pub const fn deposit(items: u32, bytes: u32) -> Balance {
 /// Type used for expressing timestamp.
 // pub type Moment = u64;
 
-/// Since BABE is probabilistic this is the average expected block time that
+/// Since Babe is probabilistic this is the average expected block time that
 /// we are targeting. Blocks will be produced at a minimum duration defined
 /// by `SLOT_DURATION`, but some slots will not be allocated to any
 /// authority and hence no block will be produced. We expect to have this
 /// block time on average following the defined slot duration and the value
-/// of `c` configured for BABE (where `1 - c` represents the probability of
+/// of `c` configured for Babe (where `1 - c` represents the probability of
 /// a slot being empty).
 /// This value is only used indirectly to define the unit constants below
 /// that are expressed in blocks. The rest of the code should use
 /// `SLOT_DURATION` instead (like the Timestamp pallet for calculating the
 /// minimum period).
 ///
-/// If using BABE with secondary slots (default) then all of the slots will
+/// If using Babe with secondary slots (default) then all of the slots will
 /// always be assigned, in which case `MILLISECS_PER_BLOCK` and
 /// `SLOT_DURATION` should have the same value.
 ///
 /// <https://research.web3.foundation/en/latest/polkadot/block-production/Babe.html#-6.-practical-results>
-pub const MILLISECS_PER_BLOCK: u64 = 3000;
+pub const MILLISECS_PER_BLOCK: u64 = 6000;
 
 // NOTE: Currently it is not possible to change the slot duration after the chain has started.
 //       Attempting to do so will brick block production.
 pub const SLOT_DURATION: u64 = MILLISECS_PER_BLOCK;
 
-// 1 in 4 blocks (on average, not counting collisions) will be primary BABE blocks.
+// 1 in 4 blocks (on average, not counting collisions) will be primary Babe blocks.
 pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
 
 // NOTE: Currently it is not possible to change the epoch duration after the chain has started.
@@ -479,26 +480,26 @@ parameter_types! {
 	pub const MaxAuthorities: u32 = 100;
 }
 
-impl pallet_babe::Config for Runtime {
+impl pallet_rrsc::Config for Runtime {
 	type EpochDuration = EpochDuration;
 	type ExpectedBlockTime = ExpectedBlockTime;
-	type EpochChangeTrigger = pallet_babe::ExternalTrigger;
+	type EpochChangeTrigger = pallet_rrsc::ExternalTrigger;
 	type DisabledValidators = Session;
 
 	type KeyOwnerProofSystem = Historical;
 
 	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
 		KeyTypeId,
-		pallet_babe::AuthorityId,
+		pallet_rrsc::AuthorityId,
 	)>>::Proof;
 
 	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
 		KeyTypeId,
-		pallet_babe::AuthorityId,
+		pallet_rrsc::AuthorityId,
 	)>>::IdentificationTuple;
 
 	type HandleEquivocation =
-		pallet_babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences, ReportLongevity>;
+		pallet_rrsc::EquivocationHandler<Self::KeyOwnerIdentification, Offences, ReportLongevity>;
 
 	type WeightInfo = ();
 	type MaxAuthorities = MaxAuthorities;
@@ -577,9 +578,9 @@ parameter_types! {
 pub const ERAS_PER_YEAR: u64 = {
 	// Milliseconds per year for the Julian year (365.25 days).
 	const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
-	MILLISECONDS_PER_YEAR
-		/ MILLISECS_PER_BLOCK
-		/ (EPOCH_DURATION_IN_BLOCKS * SessionsPerEra::get()) as u64
+	MILLISECONDS_PER_YEAR /
+		MILLISECS_PER_BLOCK /
+		(EPOCH_DURATION_IN_BLOCKS * SessionsPerEra::get()) as u64
 };
 
 pub struct StakingBenchmarkingConfig;
@@ -616,7 +617,7 @@ impl pallet_cess_staking::Config for Runtime {
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type ElectionProvider = ElectionProviderMultiPhase;
-	type GenesisElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
+	type GenesisElectionProvider = onchain::UnboundedExecution<OnChainVrf>;
 	type VoterList = BagsList;
 	type MaxUnlockingChunks = ConstU32<32>;
 	type WeightInfo = pallet_cess_staking::weights::SubstrateWeight<Runtime>;
@@ -745,8 +746,8 @@ impl Get<Option<(usize, ExtendedBalance)>> for OffchainRandomBalancing {
 			max @ _ => {
 				let seed = sp_io::offchain::random_seed();
 				let random = <u32>::decode(&mut TrailingZeroInput::new(&seed))
-					.expect("input is padded with zeroes; qed")
-					% max.saturating_add(1);
+					.expect("input is padded with zeroes; qed") %
+					max.saturating_add(1);
 				random as usize
 			},
 		};
@@ -755,17 +756,19 @@ impl Get<Option<(usize, ExtendedBalance)>> for OffchainRandomBalancing {
 	}
 }
 
-pub struct OnChainSeqPhragmen;
-impl onchain::ExecutionConfig for OnChainSeqPhragmen {
+pub struct OnChainVrf;
+impl onchain::ExecutionConfig for OnChainVrf {
 	type System = Runtime;
-	type Solver = SequentialPhragmen<
+	type Solver = pallet_rrsc::VrfSolver<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Runtime>,
+		Runtime,
+		SchedulerCredit,
 	>;
 	type DataProvider = <Runtime as pallet_election_provider_multi_phase::Config>::DataProvider;
 }
 
-impl onchain::BoundedExecutionConfig for OnChainSeqPhragmen {
+impl onchain::BoundedExecutionConfig for OnChainVrf {
 	type VotersBound = ConstU32<20_000>;
 	type TargetsBound = ConstU32<2_000>;
 }
@@ -791,9 +794,15 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type RewardHandler = (); // nothing to do upon rewards
 	type DataProvider = Staking;
 	type Solution = NposSolution16;
-	type Fallback = onchain::BoundedExecution<OnChainSeqPhragmen>;
-	type GovernanceFallback = onchain::BoundedExecution<OnChainSeqPhragmen>;
-	type Solver = SequentialPhragmen<AccountId, SolutionAccuracyOf<Self>, OffchainRandomBalancing>;
+	type Fallback = onchain::BoundedExecution<OnChainVrf>;
+	type GovernanceFallback = onchain::BoundedExecution<OnChainVrf>;
+	type Solver = pallet_rrsc::VrfSolver<
+		AccountId,
+		SolutionAccuracyOf<Self>,
+		Runtime,
+		SchedulerCredit,
+		OffchainRandomBalancing,
+	>;
 	type ForceOrigin = EnsureRootOrHalfCouncil;
 	type MaxElectableTargets = ConstU16<{ u16::MAX }>;
 	type MaxElectingVoters = MaxElectingVoters;
@@ -878,9 +887,9 @@ impl pallet_sudo::Config for Runtime {
 	type Call = Call;
 }
 
-/*** 
- ** Add This Block
- ***/
+/***
+ * Add This Block
+ */
 parameter_types! {
   pub const RewardPalletId: PalletId = PalletId(*b"rewardpt");
   pub const MultipleFines: u8 = 7;
@@ -910,6 +919,8 @@ parameter_types! {
 	#[derive(Clone, PartialEq, Eq)]
 	pub const RandomLimit: u32 = 10240;
 	pub const OneHours: BlockNumber = HOURS;
+	pub const SegUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+	pub const LockTime: BlockNumber = HOURS / 60;
 }
 
 impl pallet_segment_book::Config for Runtime {
@@ -919,7 +930,7 @@ impl pallet_segment_book::Config for Runtime {
 	type MyPalletId = SegbkPalletId;
 	type MyRandomness = RandomnessCollectiveFlip;
 	type WeightInfo = pallet_segment_book::weights::SubstrateWeight<Runtime>;
-	type AuthorityId = pallet_file_bank::crypto::TestAuthId;
+	type AuthorityId = pallet_segment_book::sr25519::AuthorityId;
 	type StringLimit = StringLimit;
 	type RandomLimit = RandomLimit;
 	type OneDay = OneDay;
@@ -928,6 +939,10 @@ impl pallet_segment_book::Config for Runtime {
 	type Scheduler = FileMap;
 	type MinerControl = Sminer;
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
+	type ValidatorSet = Historical;
+	type NextSessionRotation = Babe;
+	type UnsignedPriority = SegUnsignedPriority;
+	type LockTime = LockTime;
 }
 
 parameter_types! {
@@ -948,6 +963,7 @@ impl pallet_file_bank::Config for Runtime {
 	type Scheduler = FileMap;
 	type StringLimit = StringLimit;
 	type OneDay = OneDay;
+	type CreditCounter = SchedulerCredit;
 }
 
 parameter_types! {
@@ -961,6 +977,7 @@ impl pallet_file_map::Config for Runtime {
 	type FileMapPalletId = FileMapPalletId;
 	type StringLimit = StringLimit;
 	type WeightInfo = pallet_file_map::weights::SubstrateWeight<Runtime>;
+	type CreditCounter = SchedulerCredit;
 }
 
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
@@ -1012,9 +1029,9 @@ impl frame_system::offchain::SigningTypes for Runtime {
 	type Signature = Signature;
 }
 
-/*** 
- ** End This Block 
- ***/
+/***
+ * End This Block
+ */
 
 parameter_types! {
 	pub const DepositPerItem: Balance = deposit(1, 0);
@@ -1139,9 +1156,9 @@ impl pallet_indices::Config for Runtime {
 	type WeightInfo = pallet_indices::weights::SubstrateWeight<Runtime>;
 }
 
-/*** 
- ** Frontier Start------------------------------------------------------------------
- ***/
+/***
+ * Frontier Start------------------------------------------------------------------
+ */
 pub struct FindAuthorTruncated<F>(PhantomData<F>);
 impl<F: FindAuthor<u32>> FindAuthor<H160> for FindAuthorTruncated<F> {
 	fn find_author<'a, I>(digests: I) -> Option<H160>
@@ -1150,7 +1167,7 @@ impl<F: FindAuthor<u32>> FindAuthor<H160> for FindAuthorTruncated<F> {
 	{
 		if let Some(author_index) = F::find_author(digests) {
 			let authority_id = Babe::authorities()[author_index as usize].clone();
-			return Some(H160::from_slice(&authority_id.0.to_raw_vec()[4..24]));
+			return Some(H160::from_slice(&authority_id.0.to_raw_vec()[4..24]))
 		}
 		None
 	}
@@ -1287,9 +1304,13 @@ impl fp_self_contained::SelfContainedCall for Call {
 		}
 	}
 }
-/*** 
- ** Frontier End--------------------------------------------------------------------
- ***/
+/***
+ * Frontier End--------------------------------------------------------------------
+ */
+
+impl pallet_scheduler_credit::Config for Runtime {
+	type StashAccountFinder = SchedulerStashAccountFinder;
+}
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
@@ -1318,7 +1339,7 @@ construct_runtime!(
 
 		// Consensus
 		Authorship: pallet_authorship = 20,
-		Babe: pallet_babe = 21,
+		Babe: pallet_rrsc = 21,  // retain Babe alias for Polka-dot official browser
 		Grandpa: pallet_grandpa = 22,
 		Staking: pallet_cess_staking = 23,
 		Session: pallet_session = 24,
@@ -1349,6 +1370,7 @@ construct_runtime!(
 		FileMap: pallet_file_map = 61,
 		SegmentBook: pallet_segment_book = 62,
 		Sminer: pallet_sminer = 63,
+		SchedulerCredit: pallet_scheduler_credit = 64,
 	}
 );
 
@@ -1480,49 +1502,49 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl sp_consensus_babe::BabeApi<Block> for Runtime {
-		fn configuration() -> sp_consensus_babe::BabeGenesisConfiguration {
+	impl cessp_consensus_rrsc::RRSCApi<Block> for Runtime {
+		fn configuration() -> cessp_consensus_rrsc::RRSCGenesisConfiguration {
 			// The choice of `c` parameter (where `1 - c` represents the
 			// probability of a slot being empty), is done in accordance to the
 			// slot duration and expected target block time, for safely
 			// resisting network delays of maximum two seconds.
-			// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
-			sp_consensus_babe::BabeGenesisConfiguration {
+
+			cessp_consensus_rrsc::RRSCGenesisConfiguration {
 				slot_duration: Babe::slot_duration(),
 				epoch_length: EpochDuration::get(),
-				c: BABE_GENESIS_EPOCH_CONFIG.c,
+				c: RRSC_GENESIS_EPOCH_CONFIG.c,
 				genesis_authorities: Babe::authorities().to_vec(),
 				randomness: Babe::randomness(),
-				allowed_slots: BABE_GENESIS_EPOCH_CONFIG.allowed_slots,
+				allowed_slots: RRSC_GENESIS_EPOCH_CONFIG.allowed_slots,
 			}
 		}
 
-		fn current_epoch_start() -> sp_consensus_babe::Slot {
+		fn current_epoch_start() -> cessp_consensus_rrsc::Slot {
 			Babe::current_epoch_start()
 		}
 
-		fn current_epoch() -> sp_consensus_babe::Epoch {
+		fn current_epoch() -> cessp_consensus_rrsc::Epoch {
 			Babe::current_epoch()
 		}
 
-		fn next_epoch() -> sp_consensus_babe::Epoch {
+		fn next_epoch() -> cessp_consensus_rrsc::Epoch {
 			Babe::next_epoch()
 		}
 
 		fn generate_key_ownership_proof(
-			_slot: sp_consensus_babe::Slot,
-			authority_id: sp_consensus_babe::AuthorityId,
-		) -> Option<sp_consensus_babe::OpaqueKeyOwnershipProof> {
+			_slot: cessp_consensus_rrsc::Slot,
+			authority_id: cessp_consensus_rrsc::AuthorityId,
+		) -> Option<cessp_consensus_rrsc::OpaqueKeyOwnershipProof> {
 			use codec::Encode;
 
-			Historical::prove((sp_consensus_babe::KEY_TYPE, authority_id))
+			Historical::prove((cessp_consensus_rrsc::KEY_TYPE, authority_id))
 				.map(|p| p.encode())
-				.map(sp_consensus_babe::OpaqueKeyOwnershipProof::new)
+				.map(cessp_consensus_rrsc::OpaqueKeyOwnershipProof::new)
 		}
 
 		fn submit_report_equivocation_unsigned_extrinsic(
-			equivocation_proof: sp_consensus_babe::EquivocationProof<<Block as BlockT>::Header>,
-			key_owner_proof: sp_consensus_babe::OpaqueKeyOwnershipProof,
+			equivocation_proof: cessp_consensus_rrsc::EquivocationProof<<Block as BlockT>::Header>,
+			key_owner_proof: cessp_consensus_rrsc::OpaqueKeyOwnershipProof,
 		) -> Option<()> {
 			let key_owner_proof = key_owner_proof.decode()?;
 

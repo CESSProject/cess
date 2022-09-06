@@ -25,6 +25,7 @@ mod mock;
 mod tests;
 
 use frame_support::{
+	transactional,
 	storage::bounded_vec::BoundedVec,
 	traits::{
 		schedule::{Anon as ScheduleAnon, DispatchTime, Named as ScheduleNamed},
@@ -49,8 +50,8 @@ use frame_system::{self as system};
 pub use pallet::*;
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::{AccountIdConversion, CheckedAdd, CheckedSub, SaturatedConversion},
-	RuntimeDebug,
+	traits::{AccountIdConversion, CheckedAdd, CheckedSub, CheckedMul, SaturatedConversion},
+	RuntimeDebug, Perbill
 };
 use sp_std::{convert::TryInto, prelude::*};
 use types::*;
@@ -241,7 +242,7 @@ pub mod pallet {
 	}
 
 	#[pallet::storage]
-	#[pallet::getter(fn miner_cooling)]
+	#[pallet::getter(fn miner_lock_in)]
 	pub(super) type MinerLockIn<T: Config> =
 		StorageMap<_, Blake2_128Concat, T::AccountId, BlockNumberOf<T>>;
 
@@ -335,6 +336,7 @@ pub mod pallet {
 		/// - `beneficiary`: The beneficiary related to signer account.
 		/// - `ip`: The registered IP of storage miner.
 		/// - `staking_val`: The number of staking.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
 		pub fn regnstk(
 			origin: OriginFor<T>,
@@ -383,6 +385,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `collaterals`: Miner's TCESS.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::increase_collateral())]
 		pub fn increase_collateral(
 			origin: OriginFor<T>,
@@ -423,6 +426,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `beneficiary`: The beneficiary related to signer account.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_beneficiary())]
 		pub fn update_beneficiary(
 			origin: OriginFor<T>,
@@ -445,6 +449,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `ip`: The registered IP of storage miner.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_ip())]
 		pub fn update_ip(origin: OriginFor<T>, ip: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -463,6 +468,7 @@ pub mod pallet {
 		}
 
 		//Miner exit method, Irreversible process.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::exit_miner())]
 		pub fn exit_miner(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -488,6 +494,7 @@ pub mod pallet {
 		}
 
 		//Method for miners to redeem deposit
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::withdraw())]
 		pub fn withdraw(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -503,6 +510,7 @@ pub mod pallet {
 				.saturated_into();
 			let mut lock_in_period: u128 = T::OneDayBlock::get().saturated_into();
 			lock_in_period = lock_in_period * LOCK_IN_PERIOD as u128;
+			// let mut lock_in_period: u128 = 50;
 			if lock_in_strat + lock_in_period > now_block {
 				Err(Error::<T>::LockInNotOver)?;
 			}
@@ -523,6 +531,7 @@ pub mod pallet {
 		// 	Ok(())
 		// }
 		/// Add reward orders.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timed_increase_rewards())]
 		pub fn timed_increase_rewards(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
@@ -530,16 +539,16 @@ pub mod pallet {
 			ensure!(total_power != 0, Error::<T>::DivideByZero);
 
 			// let reward_pot = T::PalletId::get().into_account();
-			let mut award: u128 =
+			let mut total_award: u128 =
 				<CurrencyReward<T>>::get().try_into().map_err(|_| Error::<T>::Overflow)?;
-			if award > MAX_AWARD {
+			if total_award > MAX_AWARD {
 				<CurrencyReward<T>>::try_mutate(|currency_reward| -> DispatchResult {
 					*currency_reward = currency_reward
 						.checked_sub(&MAX_AWARD.try_into().map_err(|_| Error::<T>::Overflow)?)
 						.ok_or(Error::<T>::Overflow)?;
 					Ok(())
 				})?;
-				award = MAX_AWARD;
+				total_award = MAX_AWARD;
 			} else {
 				<CurrencyReward<T>>::try_mutate(|currency_reward| -> DispatchResult {
 					*currency_reward = 0u128.try_into().map_err(|_| Error::<T>::Overflow)?;
@@ -551,19 +560,10 @@ pub mod pallet {
 				if miner_total_power == 0 {
 					continue;
 				}
-
-				let tmp1: u128 = award.checked_mul(miner_total_power).ok_or(Error::<T>::Overflow)?;
-				let tmp2: u128 = tmp1.checked_div(total_power).ok_or(Error::<T>::Overflow)?;
-				let _ = Self::add_reward_order1(&acc, tmp2);
-
-				// Give 20% reward to users in advance
-				// let reward_20_percent: BalanceOf<T> =
-				// (tmp2.checked_mul(2).ok_or(Error::<T>::Overflow)?.checked_div(10).ok_or(Error::
-				// <T>::Overflow)?) .try_into()
-				// .map_err(|_e| Error::<T>::ConversionError)?;
-
-				// <T as pallet::Config>::Currency::transfer(&reward_pot, &detail.beneficiary,
-				// reward_20_percent, AllowDeath)?;
+				let miner_award: u128 = total_award
+					.checked_mul(miner_total_power).ok_or(Error::<T>::Overflow)?
+					.checked_div(total_power).ok_or(Error::<T>::Overflow)?;
+				let _ = Self::add_reward_order1(&acc, miner_award);
 			}
 
 			Self::deposit_event(Event::<T>::TimedTask());
@@ -573,6 +573,7 @@ pub mod pallet {
 		/// Added timed tasks for reward orders.
 		///
 		/// The dispatch origin of this call must be _root_.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timing_task_increase_power_rewards())]
 		pub fn timing_task_increase_power_rewards(
 			origin: OriginFor<T>,
@@ -598,27 +599,9 @@ pub mod pallet {
 			// Self::deposit_event(Event::<T>::Add(sender.clone()));
 			Ok(())
 		}
-		/// Delete reward orders.
-		///
-		/// The dispatch origin of this call must be _root_.
-		#[pallet::weight(100_000)]
-		pub fn del_reward_order(
-			origin: OriginFor<T>,
-			acc: AccountOf<T>,
-			order_num: u128,
-		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			ensure!(CalculateRewardOrderMap::<T>::contains_key(&acc), Error::<T>::NotExisted);
-			let mut order_vec = CalculateRewardOrderMap::<T>::get(&acc);
-			order_vec.remove(order_num.try_into().map_err(|_e| Error::<T>::BoundedVecError)?);
-			<CalculateRewardOrderMap<T>>::insert(acc, order_vec);
-
-			// Self::deposit_event(Event::<T>::Del(sender.clone()));
-			Ok(())
-		}
 
 		/// Users receive rewards for scheduled tasks.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timed_user_receive_award1())]
 		pub fn timed_user_receive_award1(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
@@ -636,18 +619,15 @@ pub mod pallet {
 
 				let reward_pot = T::PalletId::get().into_account();
 
-				let reward_claim1 =
-					RewardClaimMap::<T>::try_get(&sender).map_err(|_e| Error::<T>::NotMiner)?;
-
-				let award = reward_claim1.current_availability;
-				let total = reward_claim1.total_reward;
+				let award = info.current_availability;
+				let total = info.total_reward;
 
 				ensure!(
-					reward_claim1
+					info
 						.have_to_receive
 						.checked_add(&award)
 						.ok_or(Error::<T>::Overflow)?
-						<= reward_claim1.total_reward,
+						<= info.total_reward,
 					Error::<T>::BeyondClaim
 				);
 
@@ -683,6 +663,7 @@ pub mod pallet {
 		/// Users receive rewards for scheduled tasks.
 		///
 		/// The dispatch origin of this call must be _root_.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timing_user_receive_award())]
 		pub fn timing_user_receive_award(
 			origin: OriginFor<T>,
@@ -711,6 +692,7 @@ pub mod pallet {
 			Ok(())
 		}
 		/// Update the user reward table for scheduled tasks.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timed_task_award_table())]
 		pub fn timed_task_award_table(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
@@ -730,35 +712,15 @@ pub mod pallet {
 				for i in &order_vec.to_vec() {
 					total = total.checked_add(i.calculate_reward).ok_or(Error::<T>::Overflow)?;
 					if i.deadline > now {
-						// let tmp1 =
-						// TryInto::<u128>::try_into(now.checked_sub(&i.start_t).ok_or(Error::<T>::
-						// Overflow)?).ok().unwrap(); let day:u128 = tmp/28800+1;
-						// // test 5 minutes
-						// let day:u128 = tmp/100+1;
-						// test 6 hours
-						// let day:u128 =
-						// tmp1.checked_div(7200).ok_or(Error::<T>::Overflow)?.checked_add(1).
-						// ok_or(Error::<T>::Overflow)?;
-						let tmp2: BalanceOf<T> = (i.calculate_reward * 8 / 10 / 180)
-							.try_into()
-							.map_err(|_e| Error::<T>::ConversionError)?;
-						avail = avail.checked_add(&tmp2).ok_or(Error::<T>::Overflow)?;
+						//div 225 = * 80% / 180
+						let this_avail: BalanceOf<T> = i.calculate_reward
+							.checked_div(225).ok_or(Error::<T>::Overflow)?
+							.try_into().map_err(|_e| Error::<T>::Overflow)?;
+						avail = avail.checked_add(&this_avail).ok_or(Error::<T>::Overflow)?;
 					}
-					// else {
-					// 	let tmp1:BalanceOf<T> = (i.calculate_reward*8/10).try_into().map_err(|_e|
-					// Error::<T>::ConversionError)?; 	avail = avail.checked_add(&tmp1).ok_or(Error::
-					// <T>::Overflow)?; 	// Call::del_order(_acc,i);
-					// }
 				}
 
-				let mut order_clone = order_vec.clone();
-				order_clone.retain(|item| if item.deadline > now { true } else { false });
-
-				let total_20_percent: BalanceOf<T> = total
-					.checked_mul(2)
-					.ok_or(Error::<T>::Overflow)?
-					.checked_div(10)
-					.ok_or(Error::<T>::Overflow)?
+				let total_20_percent: BalanceOf<T> = Perbill::from_percent(20).mul_floor(total)
 					.try_into()
 					.map_err(|_e| Error::<T>::ConversionError)?;
 
@@ -806,11 +768,7 @@ pub mod pallet {
 							.ok_or(Error::<T>::Overflow)?;
 						let diff128 =
 							TryInto::<u128>::try_into(diff).map_err(|_e| Error::<T>::Overflow)?;
-						let diff_20_percent: BalanceOf<T> = diff128
-							.checked_mul(2)
-							.ok_or(Error::<T>::Overflow)?
-							.checked_div(10)
-							.ok_or(Error::<T>::Overflow)?
+						let diff_20_percent: BalanceOf<T> = Perbill::from_percent(20).mul_floor(diff128)
 							.try_into()
 							.map_err(|_e| Error::<T>::ConversionError)?;
 						//Before switching back to balance
@@ -850,7 +808,6 @@ pub mod pallet {
 						})?;
 					}
 				}
-				<CalculateRewardOrderMap<T>>::insert(acc, order_clone);
 			}
 
 			Self::deposit_event(Event::<T>::TimedTask());
@@ -859,6 +816,7 @@ pub mod pallet {
 		/// Update the user reward table for scheduled tasks.
 		///
 		/// The dispatch origin of this call must be _root_.
+		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timing_task_award_table())]
 		pub fn timing_task_award_table(
 			origin: OriginFor<T>,
@@ -889,6 +847,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `when`: The block when the buffer period starts.
+		#[transactional]
 		#[pallet::weight(1_000_000)]
 		pub fn buffer_period_end(origin: OriginFor<T>, when: BlockNumberOf<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
@@ -923,6 +882,7 @@ pub mod pallet {
 		/// Parameters:
 		/// - `acc`: Top-up account .
 		/// - `acc`: Top-up amount .
+		#[transactional]
 		#[pallet::weight(100_000)]
 		pub fn faucet_top_up(origin: OriginFor<T>, award: BalanceOf<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -940,6 +900,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `acc`: Withdraw money account.
+		#[transactional]
 		#[pallet::weight(100_000)]
 		pub fn faucet(origin: OriginFor<T>, to: AccountOf<T>) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
@@ -954,6 +915,7 @@ pub mod pallet {
 
 				let now = <frame_system::Pallet<T>>::block_number();
 				let reward_pot = T::PalletId::get().into_account();
+
 				<T as pallet::Config>::Currency::transfer(
 					&reward_pot,
 					&to,
@@ -965,6 +927,7 @@ pub mod pallet {
 					FaucetRecord::<BlockNumberOf<T>> { last_claim_time: now },
 				);
 			} else {
+				let one_day: u32 = T::OneDayBlock::get().saturated_into();
 				let faucet_record = FaucetRecordMap::<T>::try_get(&to).map_err(|e| {
 					log::error!("faucet error is: {:?}", e);
 					Error::<T>::DataNotExist
@@ -972,10 +935,10 @@ pub mod pallet {
 				let now = <frame_system::Pallet<T>>::block_number();
 
 				let mut flag: bool = true;
-				if now >= BlockNumberOf::<T>::from(28800u32) {
+				if now >= BlockNumberOf::<T>::from(one_day) {
 					if !(faucet_record.last_claim_time
 						<= now
-							.checked_sub(&BlockNumberOf::<T>::from(28800u32))
+							.checked_sub(&BlockNumberOf::<T>::from(one_day))
 							.ok_or(Error::<T>::Overflow)?)
 					{
 						Self::deposit_event(Event::<T>::LessThan24Hours {
@@ -1273,13 +1236,10 @@ impl<T: Config> Pallet<T> {
 	//true is Distribution completed. false is Unfinished
 	fn check_exist_miner_reward(acc: &AccountOf<T>) -> Result<bool, Error<T>> {
 		if !<MinerItems<T>>::contains_key(acc) {
-			let order_vec = <CalculateRewardOrderMap<T>>::get(acc);
-			if order_vec.len() == 0 {
-				let reward_map =
-					<RewardClaimMap<T>>::try_get(acc).map_err(|_e| Error::<T>::NotMiner)?;
-				if reward_map.have_to_receive == reward_map.total_reward {
-					return Ok(true);
-				}
+			let reward_map =
+				<RewardClaimMap<T>>::try_get(acc).map_err(|_e| Error::<T>::NotMiner)?;
+			if reward_map.have_to_receive == reward_map.total_reward {
+				return Ok(true);
 			}
 		}
 
@@ -1304,8 +1264,11 @@ impl<T: Config> Pallet<T> {
 		// let deadline = now + T::BlockNumber::from(18000u32);
 		// test 6 hours
 		// test 1 hours
+		let th_day = T::OneDayBlock::get()
+			.checked_mul(&30u32.saturated_into())
+			.ok_or(Error::<T>::Overflow)?;
 		let deadline = now_block
-			.checked_add(&T::BlockNumber::from(5184000u32))
+			.checked_add(&th_day)
 			.ok_or(Error::<T>::Overflow)?;
 
 		if !<CalculateRewardOrderMap<T>>::contains_key(acc) {

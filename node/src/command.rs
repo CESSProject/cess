@@ -115,7 +115,7 @@ pub fn run() -> sc_cli::Result<()> {
 				let PartialComponents { client, task_manager, backend, .. } =
 					service::new_partial(&config)?;
 				let revert_aux = Box::new(|client, backend, blocks| {
-					sc_consensus_babe::revert(client, backend, blocks)?;
+					cessc_consensus_rrsc::revert(client, backend, blocks)?;
 					// TODO: grandpa revert
 					Ok(())
 				});

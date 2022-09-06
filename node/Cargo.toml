@@ -6,7 +6,7 @@ edition = '2018'
 license = 'Unlicense'
 name = 'cess-node'
 repository = 'https://github.com/CESSProject/cess'
-version = '0.5.0'
+version = '0.5.1'
 
 [package.metadata.docs.rs]
 targets = ['x86_64-unknown-linux-gnu']
@@ -71,7 +71,7 @@ git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
-[dependencies.sc-sync-state-rpc]
+[dependencies.cessc-sync-state-rpc]
 git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
@@ -107,7 +107,7 @@ git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
-[dependencies.sc-consensus-babe]
+[dependencies.cessc-consensus-rrsc]
 git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
@@ -191,7 +191,7 @@ git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
-[dependencies.sp-consensus-babe]
+[dependencies.cessp-consensus-rrsc]
 git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
@@ -221,6 +221,11 @@ git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
+[dependencies.pallet-segment-book]
+default-features = false
+path = '../c-pallets/segment-book'
+version = '0.5.1'
+
 [dependencies.sp-authority-discovery]
 git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
@@ -246,7 +251,7 @@ git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'
 
-[dependencies.sc-consensus-babe-rpc]
+[dependencies.cessc-consensus-rrsc-rpc]
 git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
 version = '0.10.0-dev'

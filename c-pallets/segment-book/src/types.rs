@@ -39,3 +39,11 @@ pub struct VerifyResult<T: pallet::Config> {
 	pub(super) file_id: BoundedVec<u8, T::StringLimit>,
 	pub(super) result: bool,
 }
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
+pub struct SegDigest<BlockNumber> {
+	pub(super) validators_len: u32,
+	pub(super) block_num: BlockNumber,
+	pub(super) validators_index: u16,
+	pub(super) network_state: OpaqueNetworkState,
+}

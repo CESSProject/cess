@@ -176,8 +176,7 @@ fn upgrade_package_work() {
 
         let price1: u128 = 0;
 
-        let unit_price2 = FileBank::get_price(500 * 1_048_576 * 1024).ok().unwrap();
-        let gb_unit_price2 = unit_price2 / 1024;
+        let gb_unit_price2 = FileBank::get_price(500 * 1_048_576 * 1024).ok().unwrap();
 
         let price2 = 500 * gb_unit_price2 / 30 * 30;
         let diff_price = price2 - price1;
@@ -204,8 +203,7 @@ fn renewal_package_work() {
         let uhsd = PurchasedPackage::<Test>::try_get(acc1).unwrap();
         assert_eq!(500 * 1024 * 1_048_576, uhsd.space); // MB unit
 
-        let unit_price2 = FileBank::get_price(500 * 1_048_576 * 1024).ok().unwrap();
-        let gb_unit_price2 = unit_price2 / 1024;
+        let gb_unit_price2 = FileBank::get_price(500 * 1_048_576 * 1024).ok().unwrap();
         let price = gb_unit_price2 * 500;
 
         assert_ok!(FileBank::renewal_package(Origin::signed(acc1)));
