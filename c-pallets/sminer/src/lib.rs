@@ -1265,7 +1265,7 @@ impl<T: Config> Pallet<T> {
 		// test 6 hours
 		// test 1 hours
 		let th_day = T::OneDayBlock::get()
-			.checked_mul(&30u32.saturated_into())
+			.checked_mul(&180u32.saturated_into())
 			.ok_or(Error::<T>::Overflow)?;
 		let deadline = now_block
 			.checked_add(&th_day)

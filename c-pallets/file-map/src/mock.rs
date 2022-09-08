@@ -19,7 +19,8 @@ use frame_election_provider_support::{
 };
 
 use pallet_cess_staking::{StashOf, Exposure, ExposureOf};
-
+use cp_scheduler_credit::SchedulerStashAccountFinder;
+use std::marker::PhantomData;
 /// The AccountId alias in this test module.
 type AccountId = u64;
 type BlockNumber = u64;
@@ -64,14 +65,29 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-        Staking: pallet_cess_staking::{Pallet, Call, Config<T>, Storage, Event<T>},
-        Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
+		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+		Staking: pallet_cess_staking::{Pallet, Call, Config<T>, Storage, Event<T>},
+		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
 		Historical: pallet_session::historical::{Pallet, Storage},
 		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>},
-        FileMap: pallet_file_map::{Pallet, Call, Storage, Event<T>},
+		FileMap: pallet_file_map::{Pallet, Call, Storage, Event<T>},
+		SchedulerCredit: pallet_scheduler_credit::{Pallet, Storage},
 	}
 );
+
+pub struct MockStashAccountFinder<AccountId>(PhantomData<AccountId>);
+
+impl<AccountId: Clone> SchedulerStashAccountFinder<AccountId>
+for MockStashAccountFinder<AccountId>
+{
+	fn find_stash_account_id(ctrl_account_id: &AccountId) -> Option<AccountId> {
+		Some(ctrl_account_id.clone())
+	}
+}
+
+impl pallet_scheduler_credit::Config for Test {
+	type StashAccountFinder = MockStashAccountFinder<Self::AccountId>;
+}
 
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
@@ -131,7 +147,7 @@ impl pallet_timestamp::Config for Test {
 parameter_types! {
     pub const FileMapPalletId: PalletId = PalletId(*b"filmpdpt");
     #[derive(Clone, PartialEq, Eq)]
-	pub const StringLimit: u32 = 1024;
+		pub const StringLimit: u32 = 1024;
 }
 
 impl pallet_file_map::Config for Test {
@@ -140,6 +156,7 @@ impl pallet_file_map::Config for Test {
     type FileMapPalletId = FileMapPalletId;
     type StringLimit = StringLimit;
     type WeightInfo = ();
+		type CreditCounter = SchedulerCredit;
 }
 
 const THRESHOLDS: [sp_npos_elections::VoteWeight; 9] =

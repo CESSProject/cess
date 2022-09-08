@@ -41,7 +41,7 @@ use sp_staking::{
     EraIndex, SessionIndex,
 };
 use std::cell::RefCell;
-
+use cp_scheduler_credit::SchedulerStashAccountFinder;
 /// The AccountId alias in this test module.
 pub(crate) type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
 type BlockNumber = u64;
@@ -61,11 +61,12 @@ frame_support::construct_runtime!(
 		Sminer: pallet_sminer::{Pallet, Call, Storage, Event<T>},
 		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>},
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-        Staking: pallet_cess_staking::{Pallet, Call, Config<T>, Storage, Event<T>},
-        Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
+		Staking: pallet_cess_staking::{Pallet, Call, Config<T>, Storage, Event<T>},
+		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
 		Historical: pallet_session::historical::{Pallet, Storage},
 		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>},
-        FileMap: pallet_file_map::{Pallet, Call, Storage, Event<T>},
+		FileMap: pallet_file_map::{Pallet, Call, Storage, Event<T>},
+		SchedulerCredit: pallet_scheduler_credit::{Pallet, Storage},
 	}
 );
 
@@ -111,7 +112,7 @@ parameter_types! {
     pub const DepositBufferPeriod: u32 = 3;
     pub const ItemLimit: u32 = 1024;
 }
-  
+
   impl pallet_sminer::Config for Test {
       type Currency = Balances;
       // The ubiquitous event type.
@@ -139,6 +140,7 @@ impl pallet_file_map::Config for Test {
     type FileMapPalletId = FileMapPalletId;
     type StringLimit = StringLimit;
     type WeightInfo = ();
+	  type CreditCounter = SchedulerCredit;
 }
 
 const THRESHOLDS: [sp_npos_elections::VoteWeight; 9] =
@@ -335,6 +337,20 @@ impl frame_system::Config for Test {
     type MaxConsumers = ConstU32<16>;
 }
 
+pub struct MockStashAccountFinder<AccountId>(PhantomData<AccountId>);
+
+impl<AccountId: Clone> SchedulerStashAccountFinder<AccountId>
+for MockStashAccountFinder<AccountId>
+{
+	fn find_stash_account_id(ctrl_account_id: &AccountId) -> Option<AccountId> {
+		Some(ctrl_account_id.clone())
+	}
+}
+
+impl pallet_scheduler_credit::Config for Test {
+	type StashAccountFinder = MockStashAccountFinder<Self::AccountId>;
+}
+
 parameter_types! {
 	pub const ExistentialDeposit: u64 = 1;
 }
@@ -351,6 +367,8 @@ impl pallet_balances::Config for Test {
     type ReserveIdentifier = [u8; 8];
 }
 
+
+
 parameter_types! {
 	pub const FilbakPalletId: PalletId = PalletId(*b"filebank");
 }
@@ -361,6 +379,7 @@ impl Config for Test {
     type WeightInfo = ();
     type Call = Call;
     type FindAuthor = ();
+		type CreditCounter = SchedulerCredit;
     type Scheduler = pallet_file_map::Pallet::<Test>;
     type MinerControl = pallet_sminer::Pallet::<Test>;
     type MyRandomness = TestRandomness<Self>;
@@ -393,7 +412,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
     pallet_balances::GenesisConfig::<Test> {
         balances: vec![
-            (account1(), 18_000_000_000_000_000_000), 
+            (account1(), 18_000_000_000_000_000_000),
             (account2(), 1_000_000_000_000),
             (miner1(), 1_000_000_000_000),
             (stash1(), 1_000_000_000_000),

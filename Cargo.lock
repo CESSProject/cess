@@ -4935,6 +4935,7 @@ dependencies = [
  "pallet-cess-staking",
  "pallet-file-map",
  "pallet-scheduler",
+ "pallet-scheduler-credit",
  "pallet-session",
  "pallet-sminer",
  "pallet-timestamp",
@@ -4965,6 +4966,7 @@ dependencies = [
  "pallet-bags-list",
  "pallet-balances",
  "pallet-cess-staking",
+ "pallet-scheduler-credit",
  "pallet-session",
  "pallet-sminer",
  "pallet-timestamp",
@@ -5216,6 +5218,7 @@ dependencies = [
 name = "pallet-segment-book"
 version = "0.5.1"
 dependencies = [
+ "cp-scheduler-credit",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-support",
@@ -5228,6 +5231,7 @@ dependencies = [
  "pallet-file-bank",
  "pallet-file-map",
  "pallet-scheduler",
+ "pallet-scheduler-credit",
  "pallet-session",
  "pallet-sminer",
  "pallet-timestamp",
