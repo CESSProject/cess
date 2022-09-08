@@ -132,7 +132,7 @@ parameter_types! {
 	pub const ItemLimit: u32 = 32;
 	pub const MultipleFines: u8 = 7;
 	pub const DepositBufferPeriod: u32 = 3;
-	pub const OneDay: u32 = 10;
+	pub const OneDay: u32 = 14400;
 }
 
 impl Config for Test {

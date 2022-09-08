@@ -126,7 +126,6 @@ fn upload_file_alias(account: AccountId, controller: AccountId, file_info: &Mock
         file_hash,
         file_size,
         slice_info,
-        account.clone(),
     )
 }
 
@@ -134,7 +133,7 @@ fn register_scheduler(stash: AccountId, controller: AccountId) -> DispatchResult
     pallet_cess_staking::Bonded::<Test>::insert(&stash, controller.clone());
     FileMap::registration_scheduler(
         Origin::signed(controller),
-        stash, 
+        stash,
         "132.168.191.67:3033".as_bytes().to_vec(),
     )
 
@@ -148,7 +147,7 @@ fn submit_challenge_prove_works() {
         let mu = vec![vec![2_u8]];
         let sigma = vec![1_u8];
         let controller1 = controller1();
-        let stash1 = stash1(); 
+        let stash1 = stash1();
         assert_ok!(register_scheduler(stash1.clone(), controller1.clone()));
 
         let mut prove_list: Vec<ProveInfo<Test>> = Vec::new();
@@ -198,7 +197,7 @@ fn verify_proof_works() {
         let miner_acc = miner1();
         let file_id = vec![1_u8];
         let controller1 = controller1();
-        let stash1 = stash1(); 
+        let stash1 = stash1();
         assert_ok!(register_scheduler(stash1.clone(), controller1.clone()));
 
         let challenge_info = ChallengeInfo::<Test>{
@@ -249,19 +248,16 @@ fn verify_proof_on_punish() {
         let mu = vec![vec![2_u8]];
         let sigma = vec![1_u8];
         let controller1 = controller1();
-        let stash1 = stash1(); 
+        let stash1 = stash1();
         let mfi = MockingFileInfo::default();
         let acc1 = account1();
 
         assert_ok!(upload_declaration_alias(acc1, "cess-book".as_bytes().to_vec(), mfi.file_hash.to_vec()));
         assert_ok!(Sminer::add_power(&miner_acc, 1_048_576 * 1024 * 50));
-        assert_ok!(FileBank::update_price_for_tests());
         assert_ok!(FileBank::buy_package(Origin::signed(acc1), 1, 0));
         assert_ok!(register_scheduler(stash1.clone(), controller1.clone()));
         assert_ok!(add_power_for_miner(controller1.clone(), miner_acc.clone()));
         assert_ok!(upload_file_alias(acc1.clone(), controller1.clone(), &mfi));
-
-        
 
         let mut prove_list: Vec<ProveInfo<Test>> = Vec::new();
         let challenge_info = ChallengeInfo::<Test>{
@@ -298,15 +294,13 @@ fn verify_proof_on_punish() {
         //FIXME! the punish action is hard to test now, as it's depend concrete pallet: sminer. Suggest doing this use Trait instead.
         assert_ok!(SegmentBook::verify_proof(Origin::signed(controller1.clone()), verify_result_list));  // the last parameter indicate whether punish
         assert_eq!(0, UnVerifyProof::<Test>::try_get(controller1.clone()).unwrap().len());
- 
+
         let event = Sys::events().pop().expect("Expected at least one VerifyProof to be found").event;
         assert_eq!(mock::Event::from(Event::VerifyProof { miner: miner_acc.clone(), file_id: file_id }), event);
         <MinerTotalProof<Test>>::insert(&miner_acc, 1);
         <VerifyDuration<Test>>::put(10);
         <SegmentBook as Hooks<u64>>::on_initialize(10);
         Sys::set_block_number(11);
-
-        if_std! { println!("miner_acc {:#?}", miner_acc.clone()) }
 
         let state = Sminer::get_miner_state(miner_acc.clone()).unwrap();
         assert_eq!(state, "frozen".as_bytes().to_vec());

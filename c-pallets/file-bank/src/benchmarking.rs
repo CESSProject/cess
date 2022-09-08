@@ -79,7 +79,7 @@ pub fn add_file<T: Config>(file_hash: Vec<u8>) -> Result<(BoundedString<T>, T::A
 	};
 	slice_info_list.push(slice_info3);
 
-	FileBank::<T>::upload(RawOrigin::Signed(controller.clone()).into(), file_hash.clone(), file_size, slice_info_list, caller.clone())?;
+	FileBank::<T>::upload(RawOrigin::Signed(controller.clone()).into(), file_hash.clone(), file_size, slice_info_list)?;
 	let file_hash: BoundedString<T> = file_hash.try_into().map_err(|_e| "file_hash Vec convert BoundedVec err")?;
 	Ok((file_hash, caller, miner, controller))
 }
@@ -219,7 +219,7 @@ benchmarks! {
 
 	upgrade_package {
 		let caller: T::AccountId = whitelisted_caller();
-		let (user, miner, controller) = bench_buy_package::<T>(caller.clone(), 10000)?;	
+		let (user, miner, controller) = bench_buy_package::<T>(caller.clone(), 10000)?;
 		let value: u32 = BalanceOf::<T>::max_value().saturated_into();
 		let free_balance: u32 = <T as pallet::Config>::Currency::free_balance(&user).saturated_into();
 		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
@@ -282,7 +282,7 @@ benchmarks! {
 			miner_acc: miner.clone(),
 		};
 		slice_info_list.push(slice_info);
-	
+
 		let slice_info2 = SliceInfo::<T>{
 			miner_id: 1,
 			shard_size: 111,
@@ -292,7 +292,7 @@ benchmarks! {
 			miner_acc: miner.clone(),
 		};
 		slice_info_list.push(slice_info2);
-	
+
 		let slice_info3 = SliceInfo::<T>{
 			miner_id: 1,
 			shard_size: 111,
@@ -302,7 +302,7 @@ benchmarks! {
 			miner_acc: miner.clone(),
 		};
 		slice_info_list.push(slice_info3);
-	}: _(RawOrigin::Signed(controller), file_hash.clone(), file_size, slice_info_list, caller.clone())
+	}: _(RawOrigin::Signed(controller), file_hash.clone(), file_size, slice_info_list)
 	verify {
 		let file_hash: BoundedString<T> = file_hash.try_into().map_err(|_e| "file_hash Vec convert BoundedVec err")?;
 		assert!(<File<T>>::contains_key(&file_hash));
