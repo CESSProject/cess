@@ -118,3 +118,4 @@ runtime-benchmarks = [
 	"pallet-cess-staking/runtime-benchmarks",
 	"rand_chacha",
 ]
+try-runtime = [ "frame-support/try-runtime" ]

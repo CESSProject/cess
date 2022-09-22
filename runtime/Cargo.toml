@@ -282,6 +282,13 @@ git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
+[dependencies.frame-try-runtime]
+version = "0.10.0-dev"
+default-features = false
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
+optional = true
+
 [dependencies.pallet-membership]
 default-features = false
 git = 'https://github.com/CESSProject/substrate.git'
@@ -425,6 +432,7 @@ std = [
     "sp-authority-discovery/std",
     "sp-staking/std",
     'codec/std',
+	  "frame-try-runtime/std",
     "frame-benchmarking/std",
     'frame-executive/std',
     'frame-support/std',
@@ -464,4 +472,36 @@ std = [
 	"pallet-evm-precompile-sha3fips/std",
     "cp-scheduler-credit/std",
     "pallet-scheduler-credit/std",
+]
+
+try-runtime = [
+	"frame-executive/try-runtime",
+	"frame-try-runtime",
+	"frame-system/try-runtime",
+	"pallet-assets/try-runtime",
+	"pallet-authority-discovery/try-runtime",
+	"pallet-authorship/try-runtime",
+	"pallet-rrsc/try-runtime",
+	"pallet-balances/try-runtime",
+	"pallet-bounties/try-runtime",
+	"pallet-child-bounties/try-runtime",
+	"pallet-collective/try-runtime",
+	"pallet-contracts/try-runtime",
+	"pallet-election-provider-multi-phase/try-runtime",
+	"pallet-grandpa/try-runtime",
+	"pallet-im-online/try-runtime",
+	"pallet-indices/try-runtime",
+	"pallet-membership/try-runtime",
+	"pallet-mmr/try-runtime",
+	"pallet-offences/try-runtime",
+	"pallet-preimage/try-runtime",
+	"pallet-randomness-collective-flip/try-runtime",
+	"pallet-scheduler/try-runtime",
+	"pallet-session/try-runtime",
+	"pallet-cess-staking/try-runtime",
+	"pallet-sudo/try-runtime",
+	"pallet-timestamp/try-runtime",
+	"pallet-transaction-payment/try-runtime",
+	"pallet-treasury/try-runtime",
+	"pallet-file-bank/try-runtime",
 ]

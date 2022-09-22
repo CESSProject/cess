@@ -422,8 +422,6 @@ fn task_award_table_should_work() {
 			UNIT_POWER_LIMIT
 		));
 
-		let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
-		let m2 = MinerItems::<Test>::try_get(ACCOUNT2.0).unwrap();
 		let _ = Sminer::add_power(&ACCOUNT1.0, 10_000);
 		let _ = Sminer::add_power(&ACCOUNT2.0, 20_000);
 		let total_power = TotalIdleSpace::<Test>::try_get().unwrap();
@@ -508,8 +506,6 @@ fn timed_user_receive_award1_should_work() {
 			Vec::from("192.168.0.2"),
 			UNIT_POWER_LIMIT
 		));
-		let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
-		let m2 = MinerItems::<Test>::try_get(ACCOUNT2.0).unwrap();
 		let _ = Sminer::add_power(&ACCOUNT1.0, 10_000);
 		let _ = Sminer::add_power(&ACCOUNT2.0, 20_000);
 		let total_power = TotalIdleSpace::<Test>::try_get().unwrap();

@@ -273,17 +273,18 @@ impl sp_runtime::BoundToRuntimeAppPublic for OtherSessionHandler {
     type Public = UintAuthorityId;
 }
 
-impl ExtBuilder {
-    fn build(self) -> sp_io::TestExternalities {
-        let storage = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
-        let ext = sp_io::TestExternalities::from(storage);
-        ext
-    }
-
-    pub fn build_and_execute(self, test: impl FnOnce() -> ()) {
-        self.build().execute_with(test);
-    }
-}
+// impl ExtBuilder {
+// 		#[warn(dead_code)]
+//     fn build(self) -> sp_io::TestExternalities {
+//         let storage = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+//         let ext = sp_io::TestExternalities::from(storage);
+//         ext
+//     }
+// 		#[warn(dead_code)]
+//     pub fn build_and_execute(self, test: impl FnOnce() -> ()) {
+//         self.build().execute_with(test);
+//     }
+// }
 
 impl frame_system::offchain::SigningTypes for Test {
     type Public = <Signature as Verify>::Signer;

@@ -13,9 +13,10 @@ Contain operations related storage miners.
 ### Dispatchable Functions
 
 * `regnstk` - Staking and register for storage miner.
-* `redeem` - Redeem for storage miner.
-* `claim` - Storage miner claim rewards from earnings.
-* `initi` - Miner information initialization.
+* `increase_collateral` - Additional pledge method for miners.
+* `update_beneficiary` -Miner replacement income account.
+* `update_ip` - Miner changes IP endpoint address.
+* `withdraw` - Method for miners to redeem deposit.
 * `timing_storage_space` - A scheduled task for computing power trend data of the entire network.
 * `timing_storage_space_thirty_days` - Generate power trend data for the first 30 days.
 * `timed_increase_rewards` - Add reward orders.

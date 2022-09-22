@@ -1,21 +1,4 @@
-// // This file is part of Substrate.
-
-// // Copyright (C) 2020-2021 Parity Technologies (UK) Ltd.
-// // SPDX-License-Identifier: Apache-2.0
-
-// // Licensed under the Apache License, Version 2.0 (the "License");
-// // you may not use this file except in compliance with the License.
-// // You may obtain a copy of the License at
-// //
-// // 	http://www.apache.org/licenses/LICENSE-2.0
-// //
-// // Unless required by applicable law or agreed to in writing, software
-// // distributed under the License is distributed on an "AS IS" BASIS,
-// // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// // See the License for the specific language governing permissions and
-// // limitations under the License.
-
-// //! Tests for the module.
+//! Tests for the module.
 
 use super::*;
 use frame_support::{assert_ok, assert_noop};
@@ -44,10 +27,7 @@ fn to_bounded_vec2<T: Clone>(vv: Vec<Vec<T>>) -> BoundedVec<BoundedVec<T, String
 pub struct MockingFileInfo {
     file_hash: Vec<u8>,
     file_size: u64,
-    index: u32,
-	file_state: Vec<u8>,
-	file_name: Vec<u8>,
-	slice_info: Vec<SliceInfo<Test>>,
+		slice_info: Vec<SliceInfo<Test>>,
 }
 
 impl Default for MockingFileInfo {
@@ -55,9 +35,6 @@ impl Default for MockingFileInfo {
         MockingFileInfo {
             file_hash: vec![5,45,23],
             file_size: 12,
-            index: 1,
-            file_state: "active".as_bytes().to_vec(),
-            file_name: "testname".as_bytes().to_vec(),
             slice_info: vec![SliceInfo::<Test>{
                 miner_id: 1,
                 shard_size: 111,
@@ -119,8 +96,8 @@ fn upload_declaration_alias(account: AccountId, file_name: Vec<u8>, file_hash: V
     )
 }
 
-fn upload_file_alias(account: AccountId, controller: AccountId, file_info: &MockingFileInfo) -> DispatchResult {
-    let MockingFileInfo { file_hash, file_size, index, file_state, file_name, slice_info } = file_info.clone();
+fn upload_file_alias(_account: AccountId, controller: AccountId, file_info: &MockingFileInfo) -> DispatchResult {
+    let MockingFileInfo { file_hash, file_size, slice_info } = file_info.clone();
     FileBank::upload(
         Origin::signed(controller),
         file_hash,

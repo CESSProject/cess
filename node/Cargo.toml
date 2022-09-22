@@ -81,6 +81,18 @@ git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
 
+[dependencies.try-runtime-cli]
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
+version = "0.10.0-dev"
+optional = true
+
+[build-dependencies.try-runtime-cli]
+git = 'https://github.com/CESSProject/substrate.git'
+branch = 'monthly-2022-04-cess'
+version = "0.10.0-dev"
+optional = true
+
 [dependencies.pallet-transaction-payment-rpc]
 git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
@@ -292,7 +304,9 @@ version = '0.10.0-dev'
 [features]
 default = ["cli"]
 runtime-benchmarks = ['cess-node-runtime/runtime-benchmarks']
+try-runtime = ["cess-node-runtime/try-runtime", "try-runtime-cli"]
 
 cli = [
 	"clap",
+	"try-runtime-cli",
 ]
