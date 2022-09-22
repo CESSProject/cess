@@ -11,16 +11,13 @@ Contain operations related info of files on multi-direction.
 ## Interface
 
 ### Dispatchable Functions
-
-* `upload` - Upload info of stored file.
-* `buyfile` - Buy file with download fee.
-* `update_dupl` - Update the meta information of file backup and related fragments.
-* `update_file_state` - Update file status to prevent multiple scheduling operations on the same file.
+* `upload_declaration` - Users need to call this method to "place an order" when uploading files.
+* `upload` - The method of uploading file meta information can only be called by consensus.
+* `upload_filler` - The method of uploading filled files can only be called by consensus.
 * `delete_file` - Delete file meta information.
-* `buy_space` - Buy storage.
-* `receive_free_space` - New users receive free 1GB of space.
-* `upload_filler` - File upload of filler type.
-* `update_price` - Modified pricing transactions.
+* `buy_package` - Purchase storage package, Package 1 is for free purchase of 10g storage space.
+* `upgrade_package` - This method is used to upgrade to a higher level package.
+* `renewal_package` - This method is used to renew the current package.
 * `clear_invalid_file` - Feedback method after miners clear invalid files.
 * `recover_file` - Feedback method after scheduling and restoring files.
 
