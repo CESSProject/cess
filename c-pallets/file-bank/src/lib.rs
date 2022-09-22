@@ -33,7 +33,7 @@ pub use pallet::*;
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 pub mod weights;
-pub mod migrations;
+// pub mod migrations;
 
 mod types;
 pub use types::*;
