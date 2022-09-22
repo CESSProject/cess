@@ -135,58 +135,6 @@ pub mod pallet {
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
 
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberOf<T>> for Pallet<T> {
-		//Polling exception report
-		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
-			let number: u128 = now.saturated_into();
-			let count: usize = Self::scheduler_map().len();
-			if number % 1200 == 0 {
-				let alregister_list = SchedulerMap::<T>::get();
-				let mut alregister_controller_list: BoundedVec<AccountOf<T>, T::StringLimit> =
-					Default::default();
-				for alregister in alregister_list.iter() {
-					if let Err(e) = alregister_controller_list
-						.try_push(alregister.controller_user.clone())
-						.map_err(|_| Error::<T>::StorageLimitReached)
-					{
-						log::error!("FileMap error: {:?}", e);
-					}
-				}
-
-				for v in BondAcc::<T>::get().iter() {
-					if !alregister_controller_list.contains(&v) {
-						for v2 in alregister_list.iter() {
-							if v2.controller_user == v.clone() {
-								pallet_cess_staking::slashing::slash_scheduler::<T>(&v2.stash_user);
-								T::CreditCounter::record_punishment(&v2.controller_user);
-							}
-						}
-					}
-				}
-
-				let mut ctl: BoundedVec<AccountOf<T>, T::StringLimit> = Default::default();
-				for (_stash, controller) in pallet_cess_staking::Bonded::<T>::iter() {
-					if let Err(e) = ctl
-						.try_push(controller.clone())
-						.map_err(|_| Error::<T>::StorageLimitReached)
-					{
-						log::error!("FileMap error: {:?}", e);
-					}
-				}
-				BondAcc::<T>::put(ctl);
-				for (key, value) in <SchedulerException<T>>::iter() {
-					if value.count > (count / 2) as u32 {
-						pallet_cess_staking::slashing::slash_scheduler::<T>(&key);
-					}
-
-					<SchedulerException<T>>::remove(key);
-				}
-			}
-			0
-		}
-	}
-
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		//Scheduling registration method
@@ -246,37 +194,6 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::UpdateScheduler { acc: sender, endpoint: ip });
 			Ok(())
 		}
-
-		// #[pallet::weight(1_000_000)]
-		// pub fn scheduler_exception_report(
-		// 	origin: OriginFor<T>,
-		// 	account: AccountOf<T>,
-		// ) -> DispatchResult {
-		// 	let sender = ensure_signed(origin)?;
-
-		// 	if !<SchedulerException<T>>::contains_key(&account) {
-		// 		<SchedulerException<T>>::insert(
-		// 			&account,
-		// 			ExceptionReport::<T> { count: 0, reporters: Default::default() },
-		// 		);
-		// 	}
-
-		// 	<SchedulerException<T>>::try_mutate(&account, |opt| -> DispatchResult {
-		// 		let o = opt.as_mut().unwrap();
-		// 		for value in &o.reporters.to_vec() {
-		// 			if &sender == value {
-		// 				Err(Error::<T>::AlreadyReport)?;
-		// 			}
-		// 		}
-		// 		o.count = o.count.checked_add(1).ok_or(Error::<T>::Overflow)?;
-		// 		o.reporters
-		// 			.try_push(account.clone())
-		// 			.map_err(|_e| Error::<T>::StorageLimitReached)?;
-		// 		Ok(())
-		// 	})?;
-
-		// 	Ok(())
-		// }
 
 		#[transactional]
 		#[pallet::weight(10_000)]
@@ -371,6 +288,7 @@ impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<
 		for v in scheduler_list {
 			if v.controller_user == acc {
 				pallet_cess_staking::slashing::slash_scheduler::<T>(&v.stash_user);
+				T::CreditCounter::record_punishment(&v2.controller_user);
 			}
 		}
 	}
