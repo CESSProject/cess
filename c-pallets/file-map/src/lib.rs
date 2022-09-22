@@ -288,7 +288,7 @@ impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<
 		for v in scheduler_list {
 			if v.controller_user == acc {
 				pallet_cess_staking::slashing::slash_scheduler::<T>(&v.stash_user);
-				T::CreditCounter::record_punishment(&v2.controller_user);
+				T::CreditCounter::record_punishment(&v.controller_user);
 			}
 		}
 	}
