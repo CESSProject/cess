@@ -23,7 +23,6 @@ use crate::{
 use cess_node_runtime::Block;
 use sc_cli::{ChainSpec, RuntimeVersion, SubstrateCli};
 use sc_service::PartialComponents;
-use crate::executor::ExecutorDispatch;
 
 impl SubstrateCli for Cli {
 	fn impl_name() -> String {

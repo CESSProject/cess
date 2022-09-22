@@ -20,14 +20,14 @@ use frame_support::{
 };
 pub use pallet::*;
 use scale_info::TypeInfo;
-use sp_runtime::{traits::SaturatedConversion, DispatchError, RuntimeDebug};
+use sp_runtime::{DispatchError, RuntimeDebug};
 use sp_std::prelude::*;
-pub mod weights;
 use cp_scheduler_credit::SchedulerCreditCounter;
 pub use weights::WeightInfo;
 
+pub mod weights;
+
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
-type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -57,9 +57,7 @@ pub mod pallet {
 		pub shared_g: BoundedVec<u8, T::StringLimit>,
 	}
 
-	#[derive(
-		PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, Default, MaxEncodedLen, TypeInfo,
-	)]
+	#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, Default, MaxEncodedLen, TypeInfo)]
 	#[scale_info(skip_type_params(T))]
 	#[codec(mel_bound())]
 	pub struct ExceptionReport<T: pallet::Config> {
