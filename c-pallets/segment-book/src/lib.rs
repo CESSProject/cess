@@ -96,13 +96,16 @@ pub mod sr25519 {
 	}
 
 	sp_runtime::app_crypto::with_pair! {
+		// I am online? seems the comment was copied pasted from Substrate
 		/// An i'm online keypair using sr25519 as its crypto.
 		pub type AuthorityPair = app_sr25519::Pair;
 	}
 
+	// I am online? seems the comment was copied pasted from Substrate
 	/// An i'm online signature using sr25519 as its crypto.
 	pub type AuthoritySignature = app_sr25519::Signature;
 
+	// I am online? seems the comment was copied pasted from Substrate
 	/// An i'm online identifier using sr25519 as its crypto.
 	pub type AuthorityId = app_sr25519::Public;
 }
@@ -141,6 +144,7 @@ pub mod pallet {
 	pub type BoundedList<T> =
 		BoundedVec<BoundedVec<u8, <T as Config>::StringLimit>, <T as Config>::StringLimit>;
 
+	// Where does this number is coming from?
 	pub const LIMIT: u64 = 18446744073709551615;
 
 	#[pallet::config]
@@ -248,7 +252,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		AccountOf<T>,
-		BoundedVec<ChallengeInfo<T>, T::StringLimit>,
+		BoundedVec<ChallengeInfo<T>, T::StringLimit>, // Again it seems StringLimit is used everywhere. Maybe it needs different limit?
 		ValueQuery,
 	>;
 
@@ -321,6 +325,7 @@ pub mod pallet {
 				//the miners who fail to complete the challenge will be punished
 				for (acc, challenge_list) in <ChallengeMap<T>>::iter() {
 					for v in challenge_list {
+						// Unhandled result?
 						let _ = Self::set_failure(acc.clone());
 						if let Err(e) = Self::update_miner_file(
 							acc.clone(),
@@ -376,15 +381,16 @@ pub mod pallet {
 								<FailureNumMap<T>>::get(&miner),
 								total_proof,
 								<ConsecutiveFines<T>>::get(&miner),
-							).unwrap_or(());
+							).unwrap_or(()); // Unhandled error
 						} else {
 							<ConsecutiveFines<T>>::remove(&miner);
 						}
 					}
 
-					Self::start_buffer_period_schedule().unwrap_or(());
-					<FailureNumMap<T>>::remove_all(None);
-					<MinerTotalProof<T>>::remove_all(None);
+					Self::start_buffer_period_schedule().unwrap_or(()); // Unhandled error
+					// https://github.com/paritytech/substrate/issues/9002
+					<FailureNumMap<T>>::remove_all(None); // remove_all() deprecated: Use clear() instead
+					<MinerTotalProof<T>>::remove_all(None); // remove_all() deprecated: Use clear() instead
 				} else {
 					let result = Self::get_current_scheduler();
 					match result {
@@ -403,7 +409,8 @@ pub mod pallet {
 					}
 				}
 			}
-			0
+			0 // Fix it, specially having those remove_all None limit and therefore unpredictable weights
+			// that can lead to block overflow
 		}
 
 		fn offchain_worker(now: T::BlockNumber) {
@@ -436,7 +443,8 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let acc = Self::get_current_scheduler()?;
-			if prove_info.len() > 100 {
+			if prove_info.len() > 100 {  // Why 100? Move hardcoded value to pallet const, Config type or Storage
+				// Also the same constant shuld be used for your benchamrks
 				Err(Error::<T>::LengthExceedsLimit)?;
 			}
 
@@ -466,7 +474,8 @@ pub mod pallet {
 			if !T::Scheduler::contains_scheduler(sender.clone()) {
 				Err(Error::<T>::ScheduleNonExistent)?;
 			}
-			if result_list.len() > 50 {
+			if result_list.len() > 50 { // Why 50? Move hardcoded value to pallet const, Config type or Storage
+				// Also the same constant shuld be used for your benchamrks
 				Err(Error::<T>::LengthExceedsLimit)?;
 			}
 
@@ -504,8 +513,9 @@ pub mod pallet {
 			Ok(())
 		}
 
+		// Seems ut is unifinished?
 		#[transactional]
-		#[pallet::weight(0)]
+		#[pallet::weight(0)] // fix weight
 		pub fn save_challenge_info(
 			origin: OriginFor<T>,
 			_seg_digest: SegDigest<BlockNumberOf<T>>,
@@ -523,6 +533,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		// Seems ut is unifinished?
 		#[transactional]
 		#[pallet::weight(0)]
 		pub fn save_challenge_time(
@@ -622,6 +633,8 @@ pub mod pallet {
 		}
 
 		//Storage proof method
+		// Maybe expect a BoundedVec instead?
+		// You are trusting that the whatever is using the method has checked Vec limits already
 		fn storage_prove(acc: AccountOf<T>, prove_list: Vec<ProveInfo<T>>) -> DispatchResult {
 			<UnVerifyProof<T>>::try_mutate(&acc, |o| -> DispatchResult {
 				for v in prove_list.iter() {
@@ -645,6 +658,7 @@ pub mod pallet {
 		}
 
 		//Clean up the corresponding challenges in the miner's challenge pool
+		// You are trusting that the whatever is using the method has checked Vec limits already
 		fn clear_challenge_info(
 			miner_acc: AccountOf<T>,
 			prove_list: Vec<ProveInfo<T>>,
@@ -698,7 +712,7 @@ pub mod pallet {
 		fn trigger_challenge(now: BlockNumberOf<T>) -> bool {
 			const START_FINAL_PERIOD: Permill = Permill::from_percent(80);
 
-			let time_point = Self::random_time_number(20220509);
+			let time_point = Self::random_time_number(20220509); // where is this number coming from?
 			//The chance to trigger a challenge is once a day
 			let probability: u32 = T::OneDay::get().saturated_into();
 			let range = LIMIT / probability as u64;
@@ -843,6 +857,7 @@ pub mod pallet {
 				if value.len() as u32 > max_len {
 					max_len = value.len() as u32;
 				}
+				// why offchain_sign_digest inside the for loop?
 				let (signature, digest) = Self::offchain_sign_digest(now, &authority_id, validators_index, validators_len)?;
 				let call = Call::save_challenge_info {
 					seg_digest: digest.clone(),
@@ -860,7 +875,7 @@ pub mod pallet {
 					);
 				}
 			}
-
+			// why offchain_sign_digest again
 			let (signature, digest) = Self::offchain_sign_digest(now, &authority_id, validators_index, validators_len)?;
 			let one_hour: u32 = T::OneHours::get().saturated_into();
 			let duration: BlockNumberOf<T> = max_len
@@ -974,6 +989,7 @@ pub mod pallet {
 					Err(Error::<T>::FileTypeError)?;
 				},
 			}
+			// This condition wasn't checked already returning Ok(())?
 			if !T::MinerControl::miner_is_exist(acc.clone()) {
 				T::File::delete_miner_all_filler(acc.clone())?;
 			}

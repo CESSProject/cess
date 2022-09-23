@@ -71,8 +71,8 @@ const STATE_POSITIVE: &str = "positive";
 const STATE_FROZEN: &str = "frozen";
 const STATE_EXIT_FROZEN: &str = "e_frozen";
 const STATE_EXIT: &str = "exit";
-const LOCK_IN_PERIOD: u8 = 2;
-const MAX_AWARD: u128 = 1_306_849_000_000_000_000;
+const LOCK_IN_PERIOD: u8 = 2; // Config or storage maybe?
+const MAX_AWARD: u128 = 1_306_849_000_000_000_000;  // Config or storage maybe?
 const FAUCET_VALUE: u128 = 10000000000000000;
 const DOUBLE: u8 = 2;
 
@@ -451,7 +451,7 @@ pub mod pallet {
 		/// - `ip`: The registered IP of storage miner.
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_ip())]
-		pub fn update_ip(origin: OriginFor<T>, ip: Vec<u8>) -> DispatchResult {
+		pub fn update_ip(origin: OriginFor<T>, ip: Vec<u8>) -> DispatchResult { // IP format?
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
 
@@ -587,7 +587,7 @@ pub mod pallet {
 				(DEMOCRACY_IDA).encode(),
 				DispatchTime::At(when),
 				Some((cycle, degree)),
-				60,
+				60, // const
 				frame_system::RawOrigin::Root.into(),
 				Call::timed_increase_rewards {}.into(),
 			)
@@ -1160,7 +1160,7 @@ impl<T: Config> Pallet<T> {
 			T::AScheduler::schedule(
 				DispatchTime::At(buffer_period),
 				None,
-				59,
+				59, // ?? const
 				frame_system::RawOrigin::Root.into(),
 				Call::buffer_period_end { when: now_block.clone() }.into(),
 			)?;
@@ -1292,7 +1292,7 @@ impl<T: Config> Pallet<T> {
 	//Get the available space on the current chain.
 	pub fn get_space() -> Result<u128, DispatchError> {
 		let purchased_space = <PurchasedSpace<T>>::get();
-		let total_space = <TotalIdleSpace<T>>::get() + <TotalServiceSpace<T>>::get();
+		let total_space = <TotalIdleSpace<T>>::get() + <TotalServiceSpace<T>>::get(); // overflow?
 		//If the total space on the current chain is less than the purchased space, 0 will be
 		// returned.
 		if total_space < purchased_space {

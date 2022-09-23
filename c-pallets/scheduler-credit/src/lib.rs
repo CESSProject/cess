@@ -30,15 +30,18 @@ pub struct SchedulerCounterEntry {
 
 impl SchedulerCounterEntry {
 	pub fn increase_block_size(&mut self, block_size: u64) {
-		self.proceed_block_size += block_size;
+		self.proceed_block_size += block_size; // overflows?
 	}
 
 	pub fn increase_punishment_count(&mut self) {
-		self.punishment_count += 1;
+		self.punishment_count += 1; // overflows?
 	}
 
 	pub fn figure_credit_score(&self, total_block_size: u64) -> CreditScore {
 		if total_block_size != 0 {
+			//Be aware you can not use float number in the Runtime
+			// more info here: https://substrate.stackexchange.com/questions/146/can-you-use-floating-point-numbers-or-math-in-the-runtime/147#147
+			// I think here is ok as it seems it is only used by the tests
 			let a = (FULL_CREDIT_SCORE as f64 *
 				(self.proceed_block_size as f64 / total_block_size as f64)) as u32;
 			return a.saturating_sub(self.punishment_part())

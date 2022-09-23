@@ -909,7 +909,7 @@ impl pallet_sminer::Config for Runtime {
 	type ItemLimit = ConstU32<10_000>;
 	type MultipleFines = MultipleFines;
 	type DepositBufferPeriod = DepositBufferPeriod;
-	type CalculFailureFee = Sminer;
+	type CalculFailureFee = Sminer; // this dependency with itself is really necessary?
 	type OneDayBlock = OneDay;
 }
 parameter_types! {
@@ -928,6 +928,8 @@ impl pallet_segment_book::Config for Runtime {
 	// The ubiquitous event type.
 	type Event = Event;
 	type MyPalletId = SegbkPalletId;
+	// Be aware of this: https://github.com/paritytech/polkadot/pull/3347
+	// Using this pallet as a randomness source is advisable primarily in low-security situations
 	type MyRandomness = RandomnessCollectiveFlip;
 	type WeightInfo = pallet_segment_book::weights::SubstrateWeight<Runtime>;
 	type AuthorityId = pallet_segment_book::sr25519::AuthorityId;
@@ -959,6 +961,8 @@ impl pallet_file_bank::Config for Runtime {
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
 	type WeightInfo = pallet_file_bank::weights::SubstrateWeight<Runtime>;
 	type MinerControl = Sminer;
+	// Be aware of this: https://github.com/paritytech/polkadot/pull/3347
+	// Using this pallet as a randomness source is advisable primarily in low-security situations
 	type MyRandomness = RandomnessCollectiveFlip;
 	type Scheduler = FileMap;
 	type StringLimit = StringLimit;

@@ -43,6 +43,9 @@ pub mod pallet {
 	#[scale_info(skip_type_params(T))]
 	#[codec(mel_bound())]
 	pub struct SchedulerInfo<T: pallet::Config> {
+		// Since IP or IPv6 have a fixed and know format, probably
+		// better to create a new IP struct that checks if it is a valid IP
+		// It is applicable to all `ip` references in the code
 		pub ip: BoundedVec<u8, T::StringLimit>,
 		pub stash_user: AccountOf<T>,
 		pub controller_user: AccountOf<T>,
@@ -52,6 +55,10 @@ pub mod pallet {
 	#[scale_info(skip_type_params(T))]
 	#[codec(mel_bound())]
 	pub struct PublicKey<T: Config> {
+		// Kind of similar isuse here
+		// You might be abusing of using BoundedVec all of them
+		// with the same StringLimit, when for some situations the expected format
+		// is know (similar issue as 'ip')
 		pub spk: BoundedVec<u8, T::StringLimit>,
 		pub shared_params: BoundedVec<u8, T::StringLimit>,
 		pub shared_g: BoundedVec<u8, T::StringLimit>,
@@ -115,6 +122,10 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn scheduler_map)]
 	pub(super) type SchedulerMap<T: Config> =
+	// StringLimit is set as the max numbers of SchedulerInfo objects can exist on storage
+	// It seems wrong? StringLimit is related to SchedulerInfo.ip and other parameters
+	// max length where the type is BoundedVec<u8, StringLimit>
+	// You should set another constant for this limit, not reuse StringLimit
 		StorageValue<_, BoundedVec<SchedulerInfo<T>, T::StringLimit>, ValueQuery>;
 
 	#[pallet::storage]
@@ -129,6 +140,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn bond_acc)]
 	pub(super) type BondAcc<T: Config> =
+	// Same as for SchedulerMap. Wrong use of StringLimit. Needs new constant
 		StorageValue<_, BoundedVec<AccountOf<T>, T::StringLimit>, ValueQuery>;
 
 	#[pallet::pallet]
@@ -183,7 +195,7 @@ pub mod pallet {
 					<SchedulerException<T>>::remove(key);
 				}
 			}
-			0
+			0 // Shouldn't be 0 | fix
 		}
 	}
 
@@ -282,6 +294,7 @@ pub mod pallet {
 		#[pallet::weight(10_000)]
 		pub fn init_public_key(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
+			// why this hardcoded values?
 			let spk: BoundedVec<u8, T::StringLimit> = vec![
 				10, 220, 75, 195, 174, 36, 186, 176, 59, 223, 170, 199, 177, 143, 223, 147, 220,
 				84, 132, 101, 54, 112, 120, 144, 219, 28, 230, 129, 240, 127, 161, 4, 193, 25, 118,

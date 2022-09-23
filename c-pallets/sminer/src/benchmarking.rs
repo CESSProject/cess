@@ -115,8 +115,9 @@ benchmarks! {
         assert_eq!(1, reward_map.len());
         assert_eq!(reward_map[0].calculate_reward, 8000);
     }
-    
 
+		 // should depend also on CalculateRewardOrderMap total items, there is a long
+		 // for loop with a some read/writes
     timed_task_award_table {
         let miner = add_miner::<T>()?;
         let reward: BalanceOf<T> = 8000u32.saturated_into();
@@ -130,12 +131,14 @@ benchmarks! {
         Sminer::<T>::timed_increase_rewards(RawOrigin::Root.into())?;
     }: _(RawOrigin::Root)
     verify {
-        assert!(<RewardClaimMap<T>>::contains_key(miner.clone())); 
+        assert!(<RewardClaimMap<T>>::contains_key(miner.clone()));
         let info = <RewardClaimMap<T>>::get(&miner).unwrap();
         let reward: BalanceOf<T> = 8000u128.try_into().map_err(|_e| "reward convert err")?;
         assert_eq!(info.total_reward, reward);
     }
 
+		 // should depend also on RewardClaimMap total items, there is a long
+		 // for loop with a some read/writes
     timed_user_receive_award1 {
         let miner = add_miner::<T>()?;
         let acc = T::PalletId::get().into_account();

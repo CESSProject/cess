@@ -91,6 +91,10 @@ pub mod pallet {
 	pub const PACKAGE_FROZEN: &str = "frozen";
 
 	#[pallet::config]
+	// Avoid as much as possible to tightly couple with other pallets
+	// It seems you are coupling with pallet_sminer just to access ItemLimit constant
+	// You could access that constant through the loosely coupled type MinerControl or
+	// adding a new type for ItemLimit that shares constant with pallet_sminer
 	pub trait Config: frame_system::Config + pallet_sminer::Config + sp_std::fmt::Debug {
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
@@ -265,6 +269,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn file_index_count)]
+	// Some reason why CountedStorageMap wasn't used instead for File?
 	pub(super) type FileIndexCount<T: Config> = StorageValue<_, u32, ValueQuery>;
 
 	#[pallet::storage]
@@ -274,6 +279,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn filler_index_count)]
+	// Some reason why CountedStorageMap wasn't used instead for FillerMap?
 	pub(super) type FillerIndexCount<T: Config> = StorageValue<_, u32, ValueQuery>;
 
 	#[pallet::pallet]
@@ -304,7 +310,9 @@ pub mod pallet {
 						};
 						if now > info.deadline + frozen_day {
 							log::info!("clear user:#{}'s files", number);
+							// sub_purchased_space can return an Err but it is ignored?
 							let _ = T::MinerControl::sub_purchased_space(info.space);
+							// clear_expired_file can return an Err but it is ignored?
 							let _ = Self::clear_expired_file(&acc);
 						} else {
 							if info.state.to_vec() != PACKAGE_FROZEN.as_bytes().to_vec() {
@@ -332,7 +340,7 @@ pub mod pallet {
 				}
 				log::info!("End lease expiration check");
 			}
-			0
+			0 // Returned always 0 weight? Depending on the logic path there are some DB read/writes
 		}
 	}
 
@@ -355,13 +363,13 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_declaration())]
 		pub fn upload_declaration(
 			origin: OriginFor<T>,
-			file_hash: Vec<u8>,
+			file_hash: Vec<u8>, // Hashes have a fixed size, Vec<u8> doesn't seem the best choice
 			file_name: Vec<u8>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			let file_hash_bound: BoundedString<T> =
+			let file_hash_bound: BoundedString<T> = // Can be used Self::vec_to_bound instead?
 				file_hash.clone().try_into().map_err(|_| Error::<T>::Overflow)?;
-			let file_name_bound: BoundedString<T> =
+			let file_name_bound: BoundedString<T> = // Can be used Self::vec_to_bound instead?
 				file_name.clone().try_into().map_err(|_| Error::<T>::Overflow)?;
 			if <File<T>>::contains_key(&file_hash_bound) {
 				<File<T>>::try_mutate(&file_hash_bound, |s_opt| -> DispatchResult {
@@ -424,12 +432,12 @@ pub mod pallet {
 		/// - `file_hash`: The beneficiary related to signer account.
 		/// - `file_size`: File size calculated by consensus.
 		/// - `slice_info`: List of file slice information.
-		/// - `user`: The first user to upload files.
+		/// - `user`: The first user to upload files. // Does it mean origin? I don't see the parameter
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload())] // should depend on slice_info value
 		pub fn upload(
 			origin: OriginFor<T>,
-			file_hash: Vec<u8>,
+			file_hash: Vec<u8>, // Hashes have a fixed size, Vec<u8> doesn't seem the best choice
 			file_size: u64,
 			slice_info: Vec<SliceInfo<T>>,
 		) -> DispatchResult {
@@ -438,7 +446,7 @@ pub mod pallet {
 				T::Scheduler::contains_scheduler(sender.clone()),
 				Error::<T>::ScheduleNonExistent
 			);
-			let file_hash_bounded: BoundedString<T> =
+			let file_hash_bounded: BoundedString<T> = // Can be used Self::vec_to_bound instead?
 				file_hash.try_into().map_err(|_| Error::<T>::BoundedVecError)?;
 			ensure!(<File<T>>::contains_key(&file_hash_bounded), Error::<T>::FileNonExistent);
 
@@ -472,6 +480,8 @@ pub mod pallet {
 			})?;
 
 			//To be tested
+			//because of this line, your weight benchmark should depend on
+			//the lenght of the slice_info argument
 			for v in slice_info.iter() {
 				Self::replace_file(v.miner_acc.clone(), v.shard_size)?;
 			}
@@ -499,7 +509,7 @@ pub mod pallet {
 			filler_list: Vec<FillerInfo<T>>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			if filler_list.len() > 10 {
+			if filler_list.len() > 10 { // Pass this limit to a const or configurable const in the pallet
 				Err(Error::<T>::LengthExceedsLimit)?;
 			}
 			if !T::Scheduler::contains_scheduler(sender.clone()) {
@@ -743,10 +753,10 @@ pub mod pallet {
 		/// Parameters:
 		/// - `file_hash`: Invalid file hash
 		#[transactional]
-		#[pallet::weight(22_777_000)]
+		#[pallet::weight(22_777_000)] // harcoded weigth?
 		pub fn clear_invalid_file(origin: OriginFor<T>, file_hash: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			let bounded_string: BoundedString<T> =
+			let bounded_string: BoundedString<T> = // Can be used Self::vec_to_bound instead?
 				file_hash.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
 			<InvalidFile<T>>::try_mutate(&sender, |o| -> DispatchResult {
 				o.retain(|x| *x != bounded_string);
@@ -1224,6 +1234,8 @@ pub mod pallet {
 		/// - `seed`: random seed.
 		/// Result:
 		/// - `u32`: random number.
+		// Be aware of this: https://github.com/paritytech/polkadot/pull/3347
+		// Using this pallet as a randomness source is advisable primarily in low-security situations
 		pub fn generate_random_number(seed: u32) -> Result<u32, DispatchError> {
 			let mut counter = 0;
 			loop {

@@ -34,6 +34,8 @@ pub struct PackageDetails<T: pallet::Config> {
 	pub(super) used_space: u128,
 	pub(super) remaining_space: u128,
 	pub(super) tenancy: u32,
+	// is it possible to be replace by an enum?
+	// it is more prone to errors to have some magic numbers without a meaning
 	pub(super) package_type: u8,
 	pub(super) start: BlockNumberOf<T>,
 	pub(super) deadline: BlockNumberOf<T>,
@@ -59,6 +61,11 @@ pub struct FillerInfo<T: pallet::Config> {
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct UserFileSliceInfo<T: pallet::Config> {
+	// Not sure what kind of hashing algorithm you are using,
+	// but probably better define a new Hash type or reuse the one in
+	// frame_system.
+	// Hashes have fixed size, having a BoundedVec for it might not be
+	// the best option. Some info here: https://substrate.stackexchange.com/questions/4758/what-is-the-best-practice-for-storing-a-hash
 	pub(super) file_hash: BoundedVec<u8, T::StringLimit>,
 	pub(super) file_size: u64,
 }

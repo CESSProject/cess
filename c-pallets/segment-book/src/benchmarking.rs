@@ -32,7 +32,7 @@ const USER_SEED: u32 = 999666;
 
 benchmarks! {
     submit_challenge_prove {
-        let v in 0 .. 20;
+        let v in 0 .. 20; // why 20? it is set to 100 in the pallet. Use constants
         let ip = "127.0.0.1:8888".as_bytes().to_vec();
         let (stash, controller) = pallet_cess_staking::testing_utils::create_stash_controller::<T>(USER_SEED, 100, Default::default())?;
         pallet_file_map::testing_utils::add_scheduler::<T>(controller.clone(), stash.clone(), ip.clone())?;
@@ -45,7 +45,7 @@ benchmarks! {
         )?;
 
         let mut challenge_list: Vec<ChallengeInfo<T>> = Vec::new();
-        for i in 0 .. 100 {
+        for i in 0 .. 100 { // why 100? it can be up to StringLimit
             let challenge_info = ChallengeInfo::<T>{
                 file_size: 123,
                 file_type: 1,
@@ -83,8 +83,9 @@ benchmarks! {
     }
 
     verify_proof {
-        let v in 0 .. 20;
-
+        let v in 0 .. 20; // why 20? it is set to 50 in the pallet. Use constants
+				// This frist block is done exactly the same way in submit_challenge_prove
+				// Create a init funtion and avoid duplicating code
         let ip = "127.0.0.1:8888".as_bytes().to_vec();
         let (stash, controller) = pallet_cess_staking::testing_utils::create_stash_controller::<T>(USER_SEED, 100, Default::default())?;
         pallet_file_map::testing_utils::add_scheduler::<T>(controller.clone(), stash.clone(), ip.clone())?;
@@ -100,7 +101,7 @@ benchmarks! {
             };
             challenge_list.push(challenge_info);
         }
-        
+
         let mut prove_list: Vec<ProveInfo<T>> = Vec::new();
         for challenge_info in challenge_list.iter() {
             let prove_info = ProveInfo::<T>{
@@ -138,5 +139,3 @@ benchmarks! {
         }
     }
 }
-
-
