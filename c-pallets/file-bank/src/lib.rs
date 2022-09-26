@@ -91,7 +91,7 @@ pub mod pallet {
 	pub const PACKAGE_FROZEN: &str = "frozen";
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + pallet_sminer::Config + sp_std::fmt::Debug {
+	pub trait Config: frame_system::Config + sp_std::fmt::Debug {
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		/// The currency trait.
@@ -291,9 +291,11 @@ pub mod pallet {
 			let number: u128 = now.saturated_into();
 			let block_oneday: BlockNumberOf<T> = <T as pallet::Config>::OneDay::get();
 			let oneday: u32 = block_oneday.saturated_into();
+			let mut weight: Weight = 0;
 			if number % oneday as u128 == 0 {
 				log::info!("Start lease expiration check");
 				for (acc, info) in <PurchasedPackage<T>>::iter() {
+					weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
 					if now > info.deadline {
 						let frozen_day: BlockNumberOf<T> = match info.package_type {
 							1 => (0 * oneday).saturated_into(),
@@ -304,8 +306,24 @@ pub mod pallet {
 						};
 						if now > info.deadline + frozen_day {
 							log::info!("clear user:#{}'s files", number);
-							let _ = T::MinerControl::sub_purchased_space(info.space);
-							let _ = Self::clear_expired_file(&acc);
+							let result = T::MinerControl::sub_purchased_space(info.space);
+							match result {
+								Ok(()) => log::info!("sub purchased space success"),
+								Err(e) => log::error!("failed sub purchased space: {:?}", e),
+							};
+							weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+							let result = Self::clear_expired_file(&acc);
+							let weight1 = match result {
+								Ok(weight) => {
+									log::info!("clear expired file success");
+									weight
+								},
+								Err(e) => {
+									log::error!("failed clear expired file: {:?}", e);
+									0
+						 		},
+							};
+							weight = weight.saturating_add(weight1);
 						} else {
 							if info.state.to_vec() != PACKAGE_FROZEN.as_bytes().to_vec() {
 								let result = <PurchasedPackage<T>>::try_mutate(
@@ -326,13 +344,14 @@ pub mod pallet {
 									Ok(()) => log::info!("user space frozen: #{}", number),
 									Err(e) => log::error!("frozen failed: {:?}", e),
 								}
+								weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 							}
 						}
 					}
 				}
 				log::info!("End lease expiration check");
 			}
-			0
+			weight
 		}
 	}
 
@@ -807,7 +826,7 @@ pub mod pallet {
 					Ok(())
 				})?;
 			} else {
-				Self::clear_file(file_id.clone())?;
+				let _weight = Self::clear_file(file_hash.clone())?;
 			}
 			Self::deposit_event(Event::<T>::RecoverFile { acc: sender, file_hash: shard_id });
 			Ok(())
@@ -1267,21 +1286,26 @@ pub mod pallet {
 		///
 		/// Result:
 		/// - DispatchResult
-		pub fn clear_file(file_hash: Vec<u8>) -> DispatchResult {
+		pub fn clear_file(file_hash: Vec<u8>) -> Result<Weight, DispatchError> {
 			let file_hash_bounded: BoundedString<T> =
 				file_hash.try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+			let mut weight: Weight = 0;
 			let file =
-				<File<T>>::try_get(&file_hash_bounded).map_err(|_| Error::<T>::FileNonExistent)?;
+					<File<T>>::try_get(&file_hash_bounded).map_err(|_| Error::<T>::FileNonExistent)?; //read 1
+			  weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
 			for user in file.user.iter() {
-				Self::update_user_space(user.clone(), 2, file.file_size.into())?;
+				Self::update_user_space(user.clone(), 2, file.file_size.into())?; //read 1 write 1 * n
+				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 			}
 			for slice in file.slice_info.iter() {
-				Self::add_invalid_file(slice.miner_acc.clone(), slice.shard_id.to_vec())?;
-				T::MinerControl::sub_space(&slice.miner_acc, slice.shard_size.into())?;
+				Self::add_invalid_file(slice.miner_acc.clone(), slice.shard_id.to_vec())?; //read 1 write 1 * n
+				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+				T::MinerControl::sub_space(&slice.miner_acc, slice.shard_size.into())?; //read 3 write 2
+				weight = weight.saturating_add(T::DbWeight::get().reads_writes(3, 2));
 			}
 			<File<T>>::remove(file_hash_bounded);
 			<FileKeysMap<T>>::remove(file.index);
-			Ok(())
+			Ok(weight)
 		}
 		/// helper: clear user file.
 		///
@@ -1297,12 +1321,15 @@ pub mod pallet {
 		pub fn clear_user_file(
 			file_hash: BoundedVec<u8, T::StringLimit>,
 			user: &AccountOf<T>,
-		) -> DispatchResult {
-			let file = <File<T>>::get(&file_hash).unwrap();
+		) -> Result<Weight, DispatchError> {
+			let mut weight: Weight = 0;
+			let file = <File<T>>::get(&file_hash).unwrap(); //read 1
+			weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
 			ensure!(file.user.contains(user), Error::<T>::NotOwner);
 			//If the file still has an owner, only the corresponding owner will be cleared.
 			//If the owner is unique, the file meta information will be cleared.
 			if file.user.len() > 1 {
+				//read 1 write 1
 				<File<T>>::try_mutate(&file_hash, |s_opt| -> DispatchResult {
 					let s = s_opt.as_mut().unwrap();
 					let mut index = 0;
@@ -1312,19 +1339,24 @@ pub mod pallet {
 						}
 						index = index.checked_add(&1).ok_or(Error::<T>::Overflow)?;
 					}
+					weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 					s.user.remove(index);
 					s.file_name.remove(index);
 					Ok(())
 				})?;
-				Self::update_user_space(user.clone(), 2, file.file_size.clone().into())?;
+				Self::update_user_space(user.clone(), 2, file.file_size.clone().into())?; //read 1 write 1
+				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 			} else {
-				Self::clear_file(file_hash.clone().to_vec())?;
+				let weight1 = Self::clear_file(file_hash.clone().to_vec())?;
+				weight = weight.saturating_add(weight1);
 			}
+			//read 1 write 1
 			<UserHoldFileList<T>>::try_mutate(&user, |s| -> DispatchResult {
 				s.retain(|x| x.file_hash != file_hash.clone());
 				Ok(())
 			})?;
-			Ok(())
+			weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+			Ok(weight)
 		}
 		/// helper: add recovery file.
 		///
@@ -1487,14 +1519,16 @@ pub mod pallet {
 		///
 		/// Result:
 		/// - DispatchResult
-		fn clear_expired_file(acc: &AccountOf<T>) -> DispatchResult {
+		fn clear_expired_file(acc: &AccountOf<T>) -> Result<Weight, DispatchError> {
+			let mut weight: Weight = 0;
 			let file_list =
 				<UserHoldFileList<T>>::try_get(&acc).map_err(|_| Error::<T>::Overflow)?;
 			for v in file_list.iter() {
-				Self::clear_user_file(v.file_hash.clone(), acc)?;
+				let weight1 = Self::clear_user_file(v.file_hash.clone(), acc)?;
+				weight = weight.saturating_add(weight1);
 			}
 
-			Ok(())
+			Ok(weight)
 		}
 
 		fn record_uploaded_files_size(scheduler_id: &T::AccountId, file_size: u64) {
@@ -1518,7 +1552,7 @@ pub trait RandomFileList<AccountId> {
 	//Delete all filler according to miner_acc
 	fn delete_miner_all_filler(miner_acc: AccountId) -> DispatchResult;
 	//Delete file backup
-	fn clear_file(file_hash: Vec<u8>) -> DispatchResult;
+	fn clear_file(file_hash: Vec<u8>) -> Result<Weight, DispatchError>;
 	//The function executed when the challenge fails, allowing the miner to delete invalid files
 	fn add_recovery_file(file_id: Vec<u8>) -> DispatchResult;
 	//The function executed when the challenge fails to let the consensus schedule recover the file
@@ -1544,9 +1578,9 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 		Ok(())
 	}
 
-	fn clear_file(file_hash: Vec<u8>) -> DispatchResult {
-		Pallet::<T>::clear_file(file_hash)?;
-		Ok(())
+	fn clear_file(file_hash: Vec<u8>) -> Result<Weight, DispatchError> {
+		let weight = Pallet::<T>::clear_file(file_hash)?;
+		Ok(weight)
 	}
 
 	fn add_recovery_file(file_id: Vec<u8>) -> DispatchResult {

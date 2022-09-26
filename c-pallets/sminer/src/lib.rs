@@ -1383,6 +1383,7 @@ pub trait MinerControl<AccountId> {
 	fn add_purchased_space(size: u128) -> DispatchResult;
 	fn sub_purchased_space(size: u128) -> DispatchResult;
 	fn start_buffer_period_schedule() -> DispatchResult;
+	fn get_space() -> Result<u128, DispatchError>;
 }
 
 impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -1457,6 +1458,11 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 	fn sub_purchased_space(size: u128) -> DispatchResult {
 		Self::sub_purchased_space(size)?;
 		Ok(())
+	}
+
+	fn get_space() -> Result<u128, DispatchError> {
+		let size = Self::get_space()?;
+		Ok(size)
 	}
 }
 
