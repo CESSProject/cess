@@ -1152,6 +1152,7 @@ version = "0.1.0"
 name = "cp-scheduler-credit"
 version = "0.1.0"
 dependencies = [
+ "frame-support",
  "parity-scale-codec",
  "scale-info",
  "sp-api",

@@ -353,7 +353,11 @@ pub mod pallet {
 					if v_list.len() > 0 {
 						is_end = false;
 						verify_list.append(&mut v_list.to_vec());
-						T::Scheduler::punish_scheduler(acc.clone());
+						let result = T::Scheduler::punish_scheduler(acc.clone());
+						match result {
+							Ok(()) => log::info!("punish scheduler success"),
+							Err(e) => log::error!("punish scheduler failed: {:?}", e),
+						}
 						<UnVerifyProof<T>>::remove(&acc);
 					}
 				}

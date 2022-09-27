@@ -494,7 +494,7 @@ pub mod pallet {
 				Self::replace_file(v.miner_acc.clone(), v.shard_size)?;
 			}
 
-			Self::record_uploaded_files_size(&sender, file_size);
+			Self::record_uploaded_files_size(&sender, file_size)?;
 
 			Self::deposit_event(Event::<T>::FileUpload { acc: sender.clone() });
 			Ok(())
@@ -548,7 +548,7 @@ pub mod pallet {
 				.ok_or(Error::<T>::Overflow)?;
 			T::MinerControl::add_power(&miner, power)?;
 
-			Self::record_uploaded_fillers_size(&sender, &filler_list);
+			Self::record_uploaded_fillers_size(&sender, &filler_list)?;
 
 			Self::deposit_event(Event::<T>::FillerUpload { acc: sender, file_size: power as u64 });
 			Ok(())
@@ -1530,14 +1530,16 @@ pub mod pallet {
 			Ok(weight)
 		}
 
-		fn record_uploaded_files_size(scheduler_id: &T::AccountId, file_size: u64) {
-			T::CreditCounter::record_proceed_block_size(scheduler_id, file_size);
+		fn record_uploaded_files_size(scheduler_id: &T::AccountId, file_size: u64) -> DispatchResult {
+			T::CreditCounter::record_proceed_block_size(scheduler_id, file_size)?;
+			Ok(())
 		}
 
-		fn record_uploaded_fillers_size(scheduler_id: &T::AccountId, fillers: &Vec<FillerInfo<T>>) {
+		fn record_uploaded_fillers_size(scheduler_id: &T::AccountId, fillers: &Vec<FillerInfo<T>>) -> DispatchResult {
 			for filler in fillers {
-				T::CreditCounter::record_proceed_block_size(scheduler_id, filler.filler_size);
+				T::CreditCounter::record_proceed_block_size(scheduler_id, filler.filler_size)?;
 			}
+			Ok(())
 		}
 	}
 }

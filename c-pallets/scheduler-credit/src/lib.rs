@@ -6,6 +6,7 @@ mod mock;
 mod tests;
 
 use codec::{Decode, Encode, MaxEncodedLen};
+use frame_support::pallet_prelude::DispatchResult;
 use frame_support::traits::ValidatorCredits;
 use log::{debug, warn};
 use scale_info::TypeInfo;
@@ -29,12 +30,14 @@ pub struct SchedulerCounterEntry {
 }
 
 impl SchedulerCounterEntry {
-	pub fn increase_block_size(&mut self, block_size: u64) {
-		self.proceed_block_size += block_size;
+	pub fn increase_block_size<T: Config>(&mut self, block_size: u64) -> DispatchResult {
+		self.proceed_block_size = self.proceed_block_size.checked_add(block_size).ok_or(Error::<T>::Overflow)?;
+		Ok(())
 	}
 
-	pub fn increase_punishment_count(&mut self) {
-		self.punishment_count += 1;
+	pub fn increase_punishment_count<T: Config>(&mut self) -> DispatchResult {
+		self.punishment_count = self.punishment_count.checked_add(1).ok_or(Error::<T>::Overflow)?;
+		Ok(())
 	}
 
 	pub fn figure_credit_score(&self, total_block_size: u64) -> CreditScore {
@@ -73,6 +76,11 @@ pub mod pallet {
 		type StashAccountFinder: SchedulerStashAccountFinder<Self::AccountId>;
 	}
 
+	#[pallet::error]
+	pub enum Error<T> {
+		Overflow,
+	}
+
 	#[pallet::storage]
 	#[pallet::getter(fn current_scheduler_credits)]
 	pub(super) type CurrentCounters<T: Config> =
@@ -80,12 +88,20 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	pub fn record_proceed_block_size(scheduler_id: &T::AccountId, block_size: u64) {
-		<CurrentCounters<T>>::mutate(scheduler_id, |scb| scb.increase_block_size(block_size));
+	pub fn record_proceed_block_size(scheduler_id: &T::AccountId, block_size: u64) -> DispatchResult {
+		<CurrentCounters<T>>::mutate(scheduler_id, |scb| -> DispatchResult {
+			scb.increase_block_size::<T>(block_size)?;
+			Ok(())
+		})?;
+		Ok(())
 	}
 
-	pub fn record_punishment(scheduler_id: &T::AccountId) {
-		<CurrentCounters<T>>::mutate(scheduler_id, |scb| scb.increase_punishment_count());
+	pub fn record_punishment(scheduler_id: &T::AccountId) -> DispatchResult {
+		<CurrentCounters<T>>::mutate(scheduler_id, |scb| -> DispatchResult {
+			scb.increase_punishment_count::<T>()?;
+			Ok(())
+		})?;
+		Ok(())
 	}
 
 	pub fn figure_credits() -> BTreeMap<T::AccountId, CreditScore> {
@@ -121,12 +137,14 @@ impl<T: Config> Pallet<T> {
 }
 
 impl<T: Config> SchedulerCreditCounter<T::AccountId> for Pallet<T> {
-	fn record_proceed_block_size(scheduler_id: &T::AccountId, block_size: u64) {
-		Pallet::<T>::record_proceed_block_size(scheduler_id, block_size);
+	fn record_proceed_block_size(scheduler_id: &T::AccountId, block_size: u64) -> DispatchResult {
+		Pallet::<T>::record_proceed_block_size(scheduler_id, block_size)?;
+		Ok(())
 	}
 
-	fn record_punishment(scheduler_id: &T::AccountId) {
-		Pallet::<T>::record_punishment(scheduler_id);
+	fn record_punishment(scheduler_id: &T::AccountId) -> DispatchResult {
+		Pallet::<T>::record_punishment(scheduler_id)?;
+		Ok(())
 	}
 }
 
