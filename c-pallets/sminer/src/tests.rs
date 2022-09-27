@@ -288,7 +288,7 @@ fn add_reward_order1_should_work() {
 		let ro = reward_orders.get(0).unwrap();
 		assert_eq!(reward_amount, ro.calculate_reward);
 		assert_eq!(1, ro.start_t);
-		assert_eq!(5184000u64 + 1u64, ro.deadline); // FIXME! the 1296000 is hardcode in the tested function
+		assert_eq!(2592000u64 + 1u64, ro.deadline); // FIXME! the 1296000 is hardcode in the tested function
 											// second reward
 		Sys::set_block_number(2);
 		assert_ok!(Sminer::add_reward_order1(&ACCOUNT1.0, reward_amount));
@@ -298,7 +298,7 @@ fn add_reward_order1_should_work() {
 		assert_eq!(reward_amount, ro.calculate_reward);
 		assert_eq!(2, ro.start_t);
 
-		assert_eq!(5184000u64 + 2u64, ro.deadline);
+		assert_eq!(2592000 + 2u64, ro.deadline);
 	});
 }
 
@@ -422,8 +422,6 @@ fn task_award_table_should_work() {
 			UNIT_POWER_LIMIT
 		));
 
-		let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
-		let m2 = MinerItems::<Test>::try_get(ACCOUNT2.0).unwrap();
 		let _ = Sminer::add_power(&ACCOUNT1.0, 10_000);
 		let _ = Sminer::add_power(&ACCOUNT2.0, 20_000);
 		let total_power = TotalIdleSpace::<Test>::try_get().unwrap();
@@ -508,8 +506,6 @@ fn timed_user_receive_award1_should_work() {
 			Vec::from("192.168.0.2"),
 			UNIT_POWER_LIMIT
 		));
-		let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
-		let m2 = MinerItems::<Test>::try_get(ACCOUNT2.0).unwrap();
 		let _ = Sminer::add_power(&ACCOUNT1.0, 10_000);
 		let _ = Sminer::add_power(&ACCOUNT2.0, 20_000);
 		let total_power = TotalIdleSpace::<Test>::try_get().unwrap();
@@ -599,7 +595,7 @@ fn failure_to_replenish_sufficient_deposit() {
 		let event = Sys::events().pop().expect("Expected at least one MinerExit to be found").event;
 		assert_eq!(mock::Event::from(Event::StartOfBufferPeriod { when: 1 }), event);
 
-		run_to_block(31);
+		run_to_block(3 * 14400 + 1);
 		assert!(!BadMiner::<Test>::contains_key(ACCOUNT1.0));
 		assert!(!MinerItems::<Test>::contains_key(ACCOUNT1.0));
 	});

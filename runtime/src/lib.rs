@@ -72,7 +72,8 @@ use frame_system::{
 
 pub mod impls;
 use impls::{Author, CreditToBlockAuthor, SchedulerStashAccountFinder};
-
+// use frame_support::traits::OnRuntimeUpgrade;
+// pub use pallet_file_bank::migrations::TestMigrationFileBank;
 pub mod constants;
 use fp_rpc::TransactionStatus;
 pub use pallet_balances::Call as BalancesCall;
@@ -1851,6 +1852,21 @@ impl_runtime_apis! {
 			UncheckedExtrinsic::new_unsigned(
 				pallet_ethereum::Call::<Runtime>::transact { transaction }.into(),
 			)
+		}
+	}
+
+	#[cfg(feature = "try-runtime")]
+	impl frame_try_runtime::TryRuntime<Block> for Runtime {
+		fn on_runtime_upgrade() -> (Weight, Weight) {
+			// NOTE: intentional unwrap: we don't want to propagate the error backwards, and want to
+			// have a backtrace here. If any of the pre/post migration checks fail, we shall stop
+			// right here and right now.
+			let weight = Executive::try_runtime_upgrade().unwrap();
+			(weight, RuntimeBlockWeights::get().max_block)
+		}
+
+		fn execute_block_no_check(block: Block) -> Weight {
+			Executive::execute_block_no_check(block)
 		}
 	}
 

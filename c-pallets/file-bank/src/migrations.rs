@@ -13,6 +13,18 @@ impl<T: crate::Config> OnRuntimeUpgrade for TestMigrationFileBank<T> {
 	fn on_runtime_upgrade() -> Weight {
 		migrate::<T>()
 	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<(), &'static str> {
+		log::info!("🙋🏽‍file-bank check access");
+		return Ok(())
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade() -> Result<(), &'static str> {
+		let weights = migrate::<T>();
+		return Ok(())
+	}
 }
 
 pub fn migrate<T: Config>() -> Weight {
@@ -24,7 +36,7 @@ pub fn migrate<T: Config>() -> Weight {
 	if version < 2 {
         weight = weight.saturating_add(v2::migrate::<T>());
         StorageVersion::new(2).put::<Pallet<T>>();
-    }
+	}
 
 	weight
 }
@@ -58,8 +70,8 @@ mod v2 {
 
     generate_storage_alias!(
 		FileBank,
-		FillerMap<T: Config> => DoubleMap< 
-            (Blake2_128Concat, T::AccountId), 
+		FillerMap<T: Config> => DoubleMap<
+            (Blake2_128Concat, T::AccountId),
             (Blake2_128Concat, BoundedString<T>),
             NewFillerInfo<T>
         >

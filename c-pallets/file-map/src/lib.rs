@@ -20,14 +20,14 @@ use frame_support::{
 };
 pub use pallet::*;
 use scale_info::TypeInfo;
-use sp_runtime::{traits::SaturatedConversion, DispatchError, RuntimeDebug};
+use sp_runtime::{DispatchError, RuntimeDebug};
 use sp_std::prelude::*;
-pub mod weights;
 use cp_scheduler_credit::SchedulerCreditCounter;
 pub use weights::WeightInfo;
 
+pub mod weights;
+
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
-type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -64,9 +64,7 @@ pub mod pallet {
 		pub shared_g: BoundedVec<u8, T::StringLimit>,
 	}
 
-	#[derive(
-		PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, Default, MaxEncodedLen, TypeInfo,
-	)]
+	#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, Default, MaxEncodedLen, TypeInfo)]
 	#[scale_info(skip_type_params(T))]
 	#[codec(mel_bound())]
 	pub struct ExceptionReport<T: pallet::Config> {
@@ -259,37 +257,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		// #[pallet::weight(1_000_000)]
-		// pub fn scheduler_exception_report(
-		// 	origin: OriginFor<T>,
-		// 	account: AccountOf<T>,
-		// ) -> DispatchResult {
-		// 	let sender = ensure_signed(origin)?;
-
-		// 	if !<SchedulerException<T>>::contains_key(&account) {
-		// 		<SchedulerException<T>>::insert(
-		// 			&account,
-		// 			ExceptionReport::<T> { count: 0, reporters: Default::default() },
-		// 		);
-		// 	}
-
-		// 	<SchedulerException<T>>::try_mutate(&account, |opt| -> DispatchResult {
-		// 		let o = opt.as_mut().unwrap();
-		// 		for value in &o.reporters.to_vec() {
-		// 			if &sender == value {
-		// 				Err(Error::<T>::AlreadyReport)?;
-		// 			}
-		// 		}
-		// 		o.count = o.count.checked_add(1).ok_or(Error::<T>::Overflow)?;
-		// 		o.reporters
-		// 			.try_push(account.clone())
-		// 			.map_err(|_e| Error::<T>::StorageLimitReached)?;
-		// 		Ok(())
-		// 	})?;
-
-		// 	Ok(())
-		// }
-
 		#[transactional]
 		#[pallet::weight(10_000)]
 		pub fn init_public_key(origin: OriginFor<T>) -> DispatchResult {
@@ -384,6 +351,7 @@ impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<
 		for v in scheduler_list {
 			if v.controller_user == acc {
 				pallet_cess_staking::slashing::slash_scheduler::<T>(&v.stash_user);
+				T::CreditCounter::record_punishment(&v.controller_user);
 			}
 		}
 	}

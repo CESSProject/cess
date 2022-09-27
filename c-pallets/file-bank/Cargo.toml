@@ -19,7 +19,6 @@ serde_json = { version = '1.0.67', default-features = false, features = ['alloc'
 log = { version = "0.4.14", default-features = false }
 pallet-cess-staking = { path = '../staking', version = '4.0.0-dev', default-features = false }
 rand_chacha = { version = "0.2", default-features = false, optional = true }
-
 cp-scheduler-credit = { path = '../../primitives/scheduler-credit', version = '0.1.0', default-features = false }
 
 [dependencies.frame-benchmarking]
@@ -95,7 +94,7 @@ pallet-session = { version = "4.0.0-dev", default-features = false, features = [
 	"historical",
 ], git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2022-04-cess" }
 pallet-bags-list = { version = "4.0.0-dev", features = ["runtime-benchmarks"], git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2022-04-cess" }
-
+pallet-scheduler-credit = { version = "0.1.0", default-features = false, path = '../scheduler-credit'}
 
 [features]
 default = ["std"]
@@ -119,3 +118,4 @@ runtime-benchmarks = [
 	"pallet-cess-staking/runtime-benchmarks",
 	"rand_chacha",
 ]
+try-runtime = [ "frame-support/try-runtime" ]

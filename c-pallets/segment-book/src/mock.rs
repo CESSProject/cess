@@ -1,20 +1,3 @@
-// This file is part of Substrate.
-
-// Copyright (C) 2020-2021 Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: Apache-2.0
-
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// 	http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 //! Test utilities
 
 use super::*;
@@ -29,7 +12,7 @@ use sp_core::{H256, sr25519::Signature};
 use sp_runtime::{
     testing::{Header, TestXt, UintAuthorityId},
     traits::{BlakeTwo256, Extrinsic as ExtrinsicT, IdentityLookup, IdentifyAccount, Verify},
-    Perbill, ConsensusEngineId
+    Perbill
 };
 use frame_benchmarking::account;
 use frame_support_test::TestRandomness;
@@ -40,7 +23,9 @@ use frame_election_provider_support::{
 use sp_staking::{
     EraIndex, SessionIndex,
 };
+use std::marker::PhantomData;
 use std::cell::RefCell;
+use cp_scheduler_credit::SchedulerStashAccountFinder;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -59,13 +44,14 @@ frame_support::construct_runtime!(
 		SegmentBook: segment_book::{Pallet, Call, Storage, Event<T>},
 		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>},
 		Sminer: pallet_sminer::{Pallet, Call, Storage, Event<T>},
-        FileBank: pallet_file_bank::{Pallet, Call, Storage, Event<T>},
-        FileMap: pallet_file_map::{Pallet, Call, Storage, Event<T>},
-        Staking: pallet_cess_staking::{Pallet, Call, Config<T>, Storage, Event<T>},
-        Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
+		FileBank: pallet_file_bank::{Pallet, Call, Storage, Event<T>},
+		FileMap: pallet_file_map::{Pallet, Call, Storage, Event<T>},
+		Staking: pallet_cess_staking::{Pallet, Call, Config<T>, Storage, Event<T>},
+		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
 		Historical: pallet_session::historical::{Pallet, Storage},
 		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>},
-        Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+		SchedulerCredit: pallet_scheduler_credit::{Pallet, Storage},
 	}
 );
 
@@ -114,6 +100,7 @@ impl pallet_file_map::Config for Test {
     type FileMapPalletId = FileMapPalletId;
     type StringLimit = StringLimit;
     type WeightInfo = ();
+		type CreditCounter = SchedulerCredit;
 }
 
 parameter_types! {
@@ -132,6 +119,7 @@ impl pallet_file_bank::Config for Test {
     type FilbakPalletId = FilbakPalletId;
     type StringLimit = StringLimit;
     type OneDay = OneDay;
+	  type CreditCounter = SchedulerCredit;
 }
 
 pub struct OtherSessionHandler;
@@ -172,6 +160,20 @@ impl pallet_bags_list::Config for Test {
     type ScoreProvider = Staking;
     type BagThresholds = BagThresholds;
     type Score = VoteWeight;
+}
+
+pub struct MockStashAccountFinder<AccountId>(PhantomData<AccountId>);
+
+impl<AccountId: Clone> SchedulerStashAccountFinder<AccountId>
+for MockStashAccountFinder<AccountId>
+{
+	fn find_stash_account_id(ctrl_account_id: &AccountId) -> Option<AccountId> {
+		Some(ctrl_account_id.clone())
+	}
+}
+
+impl pallet_scheduler_credit::Config for Test {
+	type StashAccountFinder = MockStashAccountFinder<Self::AccountId>;
 }
 
 parameter_types! {
@@ -321,6 +323,8 @@ parameter_types! {
 	pub const StringLimit: u32 = 100;
 	pub const OneHours: u32 = 60 * 20;
 	pub const OneDay: u32 = 60 * 20 * 24;
+	pub const LockTime: u32 = 1;
+	pub const SegUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
 }
 
 impl Config for Test {
@@ -337,7 +341,11 @@ impl Config for Test {
     type File = pallet_file_bank::Pallet::<Test>;
     type Scheduler = pallet_file_map::Pallet::<Test>;
     type MinerControl = Sminer;
-    type AuthorityId = pallet_file_bank::crypto::TestAuthId;
+    type AuthorityId = segment_book::sr25519::AuthorityId;
+		type ValidatorSet = Historical;
+		type NextSessionRotation = ();
+		type UnsignedPriority = SegUnsignedPriority;
+		type LockTime = LockTime;
 }
 
 pub fn account1() -> AccountId {

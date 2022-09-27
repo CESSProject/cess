@@ -117,6 +117,8 @@ pallet-session = { version = "4.0.0-dev", default-features = false, features = [
 	"historical",
 ], git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2022-04-cess" }
 pallet-bags-list = { version = "4.0.0-dev", features = ["runtime-benchmarks"], git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2022-04-cess" }
+pallet-scheduler-credit = { version = "0.1.0", default-features = false, path = '../scheduler-credit'}
+cp-scheduler-credit = { path = '../../primitives/scheduler-credit', version = '0.1.0', default-features = false }
 
 [features]
 default = ["std"]

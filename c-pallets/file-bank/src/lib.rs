@@ -65,7 +65,7 @@ type BoundedString<T> = BoundedVec<u8, <T as Config>::StringLimit>;
 type BoundedList<T> =
 	BoundedVec<BoundedVec<u8, <T as Config>::StringLimit>, <T as Config>::StringLimit>;
 
-const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 
 #[frame_support::pallet]
 pub mod pallet {
