@@ -118,6 +118,9 @@ pub mod pallet {
 		#[pallet::constant]
 		type OneDay: Get<BlockNumberOf<Self>>;
 
+		#[pallet::constant]
+		type UploadFillerLimit: Get<u8> + Clone + Eq + PartialEq;
+
 		type CreditCounter: SchedulerCreditCounter<Self::AccountId>;
 	}
 
@@ -228,7 +231,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		T::AccountId,
-		BoundedVec<UserFileSliceInfo<T>, T::ItemLimit>,
+		BoundedVec<UserFileSliceInfo<T>, T::StringLimit>,
 		ValueQuery,
 	>;
 
@@ -518,7 +521,8 @@ pub mod pallet {
 			filler_list: Vec<FillerInfo<T>>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			if filler_list.len() > 10 {
+			let limit = T::UploadFillerLimit::get();
+			if filler_list.len() > limit as usize {
 				Err(Error::<T>::LengthExceedsLimit)?;
 			}
 			if !T::Scheduler::contains_scheduler(sender.clone()) {
@@ -765,8 +769,7 @@ pub mod pallet {
 		#[pallet::weight(22_777_000)]
 		pub fn clear_invalid_file(origin: OriginFor<T>, file_hash: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			let bounded_string: BoundedString<T> =
-				file_hash.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+			let bounded_string: BoundedString<T> = Self::vec_to_bound::<u8>(file_hash.clone())?;
 			<InvalidFile<T>>::try_mutate(&sender, |o| -> DispatchResult {
 				o.retain(|x| *x != bounded_string);
 				Ok(())
@@ -826,7 +829,7 @@ pub mod pallet {
 					Ok(())
 				})?;
 			} else {
-				let _weight = Self::clear_file(file_hash.clone())?;
+				let _weight = Self::clear_file(file_id.clone())?;
 			}
 			Self::deposit_event(Event::<T>::RecoverFile { acc: sender, file_hash: shard_id });
 			Ok(())
@@ -975,7 +978,7 @@ pub mod pallet {
 		/// - `u128`: price.
 		pub fn get_price(buy_space: u128) -> Result<u128, DispatchError> {
 			//Get the available space on the current chain
-			let total_space = pallet_sminer::Pallet::<T>::get_space()?;
+			let total_space = T::MinerControl::get_space()?;
 			//If it is not 0, the logic is executed normally
 			if total_space == 0 {
 				Err(Error::<T>::IsZero)?;

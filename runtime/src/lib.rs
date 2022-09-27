@@ -949,6 +949,8 @@ impl pallet_segment_book::Config for Runtime {
 parameter_types! {
 	pub const FilbakPalletId: PalletId = PalletId(*b"rewardpt");
 	pub const OneDay: BlockNumber = DAYS;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const UploadFillerLimit: u8 = 10;
 }
 
 impl pallet_file_bank::Config for Runtime {
@@ -965,6 +967,7 @@ impl pallet_file_bank::Config for Runtime {
 	type StringLimit = StringLimit;
 	type OneDay = OneDay;
 	type CreditCounter = SchedulerCredit;
+	type UploadFillerLimit = UploadFillerLimit;
 }
 
 parameter_types! {
