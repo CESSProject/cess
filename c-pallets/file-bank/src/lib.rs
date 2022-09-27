@@ -444,7 +444,6 @@ pub mod pallet {
 		/// - `file_hash`: The beneficiary related to signer account.
 		/// - `file_size`: File size calculated by consensus.
 		/// - `slice_info`: List of file slice information.
-		/// - `user`: The first user to upload files.
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload(slice_info.len() as u32))]
 		pub fn upload(
