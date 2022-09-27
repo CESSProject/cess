@@ -37,7 +37,7 @@
 // --repeat
 // 20
 // --template=./.maintain/frame-weight-template.hbs
-// --output=./c-pallets/segment-book/src/weights_demo.rs
+// --output=./c-pallets/segment-book/src/weights
 
 #![cfg_attr(rustfmt, rustfmt_skip)]
 #![allow(unused_parens)]

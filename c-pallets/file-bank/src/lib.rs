@@ -448,7 +448,7 @@ pub mod pallet {
 		/// - `slice_info`: List of file slice information.
 		/// - `user`: The first user to upload files.
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload(slice_info.len()))]
 		pub fn upload(
 			origin: OriginFor<T>,
 			file_hash: Vec<u8>,
@@ -766,7 +766,7 @@ pub mod pallet {
 		/// Parameters:
 		/// - `file_hash`: Invalid file hash
 		#[transactional]
-		#[pallet::weight(22_777_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::clear_invalid_file())]
 		pub fn clear_invalid_file(origin: OriginFor<T>, file_hash: Vec<u8>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let bounded_string: BoundedString<T> = Self::vec_to_bound::<u8>(file_hash.clone())?;
