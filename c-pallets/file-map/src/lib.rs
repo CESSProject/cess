@@ -77,6 +77,9 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type StringLimit: Get<u32> + PartialEq + Eq + Clone;
+
+		#[pallet::constant]
+		type SchedulerMaximum: Get<u32> + PartialEq + Eq + Clone;
 		//the weights
 		type WeightInfo: WeightInfo;
 
@@ -113,7 +116,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn scheduler_map)]
 	pub(super) type SchedulerMap<T: Config> =
-		StorageValue<_, BoundedVec<SchedulerInfo<T>, T::StringLimit>, ValueQuery>;
+		StorageValue<_, BoundedVec<SchedulerInfo<T>, T::SchedulerMaximum>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn scheduler_exception)]
@@ -127,7 +130,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn bond_acc)]
 	pub(super) type BondAcc<T: Config> =
-		StorageValue<_, BoundedVec<AccountOf<T>, T::StringLimit>, ValueQuery>;
+		StorageValue<_, BoundedVec<AccountOf<T>, T::SchedulerMaximum>, ValueQuery>;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]

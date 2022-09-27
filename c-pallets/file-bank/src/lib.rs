@@ -381,10 +381,8 @@ pub mod pallet {
 			file_name: Vec<u8>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			let file_hash_bound: BoundedString<T> =
-				file_hash.clone().try_into().map_err(|_| Error::<T>::Overflow)?;
-			let file_name_bound: BoundedString<T> =
-				file_name.clone().try_into().map_err(|_| Error::<T>::Overflow)?;
+			let file_hash_bound: BoundedString<T> = Self::vec_to_bound::<u8>(file_hash.clone())?;
+			let file_name_bound: BoundedString<T> = Self::vec_to_bound::<u8>(file_name.clone())?;
 			if <File<T>>::contains_key(&file_hash_bound) {
 				<File<T>>::try_mutate(&file_hash_bound, |s_opt| -> DispatchResult {
 					let s = s_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
@@ -448,7 +446,7 @@ pub mod pallet {
 		/// - `slice_info`: List of file slice information.
 		/// - `user`: The first user to upload files.
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload(slice_info.len()))]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload(slice_info.len() as u32))]
 		pub fn upload(
 			origin: OriginFor<T>,
 			file_hash: Vec<u8>,
@@ -460,8 +458,7 @@ pub mod pallet {
 				T::Scheduler::contains_scheduler(sender.clone()),
 				Error::<T>::ScheduleNonExistent
 			);
-			let file_hash_bounded: BoundedString<T> =
-				file_hash.try_into().map_err(|_| Error::<T>::BoundedVecError)?;
+			let file_hash_bounded: BoundedString<T> = Self::vec_to_bound::<u8>(file_hash)?;
 			ensure!(<File<T>>::contains_key(&file_hash_bounded), Error::<T>::FileNonExistent);
 
 			<File<T>>::try_mutate(&file_hash_bounded, |s_opt| -> DispatchResult {

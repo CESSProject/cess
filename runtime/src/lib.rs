@@ -972,6 +972,8 @@ impl pallet_file_bank::Config for Runtime {
 
 parameter_types! {
 	pub const FileMapPalletId: PalletId = PalletId(*b"filmpdpt");
+	#[derive(Clone, PartialEq, Eq)]
+	pub const SchedulerMaximum: u32 = 10000;
 }
 
 impl pallet_file_map::Config for Runtime {
@@ -980,6 +982,7 @@ impl pallet_file_map::Config for Runtime {
 	type Event = Event;
 	type FileMapPalletId = FileMapPalletId;
 	type StringLimit = StringLimit;
+	type SchedulerMaximum = SchedulerMaximum;
 	type WeightInfo = pallet_file_map::weights::SubstrateWeight<Runtime>;
 	type CreditCounter = SchedulerCredit;
 }
