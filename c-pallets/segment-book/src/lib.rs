@@ -407,7 +407,21 @@ pub mod pallet {
 								},
 							};
 							<VerifyDuration<T>>::put(new_deadline);
-							let _ = Self::storage_prove(cur_acc, verify_list);
+							let bound_verify_list: BoundedVec<ProveInfo<T>, T::ChallengeMaximum> = match verify_list.try_into().map_err(|_e| Error::<T>::BoundedVecError) {
+								Ok(bound_verify_list) => bound_verify_list,
+								Err(e) => {
+									log::error!("over flow: {:?}", e);
+									return 0
+								},
+							};
+							let result = Self::storage_prove(cur_acc, bound_verify_list);
+							match result {
+								Ok(()) => log::info!("storage prove success"),
+								Err(e) => {
+									log::error!("storage prove failed: {:?}", e);
+									return 0
+								},
+							};
 						},
 						Err(_e) => log::error!("get_current_scheduler err"),
 					}
@@ -461,8 +475,9 @@ pub mod pallet {
 					Err(Error::<T>::NoChallenge)?;
 				}
 			}
-			Self::storage_prove(acc, prove_info.clone())?;
-			Self::clear_challenge_info(sender.clone(), prove_info.clone())?;
+			let bound_prove_info: BoundedVec<ProveInfo<T>, T::ChallengeMaximum> = prove_info.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+			Self::storage_prove(acc, bound_prove_info.clone())?;
+			Self::clear_challenge_info(sender.clone(), bound_prove_info.clone())?;
 			Ok(())
 		}
 
@@ -634,7 +649,7 @@ pub mod pallet {
 		}
 
 		//Storage proof method
-		fn storage_prove(acc: AccountOf<T>, prove_list: Vec<ProveInfo<T>>) -> DispatchResult {
+		fn storage_prove(acc: AccountOf<T>, prove_list: BoundedVec<ProveInfo<T>, T::ChallengeMaximum>) -> DispatchResult {
 			<UnVerifyProof<T>>::try_mutate(&acc, |o| -> DispatchResult {
 				for v in prove_list.iter() {
 					o.try_push(v.clone()).map_err(|_e| Error::<T>::StorageLimitReached)?;
@@ -659,7 +674,7 @@ pub mod pallet {
 		//Clean up the corresponding challenges in the miner's challenge pool
 		fn clear_challenge_info(
 			miner_acc: AccountOf<T>,
-			prove_list: Vec<ProveInfo<T>>,
+			prove_list: BoundedVec<ProveInfo<T>, T::ChallengeMaximum>,
 		) -> DispatchResult {
 			<ChallengeMap<T>>::try_mutate(&miner_acc, |o| -> DispatchResult {
 				for v in prove_list.iter() {
