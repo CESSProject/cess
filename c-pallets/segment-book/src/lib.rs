@@ -327,7 +327,11 @@ pub mod pallet {
 				//the miners who fail to complete the challenge will be punished
 				for (acc, challenge_list) in <ChallengeMap<T>>::iter() {
 					for v in challenge_list {
-						let _ = Self::set_failure(acc.clone());
+						let result = Self::set_failure(acc.clone());
+						match result {
+							Ok(()) => log::info!("set_failure success"),
+							Err(e) => log::error!("set_failure failed: {:?}", e),
+						};
 						if let Err(e) = Self::update_miner_file(
 							acc.clone(),
 							v.file_id.to_vec(),
@@ -363,7 +367,7 @@ pub mod pallet {
 						match result {
 							Ok(()) => log::info!("punish scheduler success"),
 							Err(e) => log::error!("punish scheduler failed: {:?}", e),
-						}
+						};
 						<UnVerifyProof<T>>::remove(&acc);
 					}
 				}
@@ -371,13 +375,17 @@ pub mod pallet {
 					for (miner, total_proof) in <MinerTotalProof<T>>::iter() {
 						if <FailureNumMap<T>>::contains_key(&miner) {
 							if <ConsecutiveFines<T>>::contains_key(&miner) {
-								<ConsecutiveFines<T>>::try_mutate(
+								let result = <ConsecutiveFines<T>>::try_mutate(
 									miner.clone(),
 									|s_opt| -> DispatchResult {
 										s_opt.checked_add(1).ok_or(Error::<T>::Overflow)?;
 										Ok(())
 									},
-								).unwrap_or(());
+									).map_err(|_e| Error::<T>::BoundedVecError);
+								match result {
+									Ok(()) => log::info!("ConsecutiveFines update success"),
+									Err(e) => log::error!("ConsecutiveFines update failed: {:?}", e),
+								}
 							} else {
 								<ConsecutiveFines<T>>::insert(&miner, 1);
 							}
