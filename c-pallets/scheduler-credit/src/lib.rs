@@ -10,7 +10,7 @@ use frame_support::pallet_prelude::DispatchResult;
 use frame_support::traits::ValidatorCredits;
 use log::{debug, warn};
 use scale_info::TypeInfo;
-use sp_runtime::RuntimeDebug;
+use sp_runtime::{RuntimeDebug, Perbill};
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 use cp_scheduler_credit::{SchedulerCreditCounter, SchedulerStashAccountFinder};
@@ -42,8 +42,7 @@ impl SchedulerCounterEntry {
 
 	pub fn figure_credit_score(&self, total_block_size: u64) -> CreditScore {
 		if total_block_size != 0 {
-			let a = (FULL_CREDIT_SCORE as f64 *
-				(self.proceed_block_size as f64 / total_block_size as f64)) as u32;
+			let a = Perbill::from_rational(self.proceed_block_size, total_block_size) * FULL_CREDIT_SCORE;
 			return a.saturating_sub(self.punishment_part())
 		}
 		return 0
