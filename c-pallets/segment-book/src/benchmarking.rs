@@ -33,12 +33,9 @@ const USER_SEED: u32 = 999666;
 benchmarks! {
     submit_challenge_prove {
         let v in 0 .. T::SubmitProofLimit::get() - 1;
-			  log::info!("1");
         let ip = "127.0.0.1:8888".as_bytes().to_vec();
         let (stash, controller) = pallet_cess_staking::testing_utils::create_stash_controller::<T>(USER_SEED, 100, Default::default())?;
-				log::info!("1.1");
         pallet_file_map::testing_utils::add_scheduler::<T>(controller.clone(), stash.clone(), ip.clone())?;
-				log::info!("1.2");
         let miner: AccountOf<T> = account("miner1", 100, USER_SEED);
         Sminer::<T>::regnstk(
             RawOrigin::Signed(miner.clone()).into(),
@@ -46,7 +43,6 @@ benchmarks! {
             ip.clone(),
             0u32.into(),
         )?;
-				log::info!("1.3");
         let mut challenge_list: Vec<ChallengeInfo<T>> = Vec::new();
 				//ChallengeMaximum = 8000
         for i in 0 .. 7999 {
@@ -59,13 +55,11 @@ benchmarks! {
             };
             challenge_list.push(challenge_info);
         }
-				log::info!("1.4");
         let challenge_list_bounded: BoundedVec<ChallengeInfo<T>, <T as crate::Config>::ChallengeMaximum> = challenge_list.try_into().map_err(|_| "challenge map convert err")?;
         ChallengeMap::<T>::insert(
             &miner.clone(),
             challenge_list_bounded.clone(),
         );
-				log::info!("1.5");
         let challenge_list = ChallengeMap::<T>::get(&miner);
         let mut prove_list: Vec<ProveInfo<T>> = Vec::new();
         for i in 0 .. v {
@@ -79,7 +73,6 @@ benchmarks! {
             };
             prove_list.push(prove_info);
         }
-				log::info!("1.6");
     }: _(RawOrigin::Signed(miner.clone()), prove_list.clone())
     verify {
         let unverify_prove = UnVerifyProof::<T>::get(controller.clone());
@@ -91,7 +84,6 @@ benchmarks! {
     verify_proof {
         let v in 0 .. T::SubmitValidationLimit::get() - 1;
         let ip = "127.0.0.1:8888".as_bytes().to_vec();
-				log::info!("2");
         let (stash, controller) = pallet_cess_staking::testing_utils::create_stash_controller::<T>(USER_SEED, 100, Default::default())?;
         pallet_file_map::testing_utils::add_scheduler::<T>(controller.clone(), stash.clone(), ip.clone())?;
         let miner: AccountOf<T> = account("miner1", 100, USER_SEED);
