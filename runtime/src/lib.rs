@@ -910,7 +910,6 @@ impl pallet_sminer::Config for Runtime {
 	type ItemLimit = ConstU32<10_000>;
 	type MultipleFines = MultipleFines;
 	type DepositBufferPeriod = DepositBufferPeriod;
-	type CalculFailureFee = Sminer;
 	type OneDayBlock = OneDay;
 }
 parameter_types! {
@@ -918,7 +917,13 @@ parameter_types! {
 	#[derive(Clone, PartialEq, Eq)]
 	pub const StringLimit: u32 = 10240;
 	#[derive(Clone, PartialEq, Eq)]
+	pub const ChallengeMaximum: u32 = 8000;
+	#[derive(Clone, PartialEq, Eq)]
 	pub const RandomLimit: u32 = 10240;
+	#[derive(Clone, PartialEq, Eq)]
+	pub const SubmitProofLimit: u32 = 100;
+	#[derive(Clone, PartialEq, Eq)]
+	pub const SubmitValidationLimit: u32 = 50;
 	pub const OneHours: BlockNumber = HOURS;
 	pub const SegUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
 	pub const LockTime: BlockNumber = HOURS / 60;
@@ -944,6 +949,9 @@ impl pallet_segment_book::Config for Runtime {
 	type NextSessionRotation = Babe;
 	type UnsignedPriority = SegUnsignedPriority;
 	type LockTime = LockTime;
+	type ChallengeMaximum = ChallengeMaximum;
+	type SubmitProofLimit = SubmitProofLimit;
+	type SubmitValidationLimit = SubmitValidationLimit;
 }
 
 parameter_types! {

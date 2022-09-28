@@ -120,8 +120,6 @@ pub mod pallet {
 		type SProposal: Parameter + Dispatchable<Origin = Self::Origin> + From<Call<Self>>;
 		/// The WeightInfo.
 		type WeightInfo: WeightInfo;
-
-		type CalculFailureFee: CalculFailureFee<Self>;
 	}
 
 	#[pallet::event]
@@ -1115,7 +1113,7 @@ impl<T: Config> Pallet<T> {
 		let acc = T::PalletId::get().into_account();
 
 		let calcu_failure_fee =
-			T::CalculFailureFee::calcu_failure_fee(aid.clone(), failure_num, total_proof)?;
+			Self::calcu_failure_fee(aid.clone(), failure_num, total_proof)?;
 
 		if consecutive_fines >= T::MultipleFines::get() {
 			calcu_failure_fee.checked_mul(DOUBLE as u128).ok_or(Error::<T>::Overflow)?;

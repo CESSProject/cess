@@ -96,14 +96,11 @@ pub mod sr25519 {
 	}
 
 	sp_runtime::app_crypto::with_pair! {
-		/// An i'm online keypair using sr25519 as its crypto.
 		pub type AuthorityPair = app_sr25519::Pair;
 	}
 
-	/// An i'm online signature using sr25519 as its crypto.
 	pub type AuthoritySignature = app_sr25519::Signature;
 
-	/// An i'm online identifier using sr25519 as its crypto.
 	pub type AuthorityId = app_sr25519::Public;
 }
 enum OffchainErr {
@@ -140,8 +137,8 @@ pub mod pallet {
 	pub type BoundedString<T> = BoundedVec<u8, <T as Config>::StringLimit>;
 	pub type BoundedList<T> =
 		BoundedVec<BoundedVec<u8, <T as Config>::StringLimit>, <T as Config>::StringLimit>;
-
-	pub const LIMIT: u64 = 18446744073709551615;
+	///18446744073709551615
+	pub const LIMIT: u64 = u64::MAX;
 
 	#[pallet::config]
 	pub trait Config:
@@ -161,7 +158,16 @@ pub mod pallet {
 		type StringLimit: Get<u32> + Clone + Eq + PartialEq;
 
 		#[pallet::constant]
+		type ChallengeMaximum: Get<u32> + Clone + Eq + PartialEq;
+
+		#[pallet::constant]
 		type RandomLimit: Get<u32> + Clone + Eq + PartialEq;
+
+		#[pallet::constant]
+		type SubmitProofLimit: Get<u32> + Clone + Eq + PartialEq;
+
+		#[pallet::constant]
+		type SubmitValidationLimit: Get<u32> + Clone + Eq + PartialEq;
 		//one day block
 		#[pallet::constant]
 		type OneDay: Get<BlockNumberOf<Self>>;
@@ -248,7 +254,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		AccountOf<T>,
-		BoundedVec<ChallengeInfo<T>, T::StringLimit>,
+		BoundedVec<ChallengeInfo<T>, T::ChallengeMaximum>,
 		ValueQuery,
 	>;
 
@@ -274,7 +280,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		AccountOf<T>,
-		BoundedVec<ProveInfo<T>, T::StringLimit>,
+		BoundedVec<ProveInfo<T>, T::ChallengeMaximum>,
 		ValueQuery,
 	>;
 
@@ -440,7 +446,8 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let acc = Self::get_current_scheduler()?;
-			if prove_info.len() > 100 {
+			let limit = T::SubmitProofLimit::get();
+			if prove_info.len() > limit as usize {
 				Err(Error::<T>::LengthExceedsLimit)?;
 			}
 
@@ -470,7 +477,8 @@ pub mod pallet {
 			if !T::Scheduler::contains_scheduler(sender.clone()) {
 				Err(Error::<T>::ScheduleNonExistent)?;
 			}
-			if result_list.len() > 50 {
+			let limit = T::SubmitValidationLimit::get();
+			if result_list.len() > limit as usize {
 				Err(Error::<T>::LengthExceedsLimit)?;
 			}
 
@@ -519,7 +527,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_none(origin)?;
 			// let now = <frame_system::Pallet<T>>::block_number();
-			let mut convert: BoundedVec<ChallengeInfo<T>, T::StringLimit> = Default::default();
+			let mut convert: BoundedVec<ChallengeInfo<T>, T::ChallengeMaximum> = Default::default();
 			for v in challenge_info {
 				convert.try_push(v).map_err(|_e| Error::<T>::BoundedVecError)?;
 			}
