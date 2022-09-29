@@ -296,7 +296,7 @@ pub mod pallet {
 	/// The hashmap for info of storage miners.
 	#[pallet::storage]
 	#[pallet::getter(fn calculate_reward_order)]
-	pub(super) type CalculateRewardOrderMap<T: Config> = StorageMap<
+	pub(super) type CalculateRewardOrderMap<T: Config> = CountedStorageMap<
 		_,
 		Blake2_128Concat,
 		T::AccountId,
@@ -308,7 +308,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn reward_claim)]
 	pub(super) type RewardClaimMap<T: Config> =
-		StorageMap<_, Blake2_128Concat, T::AccountId, RewardClaim<T::AccountId, BalanceOf<T>>>;
+		CountedStorageMap<_, Blake2_128Concat, T::AccountId, RewardClaim<T::AccountId, BalanceOf<T>>>;
 
 	/// The hashmap for checking registered or not.
 	#[pallet::storage]
@@ -600,7 +600,7 @@ pub mod pallet {
 
 		/// Users receive rewards for scheduled tasks.
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::timed_user_receive_award1())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::timed_user_receive_award1(<RewardClaimMap<T>>::count()))]
 		pub fn timed_user_receive_award1(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
@@ -691,7 +691,7 @@ pub mod pallet {
 		}
 		/// Update the user reward table for scheduled tasks.
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::timed_task_award_table())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::timed_task_award_table(<CalculateRewardOrderMap<T>>::count()))]
 		pub fn timed_task_award_table(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
