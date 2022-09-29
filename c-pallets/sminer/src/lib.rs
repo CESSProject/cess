@@ -45,6 +45,7 @@ use frame_support::{
 	dispatch::{DispatchResult, Dispatchable},
 	pallet_prelude::DispatchError,
 	PalletId,
+	traits::schedule,
 };
 use frame_system::{self as system};
 pub use pallet::*;
@@ -589,7 +590,7 @@ pub mod pallet {
 				(DEMOCRACY_IDA).encode(),
 				DispatchTime::At(when),
 				Some((cycle, degree)),
-				60,
+				schedule::HIGHEST_PRIORITY,
 				frame_system::RawOrigin::Root.into(),
 				Call::timed_increase_rewards {}.into(),
 			)
@@ -679,7 +680,7 @@ pub mod pallet {
 				(DEMOCRACY_IDC).encode(),
 				DispatchTime::At(when),
 				Some((cycle, degree)),
-				63,
+				schedule::HIGHEST_PRIORITY,
 				frame_system::RawOrigin::Root.into(),
 				Call::timed_user_receive_award1 {}.into(),
 			)
@@ -832,7 +833,7 @@ pub mod pallet {
 				(DEMOCRACY_IDB).encode(),
 				DispatchTime::At(when),
 				Some((cycle, degree)),
-				61,
+				schedule::HIGHEST_PRIORITY,
 				frame_system::RawOrigin::Root.into(),
 				Call::timed_task_award_table {}.into(),
 			)
@@ -1162,7 +1163,7 @@ impl<T: Config> Pallet<T> {
 			T::AScheduler::schedule(
 				DispatchTime::At(buffer_period),
 				None,
-				59,
+				schedule::LOWEST_PRIORITY,
 				frame_system::RawOrigin::Root.into(),
 				Call::buffer_period_end { when: now_block.clone() }.into(),
 			)?;
