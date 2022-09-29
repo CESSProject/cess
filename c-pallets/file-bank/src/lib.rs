@@ -44,7 +44,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use scale_info::TypeInfo;
-
+use cp_cess_common::PackageType;
 use cp_scheduler_credit::SchedulerCreditCounter;
 use sp_runtime::{
 	traits::{
@@ -140,9 +140,9 @@ pub mod pallet {
 		//User buy package event
 		BuyPackage { acc: AccountOf<T>, size: u128, fee: BalanceOf<T> },
 		//Package upgrade
-		PackageUpgrade { acc: AccountOf<T>, old_type: u8, new_type: u8, fee: BalanceOf<T> },
+		PackageUpgrade { acc: AccountOf<T>, old_type: PackageType, new_type: PackageType, fee: BalanceOf<T> },
 		//Package upgrade
-		PackageRenewal { acc: AccountOf<T>, package_type: u8, fee: BalanceOf<T> },
+		PackageRenewal { acc: AccountOf<T>, package_type: PackageType, fee: BalanceOf<T> },
 		//Expired storage space
 		LeaseExpired { acc: AccountOf<T>, size: u128 },
 		//Storage space expiring within 24 hours
@@ -301,10 +301,10 @@ pub mod pallet {
 					weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
 					if now > info.deadline {
 						let frozen_day: BlockNumberOf<T> = match info.package_type {
-							1 => (0 * oneday).saturated_into(),
-							2 => (7 * oneday).saturated_into(),
-							3 => (14 * oneday).saturated_into(),
-							4 => (20 * oneday).saturated_into(),
+							PackageType::Package1 => (0 * oneday).saturated_into(),
+							PackageType::Package2 => (7 * oneday).saturated_into(),
+							PackageType::Package3 => (14 * oneday).saturated_into(),
+							PackageType::Package4 => (20 * oneday).saturated_into(),
 							_ => (30 * oneday).saturated_into(),
 						};
 						if now > info.deadline + frozen_day {
@@ -590,22 +590,21 @@ pub mod pallet {
 		/// - `count`: When type = 5, it means that the user wants to buy count TIBS.
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_package())]
-		pub fn buy_package(origin: OriginFor<T>, package_type: u8, count: u128) -> DispatchResult {
+		pub fn buy_package(origin: OriginFor<T>, package_type: PackageType, count: u128) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!<PurchasedPackage<T>>::contains_key(&sender), Error::<T>::PurchasedPackage);
 
 			let (space, g_unit_price, month) = match package_type {
-				1 => (PACKAGE_1_SIZE, 0, 1),
-				2 => (PACKAGE_2_SIZE, Self::get_price(PACKAGE_2_SIZE)?, 1),
-				3 => (PACKAGE_3_SIZE, Self::get_price(PACKAGE_3_SIZE)?, 1),
-				4 => (PACKAGE_4_SIZE, Self::get_price(PACKAGE_4_SIZE)?, 1),
-				5 => {
+				PackageType::Package1 => (PACKAGE_1_SIZE, 0, 1),
+				PackageType::Package2 => (PACKAGE_2_SIZE, Self::get_price(PACKAGE_2_SIZE)?, 1),
+				PackageType::Package3 => (PACKAGE_3_SIZE, Self::get_price(PACKAGE_3_SIZE)?, 1),
+				PackageType::Package4 => (PACKAGE_4_SIZE, Self::get_price(PACKAGE_4_SIZE)?, 1),
+				PackageType::Package5 => {
 					if count <= 5 {
 						Err(Error::<T>::WrongOperation)?;
 					}
 					(count * T_BYTE, Self::get_price(count * T_BYTE)?, 1)
 				},
-				_ => Err(Error::<T>::WrongOperation)?,
 			};
 
 			Self::add_puchased_package(sender.clone(), space, month as u32, package_type)?;
@@ -638,16 +637,13 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upgrade_package())]
 		pub fn upgrade_package(
 			origin: OriginFor<T>,
-			package_type: u8,
+			package_type: PackageType,
 			count: u128,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let cur_package = <PurchasedPackage<T>>::try_get(&sender)
 				.map_err(|_e| Error::<T>::NotPurchasedPackage)?;
-			ensure!(
-				package_type > cur_package.package_type || package_type == 5,
-				Error::<T>::WrongOperation
-			);
+
 			let now = <frame_system::Pallet<T>>::block_number();
 			ensure!(now < cur_package.deadline, Error::<T>::LeaseExpired);
 			ensure!(
@@ -656,7 +652,7 @@ pub mod pallet {
 			);
 
 			let cur_gb_unit_price = match cur_package.package_type {
-				1 => 0,
+				PackageType::Package1 => 0,
 				_ => Self::get_price(cur_package.space)?,
 			};
 			let cur_count_gb = cur_package.space.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
@@ -664,10 +660,10 @@ pub mod pallet {
 				cur_gb_unit_price.checked_mul(cur_count_gb).ok_or(Error::<T>::Overflow)?;
 
 			let (space, up_gb_unit_price) = match package_type {
-				2 => (PACKAGE_2_SIZE, Self::get_price(PACKAGE_2_SIZE)?),
-				3 => (PACKAGE_3_SIZE, Self::get_price(PACKAGE_3_SIZE)?),
-				4 => (PACKAGE_4_SIZE, Self::get_price(PACKAGE_4_SIZE)?),
-				5 => {
+				PackageType::Package2 => (PACKAGE_2_SIZE, Self::get_price(PACKAGE_2_SIZE)?),
+				PackageType::Package3 => (PACKAGE_3_SIZE, Self::get_price(PACKAGE_3_SIZE)?),
+				PackageType::Package4 => (PACKAGE_4_SIZE, Self::get_price(PACKAGE_4_SIZE)?),
+				PackageType::Package5 => {
 					let cur_count =
 						cur_package.space.checked_div(T_BYTE).ok_or(Error::<T>::Overflow)?;
 					if count <= cur_count {
@@ -677,6 +673,11 @@ pub mod pallet {
 				},
 				_ => Err(Error::<T>::WrongOperation)?,
 			};
+
+			ensure!(
+				space > cur_package.space,
+				Error::<T>::WrongOperation
+			);
 			//Calculate daily average price difference.
 			let up_count_gb = space.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
 			let up_price = up_gb_unit_price.checked_mul(up_count_gb).ok_or(Error::<T>::Overflow)?;
@@ -709,7 +710,7 @@ pub mod pallet {
 			T::MinerControl::add_purchased_space(
 				space.checked_sub(cur_package.space).ok_or(Error::<T>::Overflow)?,
 			)?;
-			Self::expension_puchased_package(sender.clone(), space, package_type)?;
+			Self::expension_puchased_package(sender.clone(), space, package_type.clone())?;
 			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), AllowDeath)?;
 
 			Self::deposit_event(Event::<T>::PackageUpgrade {
@@ -731,7 +732,7 @@ pub mod pallet {
 				.map_err(|_e| Error::<T>::NotPurchasedPackage)?;
 
 			let g_unit_price = match cur_package.package_type {
-				1 => 0,
+				PackageType::Package1 => 0,
 				_ => Self::get_price(cur_package.space)?,
 			};
 			let count_gb = cur_package.space.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
@@ -867,7 +868,7 @@ pub mod pallet {
 		fn expension_puchased_package(
 			acc: AccountOf<T>,
 			space: u128,
-			package_type: u8,
+			package_type: PackageType,
 		) -> DispatchResult {
 			<PurchasedPackage<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
 				let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedPackage)?;
@@ -895,7 +896,7 @@ pub mod pallet {
 			acc: AccountOf<T>,
 			space: u128,
 			month: u32,
-			package_type: u8,
+			package_type: PackageType,
 		) -> DispatchResult {
 			let now = <frame_system::Pallet<T>>::block_number();
 			let one_day = <T as pallet::Config>::OneDay::get();

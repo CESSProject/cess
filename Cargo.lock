@@ -1147,6 +1147,11 @@ checksum = "5827cebf4670468b8772dd191856768aedcb1b0278a04f989f7766351917b9dc"
 [[package]]
 name = "cp-cess-common"
 version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "parity-scale-codec",
+ "scale-info",
+]
 
 [[package]]
 name = "cp-scheduler-credit"
@@ -5108,6 +5113,7 @@ dependencies = [
 name = "pallet-file-bank"
 version = "0.5.1"
 dependencies = [
+ "cp-cess-common",
  "cp-scheduler-credit",
  "frame-benchmarking",
  "frame-election-provider-support",
