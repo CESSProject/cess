@@ -1295,7 +1295,7 @@ impl<T: Config> Pallet<T> {
 	//Get the available space on the current chain.
 	pub fn get_space() -> Result<u128, DispatchError> {
 		let purchased_space = <PurchasedSpace<T>>::get();
-		let total_space = <TotalIdleSpace<T>>::get() + <TotalServiceSpace<T>>::get();
+		let total_space = <TotalIdleSpace<T>>::get().checked_add(<TotalServiceSpace<T>>::get()).ok_or(Error::<T>::Overflow)?;
 		//If the total space on the current chain is less than the purchased space, 0 will be
 		// returned.
 		if total_space < purchased_space {
@@ -1309,7 +1309,7 @@ impl<T: Config> Pallet<T> {
 
 	pub fn add_purchased_space(size: u128) -> DispatchResult {
 		<PurchasedSpace<T>>::try_mutate(|purchased_space| -> DispatchResult {
-			let total_space = <TotalServiceSpace<T>>::get() + <TotalIdleSpace<T>>::get();
+			let total_space = <TotalServiceSpace<T>>::get().checked_add(<TotalServiceSpace<T>>::get()).ok_or(Error::<T>::Overflow)?;
 			if *purchased_space + size > total_space {
 				Err(<Error<T>>::InsufficientAvailableSpace)?;
 			}
