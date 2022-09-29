@@ -71,8 +71,6 @@ const STATE_POSITIVE: &str = "positive";
 const STATE_FROZEN: &str = "frozen";
 const STATE_EXIT_FROZEN: &str = "e_frozen";
 const STATE_EXIT: &str = "exit";
-const LOCK_IN_PERIOD: u8 = 2;
-const MAX_AWARD: u128 = 1_306_849_000_000_000_000;
 const FAUCET_VALUE: u128 = 10000000000000000;
 const DOUBLE: u8 = 2;
 
@@ -110,6 +108,10 @@ pub mod pallet {
 		type DepositBufferPeriod: Get<u32>;
 		#[pallet::constant]
 		type OneDayBlock: Get<BlockNumberOf<Self>>;
+		#[pallet::constant]
+		type LockInPeriod: Get<u8>;
+		#[pallet::constant]
+		type MaxAward: Get<u128>;
 		/// The Scheduler.
 		type SScheduler: ScheduleNamed<Self::BlockNumber, Self::SProposal, Self::SPalletsOrigin>;
 
@@ -507,7 +509,8 @@ pub mod pallet {
 				.map_err(|_e| Error::<T>::LockInNotOver)?
 				.saturated_into();
 			let mut lock_in_period: u128 = T::OneDayBlock::get().saturated_into();
-			lock_in_period = lock_in_period * LOCK_IN_PERIOD as u128;
+			let day = T::LockInPeriod::get();
+			lock_in_period = lock_in_period * day as u128;
 			// let mut lock_in_period: u128 = 50;
 			if lock_in_strat + lock_in_period > now_block {
 				Err(Error::<T>::LockInNotOver)?;
@@ -539,14 +542,15 @@ pub mod pallet {
 			// let reward_pot = T::PalletId::get().into_account();
 			let mut total_award: u128 =
 				<CurrencyReward<T>>::get().try_into().map_err(|_| Error::<T>::Overflow)?;
-			if total_award > MAX_AWARD {
+			let max_award = T::MaxAward::get();
+			if total_award > max_award {
 				<CurrencyReward<T>>::try_mutate(|currency_reward| -> DispatchResult {
 					*currency_reward = currency_reward
-						.checked_sub(&MAX_AWARD.try_into().map_err(|_| Error::<T>::Overflow)?)
+						.checked_sub(&max_award.try_into().map_err(|_| Error::<T>::Overflow)?)
 						.ok_or(Error::<T>::Overflow)?;
 					Ok(())
 				})?;
-				total_award = MAX_AWARD;
+				total_award = max_award;
 			} else {
 				<CurrencyReward<T>>::try_mutate(|currency_reward| -> DispatchResult {
 					*currency_reward = 0u128.try_into().map_err(|_| Error::<T>::Overflow)?;

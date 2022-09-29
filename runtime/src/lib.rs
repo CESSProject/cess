@@ -895,6 +895,8 @@ parameter_types! {
   pub const RewardPalletId: PalletId = PalletId(*b"rewardpt");
   pub const MultipleFines: u8 = 7;
   pub const DepositBufferPeriod: u32 = 3;
+	pub const MaxAward: u128 = 1_306_849_000_000_000_000;
+	pub const LockInPeriod: u8 = 2;
 }
 
 impl pallet_sminer::Config for Runtime {
@@ -911,6 +913,8 @@ impl pallet_sminer::Config for Runtime {
 	type MultipleFines = MultipleFines;
 	type DepositBufferPeriod = DepositBufferPeriod;
 	type OneDayBlock = OneDay;
+	type MaxAward = MaxAward;
+	type LockInPeriod = LockInPeriod;
 }
 parameter_types! {
 	pub const SegbkPalletId: PalletId = PalletId(*b"rewardpt");

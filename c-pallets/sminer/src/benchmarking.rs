@@ -172,12 +172,12 @@ benchmarks! {
         Sminer::<T>::timed_task_award_table(RawOrigin::Root.into())?;
     }: _(RawOrigin::Root)
     verify {
-				for miner in miner_list.iter() {
-					let info = RewardClaimMap::<T>::get(&miner).unwrap();
-					let share = 8000 / v as u128;
-       	 	let reward: u128 = ((share -((share * 2 / 10))) / 180) + (share * 2 / 10);
-					let reward: BalanceOf<T> = reward.try_into().map_err(|_e| "reward convert err")?;
-					assert_eq!(info.have_to_receive, reward);
+			for miner in miner_list.iter() {
+				let info = RewardClaimMap::<T>::get(&miner).unwrap();
+				let share = 8000 / v as u128;
+				let reward: u128 = ((share -((share * 2 / 10))) / 180) + (share * 2 / 10);
+				let reward: BalanceOf<T> = reward.try_into().map_err(|_e| "reward convert err")?;
+				assert_eq!(info.have_to_receive, reward);
 			}
     }
 
