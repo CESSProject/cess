@@ -1270,10 +1270,10 @@ pub mod pallet {
 			if !<FillerMap<T>>::contains_key(&miner_acc, filler_boud.clone()) {
 				Err(Error::<T>::FileNonExistent)?;
 			}
-			let value = <FillerMap<T>>::try_get(&miner_acc, filler_boud.clone())
+			let value = <FillerMap<T>>::try_get(&miner_acc, filler_boud.clone()) //read 1
 				.map_err(|_e| Error::<T>::FileNonExistent)?;
-			<FillerKeysMap<T>>::remove(value.index);
-			<FillerMap<T>>::remove(miner_acc, filler_boud.clone());
+			<FillerKeysMap<T>>::remove(value.index); //write 1
+			<FillerMap<T>>::remove(miner_acc, filler_boud.clone()); //write 1
 
 			Ok(())
 		}
@@ -1381,12 +1381,12 @@ pub mod pallet {
 				let o = opt.as_mut().unwrap();
 				o.slice_info.retain(|x| x.shard_id.to_vec() != shard_id);
 				Ok(())
-			})?;
+			})?; //read 1 write 1
 			<FileRecovery<T>>::try_mutate(&acc, |o| -> DispatchResult {
 				o.try_push(shard_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?)
 					.map_err(|_e| Error::<T>::StorageLimitReached)?;
 				Ok(())
-			})?;
+			})?; //read 1 write 1
 
 			Ok(())
 		}
@@ -1460,7 +1460,7 @@ pub mod pallet {
 				o.try_push(file_hash.try_into().map_err(|_e| Error::<T>::BoundedVecError)?)
 					.map_err(|_e| Error::<T>::StorageLimitReached)?;
 				Ok(())
-			})?;
+			})?; //read 1 write 1
 
 			Ok(())
 		}
@@ -1552,7 +1552,7 @@ pub trait RandomFileList<AccountId> {
 	//Delete filler file
 	fn delete_filler(miner_acc: AccountId, filler_id: Vec<u8>) -> DispatchResult;
 	//Delete all filler according to miner_acc
-	fn delete_miner_all_filler(miner_acc: AccountId) -> DispatchResult;
+	fn delete_miner_all_filler(miner_acc: AccountId) -> Result<Weight, DispatchError>;
 	//Delete file backup
 	fn clear_file(file_hash: Vec<u8>) -> Result<Weight, DispatchError>;
 	//The function executed when the challenge fails, allowing the miner to delete invalid files
@@ -1572,12 +1572,15 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 		Pallet::<T>::delete_filler(miner_acc, filler_id)?;
 		Ok(())
 	}
-	fn delete_miner_all_filler(miner_acc: AccountOf<T>) -> DispatchResult {
+	fn delete_miner_all_filler(miner_acc: AccountOf<T>) -> Result<Weight, DispatchError> {
+		let mut weight: Weight = 0;
 		for (_, value) in FillerMap::<T>::iter_prefix(&miner_acc) {
 			<FillerKeysMap<T>>::remove(value.index);
+			weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
 		}
 		let _ = FillerMap::<T>::remove_prefix(&miner_acc, Option::None);
-		Ok(())
+		weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
+		Ok(weight)
 	}
 
 	fn clear_file(file_hash: Vec<u8>) -> Result<Weight, DispatchError> {

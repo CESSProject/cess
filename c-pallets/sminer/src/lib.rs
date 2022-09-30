@@ -1021,7 +1021,7 @@ impl<T: Config> Pallet<T> {
 			return Ok(());
 		}
 
-		let state = Self::check_state(acc)?;
+		let state = Self::check_state(acc)?; //read 1
 		if state == STATE_EXIT.as_bytes().to_vec() {
 			return Ok(());
 		}
@@ -1030,12 +1030,12 @@ impl<T: Config> Pallet<T> {
 			miner_info.power =
 				miner_info.power.checked_sub(increment).ok_or(Error::<T>::Overflow)?;
 			Ok(())
-		})?;
+		})?; //read 1 write 1
 
 		TotalIdleSpace::<T>::try_mutate(|total_power| -> DispatchResult {
 			*total_power = total_power.checked_sub(increment).ok_or(Error::<T>::Overflow)?;
 			Ok(())
-		})?;
+		})?; //read 1 write 1
 
 		Ok(())
 	}
@@ -1114,11 +1114,11 @@ impl<T: Config> Pallet<T> {
 		}
 
 		//There is a judgment on whether the primary key exists above
-		let mr = MinerItems::<T>::try_get(&aid).map_err(|_e| Error::<T>::NotMiner)?;
+		let mr = MinerItems::<T>::try_get(&aid).map_err(|_e| Error::<T>::NotMiner)?; //read 1
 		let acc = T::PalletId::get().into_account();
 
 		let calcu_failure_fee =
-			Self::calcu_failure_fee(aid.clone(), failure_num, total_proof)?;
+			Self::calcu_failure_fee(aid.clone(), failure_num, total_proof)?; // read 1
 
 		if consecutive_fines >= T::MultipleFines::get() {
 			calcu_failure_fee.checked_mul(DOUBLE as u128).ok_or(Error::<T>::Overflow)?;
@@ -1135,16 +1135,16 @@ impl<T: Config> Pallet<T> {
 		}
 
 		T::Currency::unreserve(&aid, punish_amount);
-		MinerItems::<T>::try_mutate(&aid, |miner_info_opt| -> DispatchResult {
+		MinerItems::<T>::try_mutate(&aid, |miner_info_opt| -> DispatchResult { // read 1 write 1
 			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
 			miner_info.collaterals =
 				miner_info.collaterals.checked_sub(&punish_amount).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})?;
-		let miner_info = <MinerItems<T>>::try_get(&aid).map_err(|_e| Error::<T>::NotMiner)?;
+		let miner_info = <MinerItems<T>>::try_get(&aid).map_err(|_e| Error::<T>::NotMiner)?; // read 1
 		let limit = Self::check_collateral_limit(miner_info.power)?;
 		if miner_info.collaterals < limit {
-			Self::join_buffer_pool(aid.clone())?;
+			Self::join_buffer_pool(aid.clone())?; // read 2 write 3
 		}
 		T::Currency::transfer(&aid, &acc, punish_amount, AllowDeath)?;
 
@@ -1179,9 +1179,9 @@ impl<T: Config> Pallet<T> {
 	fn join_buffer_pool(acc: AccountOf<T>) -> DispatchResult {
 		let now = <frame_system::Pallet<T>>::block_number();
 
-		<BadMiner<T>>::insert(&acc, &now);
+		<BadMiner<T>>::insert(&acc, &now); // write 1
 		if BufferPeriod::<T>::contains_key(&now) {
-			BufferPeriod::<T>::try_mutate(&now, |bad_miner_vec| -> DispatchResult {
+			BufferPeriod::<T>::try_mutate(&now, |bad_miner_vec| -> DispatchResult { //read 1 write 1
 				bad_miner_vec
 					.try_push(acc.clone())
 					.map_err(|_e| Error::<T>::StorageLimitReached)?;
@@ -1194,7 +1194,7 @@ impl<T: Config> Pallet<T> {
 			<BufferPeriod<T>>::insert(now, new_dad_vec);
 		}
 
-		MinerItems::<T>::try_mutate(&acc, |miner_info_opt| -> DispatchResult {
+		MinerItems::<T>::try_mutate(&acc, |miner_info_opt| -> DispatchResult { //read 1 write 1
 			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
 			if miner_info.state != STATE_FROZEN.as_bytes().to_vec()
 				&& miner_info.state != STATE_EXIT_FROZEN.as_bytes().to_vec()

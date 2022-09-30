@@ -295,12 +295,12 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn failure_rate_map)]
 	pub(super) type FailureNumMap<T: Config> =
-		StorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
+		CountedStorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn miner_total_proof)]
 	pub(super) type MinerTotalProof<T: Config> =
-		StorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
+		CountedStorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn consecutive_fines)]
@@ -321,6 +321,7 @@ pub mod pallet {
 			let _number: u128 = now.saturated_into();
 			let challenge_deadline = Self::challenge_duration();
 			let verify_deadline = Self::verify_duration();
+			let mut weight: Weight = 0;
 			//The waiting time for the challenge has reached the deadline
 			if now == challenge_deadline {
 				//After the waiting time for the challenge reaches the deadline,
@@ -332,14 +333,20 @@ pub mod pallet {
 							Ok(()) => log::info!("set_failure success"),
 							Err(e) => log::error!("set_failure failed: {:?}", e),
 						};
-						if let Err(e) = Self::update_miner_file(
+						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+						let weight1 = match Self::update_miner_file(
 							acc.clone(),
 							v.file_id.to_vec(),
 							v.file_size,
 							v.file_type,
 						) {
-							log::info!("punish Err:{:?}", e);
-						}
+							Ok(weights) => weights,
+							Err(e) => {
+								log::error!("punish error: {:?}", e);
+								0
+							},
+						};
+						weight = weight.saturating_add(weight1);
 						log::info!(
 							"challenge draw a blank, miner_acc:{:?}, file_id: {:?}",
 							acc.clone(),
@@ -351,6 +358,7 @@ pub mod pallet {
 						});
 					}
 					<ChallengeMap<T>>::remove(acc.clone());
+					weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
 				}
 			}
 
@@ -369,6 +377,7 @@ pub mod pallet {
 							Err(e) => log::error!("punish scheduler failed: {:?}", e),
 						};
 						<UnVerifyProof<T>>::remove(&acc);
+						weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
 					}
 				}
 				if is_end {
@@ -382,29 +391,46 @@ pub mod pallet {
 										Ok(())
 									},
 									).map_err(|_e| Error::<T>::BoundedVecError);
+								weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 								match result {
 									Ok(()) => log::info!("ConsecutiveFines update success"),
 									Err(e) => log::error!("ConsecutiveFines update failed: {:?}", e),
 								}
 							} else {
 								<ConsecutiveFines<T>>::insert(&miner, 1);
+								weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
 							}
-							Self::punish(
+							let result = Self::punish(
 								miner.clone(),
 								<FailureNumMap<T>>::get(&miner),
 								total_proof,
 								<ConsecutiveFines<T>>::get(&miner),
-							).unwrap_or(());
+							).map_err(|e| e);
+							weight = weight.saturating_add(T::DbWeight::get().reads_writes(6, 4));
+							match result {
+								Ok(()) => log::info!("punish success"),
+								Err(e) => log::error!("punish failed: {:?}", e),
+							};
 						} else {
 							<ConsecutiveFines<T>>::remove(&miner);
+							weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
 						}
 					}
 
-					Self::start_buffer_period_schedule().unwrap_or(());
-					<FailureNumMap<T>>::remove_all(None);
-					<MinerTotalProof<T>>::remove_all(None);
+					let result = Self::start_buffer_period_schedule().map_err(|e| e);
+					match result {
+						Ok(()) => log::info!("start_buffer_period_schedule success!"),
+						Err(e) => log::error!("start_buffer_period_schedule failed: {:?}", e),
+					};
+					// weight = weight.staurating_add(Self::clear_failure_map(5000, None));
+					// weight = weight.staurating_add(Self::clear_total_proof(5000, None));
+					<FailureNumMap<T>>::remove_all();
+					weight = weight.saturating_add(T::DbWeight::get().writes(<FailureNumMap<T>>::count() as Weight));
+					<MinerTotalProof<T>>::remove_all();
+					weight = weight.saturating_add(T::DbWeight::get().writes(<MinerTotalProof<T>>::count() as Weight));
 				} else {
 					let result = Self::get_current_scheduler();
+					weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
 					match result {
 						Ok(cur_acc) =>  {
 							let new_deadline = match now.checked_add(&1200u32.saturated_into()).ok_or(Error::<T>::Overflow) {
@@ -415,6 +441,7 @@ pub mod pallet {
 								},
 							};
 							<VerifyDuration<T>>::put(new_deadline);
+							weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
 							let bound_verify_list: BoundedVec<ProveInfo<T>, T::ChallengeMaximum> = match verify_list.try_into().map_err(|_e| Error::<T>::BoundedVecError) {
 								Ok(bound_verify_list) => bound_verify_list,
 								Err(e) => {
@@ -423,6 +450,7 @@ pub mod pallet {
 								},
 							};
 							let result = Self::storage_prove(cur_acc, bound_verify_list);
+							weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
 							match result {
 								Ok(()) => log::info!("storage prove success"),
 								Err(e) => {
@@ -435,7 +463,7 @@ pub mod pallet {
 					}
 				}
 			}
-			0
+			weight
 		}
 
 		fn offchain_worker(now: T::BlockNumber) {
@@ -614,6 +642,32 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
+		// fn clear_failure_map(limit: u32 , maybe_cursor: Option<&[u8]>) -> Weight {
+		// 	let result = <FailureNumMap<T>>::clear(limit, maybe_cursor);
+		// 	let mut weight: Weight = 0;
+		// 	match result.maybe_cursor {
+		// 		Some(v) => weight = Self::clear_failure_map(limit, result.maybe_cursor),
+		// 		None => {
+		// 			weight = weight.saturating_add(T::DbWeight::get().writes(result.backend));
+		// 			weight = weight.saturating_add(T::DbWeight::get().reads_writes(result.loops, result.loops));
+		// 		},
+		// 	};
+		// 	return weight;
+		// }
+		//
+		// fn clear_total_proof(limit: u32 , maybe_cursor: Option<&[u8]>) -> Weight {
+		// 	let result = <MinerTotalProof<T>>::clear(limit, maybe_cursor);
+		// 	let mut weight: Weight = 0;
+		// 	match result.maybe_cursor {
+		// 		Some(v) => weight = Self::clear_total_proof(limit, result.maybe_cursor),
+		// 		None => {
+		// 			weight = weight.saturating_add(T::DbWeight::get().writes(result.backend));
+		// 			weight = weight.saturating_add(T::DbWeight::get().reads_writes(result.loops, result.loops));
+		// 		},
+		// 	};
+		// 	return weight;
+		// }
+
 		fn check_unsign(
 			seg_digest: &SegDigest<BlockNumberOf<T>>,
 			signature: &<T::AuthorityId as RuntimeAppPublic>::Signature,
@@ -626,8 +680,7 @@ pub mod pallet {
 					log::error!("invalid index");
 					return InvalidTransaction::Stale.into();
 				}
-				//TODO!
-				// Convert validatorsId => T::AuthorityId
+
 				let authority_id = match keys.get(seg_digest.validators_index as usize) {
 					Some(authority_id) => authority_id,
 					None => return InvalidTransaction::Stale.into(),
@@ -990,29 +1043,33 @@ pub mod pallet {
 			file_id: Vec<u8>,
 			file_size: u64,
 			file_type: u8,
-		) -> DispatchResult {
+		) -> Result<Weight, DispatchError> {
 			if !T::MinerControl::miner_is_exist(acc.clone()) {
-				return Ok(());
+				return Ok(0 as Weight);
 			}
+			let mut weight: Weight = 0;
 			match file_type {
 				1 => {
-					T::MinerControl::sub_power(acc.clone(), file_size.into())?;
-					T::File::delete_filler(acc.clone(), file_id.clone())?;
-					T::File::add_invalid_file(acc.clone(), file_id.clone())?;
+					T::MinerControl::sub_power(acc.clone(), file_size.into())?; //read 3 write 2
+					T::File::delete_filler(acc.clone(), file_id.clone())?; //read 1 write 2
+					T::File::add_invalid_file(acc.clone(), file_id.clone())?; //read 1 write 1
+					weight = weight.saturating_add(T::DbWeight::get().reads_writes(5, 5));
 				},
 				2 => {
-					T::MinerControl::sub_space(&acc, file_size.into())?;
-					T::File::add_recovery_file(file_id.clone())?;
-					T::File::add_invalid_file(acc.clone(), file_id.clone())?;
+					T::MinerControl::sub_space(&acc, file_size.into())?; //read 3 write 2
+					T::File::add_recovery_file(file_id.clone())?; //read 2 write 2
+					T::File::add_invalid_file(acc.clone(), file_id.clone())?; //read 1 write 1
+					weight = weight.saturating_add(T::DbWeight::get().reads_writes(6, 5));
 				},
 				_ => {
 					Err(Error::<T>::FileTypeError)?;
 				},
 			}
-			if !T::MinerControl::miner_is_exist(acc.clone()) {
-				T::File::delete_miner_all_filler(acc.clone())?;
+			if !T::MinerControl::miner_is_exist(acc.clone()) { //read 1
+				let weight1 = T::File::delete_miner_all_filler(acc.clone())?;
+				weight = weight.saturating_add(weight1);
 			}
-			Ok(())
+			Ok(weight)
 		}
 
 		fn punish(
