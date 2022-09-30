@@ -80,6 +80,7 @@ use pallet_sminer::MinerControl;
 use scale_info::TypeInfo;
 use sp_core::H256;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
+use cp_cess_common::DataType;
 pub mod weights;
 pub use weights::WeightInfo;
 
@@ -551,7 +552,7 @@ pub mod pallet {
 									result.miner_acc.clone(),
 									result.file_id.clone().to_vec(),
 									value.challenge_info.file_size,
-									value.challenge_info.file_type,
+									value.challenge_info.file_type.clone(),
 								)?;
 							}
 							Self::deposit_event(Event::<T>::VerifyProof {
@@ -1042,27 +1043,24 @@ pub mod pallet {
 			acc: AccountOf<T>,
 			file_id: Vec<u8>,
 			file_size: u64,
-			file_type: u8,
+			file_type: DataType,
 		) -> Result<Weight, DispatchError> {
 			if !T::MinerControl::miner_is_exist(acc.clone()) {
 				return Ok(0 as Weight);
 			}
 			let mut weight: Weight = 0;
 			match file_type {
-				1 => {
+				DataType::File => {
 					T::MinerControl::sub_power(acc.clone(), file_size.into())?; //read 3 write 2
 					T::File::delete_filler(acc.clone(), file_id.clone())?; //read 1 write 2
 					T::File::add_invalid_file(acc.clone(), file_id.clone())?; //read 1 write 1
 					weight = weight.saturating_add(T::DbWeight::get().reads_writes(5, 5));
 				},
-				2 => {
+				DataType::Filler => {
 					T::MinerControl::sub_space(&acc, file_size.into())?; //read 3 write 2
 					T::File::add_recovery_file(file_id.clone())?; //read 2 write 2
 					T::File::add_invalid_file(acc.clone(), file_id.clone())?; //read 1 write 1
 					weight = weight.saturating_add(T::DbWeight::get().reads_writes(6, 5));
-				},
-				_ => {
-					Err(Error::<T>::FileTypeError)?;
 				},
 			}
 			if !T::MinerControl::miner_is_exist(acc.clone()) { //read 1

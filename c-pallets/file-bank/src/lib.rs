@@ -44,7 +44,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use scale_info::TypeInfo;
-use cp_cess_common::PackageType;
+use cp_cess_common::{PackageType, DataType};
 use cp_scheduler_credit::SchedulerCreditCounter;
 use sp_runtime::{
 	traits::{
@@ -1017,9 +1017,9 @@ pub mod pallet {
 		/// - `tuple.3`: file size or shard size.
 		/// - `tuple.4`: file type 1 or 2, 1 is file slice, 2 is filler.
 		pub fn get_random_challenge_data(
-		) -> Result<Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, u8)>, DispatchError> {
+		) -> Result<Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, DataType)>, DispatchError> {
 			let filler_list = Self::get_random_filler()?;
-			let mut data: Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, u8)> = Vec::new();
+			let mut data: Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, DataType)> = Vec::new();
 			for v in filler_list {
 				let length = v.block_num;
 				let number_list = Self::get_random_numberlist(length, 3, length)?;
@@ -1030,7 +1030,7 @@ pub mod pallet {
 				for i in number_list.iter() {
 					block_list.push((*i as u8) + 1);
 				}
-				data.push((miner_acc, filler_id, block_list, file_size, 1));
+				data.push((miner_acc, filler_id, block_list, file_size, DataType::File));
 			}
 
 			let file_list = Self::get_random_file()?;
@@ -1056,7 +1056,7 @@ pub mod pallet {
 					for i in number_list.iter() {
 						block_list.push((*i as u8) + 1);
 					}
-					data.push((miner_acc, file_hash, block_list, slice_size, 2));
+					data.push((miner_acc, file_hash, block_list, slice_size, DataType::Filler));
 				}
 			}
 
@@ -1548,7 +1548,7 @@ pub mod pallet {
 pub trait RandomFileList<AccountId> {
 	//Get random challenge data
 	fn get_random_challenge_data(
-	) -> Result<Vec<(AccountId, Vec<u8>, Vec<u8>, u64, u8)>, DispatchError>;
+	) -> Result<Vec<(AccountId, Vec<u8>, Vec<u8>, u64, DataType)>, DispatchError>;
 	//Delete filler file
 	fn delete_filler(miner_acc: AccountId, filler_id: Vec<u8>) -> DispatchResult;
 	//Delete all filler according to miner_acc
@@ -1563,7 +1563,7 @@ pub trait RandomFileList<AccountId> {
 
 impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Pallet<T> {
 	fn get_random_challenge_data(
-	) -> Result<Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, u8)>, DispatchError> {
+	) -> Result<Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, DataType)>, DispatchError> {
 		let result = Pallet::<T>::get_random_challenge_data()?;
 		Ok(result)
 	}

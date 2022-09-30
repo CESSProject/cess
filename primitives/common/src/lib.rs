@@ -28,3 +28,9 @@ pub enum PackageType {
 	Package5,
 }
 
+#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+pub enum DataType {
+	File,
+	Filler,
+}
+

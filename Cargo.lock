@@ -5409,6 +5409,7 @@ dependencies = [
 name = "pallet-segment-book"
 version = "0.5.1"
 dependencies = [
+ "cp-cess-common",
  "cp-scheduler-credit",
  "frame-benchmarking",
  "frame-election-provider-support",

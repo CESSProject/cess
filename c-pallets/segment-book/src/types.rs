@@ -9,7 +9,7 @@ pub type BoundedList<T> =
 #[codec(mel_bound())]
 pub struct ChallengeInfo<T: pallet::Config> {
 	pub(super) file_size: u64,
-	pub(super) file_type: u8,
+	pub(super) file_type: DataType,
 	pub(super) block_list: BoundedVec<u8, T::StringLimit>,
 	pub(super) file_id: BoundedVec<u8, T::StringLimit>,
 	//48 bit random number
