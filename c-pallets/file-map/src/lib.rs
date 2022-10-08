@@ -24,6 +24,7 @@ use sp_runtime::{DispatchError, RuntimeDebug};
 use sp_std::prelude::*;
 use cp_scheduler_credit::SchedulerCreditCounter;
 pub use weights::WeightInfo;
+use cp_cess_common::*;
 
 pub mod weights;
 
@@ -43,7 +44,7 @@ pub mod pallet {
 	#[scale_info(skip_type_params(T))]
 	#[codec(mel_bound())]
 	pub struct SchedulerInfo<T: pallet::Config> {
-		pub ip: BoundedVec<u8, T::StringLimit>,
+		pub ip: IpAddress,
 		pub stash_user: AccountOf<T>,
 		pub controller_user: AccountOf<T>,
 	}
@@ -90,9 +91,9 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		//Scheduling registration method
-		RegistrationScheduler { acc: AccountOf<T>, ip: Vec<u8> },
+		RegistrationScheduler { acc: AccountOf<T>, ip: IpAddress },
 
-		UpdateScheduler { acc: AccountOf<T>, endpoint: Vec<u8> },
+		UpdateScheduler { acc: AccountOf<T>, endpoint: IpAddress },
 	}
 
 	#[pallet::error]
@@ -144,7 +145,7 @@ pub mod pallet {
 		pub fn registration_scheduler(
 			origin: OriginFor<T>,
 			stash_account: AccountOf<T>,
-			ip: Vec<u8>,
+			ip: IpAddress,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			//Even if the primary key is not present here, panic will not be caused
@@ -154,9 +155,8 @@ pub mod pallet {
 				Err(Error::<T>::NotController)?;
 			}
 			let mut s_vec = SchedulerMap::<T>::get();
-			let ip_bound = ip.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
 			let scheduler = SchedulerInfo::<T> {
-				ip: ip_bound,
+				ip: ip.clone(),
 				stash_user: stash_account.clone(),
 				controller_user: sender.clone(),
 			};
@@ -172,7 +172,7 @@ pub mod pallet {
 
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_scheduler())]
-		pub fn update_scheduler(origin: OriginFor<T>, ip: Vec<u8>) -> DispatchResult {
+		pub fn update_scheduler(origin: OriginFor<T>, ip: IpAddress) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
 			SchedulerMap::<T>::try_mutate(|s| -> DispatchResult {
@@ -180,7 +180,7 @@ pub mod pallet {
 				for i in s.iter() {
 					if i.controller_user == sender {
 						let scheduler = SchedulerInfo::<T> {
-							ip: ip.clone().try_into().map_err(|_| Error::<T>::BoundedVecError)?,
+							ip: ip.clone(),
 							stash_user: i.stash_user.clone(),
 							controller_user: sender.clone(),
 						};

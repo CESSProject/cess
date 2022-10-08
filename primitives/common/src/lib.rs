@@ -34,3 +34,9 @@ pub enum DataType {
 	Filler,
 }
 
+#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+pub enum IpAddress {
+	IPV4([u8; 4]),
+	IPV6([u16; 8]),
+}
+
