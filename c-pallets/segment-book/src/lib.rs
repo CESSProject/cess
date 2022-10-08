@@ -176,7 +176,7 @@ pub mod pallet {
 		#[pallet::constant]
 		type OneHours: Get<BlockNumberOf<Self>>;
 		// randomness for seeds.
-		type MyRandomness: Randomness<Self::Hash, Self::BlockNumber>;
+		type MyRandomness: Randomness<Option<Self::Hash>, Self::BlockNumber>;
 		//Find the consensus of the current block
 		type FindAuthor: FindAuthor<Self::AccountId>;
 		//Random files used to obtain this batch of challenges
@@ -1015,6 +1015,10 @@ pub mod pallet {
 		// Generate a random number from a given seed.
 		fn random_time_number(seed: u32) -> u64 {
 			let (random_seed, _) = T::MyRandomness::random(&(T::MyPalletId::get(), seed).encode());
+			let random_seed = match random_seed {
+				Some(v) => v,
+				None => Default::default(),
+			};
 			let random_number = <u64>::decode(&mut random_seed.as_ref())
 				.expect("secure hashes should always be bigger than u32; qed");
 			random_number
@@ -1027,6 +1031,10 @@ pub mod pallet {
 				loop {
 					let (r_seed, _) =
 						T::MyRandomness::random(&(T::MyPalletId::get(), seed).encode());
+					let r_seed = match r_seed {
+						Some(v) => v,
+						None => Default::default(),
+					};
 					let random_seed = <H256>::decode(&mut r_seed.as_ref())
 						.expect("secure hashes should always be bigger than u32; qed");
 					let random_vec = random_seed.as_bytes().to_vec();

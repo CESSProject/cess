@@ -938,7 +938,7 @@ impl pallet_segment_book::Config for Runtime {
 	// The ubiquitous event type.
 	type Event = Event;
 	type MyPalletId = SegbkPalletId;
-	type MyRandomness = RandomnessCollectiveFlip;
+	type MyRandomness = pallet_rrsc::CurrentBlockRandomness<Runtime>;
 	type WeightInfo = pallet_segment_book::weights::SubstrateWeight<Runtime>;
 	type AuthorityId = pallet_segment_book::sr25519::AuthorityId;
 	type StringLimit = StringLimit;
@@ -974,7 +974,7 @@ impl pallet_file_bank::Config for Runtime {
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
 	type WeightInfo = pallet_file_bank::weights::SubstrateWeight<Runtime>;
 	type MinerControl = Sminer;
-	type MyRandomness = RandomnessCollectiveFlip;
+	type MyRandomness = pallet_rrsc::CurrentBlockRandomness<Runtime>;
 	type Scheduler = FileMap;
 	type StringLimit = StringLimit;
 	type OneDay = OneDay;

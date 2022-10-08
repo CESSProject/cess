@@ -107,7 +107,7 @@ pub mod pallet {
 		//It is used to control the computing power and space of miners
 		type MinerControl: MinerControl<Self::AccountId>;
 		//Interface that can generate random seeds
-		type MyRandomness: Randomness<Self::Hash, Self::BlockNumber>;
+		type MyRandomness: Randomness<Option<Self::Hash>, Self::BlockNumber>;
 		/// pallet address.
 		#[pallet::constant]
 		type FilbakPalletId: Get<PalletId>;
@@ -1248,6 +1248,10 @@ pub mod pallet {
 			loop {
 				let (random_seed, _) =
 					T::MyRandomness::random(&(T::FilbakPalletId::get(), seed + counter).encode());
+				let random_seed = match random_seed {
+					Some(v) => v,
+					None => Default::default(),
+				};
 				let random_number = <u32>::decode(&mut random_seed.as_ref()).unwrap_or(0);
 				if random_number != 0 {
 					return Ok(random_number)
