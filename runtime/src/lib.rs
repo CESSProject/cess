@@ -963,6 +963,10 @@ parameter_types! {
 	pub const OneDay: BlockNumber = DAYS;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const UploadFillerLimit: u8 = 10;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const InvalidLimit: u32 = 100000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const RecoverLimit: u32 = 8000;
 }
 
 impl pallet_file_bank::Config for Runtime {
@@ -980,6 +984,8 @@ impl pallet_file_bank::Config for Runtime {
 	type OneDay = OneDay;
 	type CreditCounter = SchedulerCredit;
 	type UploadFillerLimit = UploadFillerLimit;
+	type InvalidLimit = InvalidLimit;
+	type RecoverLimit = RecoverLimit;
 }
 
 parameter_types! {

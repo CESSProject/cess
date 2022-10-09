@@ -83,9 +83,11 @@ use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 use cp_cess_common::DataType;
 pub mod weights;
 pub use weights::WeightInfo;
+use cp_cess_common::Hash as H68;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
+type Hash = H68;
 pub const SEGMENT_BOOK: KeyTypeId = KeyTypeId(*b"cess");
 // type FailureRate = u32;
 
@@ -210,11 +212,11 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		ChallengeProof { miner: AccountOf<T>, file_id: Vec<u8> },
+		ChallengeProof { miner: AccountOf<T>, file_id: Hash },
 
-		VerifyProof { miner: AccountOf<T>, file_id: Vec<u8> },
+		VerifyProof { miner: AccountOf<T>, file_id: Hash },
 
-		OutstandingChallenges { miner: AccountOf<T>, file_id: Vec<u8> },
+		OutstandingChallenges { miner: AccountOf<T>, file_id: Hash },
 	}
 
 	/// Error for the segment-book pallet.
@@ -337,7 +339,8 @@ pub mod pallet {
 						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 						let weight1 = match Self::update_miner_file(
 							acc.clone(),
-							v.file_id.to_vec(),
+							v.file_id,
+							v.shard_id,
 							v.file_size,
 							v.file_type,
 						) {
@@ -351,11 +354,11 @@ pub mod pallet {
 						log::info!(
 							"challenge draw a blank, miner_acc:{:?}, file_id: {:?}",
 							acc.clone(),
-							v.file_id.to_vec()
+							v.file_id
 						);
 						Self::deposit_event(Event::<T>::OutstandingChallenges {
 							miner: acc.clone(),
-							file_id: v.file_id.to_vec(),
+							file_id: v.file_id,
 						});
 					}
 					<ChallengeMap<T>>::remove(acc.clone());
@@ -503,9 +506,9 @@ pub mod pallet {
 			}
 
 			let challenge_list = Self::challenge_map(sender.clone());
-			let mut fileid_list: Vec<Vec<u8>> = Vec::new();
+			let mut fileid_list: Vec<Hash> = Vec::new();
 			for v in challenge_list.iter() {
-				fileid_list.push(v.file_id.to_vec());
+				fileid_list.push(v.file_id);
 			}
 			for prove in prove_info.iter() {
 				if !fileid_list.contains(&prove.file_id) {
@@ -544,20 +547,21 @@ pub mod pallet {
 						if (value.miner_acc == result.miner_acc.clone())
 							&& (value.challenge_info.file_id == result.file_id)
 						{
-							o.retain(|x| (x.challenge_info.file_id != result.file_id.to_vec()));
+							o.retain(|x| (x.challenge_info.file_id != result.file_id));
 							//If the result is false, a penalty will be imposed
 							if !result.result {
 								Self::set_failure(result.miner_acc.clone()).unwrap_or(());
 								Self::update_miner_file(
 									result.miner_acc.clone(),
-									result.file_id.clone().to_vec(),
+									result.file_id.clone(),
+									result.shard_id.clone(),
 									value.challenge_info.file_size,
 									value.challenge_info.file_type.clone(),
 								)?;
 							}
 							Self::deposit_event(Event::<T>::VerifyProof {
 								miner: result.miner_acc.clone(),
-								file_id: result.file_id.to_vec(),
+								file_id: result.file_id,
 							});
 							break;
 						}
@@ -740,10 +744,10 @@ pub mod pallet {
 		) -> DispatchResult {
 			<ChallengeMap<T>>::try_mutate(&miner_acc, |o| -> DispatchResult {
 				for v in prove_list.iter() {
-					o.retain(|x| x.file_id != *v.file_id);
+					o.retain(|x| x.file_id != v.file_id);
 					Self::deposit_event(Event::<T>::ChallengeProof {
 						miner: v.miner_acc.clone(),
-						file_id: v.file_id.to_vec(),
+						file_id: v.file_id,
 					});
 				}
 
@@ -810,7 +814,7 @@ pub mod pallet {
 			let mut x = 0;
 			let mut new_challenge_map: BTreeMap<AccountOf<T>, Vec<ChallengeInfo<T>>> =
 				BTreeMap::new();
-			for (miner_acc, file_id, block_list, file_size, file_type) in result {
+			for (miner_acc, file_id, shard_id, block_list, file_size, file_type) in result {
 				x = x.checked_add(&1).ok_or(Error::<T>::Overflow)?;
 				let random = Self::generate_random_number(
 					x.checked_add(&20220510).ok_or(Error::<T>::Overflow)?,
@@ -820,8 +824,9 @@ pub mod pallet {
 				let challenge_info = ChallengeInfo::<T> {
 					file_size,
 					file_type,
-					file_id: file_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
 					block_list: block_list.try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
+					file_id,
+					shard_id,
 					random: Self::vec_to_bounded(random)?,
 				};
 				//Push Map
@@ -1049,7 +1054,8 @@ pub mod pallet {
 
 		fn update_miner_file(
 			acc: AccountOf<T>,
-			file_id: Vec<u8>,
+			file_id: Hash,
+			shard_id: [u8; 72],
 			file_size: u64,
 			file_type: DataType,
 		) -> Result<Weight, DispatchError> {
@@ -1066,8 +1072,8 @@ pub mod pallet {
 				},
 				DataType::Filler => {
 					T::MinerControl::sub_space(&acc, file_size.into())?; //read 3 write 2
-					T::File::add_recovery_file(file_id.clone())?; //read 2 write 2
-					T::File::add_invalid_file(acc.clone(), file_id.clone())?; //read 1 write 1
+					T::File::add_recovery_file(shard_id.clone())?; //read 2 write 2
+					// T::File::add_invalid_file(acc.clone(), file_id.clone())?; //read 1 write 1
 					weight = weight.saturating_add(T::DbWeight::get().reads_writes(6, 5));
 				},
 			}

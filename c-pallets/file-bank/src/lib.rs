@@ -44,7 +44,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use scale_info::TypeInfo;
-use cp_cess_common::{PackageType, DataType};
+use cp_cess_common::{PackageType, DataType, Hash as H68};
 use cp_scheduler_credit::SchedulerCreditCounter;
 use sp_runtime::{
 	traits::{
@@ -57,13 +57,12 @@ use sp_std::{convert::TryInto, prelude::*, str};
 
 pub use weights::WeightInfo;
 
+type Hash = H68;
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> =
 	<<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 type BoundedString<T> = BoundedVec<u8, <T as Config>::StringLimit>;
-type BoundedList<T> =
-	BoundedVec<BoundedVec<u8, <T as Config>::StringLimit>, <T as Config>::StringLimit>;
 
 const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 
@@ -75,6 +74,7 @@ pub mod pallet {
 	use pallet_sminer::MinerControl;
 	//pub use crate::weights::WeightInfo;
 	use frame_system::ensure_signed;
+	use cp_cess_common::Hash;
 
 	pub const M_BYTE: u128 = 1_048_576;
 	pub const G_BYTE: u128 = 1_048_576 * 1024;
@@ -121,6 +121,12 @@ pub mod pallet {
 		#[pallet::constant]
 		type UploadFillerLimit: Get<u8> + Clone + Eq + PartialEq;
 
+		#[pallet::constant]
+		type RecoverLimit: Get<u32> + Clone + Eq + PartialEq;
+
+		#[pallet::constant]
+		type InvalidLimit: Get<u32> + Clone + Eq + PartialEq;
+
 		type CreditCounter: SchedulerCreditCounter<Self::AccountId>;
 	}
 
@@ -128,7 +134,7 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		//file upload declaration
-		UploadDeclaration { acc: AccountOf<T>, file_hash: Vec<u8>, file_name: Vec<u8> },
+		UploadDeclaration { acc: AccountOf<T>, file_hash: Hash, file_name: Vec<u8> },
 		//file uploaded.
 		FileUpload { acc: AccountOf<T> },
 		//file updated.
@@ -148,13 +154,13 @@ pub mod pallet {
 		//Storage space expiring within 24 hours
 		LeaseExpireIn24Hours { acc: AccountOf<T>, size: u128 },
 		//File deletion event
-		DeleteFile { acc: AccountOf<T>, fileid: Vec<u8> },
+		DeleteFile { acc: AccountOf<T>, fileid: Hash },
 		//Filler chain success event
 		FillerUpload { acc: AccountOf<T>, file_size: u64 },
 		//File recovery
-		RecoverFile { acc: AccountOf<T>, file_hash: Vec<u8> },
+		RecoverFile { acc: AccountOf<T>, file_hash: [u8; 72] },
 		//The miner cleaned up an invalid file event
-		ClearInvalidFile { acc: AccountOf<T>, file_hash: Vec<u8> },
+		ClearInvalidFile { acc: AccountOf<T>, file_hash: Hash },
 		//Users receive free space events
 		ReceiveSpace { acc: AccountOf<T> },
 	}
@@ -218,12 +224,14 @@ pub mod pallet {
 		Declarated,
 
 		BugInvalid,
+
+		ConvertHashError,
 	}
 
 	#[pallet::storage]
 	#[pallet::getter(fn file)]
 	pub(super) type File<T: Config> =
-		StorageMap<_, Blake2_128Concat, BoundedString<T>, FileInfo<T>>;
+		StorageMap<_, Blake2_128Concat, Hash, FileInfo<T>>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn user_hold_file_list)]
@@ -231,14 +239,14 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		T::AccountId,
-		BoundedVec<UserFileSliceInfo<T>, T::StringLimit>,
+		BoundedVec<UserFileSliceInfo, T::StringLimit>,
 		ValueQuery,
 	>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn file_recovery)]
 	pub(super) type FileRecovery<T: Config> =
-		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedList<T>, ValueQuery>;
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<[u8; 72], T::RecoverLimit>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn filler_map)]
@@ -247,14 +255,14 @@ pub mod pallet {
 		Blake2_128Concat,
 		AccountOf<T>,
 		Blake2_128Concat,
-		BoundedString<T>,
+		Hash,
 		FillerInfo<T>,
 	>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn invalid_file)]
 	pub(super) type InvalidFile<T: Config> =
-		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedList<T>, ValueQuery>;
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<Hash, T::InvalidLimit>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn purchase_package)]
@@ -264,7 +272,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn file_keys_map)]
 	pub(super) type FileKeysMap<T: Config> =
-		CountedStorageMap<_, Blake2_128Concat, u32, (bool, BoundedString<T>)>;
+		CountedStorageMap<_, Blake2_128Concat, u32, (bool, Hash)>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn file_index_count)]
@@ -273,7 +281,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn filler_keys_map)]
 	pub(super) type FillerKeysMap<T: Config> =
-		CountedStorageMap<_, Blake2_128Concat, u32, (AccountOf<T>, BoundedString<T>)>;
+		CountedStorageMap<_, Blake2_128Concat, u32, (AccountOf<T>, Hash)>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn filler_index_count)]
@@ -377,14 +385,13 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_declaration())]
 		pub fn upload_declaration(
 			origin: OriginFor<T>,
-			file_hash: Vec<u8>,
+			file_hash: Hash,
 			file_name: Vec<u8>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			let file_hash_bound: BoundedString<T> = Self::vec_to_bound::<u8>(file_hash.clone())?;
 			let file_name_bound: BoundedString<T> = Self::vec_to_bound::<u8>(file_name.clone())?;
-			if <File<T>>::contains_key(&file_hash_bound) {
-				<File<T>>::try_mutate(&file_hash_bound, |s_opt| -> DispatchResult {
+			if <File<T>>::contains_key(&file_hash) {
+				<File<T>>::try_mutate(&file_hash, |s_opt| -> DispatchResult {
 					let s = s_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
 					if s.user.contains(&sender) {
 						Err(Error::<T>::Declarated)?;
@@ -392,7 +399,7 @@ pub mod pallet {
 					Self::update_user_space(sender.clone(), 1, s.file_size.into())?;
 					Self::add_user_hold_fileslice(
 						sender.clone(),
-						file_hash_bound.clone(),
+						file_hash.clone(),
 						s.file_size,
 					)?;
 					s.user.try_push(sender.clone()).map_err(|_| Error::<T>::StorageLimitReached)?;
@@ -405,7 +412,7 @@ pub mod pallet {
 				let count =
 					<FileIndexCount<T>>::get().checked_add(1).ok_or(Error::<T>::Overflow)?;
 				<File<T>>::insert(
-					&file_hash_bound,
+					&file_hash,
 					FileInfo::<T> {
 						file_size: 0,
 						index: count,
@@ -424,7 +431,7 @@ pub mod pallet {
 					},
 				);
 				<FileIndexCount<T>>::put(count);
-				<FileKeysMap<T>>::insert(count, (false, file_hash_bound.clone()));
+				<FileKeysMap<T>>::insert(count, (false, file_hash.clone()));
 			}
 			Self::deposit_event(Event::<T>::UploadDeclaration {
 				acc: sender,
@@ -448,7 +455,7 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload(slice_info.len() as u32))]
 		pub fn upload(
 			origin: OriginFor<T>,
-			file_hash: Vec<u8>,
+			file_hash: Hash,
 			file_size: u64,
 			slice_info: Vec<SliceInfo<T>>,
 		) -> DispatchResult {
@@ -457,16 +464,15 @@ pub mod pallet {
 				T::Scheduler::contains_scheduler(sender.clone()),
 				Error::<T>::ScheduleNonExistent
 			);
-			let file_hash_bounded: BoundedString<T> = Self::vec_to_bound::<u8>(file_hash)?;
-			ensure!(<File<T>>::contains_key(&file_hash_bounded), Error::<T>::FileNonExistent);
+			ensure!(<File<T>>::contains_key(&file_hash), Error::<T>::FileNonExistent);
 
-			<File<T>>::try_mutate(&file_hash_bounded, |s_opt| -> DispatchResult {
+			<File<T>>::try_mutate(&file_hash, |s_opt| -> DispatchResult {
 				let s = s_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
 				for user in s.user.iter() {
 					Self::update_user_space(user.clone(), 1, file_size.into())?;
 					Self::add_user_hold_fileslice(
 						user.clone(),
-						file_hash_bounded.clone(),
+						file_hash.clone(),
 						file_size,
 					)?;
 				}
@@ -531,13 +537,13 @@ pub mod pallet {
 			let mut count: u32 = <FillerIndexCount<T>>::get();
 			for i in filler_list.iter() {
 				count = count.checked_add(1).ok_or(Error::<T>::Overflow)?;
-				if <FillerMap<T>>::contains_key(&miner, i.filler_id.clone()) {
+				if <FillerMap<T>>::contains_key(&miner, i.filler_hash.clone()) {
 					Err(Error::<T>::FileExistent)?;
 				}
 				let mut value = i.clone();
 				value.index = count;
-				<FillerMap<T>>::insert(miner.clone(), i.filler_id.clone(), value);
-				<FillerKeysMap<T>>::insert(count, (miner.clone(), i.filler_id.clone()));
+				<FillerMap<T>>::insert(miner.clone(), i.filler_hash.clone(), value);
+				<FillerKeysMap<T>>::insert(count, (miner.clone(), i.filler_hash.clone()));
 			}
 			<FillerIndexCount<T>>::put(count);
 
@@ -565,12 +571,11 @@ pub mod pallet {
 		/// - `fileid`: For which miner, miner's wallet address.
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::delete_file())]
-		pub fn delete_file(origin: OriginFor<T>, fileid: Vec<u8>) -> DispatchResult {
+		pub fn delete_file(origin: OriginFor<T>, fileid: Hash) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			let bounded_fileid = Self::vec_to_bound::<u8>(fileid.clone())?;
-			ensure!(<File<T>>::contains_key(bounded_fileid.clone()), Error::<T>::FileNonExistent);
+			ensure!(<File<T>>::contains_key(fileid.clone()), Error::<T>::FileNonExistent);
 			//The above has been judged. Unwrap will be performed only if the key exists
-			Self::clear_user_file(bounded_fileid, &sender)?;
+			Self::clear_user_file(fileid, &sender)?;
 			Self::deposit_event(Event::<T>::DeleteFile { acc: sender, fileid });
 			Ok(())
 		}
@@ -764,11 +769,10 @@ pub mod pallet {
 		/// - `file_hash`: Invalid file hash
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::clear_invalid_file())]
-		pub fn clear_invalid_file(origin: OriginFor<T>, file_hash: Vec<u8>) -> DispatchResult {
+		pub fn clear_invalid_file(origin: OriginFor<T>, file_hash: Hash) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			let bounded_string: BoundedString<T> = Self::vec_to_bound::<u8>(file_hash.clone())?;
 			<InvalidFile<T>>::try_mutate(&sender, |o| -> DispatchResult {
-				o.retain(|x| *x != bounded_string);
+				o.retain(|x| *x != file_hash);
 				Ok(())
 			})?;
 			Self::deposit_event(Event::<T>::ClearInvalidFile { acc: sender, file_hash });
@@ -791,29 +795,24 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::recover_file())]
 		pub fn recover_file(
 			origin: OriginFor<T>,
-			shard_id: Vec<u8>,
+			shard_id: [u8; 72],
 			slice_info: SliceInfo<T>,
 			avail: bool,
 		) -> DispatchResult {
 			//Get fileid from shardid,
-			let length = shard_id.len().checked_sub(4).ok_or(Error::<T>::Overflow)?;
-			let file_id = shard_id[0..length].to_vec();
+			let file_hash = Hash::from_shard_id(&shard_id).map_err(|_| Error::<T>::ConvertHashError)?;
 			//Vec to BoundedVec
-			let file_id_bounded: BoundedString<T> =
-				file_id.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
 			let sender = ensure_signed(origin)?;
-			let bounded_string: BoundedString<T> =
-				shard_id.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
 			//Delete the corresponding recovery slice request pool
 			<FileRecovery<T>>::try_mutate(&sender, |o| -> DispatchResult {
-				o.retain(|x| *x != bounded_string);
+				o.retain(|x| *x != shard_id);
 				Ok(())
 			})?;
-			if !<File<T>>::contains_key(&file_id_bounded) {
+			if !<File<T>>::contains_key(&file_hash) {
 				Err(Error::<T>::FileNonExistent)?;
 			}
 			if avail {
-				<File<T>>::try_mutate(&file_id_bounded, |opt| -> DispatchResult {
+				<File<T>>::try_mutate(&file_hash, |opt| -> DispatchResult {
 					let o = opt.as_mut().unwrap();
 					o.slice_info
 						.try_push(slice_info)
@@ -826,7 +825,7 @@ pub mod pallet {
 					Ok(())
 				})?;
 			} else {
-				let _weight = Self::clear_file(file_id.clone())?;
+				let _weight = Self::clear_file(file_hash)?;
 			}
 			Self::deposit_event(Event::<T>::RecoverFile { acc: sender, file_hash: shard_id });
 			Ok(())
@@ -1017,20 +1016,20 @@ pub mod pallet {
 		/// - `tuple.3`: file size or shard size.
 		/// - `tuple.4`: file type 1 or 2, 1 is file slice, 2 is filler.
 		pub fn get_random_challenge_data(
-		) -> Result<Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, DataType)>, DispatchError> {
+		) -> Result<Vec<(AccountOf<T>, Hash, [u8; 72], Vec<u8>, u64, DataType)>, DispatchError> {
 			let filler_list = Self::get_random_filler()?;
-			let mut data: Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, DataType)> = Vec::new();
+			let mut data: Vec<(AccountOf<T>, Hash, [u8; 72], Vec<u8>, u64, DataType)> = Vec::new();
 			for v in filler_list {
 				let length = v.block_num;
 				let number_list = Self::get_random_numberlist(length, 3, length)?;
 				let miner_acc = v.miner_address.clone();
-				let filler_id = v.filler_id.clone().to_vec();
+				let filler_hash = v.filler_hash.clone();
 				let file_size = v.filler_size.clone();
 				let mut block_list: Vec<u8> = Vec::new();
 				for i in number_list.iter() {
 					block_list.push((*i as u8) + 1);
 				}
-				data.push((miner_acc, filler_id, block_list, file_size, DataType::File));
+				data.push((miner_acc, filler_hash, [0u8; 72], block_list, file_size, DataType::Filler));
 			}
 
 			let file_list = Self::get_random_file()?;
@@ -1050,13 +1049,13 @@ pub mod pallet {
 					let mut block_list: Vec<u8> = Vec::new();
 					let length = file.slice_info[*slice_index as usize].block_num;
 					let number_list = Self::get_random_numberlist(length, 3, length)?;
-					let file_hash = file.slice_info[*slice_index as usize].shard_id.to_vec();
+					let file_hash = Hash::from_shard_id(&file.slice_info[*slice_index as usize].shard_id).map_err(|_| Error::<T>::ConvertHashError)?;
 					let miner_acc = file.slice_info[*slice_index as usize].miner_acc.clone();
 					let slice_size = file.slice_info[*slice_index as usize].shard_size;
 					for i in number_list.iter() {
 						block_list.push((*i as u8) + 1);
 					}
-					data.push((miner_acc, file_hash, block_list, slice_size, DataType::Filler));
+					data.push((miner_acc, file_hash, file.slice_info[*slice_index as usize].shard_id, block_list, slice_size, DataType::File));
 				}
 			}
 
@@ -1077,12 +1076,12 @@ pub mod pallet {
 			let mut filler_list: Vec<FillerInfo<T>> = Vec::new();
 			for i in number_list.iter() {
 				let result = <FillerKeysMap<T>>::get(i);
-				let (acc, filler_id) = match result {
+				let (acc, filler_hash) = match result {
 					Some(x) => x,
 					None => Err(Error::<T>::BugInvalid)?,
 				};
 				let filler =
-					<FillerMap<T>>::try_get(acc, filler_id).map_err(|_e| Error::<T>::BugInvalid)?;
+					<FillerMap<T>>::try_get(acc, filler_hash).map_err(|_e| Error::<T>::BugInvalid)?;
 				filler_list.push(filler);
 			}
 			Ok(filler_list)
@@ -1095,11 +1094,11 @@ pub mod pallet {
 		///
 		/// Result:
 		/// - `Vec<(BoundedString<T>, FileInfo<T>)>`: Fill file information list.
-		fn get_random_file() -> Result<Vec<(BoundedString<T>, FileInfo<T>)>, DispatchError> {
+		fn get_random_file() -> Result<Vec<(Hash, FileInfo<T>)>, DispatchError> {
 			let length = Self::get_file_map_length()?;
 			let limit = <FileIndexCount<T>>::get();
 			let number_list = Self::get_random_numberlist(length, 2, limit)?;
-			let mut file_list: Vec<(BoundedString<T>, FileInfo<T>)> = Vec::new();
+			let mut file_list: Vec<(Hash, FileInfo<T>)> = Vec::new();
 			for i in number_list.iter() {
 				let file_id =
 					<FileKeysMap<T>>::try_get(i).map_err(|_e| Error::<T>::FileNonExistent)?.1;
@@ -1265,19 +1264,17 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `miner_acc`: miner AccountId.
-		/// - `filler_id`: filler id.
+		/// - `filler_hash`: filler hash.
 		/// Result:
 		/// - DispatchResult
-		pub fn delete_filler(miner_acc: AccountOf<T>, filler_id: Vec<u8>) -> DispatchResult {
-			let filler_boud: BoundedString<T> =
-				filler_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
-			if !<FillerMap<T>>::contains_key(&miner_acc, filler_boud.clone()) {
+		pub fn delete_filler(miner_acc: AccountOf<T>, filler_hash: Hash) -> DispatchResult {
+			if !<FillerMap<T>>::contains_key(&miner_acc, filler_hash.clone()) {
 				Err(Error::<T>::FileNonExistent)?;
 			}
-			let value = <FillerMap<T>>::try_get(&miner_acc, filler_boud.clone()) //read 1
+			let value = <FillerMap<T>>::try_get(&miner_acc, filler_hash.clone()) //read 1
 				.map_err(|_e| Error::<T>::FileNonExistent)?;
 			<FillerKeysMap<T>>::remove(value.index); //write 1
-			<FillerMap<T>>::remove(miner_acc, filler_boud.clone()); //write 1
+			<FillerMap<T>>::remove(miner_acc, filler_hash.clone()); //write 1
 
 			Ok(())
 		}
@@ -1290,24 +1287,23 @@ pub mod pallet {
 		///
 		/// Result:
 		/// - DispatchResult
-		pub fn clear_file(file_hash: Vec<u8>) -> Result<Weight, DispatchError> {
-			let file_hash_bounded: BoundedString<T> =
-				file_hash.try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+		pub fn clear_file(file_hash: Hash) -> Result<Weight, DispatchError> {
 			let mut weight: Weight = 0;
 			let file =
-					<File<T>>::try_get(&file_hash_bounded).map_err(|_| Error::<T>::FileNonExistent)?; //read 1
+					<File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::FileNonExistent)?; //read 1
 			  weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
 			for user in file.user.iter() {
 				Self::update_user_space(user.clone(), 2, file.file_size.into())?; //read 1 write 1 * n
 				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 			}
 			for slice in file.slice_info.iter() {
-				Self::add_invalid_file(slice.miner_acc.clone(), slice.shard_id.to_vec())?; //read 1 write 1 * n
+				let hash = Hash::from_shard_id(&slice.shard_id).map_err(|_| Error::<T>::ConvertHashError)?;
+				Self::add_invalid_file(slice.miner_acc.clone(), hash)?; //read 1 write 1 * n
 				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 				T::MinerControl::sub_space(&slice.miner_acc, slice.shard_size.into())?; //read 3 write 2
 				weight = weight.saturating_add(T::DbWeight::get().reads_writes(3, 2));
 			}
-			<File<T>>::remove(file_hash_bounded);
+			<File<T>>::remove(file_hash);
 			<FileKeysMap<T>>::remove(file.index);
 			Ok(weight)
 		}
@@ -1323,7 +1319,7 @@ pub mod pallet {
 		/// Result:
 		/// - DispatchResult
 		pub fn clear_user_file(
-			file_hash: BoundedVec<u8, T::StringLimit>,
+			file_hash: Hash,
 			user: &AccountOf<T>,
 		) -> Result<Weight, DispatchError> {
 			let mut weight: Weight = 0;
@@ -1351,7 +1347,7 @@ pub mod pallet {
 				Self::update_user_space(user.clone(), 2, file.file_size.clone().into())?; //read 1 write 1
 				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 			} else {
-				let weight1 = Self::clear_file(file_hash.clone().to_vec())?;
+				let weight1 = Self::clear_file(file_hash.clone())?;
 				weight = weight.saturating_add(weight1);
 			}
 			//read 1 write 1
@@ -1372,16 +1368,13 @@ pub mod pallet {
 		///
 		/// Result:
 		/// - DispatchResult
-		pub fn add_recovery_file(shard_id: Vec<u8>) -> DispatchResult {
+		pub fn add_recovery_file(shard_id: [u8; 72]) -> DispatchResult {
 			let acc = Self::get_current_scheduler()?;
-			let length = shard_id.len().checked_sub(4).ok_or(Error::<T>::Overflow)?;
-			let file_id = shard_id[0..length].to_vec();
-			let file_id_bounded: BoundedString<T> =
-				file_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
-			if !<File<T>>::contains_key(&file_id_bounded) {
+			let file_id = Hash::from_shard_id(&shard_id).map_err(|_| Error::<T>::ConvertHashError)?;
+			if !<File<T>>::contains_key(&file_id) {
 				Err(Error::<T>::FileNonExistent)?;
 			}
-			<File<T>>::try_mutate(&file_id_bounded, |opt| -> DispatchResult {
+			<File<T>>::try_mutate(&file_id, |opt| -> DispatchResult {
 				let o = opt.as_mut().unwrap();
 				o.slice_info.retain(|x| x.shard_id.to_vec() != shard_id);
 				Ok(())
@@ -1424,21 +1417,21 @@ pub mod pallet {
 				.checked_add(1)
 				.ok_or(Error::<T>::Overflow)?;
 			let mut counter = 0;
-			let mut filler_id_list: BoundedList<T> = Default::default();
-			for (filler_id, _) in <FillerMap<T>>::iter_prefix(miner_acc.clone()) {
+			let mut filler_hash_list: BoundedVec<Hash, T::StringLimit> = Default::default();
+			for (filler_hash, _) in <FillerMap<T>>::iter_prefix(miner_acc.clone()) {
 				if counter == replace_num {
 					break
 				}
-				filler_id_list
-					.try_push(filler_id.clone())
+				filler_hash_list
+					.try_push(filler_hash.clone())
 					.map_err(|_| Error::<T>::StorageLimitReached)?;
 				counter = counter.checked_add(1).ok_or(Error::<T>::Overflow)?;
 				//Clear information on the chain
-				Self::delete_filler(miner_acc.clone(), filler_id.to_vec())?;
+				Self::delete_filler(miner_acc.clone(), filler_hash)?;
 			}
 			//Notify the miner to clear the corresponding data segment
 			<InvalidFile<T>>::try_mutate(&miner_acc, |o| -> DispatchResult {
-				for file_hash in filler_id_list {
+				for file_hash in filler_hash_list {
 					o.try_push(file_hash).map_err(|_e| Error::<T>::StorageLimitReached)?;
 				}
 				Ok(())
@@ -1459,7 +1452,7 @@ pub mod pallet {
 		///
 		/// Result:
 		/// - DispatchResult
-		pub fn add_invalid_file(miner_acc: AccountOf<T>, file_hash: Vec<u8>) -> DispatchResult {
+		pub fn add_invalid_file(miner_acc: AccountOf<T>, file_hash: Hash) -> DispatchResult {
 			<InvalidFile<T>>::try_mutate(&miner_acc, |o| -> DispatchResult {
 				o.try_push(file_hash.try_into().map_err(|_e| Error::<T>::BoundedVecError)?)
 					.map_err(|_e| Error::<T>::StorageLimitReached)?;
@@ -1482,11 +1475,11 @@ pub mod pallet {
 		/// - DispatchResult
 		fn add_user_hold_fileslice(
 			user: AccountOf<T>,
-			file_hash_bound: BoundedVec<u8, T::StringLimit>,
+			file_hash: Hash,
 			file_size: u64,
 		) -> DispatchResult {
 			let file_info =
-				UserFileSliceInfo::<T> { file_hash: file_hash_bound.clone(), file_size };
+				UserFileSliceInfo { file_hash: file_hash.clone(), file_size };
 			<UserHoldFileList<T>>::try_mutate(&user, |v| -> DispatchResult {
 				v.try_push(file_info).map_err(|_| Error::<T>::StorageLimitReached)?;
 				Ok(())
@@ -1552,28 +1545,28 @@ pub mod pallet {
 pub trait RandomFileList<AccountId> {
 	//Get random challenge data
 	fn get_random_challenge_data(
-	) -> Result<Vec<(AccountId, Vec<u8>, Vec<u8>, u64, DataType)>, DispatchError>;
+	) -> Result<Vec<(AccountId, Hash, [u8; 72], Vec<u8>, u64, DataType)>, DispatchError>;
 	//Delete filler file
-	fn delete_filler(miner_acc: AccountId, filler_id: Vec<u8>) -> DispatchResult;
+	fn delete_filler(miner_acc: AccountId, filler_hash: Hash) -> DispatchResult;
 	//Delete all filler according to miner_acc
 	fn delete_miner_all_filler(miner_acc: AccountId) -> Result<Weight, DispatchError>;
 	//Delete file backup
-	fn clear_file(file_hash: Vec<u8>) -> Result<Weight, DispatchError>;
+	fn clear_file(file_hash: Hash) -> Result<Weight, DispatchError>;
 	//The function executed when the challenge fails, allowing the miner to delete invalid files
-	fn add_recovery_file(file_id: Vec<u8>) -> DispatchResult;
+	fn add_recovery_file(file_id: [u8; 72]) -> DispatchResult;
 	//The function executed when the challenge fails to let the consensus schedule recover the file
-	fn add_invalid_file(miner_acc: AccountId, file_hash: Vec<u8>) -> DispatchResult;
+	fn add_invalid_file(miner_acc: AccountId, file_hash: Hash) -> DispatchResult;
 }
 
 impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Pallet<T> {
 	fn get_random_challenge_data(
-	) -> Result<Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, DataType)>, DispatchError> {
+	) -> Result<Vec<(AccountOf<T>, Hash, [u8; 72], Vec<u8>, u64, DataType)>, DispatchError> {
 		let result = Pallet::<T>::get_random_challenge_data()?;
 		Ok(result)
 	}
 
-	fn delete_filler(miner_acc: AccountOf<T>, filler_id: Vec<u8>) -> DispatchResult {
-		Pallet::<T>::delete_filler(miner_acc, filler_id)?;
+	fn delete_filler(miner_acc: AccountOf<T>, filler_hash: Hash) -> DispatchResult {
+		Pallet::<T>::delete_filler(miner_acc, filler_hash)?;
 		Ok(())
 	}
 	fn delete_miner_all_filler(miner_acc: AccountOf<T>) -> Result<Weight, DispatchError> {
@@ -1587,17 +1580,17 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 		Ok(weight)
 	}
 
-	fn clear_file(file_hash: Vec<u8>) -> Result<Weight, DispatchError> {
+	fn clear_file(file_hash: Hash) -> Result<Weight, DispatchError> {
 		let weight = Pallet::<T>::clear_file(file_hash)?;
 		Ok(weight)
 	}
 
-	fn add_recovery_file(file_id: Vec<u8>) -> DispatchResult {
+	fn add_recovery_file(file_id: [u8; 72]) -> DispatchResult {
 		Pallet::<T>::add_recovery_file(file_id)?;
 		Ok(())
 	}
 
-	fn add_invalid_file(miner_acc: AccountOf<T>, file_hash: Vec<u8>) -> DispatchResult {
+	fn add_invalid_file(miner_acc: AccountOf<T>, file_hash: Hash) -> DispatchResult {
 		Pallet::<T>::add_invalid_file(miner_acc, file_hash)?;
 		Ok(())
 	}
