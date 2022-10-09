@@ -53,9 +53,9 @@ pub mod pallet {
 	#[scale_info(skip_type_params(T))]
 	#[codec(mel_bound())]
 	pub struct PublicKey<T: Config> {
-		pub spk: BoundedVec<u8, T::StringLimit>,
-		pub shared_params: BoundedVec<u8, T::StringLimit>,
-		pub shared_g: BoundedVec<u8, T::StringLimit>,
+		pub spk: [u8; 128],
+		pub shared_params: [u8; 359],
+		pub shared_g: [u8; 128],
 	}
 
 	#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, Default, MaxEncodedLen, TypeInfo)]
@@ -200,7 +200,7 @@ pub mod pallet {
 		#[pallet::weight(10_000)]
 		pub fn init_public_key(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
-			let spk: BoundedVec<u8, T::StringLimit> = vec![
+			let spk: [u8; 128] = [
 				10, 220, 75, 195, 174, 36, 186, 176, 59, 223, 170, 199, 177, 143, 223, 147, 220,
 				84, 132, 101, 54, 112, 120, 144, 219, 28, 230, 129, 240, 127, 161, 4, 193, 25, 118,
 				181, 98, 3, 34, 200, 217, 50, 125, 125, 26, 120, 139, 11, 63, 0, 223, 99, 217, 72,
@@ -209,10 +209,8 @@ pub mod pallet {
 				9, 166, 11, 194, 117, 81, 227, 225, 25, 170, 140, 120, 254, 100, 174, 110, 180,
 				158, 45, 0, 197, 150, 193, 71, 30, 34, 233, 90, 5, 64, 37, 163, 246, 121, 176, 26,
 				201, 174,
-			]
-			.try_into()
-			.map_err(|_e| Error::<T>::BoundedVecError)?;
-			let shared_params: BoundedVec<u8, T::StringLimit> = vec![
+			];
+			let shared_params: [u8; 359] = [
 				116, 121, 112, 101, 32, 97, 10, 113, 32, 54, 53, 56, 50, 55, 51, 49, 54, 52, 56,
 				53, 50, 52, 55, 48, 50, 57, 55, 56, 52, 54, 54, 48, 54, 50, 53, 51, 48, 57, 53, 56,
 				57, 50, 49, 51, 56, 53, 57, 50, 55, 57, 54, 55, 48, 54, 55, 48, 50, 51, 56, 48, 53,
@@ -231,10 +229,8 @@ pub mod pallet {
 				52, 53, 50, 48, 52, 56, 53, 55, 54, 53, 49, 49, 10, 101, 120, 112, 50, 32, 49, 53,
 				57, 10, 101, 120, 112, 49, 32, 49, 49, 48, 10, 115, 105, 103, 110, 49, 32, 49, 10,
 				115, 105, 103, 110, 48, 32, 45, 49, 10,
-			]
-			.try_into()
-			.map_err(|_e| Error::<T>::BoundedVecError)?;
-			let shared_g: BoundedVec<u8, T::StringLimit> = vec![
+			];
+			let shared_g: [u8; 128] = [
 				6, 82, 21, 158, 104, 141, 100, 78, 98, 180, 126, 135, 86, 92, 214, 75, 221, 27,
 				157, 4, 92, 203, 235, 234, 39, 170, 30, 218, 100, 100, 155, 185, 152, 19, 67, 73,
 				171, 46, 16, 231, 150, 190, 83, 175, 106, 104, 182, 175, 58, 112, 114, 96, 155, 77,
@@ -243,9 +239,7 @@ pub mod pallet {
 				186, 232, 192, 164, 130, 21, 17, 145, 25, 151, 165, 105, 78, 11, 210, 212, 85, 243,
 				54, 83, 190, 179, 6, 67, 145, 56, 123, 208, 75, 19, 183, 220, 98, 129, 37, 7, 81,
 				243,
-			]
-			.try_into()
-			.map_err(|_e| Error::<T>::BoundedVecError)?;
+			];
 
 			let public_key = PublicKey::<T> { spk, shared_params, shared_g };
 			<SchedulerPuk<T>>::put(public_key);
