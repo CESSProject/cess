@@ -161,21 +161,21 @@ impl<T: Config> ValidatorCredits<T::AccountId> for Pallet<T> {
 #[cfg(test)]
 mod test {
 	use crate::SchedulerCounterEntry;
-
+	use crate::mock::Test;
 	#[test]
 	fn scheduler_counter_works() {
 		let mut sce = SchedulerCounterEntry::default();
-		sce.increase_block_size(100);
+		sce.increase_block_size::<Test>(100)?;
 		assert_eq!(100, sce.proceed_block_size);
-		sce.increase_block_size(100);
+		sce.increase_block_size::<Test>(100)?;
 		assert_eq!(200, sce.proceed_block_size);
 		assert_eq!(0, sce.punishment_part());
 		assert_eq!(100, sce.figure_credit_score(2000));
 
-		sce.increase_punishment_count();
+		sce.increase_punishment_count::<Test>()?;
 		assert_eq!(1, sce.punishment_count);
 		assert_eq!(100, sce.figure_credit_score(1000));
-		sce.increase_punishment_count();
+		sce.increase_punishment_count::<Test>()?;
 		assert_eq!(2, sce.punishment_count);
 		assert_eq!(0, sce.figure_credit_score(1000));
 	}
