@@ -50,9 +50,7 @@ pub mod pallet {
 	}
 
 	#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-	#[scale_info(skip_type_params(T))]
-	#[codec(mel_bound())]
-	pub struct PublicKey<T: Config> {
+	pub struct PublicKey {
 		pub spk: [u8; 128],
 		pub shared_params: [u8; 359],
 		pub shared_g: [u8; 128],
@@ -126,7 +124,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn scheduler_puk)]
-	pub(super) type SchedulerPuk<T: Config> = StorageValue<_, PublicKey<T>>;
+	pub(super) type SchedulerPuk<T: Config> = StorageValue<_, PublicKey>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn bond_acc)]
@@ -241,7 +239,7 @@ pub mod pallet {
 				243,
 			];
 
-			let public_key = PublicKey::<T> { spk, shared_params, shared_g };
+			let public_key = PublicKey{ spk, shared_params, shared_g };
 			<SchedulerPuk<T>>::put(public_key);
 
 			Ok(())
