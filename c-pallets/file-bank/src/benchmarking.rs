@@ -33,7 +33,7 @@ type SminerBalanceOf<T> = <<T as pallet_sminer::Config>::Currency as Currency<
 
 const SEED: u32 = 2190502;
 const MAX_SPANS: u32 = 100;
-//asifdhks
+
 pub fn add_file<T: Config>(file_hash: Vec<u8>) -> Result<(BoundedString<T>, T::AccountId, T::AccountId, T::AccountId), &'static str> {
 	let caller: T::AccountId = whitelisted_caller();
 	let (caller, miner, controller) = bench_buy_package::<T>(caller, 1000)?;
