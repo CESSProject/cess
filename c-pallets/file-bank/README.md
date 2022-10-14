@@ -1,6 +1,6 @@
 # File Bank Module
 
-Contain operations related info of files on multi-direction.
+Contain operations related info of files on multi-direction. Provide storage space purchase, capacity expansion and lease renewal interfaces.
 
 ### Terminology
 
