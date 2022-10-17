@@ -50,9 +50,11 @@ pub mod pallet {
 	}
 
 	#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-	pub struct PublicKey {
+	#[scale_info(skip_type_params(T))]
+	#[codec(mel_bound())]
+	pub struct PublicKey<T: Config> {
 		pub spk: [u8; 128],
-		pub shared_params: [u8; 359],
+		pub shared_params: BoundedVec<u8, T::ParamsLimit>,
 		pub shared_g: [u8; 128],
 	}
 
@@ -76,6 +78,9 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type StringLimit: Get<u32> + PartialEq + Eq + Clone;
+
+		#[pallet::constant]
+		type ParamsLimit: Get<u32> + PartialEq + Eq + Clone;
 
 		#[pallet::constant]
 		type SchedulerMaximum: Get<u32> + PartialEq + Eq + Clone;
@@ -124,7 +129,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn scheduler_puk)]
-	pub(super) type SchedulerPuk<T: Config> = StorageValue<_, PublicKey>;
+	pub(super) type SchedulerPuk<T: Config> = StorageValue<_, PublicKey::<T>>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn bond_acc)]
@@ -134,7 +139,6 @@ pub mod pallet {
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
-
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		//Scheduling registration method
@@ -208,7 +212,7 @@ pub mod pallet {
 				158, 45, 0, 197, 150, 193, 71, 30, 34, 233, 90, 5, 64, 37, 163, 246, 121, 176, 26,
 				201, 174,
 			];
-			let shared_params: [u8; 359] = [
+			let shared_params: BoundedVec<u8, T::ParamsLimit> = vec![
 				116, 121, 112, 101, 32, 97, 10, 113, 32, 54, 53, 56, 50, 55, 51, 49, 54, 52, 56,
 				53, 50, 52, 55, 48, 50, 57, 55, 56, 52, 54, 54, 48, 54, 50, 53, 51, 48, 57, 53, 56,
 				57, 50, 49, 51, 56, 53, 57, 50, 55, 57, 54, 55, 48, 54, 55, 48, 50, 51, 56, 48, 53,
@@ -227,7 +231,7 @@ pub mod pallet {
 				52, 53, 50, 48, 52, 56, 53, 55, 54, 53, 49, 49, 10, 101, 120, 112, 50, 32, 49, 53,
 				57, 10, 101, 120, 112, 49, 32, 49, 49, 48, 10, 115, 105, 103, 110, 49, 32, 49, 10,
 				115, 105, 103, 110, 48, 32, 45, 49, 10,
-			];
+			].try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
 			let shared_g: [u8; 128] = [
 				6, 82, 21, 158, 104, 141, 100, 78, 98, 180, 126, 135, 86, 92, 214, 75, 221, 27,
 				157, 4, 92, 203, 235, 234, 39, 170, 30, 218, 100, 100, 155, 185, 152, 19, 67, 73,
@@ -239,7 +243,7 @@ pub mod pallet {
 				243,
 			];
 
-			let public_key = PublicKey{ spk, shared_params, shared_g };
+			let public_key = PublicKey::<T>{ spk, shared_params, shared_g };
 			<SchedulerPuk<T>>::put(public_key);
 
 			Ok(())
