@@ -34,6 +34,7 @@ use frame_support::{
 		Get, Imbalance, LockIdentifier, OnUnbalanced, ReservableCurrency,
 	},
 };
+use cp_cess_common::IpAddress;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
@@ -84,7 +85,6 @@ pub mod pallet {
 		traits::Get,
 	};
 	use frame_system::{ensure_root, ensure_signed, pallet_prelude::*};
-
 	const DEMOCRACY_IDA: LockIdentifier = *b"msminerA";
 	const DEMOCRACY_IDB: LockIdentifier = *b"msminerB";
 	const DEMOCRACY_IDC: LockIdentifier = *b"msminerC";
@@ -185,8 +185,8 @@ pub mod pallet {
 		},
 		UpdataIp {
 			acc: AccountOf<T>,
-			old: Vec<u8>,
-			new: Vec<u8>,
+			old: IpAddress,
+			new: IpAddress,
 		},
 		StartOfBufferPeriod {
 			when: BlockNumberOf<T>,
@@ -342,7 +342,7 @@ pub mod pallet {
 		pub fn regnstk(
 			origin: OriginFor<T>,
 			beneficiary: AccountOf<T>,
-			ip: Vec<u8>,
+			ip: IpAddress,
 			staking_val: BalanceOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -355,7 +355,7 @@ pub mod pallet {
 				MinerInfo::<T::AccountId, BalanceOf<T>, BoundedVec<u8, T::ItemLimit>> {
 					peer_id,
 					beneficiary: beneficiary.clone(),
-					ip: Self::vec_to_bound::<u8>(ip.clone())?,
+					ip: ip,
 					collaterals: staking_val.clone(),
 					state: Self::vec_to_bound::<u8>(STATE_POSITIVE.as_bytes().to_vec())?,
 					power: 0,
@@ -452,16 +452,15 @@ pub mod pallet {
 		/// - `ip`: The registered IP of storage miner.
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_ip())]
-		pub fn update_ip(origin: OriginFor<T>, ip: Vec<u8>) -> DispatchResult {
+		pub fn update_ip(origin: OriginFor<T>, ip: IpAddress) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
 
-			let mut old: Vec<u8> = Vec::new();
-			<MinerItems<T>>::try_mutate(&sender, |miner_info_opt| -> DispatchResult {
+			let old = <MinerItems<T>>::try_mutate(&sender, |miner_info_opt| -> Result<IpAddress, DispatchError> {
 				let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
-				old = miner_info.ip.clone().to_vec();
-				miner_info.ip = Self::vec_to_bound::<u8>(ip.clone())?;
-				Ok(())
+				let old = miner_info.ip.clone();
+				miner_info.ip = ip.clone();
+				Ok(old)
 			})?;
 
 			Self::deposit_event(Event::<T>::UpdataIp { acc: sender, old, new: ip });
