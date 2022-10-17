@@ -5464,6 +5464,7 @@ dependencies = [
 name = "pallet-sminer"
 version = "0.5.1"
 dependencies = [
+ "cp-cess-common",
  "frame-benchmarking",
  "frame-support",
  "frame-system",

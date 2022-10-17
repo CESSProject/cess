@@ -799,10 +799,10 @@ pub mod pallet {
 			slice_info: SliceInfo<T>,
 			avail: bool,
 		) -> DispatchResult {
-			//Get fileid from shardid,
-			let file_hash = Hash::from_shard_id(&shard_id).map_err(|_| Error::<T>::ConvertHashError)?;
 			//Vec to BoundedVec
 			let sender = ensure_signed(origin)?;
+			//Get fileid from shardid,
+			let file_hash = Hash::from_shard_id(&shard_id).map_err(|_| Error::<T>::ConvertHashError)?;
 			//Delete the corresponding recovery slice request pool
 			<FileRecovery<T>>::try_mutate(&sender, |o| -> DispatchResult {
 				o.retain(|x| *x != shard_id);
