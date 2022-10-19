@@ -53,6 +53,7 @@ impl SubstrateCli for Cli {
 		Ok(match id {
 			"" | "cess-testnet" => Box::new(chain_spec::cess_testnet_config()),
 			"cess-staking-testnet" => Box::new(chain_spec::cess_testnet_generate_config()),
+			"cess-develop" => Box::new(chain_spec::cess_develop()),
 			"dev" => Box::new(chain_spec::development_config()),
 			"local" => Box::new(chain_spec::local_testnet_config()),
 			path =>

@@ -80,6 +80,133 @@ pub fn authority_keys_from_seed(
 	)
 }
 
+fn cess_develop_genesis() -> GenesisConfig {
+	#[rustfmt::skip]
+		let initial_authorities: Vec<(
+		AccountId,
+		AccountId,
+		GrandpaId,
+		RRSCId,
+		ImOnlineId,
+		AuthorityDiscoveryId,
+		SegmentBookId,
+	)> = vec![
+		(
+			// cXfg2SYcq85nyZ1U4ccx6QnAgSeLQB8aXZ2jstbw9CPGSmhXY
+			hex!["1ec940be673d3613e94c4d44e3f4621422c1a0778a53a34b2b45f3118f823c03"].into(),
+			// cXffK7BmstE5rXcK8pxKLufkffp9iASMntxUm6ctpR6xS3icV
+			hex!["1e3e1c69dfbd27d398e92da4844a9abdc2786ac01588d87a2e1f5ec06ea2a936"].into(),
+			// cXiHP2jLVk4iUrJdQVjBc2txoKjHANpomxcfHeCkKcxpesfDy
+			hex!["92389e795eef50e9af11c997f82d7bb809b0bb9a76f96b6fb29bd60b7a2cbef7"]
+				.unchecked_into(),
+			// cXfw8G7ThY48EqDMnQdZbwjmu69yELy3dMcuWyacG9snCMdPx
+			hex!["2a4d86b50b2d98c3bfb02c00f9731753b01f8151774544f4e78e11ef4bb1eb79"]
+				.unchecked_into(),
+			// cXfw8G7ThY48EqDMnQdZbwjmu69yELy3dMcuWyacG9snCMdPx
+			hex!["2a4d86b50b2d98c3bfb02c00f9731753b01f8151774544f4e78e11ef4bb1eb79"]
+				.unchecked_into(),
+			// cXfw8G7ThY48EqDMnQdZbwjmu69yELy3dMcuWyacG9snCMdPx
+			hex!["2a4d86b50b2d98c3bfb02c00f9731753b01f8151774544f4e78e11ef4bb1eb79"]
+				.unchecked_into(),
+			hex!["2a4d86b50b2d98c3bfb02c00f9731753b01f8151774544f4e78e11ef4bb1eb79"]
+				.unchecked_into(),
+		),
+		(
+			// cXiHpiCFn6xkypa2Q8SroghuME1hBtDDrJYEEAXLwkfy6y277
+			hex!["928f11288d2ba2a6c625fbf34366ea533566e6f6b85661d2ea6df4fb6158b14b"].into(),
+			// cXiKthh2dyY1taTydtdxiqQwXY1HKZcXvYGmjS2UmuPi2qNDS
+			hex!["9422fe68db986721051c6cd9841a6afc2c3edc6de3cd74c7b0e45f50b3d6c671"].into(),
+			// cXhWdqfECn1yMd9E6eKT6MD3NqyWGve8F1gLAvM9CAH4RH6LR
+			hex!["70186d841754d9f4225f922976682d580e58fce0cfd07696cb6d4324b1ede379"]
+				.unchecked_into(),
+			// cXfvtwoYtMD1Z8nZrK5JptFSdBAVyjQ1t2i6scvMLYK75ChrP
+			hex!["2a20b3a025722789f18ca7e459ec21d4f232b1a1d245272f14248d3cfa8b412a"]
+				.unchecked_into(),
+			// cXfvtwoYtMD1Z8nZrK5JptFSdBAVyjQ1t2i6scvMLYK75ChrP
+			hex!["2a20b3a025722789f18ca7e459ec21d4f232b1a1d245272f14248d3cfa8b412a"]
+				.unchecked_into(),
+			// cXfvtwoYtMD1Z8nZrK5JptFSdBAVyjQ1t2i6scvMLYK75ChrP
+			hex!["2a20b3a025722789f18ca7e459ec21d4f232b1a1d245272f14248d3cfa8b412a"]
+				.unchecked_into(),
+			hex!["2a20b3a025722789f18ca7e459ec21d4f232b1a1d245272f14248d3cfa8b412a"]
+				.unchecked_into(),
+		),
+		(
+			// cXic3WhctsJ9cExmjE9vog49xaLuVbDLcFi2odeEnvV5Sbq4f
+			hex!["a0749440bc4322cc700bc3678d986f50d2fe91d9322a4a1b3046c3f1bd944940"].into(),
+			// cXj4Z6VmYHkD64xEadQCNgFUDaV4F4ibeupuU4ELJa8uWH7mw
+			hex!["b4ac8b37a20935b0b390c61cd849ea533b060bb97e32b68801ec3b6220a8e131"].into(),
+			// cXjQgQVu9Zuitzkb8oiTYTKt7QUm9jupKbzqVNVwPELwz26rT
+			hex!["c4060f93e5bb97ed21491e90ff78268caa67ec84a5d3663ffd65332509fe0dd9"]
+				.unchecked_into(),
+			// cXfwFY2GaMueyyaSrjMRSQM48mLU7Z5JRmdB4FJE7weicJ7pu
+			hex!["2a66038471e6a62a2df2195efef9d25263858711337cf8dc31804f196bdb7840"]
+				.unchecked_into(),
+			// cXfwFY2GaMueyyaSrjMRSQM48mLU7Z5JRmdB4FJE7weicJ7pu
+			hex!["2a66038471e6a62a2df2195efef9d25263858711337cf8dc31804f196bdb7840"]
+				.unchecked_into(),
+			// cXfwFY2GaMueyyaSrjMRSQM48mLU7Z5JRmdB4FJE7weicJ7pu
+			hex!["2a66038471e6a62a2df2195efef9d25263858711337cf8dc31804f196bdb7840"]
+				.unchecked_into(),
+			//cXfwFY2GaMueyyaSrjMRSQM48mLU7Z5JRmdB4FJE7weicJ7pu
+			hex!["2a66038471e6a62a2df2195efef9d25263858711337cf8dc31804f196bdb7840"]
+				.unchecked_into(),
+		),
+		(
+			// cXik7GNf8qYgt6TtGajELHN8QRjd9iy4pd6soPnjcccsenSuh
+			hex!["a69b2d0f8bb3f43f152c55e8cb1a605f927776feaa3cb08ead51de0ef3a3f34c"].into(),
+			// cXg2eDnb8ngoDw5nvviQAdyAkCr9wzYUsnb6bbqSqeLV8rmsT
+			hex!["2e829b75650eac0d4c8dcfb8aa724d2df70dc5a44b16a8800b87403c3a4d8959"].into(),
+			// cXhcCoc4Ko1MPGa9yJY7XHYGusoqA6nB6JBTsadVfYZYBR96L
+			hex!["74579f9baed2d7151cb0f5adfe0084f59b4bbf8696d5aa0493f584097bfe3cb1"]
+				.unchecked_into(),
+			// cXgqJbnKuaHXi6ssKaLRBK7BsHMYyqnQkhiPuhjjSF1TGZWsF
+			hex!["521917850191d8787c10d9e35a0f3ff218e992e4ed476e5c33f7de5ab04f1a38"]
+				.unchecked_into(),
+			// cXgqJbnKuaHXi6ssKaLRBK7BsHMYyqnQkhiPuhjjSF1TGZWsF
+			hex!["521917850191d8787c10d9e35a0f3ff218e992e4ed476e5c33f7de5ab04f1a38"]
+				.unchecked_into(),
+			// cXgqJbnKuaHXi6ssKaLRBK7BsHMYyqnQkhiPuhjjSF1TGZWsF
+			hex!["521917850191d8787c10d9e35a0f3ff218e992e4ed476e5c33f7de5ab04f1a38"]
+				.unchecked_into(),
+			// cXgqJbnKuaHXi6ssKaLRBK7BsHMYyqnQkhiPuhjjSF1TGZWsF
+			hex!["521917850191d8787c10d9e35a0f3ff218e992e4ed476e5c33f7de5ab04f1a38"]
+				.unchecked_into(),
+		),
+	];
+
+	// generated with secret: subkey inspect "$secret"/fir
+	let root_key: AccountId = hex![
+		// cXffK7BmstE5rXcK8pxKLufkffp9iASMntxUm6ctpR6xS3icV
+		"1e3e1c69dfbd27d398e92da4844a9abdc2786ac01588d87a2e1f5ec06ea2a936"
+	]
+		.into();
+
+	let endowed_accounts: Vec<AccountId> = vec![
+		root_key.clone(),
+		hex!["1ec940be673d3613e94c4d44e3f4621422c1a0778a53a34b2b45f3118f823c03"].into(),
+		hex!["92389e795eef50e9af11c997f82d7bb809b0bb9a76f96b6fb29bd60b7a2cbef7"].into(),
+		hex!["2a4d86b50b2d98c3bfb02c00f9731753b01f8151774544f4e78e11ef4bb1eb79"].into(),
+		hex!["928f11288d2ba2a6c625fbf34366ea533566e6f6b85661d2ea6df4fb6158b14b"].into(),
+		hex!["9422fe68db986721051c6cd9841a6afc2c3edc6de3cd74c7b0e45f50b3d6c671"].into(),
+		hex!["70186d841754d9f4225f922976682d580e58fce0cfd07696cb6d4324b1ede379"].into(),
+		hex!["2a20b3a025722789f18ca7e459ec21d4f232b1a1d245272f14248d3cfa8b412a"].into(),
+		hex!["a0749440bc4322cc700bc3678d986f50d2fe91d9322a4a1b3046c3f1bd944940"].into(),
+		hex!["b4ac8b37a20935b0b390c61cd849ea533b060bb97e32b68801ec3b6220a8e131"].into(),
+		hex!["c4060f93e5bb97ed21491e90ff78268caa67ec84a5d3663ffd65332509fe0dd9"].into(),
+		hex!["2a66038471e6a62a2df2195efef9d25263858711337cf8dc31804f196bdb7840"].into(),
+		hex!["2ed4a2c67291bf3eaa4de538ab120ba21b302db5704551864226d2fae8f87937"].into(),
+		hex!["d0a9eef85d7762e89280b8fdfd4ce031530b95421214fcc28c554dbb4d9fe927"].into(),
+		hex!["5ce2722592557b41c2359fec3367f782703706784f193abc735b937abae71e30"].into(),
+		hex!["a69b2d0f8bb3f43f152c55e8cb1a605f927776feaa3cb08ead51de0ef3a3f34c"].into(),
+		hex!["2e829b75650eac0d4c8dcfb8aa724d2df70dc5a44b16a8800b87403c3a4d8959"].into(),
+		hex!["74579f9baed2d7151cb0f5adfe0084f59b4bbf8696d5aa0493f584097bfe3cb1"].into(),
+		hex!["521917850191d8787c10d9e35a0f3ff218e992e4ed476e5c33f7de5ab04f1a38"].into(),
+	];
+
+	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts))
+}
+
 fn cess_testnet_config_genesis() -> GenesisConfig {
 	#[rustfmt::skip]
 	// stash, controller, session-key
@@ -212,6 +339,30 @@ pub fn cess_testnet_generate_config() -> ChainSpec {
 				"{\"tokenDecimals\": 12, \"tokenSymbol\": \"TCESS\", \"SS58Prefix\": 11330}",
 			)
 			.expect("Provided valid json map"),
+		),
+		Default::default(),
+	)
+}
+
+pub fn cess_develop() -> ChainSpec {
+	let boot_nodes = vec![];
+	ChainSpec::from_genesis(
+		"cess-testnet",
+		"cess-testnet",
+		ChainType::Live,
+		cess_develop_genesis,
+		boot_nodes,
+		Some(
+			TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
+				.expect("Staging telemetry url is valid; qed"),
+		),
+		Some("TCESS"),
+		None,
+		Some(
+			serde_json::from_str(
+				"{\"tokenDecimals\": 12, \"tokenSymbol\": \"TCESS\", \"SS58Prefix\": 11330}",
+			)
+				.expect("Provided valid json map"),
 		),
 		Default::default(),
 	)
