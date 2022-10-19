@@ -83,7 +83,7 @@ pub fn add_file<T: Config>(file_hash: Vec<u8>) -> Result<(BoundedString<T>, T::A
 	let file_hash: BoundedString<T> = file_hash.try_into().map_err(|_e| "file_hash Vec convert BoundedVec err")?;
 	Ok((file_hash, caller, miner, controller))
 }
-
+// sdjkhfcdnsdlc
 pub fn add_scheduler<T: Config>() -> Result<T::AccountId, &'static str> {
 	let controller = testing_utils::create_funded_user::<T>("controller", SEED, 100);
 	let stash = testing_utils::create_funded_user::<T>("stash", SEED, 100);
