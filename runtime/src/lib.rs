@@ -83,7 +83,6 @@ use pallet_evm::{
 };
 pub use pallet_timestamp::Call as TimestampCall;
 //add contracts
-use pallet_contracts::weights::WeightInfo;
 use pallet_election_provider_multi_phase::SolutionAccuracyOf;
 
 mod precompiles;

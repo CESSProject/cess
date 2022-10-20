@@ -80,7 +80,7 @@ pub fn authority_keys_from_seed(
 	)
 }
 
-fn cess_develop_genesis() -> GenesisConfig {
+fn cess_main_genesis() -> GenesisConfig {
 	#[rustfmt::skip]
 		let initial_authorities: Vec<(
 		AccountId,
@@ -320,6 +320,10 @@ pub fn cess_testnet_config() -> ChainSpec {
 	ChainSpec::from_json_bytes(&include_bytes!("../ccg/cess-testnet-spec-raw.json")[..]).unwrap()
 }
 
+pub fn cess_develop_config() -> ChainSpec {
+	ChainSpec::from_json_bytes(&include_bytes!("../ccg/cess-develop-spec-raw.json")[..]).unwrap()
+}
+
 pub fn cess_testnet_generate_config() -> ChainSpec {
 	let boot_nodes = vec![];
 	ChainSpec::from_genesis(
@@ -344,13 +348,13 @@ pub fn cess_testnet_generate_config() -> ChainSpec {
 	)
 }
 
-pub fn cess_develop() -> ChainSpec {
+pub fn cess_main() -> ChainSpec {
 	let boot_nodes = vec![];
 	ChainSpec::from_genesis(
 		"cess-testnet",
 		"cess-testnet",
 		ChainType::Live,
-		cess_develop_genesis,
+		cess_main_genesis,
 		boot_nodes,
 		Some(
 			TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
