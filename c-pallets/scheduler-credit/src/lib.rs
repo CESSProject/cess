@@ -108,9 +108,10 @@ pub mod pallet {
 			let period_duration = T::PeriodDuration::get();
 			if now % period_duration == T::BlockNumber::zero() {
 				let period: u32 = (now / period_duration).saturated_into();
-				Self::figure_credit_values(period.saturating_sub(1));
+				Self::figure_credit_values(period.saturating_sub(1))
+			} else {
+				0
 			}
-			0
 		}
 	}
 }
@@ -124,10 +125,12 @@ impl<T: Config> Pallet<T> {
 		<CurrentCounters<T>>::mutate(scheduler_id, |scb| scb.increase_punishment_count());
 	}
 
-	pub fn figure_credit_values(period: u32) {
+	pub fn figure_credit_values(period: u32) -> Weight {
+		let mut weight: Weight = 0;
 		let mut total_size = 0_u64;
 		for (_, counter_entry) in <CurrentCounters<T>>::iter() {
 			total_size += counter_entry.proceed_block_size;
+			weight = weight.saturating_add(T::DbWeight::get().reads(1));
 		}
 
 		for (ctrl_account_id, counter_entry) in <CurrentCounters<T>>::iter() {
@@ -139,13 +142,15 @@ impl<T: Config> Pallet<T> {
 				credit_score
 			);
 			HistoryCreditValues::<T>::insert(&period, &ctrl_account_id, credit_score);
+			weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 		}
 
-		//Remove `period - HistoryDepth` credit values in history.
+		//Remove `period - history_depth` credit values in history.
 		let history_depth = PERIOD_WEIGHT.len() as u32;
-		if period > history_depth {
+		if period >= history_depth {
 			HistoryCreditValues::<T>::remove_prefix(&period.saturating_sub(history_depth), None);
 		}
+		weight
 	}
 
 	pub fn figure_credit_scores() -> BTreeMap<T::AccountId, CreditScore> {
