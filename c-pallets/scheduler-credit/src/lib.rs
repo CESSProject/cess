@@ -90,10 +90,6 @@ pub mod pallet {
 		#[pallet::constant]
 		type PeriodDuration: Get<Self::BlockNumber>;
 
-		/// Number of periods to keep in history.
-		#[pallet::constant]
-		type HistoryDepth: Get<u32>;
-
 		type StashAccountFinder: SchedulerStashAccountFinder<Self::AccountId>;
 	}
 
@@ -102,7 +98,6 @@ pub mod pallet {
 	pub(super) type CurrentCounters<T: Config> =
 		StorageMap<_, Blake2_128Concat, T::AccountId, SchedulerCounterEntry, ValueQuery>;
 
-	/// Stores the latest `HistoryDepth` preiods credit values.
 	#[pallet::storage]
 	pub(super) type HistoryCreditValues<T: Config> =
 		StorageDoubleMap<_, Twox64Concat, u32, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
@@ -147,7 +142,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		//Remove `period - HistoryDepth` credit values in history.
-		let history_depth = T::HistoryDepth::get();
+		let history_depth = PERIOD_WEIGHT.len() as u32;
 		if period > history_depth {
 			HistoryCreditValues::<T>::remove_prefix(&period.saturating_sub(history_depth), None);
 		}
@@ -158,6 +153,11 @@ impl<T: Config> Pallet<T> {
 		let now = <frame_system::Pallet<T>>::block_number();
 		let period_duration = T::PeriodDuration::get();
 		let period: u32 = (now / period_duration).saturated_into();
+
+		if period == 0 {
+			return result;
+		}
+
 		let last_period = period.saturating_sub(1);
 		HistoryCreditValues::<T>::iter_key_prefix(&last_period)
 			.for_each(|ctrl_account_id| {

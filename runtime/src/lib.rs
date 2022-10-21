@@ -1314,7 +1314,6 @@ parameter_types! {
 
 impl pallet_scheduler_credit::Config for Runtime {
 	type PeriodDuration = PeriodDuration;
-	type HistoryDepth = ConstU32<5>;
 	type StashAccountFinder = SchedulerStashAccountFinder;
 }
 
