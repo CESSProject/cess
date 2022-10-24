@@ -54,7 +54,7 @@ impl SchedulerCounterEntry {
 		self.punishment_count += 1;
 	}
 
-	pub fn figure_credit_score(&self, total_block_size: u64) -> CreditScore {
+	pub fn figure_credit_value(&self, total_block_size: u64) -> CreditScore {
 		if total_block_size != 0 {
 			let a = (FULL_CREDIT_SCORE as f64 *
 				(self.proceed_block_size as f64 / total_block_size as f64)) as u32;
@@ -134,14 +134,14 @@ impl<T: Config> Pallet<T> {
 		}
 
 		for (ctrl_account_id, counter_entry) in <CurrentCounters<T>>::iter() {
-			let credit_score = counter_entry.figure_credit_score(total_size);
+			let credit_value = counter_entry.figure_credit_value(total_size);
 			debug!(
 				target: LOG_TARGET,
-				"scheduler stash account: {:?}, credit: {}",
+				"scheduler control account: {:?}, credit value: {}",
 				ctrl_account_id,
-				credit_score
+				credit_value
 			);
-			HistoryCreditValues::<T>::insert(&period, &ctrl_account_id, credit_score);
+			HistoryCreditValues::<T>::insert(&period, &ctrl_account_id, credit_value);
 			weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 		}
 
@@ -177,6 +177,12 @@ impl<T: Config> Pallet<T> {
 							credit_score += weight * credit_value;
 						}
 					}
+					debug!(
+						target: LOG_TARGET,
+						"scheduler stash account: {:?}, credit value: {}",
+						stash_account_id,
+						credit_score
+					);
 					result.insert(stash_account_id, credit_score);
 				} else {
 					warn!(
@@ -223,13 +229,13 @@ mod test {
 		sce.increase_block_size(100);
 		assert_eq!(200, sce.proceed_block_size);
 		assert_eq!(0, sce.punishment_part());
-		assert_eq!(100, sce.figure_credit_score(2000));
+		assert_eq!(100, sce.figure_credit_value(2000));
 
 		sce.increase_punishment_count();
 		assert_eq!(1, sce.punishment_count);
-		assert_eq!(100, sce.figure_credit_score(1000));
+		assert_eq!(100, sce.figure_credit_value(1000));
 		sce.increase_punishment_count();
 		assert_eq!(2, sce.punishment_count);
-		assert_eq!(0, sce.figure_credit_score(1000));
+		assert_eq!(0, sce.figure_credit_value(1000));
 	}
 }
