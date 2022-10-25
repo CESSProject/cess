@@ -13,7 +13,7 @@ pub struct ChallengeInfo<T: pallet::Config> {
 	pub(super) file_type: DataType,
 	pub(super) block_list: BoundedVec<u8, T::StringLimit>,
 	pub(super) file_id: Hash,
-	pub(super) shard_id: [u8; 72],
+	pub(super) shard_id: [u8; 68],
 	//48 bit random number
 	pub(super) random: BoundedList<T>,
 }
@@ -31,6 +31,8 @@ pub struct ProveInfo<T: pallet::Config> {
 	pub(super) mu: BoundedList<T>,
 	//Proof of relevant information
 	pub(super) sigma: BoundedVec<u8, T::StringLimit>,
+	pub(super) name: BoundedVec<u8, T::StringLimit>,
+	pub(super) u: BoundedVec<u8, T::StringLimit>,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
@@ -39,7 +41,7 @@ pub struct ProveInfo<T: pallet::Config> {
 pub struct VerifyResult<T: pallet::Config> {
 	pub(super) miner_acc: AccountOf<T>,
 	pub(super) file_id: Hash,
-	pub(super) shard_id: [u8; 72],
+	pub(super) shard_id: [u8; 68],
 	pub(super) result: bool,
 }
 

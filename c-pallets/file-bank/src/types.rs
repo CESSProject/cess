@@ -21,7 +21,7 @@ pub struct SliceInfo<T: pallet::Config> {
 	pub miner_id: u64,
 	pub shard_size: u64,
 	pub block_num: u32,
-	pub shard_id: [u8; 72],
+	pub shard_id: [u8; 68],
 	pub miner_ip: BoundedVec<u8, T::StringLimit>,
 	pub miner_acc: AccountOf<T>,
 }

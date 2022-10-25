@@ -9,8 +9,16 @@ use codec::{MaxEncodedLen};
 use scale_info::TypeInfo;
 
 #[derive(Copy, Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-pub struct Hash(pub [u8; 68]);
+pub struct Hash(pub [u8; 64]);
 pub struct TryFromSliceError(());
+
+impl sp_std::fmt::Debug for TryFromSliceError {
+	fn fmt(&self, fmt: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
+		match *self {
+			_ => write!(fmt, "try form slice error!"),
+		}
+	}
+}
 
 // impl Encode for Hash {
 // 	// fn using_encoded<R, F>(&self, f: F) -> R
@@ -44,7 +52,7 @@ pub struct TryFromSliceError(());
 
 impl Default for Hash {
 	fn default() -> Hash {
-		let new_hash = Hash([0u8; 68]);
+		let new_hash = Hash([0u8; 64]);
 		return new_hash
 	}
 }
@@ -63,17 +71,17 @@ impl Default for Hash {
 // }
 
 impl Hash {
-	fn slice_to_array_68(slice: &[u8]) -> Result<[u8; 68], TryFromSliceError> {
-		if slice.len() == 68 {
-			let ptr: [u8; 68] = (*slice).try_into().map_err(|_e| TryFromSliceError(()))?;
+	pub fn slice_to_array_64(slice: &[u8]) -> Result<[u8; 64], TryFromSliceError> {
+		if slice.len() == 64 {
+			let ptr: [u8; 64] = (*slice).try_into().map_err(|_e| TryFromSliceError(()))?;
 			Ok(ptr)
 		} else {
 			Err(TryFromSliceError(()))
 		}
 	}
 
-	pub fn from_shard_id(shard_id: &[u8; 72]) -> Result<Self, TryFromSliceError> {
-		let slice = Self::slice_to_array_68(&shard_id[0..67])?;
+	pub fn from_shard_id(shard_id: &[u8; 68]) -> Result<Self, TryFromSliceError> {
+		let slice = Self::slice_to_array_64(&shard_id[0..63])?;
 		let hash = Hash(slice);
 		return Ok(hash)
 	}
@@ -98,7 +106,7 @@ pub enum DataType {
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub enum IpAddress {
-	IPV4([u8; 4]),
-	IPV6([u16; 8]),
+	IPV4([u8; 4], u16),
+	IPV6([u16; 8], u16),
 }
 

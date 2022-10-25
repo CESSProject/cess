@@ -1055,7 +1055,7 @@ pub mod pallet {
 		fn update_miner_file(
 			acc: AccountOf<T>,
 			file_id: Hash,
-			shard_id: [u8; 72],
+			shard_id: [u8; 68],
 			file_size: u64,
 			file_type: DataType,
 		) -> Result<Weight, DispatchError> {

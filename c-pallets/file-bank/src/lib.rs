@@ -158,7 +158,7 @@ pub mod pallet {
 		//Filler chain success event
 		FillerUpload { acc: AccountOf<T>, file_size: u64 },
 		//File recovery
-		RecoverFile { acc: AccountOf<T>, file_hash: [u8; 72] },
+		RecoverFile { acc: AccountOf<T>, file_hash: [u8; 68] },
 		//The miner cleaned up an invalid file event
 		ClearInvalidFile { acc: AccountOf<T>, file_hash: Hash },
 		//Users receive free space events
@@ -246,7 +246,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn file_recovery)]
 	pub(super) type FileRecovery<T: Config> =
-		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<[u8; 72], T::RecoverLimit>, ValueQuery>;
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<[u8; 68], T::RecoverLimit>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn filler_map)]
@@ -795,7 +795,7 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::recover_file())]
 		pub fn recover_file(
 			origin: OriginFor<T>,
-			shard_id: [u8; 72],
+			shard_id: [u8; 68],
 			slice_info: SliceInfo<T>,
 			avail: bool,
 		) -> DispatchResult {
@@ -1016,9 +1016,9 @@ pub mod pallet {
 		/// - `tuple.3`: file size or shard size.
 		/// - `tuple.4`: file type 1 or 2, 1 is file slice, 2 is filler.
 		pub fn get_random_challenge_data(
-		) -> Result<Vec<(AccountOf<T>, Hash, [u8; 72], Vec<u8>, u64, DataType)>, DispatchError> {
+		) -> Result<Vec<(AccountOf<T>, Hash, [u8; 68], Vec<u8>, u64, DataType)>, DispatchError> {
 			let filler_list = Self::get_random_filler()?;
-			let mut data: Vec<(AccountOf<T>, Hash, [u8; 72], Vec<u8>, u64, DataType)> = Vec::new();
+			let mut data: Vec<(AccountOf<T>, Hash, [u8; 68], Vec<u8>, u64, DataType)> = Vec::new();
 			for v in filler_list {
 				let length = v.block_num;
 				let number_list = Self::get_random_numberlist(length, 3, length)?;
@@ -1029,7 +1029,7 @@ pub mod pallet {
 				for i in number_list.iter() {
 					block_list.push((*i as u8) + 1);
 				}
-				data.push((miner_acc, filler_hash, [0u8; 72], block_list, file_size, DataType::Filler));
+				data.push((miner_acc, filler_hash, [0u8; 68], block_list, file_size, DataType::Filler));
 			}
 
 			let file_list = Self::get_random_file()?;
@@ -1368,7 +1368,7 @@ pub mod pallet {
 		///
 		/// Result:
 		/// - DispatchResult
-		pub fn add_recovery_file(shard_id: [u8; 72]) -> DispatchResult {
+		pub fn add_recovery_file(shard_id: [u8; 68]) -> DispatchResult {
 			let acc = Self::get_current_scheduler()?;
 			let file_id = Hash::from_shard_id(&shard_id).map_err(|_| Error::<T>::ConvertHashError)?;
 			if !<File<T>>::contains_key(&file_id) {
@@ -1545,7 +1545,7 @@ pub mod pallet {
 pub trait RandomFileList<AccountId> {
 	//Get random challenge data
 	fn get_random_challenge_data(
-	) -> Result<Vec<(AccountId, Hash, [u8; 72], Vec<u8>, u64, DataType)>, DispatchError>;
+	) -> Result<Vec<(AccountId, Hash, [u8; 68], Vec<u8>, u64, DataType)>, DispatchError>;
 	//Delete filler file
 	fn delete_filler(miner_acc: AccountId, filler_hash: Hash) -> DispatchResult;
 	//Delete all filler according to miner_acc
@@ -1553,14 +1553,14 @@ pub trait RandomFileList<AccountId> {
 	//Delete file backup
 	fn clear_file(file_hash: Hash) -> Result<Weight, DispatchError>;
 	//The function executed when the challenge fails, allowing the miner to delete invalid files
-	fn add_recovery_file(file_id: [u8; 72]) -> DispatchResult;
+	fn add_recovery_file(file_id: [u8; 68]) -> DispatchResult;
 	//The function executed when the challenge fails to let the consensus schedule recover the file
 	fn add_invalid_file(miner_acc: AccountId, file_hash: Hash) -> DispatchResult;
 }
 
 impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Pallet<T> {
 	fn get_random_challenge_data(
-	) -> Result<Vec<(AccountOf<T>, Hash, [u8; 72], Vec<u8>, u64, DataType)>, DispatchError> {
+	) -> Result<Vec<(AccountOf<T>, Hash, [u8; 68], Vec<u8>, u64, DataType)>, DispatchError> {
 		let result = Pallet::<T>::get_random_challenge_data()?;
 		Ok(result)
 	}
@@ -1585,7 +1585,7 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 		Ok(weight)
 	}
 
-	fn add_recovery_file(file_id: [u8; 72]) -> DispatchResult {
+	fn add_recovery_file(file_id: [u8; 68]) -> DispatchResult {
 		Pallet::<T>::add_recovery_file(file_id)?;
 		Ok(())
 	}

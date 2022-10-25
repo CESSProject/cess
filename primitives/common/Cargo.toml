@@ -7,6 +7,7 @@ edition = "2021"
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 frame-support = {default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'monthly-2022-04-cess', version = '4.0.0-dev'}
+sp-std = { default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'monthly-2022-04-cess', version = '4.0.0-dev'}
 
 [features]
 default = ["std"]
@@ -14,4 +15,5 @@ std = [
 	"codec/std",
 	"scale-info/std",
 	"frame-support/std",
+	"sp-std/std",
 ]
