@@ -102,7 +102,7 @@ pub fn add_scheduler<T: Config>() -> Result<T::AccountId, &'static str> {
 	FileMap::<T>::registration_scheduler(RawOrigin::Signed(controller.clone()).into(), stash, "127.0.0.1:8080".as_bytes().to_vec())?;
 	Ok(controller)
 }
-
+// kskskskskskk
 fn add_filler<T: Config>(len: u32, index: u32, controller: AccountOf<T>) -> Result<u32, &'static str> {
 	let miner: AccountOf<T> = account("miner1", 100, SEED);
 	let mut filler_list: Vec<FillerInfo<T>> = Vec::new();
