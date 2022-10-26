@@ -16,6 +16,7 @@ codec = { package = "parity-scale-codec", version = "3.0.0", default-features = 
 scale-info = { default-features = false, features = ['derive'], version = "2.0.1" }
 log = { version = "0.4.14", default-features = false }
 pallet-cess-staking = { path = '../staking', version = '4.0.0-dev', default-features = false }
+cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
 
 [dependencies.frame-benchmarking]
 default-features = false
@@ -119,6 +120,7 @@ pallet-session = { version = "4.0.0-dev", default-features = false, features = [
 pallet-bags-list = { version = "4.0.0-dev", features = ["runtime-benchmarks"], git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2022-04-cess" }
 pallet-scheduler-credit = { version = "0.1.0", default-features = false, path = '../scheduler-credit'}
 cp-scheduler-credit = { path = '../../primitives/scheduler-credit', version = '0.1.0', default-features = false }
+cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
 
 [features]
 default = ["std"]
@@ -135,6 +137,8 @@ std = [
 	"pallet-sminer/std",
 	"pallet-file-bank/std",
 	"pallet-file-map/std",
+	"cp-cess-common/std",
+	"cp-cess-common/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

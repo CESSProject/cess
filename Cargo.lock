@@ -1145,9 +1145,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5827cebf4670468b8772dd191856768aedcb1b0278a04f989f7766351917b9dc"
 
 [[package]]
+name = "cp-cess-common"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-std",
+]
+
+[[package]]
 name = "cp-scheduler-credit"
 version = "0.1.0"
 dependencies = [
+ "frame-support",
  "parity-scale-codec",
  "scale-info",
  "sp-api",
@@ -5103,6 +5114,7 @@ dependencies = [
 name = "pallet-file-bank"
 version = "0.5.1"
 dependencies = [
+ "cp-cess-common",
  "cp-scheduler-credit",
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -5137,6 +5149,7 @@ dependencies = [
 name = "pallet-file-map"
 version = "0.5.1"
 dependencies = [
+ "cp-cess-common",
  "cp-scheduler-credit",
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -5398,6 +5411,7 @@ dependencies = [
 name = "pallet-segment-book"
 version = "0.5.1"
 dependencies = [
+ "cp-cess-common",
  "cp-scheduler-credit",
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -5451,6 +5465,7 @@ dependencies = [
 name = "pallet-sminer"
 version = "0.5.1"
 dependencies = [
+ "cp-cess-common",
  "frame-benchmarking",
  "frame-support",
  "frame-system",

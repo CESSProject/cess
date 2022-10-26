@@ -80,11 +80,14 @@ use pallet_sminer::MinerControl;
 use scale_info::TypeInfo;
 use sp_core::H256;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
+use cp_cess_common::DataType;
 pub mod weights;
 pub use weights::WeightInfo;
+use cp_cess_common::Hash as H68;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
+type Hash = H68;
 pub const SEGMENT_BOOK: KeyTypeId = KeyTypeId(*b"cess");
 // type FailureRate = u32;
 
@@ -96,14 +99,11 @@ pub mod sr25519 {
 	}
 
 	sp_runtime::app_crypto::with_pair! {
-		/// An i'm online keypair using sr25519 as its crypto.
 		pub type AuthorityPair = app_sr25519::Pair;
 	}
 
-	/// An i'm online signature using sr25519 as its crypto.
 	pub type AuthoritySignature = app_sr25519::Signature;
 
-	/// An i'm online identifier using sr25519 as its crypto.
 	pub type AuthorityId = app_sr25519::Public;
 }
 enum OffchainErr {
@@ -140,8 +140,8 @@ pub mod pallet {
 	pub type BoundedString<T> = BoundedVec<u8, <T as Config>::StringLimit>;
 	pub type BoundedList<T> =
 		BoundedVec<BoundedVec<u8, <T as Config>::StringLimit>, <T as Config>::StringLimit>;
-
-	pub const LIMIT: u64 = 18446744073709551615;
+	///18446744073709551615
+	pub const LIMIT: u64 = u64::MAX;
 
 	#[pallet::config]
 	pub trait Config:
@@ -161,7 +161,16 @@ pub mod pallet {
 		type StringLimit: Get<u32> + Clone + Eq + PartialEq;
 
 		#[pallet::constant]
+		type ChallengeMaximum: Get<u32> + Clone + Eq + PartialEq;
+
+		#[pallet::constant]
 		type RandomLimit: Get<u32> + Clone + Eq + PartialEq;
+
+		#[pallet::constant]
+		type SubmitProofLimit: Get<u32> + Clone + Eq + PartialEq;
+
+		#[pallet::constant]
+		type SubmitValidationLimit: Get<u32> + Clone + Eq + PartialEq;
 		//one day block
 		#[pallet::constant]
 		type OneDay: Get<BlockNumberOf<Self>>;
@@ -169,7 +178,7 @@ pub mod pallet {
 		#[pallet::constant]
 		type OneHours: Get<BlockNumberOf<Self>>;
 		// randomness for seeds.
-		type MyRandomness: Randomness<Self::Hash, Self::BlockNumber>;
+		type MyRandomness: Randomness<Option<Self::Hash>, Self::BlockNumber>;
 		//Find the consensus of the current block
 		type FindAuthor: FindAuthor<Self::AccountId>;
 		//Random files used to obtain this batch of challenges
@@ -203,11 +212,11 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		ChallengeProof { miner: AccountOf<T>, file_id: Vec<u8> },
+		ChallengeProof { miner: AccountOf<T>, file_id: Hash },
 
-		VerifyProof { miner: AccountOf<T>, file_id: Vec<u8> },
+		VerifyProof { miner: AccountOf<T>, file_id: Hash },
 
-		OutstandingChallenges { miner: AccountOf<T>, file_id: Vec<u8> },
+		OutstandingChallenges { miner: AccountOf<T>, file_id: Hash },
 	}
 
 	/// Error for the segment-book pallet.
@@ -248,7 +257,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		AccountOf<T>,
-		BoundedVec<ChallengeInfo<T>, T::StringLimit>,
+		BoundedVec<ChallengeInfo<T>, T::ChallengeMaximum>,
 		ValueQuery,
 	>;
 
@@ -274,7 +283,7 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		AccountOf<T>,
-		BoundedVec<ProveInfo<T>, T::StringLimit>,
+		BoundedVec<ProveInfo<T>, T::ChallengeMaximum>,
 		ValueQuery,
 	>;
 
@@ -289,12 +298,12 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn failure_rate_map)]
 	pub(super) type FailureNumMap<T: Config> =
-		StorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
+		CountedStorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn miner_total_proof)]
 	pub(super) type MinerTotalProof<T: Config> =
-		StorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
+		CountedStorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn consecutive_fines)]
@@ -315,32 +324,45 @@ pub mod pallet {
 			let _number: u128 = now.saturated_into();
 			let challenge_deadline = Self::challenge_duration();
 			let verify_deadline = Self::verify_duration();
+			let mut weight: Weight = 0;
 			//The waiting time for the challenge has reached the deadline
 			if now == challenge_deadline {
 				//After the waiting time for the challenge reaches the deadline,
 				//the miners who fail to complete the challenge will be punished
 				for (acc, challenge_list) in <ChallengeMap<T>>::iter() {
 					for v in challenge_list {
-						let _ = Self::set_failure(acc.clone());
-						if let Err(e) = Self::update_miner_file(
+						let result = Self::set_failure(acc.clone());
+						match result {
+							Ok(()) => log::info!("set_failure success"),
+							Err(e) => log::error!("set_failure failed: {:?}", e),
+						};
+						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+						let weight1 = match Self::update_miner_file(
 							acc.clone(),
-							v.file_id.to_vec(),
+							v.file_id,
+							v.shard_id,
 							v.file_size,
 							v.file_type,
 						) {
-							log::info!("punish Err:{:?}", e);
-						}
+							Ok(weights) => weights,
+							Err(e) => {
+								log::error!("punish error: {:?}", e);
+								0
+							},
+						};
+						weight = weight.saturating_add(weight1);
 						log::info!(
 							"challenge draw a blank, miner_acc:{:?}, file_id: {:?}",
 							acc.clone(),
-							v.file_id.to_vec()
+							v.file_id
 						);
 						Self::deposit_event(Event::<T>::OutstandingChallenges {
 							miner: acc.clone(),
-							file_id: v.file_id.to_vec(),
+							file_id: v.file_id,
 						});
 					}
 					<ChallengeMap<T>>::remove(acc.clone());
+					weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
 				}
 			}
 
@@ -353,40 +375,66 @@ pub mod pallet {
 					if v_list.len() > 0 {
 						is_end = false;
 						verify_list.append(&mut v_list.to_vec());
-						T::Scheduler::punish_scheduler(acc.clone());
+						let result = T::Scheduler::punish_scheduler(acc.clone());
+						match result {
+							Ok(()) => log::info!("punish scheduler success"),
+							Err(e) => log::error!("punish scheduler failed: {:?}", e),
+						};
 						<UnVerifyProof<T>>::remove(&acc);
+						weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
 					}
 				}
 				if is_end {
 					for (miner, total_proof) in <MinerTotalProof<T>>::iter() {
 						if <FailureNumMap<T>>::contains_key(&miner) {
 							if <ConsecutiveFines<T>>::contains_key(&miner) {
-								<ConsecutiveFines<T>>::try_mutate(
+								let result = <ConsecutiveFines<T>>::try_mutate(
 									miner.clone(),
 									|s_opt| -> DispatchResult {
 										s_opt.checked_add(1).ok_or(Error::<T>::Overflow)?;
 										Ok(())
 									},
-								).unwrap_or(());
+									).map_err(|_e| Error::<T>::BoundedVecError);
+								weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+								match result {
+									Ok(()) => log::info!("ConsecutiveFines update success"),
+									Err(e) => log::error!("ConsecutiveFines update failed: {:?}", e),
+								}
 							} else {
 								<ConsecutiveFines<T>>::insert(&miner, 1);
+								weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
 							}
-							Self::punish(
+							let result = Self::punish(
 								miner.clone(),
 								<FailureNumMap<T>>::get(&miner),
 								total_proof,
 								<ConsecutiveFines<T>>::get(&miner),
-							).unwrap_or(());
+							).map_err(|e| e);
+							weight = weight.saturating_add(T::DbWeight::get().reads_writes(6, 4));
+							match result {
+								Ok(()) => log::info!("punish success"),
+								Err(e) => log::error!("punish failed: {:?}", e),
+							};
 						} else {
 							<ConsecutiveFines<T>>::remove(&miner);
+							weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
 						}
 					}
 
-					Self::start_buffer_period_schedule().unwrap_or(());
-					<FailureNumMap<T>>::remove_all(None);
-					<MinerTotalProof<T>>::remove_all(None);
+					let result = Self::start_buffer_period_schedule().map_err(|e| e);
+					match result {
+						Ok(()) => log::info!("start_buffer_period_schedule success!"),
+						Err(e) => log::error!("start_buffer_period_schedule failed: {:?}", e),
+					};
+					// weight = weight.staurating_add(Self::clear_failure_map(5000, None));
+					// weight = weight.staurating_add(Self::clear_total_proof(5000, None));
+					<FailureNumMap<T>>::remove_all();
+					weight = weight.saturating_add(T::DbWeight::get().writes(<FailureNumMap<T>>::count() as Weight));
+					<MinerTotalProof<T>>::remove_all();
+					weight = weight.saturating_add(T::DbWeight::get().writes(<MinerTotalProof<T>>::count() as Weight));
 				} else {
 					let result = Self::get_current_scheduler();
+					weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
 					match result {
 						Ok(cur_acc) =>  {
 							let new_deadline = match now.checked_add(&1200u32.saturated_into()).ok_or(Error::<T>::Overflow) {
@@ -397,13 +445,29 @@ pub mod pallet {
 								},
 							};
 							<VerifyDuration<T>>::put(new_deadline);
-							let _ = Self::storage_prove(cur_acc, verify_list);
+							weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
+							let bound_verify_list: BoundedVec<ProveInfo<T>, T::ChallengeMaximum> = match verify_list.try_into().map_err(|_e| Error::<T>::BoundedVecError) {
+								Ok(bound_verify_list) => bound_verify_list,
+								Err(e) => {
+									log::error!("over flow: {:?}", e);
+									return 0
+								},
+							};
+							let result = Self::storage_prove(cur_acc, bound_verify_list);
+							weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
+							match result {
+								Ok(()) => log::info!("storage prove success"),
+								Err(e) => {
+									log::error!("storage prove failed: {:?}", e);
+									return 0
+								},
+							};
 						},
 						Err(_e) => log::error!("get_current_scheduler err"),
 					}
 				}
 			}
-			0
+			weight
 		}
 
 		fn offchain_worker(now: T::BlockNumber) {
@@ -436,22 +500,24 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let acc = Self::get_current_scheduler()?;
-			if prove_info.len() > 100 {
+			let limit = T::SubmitProofLimit::get();
+			if prove_info.len() > limit as usize {
 				Err(Error::<T>::LengthExceedsLimit)?;
 			}
 
 			let challenge_list = Self::challenge_map(sender.clone());
-			let mut fileid_list: Vec<Vec<u8>> = Vec::new();
+			let mut fileid_list: Vec<Hash> = Vec::new();
 			for v in challenge_list.iter() {
-				fileid_list.push(v.file_id.to_vec());
+				fileid_list.push(v.file_id);
 			}
 			for prove in prove_info.iter() {
 				if !fileid_list.contains(&prove.file_id) {
 					Err(Error::<T>::NoChallenge)?;
 				}
 			}
-			Self::storage_prove(acc, prove_info.clone())?;
-			Self::clear_challenge_info(sender.clone(), prove_info.clone())?;
+			let bound_prove_info: BoundedVec<ProveInfo<T>, T::ChallengeMaximum> = prove_info.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+			Self::storage_prove(acc, bound_prove_info.clone())?;
+			Self::clear_challenge_info(sender.clone(), bound_prove_info.clone())?;
 			Ok(())
 		}
 
@@ -466,7 +532,8 @@ pub mod pallet {
 			if !T::Scheduler::contains_scheduler(sender.clone()) {
 				Err(Error::<T>::ScheduleNonExistent)?;
 			}
-			if result_list.len() > 50 {
+			let limit = T::SubmitValidationLimit::get();
+			if result_list.len() > limit as usize {
 				Err(Error::<T>::LengthExceedsLimit)?;
 			}
 
@@ -480,20 +547,21 @@ pub mod pallet {
 						if (value.miner_acc == result.miner_acc.clone())
 							&& (value.challenge_info.file_id == result.file_id)
 						{
-							o.retain(|x| (x.challenge_info.file_id != result.file_id.to_vec()));
+							o.retain(|x| (x.challenge_info.file_id != result.file_id));
 							//If the result is false, a penalty will be imposed
 							if !result.result {
 								Self::set_failure(result.miner_acc.clone()).unwrap_or(());
 								Self::update_miner_file(
 									result.miner_acc.clone(),
-									result.file_id.clone().to_vec(),
+									result.file_id.clone(),
+									result.shard_id.clone(),
 									value.challenge_info.file_size,
-									value.challenge_info.file_type,
+									value.challenge_info.file_type.clone(),
 								)?;
 							}
 							Self::deposit_event(Event::<T>::VerifyProof {
 								miner: result.miner_acc.clone(),
-								file_id: result.file_id.to_vec(),
+								file_id: result.file_id,
 							});
 							break;
 						}
@@ -515,7 +583,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_none(origin)?;
 			// let now = <frame_system::Pallet<T>>::block_number();
-			let mut convert: BoundedVec<ChallengeInfo<T>, T::StringLimit> = Default::default();
+			let mut convert: BoundedVec<ChallengeInfo<T>, T::ChallengeMaximum> = Default::default();
 			for v in challenge_info {
 				convert.try_push(v).map_err(|_e| Error::<T>::BoundedVecError)?;
 			}
@@ -579,6 +647,32 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
+		// fn clear_failure_map(limit: u32 , maybe_cursor: Option<&[u8]>) -> Weight {
+		// 	let result = <FailureNumMap<T>>::clear(limit, maybe_cursor);
+		// 	let mut weight: Weight = 0;
+		// 	match result.maybe_cursor {
+		// 		Some(v) => weight = Self::clear_failure_map(limit, result.maybe_cursor),
+		// 		None => {
+		// 			weight = weight.saturating_add(T::DbWeight::get().writes(result.backend));
+		// 			weight = weight.saturating_add(T::DbWeight::get().reads_writes(result.loops, result.loops));
+		// 		},
+		// 	};
+		// 	return weight;
+		// }
+		//
+		// fn clear_total_proof(limit: u32 , maybe_cursor: Option<&[u8]>) -> Weight {
+		// 	let result = <MinerTotalProof<T>>::clear(limit, maybe_cursor);
+		// 	let mut weight: Weight = 0;
+		// 	match result.maybe_cursor {
+		// 		Some(v) => weight = Self::clear_total_proof(limit, result.maybe_cursor),
+		// 		None => {
+		// 			weight = weight.saturating_add(T::DbWeight::get().writes(result.backend));
+		// 			weight = weight.saturating_add(T::DbWeight::get().reads_writes(result.loops, result.loops));
+		// 		},
+		// 	};
+		// 	return weight;
+		// }
+
 		fn check_unsign(
 			seg_digest: &SegDigest<BlockNumberOf<T>>,
 			signature: &<T::AuthorityId as RuntimeAppPublic>::Signature,
@@ -591,8 +685,7 @@ pub mod pallet {
 					log::error!("invalid index");
 					return InvalidTransaction::Stale.into();
 				}
-				//TODO!
-				// Convert validatorsId => T::AuthorityId
+
 				let authority_id = match keys.get(seg_digest.validators_index as usize) {
 					Some(authority_id) => authority_id,
 					None => return InvalidTransaction::Stale.into(),
@@ -622,7 +715,7 @@ pub mod pallet {
 		}
 
 		//Storage proof method
-		fn storage_prove(acc: AccountOf<T>, prove_list: Vec<ProveInfo<T>>) -> DispatchResult {
+		fn storage_prove(acc: AccountOf<T>, prove_list: BoundedVec<ProveInfo<T>, T::ChallengeMaximum>) -> DispatchResult {
 			<UnVerifyProof<T>>::try_mutate(&acc, |o| -> DispatchResult {
 				for v in prove_list.iter() {
 					o.try_push(v.clone()).map_err(|_e| Error::<T>::StorageLimitReached)?;
@@ -647,14 +740,14 @@ pub mod pallet {
 		//Clean up the corresponding challenges in the miner's challenge pool
 		fn clear_challenge_info(
 			miner_acc: AccountOf<T>,
-			prove_list: Vec<ProveInfo<T>>,
+			prove_list: BoundedVec<ProveInfo<T>, T::ChallengeMaximum>,
 		) -> DispatchResult {
 			<ChallengeMap<T>>::try_mutate(&miner_acc, |o| -> DispatchResult {
 				for v in prove_list.iter() {
-					o.retain(|x| x.file_id != *v.file_id);
+					o.retain(|x| x.file_id != v.file_id);
 					Self::deposit_event(Event::<T>::ChallengeProof {
 						miner: v.miner_acc.clone(),
-						file_id: v.file_id.to_vec(),
+						file_id: v.file_id,
 					});
 				}
 
@@ -721,7 +814,7 @@ pub mod pallet {
 			let mut x = 0;
 			let mut new_challenge_map: BTreeMap<AccountOf<T>, Vec<ChallengeInfo<T>>> =
 				BTreeMap::new();
-			for (miner_acc, file_id, block_list, file_size, file_type) in result {
+			for (miner_acc, file_id, shard_id, block_list, file_size, file_type) in result {
 				x = x.checked_add(&1).ok_or(Error::<T>::Overflow)?;
 				let random = Self::generate_random_number(
 					x.checked_add(&20220510).ok_or(Error::<T>::Overflow)?,
@@ -731,8 +824,9 @@ pub mod pallet {
 				let challenge_info = ChallengeInfo::<T> {
 					file_size,
 					file_type,
-					file_id: file_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
 					block_list: block_list.try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
+					file_id,
+					shard_id,
 					random: Self::vec_to_bounded(random)?,
 				};
 				//Push Map
@@ -926,6 +1020,10 @@ pub mod pallet {
 		// Generate a random number from a given seed.
 		fn random_time_number(seed: u32) -> u64 {
 			let (random_seed, _) = T::MyRandomness::random(&(T::MyPalletId::get(), seed).encode());
+			let random_seed = match random_seed {
+				Some(v) => v,
+				None => Default::default(),
+			};
 			let random_number = <u64>::decode(&mut random_seed.as_ref())
 				.expect("secure hashes should always be bigger than u32; qed");
 			random_number
@@ -938,6 +1036,10 @@ pub mod pallet {
 				loop {
 					let (r_seed, _) =
 						T::MyRandomness::random(&(T::MyPalletId::get(), seed).encode());
+					let r_seed = match r_seed {
+						Some(v) => v,
+						None => Default::default(),
+					};
 					let random_seed = <H256>::decode(&mut r_seed.as_ref())
 						.expect("secure hashes should always be bigger than u32; qed");
 					let random_vec = random_seed.as_bytes().to_vec();
@@ -952,32 +1054,34 @@ pub mod pallet {
 
 		fn update_miner_file(
 			acc: AccountOf<T>,
-			file_id: Vec<u8>,
+			file_id: Hash,
+			shard_id: [u8; 68],
 			file_size: u64,
-			file_type: u8,
-		) -> DispatchResult {
+			file_type: DataType,
+		) -> Result<Weight, DispatchError> {
 			if !T::MinerControl::miner_is_exist(acc.clone()) {
-				return Ok(());
+				return Ok(0 as Weight);
 			}
+			let mut weight: Weight = 0;
 			match file_type {
-				1 => {
-					T::MinerControl::sub_power(acc.clone(), file_size.into())?;
-					T::File::delete_filler(acc.clone(), file_id.clone())?;
-					T::File::add_invalid_file(acc.clone(), file_id.clone())?;
+				DataType::File => {
+					T::MinerControl::sub_power(acc.clone(), file_size.into())?; //read 3 write 2
+					T::File::delete_filler(acc.clone(), file_id.clone())?; //read 1 write 2
+					T::File::add_invalid_file(acc.clone(), file_id.clone())?; //read 1 write 1
+					weight = weight.saturating_add(T::DbWeight::get().reads_writes(5, 5));
 				},
-				2 => {
-					T::MinerControl::sub_space(&acc, file_size.into())?;
-					T::File::add_recovery_file(file_id.clone())?;
-					T::File::add_invalid_file(acc.clone(), file_id.clone())?;
-				},
-				_ => {
-					Err(Error::<T>::FileTypeError)?;
+				DataType::Filler => {
+					T::MinerControl::sub_space(&acc, file_size.into())?; //read 3 write 2
+					T::File::add_recovery_file(shard_id.clone())?; //read 2 write 2
+					// T::File::add_invalid_file(acc.clone(), file_id.clone())?; //read 1 write 1
+					weight = weight.saturating_add(T::DbWeight::get().reads_writes(6, 5));
 				},
 			}
-			if !T::MinerControl::miner_is_exist(acc.clone()) {
-				T::File::delete_miner_all_filler(acc.clone())?;
+			if !T::MinerControl::miner_is_exist(acc.clone()) { //read 1
+				let weight1 = T::File::delete_miner_all_filler(acc.clone())?;
+				weight = weight.saturating_add(weight1);
 			}
-			Ok(())
+			Ok(weight)
 		}
 
 		fn punish(

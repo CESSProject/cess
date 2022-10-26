@@ -20,6 +20,7 @@ log = { version = "0.4.14", default-features = false }
 pallet-cess-staking = { path = '../staking', version = '4.0.0-dev', default-features = false }
 rand_chacha = { version = "0.2", default-features = false, optional = true }
 cp-scheduler-credit = { path = '../../primitives/scheduler-credit', version = '0.1.0', default-features = false }
+cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
 
 [dependencies.frame-benchmarking]
 default-features = false
@@ -111,6 +112,7 @@ std = [
 	"frame-benchmarking/std",
 	"pallet-file-map/std",
 	"cp-scheduler-credit/std",
+	"cp-cess-common/std",
 ]
 
 runtime-benchmarks = [

@@ -83,7 +83,6 @@ use pallet_evm::{
 };
 pub use pallet_timestamp::Call as TimestampCall;
 //add contracts
-use pallet_contracts::weights::WeightInfo;
 use pallet_election_provider_multi_phase::SolutionAccuracyOf;
 
 mod precompiles;
@@ -895,6 +894,8 @@ parameter_types! {
   pub const RewardPalletId: PalletId = PalletId(*b"rewardpt");
   pub const MultipleFines: u8 = 7;
   pub const DepositBufferPeriod: u32 = 3;
+	pub const MaxAward: u128 = 1_306_849_000_000_000_000;
+	pub const LockInPeriod: u8 = 2;
 }
 
 impl pallet_sminer::Config for Runtime {
@@ -910,15 +911,22 @@ impl pallet_sminer::Config for Runtime {
 	type ItemLimit = ConstU32<10_000>;
 	type MultipleFines = MultipleFines;
 	type DepositBufferPeriod = DepositBufferPeriod;
-	type CalculFailureFee = Sminer;
 	type OneDayBlock = OneDay;
+	type MaxAward = MaxAward;
+	type LockInPeriod = LockInPeriod;
 }
 parameter_types! {
 	pub const SegbkPalletId: PalletId = PalletId(*b"rewardpt");
 	#[derive(Clone, PartialEq, Eq)]
 	pub const StringLimit: u32 = 10240;
 	#[derive(Clone, PartialEq, Eq)]
+	pub const ChallengeMaximum: u32 = 8000;
+	#[derive(Clone, PartialEq, Eq)]
 	pub const RandomLimit: u32 = 10240;
+	#[derive(Clone, PartialEq, Eq)]
+	pub const SubmitProofLimit: u32 = 100;
+	#[derive(Clone, PartialEq, Eq)]
+	pub const SubmitValidationLimit: u32 = 50;
 	pub const OneHours: BlockNumber = HOURS;
 	pub const SegUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
 	pub const LockTime: BlockNumber = HOURS / 60;
@@ -929,7 +937,7 @@ impl pallet_segment_book::Config for Runtime {
 	// The ubiquitous event type.
 	type Event = Event;
 	type MyPalletId = SegbkPalletId;
-	type MyRandomness = RandomnessCollectiveFlip;
+	type MyRandomness = pallet_rrsc::CurrentBlockRandomness<Runtime>;
 	type WeightInfo = pallet_segment_book::weights::SubstrateWeight<Runtime>;
 	type AuthorityId = pallet_segment_book::sr25519::AuthorityId;
 	type StringLimit = StringLimit;
@@ -944,11 +952,20 @@ impl pallet_segment_book::Config for Runtime {
 	type NextSessionRotation = Babe;
 	type UnsignedPriority = SegUnsignedPriority;
 	type LockTime = LockTime;
+	type ChallengeMaximum = ChallengeMaximum;
+	type SubmitProofLimit = SubmitProofLimit;
+	type SubmitValidationLimit = SubmitValidationLimit;
 }
 
 parameter_types! {
 	pub const FilbakPalletId: PalletId = PalletId(*b"rewardpt");
 	pub const OneDay: BlockNumber = DAYS;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const UploadFillerLimit: u8 = 10;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const InvalidLimit: u32 = 100000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const RecoverLimit: u32 = 8000;
 }
 
 impl pallet_file_bank::Config for Runtime {
@@ -960,15 +977,22 @@ impl pallet_file_bank::Config for Runtime {
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
 	type WeightInfo = pallet_file_bank::weights::SubstrateWeight<Runtime>;
 	type MinerControl = Sminer;
-	type MyRandomness = RandomnessCollectiveFlip;
+	type MyRandomness = pallet_rrsc::CurrentBlockRandomness<Runtime>;
 	type Scheduler = FileMap;
 	type StringLimit = StringLimit;
 	type OneDay = OneDay;
 	type CreditCounter = SchedulerCredit;
+	type UploadFillerLimit = UploadFillerLimit;
+	type InvalidLimit = InvalidLimit;
+	type RecoverLimit = RecoverLimit;
 }
 
 parameter_types! {
 	pub const FileMapPalletId: PalletId = PalletId(*b"filmpdpt");
+	#[derive(Clone, PartialEq, Eq)]
+	pub const SchedulerMaximum: u32 = 10000;
+	#[derive(Clone, PartialEq, Eq)]
+	pub const ParamsLimit: u32 = 359;
 }
 
 impl pallet_file_map::Config for Runtime {
@@ -977,8 +1001,10 @@ impl pallet_file_map::Config for Runtime {
 	type Event = Event;
 	type FileMapPalletId = FileMapPalletId;
 	type StringLimit = StringLimit;
+	type SchedulerMaximum = SchedulerMaximum;
 	type WeightInfo = pallet_file_map::weights::SubstrateWeight<Runtime>;
 	type CreditCounter = SchedulerCredit;
+	type ParamsLimit = ParamsLimit;
 }
 
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
@@ -1035,19 +1061,11 @@ impl frame_system::offchain::SigningTypes for Runtime {
  */
 
 parameter_types! {
-	pub const DepositPerItem: Balance = deposit(1, 0);
-	pub const DepositPerByte: Balance = deposit(0, 1);
-	pub const MaxValueSize: u32 = 16 * 1024;
-	// The lazy deletion runs inside on_initialize.
-	pub DeletionWeightLimit: Weight = AVERAGE_ON_INITIALIZE_RATIO *
-		RuntimeBlockWeights::get().max_block;
-	// The weight needed for decoding the queue should be less or equal than a fifth
-	// of the overall weight dedicated to the lazy deletion.
-	pub DeletionQueueDepth: u32 = ((DeletionWeightLimit::get() / (
-			<Runtime as pallet_contracts::Config>::WeightInfo::on_initialize_per_queue_item(1) -
-			<Runtime as pallet_contracts::Config>::WeightInfo::on_initialize_per_queue_item(0)
-		)) / 5) as u32;
-	pub Schedule: pallet_contracts::Schedule<Runtime> = Default::default();
+  pub const DepositPerItem: Balance = deposit(1, 0);
+  pub const DepositPerByte: Balance = deposit(0, 1);
+  pub const DeletionQueueDepth: u32 = 16 * 1024;
+  pub DeletionWeightLimit: Weight = AVERAGE_ON_INITIALIZE_RATIO * RuntimeBlockWeights::get().max_block;
+  pub Schedule: pallet_contracts::Schedule<Runtime> = Default::default();
 }
 
 impl pallet_contracts::Config for Runtime {
@@ -1056,22 +1074,16 @@ impl pallet_contracts::Config for Runtime {
 	type Currency = Balances;
 	type Event = Event;
 	type Call = Call;
-	/// The safest default is to allow no calls at all.
-	///
-	/// Runtimes should whitelist dispatchables that are allowed to be called from contracts
-	/// and make sure they are stable. Dispatchables exposed to contracts are not allowed to
-	/// change because that would break already deployed contracts. The `Call` structure itself
-	/// is not allowed to change the indices of existing pallets, too.
-	type CallFilter = Nothing;
-	type DepositPerItem = DepositPerItem;
-	type DepositPerByte = DepositPerByte;
-	type CallStack = [pallet_contracts::Frame<Self>; 31];
+	type CallFilter = frame_support::traits::Nothing;
 	type WeightPrice = pallet_transaction_payment::Pallet<Self>;
 	type WeightInfo = pallet_contracts::weights::SubstrateWeight<Self>;
 	type ChainExtension = ();
+	type Schedule = Schedule;
+	type CallStack = [pallet_contracts::Frame<Self>; 31];
 	type DeletionQueueDepth = DeletionQueueDepth;
 	type DeletionWeightLimit = DeletionWeightLimit;
-	type Schedule = Schedule;
+	type DepositPerByte = DepositPerByte;
+	type DepositPerItem = DepositPerItem;
 	type AddressGenerator = pallet_contracts::DefaultAddressGenerator;
 }
 

@@ -6,6 +6,7 @@ mod mock;
 mod tests;
 
 use codec::{Decode, Encode, MaxEncodedLen};
+
 use frame_support::{
 	pallet_prelude::*,
 	traits::ValidatorCredits,
@@ -16,8 +17,9 @@ use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{SaturatedConversion, Zero},
 	Percent,
-	RuntimeDebug,
+	RuntimeDebug, Perbill,
 };
+
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 use cp_scheduler_credit::{SchedulerCreditCounter, SchedulerStashAccountFinder};
@@ -46,18 +48,19 @@ pub struct SchedulerCounterEntry {
 }
 
 impl SchedulerCounterEntry {
-	pub fn increase_block_size(&mut self, block_size: u64) {
-		self.proceed_block_size += block_size;
+	pub fn increase_block_size<T: Config>(&mut self, block_size: u64) -> DispatchResult {
+		self.proceed_block_size = self.proceed_block_size.checked_add(block_size).ok_or(Error::<T>::Overflow)?;
+		Ok(())
 	}
 
-	pub fn increase_punishment_count(&mut self) {
-		self.punishment_count += 1;
+	pub fn increase_punishment_count<T: Config>(&mut self) -> DispatchResult {
+		self.punishment_count = self.punishment_count.checked_add(1).ok_or(Error::<T>::Overflow)?;
+		Ok(())
 	}
 
 	pub fn figure_credit_value(&self, total_block_size: u64) -> CreditScore {
 		if total_block_size != 0 {
-			let a = (FULL_CREDIT_SCORE as f64 *
-				(self.proceed_block_size as f64 / total_block_size as f64)) as u32;
+			let a = Perbill::from_rational(self.proceed_block_size, total_block_size) * FULL_CREDIT_SCORE;
 			return a.saturating_sub(self.punishment_part())
 		}
 		return 0
@@ -93,6 +96,11 @@ pub mod pallet {
 		type StashAccountFinder: SchedulerStashAccountFinder<Self::AccountId>;
 	}
 
+	#[pallet::error]
+	pub enum Error<T> {
+		Overflow,
+	}
+
 	#[pallet::storage]
 	#[pallet::getter(fn current_scheduler_credits)]
 	pub(super) type CurrentCounters<T: Config> =
@@ -117,12 +125,20 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	pub fn record_proceed_block_size(scheduler_id: &T::AccountId, block_size: u64) {
-		<CurrentCounters<T>>::mutate(scheduler_id, |scb| scb.increase_block_size(block_size));
+	pub fn record_proceed_block_size(scheduler_id: &T::AccountId, block_size: u64) -> DispatchResult {
+		<CurrentCounters<T>>::mutate(scheduler_id, |scb| -> DispatchResult {
+			scb.increase_block_size::<T>(block_size)?;
+			Ok(())
+		})?;
+		Ok(())
 	}
 
-	pub fn record_punishment(scheduler_id: &T::AccountId) {
-		<CurrentCounters<T>>::mutate(scheduler_id, |scb| scb.increase_punishment_count());
+	pub fn record_punishment(scheduler_id: &T::AccountId) -> DispatchResult {
+		<CurrentCounters<T>>::mutate(scheduler_id, |scb| -> DispatchResult {
+			scb.increase_punishment_count::<T>()?;
+			Ok(())
+		})?;
+		Ok(())
 	}
 
 	pub fn figure_credit_values(period: u32) -> Weight {
@@ -197,12 +213,14 @@ impl<T: Config> Pallet<T> {
 }
 
 impl<T: Config> SchedulerCreditCounter<T::AccountId> for Pallet<T> {
-	fn record_proceed_block_size(scheduler_id: &T::AccountId, block_size: u64) {
-		Pallet::<T>::record_proceed_block_size(scheduler_id, block_size);
+	fn record_proceed_block_size(scheduler_id: &T::AccountId, block_size: u64) -> DispatchResult {
+		Pallet::<T>::record_proceed_block_size(scheduler_id, block_size)?;
+		Ok(())
 	}
 
-	fn record_punishment(scheduler_id: &T::AccountId) {
-		Pallet::<T>::record_punishment(scheduler_id);
+	fn record_punishment(scheduler_id: &T::AccountId) -> DispatchResult {
+		Pallet::<T>::record_punishment(scheduler_id)?;
+		Ok(())
 	}
 }
 
@@ -220,21 +238,23 @@ impl<T: Config> ValidatorCredits<T::AccountId> for Pallet<T> {
 #[cfg(test)]
 mod test {
 	use crate::SchedulerCounterEntry;
-
+	use crate::mock::Test;
 	#[test]
 	fn scheduler_counter_works() {
 		let mut sce = SchedulerCounterEntry::default();
-		sce.increase_block_size(100);
+		sce.increase_block_size::<Test>(100)?;
 		assert_eq!(100, sce.proceed_block_size);
-		sce.increase_block_size(100);
+		sce.increase_block_size::<Test>(100)?;
 		assert_eq!(200, sce.proceed_block_size);
 		assert_eq!(0, sce.punishment_part());
 		assert_eq!(100, sce.figure_credit_value(2000));
 
-		sce.increase_punishment_count();
+		sce.increase_punishment_count::<Test>()?;
 		assert_eq!(1, sce.punishment_count);
+
 		assert_eq!(100, sce.figure_credit_value(1000));
 		sce.increase_punishment_count();
+
 		assert_eq!(2, sce.punishment_count);
 		assert_eq!(0, sce.figure_credit_value(1000));
 	}

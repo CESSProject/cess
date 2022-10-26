@@ -145,10 +145,11 @@ impl Config for Test {
 	type SPalletsOrigin = OriginCaller;
 	type SProposal = Call;
 	type WeightInfo = ();
-	type CalculFailureFee = Sminer;
 	type DepositBufferPeriod = DepositBufferPeriod;
 	type OneDayBlock = OneDay;
 	type AScheduler = Scheduler;
+	type LockInPeriod = ;
+	type MaxAward = ;
 }
 
 pub mod consts {
