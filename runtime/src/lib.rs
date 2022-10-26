@@ -1320,8 +1320,12 @@ impl fp_self_contained::SelfContainedCall for Call {
 /***
  * Frontier End--------------------------------------------------------------------
  */
+parameter_types! {
+	pub const PeriodDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS * SessionsPerEra::get();
+}
 
 impl pallet_scheduler_credit::Config for Runtime {
+	type PeriodDuration = PeriodDuration;
 	type StashAccountFinder = SchedulerStashAccountFinder;
 }
 
