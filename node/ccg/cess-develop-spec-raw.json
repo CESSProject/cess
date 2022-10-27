@@ -5,7 +5,7 @@
   "bootNodes": ["/ip4/139.196.35.64/tcp/30334/p2p/12D3KooWQZcYxiEmNUNG8cQk7ZSYwkd3JnUc9cUqbtMYdr7atGL2"],
   "telemetryEndpoints": [
     [
-      "/dns/telemetry.polkadot.io/tcp/443/x-parity-wss/%2Fsubmit%2F",
+      "wss://telemetry.polkadot.io/submit/",
       0
     ]
   ],
