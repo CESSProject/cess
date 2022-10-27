@@ -1,5 +1,5 @@
 {
-  "name": "cess-testnet",
+  "name": "CESS Testnet",
   "id": "cess-testnet",
   "chainType": "Live",
   "bootNodes": ["/ip4/47.242.7.37/tcp/30333/p2p/12D3KooWSCS5iWmZbJuHLd2kHJjsTCXhdoYqmVhvjW7btgcXek6n"],
