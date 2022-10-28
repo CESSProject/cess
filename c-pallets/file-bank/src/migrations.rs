@@ -104,7 +104,7 @@ mod v2 {
 	use crate::{FillerInfo, FillerMap as NewFillerMap};
 
 	#[derive(Decode, Encode)]
-	struct OldFillerInfo<T: Config> {
+	struct OldFillerInfo<T: crate::Config> {
 		filler_size: u64,
 		index: u32,
 		block_num: u32,
@@ -196,6 +196,7 @@ mod v2 {
 		log::info!("-----------------------------test migrations start-----------------------------------");
 		for (miner_acc, filler_id, old) in <FillerMap<T>>::iter() {
 			log::info!("-----------------------------migrations value filler_id:{:?}, len: {}", filler_id.clone(), filler_id.as_slice().len());
+			log::info!("old value filler_size: {}, index: {}, block_num: {}", old.filler_size, old.index, old.block_num);
 			weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 			let filler_hash = Hash::slice_to_array_64(&filler_id).expect("error!");
 			// {
@@ -213,8 +214,8 @@ mod v2 {
 				block_num: old.block_num,
 				segment_size: old.segment_size,
 				scan_size: old.scan_size,
-				miner_address: old.miner_address,
-				filler_hash,
+				miner_address: old.miner_address.clone(),
+				filler_hash: filler_hash.clone(),
 			};
 			log::info!("start insert");
 			<NewFillerMap<T>>::insert(miner_acc, filler_hash, new_value);

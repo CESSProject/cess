@@ -73,7 +73,7 @@ use frame_system::{
 pub mod impls;
 use impls::{Author, CreditToBlockAuthor, SchedulerStashAccountFinder};
 // use frame_support::traits::OnRuntimeUpgrade;
-// pub use pallet_file_bank::migrations::TestMigrationFileBank;
+pub use pallet_file_bank::migrations::TestMigrationFileBank;
 pub mod constants;
 use fp_rpc::TransactionStatus;
 pub use pallet_balances::Call as BalancesCall;
@@ -180,7 +180,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 100,
+	spec_version: 108,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -191,7 +191,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 pub const RRSC_GENESIS_EPOCH_CONFIG: cessp_consensus_rrsc::RRSCEpochConfiguration =
 	cessp_consensus_rrsc::RRSCEpochConfiguration {
 		c: PRIMARY_PROBABILITY,
-		allowed_slots: cessp_consensus_rrsc::AllowedSlots::PrimaryAndSecondaryPlainSlots,
+		allowed_slots: cessp_consensus_rrsc::AllowedSlots::PrimaryAndSecondaryVRFSlots,
 	};
 
 /// Money matters.
@@ -252,7 +252,7 @@ pub const PRIMARY_PROBABILITY: (u64, u64) = (1, 4);
 
 // NOTE: Currently it is not possible to change the epoch duration after the chain has started.
 //       Attempting to do so will brick block production.
-pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = HOURS;
+pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = MINUTES;
 pub const EPOCH_DURATION_IN_SLOTS: u64 = {
 	const SLOT_FILL_RATE: f64 = MILLISECS_PER_BLOCK as f64 / SLOT_DURATION as f64;
 
@@ -1437,6 +1437,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
+	TestMigrationFileBank<Runtime>,
 >;
 
 #[cfg(feature = "runtime-benchmarks")]

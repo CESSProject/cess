@@ -33,7 +33,7 @@ pub use pallet::*;
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 pub mod weights;
-// pub mod migrations;
+pub mod migrations;
 
 mod types;
 pub use types::*;
@@ -80,7 +80,7 @@ pub mod pallet {
 	pub const G_BYTE: u128 = 1_048_576 * 1024;
 	pub const T_BYTE: u128 = 1_048_576 * 1024 * 1024;
 
-	pub const PACKAGE_1_SIZE: u128 = G_BYTE * 10;
+	pub const PACKAGE_1_SIZE: u128 = G_BYTE * 1;
 	pub const PACKAGE_2_SIZE: u128 = G_BYTE * 500;
 	pub const PACKAGE_3_SIZE: u128 = T_BYTE * 1;
 	pub const PACKAGE_4_SIZE: u128 = T_BYTE * 5;
@@ -187,8 +187,6 @@ pub mod pallet {
 		ExceedExpectations,
 
 		ConversionError,
-
-		InsufficientAvailableSpace,
 
 		InsufficientBalance,
 
@@ -431,7 +429,7 @@ pub mod pallet {
 					},
 				);
 				<FileIndexCount<T>>::put(count);
-				<FileKeysMap<T>>::insert(count, (false, file_hash.clone()));
+
 			}
 			Self::deposit_event(Event::<T>::UploadDeclaration {
 				acc: sender,
@@ -487,11 +485,9 @@ pub mod pallet {
 					.to_vec()
 					.try_into()
 					.map_err(|_| Error::<T>::BoundedVecError)?;
-				<FileKeysMap<T>>::try_mutate(s.index, |v_opt| -> DispatchResult {
-					let v = v_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
-					v.0 = true;
-					Ok(())
-				})?;
+				if !<FileKeysMap<T>>::contains_key(s.index) {
+					<FileKeysMap<T>>::insert(s.index, (true, file_hash.clone()));
+				}
 				Ok(())
 			})?;
 
@@ -505,6 +501,7 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::FileUpload { acc: sender.clone() });
 			Ok(())
 		}
+
 		/// Upload idle files for miners.
 		///
 		/// The dispatch origin of this call must be _Signed_.
@@ -1017,8 +1014,11 @@ pub mod pallet {
 		/// - `tuple.4`: file type 1 or 2, 1 is file slice, 2 is filler.
 		pub fn get_random_challenge_data(
 		) -> Result<Vec<(AccountOf<T>, Hash, [u8; 68], Vec<u8>, u64, DataType)>, DispatchError> {
+			log::info!("get random filler...");
 			let filler_list = Self::get_random_filler()?;
+			log::info!("get random filler success");
 			let mut data: Vec<(AccountOf<T>, Hash, [u8; 68], Vec<u8>, u64, DataType)> = Vec::new();
+			log::info!("storage filler data...");
 			for v in filler_list {
 				let length = v.block_num;
 				let number_list = Self::get_random_numberlist(length, 3, length)?;
@@ -1031,8 +1031,11 @@ pub mod pallet {
 				}
 				data.push((miner_acc, filler_hash, [0u8; 68], block_list, file_size, DataType::Filler));
 			}
-
+			log::info!("storage filler success!");
+			log::info!("get file data...");
 			let file_list = Self::get_random_file()?;
+			log::info!("get file data success!");
+			log::info!("storage filler data...");
 			for (_, file) in file_list {
 				let slice_number_list = Self::get_random_numberlist(
 					file.slice_info.len() as u32,
@@ -1057,6 +1060,7 @@ pub mod pallet {
 					}
 					data.push((miner_acc, file_hash, file.slice_info[*slice_index as usize].shard_id, block_list, slice_size, DataType::File));
 				}
+				log::info!("storage filler success!");
 			}
 
 			Ok(data)
@@ -1071,8 +1075,12 @@ pub mod pallet {
 		/// - `Vec<FillerInfo<T>>`: Fill file information list.
 		fn get_random_filler() -> Result<Vec<FillerInfo<T>>, DispatchError> {
 			let length = Self::get_fillermap_length()?;
+			log::info!("filler length: {}", length);
 			let limit = <FillerIndexCount<T>>::get();
+			log::info!("filler limit: {}", limit);
+			log::info!("get filler random data...");
 			let number_list = Self::get_random_numberlist(length, 1, limit)?;
+			log::info!("get filler random data success");
 			let mut filler_list: Vec<FillerInfo<T>> = Vec::new();
 			for i in number_list.iter() {
 				let result = <FillerKeysMap<T>>::get(i);
@@ -1096,8 +1104,12 @@ pub mod pallet {
 		/// - `Vec<(BoundedString<T>, FileInfo<T>)>`: Fill file information list.
 		fn get_random_file() -> Result<Vec<(Hash, FileInfo<T>)>, DispatchError> {
 			let length = Self::get_file_map_length()?;
+			log::info!("file length: {}", length);
 			let limit = <FileIndexCount<T>>::get();
+			log::info!("file limit: {}", limit);
+			log::info!("file random number start generate...");
 			let number_list = Self::get_random_numberlist(length, 2, limit)?;
+			log::info!("file random number generate success!");
 			let mut file_list: Vec<(Hash, FileInfo<T>)> = Vec::new();
 			for i in number_list.iter() {
 				let file_id =
@@ -1125,6 +1137,7 @@ pub mod pallet {
 			random_type: u8,
 			limit: u32,
 		) -> Result<Vec<u32>, DispatchError> {
+			log::info!("random number generate start...");
 			let mut seed: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
 			if length == 0 {
 				return Ok(Vec::new())
@@ -1152,9 +1165,12 @@ pub mod pallet {
 					.checked_add(1)
 					.ok_or(Error::<T>::Overflow)?,
 			};
+			log::info!("num is: {}", num);
 			let mut number_list: Vec<u32> = Vec::new();
+			log::info!("goto in loop...");
 			loop {
 				seed = seed.checked_add(1).ok_or(Error::<T>::Overflow)?;
+				log::info!("seed is: {}, list len: {}, num is: {}, length: {}, limit: {}", seed, number_list.len(), num, length, limit);
 				if number_list.len() >= num as usize {
 					number_list.sort();
 					number_list.dedup();
@@ -1162,12 +1178,15 @@ pub mod pallet {
 						break
 					}
 				}
+				log::info!("na random");
 				let random = Self::generate_random_number(seed)? % limit;
+				log::info!("na random success, random_type: {}", random_type);
 				let result: bool = match random_type {
 					1 => Self::judge_filler_exist(random),
 					2 => Self::judge_file_exist(random),
 					_ => true,
 				};
+				log::info!("random is: {}, is exist: {}", random, result);
 				if !result {
 					//Start the next cycle if the file does not exist
 					continue
