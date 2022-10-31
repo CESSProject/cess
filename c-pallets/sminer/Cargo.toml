@@ -1,7 +1,7 @@
 [package]
 name = "pallet-sminer"
 authors = ["CESS LAB"]
-version = "0.5.1"
+version = "0.5.2"
 edition = "2018"
 license = "Apache-2.0"
 repository = "https://github.com/CESSProject/cess"
@@ -16,6 +16,7 @@ serde = { version = "1.0.136", optional = true }
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }
 scale-info = { default-features = false, features = ['derive'], version = "2.0.1" }
 rand_chacha = { version = "0.2", default-features = false, optional = true }
+cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
 
 [dependencies.frame-benchmarking]
 default-features = false
@@ -102,6 +103,7 @@ std = [
 	"pallet-timestamp/std",
 	"pallet-scheduler/std",
 	"frame-benchmarking/std",
+	"cp-cess-common/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
