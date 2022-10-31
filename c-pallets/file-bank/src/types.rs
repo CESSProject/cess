@@ -1,3 +1,4 @@
+use cp_cess_common::IpAddress;
 use super::*;
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
@@ -22,7 +23,7 @@ pub struct SliceInfo<T: pallet::Config> {
 	pub shard_size: u64,
 	pub block_num: u32,
 	pub shard_id: [u8; 68],
-	pub miner_ip: BoundedVec<u8, T::StringLimit>,
+	pub miner_ip: IpAddress,
 	pub miner_acc: AccountOf<T>,
 }
 

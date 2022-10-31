@@ -205,6 +205,7 @@ pub mod pallet {
 		/// multiple pallets send unsigned transactions.
 		#[pallet::constant]
 		type UnsignedPriority: Get<TransactionPriority>;
+
 		#[pallet::constant]
 		type LockTime: Get<BlockNumberOf<Self>>;
 	}
@@ -810,6 +811,7 @@ pub mod pallet {
 
 		//Ways to generate challenges
 		fn generation_challenge() -> Result<BTreeMap<AccountOf<T>, Vec<ChallengeInfo<T>>>, DispatchError> {
+			log::info!("-----------------genearion challenge start---------------------");
 			let result = T::File::get_random_challenge_data()?;
 			let mut x = 0;
 			let mut new_challenge_map: BTreeMap<AccountOf<T>, Vec<ChallengeInfo<T>>> =
@@ -847,19 +849,21 @@ pub mod pallet {
 		}
 
 		fn offchain_work_start(now: BlockNumberOf<T>) -> Result<(), OffchainErr> {
+			log::info!("get loacl authority...");
 			let (authority_id, validators_index, validators_len) = Self::get_authority()?;
-
+			log::info!("get loacl authority success!");
 			if !Self::check_working(&now, &authority_id) {
 				return Err(OffchainErr::Working);
 			}
-
+			log::info!("get challenge data...");
 			let challenge_map = Self::generation_challenge().map_err(|e| {
 				log::error!("generation challenge error:{:?}", e);
 				OffchainErr::GenerateInfoError
 			})?;
-
+			log::info!("get challenge success!");
+			log::info!("submit challenge to chain...");
 			Self::offchain_call_extrinsic(now, authority_id, challenge_map, validators_index, validators_len)?;
-
+			log::info!("submit challenge to chain!");
 			Ok(())
 		}
 

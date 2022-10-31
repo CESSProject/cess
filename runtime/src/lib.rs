@@ -191,7 +191,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 pub const RRSC_GENESIS_EPOCH_CONFIG: cessp_consensus_rrsc::RRSCEpochConfiguration =
 	cessp_consensus_rrsc::RRSCEpochConfiguration {
 		c: PRIMARY_PROBABILITY,
-		allowed_slots: cessp_consensus_rrsc::AllowedSlots::PrimaryAndSecondaryPlainSlots,
+		allowed_slots: cessp_consensus_rrsc::AllowedSlots::PrimaryAndSecondaryVRFSlots,
 	};
 
 /// Money matters.
@@ -1437,6 +1437,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
+	// TestMigrationFileBank<Runtime>,
 >;
 
 #[cfg(feature = "runtime-benchmarks")]
