@@ -19,21 +19,21 @@ use frame_system::RawOrigin;
 const SEED: u32 = 2190502;
 const MAX_SPANS: u32 = 100;
 
-pub fn add_miner<T: Config>() -> Result<T::AccountId, &'static str> {
-	let miner: T::AccountId = account("miner1", 100, SEED);
+pub fn add_miner<T: Config>(name: &'static str) -> T::AccountId {
+	let miner: T::AccountId = account(name.clone(), 100, SEED);
 	let ip = "1270008080".as_bytes().to_vec();
 	T::Currency::make_free_balance_be(
 		&miner,
 		BalanceOf::<T>::max_value(),
 	);
 	whitelist_account!(miner);
-	Sminer::<T>::regnstk(
+	let _ = Sminer::<T>::regnstk(
 		RawOrigin::Signed(miner.clone()).into(),
 		miner.clone(),
 		ip,
 		2_000u32.into(),
-	)?;
-	Ok(miner.clone())
+	);
+	miner.clone()
 }
 
 benchmarks! {
@@ -50,7 +50,7 @@ benchmarks! {
     }
 
     increase_collateral {
-        let miner = add_miner::<T>()?;
+        let miner = add_miner::<T>("miner1");
     }: _(RawOrigin::Signed(miner.clone()), 2_000u32.into())
     verify {
         let miner_info = <MinerItems<T>>::get(&miner).unwrap();
@@ -58,7 +58,7 @@ benchmarks! {
     }
 
     update_beneficiary {
-        let miner = add_miner::<T>()?;
+        let miner = add_miner::<T>("miner1");
         let caller: AccountOf<T> = account("user1", 100, SEED);
     }: _(RawOrigin::Signed(miner.clone()), caller.clone())
     verify {
@@ -67,7 +67,7 @@ benchmarks! {
     }
 
     update_ip {
-        let miner = add_miner::<T>()?;
+        let miner = add_miner::<T>("miner1");
         let new_ip = "192.168.1.1:8000".as_bytes().to_vec();
     }: _(RawOrigin::Signed(miner.clone()), new_ip.clone())
     verify {
@@ -76,7 +76,7 @@ benchmarks! {
     }
 
     exit_miner {
-        let miner = add_miner::<T>()?;
+        let miner = add_miner::<T>("miner1");
         let miner_info = <MinerItems<T>>::get(&miner).unwrap();
         let state = "positive".as_bytes().to_vec();
         assert_eq!(state, miner_info.state.to_vec());
@@ -88,7 +88,7 @@ benchmarks! {
     }
 
     withdraw {
-        let miner = add_miner::<T>()?;
+        let miner = add_miner::<T>("miner1");
         Sminer::<T>::exit_miner(RawOrigin::Signed(miner.clone()).into())?;
         let colling = MinerLockIn::<T>::get(&miner).unwrap();
         let colling_number: u32 = colling.saturated_into();
@@ -100,7 +100,7 @@ benchmarks! {
     }
 
     timed_increase_rewards {
-        let miner = add_miner::<T>()?;
+        let miner = add_miner::<T>("miner1");
         let reward: BalanceOf<T> = 8000u32.saturated_into();
         <CurrencyReward<T>>::put(reward);
         <TotalIdleSpace<T>>::put(1000);
@@ -115,52 +115,71 @@ benchmarks! {
         assert_eq!(1, reward_map.len());
         assert_eq!(reward_map[0].calculate_reward, 8000);
     }
-    
+
 
     timed_task_award_table {
-        let miner = add_miner::<T>()?;
-        let reward: BalanceOf<T> = 8000u32.saturated_into();
-        <CurrencyReward<T>>::put(reward);
-        <TotalIdleSpace<T>>::put(1000);
-        <MinerItems<T>>::try_mutate(&miner, |s_opt| -> DispatchResult {
+				let v in 1 .. 50;
+				// let mut miner_name_list: Vec<Vec<u8>> = Vec::new();
+				let mut miner_list: Vec<T::AccountId> = Vec::new();
+				let reward: BalanceOf<T> = 8000u32.saturated_into();
+				<CurrencyReward<T>>::put(reward);
+				<TotalIdleSpace<T>>::put(1000 * v as u128);
+				for i in 0 .. v {
+					// let test = i.to_string().as_bytes().to_vec();
+					// miner_name_list.push(test);
+					let miner = add_miner::<T>(Box::leak(i.to_string().into_boxed_str()));
+					// let miner = add_miner::<T>(std::str::from_utf8(&miner_name_list[i as usize]).unwrap());
+					miner_list.push(miner.clone());
+       	 	<MinerItems<T>>::try_mutate(&miner, |s_opt| -> DispatchResult {
             let s = s_opt.as_mut().unwrap();
             s.power = 1000;
             Ok(())
-        })?;
+        	})?;
+				}
         Sminer::<T>::timed_increase_rewards(RawOrigin::Root.into())?;
     }: _(RawOrigin::Root)
     verify {
-        assert!(<RewardClaimMap<T>>::contains_key(miner.clone())); 
-        let info = <RewardClaimMap<T>>::get(&miner).unwrap();
-        let reward: BalanceOf<T> = 8000u128.try_into().map_err(|_e| "reward convert err")?;
-        assert_eq!(info.total_reward, reward);
+				let count = <CalculateRewardOrderMap<T>>::count();
+        assert_eq!(count, v);
     }
 
     timed_user_receive_award1 {
-        let miner = add_miner::<T>()?;
+        let v in 1 .. 50;
+				// let mut miner_name_list: Vec<Vec<u8>> = Vec::new();
+				let mut miner_list: Vec<T::AccountId> = Vec::new();
+				let reward: BalanceOf<T> = 8000u32.saturated_into();
+				<CurrencyReward<T>>::put(reward);
+				<TotalIdleSpace<T>>::put(1000 * v as u128);
+				for i in 0 .. v {
+					// let test = i.to_string().as_bytes().to_vec();
+					// miner_name_list.push(test);
+					let miner = add_miner::<T>(Box::leak(i.to_string().into_boxed_str()));
+					// let miner = add_miner::<T>(std::str::from_utf8(&miner_name_list[i as usize]).unwrap());
+					miner_list.push(miner.clone());
+       	 	<MinerItems<T>>::try_mutate(&miner, |s_opt| -> DispatchResult {
+            let s = s_opt.as_mut().unwrap();
+            s.power = 1000;
+            Ok(())
+        	})?;
+				}
+
         let acc = T::PalletId::get().into_account();
         T::Currency::make_free_balance_be(
             &acc,
             BalanceOf::<T>::max_value(),
         );
-        let reward: BalanceOf<T> = 8000u32.saturated_into();
-        <CurrencyReward<T>>::put(reward);
-        <TotalIdleSpace<T>>::put(1000);
-        <MinerItems<T>>::try_mutate(&miner, |s_opt| -> DispatchResult {
-            let s = s_opt.as_mut().unwrap();
-            s.power = 1000;
-            Ok(())
-        })?;
         Sminer::<T>::timed_increase_rewards(RawOrigin::Root.into())?;
         Sminer::<T>::timed_task_award_table(RawOrigin::Root.into())?;
     }: _(RawOrigin::Root)
     verify {
-        let info = RewardClaimMap::<T>::get(&miner).unwrap();
-        let reward: u128 = ((8000 -((8000 * 2 / 10))) / 180) + (8000 * 2 / 10);
-        let reward: BalanceOf<T> = reward.try_into().map_err(|_e| "reward convert err")?;
-        assert_eq!(info.have_to_receive, reward);
+			for miner in miner_list.iter() {
+				let info = RewardClaimMap::<T>::get(&miner).unwrap();
+				let share = 8000 / v as u128;
+				let reward: u128 = ((share -((share * 2 / 10))) / 180) + (share * 2 / 10);
+				let reward: BalanceOf<T> = reward.try_into().map_err(|_e| "reward convert err")?;
+				assert_eq!(info.have_to_receive, reward);
+			}
     }
-
 
     timing_task_increase_power_rewards {}: _(RawOrigin::Root, 10u32.saturated_into(), 28800u32.saturated_into(), 365)
     verify {

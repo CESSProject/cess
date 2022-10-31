@@ -265,6 +265,7 @@ benchmarks! {
 	}
 
 	upload {
+		let v in 0 .. 30;
 		let caller: AccountOf<T> = account("user1", 100, SEED);
 		let (user, miner, controller) = bench_buy_package::<T>(caller.clone(), 1000)?;
 		let miner: T::AccountId = account("miner1", 100, SEED);
@@ -273,41 +274,23 @@ benchmarks! {
 		FileBank::<T>::upload_declaration(RawOrigin::Signed(caller.clone()).into(), file_hash.clone(), file_name.clone())?;
 		let file_size: u64 = 333;
 		let mut slice_info_list: Vec<SliceInfo<T>> = Vec::new();
-		let slice_info = SliceInfo::<T>{
-			miner_id: 1,
-			shard_size: 111,
-			block_num: 8,
-			shard_id: "1".as_bytes().to_vec().try_into().map_err(|_e| "shar_id convert err")?,
-			miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().map_err(|_e| "miner ip convert err")?,
-			miner_acc: miner.clone(),
-		};
-		slice_info_list.push(slice_info);
-
-		let slice_info2 = SliceInfo::<T>{
-			miner_id: 1,
-			shard_size: 111,
-			block_num: 8,
-			shard_id: "2".as_bytes().to_vec().try_into().map_err(|_e| "shar_id convert err")?,
-			miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().map_err(|_e| "miner ip convert err")?,
-			miner_acc: miner.clone(),
-		};
-		slice_info_list.push(slice_info2);
-
-		let slice_info3 = SliceInfo::<T>{
-			miner_id: 1,
-			shard_size: 111,
-			block_num: 8,
-			shard_id: "3".as_bytes().to_vec().try_into().map_err(|_e| "shar_id convert err")?,
-			miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().map_err(|_e| "miner ip convert err")?,
-			miner_acc: miner.clone(),
-		};
-		slice_info_list.push(slice_info3);
+		for i in 0 .. v {
+				let slice_info = SliceInfo::<T>{
+				miner_id: 1,
+				shard_size: 333 / v as u64,
+				block_num: 8,
+				shard_id: i.to_string().as_bytes().to_vec().try_into().map_err(|_| "uint convert to BoundedVec Error")?,
+				miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().map_err(|_e| "miner ip convert err")?,
+				miner_acc: miner.clone(),
+			};
+			slice_info_list.push(slice_info);
+		}
 	}: _(RawOrigin::Signed(controller), file_hash.clone(), file_size, slice_info_list)
 	verify {
 		let file_hash: BoundedString<T> = file_hash.try_into().map_err(|_e| "file_hash Vec convert BoundedVec err")?;
 		assert!(<File<T>>::contains_key(&file_hash));
 		let info = <File<T>>::get(&file_hash).unwrap();
-		assert_eq!(info.slice_info.len(), 3);
+		assert_eq!(info.slice_info.len(), v as usize);
 		let package_info = <PurchasedPackage<T>>::get(&user).unwrap();
 		assert_eq!(package_info.used_space, 333);
 	}
@@ -368,5 +351,16 @@ benchmarks! {
 		}
 	}
 
+	clear_invalid_file {
+		let miner: T::AccountId = account("miner1", 100, SEED);
+		let file_hash: BoundedString<T> = vec![0,2,1,9,0,5,0,2].try_into().map_err(|_e| " convert err")?;
+		let mut file_hash_list: BoundedList<T> = Default::default();
+		file_hash_list.try_push(file_hash.clone()).map_err(|_e| "file hash push err")?;
+		<InvalidFile<T>>::insert(&miner, file_hash_list);
+	}: _(RawOrigin::Signed(miner.clone()), file_hash.to_vec())
+	verify {
+		let list = <InvalidFile<T>>::get(&miner);
+		assert_eq!(list.len(), 0);
+	}
 
 }

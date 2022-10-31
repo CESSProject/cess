@@ -24,6 +24,7 @@ use sp_runtime::{DispatchError, RuntimeDebug};
 use sp_std::prelude::*;
 use cp_scheduler_credit::SchedulerCreditCounter;
 pub use weights::WeightInfo;
+use cp_cess_common::*;
 
 pub mod weights;
 
@@ -43,7 +44,7 @@ pub mod pallet {
 	#[scale_info(skip_type_params(T))]
 	#[codec(mel_bound())]
 	pub struct SchedulerInfo<T: pallet::Config> {
-		pub ip: BoundedVec<u8, T::StringLimit>,
+		pub ip: IpAddress,
 		pub stash_user: AccountOf<T>,
 		pub controller_user: AccountOf<T>,
 	}
@@ -52,9 +53,9 @@ pub mod pallet {
 	#[scale_info(skip_type_params(T))]
 	#[codec(mel_bound())]
 	pub struct PublicKey<T: Config> {
-		pub spk: BoundedVec<u8, T::StringLimit>,
-		pub shared_params: BoundedVec<u8, T::StringLimit>,
-		pub shared_g: BoundedVec<u8, T::StringLimit>,
+		pub spk: [u8; 128],
+		pub shared_params: BoundedVec<u8, T::ParamsLimit>,
+		pub shared_g: [u8; 128],
 	}
 
 	#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, Default, MaxEncodedLen, TypeInfo)]
@@ -77,6 +78,12 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type StringLimit: Get<u32> + PartialEq + Eq + Clone;
+
+		#[pallet::constant]
+		type ParamsLimit: Get<u32> + PartialEq + Eq + Clone;
+
+		#[pallet::constant]
+		type SchedulerMaximum: Get<u32> + PartialEq + Eq + Clone;
 		//the weights
 		type WeightInfo: WeightInfo;
 
@@ -87,9 +94,9 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		//Scheduling registration method
-		RegistrationScheduler { acc: AccountOf<T>, ip: Vec<u8> },
+		RegistrationScheduler { acc: AccountOf<T>, ip: IpAddress },
 
-		UpdateScheduler { acc: AccountOf<T>, endpoint: Vec<u8> },
+		UpdateScheduler { acc: AccountOf<T>, endpoint: IpAddress },
 	}
 
 	#[pallet::error]
@@ -113,7 +120,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn scheduler_map)]
 	pub(super) type SchedulerMap<T: Config> =
-		StorageValue<_, BoundedVec<SchedulerInfo<T>, T::StringLimit>, ValueQuery>;
+		StorageValue<_, BoundedVec<SchedulerInfo<T>, T::SchedulerMaximum>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn scheduler_exception)]
@@ -122,17 +129,16 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn scheduler_puk)]
-	pub(super) type SchedulerPuk<T: Config> = StorageValue<_, PublicKey<T>>;
+	pub(super) type SchedulerPuk<T: Config> = StorageValue<_, PublicKey::<T>>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn bond_acc)]
 	pub(super) type BondAcc<T: Config> =
-		StorageValue<_, BoundedVec<AccountOf<T>, T::StringLimit>, ValueQuery>;
+		StorageValue<_, BoundedVec<AccountOf<T>, T::SchedulerMaximum>, ValueQuery>;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
-
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		//Scheduling registration method
@@ -141,7 +147,7 @@ pub mod pallet {
 		pub fn registration_scheduler(
 			origin: OriginFor<T>,
 			stash_account: AccountOf<T>,
-			ip: Vec<u8>,
+			ip: IpAddress,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			//Even if the primary key is not present here, panic will not be caused
@@ -151,9 +157,8 @@ pub mod pallet {
 				Err(Error::<T>::NotController)?;
 			}
 			let mut s_vec = SchedulerMap::<T>::get();
-			let ip_bound = ip.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
 			let scheduler = SchedulerInfo::<T> {
-				ip: ip_bound,
+				ip: ip.clone(),
 				stash_user: stash_account.clone(),
 				controller_user: sender.clone(),
 			};
@@ -169,7 +174,7 @@ pub mod pallet {
 
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_scheduler())]
-		pub fn update_scheduler(origin: OriginFor<T>, ip: Vec<u8>) -> DispatchResult {
+		pub fn update_scheduler(origin: OriginFor<T>, ip: IpAddress) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
 			SchedulerMap::<T>::try_mutate(|s| -> DispatchResult {
@@ -177,7 +182,7 @@ pub mod pallet {
 				for i in s.iter() {
 					if i.controller_user == sender {
 						let scheduler = SchedulerInfo::<T> {
-							ip: ip.clone().try_into().map_err(|_| Error::<T>::BoundedVecError)?,
+							ip: ip.clone(),
 							stash_user: i.stash_user.clone(),
 							controller_user: sender.clone(),
 						};
@@ -197,7 +202,7 @@ pub mod pallet {
 		#[pallet::weight(10_000)]
 		pub fn init_public_key(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
-			let spk: BoundedVec<u8, T::StringLimit> = vec![
+			let spk: [u8; 128] = [
 				10, 220, 75, 195, 174, 36, 186, 176, 59, 223, 170, 199, 177, 143, 223, 147, 220,
 				84, 132, 101, 54, 112, 120, 144, 219, 28, 230, 129, 240, 127, 161, 4, 193, 25, 118,
 				181, 98, 3, 34, 200, 217, 50, 125, 125, 26, 120, 139, 11, 63, 0, 223, 99, 217, 72,
@@ -206,10 +211,8 @@ pub mod pallet {
 				9, 166, 11, 194, 117, 81, 227, 225, 25, 170, 140, 120, 254, 100, 174, 110, 180,
 				158, 45, 0, 197, 150, 193, 71, 30, 34, 233, 90, 5, 64, 37, 163, 246, 121, 176, 26,
 				201, 174,
-			]
-			.try_into()
-			.map_err(|_e| Error::<T>::BoundedVecError)?;
-			let shared_params: BoundedVec<u8, T::StringLimit> = vec![
+			];
+			let shared_params: BoundedVec<u8, T::ParamsLimit> = vec![
 				116, 121, 112, 101, 32, 97, 10, 113, 32, 54, 53, 56, 50, 55, 51, 49, 54, 52, 56,
 				53, 50, 52, 55, 48, 50, 57, 55, 56, 52, 54, 54, 48, 54, 50, 53, 51, 48, 57, 53, 56,
 				57, 50, 49, 51, 56, 53, 57, 50, 55, 57, 54, 55, 48, 54, 55, 48, 50, 51, 56, 48, 53,
@@ -228,10 +231,8 @@ pub mod pallet {
 				52, 53, 50, 48, 52, 56, 53, 55, 54, 53, 49, 49, 10, 101, 120, 112, 50, 32, 49, 53,
 				57, 10, 101, 120, 112, 49, 32, 49, 49, 48, 10, 115, 105, 103, 110, 49, 32, 49, 10,
 				115, 105, 103, 110, 48, 32, 45, 49, 10,
-			]
-			.try_into()
-			.map_err(|_e| Error::<T>::BoundedVecError)?;
-			let shared_g: BoundedVec<u8, T::StringLimit> = vec![
+			].try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+			let shared_g: [u8; 128] = [
 				6, 82, 21, 158, 104, 141, 100, 78, 98, 180, 126, 135, 86, 92, 214, 75, 221, 27,
 				157, 4, 92, 203, 235, 234, 39, 170, 30, 218, 100, 100, 155, 185, 152, 19, 67, 73,
 				171, 46, 16, 231, 150, 190, 83, 175, 106, 104, 182, 175, 58, 112, 114, 96, 155, 77,
@@ -240,11 +241,9 @@ pub mod pallet {
 				186, 232, 192, 164, 130, 21, 17, 145, 25, 151, 165, 105, 78, 11, 210, 212, 85, 243,
 				54, 83, 190, 179, 6, 67, 145, 56, 123, 208, 75, 19, 183, 220, 98, 129, 37, 7, 81,
 				243,
-			]
-			.try_into()
-			.map_err(|_e| Error::<T>::BoundedVecError)?;
+			];
 
-			let public_key = PublicKey::<T> { spk, shared_params, shared_g };
+			let public_key = PublicKey::<T>{ spk, shared_params, shared_g };
 			<SchedulerPuk<T>>::put(public_key);
 
 			Ok(())
@@ -255,7 +254,7 @@ pub mod pallet {
 pub trait ScheduleFind<AccountId> {
 	fn contains_scheduler(acc: AccountId) -> bool;
 	fn get_controller_acc(acc: AccountId) -> AccountId;
-	fn punish_scheduler(acc: AccountId);
+	fn punish_scheduler(acc: AccountId) -> DispatchResult;
 	fn get_first_controller() -> Result<AccountId, DispatchError>;
 }
 
@@ -281,14 +280,15 @@ impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<
 		acc
 	}
 
-	fn punish_scheduler(acc: <T as frame_system::Config>::AccountId) {
+	fn punish_scheduler(acc: <T as frame_system::Config>::AccountId) -> DispatchResult {
 		let scheduler_list = SchedulerMap::<T>::get();
 		for v in scheduler_list {
 			if v.controller_user == acc {
 				pallet_cess_staking::slashing::slash_scheduler::<T>(&v.stash_user);
-				T::CreditCounter::record_punishment(&v.controller_user);
+				T::CreditCounter::record_punishment(&v.controller_user)?;
 			}
 		}
+		Ok(())
 	}
 
 	fn get_first_controller() -> Result<<T as frame_system::Config>::AccountId, DispatchError> {

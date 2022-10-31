@@ -12,6 +12,7 @@ sp-api = { version = "4.0.0-dev", default-features = false, git = 'https://githu
 sp-core = { version = "6.0.0", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'monthly-2022-04-cess' }
 sp-std = { version = "4.0.0", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'monthly-2022-04-cess' }
 sp-application-crypto = { version = "6.0.0", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'monthly-2022-04-cess' }
+frame-support = {default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'monthly-2022-04-cess', version = '4.0.0-dev'}
 
 [features]
 default = ["std"]
@@ -22,4 +23,5 @@ std = [
     "sp-core/std",
     "sp-std/std",
     "sp-application-crypto/std",
+	  "frame-support/std",
 ]
