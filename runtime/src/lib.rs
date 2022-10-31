@@ -95,25 +95,6 @@ pub use sp_runtime::BuildStorage;
 
 mod voter_bags;
 
-/// An index to a block.
-// pub type BlockNumber = u32;
-
-// /// Alias to 512-bit hash when used in the context of a transaction signature on the chain.
-// pub type Signature = MultiSignature;
-
-// /// Some way of identifying an account on the chain. We intentionally make it equivalent
-// /// to the public key of our transaction signing scheme.
-// pub type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
-
-// /// Balance of an account.
-// pub type Balance = u128;
-
-// /// Index of a transaction in the chain.
-// pub type Index = u32;
-
-// /// A hash of some data used by the chain.
-// pub type Hash = sp_core::H256;
-
 pub type BlockNumber = u32;
 
 /// Alias to 512-bit hash when used in the context of a transaction signature on the chain.
@@ -1949,60 +1930,3 @@ impl_runtime_apis! {
 		}
 	}
 }
-
-//extension for ink! test
-// use codec::Encode;
-// use frame_support::log::{
-//     error,
-//     trace,
-// };
-
-// pub struct FetchRandomExtension;
-// use pallet_contracts::chain_extension::{
-//     ChainExtension,
-//     Environment,
-//     Ext,
-//     InitState,
-//     RetVal,
-//     SysConfig,
-//     UncheckedFrom,
-// };
-// use sp_runtime::DispatchError;
-
-// impl ChainExtension<Runtime> for FetchRandomExtension {
-//     fn call<E: Ext>(
-//         func_id: u32,
-//         env: Environment<E, InitState>,
-//     ) -> Result<RetVal, DispatchError>
-//     where
-//         <E::T as SysConfig>::AccountId:
-//             UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
-//     {
-//         match func_id {
-//             1101 => {
-//                 let mut env = env.buf_in_buf_out();
-//                 let arg: [u8; 32] = env.read_as()?;
-//                 let random_seed = crate::RandomnessCollectiveFlip::random(&arg).0;
-//                 let random_slice = random_seed.encode();
-//                 trace!(
-//                     target: "runtime",
-//                     "[ChainExtension]|call|func_id:{:}",
-//                     func_id
-//                 );
-//                 env.write(&random_slice, false, None).map_err(|_| {
-//                     DispatchError::Other("ChainExtension failed to call random")
-//                 })?;
-//             }
-
-//             _ => {
-//                 error!("Called an unregistered `func_id`: {:}", func_id);
-//                 return Err(DispatchError::Other("Unimplemented func_id"))
-//             }
-//         }
-//         Ok(RetVal::Converging(0))
-//     }
-
-//     fn enabled() -> bool {
-//         true
-//     }
-// }
