@@ -32,7 +32,7 @@ pub struct ProveInfo<T: pallet::Config> {
 	//Proof of relevant information
 	pub(super) sigma: BoundedVec<u8, T::StringLimit>,
 	pub(super) name: BoundedVec<u8, T::StringLimit>,
-	pub(super) u: BoundedVec<u8, T::StringLimit>,
+	pub(super) u: BoundedList<T>,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]

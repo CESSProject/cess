@@ -1,7 +1,7 @@
 [package]
 name = "pallet-file-bank"
 authors = ["CESS LAB"]
-version = "0.5.1"
+version = "0.5.2"
 edition = "2018"
 license = "Apache-2.0"
 repository = "https://github.com/CESSProject/cess"
@@ -75,12 +75,12 @@ version = '6.0.0'
 [dependencies.pallet-sminer]
 default-features = false
 path = '../sminer'
-version = '0.5.1'
+version = '0.5.2'
 
 [dependencies.pallet-file-map]
 default-features = false
 path = '../file-map'
-version = '0.5.1'
+version = '0.5.2'
 
 # dev dependencies
 [dev-dependencies]

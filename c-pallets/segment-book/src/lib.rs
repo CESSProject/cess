@@ -476,7 +476,7 @@ pub mod pallet {
 			if sp_io::offchain::is_validator() {
 				if now > deadline {
 					//Determine whether to trigger a challenge
-					// if Self::trigger_challenge(now) {
+					if Self::trigger_challenge(now) {
 						log::info!("offchain worker random challenge start");
 						if let Err(e) = Self::offchain_work_start(now) {
 							match e {
@@ -485,7 +485,7 @@ pub mod pallet {
 							};
 						}
 						log::info!("offchain worker random challenge end");
-					// }
+					}
 				}
 			}
 		}

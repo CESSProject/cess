@@ -33,7 +33,7 @@ pub use pallet::*;
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 pub mod weights;
-pub mod migrations;
+// pub mod migrations;
 
 mod types;
 pub use types::*;
@@ -80,7 +80,7 @@ pub mod pallet {
 	pub const G_BYTE: u128 = 1_048_576 * 1024;
 	pub const T_BYTE: u128 = 1_048_576 * 1024 * 1024;
 
-	pub const PACKAGE_1_SIZE: u128 = G_BYTE * 1;
+	pub const PACKAGE_1_SIZE: u128 = G_BYTE * 10;
 	pub const PACKAGE_2_SIZE: u128 = G_BYTE * 500;
 	pub const PACKAGE_3_SIZE: u128 = T_BYTE * 1;
 	pub const PACKAGE_4_SIZE: u128 = T_BYTE * 5;
@@ -1178,9 +1178,7 @@ pub mod pallet {
 						break
 					}
 				}
-				log::info!("na random");
 				let random = Self::generate_random_number(seed)? % limit;
-				log::info!("na random success, random_type: {}", random_type);
 				let result: bool = match random_type {
 					1 => Self::judge_filler_exist(random),
 					2 => Self::judge_file_exist(random),
@@ -1191,7 +1189,6 @@ pub mod pallet {
 					//Start the next cycle if the file does not exist
 					continue
 				}
-				log::info!("List addition: {}", random);
 				number_list.push(random);
 			}
 			Ok(number_list)
