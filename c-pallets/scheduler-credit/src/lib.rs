@@ -26,7 +26,6 @@ use cp_scheduler_credit::{SchedulerCreditCounter, SchedulerStashAccountFinder};
 
 pub use pallet::*;
 
-pub type EpochIndex = u64;
 pub type CreditScore = u32;
 
 pub const FULL_CREDIT_SCORE: u32 = 1000;
