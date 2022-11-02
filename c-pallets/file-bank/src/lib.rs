@@ -44,7 +44,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use scale_info::TypeInfo;
-use cp_cess_common::{PackageType, DataType, Hash as H68};
+use cp_cess_common::{DataType, Hash as H68};
 use cp_scheduler_credit::SchedulerCreditCounter;
 use sp_runtime::{
 	traits::{
@@ -87,8 +87,8 @@ pub mod pallet {
 
 	pub const FILE_PENDING: &str = "pending";
 	pub const FILE_ACTIVE: &str = "active";
-	pub const PACKAGE_NORMAL: &str = "normal";
-	pub const PACKAGE_FROZEN: &str = "frozen";
+	pub const SPACE_NORMAL: &str = "normal";
+	pub const SPACE_FROZEN: &str = "frozen";
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + sp_std::fmt::Debug {
@@ -127,6 +127,9 @@ pub mod pallet {
 		#[pallet::constant]
 		type InvalidLimit: Get<u32> + Clone + Eq + PartialEq;
 
+		#[pallet::constant]
+		type FrozenDays: Get<BlockNumberOf<Self>> + Clone + Eq + PartialEq;
+
 		type CreditCounter: SchedulerCreditCounter<Self::AccountId>;
 	}
 
@@ -144,11 +147,11 @@ pub mod pallet {
 		//Storage information of scheduling storage file slice
 		InsertFileSlice { fileid: Vec<u8> },
 		//User buy package event
-		BuyPackage { acc: AccountOf<T>, size: u128, fee: BalanceOf<T> },
+		BuySpace { acc: AccountOf<T>, storage_capacity: u128, spend: BalanceOf<T> },
+		//Expansion Space
+		ExpansionSpace { acc: AccountOf<T>, expansion_space: u128, fee: BalanceOf<T> },
 		//Package upgrade
-		PackageUpgrade { acc: AccountOf<T>, old_type: PackageType, new_type: PackageType, fee: BalanceOf<T> },
-		//Package upgrade
-		PackageRenewal { acc: AccountOf<T>, package_type: PackageType, fee: BalanceOf<T> },
+		RenewalSpace { acc: AccountOf<T>, renewal_days: u32, fee: BalanceOf<T> },
 		//Expired storage space
 		LeaseExpired { acc: AccountOf<T>, size: u128 },
 		//Storage space expiring within 24 hours
@@ -176,9 +179,9 @@ pub mod pallet {
 		//Internal developer usage error
 		WrongOperation,
 		//haven't bought space at all
-		NotPurchasedPackage,
+		NotPurchasedSpace,
 
-		PurchasedPackage,
+		PurchasedSpace,
 		//Expired storage space
 		LeaseExpired,
 
@@ -263,9 +266,13 @@ pub mod pallet {
 		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<Hash, T::InvalidLimit>, ValueQuery>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn purchase_package)]
-	pub(super) type PurchasedPackage<T: Config> =
-		StorageMap<_, Blake2_128Concat, AccountOf<T>, PackageDetails<T>>;
+	#[pallet::getter(fn user_owned_space)]
+	pub(super) type UserOwnedSpace<T: Config> =
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, OwnedSpaceDetails<T>>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn unit_price)]
+	pub(super) type UnitPrice<T: Config> = StorageValue<_, BalanceOf<T>>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn file_keys_map)]
@@ -290,6 +297,28 @@ pub mod pallet {
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(PhantomData<T>);
 
+	#[pallet::genesis_config]
+	pub struct GenesisConfig<T: Config> {
+		// price / gib / 30days
+		pub price: BalanceOf<T>,
+	}
+
+	#[cfg(feature = "std")]
+	impl<T: Config> Default for GenesisConfig<T> {
+		fn default() -> Self {
+			Self {
+				price: Default::default(),
+			}
+		}
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+		fn build(&self) {
+			UnitPrice::<T>::put(self.price);
+		}
+	}
+
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberOf<T>> for Pallet<T> {
 		//Used to calculate whether it is implied to submit spatiotemporal proof
@@ -300,29 +329,23 @@ pub mod pallet {
 			let number: u128 = now.saturated_into();
 			let block_oneday: BlockNumberOf<T> = <T as pallet::Config>::OneDay::get();
 			let oneday: u32 = block_oneday.saturated_into();
-			let mut weight: Weight = 0;
+			let mut weight: Weight = Default::default();
 			if number % oneday as u128 == 0 {
 				log::info!("Start lease expiration check");
-				for (acc, info) in <PurchasedPackage<T>>::iter() {
+				for (acc, info) in <UserOwnedSpace<T>>::iter() {
 					weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
 					if now > info.deadline {
-						let frozen_day: BlockNumberOf<T> = match info.package_type {
-							PackageType::Package1 => (0 * oneday).saturated_into(),
-							PackageType::Package2 => (7 * oneday).saturated_into(),
-							PackageType::Package3 => (14 * oneday).saturated_into(),
-							PackageType::Package4 => (20 * oneday).saturated_into(),
-							_ => (30 * oneday).saturated_into(),
-						};
+						let frozen_day: BlockNumberOf<T> = <T as pallet::Config>::FrozenDays::get();
 						if now > info.deadline + frozen_day {
 							log::info!("clear user:#{}'s files", number);
-							let result = T::MinerControl::sub_purchased_space(info.space);
+							let result = T::MinerControl::sub_purchased_space(info.total_space);
 							match result {
 								Ok(()) => log::info!("sub purchased space success"),
 								Err(e) => log::error!("failed sub purchased space: {:?}", e),
 							};
 							weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 							let result = Self::clear_expired_file(&acc);
-							let weight1 = match result {
+							let weight_temp = match result {
 								Ok(weight) => {
 									log::info!("clear expired file success");
 									weight
@@ -332,16 +355,16 @@ pub mod pallet {
 									0
 						 		},
 							};
-							weight = weight.saturating_add(weight1);
+							weight = weight.saturating_add(weight_temp);
 						} else {
-							if info.state.to_vec() != PACKAGE_FROZEN.as_bytes().to_vec() {
-								let result = <PurchasedPackage<T>>::try_mutate(
+							if info.state.to_vec() != SPACE_FROZEN.as_bytes().to_vec() {
+								let result = <UserOwnedSpace<T>>::try_mutate(
 									&acc,
 									|s_opt| -> DispatchResult {
 										let s = s_opt
 											.as_mut()
-											.ok_or(Error::<T>::NotPurchasedPackage)?;
-										s.state = PACKAGE_FROZEN
+											.ok_or(Error::<T>::NotPurchasedSpace)?;
+										s.state = SPACE_FROZEN
 											.as_bytes()
 											.to_vec()
 											.try_into()
@@ -588,35 +611,21 @@ pub mod pallet {
 		/// The dispatch origin of this call must be Signed.
 		///
 		/// Parameters:
-		/// - `package_type`: Package type (1 / 2 / 3 / 4 / 5).
-		/// - `count`: When type = 5, it means that the user wants to buy count TIBS.
+		/// - `gib_count`: Quantity of several gibs purchased.
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_package())]
-		pub fn buy_package(origin: OriginFor<T>, package_type: PackageType, count: u128) -> DispatchResult {
+		pub fn buy_space(origin: OriginFor<T>, gib_count: u32) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			ensure!(!<PurchasedPackage<T>>::contains_key(&sender), Error::<T>::PurchasedPackage);
+			ensure!(!<UserOwnedSpace<T>>::contains_key(&sender), Error::<T>::PurchasedSpace);
+			let space= G_BYTE.checked_mul(gib_count as u128).ok_or(Error::<T>::Overflow)?;
+			let unit_price = <UnitPrice<T>>::try_get()
+				.map_err(|_e| Error::<T>::BugInvalid)?;
 
-			let (space, g_unit_price, month) = match package_type {
-				PackageType::Package1 => (PACKAGE_1_SIZE, 0, 1),
-				PackageType::Package2 => (PACKAGE_2_SIZE, Self::get_price(PACKAGE_2_SIZE)?, 1),
-				PackageType::Package3 => (PACKAGE_3_SIZE, Self::get_price(PACKAGE_3_SIZE)?, 1),
-				PackageType::Package4 => (PACKAGE_4_SIZE, Self::get_price(PACKAGE_4_SIZE)?, 1),
-				PackageType::Package5 => {
-					if count <= 5 {
-						Err(Error::<T>::WrongOperation)?;
-					}
-					(count * T_BYTE, Self::get_price(count * T_BYTE)?, 1)
-				},
-			};
-
-			Self::add_puchased_package(sender.clone(), space, month as u32, package_type)?;
+			Self::add_puchased_space(sender.clone(), space, 30)?;
 			T::MinerControl::add_purchased_space(space)?;
-			let count_gb = space.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
-			let price: BalanceOf<T> = g_unit_price
-				.checked_mul(count_gb)
-				.ok_or(Error::<T>::Overflow)?
-				.try_into()
-				.map_err(|_e| Error::<T>::Overflow)?;
+			let price: BalanceOf<T> = unit_price
+				.checked_mul(&gib_count.saturated_into())
+				.ok_or(Error::<T>::Overflow)?;
 			ensure!(
 				<T as pallet::Config>::Currency::can_slash(&sender, price.clone()),
 				Error::<T>::InsufficientBalance
@@ -624,7 +633,7 @@ pub mod pallet {
 			let acc = T::FilbakPalletId::get().into_account();
 			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), AllowDeath)?;
 
-			Self::deposit_event(Event::<T>::BuyPackage { acc: sender, size: space, fee: price });
+			Self::deposit_event(Event::<T>::BuySpace { acc: sender, storage_capacity: space, spend: price });
 			Ok(())
 		}
 		/// Upgrade package (expansion of storage space)
@@ -633,73 +642,43 @@ pub mod pallet {
 		/// And the upgrade target needs to be higher than the current package.
 		///
 		/// Parameters:
-		/// - `package_type`: Package type (1 / 2 / 3 / 4 / 5).
-		/// - `count`: When type = 5, it means that the user wants to buy count TIBS.
+		/// - `gib_count`: Additional purchase quantity of several gibs.
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upgrade_package())]
-		pub fn upgrade_package(
-			origin: OriginFor<T>,
-			package_type: PackageType,
-			count: u128,
-		) -> DispatchResult {
+		pub fn expansion_space(origin: OriginFor<T>, gib_count: u32) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			let cur_package = <PurchasedPackage<T>>::try_get(&sender)
-				.map_err(|_e| Error::<T>::NotPurchasedPackage)?;
-
+			let cur_owned_space = <UserOwnedSpace<T>>::try_get(&sender)
+				.map_err(|_e| Error::<T>::NotPurchasedSpace)?;
 			let now = <frame_system::Pallet<T>>::block_number();
-			ensure!(now < cur_package.deadline, Error::<T>::LeaseExpired);
+			ensure!(now < cur_owned_space.deadline, Error::<T>::LeaseExpired);
 			ensure!(
-				cur_package.state.to_vec() != PACKAGE_FROZEN.as_bytes().to_vec(),
+				cur_owned_space.state.to_vec() != SPACE_FROZEN.as_bytes().to_vec(),
 				Error::<T>::LeaseFreeze
 			);
-
-			let cur_gb_unit_price = match cur_package.package_type {
-				PackageType::Package1 => 0,
-				_ => Self::get_price(cur_package.space)?,
-			};
-			let cur_count_gb = cur_package.space.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
-			let cur_price =
-				cur_gb_unit_price.checked_mul(cur_count_gb).ok_or(Error::<T>::Overflow)?;
-
-			let (space, up_gb_unit_price) = match package_type {
-				PackageType::Package2 => (PACKAGE_2_SIZE, Self::get_price(PACKAGE_2_SIZE)?),
-				PackageType::Package3 => (PACKAGE_3_SIZE, Self::get_price(PACKAGE_3_SIZE)?),
-				PackageType::Package4 => (PACKAGE_4_SIZE, Self::get_price(PACKAGE_4_SIZE)?),
-				PackageType::Package5 => {
-					let cur_count =
-						cur_package.space.checked_div(T_BYTE).ok_or(Error::<T>::Overflow)?;
-					if count <= cur_count {
-						Err(Error::<T>::WrongOperation)?;
-					}
-					(count * T_BYTE, Self::get_price(count * T_BYTE)?)
-				},
-				_ => Err(Error::<T>::WrongOperation)?,
-			};
-
-			ensure!(
-				space > cur_package.space,
-				Error::<T>::WrongOperation
-			);
-			//Calculate daily average price difference.
-			let up_count_gb = space.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
-			let up_price = up_gb_unit_price.checked_mul(up_count_gb).ok_or(Error::<T>::Overflow)?;
-			let diff_day_price = up_price
-				.checked_sub(cur_price)
-				.ok_or(Error::<T>::Overflow)?
-				.checked_div(30)
-				.ok_or(Error::<T>::Overflow)?;
+			// The unit price recorded in UnitPrice is the unit price of one month.
+			// Here, the daily unit price is calculated.
+			let day_unit_price = <UnitPrice<T>>::try_get()
+				.map_err(|_e| Error::<T>::BugInvalid)?
+				.checked_div(&30u32.saturated_into()).ok_or(Error::<T>::Overflow)?;
+			let space = G_BYTE.checked_mul(gib_count as u128).ok_or(Error::<T>::Overflow)?;
 			//Calculate remaining days.
 			let block_oneday: BlockNumberOf<T> = <T as pallet::Config>::OneDay::get();
-			let diff_block = cur_package.deadline.checked_sub(&now).ok_or(Error::<T>::Overflow)?;
-			let mut remain_day =
-				diff_block.checked_div(&block_oneday).ok_or(Error::<T>::Overflow)?;
+			let diff_block = cur_owned_space.deadline.checked_sub(&now).ok_or(Error::<T>::Overflow)?;
+			let mut remain_day: u32 = diff_block
+				.checked_div(&block_oneday)
+				.ok_or(Error::<T>::Overflow)?
+				.saturated_into();
 			if diff_block % block_oneday != 0u32.saturated_into() {
-				remain_day =
-					remain_day.checked_add(&1u32.saturated_into()).ok_or(Error::<T>::Overflow)?;
+				remain_day = remain_day
+					.checked_add(1)
+					.ok_or(Error::<T>::Overflow)?
+					.saturated_into();
 			}
 			//Calculate the final price difference to be made up.
-			let price: BalanceOf<T> = diff_day_price
-				.checked_mul(remain_day.try_into().map_err(|_e| Error::<T>::Overflow)?)
+			let price: BalanceOf<T> = day_unit_price
+				.checked_mul(&gib_count.saturated_into())
+				.ok_or(Error::<T>::Overflow)?
+				.checked_mul(&remain_day.saturated_into())
 				.ok_or(Error::<T>::Overflow)?
 				.try_into()
 				.map_err(|_e| Error::<T>::Overflow)?;
@@ -708,17 +687,19 @@ pub mod pallet {
 				<T as pallet::Config>::Currency::can_slash(&sender, price.clone()),
 				Error::<T>::InsufficientBalance
 			);
+
 			let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
 			T::MinerControl::add_purchased_space(
-				space.checked_sub(cur_package.space).ok_or(Error::<T>::Overflow)?,
+				space,
 			)?;
-			Self::expension_puchased_package(sender.clone(), space, package_type.clone())?;
+
+			Self::expension_puchased_package(sender.clone(), space)?;
+
 			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), AllowDeath)?;
 
-			Self::deposit_event(Event::<T>::PackageUpgrade {
+			Self::deposit_event(Event::<T>::ExpansionSpace {
 				acc: sender,
-				old_type: cur_package.package_type,
-				new_type: package_type,
+				expansion_space: space,
 				fee: price,
 			});
 			Ok(())
@@ -728,18 +709,20 @@ pub mod pallet {
 		/// Currently, lease renewal only supports single month renewal
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_package())]
-		pub fn renewal_package(origin: OriginFor<T>) -> DispatchResult {
+		pub fn renewal_package(origin: OriginFor<T>, days: u32) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			let cur_package = <PurchasedPackage<T>>::try_get(&sender)
-				.map_err(|_e| Error::<T>::NotPurchasedPackage)?;
+			let cur_owned_space = <UserOwnedSpace<T>>::try_get(&sender)
+				.map_err(|_e| Error::<T>::NotPurchasedSpace)?;
 
-			let g_unit_price = match cur_package.package_type {
-				PackageType::Package1 => 0,
-				_ => Self::get_price(cur_package.space)?,
-			};
-			let count_gb = cur_package.space.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
-			let price: BalanceOf<T> = g_unit_price
-				.checked_mul(count_gb)
+			let days_unit_price = <UnitPrice<T>>::try_get()
+				.map_err(|_e| Error::<T>::BugInvalid)?
+				.checked_div(&30u32.saturated_into())
+				.ok_or(Error::<T>::Overflow)?;
+			let gib_count = cur_owned_space.total_space.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
+			let price: BalanceOf<T> = days_unit_price
+				.checked_mul(&gib_count.saturated_into())
+				.ok_or(Error::<T>::Overflow)?
+				.checked_mul(&days.saturated_into())
 				.ok_or(Error::<T>::Overflow)?
 				.try_into()
 				.map_err(|_e| Error::<T>::Overflow)?;
@@ -749,10 +732,10 @@ pub mod pallet {
 			);
 			let acc = T::FilbakPalletId::get().into_account();
 			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), AllowDeath)?;
-			Self::update_puchased_package(sender.clone())?;
-			Self::deposit_event(Event::<T>::PackageRenewal {
+			Self::update_puchased_package(sender.clone(), days)?;
+			Self::deposit_event(Event::<T>::RenewalSpace {
 				acc: sender,
-				package_type: cur_package.package_type,
+				renewal_days: days,
 				fee: price,
 			});
 			Ok(())
@@ -837,13 +820,14 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `acc`: Account
-		fn update_puchased_package(acc: AccountOf<T>) -> DispatchResult {
-			<PurchasedPackage<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
-				let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedPackage)?;
+		/// - `days`: Days of renewal
+		fn update_puchased_package(acc: AccountOf<T>, days: u32) -> DispatchResult {
+			<UserOwnedSpace<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+				let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
 				let one_day = <T as pallet::Config>::OneDay::get();
 				let now = <frame_system::Pallet<T>>::block_number();
 				let sur_block: BlockNumberOf<T> =
-					one_day.checked_mul(&30u32.saturated_into()).ok_or(Error::<T>::Overflow)?;
+					one_day.checked_mul(&days.saturated_into()).ok_or(Error::<T>::Overflow)?;
 				if now > s.deadline {
 					s.start = now;
 					s.deadline = now.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
@@ -864,16 +848,11 @@ pub mod pallet {
 		fn expension_puchased_package(
 			acc: AccountOf<T>,
 			space: u128,
-			package_type: PackageType,
 		) -> DispatchResult {
-			<PurchasedPackage<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
-				let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedPackage)?;
-				s.remaining_space = s
-					.remaining_space
-					.checked_add(space.checked_sub(s.space).ok_or(Error::<T>::Overflow)?)
-					.ok_or(Error::<T>::Overflow)?;
-				s.space = space;
-				s.package_type = package_type;
+			<UserOwnedSpace<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+				let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
+				s.remaining_space = s.remaining_space.checked_add(space).ok_or(Error::<T>::Overflow)?;
+				s.total_space = s.total_space.checked_add(space).ok_or(Error::<T>::Overflow)?;
 				Ok(())
 			})?;
 
@@ -882,42 +861,36 @@ pub mod pallet {
 		/// helper: Initial purchase space initialization method.
 		///
 		/// Purchase a package and create data corresponding to the user.
-		/// PurchasedPackage Storage.
+		/// UserOwnedSpace Storage.
 		///
 		/// Parameters:
 		/// - `space`: Buy storage space size.
 		/// - `month`: Month of purchase of package, It is 1 at present.
 		/// - `package_type`: Package type.
-		fn add_puchased_package(
+		fn add_puchased_space(
 			acc: AccountOf<T>,
 			space: u128,
-			month: u32,
-			package_type: PackageType,
+			days: u32,
 		) -> DispatchResult {
 			let now = <frame_system::Pallet<T>>::block_number();
 			let one_day = <T as pallet::Config>::OneDay::get();
-			let sur_block: BlockNumberOf<T> = month
-				.checked_mul(30)
-				.ok_or(Error::<T>::Overflow)?
-				.checked_mul(one_day.saturated_into())
-				.ok_or(Error::<T>::Overflow)?
-				.saturated_into();
+			let sur_block: BlockNumberOf<T> = one_day
+				.checked_mul(&days.saturated_into())
+				.ok_or(Error::<T>::Overflow)?;
 			let deadline = now.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
-			let info = PackageDetails::<T> {
-				space,
+			let info = OwnedSpaceDetails::<T> {
+				total_space: space,
 				used_space: 0,
 				remaining_space: space,
-				tenancy: month,
-				package_type,
 				start: now,
 				deadline,
-				state: PACKAGE_NORMAL
+				state: SPACE_NORMAL
 					.as_bytes()
 					.to_vec()
 					.try_into()
 					.map_err(|_e| Error::<T>::BoundedVecError)?,
 			};
-			<PurchasedPackage<T>>::insert(&acc, info);
+			<UserOwnedSpace<T>>::insert(&acc, info);
 			Ok(())
 		}
 
@@ -934,12 +907,12 @@ pub mod pallet {
 		fn update_user_space(acc: AccountOf<T>, operation: u8, size: u128) -> DispatchResult {
 			match operation {
 				1 => {
-					<PurchasedPackage<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
-						let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedPackage)?;
-						if s.state.to_vec() == PACKAGE_FROZEN.as_bytes().to_vec() {
+					<UserOwnedSpace<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+						let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
+						if s.state.to_vec() == SPACE_FROZEN.as_bytes().to_vec() {
 							Err(Error::<T>::LeaseFreeze)?;
 						}
-						if size > s.space - s.used_space {
+						if size > s.remaining_space {
 							Err(Error::<T>::InsufficientStorage)?;
 						}
 						s.used_space =
@@ -949,11 +922,11 @@ pub mod pallet {
 						Ok(())
 					})?;
 				},
-				2 => <PurchasedPackage<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+				2 => <UserOwnedSpace<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
 					let s = s_opt.as_mut().unwrap();
 					s.used_space = s.used_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
 					s.remaining_space =
-						s.space.checked_sub(s.used_space).ok_or(Error::<T>::Overflow)?;
+						s.total_space.checked_sub(s.used_space).ok_or(Error::<T>::Overflow)?;
 					Ok(())
 				})?,
 				_ => Err(Error::<T>::WrongOperation)?,

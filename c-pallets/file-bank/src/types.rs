@@ -30,12 +30,10 @@ pub struct SliceInfo<T: pallet::Config> {
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
-pub struct PackageDetails<T: pallet::Config> {
-	pub(super) space: u128,
+pub struct OwnedSpaceDetails<T: pallet::Config> {
+	pub(super) total_space: u128,
 	pub(super) used_space: u128,
 	pub(super) remaining_space: u128,
-	pub(super) tenancy: u32,
-	pub(super) package_type: PackageType,
 	pub(super) start: BlockNumberOf<T>,
 	pub(super) deadline: BlockNumberOf<T>,
 	pub(super) state: BoundedVec<u8, T::StringLimit>,

@@ -947,6 +947,8 @@ parameter_types! {
 	pub const InvalidLimit: u32 = 100000;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const RecoverLimit: u32 = 8000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const FrozenDays: BlockNumber = DAYS * 7;
 }
 
 impl pallet_file_bank::Config for Runtime {
@@ -966,6 +968,7 @@ impl pallet_file_bank::Config for Runtime {
 	type UploadFillerLimit = UploadFillerLimit;
 	type InvalidLimit = InvalidLimit;
 	type RecoverLimit = RecoverLimit;
+	type FrozenDays = FrozenDays;
 }
 
 parameter_types! {
