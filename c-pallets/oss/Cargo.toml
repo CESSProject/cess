@@ -1,0 +1,27 @@
+[package]
+name = "pallet-oss"
+version = "0.5.3"
+edition = "2021"
+
+[dependencies]
+log = { version = "0.4.14", default-features = false }
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive", "max-encoded-len"] }
+scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
+sp-std = { version = "4.0.0", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "monthly-2022-04-cess" }
+sp-runtime = { version = "6.0.0", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "monthly-2022-04-cess" }
+frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "monthly-2022-04-cess" }
+frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "monthly-2022-04-cess" }
+cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
+
+[features]
+default = ["std"]
+std = [
+	"log/std",
+	"codec/std",
+	"scale-info/std",
+	"sp-std/std",
+	"sp-runtime/std",
+	"frame-support/std",
+	"frame-system/std",
+	"cp-cess-common/std",
+]

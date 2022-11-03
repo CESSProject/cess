@@ -810,6 +810,7 @@ dependencies = [
  "pallet-membership",
  "pallet-mmr",
  "pallet-offences",
+ "pallet-oss",
  "pallet-preimage",
  "pallet-randomness-collective-flip",
  "pallet-rrsc",
@@ -5126,6 +5127,7 @@ dependencies = [
  "pallet-balances",
  "pallet-cess-staking",
  "pallet-file-map",
+ "pallet-oss",
  "pallet-scheduler",
  "pallet-scheduler-credit",
  "pallet-session",
@@ -5316,6 +5318,20 @@ dependencies = [
  "serde",
  "sp-runtime",
  "sp-staking",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-oss"
+version = "0.5.3"
+dependencies = [
+ "cp-cess-common",
+ "frame-support",
+ "frame-system",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-runtime",
  "sp-std",
 ]
 
