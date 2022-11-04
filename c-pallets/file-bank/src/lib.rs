@@ -169,7 +169,7 @@ pub mod pallet {
 		//Storage space expiring within 24 hours
 		LeaseExpireIn24Hours { acc: AccountOf<T>, size: u128 },
 		//File deletion event
-		DeleteFile { acc: AccountOf<T>, fileid: Hash },
+		DeleteFile { operator:AccountOf<T>, owner: AccountOf<T>, file_hash: Hash },
 		//Filler chain success event
 		FillerUpload { acc: AccountOf<T>, file_size: u64 },
 		//File recovery
@@ -654,13 +654,13 @@ pub mod pallet {
 					//The above has been judged. Unwrap will be performed only if the key exists
 					let _ = Self::clear_bucket_file(&fileid, &owner, &user_brief_temp.bucket_name)?;
 					let _ = Self::clear_user_file(fileid, &owner, file.user_brief_list.len() > 1)?;
-					Self::deposit_event(Event::<T>::DeleteFile { acc: sender, fileid });
+
 					result = true;
 					break;
 				}
 			}
 			ensure!(result, Error::<T>::NotOwner);
-
+			Self::deposit_event(Event::<T>::DeleteFile { operator: sender, owner, file_hash: fileid });
 			Ok(())
 		}
 
@@ -773,7 +773,7 @@ pub mod pallet {
 		/// Currently, lease renewal only supports single month renewal
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_package())]
-		pub fn renewal_package(origin: OriginFor<T>, days: u32) -> DispatchResult {
+		pub fn renewal_space(origin: OriginFor<T>, days: u32) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let cur_owned_space = <UserOwnedSpace<T>>::try_get(&sender)
 				.map_err(|_e| Error::<T>::NotPurchasedSpace)?;

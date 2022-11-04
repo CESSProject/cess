@@ -1,5 +1,6 @@
 use super::*;
 use crate::{Pallet as SegmentBook, *};
+use cp_cess_common::{IpAddress, Hash, DataType};
 use codec::{alloc::string::ToString, Decode};
 pub use frame_benchmarking::{
 	account, benchmarks, impl_benchmark_test_suite, whitelist_account, whitelisted_caller,
@@ -33,7 +34,7 @@ const USER_SEED: u32 = 999666;
 benchmarks! {
     submit_challenge_prove {
         let v in 0 .. T::SubmitProofLimit::get() - 1;
-        let ip = "127.0.0.1:8888".as_bytes().to_vec();
+        let ip = IpAddress::IPV4([127,0,0,1],15000);
         let (stash, controller) = pallet_cess_staking::testing_utils::create_stash_controller::<T>(USER_SEED, 100, Default::default())?;
         pallet_file_map::testing_utils::add_scheduler::<T>(controller.clone(), stash.clone(), ip.clone())?;
         let miner: AccountOf<T> = account("miner1", 100, USER_SEED);
@@ -48,9 +49,10 @@ benchmarks! {
         for i in 0 .. 7999 {
             let challenge_info = ChallengeInfo::<T>{
                 file_size: 123,
-                file_type: 1,
+                file_type: DataType::Filler,
                 block_list: vec![1,2].try_into().map_err(|_| "bounded convert err")?,
-                file_id: (i as u32).to_string().as_bytes().to_vec().try_into().map_err(|_| "uint convert to BoundedVec Error")?,
+								file_id: Hash([i as u8; 64]),
+								shard_id: [0u8; 68],
                 random: Default::default(),
             };
             challenge_list.push(challenge_info);
@@ -70,6 +72,8 @@ benchmarks! {
                 challenge_info: challenge_info.clone(),
                 mu: Default::default(),
                 sigma: Default::default(),
+								name: Default::default(),
+                u: Default::default(),
             };
             prove_list.push(prove_info);
         }
@@ -83,7 +87,7 @@ benchmarks! {
 
     verify_proof {
         let v in 0 .. T::SubmitValidationLimit::get() - 1;
-        let ip = "127.0.0.1:8888".as_bytes().to_vec();
+        let ip = IpAddress::IPV4([127,0,0,1],15000);
         let (stash, controller) = pallet_cess_staking::testing_utils::create_stash_controller::<T>(USER_SEED, 100, Default::default())?;
         pallet_file_map::testing_utils::add_scheduler::<T>(controller.clone(), stash.clone(), ip.clone())?;
         let miner: AccountOf<T> = account("miner1", 100, USER_SEED);
@@ -92,9 +96,10 @@ benchmarks! {
         for i in 0 .. 7999 {
             let challenge_info = ChallengeInfo::<T>{
                 file_size: 123,
-                file_type: 1,
+                file_type: DataType::Filler,
                 block_list: vec![1,2].try_into().map_err(|_| "bounded convert err")?,
-                file_id: (i as u32).to_string().as_bytes().to_vec().try_into().map_err(|_| "uint convert to BoundedVec Error")?,
+                file_id: Hash([i as u8; 64]),
+								shard_id: [0u8; 68],
                 random: Default::default(),
             };
             challenge_list.push(challenge_info);
@@ -108,6 +113,8 @@ benchmarks! {
                 challenge_info: challenge_info.clone(),
                 mu: Default::default(),
                 sigma: Default::default(),
+								name: Default::default(),
+                u: Default::default(),
             };
             prove_list.push(prove_info);
         }
@@ -123,7 +130,8 @@ benchmarks! {
             let prove_info = prove_list_bounded[i as usize].clone();
             let verify_result = VerifyResult::<T> {
                 miner_acc: prove_info.clone().miner_acc,
-                file_id: prove_info.clone().file_id,
+                file_id: prove_info.file_id,
+								shard_id: prove_info.challenge_info.shard_id,
                 result: true,
             };
             verify_info_list.push(prove_info);
