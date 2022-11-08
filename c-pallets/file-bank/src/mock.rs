@@ -126,7 +126,6 @@ parameter_types! {
       type ItemLimit = ItemLimit;
       type MultipleFines = MultipleFines;
       type DepositBufferPeriod = DepositBufferPeriod;
-      type CalculFailureFee = Sminer;
       type OneDayBlock = OneDay;
   }
 

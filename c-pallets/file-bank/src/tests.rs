@@ -6,6 +6,7 @@ use super::*;
 use crate::{mock::*, Event};
 use mock::System as Sys;
 use frame_support::{assert_ok, assert_noop};
+use cp_cess_common::IpAddress;
 use pallet_sminer::MinerControl;
 
 #[derive(Debug, Clone)]
@@ -25,7 +26,7 @@ impl Default for MockingFileBankInfo {
                 shard_size: 111,
                 block_num: 8,
                 shard_id: vec![5,45,23,2,19,5,2].try_into().ok().unwrap(),
-                miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().ok().unwrap(),
+                miner_ip: IpAddress::IPV4([127,0,0,1], 15000),
                 miner_acc: mock::miner1(),
             },
             SliceInfo::<Test>{
@@ -33,7 +34,7 @@ impl Default for MockingFileBankInfo {
                 shard_size: 111,
                 block_num: 8,
                 shard_id: vec![5,45,23,2,19,5,2].try_into().ok().unwrap(),
-                miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().ok().unwrap(),
+                miner_ip: IpAddress::IPV4([127,0,0,1], 15000),
                 miner_acc: mock::miner1(),
             },
             SliceInfo::<Test>{
@@ -41,7 +42,7 @@ impl Default for MockingFileBankInfo {
                 shard_size: 111,
                 block_num: 8,
                 shard_id: vec![5,45,23,2,19,5,2].try_into().ok().unwrap(),
-                miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().ok().unwrap(),
+                miner_ip: IpAddress::IPV4([127,0,0,1], 15000),
                 miner_acc: mock::miner1(),
             },
             ]
