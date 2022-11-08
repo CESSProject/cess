@@ -1,6 +1,9 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-mod benchmarking;
+#[cfg(feature = "runtime-benchmarks")]
+pub mod benchmarking;
+
+pub mod weights;
 
 use frame_system::pallet_prelude::*;
 use frame_support::{
@@ -11,6 +14,8 @@ use cp_cess_common::{
 };
 
 pub use pallet::*;
+
+pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 
@@ -23,6 +28,8 @@ pub mod pallet {
 	pub trait Config: frame_system::Config + sp_std::fmt::Debug {
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+
+		type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::event]
@@ -67,7 +74,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[transactional]
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::authorize())]
 		pub fn authorize(origin: OriginFor<T>, operator: AccountOf<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
@@ -82,7 +89,7 @@ pub mod pallet {
 		}
 
 		#[transactional]
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::cancel_authorize())]
 		pub fn cancel_authorize(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(<AuthorityList<T>>::contains_key(&sender), Error::<T>::NoAuthorization);
@@ -97,7 +104,7 @@ pub mod pallet {
 		}
 
 		#[transactional]
-		#[pallet::weight(3_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::register())]
 		pub fn register(origin: OriginFor<T>, endpoint: IpAddress) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!<Oss<T>>::contains_key(&sender), Error::<T>::Registered);
@@ -109,7 +116,7 @@ pub mod pallet {
 		}
 
 		#[transactional]
-		#[pallet::weight(3_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::update())]
 		pub fn update(origin: OriginFor<T>, endpoint: IpAddress) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(<Oss<T>>::contains_key(&sender), Error::<T>::UnRegister);
@@ -126,7 +133,7 @@ pub mod pallet {
 		}
 
 		#[transactional]
-		#[pallet::weight(3_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::destroy())]
 		pub fn destroy(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(<Oss<T>>::contains_key(&sender), Error::<T>::UnRegister);

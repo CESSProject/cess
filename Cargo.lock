@@ -5327,6 +5327,7 @@ name = "pallet-oss"
 version = "0.5.3"
 dependencies = [
  "cp-cess-common",
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "log",

@@ -403,6 +403,7 @@ runtime-benchmarks = [
     'pallet-collective/runtime-benchmarks',
     'pallet-file-bank/runtime-benchmarks',
     'pallet-file-map/runtime-benchmarks',
+		'pallet-oss/runtime-benchmarks',
     'pallet-cess-staking/runtime-benchmarks',
     'pallet-segment-book/runtime-benchmarks',
     'pallet-sminer/runtime-benchmarks',

@@ -1004,6 +1004,8 @@ impl pallet_file_map::Config for Runtime {
 
 impl pallet_oss::Config for Runtime {
 	type Event = Event;
+	
+	type WeightInfo = pallet_oss::weights::SubstrateWeight<Runtime>;
 }
 
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
@@ -1453,6 +1455,7 @@ mod benches {
 		[pallet_timestamp, Timestamp]
 		[pallet_contracts, Contracts]
 		[pallet_sminer, Sminer]
+		[pallet_oss, Oss]
 		[pallet_file_bank, FileBankBench::<Runtime>]
 		[pallet_file_map, FileMapBench::<Runtime>]
 		[pallet_segment_book, SegmentBookBench::<Runtime>]

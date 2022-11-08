@@ -677,7 +677,7 @@ pub mod pallet {
 		/// Parameters:
 		/// - `gib_count`: Quantity of several gibs purchased.
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_package())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_space())]
 		pub fn buy_space(origin: OriginFor<T>, gib_count: u32) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!<UserOwnedSpace<T>>::contains_key(&sender), Error::<T>::PurchasedSpace);
@@ -708,7 +708,7 @@ pub mod pallet {
 		/// Parameters:
 		/// - `gib_count`: Additional purchase quantity of several gibs.
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::upgrade_package())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::expansion_space())]
 		pub fn expansion_space(origin: OriginFor<T>, gib_count: u32) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let cur_owned_space = <UserOwnedSpace<T>>::try_get(&sender)
@@ -772,7 +772,7 @@ pub mod pallet {
 		///
 		/// Currently, lease renewal only supports single month renewal
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_package())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_space())]
 		pub fn renewal_space(origin: OriginFor<T>, days: u32) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let cur_owned_space = <UserOwnedSpace<T>>::try_get(&sender)
@@ -876,7 +876,7 @@ pub mod pallet {
 		}
 
 		#[transactional]
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::create_bucket())]
 		pub fn create_bucket(
 			origin: OriginFor<T>,
 			owner: AccountOf<T>,
@@ -910,7 +910,7 @@ pub mod pallet {
 		}
 
 		#[transactional]
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::delete_bucket())]
 		pub fn delete_bucket(
 			origin: OriginFor<T>,
 			owner: AccountOf<T>,
