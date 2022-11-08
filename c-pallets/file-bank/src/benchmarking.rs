@@ -35,8 +35,7 @@ type SminerBalanceOf<T> = <<T as pallet_sminer::Config>::Currency as Currency<
 const SEED: u32 = 2190502;
 const MAX_SPANS: u32 = 100;
 
-pub fn create_bucket<T: Config>(name: Vec<u8>) -> Result<(), &'static str> {
-	let caller: T::AccountId = whitelisted_caller();
+pub fn create_new_bucket<T: Config>(caller: T::AccountId, name: Vec<u8>) -> Result<(), &'static str> {
 	let name = name.try_into().map_err(|_| "create bucket convert error")?;
 	FileBank::<T>::create_bucket(RawOrigin::Signed(caller.clone()).into(), caller, name)?;
 
@@ -48,7 +47,7 @@ pub fn add_file<T: Config>(file_hash: Hash) -> Result<(Hash, T::AccountId, T::Ac
 	let (caller, miner, controller) = bench_buy_space::<T>(caller, 1000)?;
 	let file_name = "test-file".as_bytes().to_vec();
 	let bucket_name = "test-bucket1".as_bytes().to_vec();
-	create_bucket::<T>(bucket_name.clone())?;
+	create_new_bucket::<T>(caller.clone(), bucket_name.clone())?;
 	let user_brief = UserBrief::<T>{
 		user: caller.clone(),
 		file_name: file_name.try_into().map_err(|_e| "file name convert err")?,
@@ -124,6 +123,13 @@ fn add_filler<T: Config>(len: u32, index: u32, controller: AccountOf<T>) -> Resu
 	let miner: AccountOf<T> = account("miner1", 100, SEED);
 	let mut filler_list: Vec<FillerInfo<T>> = Vec::new();
 	for i in 0..len {
+		let mut value = (index * 10005 + i + 1).to_string().as_bytes().to_vec();
+		// log::info!("value: {:?}", value);
+		let fill_zero = 64 - value.len();
+		for v in 0 .. fill_zero {
+			value.push(0);
+		}
+		// log::info!("value len: {:?}", value.len());
 		let new_filler = FillerInfo::<T> {
 			filler_size: 1024 * 1024 * 8,
 			index: i,
@@ -131,8 +137,9 @@ fn add_filler<T: Config>(len: u32, index: u32, controller: AccountOf<T>) -> Resu
 			segment_size: 1024 * 1024,
 			scan_size: 16,
 			miner_address: miner.clone(),
-			filler_hash: Hash([i as u8; 64]),
+			filler_hash: Hash(value.try_into().map_err(|_| "filler hash convert err!")?),
 		};
+		// log::info!("filler_hash: {:?}", new_filler.filler_hash);
 		filler_list.push(new_filler);
 	}
 	FileBank::<T>::upload_filler(RawOrigin::Signed(controller.clone()).into(), miner.clone(), filler_list)?;
@@ -174,7 +181,7 @@ pub fn bench_buy_space<T: Config>(caller: AccountOf<T>, len: u32) -> Result<(T::
 benchmarks! {
 	upload_filler {
 		let v in 0 .. 10;
-
+		log::info!("start upload filler");
 		let controller = testing_utils::create_funded_user::<T>("controller", SEED, 100);
 		let stash = testing_utils::create_funded_user::<T>("stash", SEED, 100);
 		let controller_lookup: <T::Lookup as StaticLookup>::Source
@@ -211,12 +218,23 @@ benchmarks! {
 	}
 
 	buy_space {
+		log::info!("start buy_space");
 		let user: AccountOf<T> = account("user1", 100, SEED);
 		let miner = add_miner::<T>()?;
 		let controller = add_scheduler::<T>()?;
 		for i in 0 .. 1000 {
 			let _ = add_filler::<T>(10, i, controller.clone())?;
 		}
+		<T as crate::Config>::Currency::make_free_balance_be(
+		&user,
+		BalanceOf::<T>::max_value(),
+	);
+		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
+		let balance: BalanceOf<T> = <T as crate::Config>::Currency::minimum_balance().checked_mul(&2u32.saturated_into()).ok_or("over flow")?;
+		<T as crate::Config>::Currency::make_free_balance_be(
+			&acc,
+			balance,
+		);
 	}: _(RawOrigin::Signed(user.clone()), 10)
 	verify {
 		assert!(<UserOwnedSpace<T>>::contains_key(&user));
@@ -225,16 +243,18 @@ benchmarks! {
 	}
 
 	expansion_space {
+		log::info!("start expansion_space");
 		let caller: T::AccountId = whitelisted_caller();
-		let (user, miner, controller) = bench_buy_space::<T>(caller.clone(), 10000)?;
-		let value: u32 = BalanceOf::<T>::max_value().saturated_into();
-		let free_balance: u32 = <T as pallet::Config>::Currency::free_balance(&user).saturated_into();
 		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
 		let balance: BalanceOf<T> = <T as crate::Config>::Currency::minimum_balance().checked_mul(&2u32.saturated_into()).ok_or("over flow")?;
 		<T as crate::Config>::Currency::make_free_balance_be(
 			&acc,
 			balance,
 		);
+		let (user, miner, controller) = bench_buy_space::<T>(caller.clone(), 10000)?;
+		let value: u32 = BalanceOf::<T>::max_value().saturated_into();
+		let free_balance: u32 = <T as pallet::Config>::Currency::free_balance(&user).saturated_into();
+
 		log::info!("free_balance: {}",free_balance);
 	}: _(RawOrigin::Signed(caller), 490)
 	verify {
@@ -244,14 +264,16 @@ benchmarks! {
 	}
 
 	renewal_space {
+		log::info!("start renewal_space");
 		let caller: T::AccountId = whitelisted_caller();
-		let (user, miner, controller) = bench_buy_space::<T>(caller.clone(), 1000)?;
 		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
 		let balance: BalanceOf<T> = <T as crate::Config>::Currency::minimum_balance().checked_mul(&2u32.saturated_into()).ok_or("over flow")?;
 		<T as crate::Config>::Currency::make_free_balance_be(
 			&acc,
 			balance,
 		);
+		let (user, miner, controller) = bench_buy_space::<T>(caller.clone(), 1000)?;
+
 	}: _(RawOrigin::Signed(caller), 30)
 	verify {
 		assert!(<UserOwnedSpace<T>>::contains_key(&user));
@@ -262,11 +284,12 @@ benchmarks! {
 	}
 
 	upload_declaration {
+		log::info!("start upload_declaration");
 		let caller: T::AccountId = account("user1", 100, SEED);
 		let file_hash = Hash([5u8; 64]);
 		let file_name = "test-file".as_bytes().to_vec();
 		let bucket_name = "test-bucket1".as_bytes().to_vec();
-		create_bucket::<T>(bucket_name.clone())?;
+		create_new_bucket::<T>(caller.clone(), bucket_name.clone())?;
 		let user_brief = UserBrief::<T>{
 			user: caller.clone(),
 			file_name: file_name.try_into().map_err(|_e| "file name convert err")?,
@@ -280,13 +303,21 @@ benchmarks! {
 
 	upload {
 		let v in 0 .. 30;
+		log::info!("start upload");
+
 		let caller: AccountOf<T> = account("user1", 100, SEED);
+		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
+		let balance: BalanceOf<T> = <T as crate::Config>::Currency::minimum_balance().checked_mul(&2u32.saturated_into()).ok_or("over flow")?;
+		<T as crate::Config>::Currency::make_free_balance_be(
+			&acc,
+			balance,
+		);
 		let (user, miner, controller) = bench_buy_space::<T>(caller.clone(), 1000)?;
 		let miner: T::AccountId = account("miner1", 100, SEED);
 		let file_hash = Hash([3u8; 64]);
 		let file_name = "test-file".as_bytes().to_vec();
 		let bucket_name = "test-bucket1".as_bytes().to_vec();
-		create_bucket::<T>(bucket_name.clone())?;
+		create_new_bucket::<T>(caller.clone(), bucket_name.clone())?;
 		let user_brief = UserBrief::<T>{
 			user: caller.clone(),
 			file_name: file_name.try_into().map_err(|_e| "file name convert err")?,
@@ -316,7 +347,14 @@ benchmarks! {
 	}
 
 	delete_file {
+		log::info!("start delete_file");
 		let file_hash = Hash([5u8; 64]);
+		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
+		let balance: BalanceOf<T> = <T as crate::Config>::Currency::minimum_balance().checked_mul(&2u32.saturated_into()).ok_or("over flow")?;
+		<T as crate::Config>::Currency::make_free_balance_be(
+			&acc,
+			balance,
+		);
 		let (file_hash, caller, _, _) = add_file::<T>(file_hash)?;
 		assert!(File::<T>::contains_key(&file_hash));
 	}: _(RawOrigin::Signed(caller.clone()), caller.clone(), file_hash)
@@ -326,14 +364,24 @@ benchmarks! {
 
 	recover_file {
 		let v in 0 .. 50;
+		log::info!("start recover_file");
 		let mut avai = true;
 		if v % 2 == 0 {
 			avai = false;
 		}
+		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
+		let balance: BalanceOf<T> = <T as crate::Config>::Currency::minimum_balance().checked_mul(&2u32.saturated_into()).ok_or("over flow")?;
+		<T as crate::Config>::Currency::make_free_balance_be(
+			&acc,
+			balance,
+		);
 		<frame_system::Pallet<T>>::set_block_number(1u32.saturated_into());
 		let file_hash = Hash([5u8; 64]);
-	    let (file_hash, caller, miner, controller) = add_file::<T>(file_hash)?;
+
+		let (file_hash, caller, miner, controller) = add_file::<T>(file_hash)?;
+
 		assert!(File::<T>::contains_key(&file_hash));
+
 		let info = File::<T>::get(&file_hash).unwrap();
 		let re_shard = info.slice_info[0].shard_id.clone();
 
@@ -349,16 +397,23 @@ benchmarks! {
 		})?;
 
 		assert!(FileRecovery::<T>::contains_key(&controller));
+
 		let re_list = FileRecovery::<T>::get(&controller);
+
 		assert_eq!(re_list.len(), 1);
+
+		let mut file_hash1: Vec<u8> = file_hash.0.to_vec();
+		file_hash1.append("-004".as_bytes().to_vec().as_mut());
+
 		let slice_info = SliceInfo::<T>{
 			miner_id: 1,
 			shard_size: 111,
 			block_num: 8,
-			shard_id: "4".as_bytes().to_vec().try_into().map_err(|_e| "shar_id convert err")?,
+			shard_id: file_hash1.as_slice().try_into().map_err(|_e| "shar_id convert err")?,
 			miner_ip: IpAddress::IPV4([127,0,0,1], 15001),
 			miner_acc: miner.clone(),
 		};
+
 		let info = File::<T>::get(&file_hash).unwrap();
 		assert_eq!(info.slice_info.len(), 2);
 	}: _(RawOrigin::Signed(controller.clone()), re_shard, slice_info, avai)
@@ -372,6 +427,7 @@ benchmarks! {
 	}
 
 	clear_invalid_file {
+		log::info!("start clear_invalid_file");
 		let miner: T::AccountId = account("miner1", 100, SEED);
 		let file_hash: Hash = Hash([1u8; 64]);
 		let mut file_hash_list: Vec<Hash> = Default::default();
@@ -384,4 +440,25 @@ benchmarks! {
 		assert_eq!(list.len(), 0);
 	}
 
+	create_bucket {
+		log::info!("start create_bucket");
+		let caller: AccountOf<T> = account("user1", 100, SEED);
+		let name: Vec<u8> = "test-bucket1".as_bytes().to_vec();
+		let name: BoundedVec<u8, T::NameStrLimit> = name.try_into().map_err(|_| "name convert error")?;
+	}: _(RawOrigin::Signed(caller.clone()), caller.clone(), name.clone())
+	verify {
+		assert!(Bucket::<T>::contains_key(&caller, name));
+	}
+
+	delete_bucket {
+		log::info!("start delete_bucket");
+		let caller: AccountOf<T> = account("user1", 100, SEED);
+		let name: Vec<u8> = "test-bucket1".as_bytes().to_vec();
+		let name_bound: BoundedVec<u8, T::NameStrLimit> = name.clone().try_into().map_err(|_| "bounded_vec convert err!")?;
+		create_new_bucket::<T>(caller.clone(), name.clone())?;
+		Bucket::<T>::contains_key(&caller, name_bound.clone());
+	}: _(RawOrigin::Signed(caller.clone()), caller.clone(), name_bound.clone())
+	verify {
+		assert!(!Bucket::<T>::contains_key(&caller, name_bound));
+	}
 }

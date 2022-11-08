@@ -12,6 +12,8 @@ sp-runtime = { version = "6.0.0", default-features = false, git = "https://githu
 frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "monthly-2022-04-cess" }
 frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "monthly-2022-04-cess" }
 cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
+frame-benchmarking = { version = '4.0.0-dev', default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'monthly-2022-04-cess', optional = true}
+
 
 [features]
 default = ["std"]
@@ -24,4 +26,9 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"cp-cess-common/std",
+	"frame-benchmarking/std",
+]
+
+runtime-benchmarks = [
+	"frame-benchmarking/runtime-benchmarks",
 ]

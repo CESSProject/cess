@@ -1150,6 +1150,7 @@ name = "cp-cess-common"
 version = "0.1.0"
 dependencies = [
  "frame-support",
+ "log",
  "parity-scale-codec",
  "scale-info",
  "sp-std",

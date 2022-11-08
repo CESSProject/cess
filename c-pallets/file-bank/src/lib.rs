@@ -918,13 +918,13 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(Self::check_permission(sender.clone(), owner.clone()), Error::<T>::NoPermission);
-			ensure!(<Bucket<T>>::contains_key(&sender, &name), Error::<T>::NonExistent);
-			let bucket = <Bucket<T>>::try_get(&sender, &name).map_err(|_| Error::<T>::Unexpected)?;
+			ensure!(<Bucket<T>>::contains_key(&owner, &name), Error::<T>::NonExistent);
+			let bucket = <Bucket<T>>::try_get(&owner, &name).map_err(|_| Error::<T>::Unexpected)?;
 			for file_hash in bucket.object_list.iter() {
 				let file = <File<T>>::try_get(file_hash).map_err(|_| Error::<T>::Unexpected)?;
 				Self::clear_user_file(*file_hash, &owner, file.user_brief_list.len() > 1)?;
 			}
-			<Bucket<T>>::remove(&sender, &name);
+			<Bucket<T>>::remove(&owner, &name);
 			<UserBucketList<T>>::try_mutate(&owner, |bucket_list| -> DispatchResult {
 				let mut index = 0;
 				for name_tmp in bucket_list.iter() {
@@ -1682,7 +1682,7 @@ pub mod pallet {
 		/// Result:
 		/// - bool: True means there is permission, false means there is no permission.
 		fn check_permission(operator: AccountOf<T>, owner: AccountOf<T>) -> bool {
-			if owner == operator || T::OssFindAuthor::is_authorized(operator, owner) {
+			if owner == operator || T::OssFindAuthor::is_authorized(owner, operator) {
 				return true;
 			}
 			false

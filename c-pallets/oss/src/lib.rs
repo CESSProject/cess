@@ -1,5 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+mod benchmarking;
+
 use frame_system::pallet_prelude::*;
 use frame_support::{
 	pallet_prelude::*, transactional
@@ -95,10 +97,10 @@ pub mod pallet {
 		}
 
 		#[transactional]
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(3_000_000)]
 		pub fn register(origin: OriginFor<T>, endpoint: IpAddress) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			ensure!(<Oss<T>>::contains_key(&sender), Error::<T>::Registered);
+			ensure!(!<Oss<T>>::contains_key(&sender), Error::<T>::Registered);
 			<Oss<T>>::insert(&sender, endpoint.clone());
 
 			Self::deposit_event(Event::<T>::OssRegister {acc: sender, endpoint});
@@ -107,10 +109,10 @@ pub mod pallet {
 		}
 
 		#[transactional]
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(3_000_000)]
 		pub fn update(origin: OriginFor<T>, endpoint: IpAddress) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			ensure!(!<Oss<T>>::contains_key(&sender), Error::<T>::UnRegister);
+			ensure!(<Oss<T>>::contains_key(&sender), Error::<T>::UnRegister);
 
 			<Oss<T>>::try_mutate(&sender, |endpoint_opt| -> DispatchResult {
 				let p_endpoint = endpoint_opt.as_mut().ok_or(Error::<T>::OptionParseError)?;
@@ -124,10 +126,10 @@ pub mod pallet {
 		}
 
 		#[transactional]
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(3_000_000)]
 		pub fn destroy(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			ensure!(!<Oss<T>>::contains_key(&sender), Error::<T>::UnRegister);
+			ensure!(<Oss<T>>::contains_key(&sender), Error::<T>::UnRegister);
 
 			<Oss<T>>::remove(&sender);
 

@@ -72,6 +72,7 @@ impl Default for Hash {
 
 impl Hash {
 	pub fn slice_to_array_64(slice: &[u8]) -> Result<[u8; 64], TryFromSliceError> {
+		// log::info!("slice len: {:?}", slice.len());
 		if slice.len() == 64 {
 			let ptr: [u8; 64] = (*slice).try_into().map_err(|_e| TryFromSliceError(()))?;
 			Ok(ptr)
@@ -81,7 +82,7 @@ impl Hash {
 	}
 
 	pub fn from_shard_id(shard_id: &[u8; 68]) -> Result<Self, TryFromSliceError> {
-		let slice = Self::slice_to_array_64(&shard_id[0..63])?;
+		let slice = Self::slice_to_array_64(&shard_id[0..64])?;
 		let hash = Hash(slice);
 		return Ok(hash)
 	}
