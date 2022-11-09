@@ -381,6 +381,33 @@ fn clear_invalid_file_work() {
         assert_eq!(file_hash_list, InvalidFile::<Test>::get(miner1.clone()));
     });
 }
+
+#[test]
+fn create_bucket_works() {
+	new_test_ext().execute_with(|| {
+		let acc1 = mock::account1();
+		let bucket_name = "cess-bucket".as_bytes().to_vec();
+		let bound_bucket_name: BoundedVec<u8, NameStrLimit> = bucket_name.try_into().unwrap();
+		assert_ok!(FileBank::create_bucket(Origin::signed(acc1.clone()), acc1.clone(), bound_bucket_name.clone()));
+		let bucket = Bucket::<Test>::get(&acc1, bound_bucket_name).unwrap();
+		assert_eq!(bucket.authority.len(), 1);
+		assert_eq!(bucket.authority[0], acc1);
+	});
+}
+
+#[test]
+fn delete_bucket_works() {
+	new_test_ext().execute_with(|| {
+		let acc1 = mock::account1();
+		let bucket_name = "cess-bucket".as_bytes().to_vec();
+		let bound_bucket_name: BoundedVec<u8, NameStrLimit> = bucket_name.try_into().unwrap();
+		assert_ok!(FileBank::create_bucket(Origin::signed(acc1.clone()), acc1.clone(), bound_bucket_name.clone()));
+		assert!(<Bucket<Test>>::contains_key(&acc1, bound_bucket_name.clone()));
+
+		assert_ok!(FileBank::delete_bucket(Origin::signed(acc1.clone()), acc1.clone(), bound_bucket_name.clone()));
+		assert!(!<Bucket<Test>>::contains_key(&acc1, bound_bucket_name.clone()));
+	});
+}
 // #[test]
 // fn update_price_works() {
 //     new_test_ext().execute_with(|| {
