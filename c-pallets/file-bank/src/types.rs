@@ -73,7 +73,7 @@ pub struct BucketInfo<T: Config> {
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct UserBrief<T: Config> {
-	pub(super) user: AccountOf<T>,
-	pub(super) file_name: BoundedVec<u8, T::NameStrLimit>,
-	pub(super) bucket_name:  BoundedVec<u8, T::NameStrLimit>,
+	pub user: AccountOf<T>,
+	pub file_name: BoundedVec<u8, T::NameStrLimit>,
+	pub bucket_name:  BoundedVec<u8, T::NameStrLimit>,
 }

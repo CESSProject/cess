@@ -5,6 +5,11 @@ pub mod benchmarking;
 
 pub mod weights;
 
+#[cfg(test)]
+mod mock;
+#[cfg(test)]
+mod tests;
+
 use frame_system::pallet_prelude::*;
 use frame_support::{
 	pallet_prelude::*, transactional

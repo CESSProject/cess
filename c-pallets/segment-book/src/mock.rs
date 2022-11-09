@@ -52,8 +52,15 @@ frame_support::construct_runtime!(
 		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>},
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 		SchedulerCredit: pallet_scheduler_credit::{Pallet, Storage},
+		Oss: pallet_oss::{Pallet, Call, Storage, Event<T>},
 	}
 );
+
+impl pallet_oss::Config for Test {
+	type Event = Event;
+
+	type WeightInfo = ();
+}
 
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
@@ -92,6 +99,10 @@ impl frame_system::Config for Test {
 
 parameter_types! {
     pub const FileMapPalletId: PalletId = PalletId(*b"filmpdpt");
+		#[derive(Clone, PartialEq, Eq)]
+		pub const SchedulerMaximum: u32 = 10000;
+		#[derive(Clone, PartialEq, Eq)]
+		pub const ParamsLimit: u32 = 359;
 }
 
 impl pallet_file_map::Config for Test {
@@ -101,25 +112,49 @@ impl pallet_file_map::Config for Test {
     type StringLimit = StringLimit;
     type WeightInfo = ();
 		type CreditCounter = SchedulerCredit;
+		type SchedulerMaximum = SchedulerMaximum;
+		type ParamsLimit = ParamsLimit;
 }
 
 parameter_types! {
 	pub const FilbakPalletId: PalletId = PalletId(*b"filebank");
+	#[derive(Clone, Eq, PartialEq)]
+	pub const UploadFillerLimit: u8 = 10;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const InvalidLimit: u32 = 100000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const RecoverLimit: u32 = 8000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const BucketLimit: u32 = 1000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const NameStrLimit: u32 = 40;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const FileListLimit: u32 = 500000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const FrozenDays: BlockNumber = 60 * 10 * 24 * 7;
 }
 
 impl pallet_file_bank::Config for Test {
-    type Event = Event;
-    type Currency = Balances;
-    type WeightInfo = ();
-    type Call = Call;
-    type FindAuthor = ();
-    type Scheduler = pallet_file_map::Pallet::<Test>;
-    type MinerControl = pallet_sminer::Pallet::<Test>;
-    type MyRandomness = TestRandomness<Self>;
-    type FilbakPalletId = FilbakPalletId;
-    type StringLimit = StringLimit;
-    type OneDay = OneDay;
-	  type CreditCounter = SchedulerCredit;
+	type Event = Event;
+	type Currency = Balances;
+	type WeightInfo = ();
+	type Call = Call;
+	type FindAuthor = ();
+	type CreditCounter = SchedulerCredit;
+	type Scheduler = pallet_file_map::Pallet::<Test>;
+	type MinerControl = pallet_sminer::Pallet::<Test>;
+	type MyRandomness = TestRandomness<Self>;
+	type FilbakPalletId = FilbakPalletId;
+	type StringLimit = StringLimit;
+	type OneDay = OneDay;
+	type FileListLimit = FileListLimit;
+	type NameStrLimit = NameStrLimit;
+	type BucketLimit = BucketLimit;
+	type OssFindAuthor = Oss;
+	type FrozenDays = FrozenDays;
+	type RecoverLimit = RecoverLimit;
+	type InvalidLimit = InvalidLimit;
+	type UploadFillerLimit = UploadFillerLimit;
 }
 
 pub struct OtherSessionHandler;
@@ -172,8 +207,14 @@ for MockStashAccountFinder<AccountId>
 	}
 }
 
+parameter_types! {
+	pub const PeriodDuration: BlockNumber = 64_000;
+}
+
 impl pallet_scheduler_credit::Config for Test {
 	type StashAccountFinder = MockStashAccountFinder<Self::AccountId>;
+
+	type PeriodDuration = PeriodDuration;
 }
 
 parameter_types! {
@@ -298,6 +339,8 @@ parameter_types! {
     pub const MultipleFines: u8 = 7;
     pub const DepositBufferPeriod: u32 = 3;
     pub const ItemLimit: u32 = 1024;
+		pub const MaxAward: u128 = 1_306_849_000_000_000_000;
+		pub const LockInPeriod: u8 = 2;
 }
 
 impl pallet_sminer::Config for Test {
@@ -313,8 +356,9 @@ impl pallet_sminer::Config for Test {
       type ItemLimit = ItemLimit;
       type MultipleFines = MultipleFines;
       type DepositBufferPeriod = DepositBufferPeriod;
-      type CalculFailureFee = Sminer;
       type OneDayBlock = OneDay;
+			type MaxAward = MaxAward;
+			type LockInPeriod = LockInPeriod;
 }
 
 parameter_types! {
@@ -325,6 +369,12 @@ parameter_types! {
 	pub const OneDay: u32 = 60 * 20 * 24;
 	pub const LockTime: u32 = 1;
 	pub const SegUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+	#[derive(Clone, PartialEq, Eq)]
+	pub const SubmitProofLimit: u32 = 100;
+	#[derive(Clone, PartialEq, Eq)]
+	pub const SubmitValidationLimit: u32 = 50;
+	#[derive(Clone, PartialEq, Eq)]
+	pub const ChallengeMaximum: u32 = 8000;
 }
 
 impl Config for Test {
@@ -346,6 +396,9 @@ impl Config for Test {
 		type NextSessionRotation = ();
 		type UnsignedPriority = SegUnsignedPriority;
 		type LockTime = LockTime;
+		type SubmitValidationLimit = SubmitValidationLimit;
+		type SubmitProofLimit = SubmitProofLimit;
+		type ChallengeMaximum = ChallengeMaximum;
 }
 
 pub fn account1() -> AccountId {
@@ -381,6 +434,11 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     }
         .assimilate_storage(&mut t)
         .unwrap();
+		pallet_file_bank::GenesisConfig::<Test> {
+			price: 30
+		}
+			.assimilate_storage(&mut t)
+			.unwrap();
     let mut ext = sp_io::TestExternalities::new(t);
     ext.execute_with(|| {
         System::set_block_number(1); //must set block_number, otherwise the deposit_event() don't work
