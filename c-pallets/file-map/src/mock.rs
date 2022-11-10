@@ -84,9 +84,12 @@ for MockStashAccountFinder<AccountId>
 		Some(ctrl_account_id.clone())
 	}
 }
-
+parameter_types! {
+	pub const PeriodDuration: BlockNumber = 64_000;
+}
 impl pallet_scheduler_credit::Config for Test {
 	type StashAccountFinder = MockStashAccountFinder<Self::AccountId>;
+	type PeriodDuration = PeriodDuration;
 }
 
 parameter_types! {
@@ -148,6 +151,10 @@ parameter_types! {
     pub const FileMapPalletId: PalletId = PalletId(*b"filmpdpt");
     #[derive(Clone, PartialEq, Eq)]
 		pub const StringLimit: u32 = 1024;
+		#[derive(Clone, PartialEq, Eq)]
+		pub const SchedulerMaximum: u32 = 10000;
+		#[derive(Clone, PartialEq, Eq)]
+		pub const ParamsLimit: u32 = 359;
 }
 
 impl pallet_file_map::Config for Test {
@@ -157,6 +164,8 @@ impl pallet_file_map::Config for Test {
     type StringLimit = StringLimit;
     type WeightInfo = ();
 		type CreditCounter = SchedulerCredit;
+		type ParamsLimit = ParamsLimit;
+		type SchedulerMaximum = SchedulerMaximum;
 }
 
 const THRESHOLDS: [sp_npos_elections::VoteWeight; 9] =

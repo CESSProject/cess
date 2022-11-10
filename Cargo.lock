@@ -810,6 +810,7 @@ dependencies = [
  "pallet-membership",
  "pallet-mmr",
  "pallet-offences",
+ "pallet-oss",
  "pallet-preimage",
  "pallet-randomness-collective-flip",
  "pallet-rrsc",
@@ -1149,6 +1150,7 @@ name = "cp-cess-common"
 version = "0.1.0"
 dependencies = [
  "frame-support",
+ "log",
  "parity-scale-codec",
  "scale-info",
  "sp-std",
@@ -5126,6 +5128,7 @@ dependencies = [
  "pallet-balances",
  "pallet-cess-staking",
  "pallet-file-map",
+ "pallet-oss",
  "pallet-scheduler",
  "pallet-scheduler-credit",
  "pallet-session",
@@ -5320,6 +5323,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-oss"
+version = "0.5.3"
+dependencies = [
+ "cp-cess-common",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-balances",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-preimage"
 version = "4.0.0-dev"
 source = "git+https://github.com/CESSProject/substrate.git?branch=monthly-2022-04-cess#f4fbe50a59a26794031c23b7c4ee5815bc858c90"
@@ -5424,6 +5445,7 @@ dependencies = [
  "pallet-cess-staking",
  "pallet-file-bank",
  "pallet-file-map",
+ "pallet-oss",
  "pallet-scheduler",
  "pallet-scheduler-credit",
  "pallet-session",

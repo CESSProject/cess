@@ -10,8 +10,7 @@ pub struct FileInfo<T: pallet::Config> {
 	pub(super) file_size: u64,
 	pub(super) index: u32,
 	pub(super) file_state: BoundedVec<u8, T::StringLimit>,
-	pub(super) user: BoundedVec<AccountOf<T>, T::StringLimit>,
-	pub(super) file_name: BoundedVec<BoundedVec<u8, T::StringLimit>, T::StringLimit>,
+	pub(super) user_brief_list: BoundedVec<UserBrief<T>, T::StringLimit>,
 	pub(super) slice_info: BoundedVec<SliceInfo<T>, T::StringLimit>,
 }
 
@@ -30,12 +29,10 @@ pub struct SliceInfo<T: pallet::Config> {
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
-pub struct PackageDetails<T: pallet::Config> {
-	pub(super) space: u128,
+pub struct OwnedSpaceDetails<T: pallet::Config> {
+	pub(super) total_space: u128,
 	pub(super) used_space: u128,
 	pub(super) remaining_space: u128,
-	pub(super) tenancy: u32,
-	pub(super) package_type: PackageType,
 	pub(super) start: BlockNumberOf<T>,
 	pub(super) deadline: BlockNumberOf<T>,
 	pub(super) state: BoundedVec<u8, T::StringLimit>,
@@ -59,4 +56,24 @@ pub struct FillerInfo<T: pallet::Config> {
 pub struct UserFileSliceInfo {
 	pub(super) file_hash: Hash,
 	pub(super) file_size: u64,
+}
+
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+#[codec(mel_bound())]
+pub struct BucketInfo<T: Config> {
+	pub(super) total_capacity: u32,
+	pub(super) available_capacity: u32,
+	pub(super) object_num: u32,
+	pub(super) object_list: BoundedVec<Hash, T::FileListLimit>,
+	pub(super) authority: BoundedVec<AccountOf<T>, T::StringLimit>,
+}
+
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+#[codec(mel_bound())]
+pub struct UserBrief<T: Config> {
+	pub user: AccountOf<T>,
+	pub file_name: BoundedVec<u8, T::NameStrLimit>,
+	pub bucket_name:  BoundedVec<u8, T::NameStrLimit>,
 }

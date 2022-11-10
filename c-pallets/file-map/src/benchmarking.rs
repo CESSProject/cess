@@ -26,10 +26,10 @@ benchmarks! {
     registration_scheduler {
         let caller: T::AccountId = whitelisted_caller();
         let (stash, controller) = pallet_cess_staking::testing_utils::create_stash_controller::<T>(USER_SEED, 100, Default::default())?;
-    }: _(RawOrigin::Signed(controller.clone()), stash.clone(), "127.0.0.1:8888".as_bytes().to_vec())
+    }: _(RawOrigin::Signed(controller.clone()), stash.clone(), IpAddress::IPV4([127,0,0,1], 15001))
     verify {
         let s_vec = SchedulerMap::<T>::get();
-		let ip_bound = "127.0.0.1:8888".as_bytes().to_vec().try_into().map_err(|_e| "convert err!")?;
+		let ip_bound = IpAddress::IPV4([127,0,0,1], 15001);
 		let scheduler = SchedulerInfo::<T> {
 			ip: ip_bound,
 			stash_user: stash.clone(),
@@ -39,27 +39,27 @@ benchmarks! {
     }
 
     update_scheduler {
-        let ip = "127.0.0.1:8888".as_bytes().to_vec();
+        let ip = IpAddress::IPV4([127,0,0,1], 15001);
         let (stash, controller) = pallet_cess_staking::testing_utils::create_stash_controller::<T>(USER_SEED, 100, Default::default())?;
         FMTestUtils::add_scheduler::<T>(controller.clone(), stash.clone(), ip.clone())?;
         let s_vec = SchedulerMap::<T>::get();
-        let ip_bound = "127.0.0.1:8888".as_bytes().to_vec().try_into().map_err(|_e| "convert err!")?;
+        let ip_bound = IpAddress::IPV4([127,0,0,1], 15001);
         let scheduler = SchedulerInfo::<T> {
 			ip: ip_bound,
 			stash_user: stash.clone(),
 			controller_user: controller.clone(),
 		};
         assert!(s_vec.to_vec().contains(&scheduler));
-        let new_ip = "127.0.0.1:8889".as_bytes().to_vec();
+        let new_ip = IpAddress::IPV4([127,0,0,1], 15002);
     }: _(RawOrigin::Signed(controller.clone()), new_ip)
     verify {
         let s_vec = SchedulerMap::<T>::get();
-        let ip_bound = "127.0.0.1:8889".as_bytes().to_vec().try_into().map_err(|_e| "convert err!")?;
+        let ip_bound = IpAddress::IPV4([127,0,0,1], 15002);
         let scheduler = SchedulerInfo::<T> {
-			ip: ip_bound,
-			stash_user: stash.clone(),
-			controller_user: controller.clone(),
-		};
+					ip: ip_bound,
+					stash_user: stash.clone(),
+					controller_user: controller.clone(),
+				};
         assert!(s_vec.to_vec().contains(&scheduler))
     }
 

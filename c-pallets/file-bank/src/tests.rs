@@ -6,42 +6,59 @@ use super::*;
 use crate::{mock::*, Event};
 use mock::System as Sys;
 use frame_support::{assert_ok, assert_noop};
+use cp_cess_common::{IpAddress, Hash};
 use pallet_sminer::MinerControl;
+
 
 #[derive(Debug, Clone)]
 pub struct MockingFileBankInfo {
-    file_hash: Vec<u8>,
+    file_hash: Hash,
     file_size: u64,
 	  slice_info: Vec<SliceInfo<Test>>,
 }
 
+type Balance = u64;
+const UNIT_PRICE: Balance = 30;
+
 impl Default for MockingFileBankInfo {
     fn default() -> Self {
+			let file_hash = Hash([5u8; 64]);
+			let mut file_hash1: Vec<u8> = file_hash.0.to_vec();
+			file_hash1.append("-001".as_bytes().to_vec().as_mut());
+			let file_hash1: [u8; 68] = file_hash1.as_slice().try_into().unwrap();
+
+			let mut file_hash2: Vec<u8> = file_hash.0.to_vec();
+			file_hash2.append("-002".as_bytes().to_vec().as_mut());
+			let file_hash2: [u8; 68] = file_hash1.as_slice().try_into().unwrap();
+
+			let mut file_hash3: Vec<u8> = file_hash.0.to_vec();
+			file_hash3.append("-002".as_bytes().to_vec().as_mut());
+			let file_hash3: [u8; 68] = file_hash1.as_slice().try_into().unwrap();
         MockingFileBankInfo {
-            file_hash: vec![5,45,23,2,19,5,2],
+            file_hash: file_hash,
             file_size: 12,
             slice_info: vec![SliceInfo::<Test>{
                 miner_id: 1,
                 shard_size: 111,
                 block_num: 8,
-                shard_id: vec![5,45,23,2,19,5,2].try_into().ok().unwrap(),
-                miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().ok().unwrap(),
+                shard_id: file_hash1,
+                miner_ip: IpAddress::IPV4([127,0,0,1], 15000),
                 miner_acc: mock::miner1(),
             },
             SliceInfo::<Test>{
                 miner_id: 1,
                 shard_size: 111,
                 block_num: 8,
-                shard_id: vec![5,45,23,2,19,5,2].try_into().ok().unwrap(),
-                miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().ok().unwrap(),
+                shard_id: file_hash2,
+                miner_ip: IpAddress::IPV4([127,0,0,1], 15000),
                 miner_acc: mock::miner1(),
             },
             SliceInfo::<Test>{
                 miner_id: 1,
                 shard_size: 111,
                 block_num: 8,
-                shard_id: vec![5,45,23,2,19,5,2].try_into().ok().unwrap(),
-                miner_ip: "192.168.1.1".as_bytes().to_vec().try_into().ok().unwrap(),
+                shard_id: file_hash3,
+                miner_ip: IpAddress::IPV4([127,0,0,1], 15000),
                 miner_acc: mock::miner1(),
             },
             ]
@@ -49,11 +66,16 @@ impl Default for MockingFileBankInfo {
     }
 }
 
-fn upload_declaration_alias(account: AccountId, file_name: Vec<u8>, file_hash: Vec<u8>) -> DispatchResult {
+fn upload_declaration_alias(account: AccountId, file_name: Vec<u8>, file_hash: Hash, bucket_name: Vec<u8>) -> DispatchResult {
+		let user_brief = UserBrief::<Test>{
+			user: account.clone(),
+			file_name: file_name.try_into().unwrap(),
+			bucket_name: bucket_name.try_into().unwrap(),
+		};
     FileBank::upload_declaration(
-        Origin::signed(account),
-        file_hash,
-        file_name,
+        Origin::signed(account.clone()),
+				file_hash,
+        user_brief,
     )
 }
 
@@ -67,12 +89,20 @@ fn upload_file_alias(_account: AccountId, controller: AccountId, file_info: &Moc
     )
 }
 
+fn create_new_bucket(acc: AccountId, bucket_name: Vec<u8>) -> DispatchResult {
+	FileBank::create_bucket(
+		Origin::signed(acc.clone()),
+		acc,
+		bucket_name.try_into().unwrap(),
+	)
+}
+
 fn register_scheduler(stash: AccountId, controller: AccountId) -> DispatchResult {
     pallet_cess_staking::Bonded::<Test>::insert(&stash, controller.clone());
     FileMap::registration_scheduler(
         Origin::signed(controller),
         stash,
-        "132.168.191.67:3033".as_bytes().to_vec(),
+        IpAddress::IPV4([127,0,0,1], 15000),
     )
 
 }
@@ -81,7 +111,7 @@ fn register_miner(miner: AccountId) -> DispatchResult {
     Sminer::regnstk(
         Origin::signed(miner),
         miner.clone(),
-        "132.168.191.67:3033".as_bytes().to_vec(),
+				IpAddress::IPV4([127,0,0,1], 15000),
         2_000u128.try_into().unwrap(),
     )
 }
@@ -89,9 +119,8 @@ fn register_miner(miner: AccountId) -> DispatchResult {
 fn add_power_for_miner(controller: AccountId, miner: AccountId) -> DispatchResult {
     let max: u8 = 10;
     let mut filler_list: Vec<FillerInfo<Test>> = Vec::new();
-    let filler_hash: BoundedVec<u8, StringLimit> = "hash".as_bytes().to_vec().try_into().unwrap();
     for i in 0 .. max {
-        let filler_id: BoundedVec<u8, StringLimit> = i.to_string().as_bytes().to_vec().try_into().unwrap();
+        let filler_hash: Hash = Hash([i; 64]);
         filler_list.push(
             FillerInfo::<Test> {
                 index: 1,
@@ -100,7 +129,6 @@ fn add_power_for_miner(controller: AccountId, miner: AccountId) -> DispatchResul
                 segment_size: 1_048_576,
                 scan_size: 1_048_576,
                 miner_address: miner.clone(),
-                filler_id: filler_id,
                 filler_hash: filler_hash.clone(),
             }
         )
@@ -117,27 +145,27 @@ fn buy_space_works() {
         let _bal_before = Balances::free_balance(acc1);
         let miner1 = mock::miner1();
         let space_gb = 10_u128;
-        let lease_count = 10_u128;  // one month a lease
         let bn = Sys::block_number();
 
         assert_ok!(register_miner(miner1.clone()));
         assert_ok!(Sminer::add_power(&miner1, 1_048_576 * 1024 * space_gb));  // GB => MB
 
-        assert_ok!(FileBank::buy_package(Origin::signed(acc1), 1, 0));
+        assert_ok!(FileBank::buy_space(Origin::signed(acc1), 10));
 
-        let uhsd = PurchasedPackage::<Test>::try_get(acc1).unwrap();
-        assert_eq!(space_gb * 1024 * 1_048_576, uhsd.space); // MB unit
-        assert_eq!(86400 * lease_count + bn as u128, uhsd.deadline as u128);
+        let uhsd = UserOwnedSpace::<Test>::try_get(acc1).unwrap();
+        assert_eq!(space_gb * 1024 * 1_048_576, uhsd.total_space); // MB unit
+        assert_eq!(14400 * 30 + bn as u128, uhsd.deadline as u128);
 
-        assert_eq!(uhsd.space, uhsd.remaining_space);
+        assert_eq!(uhsd.total_space, uhsd.remaining_space);
+				let price = UNIT_PRICE * space_gb as u64;
 
         let event = Sys::events().pop().expect("Expected at least one BuySpace to be found").event;
-        assert_eq!(mock::Event::from(Event::BuyPackage { acc: acc1, size: 10 * 1024 * 1_048_576, fee: 0 }), event);
+        assert_eq!(mock::Event::from(Event::BuySpace { acc: acc1, storage_capacity: space_gb * 1024 * 1_048_576, spend: price }), event);
     });
 }
 
 #[test]
-fn upgrade_package_work() {
+fn expansion_space_work() {
     new_test_ext().execute_with(|| {
         let acc1 = mock::account1();
         let miner1 = mock::miner1();
@@ -145,60 +173,61 @@ fn upgrade_package_work() {
         assert_ok!(register_miner(miner1.clone()));
         assert_ok!(Sminer::add_power(&miner1, 1_048_576 * 1024 * space_gb));  // GB => MB
 
-        assert_ok!(FileBank::buy_package(Origin::signed(acc1), 1, 0));
-        let uhsd = PurchasedPackage::<Test>::try_get(acc1).unwrap();
-        assert_eq!(10 * 1024 * 1_048_576, uhsd.space); // MB unit
+        assert_ok!(FileBank::buy_space(Origin::signed(acc1), 1));
+        let uhsd = UserOwnedSpace::<Test>::try_get(acc1).unwrap();
+        assert_eq!(1 * 1024 * 1_048_576, uhsd.total_space); // MB unit
 
-        let price1: u128 = 0;
+        assert_ok!(FileBank::expansion_space(Origin::signed(acc1), 1));
+				let price = UNIT_PRICE * 1;
 
-        let gb_unit_price2 = FileBank::get_price(500 * 1_048_576 * 1024).ok().unwrap();
-
-        let price2 = 500 * gb_unit_price2 / 30 * 30;
-        let diff_price = price2 - price1;
-
-        assert_ok!(FileBank::upgrade_package(Origin::signed(acc1), 2, 0));
         let event = Sys::events().pop().expect("Expected at least one BuySpace to be found").event;
-        assert_eq!(mock::Event::from(Event::PackageUpgrade { acc: acc1, old_type: 1, new_type: 2, fee: diff_price as u64}), event);
+        assert_eq!(mock::Event::from(Event::ExpansionSpace { acc: acc1, expansion_space: 1024 * 1024 * 1024, fee: price,}), event);
 
-        let uhsd = PurchasedPackage::<Test>::try_get(acc1).unwrap();
-        assert_eq!(500 * 1024 * 1_048_576, uhsd.space); // MB unit
+        let uhsd = UserOwnedSpace::<Test>::try_get(acc1).unwrap();
+        assert_eq!(2 * 1024 * 1_048_576, uhsd.total_space); // MB unit
     });
 }
 
 #[test]
-fn renewal_package_work() {
+fn renewal_space_work() {
     new_test_ext().execute_with(|| {
-        let acc1 = mock::account1();
-        let miner1 = mock::miner1();
-        let space_gb = 1000_u128;
-        assert_ok!(register_miner(miner1.clone()));
-        assert_ok!(Sminer::add_power(&miner1, 1_048_576 * 1024 * space_gb));  // GB => MB
+			let acc1 = mock::account1();
+			let miner1 = mock::miner1();
+			let space_gb = 1000_u128;
+			assert_ok!(register_miner(miner1.clone()));
+			assert_ok!(Sminer::add_power(&miner1, 1_048_576 * 1024 * space_gb));  // GB => MB
 
-        assert_ok!(FileBank::buy_package(Origin::signed(acc1), 2, 0));
-        let uhsd = PurchasedPackage::<Test>::try_get(acc1).unwrap();
-        assert_eq!(500 * 1024 * 1_048_576, uhsd.space); // MB unit
+			let gib_count = 2;
+			assert_ok!(FileBank::buy_space(Origin::signed(acc1), gib_count));
+			let uhsd = UserOwnedSpace::<Test>::try_get(acc1).unwrap();
+			assert_eq!(2 * 1024 * 1_048_576, uhsd.total_space); // MB unit
 
-        let gb_unit_price2 = FileBank::get_price(500 * 1_048_576 * 1024).ok().unwrap();
-        let price = gb_unit_price2 * 500;
+			let renewal_days = 32;
+			let price = UNIT_PRICE / 30 * (renewal_days as u64) * (gib_count as u64);
 
-        assert_ok!(FileBank::renewal_package(Origin::signed(acc1)));
-        let event = Sys::events().pop().expect("Expected at least one BuySpace to be found").event;
-        assert_eq!(mock::Event::from(Event::PackageRenewal { acc: acc1, package_type: 2, fee: price as u64}), event);
+			assert_ok!(FileBank::renewal_space(Origin::signed(acc1), renewal_days));
+			let event = Sys::events().pop().expect("Expected at least one BuySpace to be found").event;
+			assert_eq!(mock::Event::from(Event::RenewalSpace { acc: acc1, renewal_days, fee: price}), event);
 
-        let uhsd = PurchasedPackage::<Test>::try_get(acc1).unwrap();
-        assert_eq!(500 * 1024 * 1_048_576, uhsd.space);
-        assert_eq!(1, uhsd.start);
-        assert_eq!(30 * 2 * 28800 + 1, uhsd.deadline);
+			let uhsd = UserOwnedSpace::<Test>::try_get(acc1).unwrap();
+			assert_eq!(2 * 1024 * 1_048_576, uhsd.total_space);
+			assert_eq!(1, uhsd.start);
+			assert_eq!(62 * 14400 + 1, uhsd.deadline);
     });
 }
 
 #[test]
 fn upload_declaration() {
     new_test_ext().execute_with(|| {
-        let acc1 = mock::account1();
-        let file_name = "cess-book".as_bytes().to_vec();
-        let file_hash = "cess056237k7k439902190502".as_bytes().to_vec();
-        assert_ok!(upload_declaration_alias(acc1, file_name, file_hash));
+			let acc1 = mock::account1();
+			let file_name = "cess-book".as_bytes().to_vec();
+			let file_hash = Hash([5u8; 64]);
+			let bucket_name: Vec<u8> = "cess-bucket".as_bytes().to_vec();
+
+			assert_noop!(upload_declaration_alias(acc1.clone(), file_name.clone(), file_hash.clone(), bucket_name.clone()), Error::<Test>::NonExistent);
+			assert_ok!(create_new_bucket(acc1.clone(), bucket_name.clone()));
+
+			assert_ok!(upload_declaration_alias(acc1, file_name, file_hash, bucket_name));
     });
 }
 
@@ -210,7 +239,11 @@ fn upload_works() {
         let stash1 = mock::stash1();
         let controller1 = mock::controller1();
         let mfi = MockingFileBankInfo::default();
-        assert_ok!(upload_declaration_alias(acc1, "cess-book".as_bytes().to_vec(), mfi.file_hash.to_vec()));
+				let bucket_name = "cess-bucket".as_bytes().to_vec();
+				let file_name = "cess-book".as_bytes().to_vec();
+
+				assert_ok!(create_new_bucket(acc1.clone(), bucket_name.clone()));
+        assert_ok!(upload_declaration_alias(acc1, file_name.clone(), mfi.file_hash.clone(), bucket_name.clone()));
         assert_noop!(upload_file_alias(acc1, controller1, &mfi), Error::<Test>::ScheduleNonExistent);
         assert_ok!(register_miner(miner1));
         assert_ok!(register_scheduler(stash1.clone(), controller1.clone()));
@@ -219,21 +252,21 @@ fn upload_works() {
 
         let space_gb = 20_u128;
         assert_ok!(Sminer::add_power(&miner1, 1_048_576 * 1024 * space_gb));
-        assert_ok!(FileBank::buy_package(Origin::signed(acc1), 1, 0));
+        assert_ok!(FileBank::buy_space(Origin::signed(acc1), 2));
         assert_ok!(add_power_for_miner(controller1, miner1));
 
         assert_ok!(upload_file_alias(acc1, controller1, &mfi));
 
-        let file_hash: BoundedVec<u8, StringLimit> = mfi.file_hash.try_into().unwrap();
+        let file_hash = mfi.file_hash;
         let file_size = mfi.file_size;
-        let file_slice_info = UserFileSliceInfo::<Test>{
+        let file_slice_info = UserFileSliceInfo{
             file_hash: file_hash.clone(),
             file_size: file_size,
         };
         assert!(File::<Test>::contains_key(&file_hash));
-        let t = PurchasedPackage::<Test>::try_get(acc1).unwrap();
+        let t = UserOwnedSpace::<Test>::try_get(acc1).unwrap();
         assert_eq!(mfi.file_size as u128, t.used_space);
-        assert_eq!(t.space - mfi.file_size as u128, t.remaining_space);
+        assert_eq!(t.total_space - mfi.file_size as u128, t.remaining_space);
         assert!(UserHoldFileList::<Test>::try_get(acc1).unwrap().contains(&file_slice_info));
 
         let event = Sys::events().pop().expect("Expected at least one FileUpload to be found").event;
@@ -250,15 +283,18 @@ fn upload_should_not_work_when_insufficient_storage() {
         let controller1 = mock::controller1();
         let mut mfi = MockingFileBankInfo::default();
         let space_gb = 20_u128;
+				let bucket_name = "cess-bucket".as_bytes().to_vec();
         assert_ok!(register_miner(miner1));
         assert_ok!(register_scheduler(stash1.clone(), controller1.clone()));
         assert_ok!(add_power_for_miner(controller1, miner1));
         assert_ok!(Sminer::add_power(&miner1, 1_048_576 * 1024 * space_gb));
-        assert_ok!(FileBank::buy_package(Origin::signed(acc1), 1, 0));
-        mfi.file_size = 2 * 1024 * 1024 * 1024;  // large file
-        //FIXME! the assert_noop! not work, why? it's need to solve
-        //assert_noop!(upload_file_alias(acc1, vec![1], &mfi), Error::<Test>::InsufficientStorage);
-        assert_ok!(upload_declaration_alias(acc1, "cess-book".as_bytes().to_vec(), mfi.file_hash.to_vec()));
+        assert_ok!(FileBank::buy_space(Origin::signed(acc1), 2));
+        mfi.file_size = 3 * 1024 * 1024 * 1024;  // large file
+
+				assert_ok!(create_new_bucket(acc1.clone(), bucket_name.clone()));
+				assert_ok!(upload_declaration_alias(acc1, "cess-book".as_bytes().to_vec(), mfi.file_hash, bucket_name.clone()));
+        assert_noop!(upload_file_alias(acc1.clone(), controller1.clone(), &mfi), Error::<Test>::InsufficientStorage);
+
         if let Err(e) = upload_file_alias(acc1, controller1, &mfi) {
             if let DispatchError::Module(m) = e {
                 assert_eq!("InsufficientStorage", m.message.unwrap());
@@ -275,29 +311,30 @@ fn delete_file_works() {
         let miner1 = mock::miner1();
         let controller1 = mock::controller1();
         let mfi = MockingFileBankInfo::default();
-        assert_noop!(FileBank::delete_file(Origin::signed(acc1), mfi.file_hash.clone()), Error::<Test>::FileNonExistent);
+				let bucket_name = "cess-bucket".as_bytes().to_vec();
+        assert_noop!(FileBank::delete_file(Origin::signed(acc1.clone()), acc1.clone(), mfi.file_hash.clone()), Error::<Test>::FileNonExistent);
 
         let space_gb = 20_u128;
         assert_ok!(register_miner(miner1.clone()));
         assert_ok!(Sminer::add_power(&miner1, 1_048_576 * 1024 * space_gb));
-        assert_ok!(FileBank::buy_package(Origin::signed(acc1), 1, 0));
+        assert_ok!(FileBank::buy_space(Origin::signed(acc1), 2));
         // acc1 upload file
         assert_ok!(register_scheduler(stash1.clone(), controller1.clone()));
-        assert_ok!(upload_declaration_alias(acc1, "cess-book".as_bytes().to_vec(), mfi.file_hash.to_vec()));
+				assert_ok!(create_new_bucket(acc1.clone(), bucket_name.clone()));
+        assert_ok!(upload_declaration_alias(acc1, "cess-book".as_bytes().to_vec(), mfi.file_hash, bucket_name.clone()));
         assert_ok!(add_power_for_miner(controller1, miner1));
         assert_ok!(upload_file_alias(acc1, controller1, &mfi));
-        assert_noop!(FileBank::delete_file(Origin::signed(mock::account2()), mfi.file_hash.clone()), Error::<Test>::NotOwner);
-        let ss_before = PurchasedPackage::<Test>::try_get(acc1).unwrap();
+        assert_noop!(FileBank::delete_file(Origin::signed(mock::account2()), mock::account2(), mfi.file_hash.clone()), Error::<Test>::NotOwner);
+        let ss_before = UserOwnedSpace::<Test>::try_get(acc1).unwrap();
 
-        assert_ok!(FileBank::delete_file(Origin::signed(acc1), mfi.file_hash.clone()));
+        assert_ok!(FileBank::delete_file(Origin::signed(acc1.clone()), acc1.clone(), mfi.file_hash.clone()));
 
-        let ss_after = PurchasedPackage::<Test>::try_get(acc1).unwrap();
-        let bounded_file_hash: BoundedVec<u8, StringLimit> = mfi.file_hash.to_vec().try_into().unwrap();
-        assert!(!File::<Test>::contains_key(bounded_file_hash));
+        let ss_after = UserOwnedSpace::<Test>::try_get(acc1).unwrap();
+        assert!(!File::<Test>::contains_key(&mfi.file_hash));
         assert_ne!(ss_before.remaining_space, ss_after.remaining_space);
 
         let event = Sys::events().pop().expect("Expected at least one DeleteFile to be found").event;
-        assert_eq!(mock::Event::from(Event::DeleteFile { acc: acc1, fileid: mfi.file_hash }), event);
+        assert_eq!(mock::Event::from(Event::DeleteFile { operator: acc1.clone(), owner: acc1.clone(), file_hash: mfi.file_hash }), event);
     });
 }
 
@@ -326,20 +363,50 @@ fn clear_invalid_file_work() {
         let miner1 = mock::miner1();
         let controller1 = mock::controller1();
         let mfi = MockingFileBankInfo::default();
+				let bucket_name = "cess-bucket".as_bytes().to_vec();
 
         assert_ok!(register_miner(miner1.clone()));
         assert_ok!(Sminer::add_power(&miner1 ,1_048_576 * 1024 * 20));
         assert_ok!(register_scheduler(stash1.clone(), controller1.clone()));
-        assert_ok!(upload_declaration_alias(acc1, "cess-book".as_bytes().to_vec(), mfi.file_hash.to_vec()));
+
+				assert_ok!(create_new_bucket(acc1.clone(), bucket_name.clone()));
+        assert_ok!(upload_declaration_alias(acc1, "cess-book".as_bytes().to_vec(), mfi.file_hash, bucket_name));
         assert_ok!(add_power_for_miner(controller1, miner1));
-        assert_ok!(FileBank::buy_package(Origin::signed(acc1), 1, 0));
+        assert_ok!(FileBank::buy_space(Origin::signed(acc1), 2));
         assert_ok!(upload_file_alias(acc1, controller1, &mfi));
 
         let mut file_hash_list = InvalidFile::<Test>::get(miner1.clone());
-        assert_ok!(FileBank::clear_invalid_file(Origin::signed(miner1.clone()), file_hash_list[0].to_vec()));
+        assert_ok!(FileBank::clear_invalid_file(Origin::signed(miner1.clone()), file_hash_list[0]));
         file_hash_list.remove(0);
         assert_eq!(file_hash_list, InvalidFile::<Test>::get(miner1.clone()));
     });
+}
+
+#[test]
+fn create_bucket_works() {
+	new_test_ext().execute_with(|| {
+		let acc1 = mock::account1();
+		let bucket_name = "cess-bucket".as_bytes().to_vec();
+		let bound_bucket_name: BoundedVec<u8, NameStrLimit> = bucket_name.try_into().unwrap();
+		assert_ok!(FileBank::create_bucket(Origin::signed(acc1.clone()), acc1.clone(), bound_bucket_name.clone()));
+		let bucket = Bucket::<Test>::get(&acc1, bound_bucket_name).unwrap();
+		assert_eq!(bucket.authority.len(), 1);
+		assert_eq!(bucket.authority[0], acc1);
+	});
+}
+
+#[test]
+fn delete_bucket_works() {
+	new_test_ext().execute_with(|| {
+		let acc1 = mock::account1();
+		let bucket_name = "cess-bucket".as_bytes().to_vec();
+		let bound_bucket_name: BoundedVec<u8, NameStrLimit> = bucket_name.try_into().unwrap();
+		assert_ok!(FileBank::create_bucket(Origin::signed(acc1.clone()), acc1.clone(), bound_bucket_name.clone()));
+		assert!(<Bucket<Test>>::contains_key(&acc1, bound_bucket_name.clone()));
+
+		assert_ok!(FileBank::delete_bucket(Origin::signed(acc1.clone()), acc1.clone(), bound_bucket_name.clone()));
+		assert!(!<Bucket<Test>>::contains_key(&acc1, bound_bucket_name.clone()));
+	});
 }
 // #[test]
 // fn update_price_works() {

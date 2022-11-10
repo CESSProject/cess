@@ -1,13 +1,12 @@
 use super::*;
 
 pub fn add_scheduler<T: Config>(
-    controller: AccountOf<T>, 
-    stash: AccountOf<T>, 
-    ip: Vec<u8>
+    controller: AccountOf<T>,
+    stash: AccountOf<T>,
+    ip: IpAddress
 ) -> DispatchResult {
-    let ip_bound: BoundedVec<u8, <T as Config>::StringLimit> = ip.try_into().map_err(|_| "file-map testing_utils convert err!")?;
     let scheduler = SchedulerInfo::<T> {
-        ip: ip_bound,
+        ip,
         stash_user: stash.clone(),
         controller_user: controller.clone(),
     };

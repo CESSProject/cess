@@ -133,6 +133,8 @@ parameter_types! {
 	pub const MultipleFines: u8 = 7;
 	pub const DepositBufferPeriod: u32 = 3;
 	pub const OneDay: u32 = 14400;
+	pub const MaxAward: u128 = 1_306_849_000_000_000_000;
+	pub const LockInPeriod: u8 = 2;
 }
 
 impl Config for Test {
@@ -148,8 +150,8 @@ impl Config for Test {
 	type DepositBufferPeriod = DepositBufferPeriod;
 	type OneDayBlock = OneDay;
 	type AScheduler = Scheduler;
-	type LockInPeriod = ;
-	type MaxAward = ;
+	type LockInPeriod = LockInPeriod;
+	type MaxAward = MaxAward;
 }
 
 pub mod consts {
