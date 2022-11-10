@@ -385,6 +385,11 @@ default-features = false
 path = '../c-pallets/file-map'
 version = '0.5.2'
 
+[dependencies.pallet-oss]
+default-features = false
+path = '../c-pallets/oss'
+version = '0.5.3'
+
 [features]
 default = ['std']
 runtime-benchmarks = [
@@ -398,13 +403,14 @@ runtime-benchmarks = [
     'pallet-collective/runtime-benchmarks',
     'pallet-file-bank/runtime-benchmarks',
     'pallet-file-map/runtime-benchmarks',
+		'pallet-oss/runtime-benchmarks',
     'pallet-cess-staking/runtime-benchmarks',
     'pallet-segment-book/runtime-benchmarks',
     'pallet-sminer/runtime-benchmarks',
     'sp-runtime/runtime-benchmarks',
     "pallet-contracts/runtime-benchmarks",
     "pallet-ethereum/runtime-benchmarks",
-	"pallet-evm/runtime-benchmarks",
+		"pallet-evm/runtime-benchmarks",
 ]
 std = [
     "pallet-authority-discovery/std",
@@ -423,6 +429,7 @@ std = [
     "pallet-segment-book/std",
     "pallet-sminer/std",
     "pallet-file-map/std",
+		"pallet-oss/std",
     "pallet-preimage/std",
     "pallet-assets/std",
     "pallet-child-bounties/std",
@@ -448,8 +455,8 @@ std = [
     'pallet-transaction-payment-rpc-runtime-api/std',
     'pallet-transaction-payment/std',
     "pallet-contracts/std",
-	"pallet-contracts-primitives/std",
-	"pallet-contracts-rpc-runtime-api/std",
+		"pallet-contracts-primitives/std",
+		"pallet-contracts-rpc-runtime-api/std",
     'scale-info/std',
     'sp-api/std',
     'sp-block-builder/std',
@@ -463,13 +470,13 @@ std = [
     'sp-transaction-pool/std',
     'sp-version/std',
     "fp-rpc/std",
-	"fp-self-contained/std",
-	"pallet-base-fee/std",
-	"pallet-dynamic-fee/std",
-	"pallet-ethereum/std",
-	"pallet-evm/std",
-	"pallet-evm-precompile-simple/std",
-	"pallet-evm-precompile-sha3fips/std",
+		"fp-self-contained/std",
+		"pallet-base-fee/std",
+		"pallet-dynamic-fee/std",
+		"pallet-ethereum/std",
+		"pallet-evm/std",
+		"pallet-evm-precompile-simple/std",
+		"pallet-evm-precompile-sha3fips/std",
     "cp-scheduler-credit/std",
     "pallet-scheduler-credit/std",
 ]

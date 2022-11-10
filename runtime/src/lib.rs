@@ -19,6 +19,7 @@ pub fn wasm_binary_unwrap() -> &'static [u8] {
 use codec::{Decode, Encode};
 use frame_election_provider_support::{onchain, ExtendedBalance, VoteWeight};
 pub use pallet_file_bank;
+pub use pallet_oss;
 use pallet_grandpa::{
 	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
@@ -161,7 +162,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 100,
+	spec_version: 105,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -947,6 +948,14 @@ parameter_types! {
 	pub const InvalidLimit: u32 = 100000;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const RecoverLimit: u32 = 8000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const BucketLimit: u32 = 1000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const NameStrLimit: u32 = 40;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const FileListLimit: u32 = 500000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const FrozenDays: BlockNumber = DAYS * 7;
 }
 
 impl pallet_file_bank::Config for Runtime {
@@ -966,6 +975,11 @@ impl pallet_file_bank::Config for Runtime {
 	type UploadFillerLimit = UploadFillerLimit;
 	type InvalidLimit = InvalidLimit;
 	type RecoverLimit = RecoverLimit;
+	type FrozenDays = FrozenDays;
+	type OssFindAuthor = Oss;
+	type BucketLimit = BucketLimit;
+	type NameStrLimit = NameStrLimit;
+	type FileListLimit = FileListLimit;
 }
 
 parameter_types! {
@@ -986,6 +1000,12 @@ impl pallet_file_map::Config for Runtime {
 	type WeightInfo = pallet_file_map::weights::SubstrateWeight<Runtime>;
 	type CreditCounter = SchedulerCredit;
 	type ParamsLimit = ParamsLimit;
+}
+
+impl pallet_oss::Config for Runtime {
+	type Event = Event;
+	
+	type WeightInfo = pallet_oss::weights::SubstrateWeight<Runtime>;
 }
 
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
@@ -1369,6 +1389,7 @@ construct_runtime!(
 		SegmentBook: pallet_segment_book = 62,
 		Sminer: pallet_sminer = 63,
 		SchedulerCredit: pallet_scheduler_credit = 64,
+		Oss: pallet_oss = 65,
 	}
 );
 
@@ -1434,6 +1455,7 @@ mod benches {
 		[pallet_timestamp, Timestamp]
 		[pallet_contracts, Contracts]
 		[pallet_sminer, Sminer]
+		[pallet_oss, Oss]
 		[pallet_file_bank, FileBankBench::<Runtime>]
 		[pallet_file_map, FileMapBench::<Runtime>]
 		[pallet_segment_book, SegmentBookBench::<Runtime>]

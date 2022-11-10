@@ -67,14 +67,23 @@ frame_support::construct_runtime!(
 		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>},
 		FileMap: pallet_file_map::{Pallet, Call, Storage, Event<T>},
 		SchedulerCredit: pallet_scheduler_credit::{Pallet, Storage},
+		Oss: pallet_oss::{Pallet, Call, Storage, Event<T>},
 	}
 );
+
+impl pallet_oss::Config for Test {
+	type Event = Event;
+
+	type WeightInfo = ();
+}
 
 parameter_types! {
 	#[derive(Clone, PartialEq, Eq)]
 	pub const StringLimit: u32 = 100;
-	pub const OneHours: u32 = 60 * 20;
-	pub const OneDay: u32 = 60 * 20 * 24;
+	#[derive(Clone, PartialEq, Eq)]
+	pub const OneHours: u32 = 60 * 10;
+	#[derive(Clone, PartialEq, Eq)]
+	pub const OneDay: u32 = 60 * 10 * 24;
 }
 
 parameter_types! {
@@ -93,54 +102,63 @@ parameter_types! {
 }
 
 impl pallet_scheduler::Config for Test {
-    type Event = Event;
-    type Origin = Origin;
-    type PalletsOrigin = OriginCaller;
-    type Call = Call;
-    type MaximumWeight = MaximumSchedulerWeight;
-    type ScheduleOrigin = EnsureRoot<AccountId>;
-    type OriginPrivilegeCmp = EqualPrivilegeOnly;
-    type MaxScheduledPerBlock = ();
-    type WeightInfo = ();
-    type PreimageProvider = ();
-    type NoPreimagePostponement = ();
+	type Event = Event;
+	type Origin = Origin;
+	type PalletsOrigin = OriginCaller;
+	type Call = Call;
+	type MaximumWeight = MaximumSchedulerWeight;
+	type ScheduleOrigin = EnsureRoot<AccountId>;
+	type OriginPrivilegeCmp = EqualPrivilegeOnly;
+	type MaxScheduledPerBlock = ();
+	type WeightInfo = ();
+	type PreimageProvider = ();
+	type NoPreimagePostponement = ();
 }
 
 parameter_types! {
-    pub const RewardPalletId: PalletId = PalletId(*b"sminerpt");
-    pub const MultipleFines: u8 = 7;
-    pub const DepositBufferPeriod: u32 = 3;
-    pub const ItemLimit: u32 = 1024;
+	pub const RewardPalletId: PalletId = PalletId(*b"sminerpt");
+	pub const MultipleFines: u8 = 7;
+	pub const DepositBufferPeriod: u32 = 3;
+	pub const ItemLimit: u32 = 1024;
+	pub const MaxAward: u128 = 1_306_849_000_000_000_000;
+	pub const LockInPeriod: u8 = 2;
 }
 
-  impl pallet_sminer::Config for Test {
-      type Currency = Balances;
-      // The ubiquitous event type.
-      type Event = Event;
-      type PalletId = RewardPalletId;
-      type SScheduler = Scheduler;
-      type AScheduler = Scheduler;
-      type SPalletsOrigin = OriginCaller;
-      type SProposal = Call;
-      type WeightInfo = ();
-      type ItemLimit = ItemLimit;
-      type MultipleFines = MultipleFines;
-      type DepositBufferPeriod = DepositBufferPeriod;
-      type CalculFailureFee = Sminer;
-      type OneDayBlock = OneDay;
-  }
+impl pallet_sminer::Config for Test {
+	type Currency = Balances;
+	// The ubiquitous event type.
+	type Event = Event;
+	type PalletId = RewardPalletId;
+	type SScheduler = Scheduler;
+	type AScheduler = Scheduler;
+	type SPalletsOrigin = OriginCaller;
+	type SProposal = Call;
+	type WeightInfo = ();
+	type ItemLimit = ItemLimit;
+	type MultipleFines = MultipleFines;
+	type DepositBufferPeriod = DepositBufferPeriod;
+	type OneDayBlock = OneDay;
+	type MaxAward = MaxAward;
+	type LockInPeriod = LockInPeriod;
+}
 
 parameter_types! {
-    pub const FileMapPalletId: PalletId = PalletId(*b"filmpdpt");
+	pub const FileMapPalletId: PalletId = PalletId(*b"filmpdpt");
+	#[derive(Clone, PartialEq, Eq)]
+	pub const SchedulerMaximum: u32 = 10000;
+	#[derive(Clone, PartialEq, Eq)]
+	pub const ParamsLimit: u32 = 359;
 }
 
 impl pallet_file_map::Config for Test {
-    type Event = Event;
-    type Currency = Balances;
-    type FileMapPalletId = FileMapPalletId;
-    type StringLimit = StringLimit;
-    type WeightInfo = ();
-	  type CreditCounter = SchedulerCredit;
+	type Event = Event;
+	type Currency = Balances;
+	type FileMapPalletId = FileMapPalletId;
+	type StringLimit = StringLimit;
+	type WeightInfo = ();
+	type CreditCounter = SchedulerCredit;
+	type SchedulerMaximum = SchedulerMaximum;
+	type ParamsLimit = ParamsLimit;
 }
 
 const THRESHOLDS: [sp_npos_elections::VoteWeight; 9] =
@@ -152,11 +170,11 @@ parameter_types! {
 }
 
 impl pallet_bags_list::Config for Test {
-    type Event = Event;
-    type WeightInfo = ();
-    type ScoreProvider = Staking;
-    type BagThresholds = BagThresholds;
-    type Score = VoteWeight;
+	type Event = Event;
+	type WeightInfo = ();
+	type ScoreProvider = Staking;
+	type BagThresholds = BagThresholds;
+	type Score = VoteWeight;
 }
 
 parameter_types! {
@@ -172,20 +190,20 @@ sp_runtime::impl_opaque_keys! {
 	}
 }
 impl pallet_session::Config for Test {
-    type Event = Event;
-    type ValidatorId = AccountId;
-    type ValidatorIdOf = StashOf<Test>;
-    type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
-    type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
-    type SessionManager = pallet_session::historical::NoteHistoricalRoot<Test, Staking>;
-    type SessionHandler = (OtherSessionHandler, );
-    type Keys = SessionKeys;
-    type WeightInfo = ();
+	type Event = Event;
+	type ValidatorId = AccountId;
+	type ValidatorIdOf = StashOf<Test>;
+	type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
+	type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
+	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Test, Staking>;
+	type SessionHandler = (OtherSessionHandler, );
+	type Keys = SessionKeys;
+	type WeightInfo = ();
 }
 
 impl pallet_session::historical::Config for Test {
-    type FullIdentification = Exposure<AccountId, Balance>;
-    type FullIdentificationOf = ExposureOf<Test>;
+	type FullIdentification = Exposure<AccountId, Balance>;
+	type FullIdentificationOf = ExposureOf<Test>;
 }
 
 thread_local! {
@@ -195,9 +213,9 @@ thread_local! {
 pub struct OnChainSeqPhragmen;
 
 impl onchain::ExecutionConfig for OnChainSeqPhragmen {
-    type System = Test;
-    type Solver = SequentialPhragmen<AccountId, Perbill>;
-    type DataProvider = Staking;
+	type System = Test;
+	type Solver = SequentialPhragmen<AccountId, Perbill>;
+	type DataProvider = Staking;
 }
 
 impl pallet_cess_staking::Config for Test {
@@ -348,8 +366,12 @@ for MockStashAccountFinder<AccountId>
 	}
 }
 
+parameter_types! {
+	pub const PeriodDuration: BlockNumber = 64_000;
+}
 impl pallet_scheduler_credit::Config for Test {
 	type StashAccountFinder = MockStashAccountFinder<Self::AccountId>;
+	type PeriodDuration = PeriodDuration;
 }
 
 parameter_types! {
@@ -357,36 +379,58 @@ parameter_types! {
 }
 
 impl pallet_balances::Config for Test {
-    type Balance = u64;
-    type DustRemoval = ();
-    type Event = Event;
-    type ExistentialDeposit = ExistentialDeposit;
-    type AccountStore = System;
-    type WeightInfo = ();
-    type MaxLocks = ();
-    type MaxReserves = ();
-    type ReserveIdentifier = [u8; 8];
+	type Balance = u64;
+	type DustRemoval = ();
+	type Event = Event;
+	type ExistentialDeposit = ExistentialDeposit;
+	type AccountStore = System;
+	type WeightInfo = ();
+	type MaxLocks = ();
+	type MaxReserves = ();
+	type ReserveIdentifier = [u8; 8];
 }
 
 
 
 parameter_types! {
 	pub const FilbakPalletId: PalletId = PalletId(*b"filebank");
+	#[derive(Clone, Eq, PartialEq)]
+	pub const UploadFillerLimit: u8 = 10;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const InvalidLimit: u32 = 100000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const RecoverLimit: u32 = 8000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const BucketLimit: u32 = 1000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const NameStrLimit: u32 = 40;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const FileListLimit: u32 = 500000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const FrozenDays: BlockNumber = 60 * 10 * 24 * 7;
 }
 
 impl Config for Test {
-    type Event = Event;
-    type Currency = Balances;
-    type WeightInfo = ();
-    type Call = Call;
-    type FindAuthor = ();
-		type CreditCounter = SchedulerCredit;
-    type Scheduler = pallet_file_map::Pallet::<Test>;
-    type MinerControl = pallet_sminer::Pallet::<Test>;
-    type MyRandomness = TestRandomness<Self>;
-    type FilbakPalletId = FilbakPalletId;
-    type StringLimit = StringLimit;
-    type OneDay = OneDay;
+	type Event = Event;
+	type Currency = Balances;
+	type WeightInfo = ();
+	type Call = Call;
+	type FindAuthor = ();
+	type CreditCounter = SchedulerCredit;
+	type Scheduler = pallet_file_map::Pallet::<Test>;
+	type MinerControl = pallet_sminer::Pallet::<Test>;
+	type MyRandomness = TestRandomness<Self>;
+	type FilbakPalletId = FilbakPalletId;
+	type StringLimit = StringLimit;
+	type OneDay = OneDay;
+	type FileListLimit = FileListLimit;
+	type NameStrLimit = NameStrLimit;
+	type BucketLimit = BucketLimit;
+	type OssFindAuthor = Oss;
+	type FrozenDays = FrozenDays;
+	type RecoverLimit = RecoverLimit;
+	type InvalidLimit = InvalidLimit;
+	type UploadFillerLimit = UploadFillerLimit;
 }
 
 pub fn account1() -> AccountId {
@@ -422,6 +466,11 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
     }
         .assimilate_storage(&mut t)
         .unwrap();
+		file_bank::GenesisConfig::<Test> {
+			price: 30
+		}
+			.assimilate_storage(&mut t)
+			.unwrap();
     let mut ext = sp_io::TestExternalities::new(t);
     ext.execute_with(|| {
         System::set_block_number(1); //must set block_number, otherwise the deposit_event() don't work

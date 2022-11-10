@@ -21,6 +21,7 @@ pallet-cess-staking = { path = '../staking', version = '4.0.0-dev', default-feat
 rand_chacha = { version = "0.2", default-features = false, optional = true }
 cp-scheduler-credit = { path = '../../primitives/scheduler-credit', version = '0.1.0', default-features = false }
 cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
+pallet-oss = { path = '../oss', version = '0.5.3', default-features = false }
 
 [dependencies.frame-benchmarking]
 default-features = false

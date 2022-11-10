@@ -21,7 +21,7 @@ const MAX_SPANS: u32 = 100;
 
 pub fn add_miner<T: Config>(name: &'static str) -> T::AccountId {
 	let miner: T::AccountId = account(name.clone(), 100, SEED);
-	let ip = "1270008080".as_bytes().to_vec();
+	let ip = IpAddress::IPV4([127,0,0,1], 15001);
 	T::Currency::make_free_balance_be(
 		&miner,
 		BalanceOf::<T>::max_value(),
@@ -39,7 +39,7 @@ pub fn add_miner<T: Config>(name: &'static str) -> T::AccountId {
 benchmarks! {
     regnstk {
         let caller = account("user1", 100, SEED);
-        let ip = "1270008080".as_bytes().to_vec();
+        let ip = IpAddress::IPV4([127,0,0,1], 15001);
         T::Currency::make_free_balance_be(
             &caller,
             BalanceOf::<T>::max_value(),
@@ -68,11 +68,11 @@ benchmarks! {
 
     update_ip {
         let miner = add_miner::<T>("miner1");
-        let new_ip = "192.168.1.1:8000".as_bytes().to_vec();
+        let new_ip = IpAddress::IPV4([127,0,0,1], 15001);
     }: _(RawOrigin::Signed(miner.clone()), new_ip.clone())
     verify {
         let miner_info = <MinerItems<T>>::get(&miner).unwrap();
-        assert_eq!(new_ip, miner_info.ip.to_vec());
+        assert_eq!(new_ip, miner_info.ip);
     }
 
     exit_miner {

@@ -37,8 +37,8 @@ fn miner_register_works() {
 		let beneficiary = account::<mock::AccountId>("beneficiary", 0, 0);
 		let beneficiary_new = account::<mock::AccountId>("beneficiary_new", 0, 0);
 		let stake_amount: u128 = 2000;
-		let ip: Vec<u8> = Vec::from("192.168.0.1");
-		let ip_new: Vec<u8> = Vec::from("192.168.0.2");
+		let ip: IpAddress = IpAddress::IPV4([127,0,0,1],15000);
+		let ip_new: IpAddress = IpAddress::IPV4([127,0,0,1],15001);
 
 		assert_ok!(Sminer::regnstk(
 			Origin::signed(ACCOUNT1.0),
@@ -79,10 +79,10 @@ fn miner_register_works() {
 			event
 		);
 
-		assert_eq!(ip, mr.ip.to_vec());
+		assert_eq!(ip, mr.ip);
 		assert_ok!(Sminer::update_ip(Origin::signed(ACCOUNT1.0), ip_new.clone()));
 		let mr = &MinerItems::<Test>::get(ACCOUNT1.0).unwrap();
-		assert_eq!(ip_new, mr.ip.to_vec());
+		assert_eq!(ip_new, mr.ip);
 		let event =
 			Sys::events().pop().expect("Expected at least one Registered to be found").event;
 		assert_eq!(
@@ -103,7 +103,7 @@ fn increase_collateral_works_on_normal_state() {
 		assert_ok!(Sminer::regnstk(
 			Origin::signed(ACCOUNT1.0),
 			123,
-			Vec::from("192.168.0.1"),
+			IpAddress::IPV4([127,0,0,1],15000),
 			2000
 		));
 
@@ -145,7 +145,7 @@ fn increase_collateral_works_on_frozen_state() {
 		assert_ok!(Sminer::regnstk(
 			Origin::signed(ACCOUNT1.0),
 			123,
-			Vec::from("192.168.0.1"),
+			IpAddress::IPV4([127,0,0,1],15000),
 			2000
 		));
 		set_miner_state(ACCOUNT1.0, STATE_FROZEN);
@@ -174,7 +174,7 @@ fn increase_collateral_works_on_exit_frozen_state() {
 		assert_ok!(Sminer::regnstk(
 			Origin::signed(ACCOUNT1.0),
 			123,
-			Vec::from("192.168.0.1"),
+			IpAddress::IPV4([127,0,0,1],15000),
 			2000
 		));
 		set_miner_state(ACCOUNT1.0, STATE_EXIT_FROZEN);
@@ -203,7 +203,7 @@ fn exit_miner_works() {
 		assert_ok!(Sminer::regnstk(
 			Origin::signed(ACCOUNT1.0),
 			123,
-			Vec::from("192.168.0.1"),
+			IpAddress::IPV4([127,0,0,1],15000),
 			UNIT_POWER_LIMIT
 		));
 
@@ -226,7 +226,7 @@ fn exit_miner_on_abnormal_state() {
 		assert_ok!(Sminer::regnstk(
 			Origin::signed(ACCOUNT1.0),
 			123,
-			Vec::from("192.168.0.1"),
+			IpAddress::IPV4([127,0,0,1],15000),
 			UNIT_POWER_LIMIT
 		));
 
@@ -245,7 +245,7 @@ fn withdraw_should_work() {
 		assert_ok!(Sminer::regnstk(
 			Origin::signed(ACCOUNT1.0),
 			123,
-			Vec::from("192.168.0.1"),
+			IpAddress::IPV4([127,0,0,1], 15000),
 			UNIT_POWER_LIMIT
 		));
 
@@ -323,7 +323,7 @@ fn add_power_should_work() {
 		assert_ok!(Sminer::regnstk(
 			Origin::signed(ACCOUNT1.0),
 			123,
-			Vec::from("192.168.0.1"),
+			IpAddress::IPV4([127,0,0,1],15000),
 			UNIT_POWER_LIMIT
 		));
 		let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
@@ -336,7 +336,7 @@ fn add_power_should_work() {
 		assert_ok!(Sminer::regnstk(
 			Origin::signed(ACCOUNT2.0),
 			321,
-			Vec::from("192.168.0.2"),
+			IpAddress::IPV4([127,0,0,1],15000),
 			UNIT_POWER_LIMIT
 		));
 		let m2 = MinerItems::<Test>::try_get(ACCOUNT2.0).unwrap();
@@ -360,13 +360,13 @@ fn increase_rewards_should_work() {
 		assert_ok!(Sminer::regnstk(
 			Origin::signed(ACCOUNT1.0),
 			123,
-			Vec::from("192.168.0.1"),
+			IpAddress::IPV4([127,0,0,1],15000),
 			UNIT_POWER_LIMIT
 		));
 		assert_ok!(Sminer::regnstk(
 			Origin::signed(ACCOUNT2.0),
 			123,
-			Vec::from("192.168.0.2"),
+			IpAddress::IPV4([127,0,0,1],15000),
 			UNIT_POWER_LIMIT
 		));
 
@@ -412,13 +412,13 @@ fn task_award_table_should_work() {
 		assert_ok!(Sminer::regnstk(
 			Origin::signed(ACCOUNT1.0),
 			123,
-			Vec::from("192.168.0.1"),
+			IpAddress::IPV4([127,0,0,1],15000),
 			UNIT_POWER_LIMIT
 		));
 		assert_ok!(Sminer::regnstk(
 			Origin::signed(ACCOUNT2.0),
 			321,
-			Vec::from("192.168.0.2"),
+			IpAddress::IPV4([127,0,0,1],15001),
 			UNIT_POWER_LIMIT
 		));
 
@@ -497,13 +497,13 @@ fn timed_user_receive_award1_should_work() {
 		assert_ok!(Sminer::regnstk(
 			Origin::signed(ACCOUNT1.0),
 			123,
-			Vec::from("192.168.0.1"),
+			IpAddress::IPV4([127,0,0,1],15000),
 			UNIT_POWER_LIMIT
 		));
 		assert_ok!(Sminer::regnstk(
 			Origin::signed(ACCOUNT2.0),
 			321,
-			Vec::from("192.168.0.2"),
+			IpAddress::IPV4([127,0,0,1],15001),
 			UNIT_POWER_LIMIT
 		));
 		let _ = Sminer::add_power(&ACCOUNT1.0, 10_000);
@@ -554,7 +554,7 @@ fn timed_user_receive_award1_total_award() {
 		assert_ok!(Sminer::regnstk(
 			Origin::signed(ACCOUNT1.0),
 			123,
-			Vec::from("192.168.0.1"),
+			IpAddress::IPV4([127,0,0,1],15000),
 			UNIT_POWER_LIMIT
 		));
 		let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
@@ -581,7 +581,7 @@ fn failure_to_replenish_sufficient_deposit() {
 		assert_ok!(Sminer::regnstk(
 			Origin::signed(ACCOUNT1.0),
 			123,
-			Vec::from("192.168.0.1"),
+			IpAddress::IPV4([127,0,0,1],15000),
 			1u128
 		));
 
@@ -607,7 +607,7 @@ fn full_deposit_within_the_buffer_period() {
 		assert_ok!(Sminer::regnstk(
 			Origin::signed(ACCOUNT1.0),
 			123,
-			Vec::from("192.168.0.1"),
+			IpAddress::IPV4([127,0,0,1],15000),
 			1u128
 		));
 
