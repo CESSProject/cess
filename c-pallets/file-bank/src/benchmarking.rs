@@ -132,7 +132,7 @@ fn add_filler<T: Config>(len: u32, index: u32, controller: AccountOf<T>) -> Resu
 
 	Ok(1)
 }
-
+// aslkdfhkjsc
 pub fn add_miner<T: Config>() -> Result<T::AccountId, &'static str> {
 	let miner: T::AccountId = account("miner1", 100, SEED);
 	let ip = "1270008080".as_bytes().to_vec();
