@@ -1068,13 +1068,13 @@ pub mod pallet {
 			}
 			let mut weight: Weight = 0;
 			match file_type {
-				DataType::File => {
+				DataType::Filler => {
 					T::MinerControl::sub_power(acc.clone(), file_size.into())?; //read 3 write 2
 					T::File::delete_filler(acc.clone(), file_id.clone())?; //read 1 write 2
 					T::File::add_invalid_file(acc.clone(), file_id.clone())?; //read 1 write 1
 					weight = weight.saturating_add(T::DbWeight::get().reads_writes(5, 5));
 				},
-				DataType::Filler => {
+				DataType::File => {
 					T::MinerControl::sub_space(&acc, file_size.into())?; //read 3 write 2
 					T::File::add_recovery_file(shard_id.clone())?; //read 2 write 2
 					// T::File::add_invalid_file(acc.clone(), file_id.clone())?; //read 1 write 1
