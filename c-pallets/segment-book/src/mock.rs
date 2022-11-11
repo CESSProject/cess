@@ -129,6 +129,8 @@ parameter_types! {
 	#[derive(Clone, Eq, PartialEq)]
 	pub const NameStrLimit: u32 = 40;
 	#[derive(Clone, Eq, PartialEq)]
+	pub const MinLength: u32 = 3;
+	#[derive(Clone, Eq, PartialEq)]
 	pub const FileListLimit: u32 = 500000;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const FrozenDays: BlockNumber = 60 * 10 * 24 * 7;
@@ -155,6 +157,7 @@ impl pallet_file_bank::Config for Test {
 	type RecoverLimit = RecoverLimit;
 	type InvalidLimit = InvalidLimit;
 	type UploadFillerLimit = UploadFillerLimit;
+	type MinLength = MinLength;
 }
 
 pub struct OtherSessionHandler;

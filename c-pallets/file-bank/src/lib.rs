@@ -139,6 +139,9 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type FrozenDays: Get<BlockNumberOf<Self>> + Clone + Eq + PartialEq;
+		//Minimum length of bucket name
+		#[pallet::constant]
+		type MinLength: Get<u32> + Clone + Eq + PartialEq;
 
 		type CreditCounter: SchedulerCreditCounter<Self::AccountId>;
 		//Used to confirm whether the origin is authorized
@@ -251,6 +254,8 @@ pub mod pallet {
 		NonExistent,
 		//Unexpected error
 		Unexpected,
+		//Less than minimum length
+		LessMinLength,
 	}
 
 	#[pallet::storage]
@@ -354,7 +359,7 @@ pub mod pallet {
 	impl<T: Config> Default for GenesisConfig<T> {
 		fn default() -> Self {
 			Self {
-				price: Default::default(),
+				price: 30u32.saturated_into(),
 			}
 		}
 	}
@@ -885,7 +890,7 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 			ensure!(Self::check_permission(sender.clone(), owner.clone()), Error::<T>::NoPermission);
 			ensure!(!<Bucket<T>>::contains_key(&sender, &name), Error::<T>::SameBucketName);
-
+			ensure!(name.len() >= T::MinLength::get() as usize, Error::<T>::LessMinLength);
 			let bucket = BucketInfo::<T>{
 				total_capacity: 0,
 				available_capacity: 0,

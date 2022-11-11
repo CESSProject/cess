@@ -403,7 +403,9 @@ parameter_types! {
 	#[derive(Clone, Eq, PartialEq)]
 	pub const BucketLimit: u32 = 1000;
 	#[derive(Clone, Eq, PartialEq)]
-	pub const NameStrLimit: u32 = 40;
+	pub const NameStrLimit: u32 = 63;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const MinLength: u32 = 3;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const FileListLimit: u32 = 500000;
 	#[derive(Clone, Eq, PartialEq)]
@@ -431,6 +433,7 @@ impl Config for Test {
 	type RecoverLimit = RecoverLimit;
 	type InvalidLimit = InvalidLimit;
 	type UploadFillerLimit = UploadFillerLimit;
+	type MinLength = MinLength;
 }
 
 pub fn account1() -> AccountId {
