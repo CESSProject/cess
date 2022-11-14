@@ -200,7 +200,7 @@ impl<T: Config> Pallet<T> {
 				{
 					let mut credit_score = 0_u32;
 					for (index, weight) in PERIOD_WEIGHT.into_iter().enumerate() {
-						if last_period > index as u32 {
+						if last_period >= index as u32 {
 							let credit_value = HistoryCreditValues::<T>::try_get(&last_period.saturating_sub(index as u32), &ctrl_account_id)
 								.unwrap_or(0);
 							credit_score += weight * credit_value;

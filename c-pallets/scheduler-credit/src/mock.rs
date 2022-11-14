@@ -56,7 +56,7 @@ impl<AccountId: Clone> SchedulerStashAccountFinder<AccountId>
 }
 
 parameter_types! {
-	pub const PeriodDuration: BlockNumber = 64_000;
+	pub const PeriodDuration: BlockNumber = 3600;
 }
 
 impl Config for Test {
