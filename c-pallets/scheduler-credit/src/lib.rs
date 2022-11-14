@@ -200,7 +200,7 @@ impl<T: Config> Pallet<T> {
 				{
 					let mut credit_score = 0_u32;
 					for (index, weight) in PERIOD_WEIGHT.into_iter().enumerate() {
-						if last_period > index as u32 {
+						if last_period >= index as u32 {
 							let credit_value = HistoryCreditValues::<T>::try_get(&last_period.saturating_sub(index as u32), &ctrl_account_id)
 								.unwrap_or(0);
 							credit_score += weight * credit_value;
@@ -255,18 +255,18 @@ mod test {
 	#[test]
 	fn scheduler_counter_works() {
 		let mut sce = SchedulerCounterEntry::default();
-		sce.increase_block_size::<Test>(100)?;
+		sce.increase_block_size::<Test>(100);
 		assert_eq!(100, sce.proceed_block_size);
-		sce.increase_block_size::<Test>(100)?;
+		sce.increase_block_size::<Test>(100);
 		assert_eq!(200, sce.proceed_block_size);
 		assert_eq!(0, sce.punishment_part());
 		assert_eq!(100, sce.figure_credit_value(2000));
 
-		sce.increase_punishment_count::<Test>()?;
+		sce.increase_punishment_count::<Test>();
 		assert_eq!(1, sce.punishment_count);
 
 		assert_eq!(100, sce.figure_credit_value(1000));
-		sce.increase_punishment_count();
+		sce.increase_punishment_count::<Test>();
 
 		assert_eq!(2, sce.punishment_count);
 		assert_eq!(0, sce.figure_credit_value(1000));

@@ -139,6 +139,9 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type FrozenDays: Get<BlockNumberOf<Self>> + Clone + Eq + PartialEq;
+		//Minimum length of bucket name
+		#[pallet::constant]
+		type MinLength: Get<u32> + Clone + Eq + PartialEq;
 
 		type CreditCounter: SchedulerCreditCounter<Self::AccountId>;
 		//Used to confirm whether the origin is authorized
@@ -251,6 +254,12 @@ pub mod pallet {
 		NonExistent,
 		//Unexpected error
 		Unexpected,
+		//Less than minimum length
+		LessMinLength,
+		//The file is in an unprepared state
+		Unprepared,
+		//Transfer target acc already have this file
+		IsOwned,
 	}
 
 	#[pallet::storage]
@@ -354,7 +363,7 @@ pub mod pallet {
 	impl<T: Config> Default for GenesisConfig<T> {
 		fn default() -> Self {
 			Self {
-				price: Default::default(),
+				price: 30u32.saturated_into(),
 			}
 		}
 	}
@@ -509,6 +518,69 @@ pub mod pallet {
 				file_hash,
 				file_name: user_brief.file_name.to_vec(),
 			});
+			Ok(())
+		}
+		//TODO!
+		// Transfer needs to be restricted, such as target consent
+		/// Document ownership transfer function.
+		///
+		/// You can replace Alice, the holder of the file, with Bob. At the same time,
+		/// Alice will lose the ownership of the file and release the corresponding use space.
+		/// Bob will get the ownership of the file and increase the corresponding use space
+		///
+		/// Premise:
+		/// - Alice has ownership of the file
+		/// - Bob has enough space and corresponding bucket
+		///
+		/// Parameters:
+		/// - `owner_bucket_name`: Origin stores the bucket name corresponding to the file
+		/// - `target_brief`: Information about the transfer object
+		/// - `file_hash`: File hash, which is also the unique identifier of the file
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::ownership_transfer())]
+		pub fn ownership_transfer(
+			origin: OriginFor<T>,
+			owner_bucket_name: BoundedVec<u8, T::NameStrLimit>,
+			target_brief: UserBrief<T>,
+			file_hash: Hash,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			let file = <File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::FileNonExistent)?;
+			//If the file does not exist, false will also be returned
+			ensure!(Self::check_is_file_owner(&sender, &file_hash), Error::<T>::NotOwner);
+			ensure!(!Self::check_is_file_owner(&target_brief.user, &file_hash), Error::<T>::IsOwned);
+
+			ensure!(file.file_state.to_vec() == FILE_ACTIVE.as_bytes().to_vec(), Error::<T>::Unprepared);
+			ensure!(<Bucket<T>>::contains_key(&target_brief.user, &target_brief.bucket_name), Error::<T>::NonExistent);
+			//Modify the space usage of target acc,
+			//and determine whether the space is enough to support transfer
+			Self::update_user_space(target_brief.user.clone(), 1, file.file_size.into())?;
+			//Increase the ownership of the file for target acc
+			<File<T>>::try_mutate(&file_hash, |file_opt| -> DispatchResult {
+				let file = file_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
+				file.user_brief_list.try_push(target_brief.clone()).map_err(|_| Error::<T>::BoundedVecError)?;
+				Ok(())
+			})?;
+			//Add files to the bucket of target acc
+			<Bucket<T>>::try_mutate(
+				&target_brief.user,
+				&target_brief.bucket_name,
+				|bucket_info_opt| -> DispatchResult {
+					let bucket_info = bucket_info_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
+					bucket_info.object_num = bucket_info.object_num.checked_add(1).ok_or(Error::<T>::Overflow)?;
+					bucket_info.object_list.try_push(file_hash.clone()).map_err(|_| Error::<T>::LengthExceedsLimit)?;
+					Ok(())
+			})?;
+			//Increase the corresponding space usage for target acc
+			Self::add_user_hold_fileslice(
+				target_brief.user.clone(),
+				file_hash.clone(),
+				file.file_size.into(),
+			)?;
+			//Clean up the file holding information of the original user
+			let _ = Self::clear_bucket_file(&file_hash, &sender, &owner_bucket_name)?;
+			let _ = Self::clear_user_file(file_hash.clone(), &sender, true)?;
+
 			Ok(())
 		}
 		/// Upload info of stored file.
@@ -885,7 +957,7 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 			ensure!(Self::check_permission(sender.clone(), owner.clone()), Error::<T>::NoPermission);
 			ensure!(!<Bucket<T>>::contains_key(&sender, &name), Error::<T>::SameBucketName);
-
+			ensure!(name.len() >= T::MinLength::get() as usize, Error::<T>::LessMinLength);
 			let bucket = BucketInfo::<T>{
 				total_capacity: 0,
 				available_capacity: 0,
@@ -1648,6 +1720,25 @@ pub mod pallet {
 				None => T::Scheduler::get_first_controller()?,
 			};
 			Ok(acc)
+		}
+		/// helper: check_is_file_owner.
+		///
+		/// Check whether the user is the owner of the file.
+		///
+		/// Parameters:
+		///
+		/// Result:
+		/// - acc: Inspected user.
+		/// - file_hash: File hash, the unique identifier of the file.
+		pub fn check_is_file_owner(acc: &AccountOf<T>, file_hash: &Hash) -> bool {
+			if let Some(file) = <File<T>>::get(file_hash) {
+				for user_brief in file.user_brief_list.iter() {
+					if &user_brief.user == acc {
+						return true;
+					}
+				}
+			}
+			false
 		}
 		/// helper: clear expired file.
 		///

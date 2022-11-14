@@ -408,6 +408,89 @@ fn delete_bucket_works() {
 		assert!(!<Bucket<Test>>::contains_key(&acc1, bound_bucket_name.clone()));
 	});
 }
+
+#[test]
+fn transfer_ownership_works() {
+	new_test_ext().execute_with(|| {
+		let acc1 = account1();
+		let acc2 = account2();
+		let mfi = MockingFileBankInfo::default();
+		let bucket_name = "cess-bucket".as_bytes().to_vec();
+		let bound_bucket_name: BoundedVec<u8, NameStrLimit> = bucket_name.clone().try_into().unwrap();
+
+		let stash1 = mock::stash1();
+		let miner1 = mock::miner1();
+		let controller1 = mock::controller1();
+
+		assert_ok!(register_miner(miner1.clone()));
+		assert_ok!(Sminer::add_power(&miner1 ,1_048_576 * 1024 * 20));
+		assert_ok!(register_scheduler(stash1.clone(), controller1.clone()));
+		assert_ok!(add_power_for_miner(controller1, miner1));
+
+		assert_ok!(FileBank::buy_space(Origin::signed(acc1), 2));
+		assert_ok!(FileBank::buy_space(Origin::signed(acc2), 2));
+
+		assert_ok!(create_new_bucket(acc1.clone(), bucket_name.clone()));
+		assert_ok!(create_new_bucket(acc2.clone(), bucket_name.clone()));
+		assert_ok!(upload_declaration_alias(acc1, "cess-book".as_bytes().to_vec(), mfi.file_hash.clone(), bucket_name.clone()));
+		assert_ok!(upload_file_alias(acc1, controller1, &mfi));
+
+		let file = <File<Test>>::get(&mfi.file_hash).unwrap();
+		assert_eq!(file.user_brief_list[0].user, acc1.clone());
+
+		let target_brief = UserBrief::<Test> {
+			user: acc2.clone(),
+			file_name: "test-file2".as_bytes().to_vec().try_into().unwrap(),
+			bucket_name: bound_bucket_name.clone(),
+		};
+
+		assert_ok!(FileBank::ownership_transfer(Origin::signed(acc1.clone()), bound_bucket_name, target_brief, mfi.file_hash.clone()));
+
+		let file = <File<Test>>::get(&mfi.file_hash).unwrap();
+		assert_eq!(file.user_brief_list[0].user, acc2.clone());
+		assert!(!FileBank::check_is_file_owner(&acc1, &mfi.file_hash));
+	})
+}
+
+#[test]
+fn transfer_ownership_exception() {
+	new_test_ext().execute_with(|| {
+		let acc1 = account1();
+		let acc2 = account2();
+		let mfi = MockingFileBankInfo::default();
+		let bucket_name = "cess-bucket".as_bytes().to_vec();
+		let bound_bucket_name: BoundedVec<u8, NameStrLimit> = bucket_name.clone().try_into().unwrap();
+
+		let stash1 = mock::stash1();
+		let miner1 = mock::miner1();
+		let controller1 = mock::controller1();
+
+		assert_ok!(register_miner(miner1.clone()));
+		assert_ok!(Sminer::add_power(&miner1 ,1_048_576 * 1024 * 20));
+		assert_ok!(register_scheduler(stash1.clone(), controller1.clone()));
+		assert_ok!(add_power_for_miner(controller1, miner1));
+
+		assert_ok!(FileBank::buy_space(Origin::signed(acc1), 2));
+
+		assert_ok!(create_new_bucket(acc1.clone(), bucket_name.clone()));
+		assert_ok!(upload_declaration_alias(acc1, "cess-book".as_bytes().to_vec(), mfi.file_hash.clone(), bucket_name.clone()));
+		assert_ok!(upload_file_alias(acc1, controller1, &mfi));
+
+		let target_brief = UserBrief::<Test> {
+			user: acc2.clone(),
+			file_name: "test-file2".as_bytes().to_vec().try_into().unwrap(),
+			bucket_name: bound_bucket_name.clone(),
+		};
+
+		assert_noop!(FileBank::ownership_transfer(Origin::signed(acc2.clone()), bound_bucket_name.clone(), target_brief.clone(), mfi.file_hash.clone()), Error::<Test>::NotOwner);
+		let file_hash = Hash([8u8; 64]);
+		assert_noop!(FileBank::ownership_transfer(Origin::signed(acc1.clone()), bound_bucket_name.clone(), target_brief.clone(), file_hash.clone()), Error::<Test>::FileNonExistent);
+		assert_noop!(FileBank::ownership_transfer(Origin::signed(acc1.clone()), bound_bucket_name.clone(), target_brief.clone(), mfi.file_hash.clone()), Error::<Test>::NonExistent);
+
+		assert_ok!(create_new_bucket(acc2.clone(), bucket_name.clone()));
+		assert_noop!(FileBank::ownership_transfer(Origin::signed(acc1.clone()), bound_bucket_name.clone(), target_brief.clone(), mfi.file_hash.clone()), Error::<Test>::NotPurchasedSpace);
+	})
+}
 // #[test]
 // fn update_price_works() {
 //     new_test_ext().execute_with(|| {
