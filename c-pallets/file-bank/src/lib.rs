@@ -449,8 +449,8 @@ pub mod pallet {
 		#[pallet::weight(100_000_000)]
 		pub fn update_price(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
-
-			<UnitPrice>::<T>::put(30u32.saturated_into());
+			let default_price: BalanceOf<T> = 30u32.saturated_into();
+			UnitPrice::<T>::put(default_price);
 
 			Ok(())
 		}
