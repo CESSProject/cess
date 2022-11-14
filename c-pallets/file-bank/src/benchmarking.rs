@@ -461,4 +461,45 @@ benchmarks! {
 	verify {
 		assert!(!Bucket::<T>::contains_key(&caller, name_bound));
 	}
+
+
+	ownership_transfer {
+		log::info!("start ownership_transfer");
+		let target: AccountOf<T> = account("user2", 100, SEED);
+		let bucket_name1: Vec<u8> = "test-bucket1".as_bytes().to_vec();
+		let bucket_name2: Vec<u8> = "test-bucket2".as_bytes().to_vec();
+		let file_hash = Hash([5u8; 64]);
+
+		let balance: BalanceOf<T> = <T as crate::Config>::Currency::minimum_balance().checked_mul(&2u32.saturated_into()).ok_or("over flow")?;
+		<T as crate::Config>::Currency::make_free_balance_be(
+			&target,
+			balance,
+		);
+
+		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
+		let balance: BalanceOf<T> = <T as crate::Config>::Currency::minimum_balance().checked_mul(&2u32.saturated_into()).ok_or("over flow")?;
+		<T as crate::Config>::Currency::make_free_balance_be(
+			&acc,
+			balance,
+		);
+
+		let (file_hash, caller, _, _) = add_file::<T>(file_hash.clone())?;
+		log::info!("-----------1-------------");
+		FileBank::<T>::buy_space(RawOrigin::Signed(target.clone()).into(), 10)?;
+		log::info!("-----------2-------------");
+		let target_brief = UserBrief::<T>{
+			user: target.clone(),
+			file_name: "test-name".as_bytes().to_vec().try_into().map_err(|_| "bounded_vec convert err!")?,
+			bucket_name: bucket_name2.clone().try_into().map_err(|_| "bounded_vec convert err!")?,
+		};
+		create_new_bucket::<T>(target.clone(), bucket_name2.clone())?;
+		let file = <File<T>>::get(&file_hash).unwrap();
+		assert_eq!(file.user_brief_list[0].user, caller.clone());
+		let bounded_bucket_name1: BoundedVec<u8, T::NameStrLimit> = bucket_name1.try_into().map_err(|_| "bounded_vec convert err!")?;
+	}: _(RawOrigin::Signed(caller.clone()), bounded_bucket_name1.clone(), target_brief, file_hash.clone())
+	verify {
+		let file = <File<T>>::get(&file_hash).unwrap();
+		assert_eq!(file.user_brief_list.len(), 1);
+		assert_eq!(file.user_brief_list[0].user, target.clone());
+	}
 }

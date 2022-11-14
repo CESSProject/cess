@@ -4,7 +4,7 @@ use cp_scheduler_credit::SchedulerCreditCounter;
 use frame_support::traits::ValidatorCredits;
 
 #[test]
-fn scheduler_credit_counter_works() {
+fn figure_credit_scores_works() {
 	ExtBuilder::default().build_and_execute(|| {
 		<Pallet<Test> as SchedulerCreditCounter<AccountId>>::record_proceed_block_size(&1, 100);
 		<Pallet<Test> as SchedulerCreditCounter<AccountId>>::record_proceed_block_size(&1, 100);
@@ -13,13 +13,25 @@ fn scheduler_credit_counter_works() {
 		<Pallet<Test> as SchedulerCreditCounter<AccountId>>::record_proceed_block_size(&2, 50);
 		<Pallet<Test> as SchedulerCreditCounter<AccountId>>::record_proceed_block_size(&3, 150);
 
-        let vc_map = <Pallet<Test> as ValidatorCredits<AccountId>>::credits(1);
-		assert_eq!(&500, vc_map.get(&1).unwrap());
-		assert_eq!(&125, vc_map.get(&2).unwrap());
-		assert_eq!(&375, vc_map.get(&3).unwrap());
+		// switch period
+		let period_duration = PeriodDuration::get();
+		System::set_block_number(period_duration);
+		Pallet::<Test>::on_initialize(System::block_number());
+		
+		// figure credit values works
+		assert_eq!(HistoryCreditValues::<Test>::get(&0, &1), 500);
+		assert_eq!(HistoryCreditValues::<Test>::get(&0, &2), 125);
+		assert_eq!(HistoryCreditValues::<Test>::get(&0, &3), 375);
 
-		assert!(CurrentCounters::<Test>::contains_key(&1));
-		assert!(CurrentCounters::<Test>::contains_key(&2));
-		assert!(CurrentCounters::<Test>::contains_key(&3));
+		// clear CurrentCounters works
+		assert_eq!(CurrentCounters::<Test>::contains_key(&1), false);
+		assert_eq!(CurrentCounters::<Test>::contains_key(&2), false);
+		assert_eq!(CurrentCounters::<Test>::contains_key(&3), false);
+
+		// figure credit scores works
+        let vc_map = <Pallet<Test> as ValidatorCredits<AccountId>>::credits(0);
+		assert_eq!(&250, vc_map.get(&1).unwrap());
+		assert_eq!(&62, vc_map.get(&2).unwrap());
+		assert_eq!(&187, vc_map.get(&3).unwrap());
 	});
 }

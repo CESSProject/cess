@@ -13,7 +13,7 @@ use std::marker::PhantomData;
 pub(crate) type AccountId = u32;
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
-
+type BlockNumber = u64;
 parameter_types! {
 	pub const BlockHashCount: u64 = 100;
 }
@@ -55,8 +55,14 @@ impl<AccountId: Clone> SchedulerStashAccountFinder<AccountId>
 	}
 }
 
+parameter_types! {
+	pub const PeriodDuration: BlockNumber = 3600;
+}
+
 impl Config for Test {
 	type StashAccountFinder = MockStashAccountFinder<Self::AccountId>;
+
+	type PeriodDuration = PeriodDuration;
 }
 
 frame_support::construct_runtime!(

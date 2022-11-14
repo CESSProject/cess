@@ -951,7 +951,9 @@ parameter_types! {
 	#[derive(Clone, Eq, PartialEq)]
 	pub const BucketLimit: u32 = 1000;
 	#[derive(Clone, Eq, PartialEq)]
-	pub const NameStrLimit: u32 = 40;
+	pub const NameStrLimit: u32 = 63;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const MinLength: u32 = 3;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const FileListLimit: u32 = 500000;
 	#[derive(Clone, Eq, PartialEq)]
@@ -980,6 +982,7 @@ impl pallet_file_bank::Config for Runtime {
 	type BucketLimit = BucketLimit;
 	type NameStrLimit = NameStrLimit;
 	type FileListLimit = FileListLimit;
+	type MinLength = MinLength;
 }
 
 parameter_types! {
@@ -1004,7 +1007,7 @@ impl pallet_file_map::Config for Runtime {
 
 impl pallet_oss::Config for Runtime {
 	type Event = Event;
-	
+
 	type WeightInfo = pallet_oss::weights::SubstrateWeight<Runtime>;
 }
 
