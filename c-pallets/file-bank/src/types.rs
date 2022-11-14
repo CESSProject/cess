@@ -6,7 +6,7 @@ type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
-pub struct FileInfo<T: pallet::Config> {
+pub struct FileInfo<T: Config> {
 	pub(super) file_size: u64,
 	pub(super) index: u32,
 	pub(super) file_state: BoundedVec<u8, T::StringLimit>,
@@ -17,7 +17,7 @@ pub struct FileInfo<T: pallet::Config> {
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
-pub struct SliceInfo<T: pallet::Config> {
+pub struct SliceInfo<T: Config> {
 	pub miner_id: u64,
 	pub shard_size: u64,
 	pub block_num: u32,
@@ -29,7 +29,7 @@ pub struct SliceInfo<T: pallet::Config> {
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
-pub struct OwnedSpaceDetails<T: pallet::Config> {
+pub struct OwnedSpaceDetails<T: Config> {
 	pub(super) total_space: u128,
 	pub(super) used_space: u128,
 	pub(super) remaining_space: u128,
@@ -42,7 +42,7 @@ pub struct OwnedSpaceDetails<T: pallet::Config> {
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
-pub struct FillerInfo<T: pallet::Config> {
+pub struct FillerInfo<T: Config> {
 	pub filler_size: u64,
 	pub index: u32,
 	pub block_num: u32,
