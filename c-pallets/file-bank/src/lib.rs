@@ -445,6 +445,15 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn update_price(origin: OriginFor<T>) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			<UnitPrice>::<T>::put(30u32.saturated_into());
+
+			Ok(())
+		}
 		/// Users need to make a declaration before uploading files.
 		///
 		/// This method is used to declare the file to be uploaded.
