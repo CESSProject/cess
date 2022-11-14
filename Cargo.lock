@@ -689,7 +689,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "cess-node-runtime",
  "cessc-consensus-rrsc",
@@ -765,7 +765,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node-runtime"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "cessp-consensus-rrsc",
  "cp-scheduler-credit",
@@ -5114,7 +5114,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-file-bank"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "cp-cess-common",
  "cp-scheduler-credit",
@@ -5150,7 +5150,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-file-map"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "cp-cess-common",
  "cp-scheduler-credit",
@@ -5430,7 +5430,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-segment-book"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "cp-cess-common",
  "cp-scheduler-credit",
@@ -5485,7 +5485,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-sminer"
-version = "0.5.2"
+version = "0.5.3"
 dependencies = [
  "cp-cess-common",
  "frame-benchmarking",
