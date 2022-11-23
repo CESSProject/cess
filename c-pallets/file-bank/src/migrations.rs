@@ -26,7 +26,7 @@ impl<T: crate::Config> OnRuntimeUpgrade for TestMigrationFileBank<T> {
 		return Ok(())
 	}
 }
-
+//sdfsljfiosif
 pub fn migrate<T: Config>() -> Weight {
 	use frame_support::traits::StorageVersion;
 
