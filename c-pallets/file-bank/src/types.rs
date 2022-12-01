@@ -25,7 +25,7 @@ pub struct SliceInfo<T: pallet::Config> {
 	pub miner_ip: BoundedVec<u8, T::StringLimit>,
 	pub miner_acc: AccountOf<T>,
 }
-//sidfhskdfhkskadfnkn
+
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
