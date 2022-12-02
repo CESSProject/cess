@@ -34,7 +34,8 @@ use frame_support::{
 		Get, Imbalance, LockIdentifier, OnUnbalanced, ReservableCurrency,
 	},
 };
-use cp_cess_common::IpAddress;
+use cp_cess_common::{IpAddress, Hash};
+use cp_bloom_filter::BloomFilter;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
@@ -59,7 +60,8 @@ use sp_std::{convert::TryInto, prelude::*};
 use types::*;
 pub mod weights;
 pub use weights::WeightInfo;
-
+use sp_core::crypto::KeyTypeId;
+// use sp_core::ecdsa::{Pair as EPair, Public, Signature};
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> =
 	<<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -67,6 +69,7 @@ type NegativeImbalanceOf<T> = <<T as pallet::Config>::Currency as Currency<
 	<T as frame_system::Config>::AccountId,
 >>::NegativeImbalance;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
+// type EcdsaSig = Signature;
 
 const M_BYTE: u128 = 1_048_576;
 const STATE_POSITIVE: &str = "positive";
@@ -75,6 +78,22 @@ const STATE_EXIT_FROZEN: &str = "e_frozen";
 const STATE_EXIT: &str = "exit";
 const FAUCET_VALUE: u128 = 10000000000000000;
 const DOUBLE: u8 = 2;
+pub const SMINER: KeyTypeId = KeyTypeId(*b"mine");
+
+pub mod ecdsa {
+	mod app_ecdsa {
+		use crate::*;
+		pub use sp_runtime::app_crypto::{app_crypto, ecdsa};
+		app_crypto!(ecdsa, SMINER);
+	}
+	sp_runtime::app_crypto::with_pair! {
+		pub type Pair = app_ecdsa::Pair;
+	}
+
+	pub type AuthoritySignature = app_ecdsa::Signature;
+
+	pub type AuthorityId = app_ecdsa::Public;
+}
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -84,7 +103,9 @@ pub mod pallet {
 		pallet_prelude::{ValueQuery, *},
 		traits::Get,
 	};
+	use sp_runtime::app_crypto::RuntimeAppPublic;
 	use frame_system::{ensure_root, ensure_signed, pallet_prelude::*};
+	use system::pallet_prelude::OriginFor;
 	const DEMOCRACY_IDA: LockIdentifier = *b"msminerA";
 	const DEMOCRACY_IDB: LockIdentifier = *b"msminerB";
 	const DEMOCRACY_IDC: LockIdentifier = *b"msminerC";
@@ -100,6 +121,13 @@ pub mod pallet {
 		/// The treasury's pallet id, used for deriving its sovereign account ID.
 		#[pallet::constant]
 		type PalletId: Get<PalletId>;
+
+		type PairId: Member
+			+ Parameter
+			+ RuntimeAppPublic
+			+ Ord
+			+ MaybeSerializeDeserialize
+			+ MaxEncodedLen;
 
 		#[pallet::constant]
 		type ItemLimit: Get<u32>;
@@ -323,12 +351,45 @@ pub mod pallet {
 	#[pallet::getter(fn currency_reward)]
 	pub(super) type CurrencyReward<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn test_bloom)]
+	pub(super) type TestBloom<T: Config> = StorageValue<_, BloomFilter, ValueQuery>;
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
+		pub fn test_bloom_insert(
+			origin: OriginFor<T>,
+			file_hash: Hash,
+		) -> DispatchResult {
+			let _sender = ensure_signed(origin)?;
+
+			let binary = file_hash.binary().map_err(|_e| Error::<T>::Overflow)?;
+			let mut bloom = <TestBloom<T>>::get();
+			bloom.insert(binary).map_err(|_e| Error::<T>::Overflow)?;
+			<TestBloom<T>>::put(bloom);
+			Ok(())
+		}
+
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
+		pub fn test_sig(
+			origin: OriginFor<T>,
+			sig: <T::PairId as RuntimeAppPublic>::Signature,
+			msg: Vec<u8>,
+			puk: T::PairId,
+		) -> DispatchResult {
+			let _sender = ensure_signed(origin)?;
+			if !puk.verify::<Vec<u8>>(&msg, &sig) {
+				Err(Error::<T>::NotpositiveState)?;
+			}
+			Ok(())
+		}
 		/// Staking and register for storage miner.
 		///
 		/// The dispatch origin of this call must be _Signed_.

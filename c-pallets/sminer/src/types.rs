@@ -49,3 +49,5 @@ pub struct RewardClaim<AccountId, Balance> {
 pub struct FaucetRecord<BlockNumber> {
 	pub(super) last_claim_time: BlockNumber,
 }
+
+
