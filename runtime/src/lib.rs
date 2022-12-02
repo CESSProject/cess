@@ -896,6 +896,7 @@ impl pallet_sminer::Config for Runtime {
 	type OneDayBlock = OneDay;
 	type MaxAward = MaxAward;
 	type LockInPeriod = LockInPeriod;
+	type PairId = pallet_sminer::ecdsa::AuthorityId;
 }
 parameter_types! {
 	pub const SegbkPalletId: PalletId = PalletId(*b"rewardpt");
