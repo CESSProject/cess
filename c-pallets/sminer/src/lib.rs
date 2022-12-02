@@ -369,7 +369,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let _sender = ensure_signed(origin)?;
 
-			let binary = file_hash.binary().map_err(|_e| Error::<T>::Overflow)?;
+			let binary = file_hash.binary().map_err(|_e| Error::<T>::BeyondClaim)?;
 			let mut bloom = <TestBloom<T>>::get();
 			bloom.insert(binary).map_err(|_e| Error::<T>::Overflow)?;
 			<TestBloom<T>>::put(bloom);

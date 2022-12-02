@@ -80,6 +80,7 @@ impl Hash {
 		let mut index: usize = 0;
 		for value in self.0.iter() {
 			let binary = match value {
+				b'0' => [0, 0, 0, 0],
 				b'1' => [0, 0, 0, 1],
 				b'2' => [0, 0, 1, 0],
 				b'3' => [0, 0, 1, 1],

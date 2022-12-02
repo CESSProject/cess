@@ -1146,6 +1146,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5827cebf4670468b8772dd191856768aedcb1b0278a04f989f7766351917b9dc"
 
 [[package]]
+name = "cp-bloom-filter"
+version = "0.1.0"
+dependencies = [
+ "cp-cess-common",
+ "frame-support",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-std",
+]
+
+[[package]]
 name = "cp-cess-common"
 version = "0.1.0"
 dependencies = [
@@ -5487,6 +5499,7 @@ dependencies = [
 name = "pallet-sminer"
 version = "0.5.3"
 dependencies = [
+ "cp-bloom-filter",
  "cp-cess-common",
  "frame-benchmarking",
  "frame-support",
@@ -5498,6 +5511,7 @@ dependencies = [
  "parity-scale-codec",
  "rand_chacha 0.2.2",
  "scale-info",
+ "secp256k1",
  "serde",
  "sp-core",
  "sp-io",
