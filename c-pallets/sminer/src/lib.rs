@@ -363,6 +363,21 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
+		pub fn test_report(
+			origin: OriginFor<T>,
+			ias_sig: Vec<u8>,
+			ias_cert: Vec<u8>,
+			msg: Vec<u8>,
+		) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+
+			ensure!(cp_sminer::verify_miner_report(&ias_sig, &ias_cert, &msg), Error::<T>::NotMiner);
+
+			Ok(())
+		}
+
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
 		pub fn test_bloom_insert(
 			origin: OriginFor<T>,
 			file_hash: Hash,

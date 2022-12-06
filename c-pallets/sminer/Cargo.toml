@@ -19,6 +19,7 @@ scale-info = { default-features = false, features = ['derive'], version = "2.0.1
 rand_chacha = { version = "0.2", default-features = false, optional = true }
 cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
 cp-bloom-filter = { path = '../../primitives/bloom-filter', version = '0.1.0', default-features = false }
+cp-sminer = { path = '../../primitives/sminer', version = '0.1.0', default-features = false }
 
 [dependencies.frame-benchmarking]
 default-features = false
@@ -99,7 +100,6 @@ std = [
 	"frame-system/std",
 	"scale-info/std",
 	"serde",
-	"sp-io/std",
 	"sp-runtime/std",
 	"sp-std/std",
 	"pallet-timestamp/std",
@@ -107,6 +107,7 @@ std = [
 	"frame-benchmarking/std",
 	"cp-cess-common/std",
 	"cp-bloom-filter/std",
+	"cp-sminer/std",
 	"secp256k1/std",
 	"sp-core/std",
 ]
