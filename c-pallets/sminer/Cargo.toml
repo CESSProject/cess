@@ -21,6 +21,9 @@ cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-
 cp-bloom-filter = { path = '../../primitives/bloom-filter', version = '0.1.0', default-features = false }
 cp-sminer = { path = '../../primitives/sminer', version = '0.1.0', default-features = false }
 
+sp-application-crypto = { version = '6.0.0', branch = 'monthly-2022-04-cess', git = 'https://github.com/CESSProject/substrate.git', default-features = false }
+sp-io = { version = "6.0.0", default-features = false, branch = 'monthly-2022-04-cess', git = 'https://github.com/CESSProject/substrate.git' }
+
 [dependencies.frame-benchmarking]
 default-features = false
 git = 'https://github.com/CESSProject/substrate.git'
@@ -39,12 +42,6 @@ default-features = false
 git = 'https://github.com/CESSProject/substrate.git'
 branch = 'monthly-2022-04-cess'
 version = '4.0.0-dev'
-
-[dependencies.sp-io]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '6.0.0'
 
 [dependencies.sp-std]
 default-features = false
@@ -102,6 +99,7 @@ std = [
 	"serde",
 	"sp-runtime/std",
 	"sp-std/std",
+	"sp-io/std",
 	"pallet-timestamp/std",
 	"pallet-scheduler/std",
 	"frame-benchmarking/std",
@@ -110,6 +108,7 @@ std = [
 	"cp-sminer/std",
 	"secp256k1/std",
 	"sp-core/std",
+	"sp-application-crypto/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

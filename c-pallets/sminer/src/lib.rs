@@ -61,6 +61,11 @@ use types::*;
 pub mod weights;
 pub use weights::WeightInfo;
 use sp_core::crypto::KeyTypeId;
+use sp_application_crypto::{
+	RuntimePublic,
+	ecdsa::{Signature, Public},
+};
+
 // use sp_core::ecdsa::{Pair as EPair, Public, Signature};
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> =
@@ -335,6 +340,15 @@ pub mod pallet {
 		ValueQuery,
 	>;
 
+	// #[pallet::storage]
+	// #[pallet::getter(fn test_sig_storage)]
+	// pub(super) type TestSigStorage<T: Config> = StorageMap<
+	// 	_,
+	// 	Blake2_128Concat,
+	// 	T::PairId,
+	// 	<T::PairId as RuntimeAppPublic>::Signature,
+	// >;
+
 	/// The hashmap for checking registered or not.
 	#[pallet::storage]
 	#[pallet::getter(fn reward_claim)]
@@ -395,14 +409,49 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
 		pub fn test_sig(
 			origin: OriginFor<T>,
-			sig: <T::PairId as RuntimeAppPublic>::Signature,
-			msg: Vec<u8>,
-			puk: T::PairId,
+			sig: [u8; 65],
+			msg: [u8; 32],
+			puk: [u8; 33],
 		) -> DispatchResult {
 			let _sender = ensure_signed(origin)?;
-			if !puk.verify::<Vec<u8>>(&msg, &sig) {
-				Err(Error::<T>::NotpositiveState)?;
+			log::info!("sig: {:?} \n, msg: {:?} \n, puk: {:?}", sig.clone(), msg, puk.clone());
+
+			let secp_sig: Signature = Signature::from_raw(sig);
+			let secp_puk: Public = Public::from_raw(puk);
+			// let r_puk = secp_sig.recover(&msg);
+			// log::info!("result r_puk: {:?}", r_puk.as_ref());
+			let puk_result = secp_puk.verify(&msg, &secp_sig);
+			let sp_io_result = sp_io::crypto::ecdsa_verify_prehashed(&secp_sig, &msg, &secp_puk);
+			log::info!("result sp_io_result: {:?}", sp_io_result);
+			log::info!("result puk_result: {:?}", puk_result);
+			Ok(())
+		}
+
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
+		pub fn test_recover(
+			origin: OriginFor<T>,
+			sig: [u8; 65],
+			msg: [u8; 32],
+			puk: [u8; 33],
+		) -> DispatchResult {
+			let _sender = ensure_signed(origin)?;
+			log::info!("sig: {:?} \n, msg: {:?} \n, puk: {:?}", sig.clone(), msg, puk.clone());
+
+			let r_puk = sp_io::crypto::secp256k1_ecdsa_recover_compressed(&sig, &msg).map_err(|_| Error::<T>::Overflow)?;
+			
+			log::info!("r_puk: {:?}", r_puk);
+			if r_puk == puk {
+				log::info!("success!!");
 			}
+
+			let secp_sig: Signature = Signature::from_raw(sig);
+			let secp_puk: Public = Public::from_raw(puk);
+			// let r_puk = secp_sig.recover(&msg);
+			// log::info!("result r_puk: {:?}", r_puk.as_ref());
+			
+			let puk_result = secp_puk.verify(&msg, &secp_sig);
+			log::info!("result puk_result: {:?}", puk_result);
 			Ok(())
 		}
 		/// Staking and register for storage miner.
