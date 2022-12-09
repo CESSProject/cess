@@ -23,7 +23,7 @@ pub use pallet::*;
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
-// slkajalsjd
+
 #[frame_support::pallet]
 pub mod pallet {
 	use crate::*;
