@@ -19,7 +19,7 @@ scale-info = { default-features = false, features = ['derive'], version = "2.0.1
 rand_chacha = { version = "0.2", default-features = false, optional = true }
 cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
 cp-bloom-filter = { path = '../../primitives/bloom-filter', version = '0.1.0', default-features = false }
-cp-sminer = { path = '../../primitives/sminer', version = '0.1.0', default-features = false }
+cp-crypto = { path = '../../primitives/crypto', version = '0.1.0', default-features = false }
 
 sp-application-crypto = { version = '6.0.0', branch = 'monthly-2022-04-cess', git = 'https://github.com/CESSProject/substrate.git', default-features = false }
 sp-io = { version = "6.0.0", default-features = false, branch = 'monthly-2022-04-cess', git = 'https://github.com/CESSProject/substrate.git' }
@@ -105,7 +105,7 @@ std = [
 	"frame-benchmarking/std",
 	"cp-cess-common/std",
 	"cp-bloom-filter/std",
-	"cp-sminer/std",
+	"cp-crypto/std",
 	"secp256k1/std",
 	"sp-core/std",
 	"sp-application-crypto/std",
