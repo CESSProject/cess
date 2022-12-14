@@ -256,6 +256,7 @@ pub trait ScheduleFind<AccountId> {
 	fn get_controller_acc(acc: AccountId) -> AccountId;
 	fn punish_scheduler(acc: AccountId) -> DispatchResult;
 	fn get_first_controller() -> Result<AccountId, DispatchError>;
+	fn get_random_scheduler(random: usize) -> Result<AccountId, DispatchError> ;
 }
 
 impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -297,5 +298,12 @@ impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<
 			return Ok(s_vec[0].clone().controller_user)
 		}
 		Err(Error::<T>::Overflow)?
+	}
+
+	fn get_random_scheduler(random: usize) -> Result<<T as frame_system::Config>::AccountId, DispatchError> {
+		let scheduler_list = SchedulerMap::<T>::get();
+		let index = random % scheduler_list.len();
+		let scheduler_info = scheduler_list.get(index).ok_or(Error::<T>::Overflow)?;
+		Ok(scheduler_info.controller_user.clone())
 	}
 }
