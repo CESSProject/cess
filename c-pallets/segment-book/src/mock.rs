@@ -123,7 +123,7 @@ impl pallet_file_bank::Config for Test {
 }
 
 pub struct OtherSessionHandler;
-
+// sodjifsidfsdp
 impl OneSessionHandler<AccountId> for OtherSessionHandler {
     type Key = UintAuthorityId;
 
