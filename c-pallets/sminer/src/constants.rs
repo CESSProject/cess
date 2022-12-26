@@ -20,3 +20,7 @@ pub(super) const AUTONOMY_MUTI: Perbill = Perbill::from_percent(10);
 pub(super) const IDLE_MUTI: Perbill = Perbill::from_percent(30);
 //Proportion of computing power in service space
 pub(super) const SERVICE_MUTI: Perbill = Perbill::from_percent(60);
+
+pub(super) const FINE_DEFAULT: u128 = 20_000_000_000_000;
+
+pub(super) const ORDER_LIST_DEFAULT: u32 = 180;

@@ -4,10 +4,8 @@ use frame_support::pallet_prelude::MaxEncodedLen;
 // type AccountOf<T> = <T as frame_system::Config>::AccountId;
 // type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as
 // frame_system::Config>::AccountId>>::Balance;
-type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 /// The custom struct for storing info of storage miners.
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-#[scale_info(skip_type_params(T))]
 pub struct MinerInfo<AccountId, Balance, BoundedString> {
 	pub(super) beneficiary: AccountId,
 	pub(super) ip: IpAddress,
@@ -26,23 +24,27 @@ pub struct MinerInfo<AccountId, Balance, BoundedString> {
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct RewardOrder<Balance> {
 	//Total award for orders
-	order_reward: Balance,
+	pub(super) order_reward: Balance,
 	//Number of awards to be distributed each time
-	each_share: Balance,
+	pub(super) each_share: Balance,
 	//Number of order reward distribution
-	award_count: u8,
+	pub(super) award_count: u8,
 	//Whether the 20% reward immediately paid has been paid
-	has_issued: bool,
+	pub(super) has_issued: bool,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-pub struct Reward<Balance> {
+#[scale_info(skip_type_params(T))]
+#[codec(mel_bound())]
+pub struct Reward<T: pallet::Config> {
 	//Total reward for miners
-    total_reward: Balance,
+    pub(super) total_reward: BalanceOf<T>,
 	//Rewards issued at present
-	reward_issued: Balance,
+	pub(super) reward_issued: BalanceOf<T>,
+	//Currently available reward
+	pub(super) currently_available_reward: BalanceOf<T>,
 	//Reward order list, up to 180 reward orders can be accumulated
-	order_list: [RewardOrder<Balance>; 180],
+	pub(super) order_list: BoundedVec<RewardOrder<BalanceOf<T>>, T::OrderLimit>,
 }
 
 
@@ -56,10 +58,10 @@ pub struct FaucetRecord<BlockNumber> {
 #[derive(PartialEq, Eq, Encode, Default, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct BloomCollect {
 	//for autonomy file
-	pub(super) autonomy_filter: BloomFilter,
+	pub autonomy_filter: BloomFilter,
 	//for service file
-	pub(super) service_filter: BloomFilter,
+	pub service_filter: BloomFilter,
 	//for filler file
-	pub(super) idle_filter: BloomFilter,
+	pub idle_filter: BloomFilter,
 }
 
