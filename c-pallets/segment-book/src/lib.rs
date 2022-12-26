@@ -225,11 +225,13 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		ChallengeProof { miner: AccountOf<T>, file_id: Hash },
+		ChallengeStart { total_power: u128, reward: BalanceOf<T> },
 
-		VerifyProof { miner: AccountOf<T>, file_id: Hash },
+		SubmitReport { miner: AccountOf<T> },
 
-		OutstandingChallenges { miner: AccountOf<T>, file_id: Hash },
+		ForceClearMiner { miner: AccountOf<T> },
+
+		PunishMiner { miner: AccountOf<T> },
 	}
 
 	/// Error for the segment-book pallet.
@@ -353,6 +355,7 @@ pub mod pallet {
 					// clear punishment
 					match T::MinerControl::miner_clear_punish(miner_acc.clone(), count) {
 						Ok(weight_temp) => {
+							Self::deposit_event(Event::<T>::PunishMiner { miner: miner_acc.clone() });
 							weight = weight.saturating_add(weight_temp);
 						},
 						Err(e) => {
@@ -367,6 +370,7 @@ pub mod pallet {
 
 						match T::MinerControl::force_clear_miner(miner_acc.clone()) {
 							Ok(weight_temp) => {
+								Self::deposit_event(Event::<T>::ForceClearMiner { miner: miner_acc.clone() });
 								weight = weight.saturating_add(weight_temp);
 							},
 							Err(e) => {
@@ -467,6 +471,8 @@ pub mod pallet {
 			<MinerSnapshotMap<T>>::remove(&sender);
 			<MinerClearCount<T>>::remove(&sender);
 
+			Self::deposit_event(Event::<T>::SubmitReport { miner: sender });
+
 			Ok(())
 		}
 
@@ -496,7 +502,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_none(origin)?;
 
-			ChallengeSnapshot::<T>::put(snapshot);
+			ChallengeSnapshot::<T>::put(snapshot.clone());
 			
 			let max = Keys::<T>::get().len() as u16;
 			let mut index = CurAuthorityIndex::<T>::get();
@@ -506,6 +512,8 @@ pub mod pallet {
 				index = index + 1;
 			}
 			CurAuthorityIndex::<T>::put(index);
+
+			Self::deposit_event(Event::<T>::ChallengeStart { total_power: snapshot.total_power, reward: snapshot.reward});
 
 			Ok(())
 		}

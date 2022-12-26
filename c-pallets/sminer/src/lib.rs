@@ -155,15 +155,9 @@ pub mod pallet {
 			acc: AccountOf<T>,
 			staking_val: BalanceOf<T>,
 		},
-		/// An account was redeemed.
-		Redeemed {
+		Receive {
 			acc: AccountOf<T>,
-			deposit: BalanceOf<T>,
-		},
-		/// An account was claimed.
-		Claimed {
-			acc: AccountOf<T>,
-			deposit: BalanceOf<T>,
+			reward: BalanceOf<T>,
 		},
 		/// Storage space is triggered periodically.
 		TimingStorageSpace(),
@@ -344,22 +338,6 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		// #[transactional]
-		// #[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
-		// pub fn test_cert(
-		// 	origin: OriginFor<T>,
-		// 	ias_sig: IasSig,
-		// 	ias_cert: IasCert,
-		// 	msg: Vec<u8>,
-		// ) -> DispatchResult {
-		// 	let _ = ensure_signed(origin)?;
-
-		// 	ensure!(cp_crypto::verify_miner_report(&ias_sig, &ias_cert, &msg), Error::<T>::NotMiner);
-
-		// 	Ok(())
-		// }
-
-
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
 		pub fn test_sig(
@@ -407,6 +385,21 @@ pub mod pallet {
 			
 			let puk_result = secp_puk.verify(&msg, &secp_sig);
 			log::info!("result puk_result: {:?}", puk_result);
+			Ok(())
+		}
+
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn set_mrenclave_code(
+			origin: OriginFor<T>,
+			code: Mrenclave,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			let mut code_list = MrenclaveCodes::<T>::get();
+			code_list.try_push(code).map_err(|_| Error::<T>::BoundedVecError)?;
+			<MrenclaveCodes<T>>::put(code_list);
+
 			Ok(())
 		}
 		/// Staking and register for storage miner.
@@ -477,7 +470,13 @@ pub mod pallet {
 			});
 			Ok(())
 		}
-
+		/// Miners receive rewards
+		/// 
+		/// Miners can receive rewards only after successfully challenging 
+		/// and being in positive state
+		///
+		/// Parameters:
+		/// - `origin`: Signature of the miner receiving the award.
 		#[transactional]
 		#[pallet::weight(100_000_000_000)]
 		pub fn receive_reward(
@@ -487,7 +486,7 @@ pub mod pallet {
 
 			if let Ok(miner) = <MinerItems<T>>::try_get(&sender) {
 				ensure!(
-					miner.state == STATE_POSITIVE.as_bytes().to_vec() || miner.state == STATE_EXIT.as_bytes().to_vec(), 
+					miner.state == STATE_POSITIVE.as_bytes().to_vec(),
 					Error::<T>::NotpositiveState
 				);
 
@@ -496,7 +495,12 @@ pub mod pallet {
 					ensure!(reward.currently_available_reward != 0u32.saturated_into(), Error::<T>::NoReward);
 
 					let reward_pot = T::PalletId::get().into_account();
-					<T as pallet::Config>::Currency::transfer(&reward_pot, &sender, reward.currently_available_reward, AllowDeath)?;
+					<T as pallet::Config>::Currency::transfer(&reward_pot, &sender, reward.currently_available_reward.clone(), AllowDeath)?;
+
+					Self::deposit_event(Event::<T>::Receive {
+						acc: sender.clone(),
+						reward: reward.currently_available_reward,
+					});
 
 					reward.reward_issued = reward.reward_issued
 						.checked_add(&reward.currently_available_reward).ok_or(Error::<T>::Overflow)?;
@@ -506,22 +510,6 @@ pub mod pallet {
 					Ok(())
 				})?;
 			} 
-			// else {
-			// 	<RewardMap<T>>::try_mutate(&sender, |opt_reward| -> DispatchResult {
-			// 		let reward = opt_reward.as_mut().ok_or(Error::<T>::Unexpected)?;
-			// 		ensure!(reward.currently_available_reward != 0u32.saturated_into(), Error::<T>::NoReward);
-
-			// 		let reward_pot = T::PalletId::get().into_account();
-			// 		<T as pallet::Config>::Currency::transfer(&reward_pot, &sender, reward.currently_available_reward, AllowDeath)?;
-
-			// 		reward.reward_issued = reward.reward_issued
-			// 			.checked_add(&reward.currently_available_reward).ok_or(Error::<T>::Overflow)?;
-
-			// 		reward.currently_available_reward = 0u32.saturated_into();
-
-			// 		Ok(())
-			// 	})?;
-			// }
 
 			Ok(())
 		}
@@ -1078,8 +1066,9 @@ impl<T: Config> Pallet<T> {
 		// calculate available reward
 		RewardMap::<T>::try_mutate(&miner, |opt_reward_info| -> DispatchResult {
 			let reward_info = opt_reward_info.as_mut().ok_or(Error::<T>::Unexpected)?;
-
+			// traverse the order list
 			for order_temp in reward_info.order_list.iter_mut() {
+				// skip if the order has been issued for 180 times
 				if order_temp.award_count == 180 {
 					continue;
 				}
@@ -1108,19 +1097,6 @@ impl<T: Config> Pallet<T> {
 			Ok(())
 		})?;
 		
-
-		Ok(())
-	}
-
-	fn delete_miner_info(acc: &AccountOf<T>) -> DispatchResult {
-		//There is a judgment on whether the primary key exists above
-		let miner = MinerItems::<T>::try_get(&acc).map_err(|_e| Error::<T>::NotMiner)?;
-
-		let mut miner_list = AllMiner::<T>::get();
-		miner_list.retain(|s| *s != acc.clone());
-		AllMiner::<T>::put(miner_list);
-
-		<MinerItems<T>>::remove(acc);
 
 		Ok(())
 	}
@@ -1234,7 +1210,8 @@ pub trait MinerControl<AccountId, Balance> {
 
 	fn get_current_reward() -> Balance;
 	fn calculate_reward(reward: Balance, miner: AccountId, total_power: u128, power: u128) -> DispatchResult;
-
+	// miner exit. Triggered by the filebank module
+	fn miner_exit(acc: AccountId) -> DispatchResult;
 }
 
 impl<T: Config> MinerControl<
@@ -1429,7 +1406,10 @@ impl<T: Config> MinerControl<
 		if let Ok(reward_info) = <RewardMap<T>>::try_get(&acc).map_err(|_| Error::<T>::NonExisted) {
 			let reward = reward_info.total_reward
 				.checked_sub(&reward_info.reward_issued).ok_or(Error::<T>::Overflow)?;
-			<T as pallet::Config>::Currency::transfer(&acc, &reward_pot, reward, AllowDeath)?;
+			<CurrencyReward<T>>::mutate(|v| {
+				*v = *v + reward;
+			});
+			weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 		}
 
 		let mut miner_list = AllMiner::<T>::get();
@@ -1441,5 +1421,33 @@ impl<T: Config> MinerControl<
 		weight = weight.saturating_add(T::DbWeight::get().reads(2 as Weight));
 
 		Ok(weight)
+	}
+
+	fn miner_exit(acc: Self::Acc) -> DispatchResult {
+		let miner = <MinerItems<T>>::try_get(&acc).map_err(|_| Error::<T>::NonExisted)?;
+		ensure!(miner.state != STATE_POSITIVE.as_bytes().to_vec(), Error::<T>::NotpositiveState);
+
+		T::Currency::unreserve(&acc, miner.collaterals.clone());
+
+		Self::sub_total_idle_space(miner.idle_space)?;
+		Self::sub_total_service_space(miner.service_space)?;
+		Self::sub_total_autonomy_space(miner.autonomy_space)?;
+
+		if let Ok(reward_info) = <RewardMap<T>>::try_get(&acc).map_err(|_| Error::<T>::NonExisted) {
+			let reward = reward_info.total_reward
+				.checked_sub(&reward_info.reward_issued).ok_or(Error::<T>::Overflow)?;
+			<CurrencyReward<T>>::mutate(|v| {
+				*v = *v + reward;
+			});
+		}
+
+		let mut miner_list = AllMiner::<T>::get();
+		miner_list.retain(|s| *s != acc.clone());
+		AllMiner::<T>::put(miner_list);
+
+		<RewardMap<T>>::remove(&acc);
+		<MinerItems<T>>::remove(&acc);
+
+		Ok(())
 	}
 }
