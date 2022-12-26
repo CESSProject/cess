@@ -17,6 +17,9 @@ scale-info = { default-features = false, features = ['derive'], version = "2.0.1
 log = { version = "0.4.14", default-features = false }
 pallet-cess-staking = { path = '../staking', version = '4.0.0-dev', default-features = false }
 cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+cp-bloom-filter = { path = '../../primitives/bloom-filter', version = '0.1.0', default-features = false }
+sp-application-crypto = { version = '6.0.0', branch = 'monthly-2022-04-cess', git = 'https://github.com/CESSProject/substrate.git', default-features = false }
 
 [dependencies.frame-benchmarking]
 default-features = false
@@ -139,7 +142,8 @@ std = [
 	"pallet-file-bank/std",
 	"pallet-file-map/std",
 	"cp-cess-common/std",
-	"cp-cess-common/std",
+	"cp-bloom-filter/std",
+	"sp-application-crypto/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

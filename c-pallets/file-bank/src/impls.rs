@@ -1,5 +1,4 @@
 use super::*;
-use sp_std::str::FromStr;
 
 impl<T: Config> Default for SliceInfo<T> {
     fn default() -> Self {
@@ -26,16 +25,16 @@ impl<T: Config> SliceInfo<T> {
     pub fn serde_json_parse(acc: AccountOf<T>, message: Vec<u8>) -> Result<Self, DispatchError> {
         let body: Value = serde_json::from_slice(&message).map_err(|_| Error::<T>::ParseError)?;
 
-        let binding = body["shardId"].to_string();
+        let binding = body["shardId"].as_str().ok_or(Error::<T>::ParseError)?;
         let shard_id = binding.as_bytes();
         let shard_id: [u8; 68] = shard_id.try_into().map_err(|_| Error::<T>::ParseError)?;
 
-        let binding = body["sliceHash"].to_string();
+        let binding = body["sliceHash"].as_str().ok_or(Error::<T>::ParseError)?;
         let slice_hash = binding.as_bytes();
         let slice_hash = Hash::new(slice_hash).map_err(|_| Error::<T>::ParseError)?;
 
-        let binding = body["minerIp"].to_string();
-        let mut miner_ip_arr = binding.as_str().split('/');
+        let binding = body["minerIp"].as_str().ok_or(Error::<T>::ParseError)?;
+        let mut miner_ip_arr = binding.split('/');
         // let miner_ip_arr = miner_ip.split(|num| num == &b'/');
         let ip1 = match miner_ip_arr.next() {
             Some(v) =>  u8::from_str(v).map_err(|_| Error::<T>::ParseError)?,

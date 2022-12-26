@@ -15,7 +15,7 @@ parking_lot = "0.11"
 serde = { version = "1.0.136", optional = true }
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }
 scale-info = { default-features = false, features = ['derive'], version = "2.0.1" }
-serde_json = "1.0.79"
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 log = { version = "0.4.14", default-features = false }
 pallet-cess-staking = { path = '../staking', version = '4.0.0-dev', default-features = false }
 rand_chacha = { version = "0.2", default-features = false, optional = true }
@@ -24,7 +24,6 @@ cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-
 pallet-oss = { path = '../oss', version = '0.5.3', default-features = false }
 
 sp-application-crypto = { version = '6.0.0', branch = 'monthly-2022-04-cess', git = 'https://github.com/CESSProject/substrate.git', default-features = false }
-
 
 [dependencies.frame-benchmarking]
 default-features = false

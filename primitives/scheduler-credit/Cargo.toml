@@ -23,5 +23,5 @@ std = [
     "sp-core/std",
     "sp-std/std",
     "sp-application-crypto/std",
-	  "frame-support/std",
+	"frame-support/std",
 ]

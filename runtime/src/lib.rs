@@ -878,6 +878,8 @@ parameter_types! {
   pub const DepositBufferPeriod: u32 = 3;
 	pub const MaxAward: u128 = 1_306_849_000_000_000_000;
 	pub const LockInPeriod: u8 = 2;
+	pub const MrenclaveNumber: u32 = 3;
+	pub const OrderLimit: u32 = 180;
 }
 
 impl pallet_sminer::Config for Runtime {
@@ -896,7 +898,8 @@ impl pallet_sminer::Config for Runtime {
 	type OneDayBlock = OneDay;
 	type MaxAward = MaxAward;
 	type LockInPeriod = LockInPeriod;
-	type PairId = pallet_sminer::ecdsa::AuthorityId;
+	type MrenclaveNumber  = MrenclaveNumber;
+	type OrderLimit = OrderLimit;
 }
 parameter_types! {
 	pub const SegbkPalletId: PalletId = PalletId(*b"rewardpt");
@@ -984,6 +987,11 @@ impl pallet_file_bank::Config for Runtime {
 	type NameStrLimit = NameStrLimit;
 	type FileListLimit = FileListLimit;
 	type MinLength = MinLength;
+	type SScheduler = Scheduler;
+	type AScheduler = Scheduler;
+	type SPalletsOrigin = OriginCaller;
+	type SProposal = Call;
+	
 }
 
 parameter_types! {
