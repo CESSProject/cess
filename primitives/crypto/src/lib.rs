@@ -2,8 +2,9 @@
 
 use sp_std::vec::Vec;
 use sp_application_crypto::{
-	ecdsa::{Signature, Public}, sp_core::hashing::sha2_256,
+	ecdsa::{Signature, Public},
 };
+use sp_io::hashing::sha2_256;
 use serde_json::Value;
 use cp_cess_common::Mrenclave;
 

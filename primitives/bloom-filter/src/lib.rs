@@ -8,7 +8,7 @@ use codec::{MaxEncodedLen};
 use scale_info::TypeInfo;
 
 #[derive(Copy, Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-pub struct BloomFilter([u64; 256]);
+pub struct BloomFilter(pub [u64; 256]);
 
 pub enum BloomError {
     InsertError,

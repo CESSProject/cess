@@ -1,10 +1,15 @@
 [workspace]
+
+exclude = [
+    "utils/webpki",
+    "utils/ring",
+]
+
 members = [
     'node',
     'runtime',
     'c-pallets/*',
     'primitives/*',
-    'utils/*'
 ]
 
 # The list of dependencies below (which can be both direct and indirect dependencies) are crates

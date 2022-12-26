@@ -9,7 +9,12 @@ codec = { package = "parity-scale-codec", version = "3.0.0", default-features = 
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
 sp-std = { default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'monthly-2022-04-cess', version = '4.0.0-dev'}
 cp-cess-common = { version = "0.1.0", path = '../common', default-features = false }
-serde_json = "1.0.79"
+
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+
+frame-support = {default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'monthly-2022-04-cess', version = '4.0.0-dev'}
+sp-api = { version = "4.0.0-dev", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'monthly-2022-04-cess' }
+sp-core = { version = "6.0.0", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'monthly-2022-04-cess' }
 
 # verify sgx signture
 webpki = { package = "webpki", path = '../../utils/webpki', default-features = false }
@@ -24,10 +29,12 @@ std = [
 	"codec/std",
 	"scale-info/std",
 	"sp-std/std",
-	"webpki/std",
 	"sp-application-crypto/std",
 	"sp-io/std",
+	"sp-api/std",
+	"sp-core/std",
+	"frame-support/std",
 	"cp-cess-common/std",
-
+	"webpki/std",
 ]
 

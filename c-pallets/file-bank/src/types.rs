@@ -127,3 +127,13 @@ pub struct Details<T: Config> {
 	pub file_name: BoundedVec<u8, T::NameStrLimit>,
 	pub bucket_name:  BoundedVec<u8, T::NameStrLimit>,
 }
+
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+#[codec(mel_bound())]
+pub struct AutonomyFileInfo<T: Config> {
+	pub(super) file_hash: Hash,
+	pub(super) file_size: u64,
+	pub(super) slices: BoundedVec<Hash, T::StringLimit>,
+	pub(super) miner_acc: AccountOf<T>,
+}
