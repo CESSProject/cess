@@ -2,7 +2,7 @@ use super::*;
 
 pub(super) const DEAL_EXCUTIVE_COUNT_MAX: u8 = 3;
 
-pub(super) const FILE_PENDING: &str = "pending";
+pub(super) const BACKUP_COUNT: u8 = 3;
 
 pub(super) const FILE_ACTIVE: &str = "active";
 

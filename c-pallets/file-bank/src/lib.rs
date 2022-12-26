@@ -45,6 +45,8 @@ pub use constants::*;
 mod impls;
 pub use impls::*;
 
+use sp_std::str::FromStr;
+
 use codec::{Decode, Encode};
 use frame_support::{
 	ensure,
@@ -69,8 +71,9 @@ use sp_runtime::{
 use sp_std::{convert::TryInto, prelude::*, str};
 use sp_application_crypto::{
 	ecdsa::{Signature, Public}, 
-	sp_core::hashing::sha2_256,
+	
 };
+use sp_io::hashing::sha2_256;
 use serde_json::Value;
 pub use weights::WeightInfo;
 
@@ -115,7 +118,7 @@ pub mod pallet {
 		//Used to find out whether the schedule exists
 		type Scheduler: ScheduleFind<Self::AccountId>;
 		//It is used to control the computing power and space of miners
-		type MinerControl: MinerControl<Self::AccountId>;
+		type MinerControl: MinerControl<Self::AccountId, <<Self as pallet::Config>::Currency as Currency<Self::AccountId>>::Balance>;
 		//Interface that can generate random seeds
 		type MyRandomness: Randomness<Option<Self::Hash>, Self::BlockNumber>;
 		/// pallet address.
@@ -201,7 +204,10 @@ pub mod pallet {
 		UploadDealFailed {user: AccountOf<T>, file_hash: Hash },
 		//Reassign events responsible for consensus for orders
 		ReassignedDeal { user: AccountOf<T>, assigned: AccountOf<T>, file_hash: Hash },
+		//
+		UploadAutonomyFile { user: AccountOf<T>, file_hash: Hash, file_size: u64 },
 	}
+
 	#[pallet::error]
 	pub enum Error<T> {
 		FileExistent,
@@ -320,6 +326,17 @@ pub mod pallet {
 	>;
 
 	#[pallet::storage]
+	#[pallet::getter(fn autonomy_file)]
+	pub(super) type AutonomyFile<T: Config> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		AccountOf<T>,
+		Blake2_128Concat,
+		Hash,
+		AutonomyFileInfo<T>,
+	>;
+
+	#[pallet::storage]
 	#[pallet::getter(fn invalid_file)]
 	pub(super) type InvalidFile<T: Config> =
 		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<Hash, T::InvalidLimit>, ValueQuery>;
@@ -334,30 +351,12 @@ pub mod pallet {
 	pub(super) type UnitPrice<T: Config> = StorageValue<_, BalanceOf<T>>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn file_keys_map)]
-	pub(super) type FileKeysMap<T: Config> =
-		CountedStorageMap<_, Blake2_128Concat, u32, (bool, Hash)>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn file_index_count)]
-	pub(super) type FileIndexCount<T: Config> = StorageValue<_, u32, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn filler_keys_map)]
-	pub(super) type FillerKeysMap<T: Config> =
-		CountedStorageMap<_, Blake2_128Concat, u32, (AccountOf<T>, Hash)>;
-
-	#[pallet::storage]
 	#[pallet::getter(fn unique_hash_map)]
 	pub(super) type UniqueHashMap<T: Config> = StorageMap<_, Blake2_128Concat, Hash, bool>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn deal_map)]
 	pub(super) type DealMap<T: Config> = StorageMap<_, Blake2_128Concat, Hash, DealInfo<T>>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn filler_index_count)]
-	pub(super) type FillerIndexCount<T: Config> = StorageValue<_, u32, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn bucket)]
@@ -478,6 +477,18 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		#[transactional]
 		#[pallet::weight(100_000_000)]
+		pub fn exit_miner(origin: OriginFor<T>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			let _ = Self::clear_miner_idle_file(&sender);
+			let _ = Self::clear_miner_autonomy_file(&sender);
+			let _ = T::MinerControl::force_clear_miner(sender.clone());
+
+			Ok(())
+		}
+
+		#[transactional]
+		#[pallet::weight(100_000_000)]
 		pub fn upload_deal(
 			origin: OriginFor<T>,
 			file_hash: Hash,
@@ -488,7 +499,10 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 			// Check whether the signature source has permission.
 			ensure!(Self::check_permission(sender.clone(), user_details.user.clone()), Error::<T>::NoPermission);
+			//Check whether the bucket name complies with the rules
 			ensure!(user_details.bucket_name.len() >= 3 && user_details.bucket_name.len() <= 63, Error::<T>::LessMinLength);
+			//Check whether the file size is a multiple of 512mib
+			ensure!(file_size % SLICE_DEFAULT_BYTE as u64 == 0, Error::<T>::SubStandard);
 			// Check whether the whole network is unique, 
 			// and insert the data if it is unique.
 			Self::insert_unique_hash(&file_hash)?;
@@ -511,7 +525,7 @@ pub mod pallet {
 					Call::reassign_deal{file_hash: file_hash.clone()}.into(),
 			).map_err(|_| Error::<T>::Unexpected)?;
 			// Judge whether the space is enough and lock the space.
-			Self::lock_space(&user_details.user, file_size.into(), (survival_block * DEAL_EXCUTIVE_COUNT_MAX as u32).into())?;
+			Self::lock_space(&user_details.user, BACKUP_COUNT as u128 * slices.len() as u128 * SLICE_DEFAULT_BYTE, (survival_block * DEAL_EXCUTIVE_COUNT_MAX as u32).into())?;
 			// create new deal.
 			let scheduler_id: [u8; 64] = Hash::slice_to_array_64(&file_hash.0).map_err(|_| Error::<T>::ConversionError)?;
 			let deal = DealInfo::<T> {
@@ -540,7 +554,7 @@ pub mod pallet {
 			let mut deal = DealMap::<T>::try_get(&file_hash).map_err(|_| Error::<T>::Unexpected)?;
 
 			if deal.executive_counts == DEAL_EXCUTIVE_COUNT_MAX {
-				Self::unlock_space_free(&deal.user_details.user, deal.file_size.into())?;
+				Self::unlock_space_free(&deal.user_details.user, BACKUP_COUNT as u128 * deal.slices.len() as u128 * SLICE_DEFAULT_BYTE)?;
 				//clear deal
 				DealMap::<T>::remove(&file_hash);
 				//clear slice hash and file hash from unique hash map
@@ -680,7 +694,7 @@ pub mod pallet {
 				Ok(())
 			})?;
 			// unlocked space, add used space
-			Self::unlock_space_used(&deal.user_details.user, deal.file_size.into())?;
+			Self::unlock_space_used(&deal.user_details.user, (BACKUP_COUNT as u64 * deal.file_size).into())?;
 			// scheduler increase credit points
 			Self::record_uploaded_files_size(&sender, deal.file_size)?;
 			// Cancle timed task
@@ -833,11 +847,14 @@ pub mod pallet {
 			}
 
 			for filler in filler_list.iter() {
-				count = count.checked_add(1).ok_or(Error::<T>::Overflow)?;
+				ensure!(filler.filler_size as u128 == SLICE_DEFAULT_BYTE, Error::<T>::SubStandard);
 				if <FillerMap<T>>::contains_key(&miner, filler.filler_hash.clone()) {
 					Err(Error::<T>::FileExistent)?;
 				}
-				<FillerMap<T>>::insert(miner.clone(), filler.filler_hash.clone(), value);
+				Self::insert_unique_hash(&filler.filler_hash)?;
+				<FillerMap<T>>::insert(miner.clone(), filler.filler_hash.clone(), filler);
+				let binary = filler.filler_hash.binary().map_err(|_| Error::<T>::BinaryError)?;
+				T::MinerControl::insert_idle_bloom(&miner, binary)?;
 			}
 
 			let power = M_BYTE
@@ -845,11 +862,51 @@ pub mod pallet {
 				.ok_or(Error::<T>::Overflow)?
 				.checked_mul(filler_list.len() as u128)
 				.ok_or(Error::<T>::Overflow)?;
+
 			T::MinerControl::add_idle_space(miner, power)?;
+			
 
 			Self::record_uploaded_fillers_size(&sender, &filler_list)?;
 
 			Self::deposit_event(Event::<T>::FillerUpload { acc: sender, file_size: power as u64 });
+			Ok(())
+		}
+
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn upload_autonomy_file (
+			origin: OriginFor<T>,
+			file_hash: Hash,
+			file_size: u64,
+			slices: Vec<Hash>,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			Self::insert_unique_hash(&file_hash)?;
+
+			ensure!(file_size % SLICE_DEFAULT_BYTE as u64 == 0, Error::<T>::SubStandard);
+			
+			for slice_hash in slices.iter() {
+				Self::insert_unique_hash(&slice_hash)?;
+
+				let binary = slice_hash.binary().map_err(|_| Error::<T>::BinaryError)?;
+
+				T::MinerControl::insert_autonomy_bloom(&sender, binary)?;
+			}
+
+			T::MinerControl::add_autonomy_space(sender.clone(), slices.len() as u128 * SLICE_DEFAULT_BYTE)?;
+
+			let file_info = AutonomyFileInfo::<T> {
+				file_hash: file_hash.clone(),
+				file_size: file_size,
+				slices: slices.try_into().map_err(|_| Error::<T>::BoundedVecError)?,
+				miner_acc: sender.clone(),
+			};
+
+			AutonomyFile::<T>::insert(&sender, &file_hash, file_info);
+
+			Self::deposit_event(Event::<T>::UploadAutonomyFile { user: sender, file_hash, file_size});
+
 			Ok(())
 		}
 		/// User deletes uploaded files.
@@ -1382,63 +1439,6 @@ pub mod pallet {
 			}
 			Ok(())
 		}
-		/// helper: judge_file_exist.
-		///
-		/// Help method for generating random files.
-		/// Used to determine whether the file of the subscript exists.
-		///
-		/// Parameters:
-		/// - `index`: file index.
-		/// Result:
-		/// - `bool`: True represents existence, False represents unexistence.
-		fn judge_file_exist(index: u32) -> bool {
-			let result = <FileKeysMap<T>>::get(index);
-			let result = match result {
-				Some(x) => x.0,
-				None => false,
-			};
-			result
-		}
-		/// helper: judge filler exist.
-		///
-		/// Help method for generating random fillers.
-		/// Used to determine whether the filler of the subscript exists.
-		///
-		/// Parameters:
-		/// - `index`: filler index.
-		/// Result:
-		/// - `bool`: True represents existence, False represents unexistence.
-		fn judge_filler_exist(index: u32) -> bool {
-			let result = <FillerKeysMap<T>>::get(index);
-			let result = match result {
-				Some(_x) => true,
-				None => false,
-			};
-			result
-		}
-		/// helper: get fillermap length.
-		///
-		/// Gets the length of the padding filler.
-		///
-		/// Parameters:
-		/// - `index`: filler index.
-		/// Result:
-		/// - `u32`: Length of the whole network filling file.
-		fn get_fillermap_length() -> Result<u32, DispatchError> {
-			let count = <FillerKeysMap<T>>::count();
-			Ok(count)
-		}
-		/// helper: get filemap length.
-		///
-		/// Gets the length of the padding file.
-		///
-		/// Parameters:
-		/// - `index`: filler index.
-		/// Result:
-		/// - `bool`: Length of the whole network service file.
-		fn get_file_map_length() -> Result<u32, DispatchError> {
-			Ok(<FileKeysMap<T>>::count())
-		}
 		/// helper: generate random number.
 		///
 		/// Get a random number.
@@ -1462,26 +1462,6 @@ pub mod pallet {
 				}
 				counter = counter.checked_add(1).ok_or(Error::<T>::Overflow)?;
 			}
-		}
-		/// helper: delete filler.
-		///
-		/// delete filler.
-		///
-		/// Parameters:
-		/// - `miner_acc`: miner AccountId.
-		/// - `filler_hash`: filler hash.
-		/// Result:
-		/// - DispatchResult
-		pub fn delete_filler(miner_acc: AccountOf<T>, filler_hash: Hash) -> DispatchResult {
-			if !<FillerMap<T>>::contains_key(&miner_acc, filler_hash.clone()) {
-				Err(Error::<T>::FileNonExistent)?;
-			}
-			let value = <FillerMap<T>>::try_get(&miner_acc, filler_hash.clone()) //read 1
-				.map_err(|_e| Error::<T>::FileNonExistent)?;
-			<FillerKeysMap<T>>::remove(value.index); //write 1
-			<FillerMap<T>>::remove(miner_acc, filler_hash.clone()); //write 1
-
-			Ok(())
 		}
 		/// helper: clear file.
 		///
@@ -1680,6 +1660,97 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		pub fn challenge_clear_idle(acc: AccountOf<T>, file_hash: Hash) -> DispatchResult {
+			ensure!(FillerMap::<T>::contains_key(&acc, &file_hash), Error::<T>::NonExistent);
+			// Clean up idle files.
+			FillerMap::<T>::remove(&acc, &file_hash);
+			// Clear the unique tag of the whole network.
+			UniqueHashMap::<T>::remove(&file_hash);
+			// Reduce corresponding space.
+			T::MinerControl::sub_idle_space(acc.clone(), SLICE_DEFAULT_BYTE)?;
+			// Modify the Bloom Filter
+			let binary = file_hash.binary().map_err(|_| Error::<T>::BinaryError)?;
+			T::MinerControl::remove_idle_bloom(&acc, binary)?;
+
+			Ok(())
+		}
+
+		pub fn challenge_clear_service(acc: AccountOf<T>, shard_id: [u8; 68]) -> DispatchResult {
+			let file_hash = Hash::from_shard_id(&shard_id).map_err(|_| Error::<T>::ConvertHashError)?;
+
+			<File<T>>::try_mutate(&file_hash, |opt_file| -> DispatchResult {
+				let file = opt_file.as_mut().ok_or(Error::<T>::NonExistent)?;
+				// parse backup index from shard_id
+				let temp = &[shard_id[66]];
+				let temp = str::from_utf8(temp).map_err(|_| Error::<T>::ConversionError)?;
+				let backup_index = u8::from_str(temp).map_err(|_| Error::<T>::ConversionError)?;
+				
+				let mut index = 0;
+				for slice in file.backups[backup_index as usize].slices.iter() {
+					if slice.shard_id == shard_id {
+						// Modify the Bloom Filter
+						let binary = slice.slice_hash.binary().map_err(|_| Error::<T>::BinaryError)?;
+						T::MinerControl::remove_service_bloom(&acc, binary)?;
+
+						file.backups[backup_index as usize].slices.remove(index);
+						break;
+					}
+					index = index + 1;
+				}
+
+				Ok(())
+			})?;
+			// Reduce corresponding space.
+			T::MinerControl::sub_service_space(acc.clone(), SLICE_DEFAULT_BYTE)?;	
+			
+			Ok(())
+		}
+
+		pub fn challenge_clear_autonomy(acc: AccountOf<T>, file_hash: Hash) -> DispatchResult {
+			let autonomy_file = AutonomyFile::<T>::try_get(&acc, &file_hash).map_err(|_| Error::<T>::NonExistent)?;
+
+			for slice_hash in autonomy_file.slices.iter() {
+				UniqueHashMap::<T>::remove(&slice_hash);
+				// Modify the Bloom Filter
+				let binary = slice_hash.binary().map_err(|_| Error::<T>::BinaryError)?;
+				T::MinerControl::remove_autonomy_bloom(&acc, binary)?;
+			}
+			// Clean up idle files.
+			AutonomyFile::<T>::remove(&acc, &file_hash);
+			// Clear the unique tag of the whole network.
+			UniqueHashMap::<T>::remove(&file_hash);
+			// Reduce corresponding space.
+			T::MinerControl::sub_autonomy_space(acc.clone(), autonomy_file.slices.len() as u128 * SLICE_DEFAULT_BYTE)?;
+
+			Ok(())
+		}
+
+		// Called when the miner exits normally or is forcibly kicked out
+		pub fn clear_miner_autonomy_file(acc: &AccountOf<T>) -> Weight {
+			let mut weight: Weight = 0;
+			for (file_hash, file) in <AutonomyFile<T>>::iter_prefix(acc) {
+				for slice_hash in file.slices.iter() {
+					<UniqueHashMap<T>>::remove(slice_hash);
+					weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
+				}
+				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+				<AutonomyFile<T>>::remove(acc, &file_hash);
+			}
+			weight
+		}
+		// Called when the miner exits normally or is forcibly kicked out
+		pub fn clear_miner_idle_file(acc: &AccountOf<T>) -> Weight {
+			let mut weight: Weight = 0;
+
+			for (file_hash, _) in <FillerMap<T>>::iter_prefix(acc) {
+				<UniqueHashMap<T>>::remove(&file_hash);
+				<FillerMap<T>>::remove(&acc, &file_hash);
+				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 2));
+			}
+
+			weight 
+		}
 		/// helper: get current scheduler.
 		///
 		/// Get the current block consensus.
@@ -1771,45 +1842,45 @@ pub mod pallet {
 }
 
 pub trait RandomFileList<AccountId> {
-	//Get random challenge data
-	// fn get_random_challenge_data(
-	// ) -> Result<Vec<(AccountId, Hash, [u8; 68], Vec<u8>, u64, DataType)>, DispatchError>;
-	//Delete filler file
-	fn delete_filler(miner_acc: AccountId, filler_hash: Hash) -> DispatchResult;
-	//Delete all filler according to miner_acc
-	fn delete_miner_all_filler(miner_acc: AccountId) -> Result<Weight, DispatchError>;
-	//Delete file backup
-	fn clear_file(file_hash: Hash) -> Result<Weight, DispatchError>;
-	//The function executed when the challenge fails, allowing the miner to delete invalid files
-	// fn add_recovery_file(file_id: [u8; 68]) -> DispatchResult;
-	//The function executed when the challenge fails to let the consensus schedule recover the file
+
 	fn add_invalid_file(miner_acc: AccountId, file_hash: Hash) -> DispatchResult;
+
+	fn challenge_clear_idle(acc: AccountId, file_hash: Hash) -> DispatchResult;
+
+	fn challenge_clear_service(acc: AccountId, shard_id: [u8; 68]) -> DispatchResult;
+
+	fn challenge_clear_autonomy(acc: AccountId, file_hash: Hash) -> DispatchResult;
+
+	fn clear_miner_file(acc: AccountId) -> Weight;
 }
 
 impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Pallet<T> {
-	fn delete_filler(miner_acc: AccountOf<T>, filler_hash: Hash) -> DispatchResult {
-		Pallet::<T>::delete_filler(miner_acc, filler_hash)?;
-		Ok(())
-	}
-	fn delete_miner_all_filler(miner_acc: AccountOf<T>) -> Result<Weight, DispatchError> {
-		let mut weight: Weight = 0;
-		for (_, value) in FillerMap::<T>::iter_prefix(&miner_acc) {
-			<FillerKeysMap<T>>::remove(value.index);
-			weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
-		}
-		let _ = FillerMap::<T>::remove_prefix(&miner_acc, Option::None);
-		weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
-		Ok(weight)
-	}
-
-	fn clear_file(file_hash: Hash) -> Result<Weight, DispatchError> {
-		let weight = Pallet::<T>::clear_file(file_hash)?;
-		Ok(weight)
-	}
 
 	fn add_invalid_file(miner_acc: AccountOf<T>, file_hash: Hash) -> DispatchResult {
 		Pallet::<T>::add_invalid_file(miner_acc, file_hash)?;
 		Ok(())
+	}
+
+	fn challenge_clear_idle(acc: AccountOf<T>, file_hash: Hash) -> DispatchResult {
+		Pallet::<T>::challenge_clear_idle(acc, file_hash)
+	}
+
+	fn challenge_clear_service(acc: AccountOf<T>, shard_id: [u8; 68]) -> DispatchResult {
+		Pallet::<T>::challenge_clear_service(acc, shard_id)
+	}
+
+	fn challenge_clear_autonomy(acc: AccountOf<T>, file_hash: Hash) -> DispatchResult {
+		Pallet::<T>::challenge_clear_autonomy(acc, file_hash)
+	}
+
+	fn clear_miner_file(acc: AccountOf<T>) -> Weight {
+		let mut weight: Weight = 0;
+		let weight_temp = Pallet::<T>::clear_miner_autonomy_file(&acc);
+		weight = weight.saturating_add(weight_temp);
+		let weight_temp = Pallet::<T>::clear_miner_idle_file(&acc);	
+		weight = weight.saturating_add(weight_temp);
+
+		weight
 	}
 }
 
