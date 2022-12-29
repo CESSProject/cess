@@ -162,7 +162,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 100,
+	spec_version: 117,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -1470,7 +1470,7 @@ mod benches {
 		[pallet_oss, Oss]
 		[pallet_file_bank, FileBankBench::<Runtime>]
 		[pallet_file_map, FileMapBench::<Runtime>]
-		[pallet_segment_book, SegmentBookBench::<Runtime>]
+		// [pallet_segment_book, SegmentBookBench::<Runtime>]
 		[pallet_collective::<Instance1>, Council]
 		[pallet_collective::<Instance2>, TechnicalCommittee]
 		// [pallet_evm, PalletEvmBench::<Runtime>]
@@ -1909,7 +1909,7 @@ impl_runtime_apis! {
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
 			use pallet_file_map::benchmarking::Pallet as FileMapBench;
-			use pallet_segment_book::benchmarking::Pallet as SegmentBookBench;
+			// use pallet_segment_book::benchmarking::Pallet as SegmentBookBench;
 			// use pallet_sminer::benchmarking::Pallet as SminerBench;
 			use baseline::Pallet as BaselineBench;
 
@@ -1929,16 +1929,16 @@ impl_runtime_apis! {
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
 			use pallet_file_map::benchmarking::Pallet as FileMapBench;
-			use pallet_segment_book::benchmarking::Pallet as SegmentBookBench;
+			// use pallet_segment_book::benchmarking::Pallet as SegmentBookBench;
 
 			// use pallet_sminer::benchmarking::::Pallet as SminerBench;
 			use baseline::Pallet as BaselineBench;
 			impl frame_system_benchmarking::Config for Runtime {}
-			impl pallet_file_bank::benchmarking::Config for Runtime{}
-			impl pallet_file_map::benchmarking::Config for Runtime{}
-			impl pallet_segment_book::benchmarking::Config for Runtime{}
-
 			// impl pallet_file_bank::benchmarking::Config for Runtime{}
+			impl pallet_file_map::benchmarking::Config for Runtime{}
+			// impl pallet_segment_book::benchmarking::Config for Runtime{}
+
+			impl pallet_file_bank::benchmarking::Config for Runtime{}
 			impl baseline::Config for Runtime {}
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
