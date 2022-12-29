@@ -16,7 +16,7 @@ impl<AccountId, Balance, BoundedString> MinerInfo<AccountId, Balance, BoundedStr
         power
     }
     
-    pub fn new(beneficiary: AccountId, collaterals: Balance, ip: IpAddress, puk: Public, ias_cert: IasCert) -> Self {
+    pub fn new(beneficiary: AccountId, collaterals: Balance, ip: IpAddress, puk: Public, ias_cert: BoundedString) -> Self {
         let bloom = BloomCollect::default();
 
         MinerInfo::<AccountId, Balance, BoundedString> {

@@ -7,17 +7,27 @@ use frame_support::pallet_prelude::MaxEncodedLen;
 /// The custom struct for storing info of storage miners.
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct MinerInfo<AccountId, Balance, BoundedString> {
+	// Income account
 	pub(super) beneficiary: AccountId,
+	// ip
 	pub(super) ip: IpAddress,
+	// Pledge amount
 	pub(super) collaterals: Balance,
+	// Amount of debt
 	pub(super) debt: Balance,
 	//nomal, exit, frozen, e_frozen, debt
 	pub(super) state: BoundedString,
+	// Idle file space
 	pub(super) idle_space: u128,
+	// Service file space
 	pub(super) service_space: u128,
+	// Autonomous file space
 	pub(super) autonomy_space: u128,
+	// miner public 
 	pub(super) puk: Public,
-	pub(super) ias_cert: IasCert,
+	// Ias certificate
+	pub(super) ias_cert: BoundedString,
+	// Bloon filter for three file types
 	pub(super) bloom_filter: BloomCollect,
 }
 

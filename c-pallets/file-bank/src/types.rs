@@ -60,14 +60,6 @@ pub struct SliceSummary<T: Config> {
 	pub(super) message: BoundedVec<u8, T::StringLimit>,
 }
 
-// #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-// pub struct SliceMessage {
-// 	pub(super) shard_id: [u8; 68],
-// 	pub(super) miner_ip: IpAddress,
-// 	pub(super) shard_size: u64,
-// 	pub(super) slice_hash: Hash,
-// }
-
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
