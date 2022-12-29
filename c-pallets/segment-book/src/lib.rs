@@ -298,11 +298,6 @@ pub mod pallet {
 		ValueQuery,
 	>;
 
-	//Relevant time nodes for storage challenges
-	#[pallet::storage]
-	#[pallet::getter(fn challenge_duration)]
-	pub(super) type ChallengeDuration<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
-
 	#[pallet::storage]
 	#[pallet::getter(fn cur_authority_index)]
 	pub(super) type CurAuthorityIndex<T: Config> = StorageValue<_, u16, ValueQuery>;
@@ -314,11 +309,6 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn lock)]
 	pub(super) type Lock<T: Config> = StorageValue<_, bool, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn failure_rate_map)]
-	pub(super) type FailureNumMap<T: Config> =
-		CountedStorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn consecutive_fines)]
@@ -433,6 +423,10 @@ pub mod pallet {
 		#[pallet::weight(100_000_000)]
 		pub fn submit_challenge_result(origin: OriginFor<T>, report: ChallengeReport<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
+			let net_snapshot = match <ChallengeSnapshot<T>>::get() {
+				Some(snapshot) => snapshot,
+				None => return Err(Error::<T>::VerifyFailed)?,
+			};
 			// 1. Whether miners need challenges this round
 			let miner_snapshot = <MinerSnapshotMap<T>>::try_get(&sender).map_err(|_| Error::<T>::NoChallenge)?;
 			// 2. Verify signatrue
@@ -445,6 +439,8 @@ pub mod pallet {
 			ensure!(report_message.idle_filter == miner_snapshot.idle_filter, Error::<T>::BloomVerifyError);
 			ensure!(report_message.service_filter == miner_snapshot.service_filter, Error::<T>::BloomVerifyError);
 			ensure!(report_message.autonomy_filter == miner_snapshot.autonomy_filter, Error::<T>::BloomVerifyError);
+
+			ensure!(report_message.random == net_snapshot.random, Error::<T>::VerifyFailed);
 			// 5. Processing failed data segments
 			let failed_idle_count = report_message.failed_idle_file.len();
 			for file_hash in report_message.failed_idle_file {
@@ -460,7 +456,7 @@ pub mod pallet {
 			for file_hash in report_message.failed_autonomy_file {
 				T::File::challenge_clear_autonomy(sender.clone(), file_hash)?;
 			}
-
+			// If there are failure segments, punish the miners.
 			if failed_idle_count != 0 || failed_service_count != 0 || failed_autonomy_count != 0 {
 				T::MinerControl::miner_slice_punish(sender.clone(), failed_idle_count as u64, failed_service_count as u64, failed_autonomy_count as u64)?;
 			}
@@ -750,7 +746,6 @@ pub mod pallet {
 				}
 			}
 
-
 			let (signature, digest) = Self::offchain_sign_digest(now, &authority_id, validators_index, validators_len)?;
 			let one_hour: u32 = T::OneHours::get().saturated_into();
 			let duration: BlockNumberOf<T> = max_power
@@ -767,9 +762,9 @@ pub mod pallet {
 			let start_block = <frame_system::Pallet<T>>::block_number();
 
 			let reward = T::MinerControl::get_current_reward();
-
+			
 			let deadline = start_block.checked_add(&duration).ok_or(OffchainErr::Overflow)?;
-
+			// Record the current network snapshot
 			let net_shot = NetworkSnapshot::<T> {
 				total_power: total_power,
 				reward: reward,
