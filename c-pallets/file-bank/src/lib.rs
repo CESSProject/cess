@@ -495,8 +495,6 @@ pub mod pallet {
 			ensure!(Self::check_permission(sender.clone(), user_details.user.clone()), Error::<T>::NoPermission);
 			//Check whether the bucket name complies with the rules
 			ensure!(user_details.bucket_name.len() >= 3 && user_details.bucket_name.len() <= 63, Error::<T>::LessMinLength);
-			//Check whether the file size is a multiple of 512mib
-			ensure!(file_size % SLICE_DEFAULT_BYTE as u64 == 0, Error::<T>::SubStandard);
 			// Check whether the whole network is unique, 
 			// and insert the data if it is unique.
 			Self::insert_unique_hash(&file_hash)?;
@@ -605,7 +603,7 @@ pub mod pallet {
 			let mut index = 0;
 			let _ = index.checked_add(&deal.slices.len()).ok_or(Error::<T>::Overflow)?;
 			//Verify all slice backups and sgx signatures
-			for hash in deal.slices {
+			for hash in deal.slices.clone() {
 				let message1: Value = serde_json::from_slice(&slice_summary[0][index].message).map_err(|_| Error::<T>::SubStandard)?;
 				let message2: Value = serde_json::from_slice(&slice_summary[1][index].message).map_err(|_| Error::<T>::SubStandard)?;
 				let message3: Value = serde_json::from_slice(&slice_summary[2][index].message).map_err(|_| Error::<T>::SubStandard)?;
@@ -688,9 +686,9 @@ pub mod pallet {
 				Ok(())
 			})?;
 			// unlocked space, add used space
-			Self::unlock_space_used(&deal.user_details.user, (BACKUP_COUNT as u64 * deal.file_size).into())?;
+			Self::unlock_space_used(&deal.user_details.user, BACKUP_COUNT as u128 * deal.slices.len() as u128 * SLICE_DEFAULT_BYTE)?;
 			// scheduler increase credit points
-			Self::record_uploaded_files_size(&sender, deal.file_size)?;
+			Self::record_uploaded_files_size(&sender, (BACKUP_COUNT as u128 * deal.slices.len() as u128 * SLICE_DEFAULT_BYTE) as u64)?;
 			// Cancle timed task
 			let _ = T::SScheduler::cancel_named(deal.time_task.to_vec()).map_err(|_| Error::<T>::Unexpected)?;
 
@@ -725,7 +723,7 @@ pub mod pallet {
 				
 				file.user_details_list.try_push(user_details.clone()).map_err(|_| Error::<T>::BoundedVecError)?;
 
-				Ok(file.file_size)
+				Ok((file.backups.len() as u128 * file.backups[0].slices.len() as u128 * SLICE_DEFAULT_BYTE) as u64)
 			})?;
 
 			let file_info = UserFileSliceInfo { file_hash, file_size };
