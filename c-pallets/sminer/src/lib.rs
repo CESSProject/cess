@@ -39,7 +39,7 @@ use cp_bloom_filter::BloomFilter;
 use cp_crypto::{IasCert, IasSig, QuoteBody};
 
 #[cfg(feature = "runtime-benchmarks")]
-mod benchmarking;
+pub mod benchmarking;
 
 mod types;
 use types::*;
@@ -339,56 +339,6 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
-		pub fn test_sig(
-			origin: OriginFor<T>,
-			sig: [u8; 65],
-			msg: [u8; 32],
-			puk: [u8; 33],
-		) -> DispatchResult {
-			let _sender = ensure_signed(origin)?;
-			log::info!("sig: {:?} \n, msg: {:?} \n, puk: {:?}", sig.clone(), msg, puk.clone());
-
-			let secp_sig: Signature = Signature::from_raw(sig);
-			let secp_puk: Public = Public::from_raw(puk);
-			// let r_puk = secp_sig.recover(&msg);
-			// log::info!("result r_puk: {:?}", r_puk.as_ref());
-			let puk_result = secp_puk.verify(&msg, &secp_sig);
-			let sp_io_result = sp_io::crypto::ecdsa_verify_prehashed(&secp_sig, &msg, &secp_puk);
-			log::info!("result sp_io_result: {:?}", sp_io_result);
-			log::info!("result puk_result: {:?}", puk_result);
-			Ok(())
-		}
-
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
-		pub fn test_recover(
-			origin: OriginFor<T>,
-			sig: [u8; 65],
-			msg: [u8; 32],
-			puk: [u8; 33],
-		) -> DispatchResult {
-			let _sender = ensure_signed(origin)?;
-			log::info!("sig: {:?} \n, msg: {:?} \n, puk: {:?}", sig.clone(), msg, puk.clone());
-
-			let r_puk = sp_io::crypto::secp256k1_ecdsa_recover_compressed(&sig, &msg).map_err(|_| Error::<T>::Overflow)?;
-			
-			log::info!("r_puk: {:?}", r_puk);
-			if r_puk == puk {
-				log::info!("success!!");
-			}
-
-			let secp_sig: Signature = Signature::from_raw(sig);
-			let secp_puk: Public = Public::from_raw(puk);
-			// let r_puk = secp_sig.recover(&msg);
-			// log::info!("result r_puk: {:?}", r_puk.as_ref());
-			
-			let puk_result = secp_puk.verify(&msg, &secp_sig);
-			log::info!("result puk_result: {:?}", puk_result);
-			Ok(())
-		}
-
-		#[transactional]
 		#[pallet::weight(100_000_000)]
 		pub fn set_mrenclave_code(
 			origin: OriginFor<T>,
@@ -443,7 +393,7 @@ pub mod pallet {
 					staking_val.clone(),
 					ip.clone(), 
 					puk.clone(), 
-					ias_cert.clone(),
+					ias_cert.try_into().map_err(|_| Error::<T>::BoundedVecError)?,
 				),
 			);
 
@@ -526,7 +476,6 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
-
 			T::Currency::reserve(&sender, collaterals)?;
 			let mut balance: BalanceOf<T> = Default::default();
 
@@ -536,8 +485,6 @@ pub mod pallet {
 				miner_info.collaterals =
 					miner_info.collaterals.checked_add(&collaterals).ok_or(Error::<T>::Overflow)?;
 
-				balance = miner_info.collaterals;
-
 				let power = miner_info.calculate_power();
 
 				let limit = Self::check_collateral_limit(power)?;
@@ -546,12 +493,6 @@ pub mod pallet {
 					STATE_FROZEN => {
 						if miner_info.collaterals > limit {
 							miner_info.state = STATE_POSITIVE
-								.as_bytes().to_vec().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
-						}
-					},
-					STATE_EXIT_FROZEN => {
-						if miner_info.collaterals > limit {
-							miner_info.state = STATE_EXIT
 								.as_bytes().to_vec().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
 						}
 					},
@@ -583,6 +524,8 @@ pub mod pallet {
 					},
 					_ => Err(Error::<T>::NonExisted)?,
 				};
+
+				balance = miner_info.collaterals;
 
 				Ok(())
 			})?;
@@ -973,7 +916,16 @@ impl<T: Config> Pallet<T> {
 
 		Ok(())
 	}
-
+	/// helper: Corresponding amount of punishment for miners.
+	///
+	/// If the deposit is sufficient, it will be deducted directly. 
+	/// After deduction, it will be judged whether the deposit meets the limit. 
+	/// If the deposit is insufficient, 
+	/// the remaining deposit will be deducted, and then it will enter the debit status
+	/// 
+	/// Parameters:
+	/// - `acc`: punished miner
+	/// - `fine`: amount of penalty
 	fn miner_punish_collaterals(acc: &AccountOf<T>, fine: BalanceOf<T>) -> DispatchResult {
 		let reward_pot = T::PalletId::get().into_account();
 
@@ -1008,12 +960,25 @@ impl<T: Config> Pallet<T> {
 		})
 	}
 
+	/// helper: Miner clear punishment
+	/// 
+	/// for segment-book pallet
+	/// 
+	/// Miners who fail to submit challenge reports 
+	/// will be punished by clear. 
+	/// Miners who have been clear three times 
+	/// in a row will be forced to leave the network.
+	/// 
+	/// Parameters:
+	/// - `acc`: punished miner
+	/// - `count`: Times of clear
 	fn miner_clear_punish(acc: AccountOf<T>, count: u8) -> Result<Weight, DispatchError> {
 		let mut weight: Weight = 0;
 		let miner = <MinerItems<T>>::try_get(&acc).map_err(|_| Error::<T>::NonExisted)?;
 		weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
 		let power = miner.calculate_power();
 		let limit = Self::check_collateral_limit(power)?;
+		// Calculate the penalty amount according to the parameter count
 		let fine = match count {
 			1 => Perbill::from_percent(50).mul_floor(limit),
 			2 => Perbill::from_percent(80).mul_floor(limit),
@@ -1029,7 +994,20 @@ impl<T: Config> Pallet<T> {
 
 		Ok(weight)
 	}
-
+	/// helper: Miner slice punish
+	/// 
+	/// for segment-book pallet
+	/// 
+	/// Punish according to the number of failed slices 
+	/// in the challenge report submitted by the miners.
+	/// 
+	/// The proportions of three different types of file penalties are different.
+	/// 
+	/// Parameters:
+	/// - `acc`: punished miner
+	/// - `idle_count`: number of failed idle files.
+	/// - `service_count`: number of failed service files.
+	/// - `autonomy_count`: number of failed autonomy files.
 	fn miner_slice_punish(acc: AccountOf<T>, idle_count: u128, service_count: u128, autonomy_count: u128) -> DispatchResult {
 		let idle_fine = IDLE_MUTI.mul_floor(FINE_DEFAULT * idle_count);
 		let service_fine = SERVICE_MUTI.mul_floor(FINE_DEFAULT * service_count);
@@ -1050,7 +1028,22 @@ impl<T: Config> Pallet<T> {
 
 		Ok(())
 	}
-
+	/// helper: calculate miners' rewards
+	/// 
+	/// for segment-book pallet
+	/// 
+	/// Each miner who successfully submits a challenge report 
+	/// can get a reward, and the number of rewards 
+	/// will be added to the new order record in the RewardMap.
+	/// 
+	/// Calculate the reward due this time according to the 
+	/// overall computing power of the whole network and its own computing power.
+	/// 
+	/// Parameters:
+	/// - `reward`: award pool.
+	/// - `miner`: target miner.
+	/// - `total_power`: total network computing power in snapshot.
+	/// - `power`: miner's computing power in the snapshot.
 	fn calculate_reward(reward: BalanceOf<T>, miner: AccountOf<T>, total_power: u128, power: u128) -> DispatchResult {
 		// calculate this round reward
 		let miner_prop = Perbill::from_rational(power, total_power);
