@@ -50,7 +50,7 @@ pub static IAS_SERVER_ROOTS: webpki::TLSServerTrustAnchors = webpki::TLSServerTr
     },
 ]);
 
-pub type IasCert = [u8; 160];
+pub type IasCert = Vec<u8>;
 
 pub type IasSig = Vec<u8>;
 
@@ -123,15 +123,14 @@ pub fn verify_miner_cert(
             return Option::None;
         }
 
-        let quote_pk: [u8; 33] = match decoded_quote_body[368..].try_into() {
+        let quote_pk: [u8; 33] = match decoded_quote_body[368..401].try_into() {
             Ok(pk) => pk,
             Err(_) => return Option::None,
         };
 
         let pk = Public::from_raw(quote_pk);
 
-        let data: Vec<u8> = [&ias_cert[..], &ias_sig[..], &quote_body[..]].concat();
-        
+        let data: Vec<u8> = [&quote_body[..], &ias_sig[..], &ias_cert[..]].concat();
         let result = sp_io::crypto::ecdsa_verify_prehashed(quote_sig, &sha2_256(&data), &pk);
 
         if !result {
