@@ -830,7 +830,6 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_filler(filler_list.len() as u32))]
 		pub fn upload_filler(
 			origin: OriginFor<T>,
-			miner: AccountOf<T>,
 			filler_list: Vec<FillerInfo<T>>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -838,31 +837,23 @@ pub mod pallet {
 			if filler_list.len() > limit as usize {
 				Err(Error::<T>::LengthExceedsLimit)?;
 			}
-			if !T::Scheduler::contains_scheduler(sender.clone()) {
-				Err(Error::<T>::ScheduleNonExistent)?;
-			}
 
 			for filler in filler_list.iter() {
 				ensure!(filler.filler_size as u128 == SLICE_DEFAULT_BYTE, Error::<T>::SubStandard);
-				if <FillerMap<T>>::contains_key(&miner, filler.filler_hash.clone()) {
+				if <FillerMap<T>>::contains_key(&sender, filler.filler_hash.clone()) {
 					Err(Error::<T>::FileExistent)?;
 				}
 				Self::insert_unique_hash(&filler.filler_hash)?;
-				<FillerMap<T>>::insert(miner.clone(), filler.filler_hash.clone(), filler);
+				<FillerMap<T>>::insert(sender.clone(), filler.filler_hash.clone(), filler);
 				let binary = filler.filler_hash.binary().map_err(|_| Error::<T>::BinaryError)?;
-				T::MinerControl::insert_idle_bloom(&miner, binary)?;
+				T::MinerControl::insert_idle_bloom(&sender, binary)?;
 			}
 
-			let power = M_BYTE
-				.checked_mul(8)
-				.ok_or(Error::<T>::Overflow)?
+			let power = SLICE_DEFAULT_BYTE
 				.checked_mul(filler_list.len() as u128)
 				.ok_or(Error::<T>::Overflow)?;
 
-			T::MinerControl::add_idle_space(miner, power)?;
-			
-
-			Self::record_uploaded_fillers_size(&sender, &filler_list)?;
+			T::MinerControl::add_idle_space(sender.clone(), power)?;
 
 			Self::deposit_event(Event::<T>::FillerUpload { acc: sender, file_size: power as u64 });
 			Ok(())
