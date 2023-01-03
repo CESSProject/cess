@@ -493,7 +493,7 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 			// Check whether the signature source has permission.
 			ensure!(Self::check_permission(sender.clone(), user_details.user.clone()), Error::<T>::NoPermission);
-			//Check whether the bucket name complies with the rules
+			// Check whether the bucket name complies with the rules
 			ensure!(user_details.bucket_name.len() >= 3 && user_details.bucket_name.len() <= 63, Error::<T>::LessMinLength);
 			// Check whether the whole network is unique, 
 			// and insert the data if it is unique.
@@ -517,7 +517,11 @@ pub mod pallet {
 					Call::reassign_deal{file_hash: file_hash.clone()}.into(),
 			).map_err(|_| Error::<T>::Unexpected)?;
 			// Judge whether the space is enough and lock the space.
-			Self::lock_space(&user_details.user, BACKUP_COUNT as u128 * slices.len() as u128 * SLICE_DEFAULT_BYTE, (survival_block * DEAL_EXCUTIVE_COUNT_MAX as u32).into())?;
+			Self::lock_space(
+				&user_details.user, 
+				BACKUP_COUNT as u128 * slices.len() as u128 * SLICE_DEFAULT_BYTE, 
+				(survival_block * DEAL_EXCUTIVE_COUNT_MAX as u32).into(),
+			)?;
 			// create new deal.
 			let scheduler_id: [u8; 64] = Hash::slice_to_array_64(&file_hash.0).map_err(|_| Error::<T>::ConversionError)?;
 			let deal = DealInfo::<T> {
@@ -1254,7 +1258,7 @@ pub mod pallet {
 					Err(Error::<T>::LeaseFreeze)?;
 				}
 				//Space remaining expiration time must be greater than survival block
-				if space.deadline > survival_block {
+				if space.deadline < survival_block {
 					Err(Error::<T>::InsufficientLeft)?;
 				}
 
@@ -1448,20 +1452,15 @@ pub mod pallet {
 		/// Result:
 		/// - `u32`: random number.
 		pub fn generate_random_number(seed: u32) -> Result<u32, DispatchError> {
-			let mut counter = 0;
-			loop {
-				let (random_seed, _) =
-					T::MyRandomness::random(&(T::FilbakPalletId::get(), seed + counter).encode());
-				let random_seed = match random_seed {
-					Some(v) => v,
-					None => Default::default(),
-				};
-				let random_number = <u32>::decode(&mut random_seed.as_ref()).unwrap_or(0);
-				if random_number != 0 {
-					return Ok(random_number)
-				}
-				counter = counter.checked_add(1).ok_or(Error::<T>::Overflow)?;
-			}
+			let (random_seed, _) =
+				T::MyRandomness::random(&(T::FilbakPalletId::get(), seed).encode());
+			let random_seed = match random_seed {
+				Some(v) => v,
+				None => Default::default(),
+			};
+			let random_number = <u32>::decode(&mut random_seed.as_ref()).unwrap_or(0);
+
+			return Ok(random_number)
 		}
 		/// helper: clear file.
 		///
