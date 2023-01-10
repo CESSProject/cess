@@ -1,5 +1,6 @@
 use super::*;
 
+
 impl<T: Config> Default for SliceInfo<T> {
     fn default() -> Self {
         SliceInfo::<T> {

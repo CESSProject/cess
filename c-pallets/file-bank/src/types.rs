@@ -71,6 +71,15 @@ pub struct SliceInfo<T: Config> {
 	pub miner_acc: AccountOf<T>,
 }
 
+// #[derive(Deserialize)]
+// pub struct MessageParse {
+// 	#[serde(with = "array")]
+// 	pub(super) shard_id: [u8; 68],
+// 	#[serde(with = "array")]
+// 	pub(super) slice_hash: [u8; 64],
+// 	// pub(super) miner_ip: Vec<u8>,
+// }
+
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]

@@ -38,7 +38,6 @@ pub struct NetworkSnapshot<T: pallet::Config> {
 	pub(super) deadline: BlockNumberOf<T>,
 }
 
-
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]

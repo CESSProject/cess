@@ -11,6 +11,8 @@ impl<AccountId, Balance, BoundedString> MinerInfo<AccountId, Balance, BoundedStr
 
         let idle_power = IDLE_MUTI.mul_floor(self.idle_space);
 
+        log::info!("idle_power: {:?}", idle_power);
+
         let power: u128 = autonomy_power + service_power + idle_power;
 
         power
