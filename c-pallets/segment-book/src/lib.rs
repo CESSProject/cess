@@ -71,6 +71,7 @@ use frame_support::{
 	},
 	PalletId, WeakBoundedVec, BoundedSlice,
 };
+use serde_json::Value;
 use sp_core::{
 	crypto::KeyTypeId,
 	offchain::OpaqueNetworkState,
@@ -335,7 +336,7 @@ pub mod pallet {
 				None => return weight,
 			};
 
-			if now > netsnapshot.deadline {
+			if now == netsnapshot.deadline {
 				// clear start
 				for (miner_acc, _snapshot) in <MinerSnapshotMap<T>>::iter() {
 					// Get the number of consecutive penalties
@@ -354,13 +355,14 @@ pub mod pallet {
 					};
 					// The current number of consecutive punishments reaches 3, 
 					// and the miner will be kicked out
-					if count == 3 {
+					if count >= 3 {
 						let weight_temp = T::File::clear_miner_file(miner_acc.clone());
 						weight = weight.saturating_add(weight_temp);
 
 						match T::MinerControl::force_clear_miner(miner_acc.clone()) {
 							Ok(weight_temp) => {
 								Self::deposit_event(Event::<T>::ForceClearMiner { miner: miner_acc.clone() });
+								<MinerClearCount<T>>::remove(miner_acc.clone());
 								weight = weight.saturating_add(weight_temp);
 							},
 							Err(e) => {
@@ -384,7 +386,7 @@ pub mod pallet {
 			if sp_io::offchain::is_validator() {
 				if now > deadline {
 					//Determine whether to trigger a challenge
-					if Self::trigger_challenge(now) {
+					// if Self::trigger_challenge(now) {
 						log::info!("offchain worker challenge start");
 						if let Err(e) = Self::offchain_work_start(now) {
 							match e {
@@ -411,7 +413,7 @@ pub mod pallet {
 							};
 						}
 						log::info!("offchain worker random challenge end");
-					}
+					// }
 				}
 			}
 		}
@@ -419,6 +421,16 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn re_challenge(origin: OriginFor<T>) -> DispatchResult {
+			let _sender = ensure_signed(origin)?;
+
+			<ChallengeSnapshot<T>>::kill();
+
+			Ok(())
+		}
+
 		#[transactional]
 		#[pallet::weight(100_000_000)]
 		pub fn submit_challenge_result(origin: OriginFor<T>, report: ChallengeReport<T>) -> DispatchResult {
@@ -539,7 +551,6 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
-
 		fn check_unsign(
 			seg_digest: &SegDigest<BlockNumberOf<T>>,
 			signature: &<T::AuthorityId as RuntimeAppPublic>::Signature,
@@ -746,7 +757,6 @@ pub mod pallet {
 				}
 			}
 
-			let (signature, digest) = Self::offchain_sign_digest(now, &authority_id, validators_index, validators_len)?;
 			let one_hour: u32 = T::OneHours::get().saturated_into();
 			let duration: BlockNumberOf<T> = max_power
 				.checked_div(SLICE_DEFAULT_BYTE)
@@ -772,6 +782,8 @@ pub mod pallet {
 				start: start_block,
 				deadline: deadline,
 			};
+
+			let (signature, digest) = Self::offchain_sign_digest(now, &authority_id, validators_index, validators_len)?;
 
 			let call = Call::save_challenge_time {
 				snapshot: net_shot,
@@ -857,7 +869,15 @@ pub mod pallet {
 					.expect("secure hashes should always be bigger than u32; qed");
 				let random_vec = random_seed.as_bytes().to_vec();
 				if random_vec.len() >= 20 {
-					let result: [u8; 20] = random_vec.as_slice()[0 .. 19].try_into().expect("unexpect error when challenge generate random");
+					let temp: &[u8] = &random_vec;
+					let result: [u8; 20] = (temp[0 .. 20]).try_into().expect("random try_from error!");
+					// .try_into() {
+					// 	Ok(random) => random,
+					// 	Err(e) => {
+					// 		log::info!("random slice try_into err: {:?}, \n slice: {:?}", e, random_vec);
+					// 		continue;
+					// 	},
+					// };
 					return result;
 				}
 			}
