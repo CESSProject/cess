@@ -45,6 +45,9 @@ pub use constants::*;
 mod impls;
 pub use impls::*;
 
+// mod array;
+// pub use array::*;
+
 use sp_std::str::FromStr;
 
 use codec::{Decode, Encode};
@@ -70,11 +73,17 @@ use sp_runtime::{
 };
 use sp_std::{convert::TryInto, prelude::*, str};
 use sp_application_crypto::{
-	ecdsa::{Signature, Public}, 
-	
+	ecdsa::{Signature, Public},
 };
 use sp_io::hashing::sha2_256;
 use serde_json::Value;
+
+// use serde::{
+// 	de::{SeqAccess, Visitor},
+// 	ser::SerializeTuple,
+// 	Deserialize, Deserializer, Serialize, Serializer,
+// };
+
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -566,11 +575,15 @@ pub mod pallet {
 				let seed: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
 				let index = Self::generate_random_number(seed)?;
 				let scheduler = T::Scheduler::get_random_scheduler(index as usize)?;
+				let survival_block = seed.checked_add(1200).ok_or(Error::<T>::Overflow)?;
+
+				deal.survival_block = survival_block.saturated_into();
 				deal.scheduler = scheduler.clone();
 				// Initialize deal.
 				deal.backups = Default::default();
 				// Reassign timing task
-				let scheduler_id: Vec<u8> = file_hash.0.to_vec();
+				let mut scheduler_id: Vec<u8> = file_hash.0.to_vec();
+				scheduler_id.push(deal.executive_counts);
 				T::SScheduler::schedule_named(
 					scheduler_id,
 					DispatchTime::At(deal.survival_block),
@@ -632,12 +645,12 @@ pub mod pallet {
 				} else {
 					Err(Error::<T>::SubStandard)?;
 				}
-		
+
 				//verify signature
 				let pk = T::MinerControl::get_public(&slice_summary[0][index].miner)?;
-				let result = sp_io::crypto::ecdsa_verify_prehashed(&slice_summary[0][index].signature, &sha2_256(&&slice_summary[0][index].message), &pk);
+				let result = sp_io::crypto::ecdsa_verify_prehashed(&slice_summary[0][index].signature, &sha2_256(&slice_summary[0][index].message), &pk);
 				ensure!(result, Error::<T>::VerifyFailed);
-
+				
 				let pk = T::MinerControl::get_public(&slice_summary[1][index].miner)?;
 				let result = sp_io::crypto::ecdsa_verify_prehashed(&slice_summary[1][index].signature, &sha2_256(&slice_summary[1][index].message), &pk);
 				ensure!(result, Error::<T>::VerifyFailed);
@@ -683,16 +696,16 @@ pub mod pallet {
 			Self::file_into_bucket(&deal.user_details.user, deal.user_details.bucket_name.clone(), file_hash.clone())?;
 			//insert file
 			<File<T>>::insert(&file_hash, file);
-			
-			let file_info = UserFileSliceInfo { file_hash: file_hash.clone(), file_size: deal.file_size };
+			let fill_size = BACKUP_COUNT as u128 * deal.slices.len() as u128 * SLICE_DEFAULT_BYTE;
+			let file_info = UserFileSliceInfo { file_hash: file_hash.clone(), file_size: fill_size as u64 };
 			<UserHoldFileList<T>>::try_mutate(&deal.user_details.user, |v| -> DispatchResult {
 				v.try_push(file_info).map_err(|_| Error::<T>::StorageLimitReached)?;
 				Ok(())
 			})?;
 			// unlocked space, add used space
-			Self::unlock_space_used(&deal.user_details.user, BACKUP_COUNT as u128 * deal.slices.len() as u128 * SLICE_DEFAULT_BYTE)?;
+			Self::unlock_space_used(&deal.user_details.user, fill_size)?;
 			// scheduler increase credit points
-			Self::record_uploaded_files_size(&sender, (BACKUP_COUNT as u128 * deal.slices.len() as u128 * SLICE_DEFAULT_BYTE) as u64)?;
+			Self::record_uploaded_files_size(&sender, fill_size as u64)?;
 			// Cancle timed task
 			let _ = T::SScheduler::cancel_named(deal.time_task.to_vec()).map_err(|_| Error::<T>::Unexpected)?;
 
@@ -1478,6 +1491,8 @@ pub mod pallet {
 			  weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
 			for user_details in file.user_details_list.iter() {
 				Self::update_user_space(user_details.user.clone(), 2, file.file_size.into())?; //read 1 write 1 * n
+				let weight_temp = Self::clear_bucket_file(&file_hash, &user_details.user, &user_details.bucket_name)?;
+				weight = weight.saturating_add(weight_temp);
 				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 			}
 
@@ -1549,10 +1564,13 @@ pub mod pallet {
 					let mut index: usize = 0;
 					for user_details in s.user_details_list.iter() {
 						if user_details.user == user.clone() {
+							let weight_temp = Self::clear_bucket_file(&file_hash, &user_details.user, &user_details.bucket_name)?;
+							weight = weight.saturating_add(weight_temp);
 							break
 						}
 						index = index.checked_add(1).ok_or(Error::<T>::Overflow)?;
 					}
+					
 					weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 					s.user_details_list.remove(index);
 					Ok(())
@@ -1568,6 +1586,8 @@ pub mod pallet {
 				s.retain(|x| x.file_hash != file_hash.clone());
 				Ok(())
 			})?;
+
+
 			weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 			Ok(weight)
 		}
@@ -1605,6 +1625,8 @@ pub mod pallet {
 			T::MinerControl::insert_slice_update_bloom(&miner_acc, slice_binary, filler_binary)?;
 
 			<FillerMap<T>>::remove(miner_acc.clone(), filler_hash.clone()); 
+
+			<UniqueHashMap<T>>::remove(filler_hash.clone());
 
 			<InvalidFile<T>>::try_mutate(&miner_acc, |o| -> DispatchResult {
 				o.try_push(filler_hash).map_err(|_e| Error::<T>::StorageLimitReached)?;
