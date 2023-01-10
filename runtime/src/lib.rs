@@ -162,7 +162,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 117,
+	spec_version: 132,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -873,12 +873,12 @@ impl pallet_sudo::Config for Runtime {
  * Add This Block
  */
 parameter_types! {
-  pub const RewardPalletId: PalletId = PalletId(*b"rewardpt");
-  pub const MultipleFines: u8 = 7;
-  pub const DepositBufferPeriod: u32 = 3;
+  	pub const RewardPalletId: PalletId = PalletId(*b"rewardpt");
+  	pub const MultipleFines: u8 = 7;
+  	pub const DepositBufferPeriod: u32 = 3;
 	pub const MaxAward: u128 = 1_306_849_000_000_000_000;
 	pub const LockInPeriod: u8 = 2;
-	pub const MrenclaveNumber: u32 = 3;
+	pub const MrenclaveNumber: u32 = 30;
 	pub const OrderLimit: u32 = 180;
 }
 

@@ -1,5 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use frame_support::ensure;
 use sp_std::vec::Vec;
 use sp_application_crypto::{
 	ecdsa::{Signature, Public},
@@ -56,6 +57,8 @@ pub type IasSig = Vec<u8>;
 
 pub type QuoteBody = Vec<u8>;
 
+pub type MrSigner = [u8; 32];
+
 type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
 static SUPPORTED_SIG_ALGS: SignatureAlgorithms = &[
     &webpki::RSA_PKCS1_2048_8192_SHA256,
@@ -70,6 +73,7 @@ pub fn verify_miner_cert(
     quote_sig: &Signature,
     quote_body: &QuoteBody,
     mrenclave_codes: &Vec<Mrenclave>,
+    mr_signer: &MrSigner,
 ) -> Option<Public> {
     let ias_cert_dec = match base64::decode_config(ias_cert, base64::STANDARD) {
         Ok(c) => c,
@@ -120,6 +124,15 @@ pub fn verify_miner_cert(
         };
 
         if !mrenclave_codes.contains(&id_code) {
+            return Option::None;
+        }
+
+        let quote_mr_signer: [u8; 32] =  match decoded_quote_body[176..208].try_into() {
+            Ok(mr_signer) => mr_signer,
+            Err(_) => return Option::None,
+        };
+
+        if mr_signer != &quote_mr_signer {
             return Option::None;
         }
 

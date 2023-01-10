@@ -36,7 +36,7 @@ use frame_support::{
 };
 use cp_cess_common::{IpAddress, M_BYTE, Mrenclave};
 use cp_bloom_filter::BloomFilter;
-use cp_crypto::{IasCert, IasSig, QuoteBody};
+use cp_crypto::{IasCert, IasSig, QuoteBody, MrSigner};
 
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
@@ -195,14 +195,17 @@ pub mod pallet {
 		Deposit {
 			balance: BalanceOf<T>,
 		},
-		UpdataBeneficiary {
+		UpdateBeneficiary {
 			acc: AccountOf<T>,
 			new: AccountOf<T>,
 		},
-		UpdataIp {
+		UpdateIp {
 			acc: AccountOf<T>,
 			old: IpAddress,
 			new: IpAddress,
+		},
+		UpdateIasCert {
+			acc: AccountOf<T>,
 		},
 		StartOfBufferPeriod {
 			when: BlockNumberOf<T>,
@@ -332,6 +335,10 @@ pub mod pallet {
 	#[pallet::getter(fn mrenclave_codes)]
 	pub(super) type MrenclaveCodes<T: Config> = StorageValue<_, BoundedVec<Mrenclave, T::MrenclaveNumber>, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn mr_signer_value)]
+	pub(super) type MrSignerValue<T: Config> = StorageValue<_, MrSigner, ValueQuery>;
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
@@ -349,6 +356,19 @@ pub mod pallet {
 			let mut code_list = MrenclaveCodes::<T>::get();
 			code_list.try_push(code).map_err(|_| Error::<T>::BoundedVecError)?;
 			<MrenclaveCodes<T>>::put(code_list);
+
+			Ok(())
+		}
+
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn set_mr_signer(
+			origin: OriginFor<T>,
+			code: MrSigner,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			<MrSignerValue<T>>::put(code);
 
 			Ok(())
 		}
@@ -378,12 +398,15 @@ pub mod pallet {
 
 			let mernclave_codes = MrenclaveCodes::<T>::get();
 
+			let mr_signer = MrSignerValue::<T>::get();
+
 			let puk = cp_crypto::verify_miner_cert(
 				&ias_sig,
 				&ias_cert,
 				&quote_sig,
 				&quote_body,
 				&mernclave_codes,
+				&mr_signer,
 			).ok_or(Error::<T>::InvalidCert)?;
 
 			<MinerItems<T>>::insert(
@@ -420,6 +443,44 @@ pub mod pallet {
 			});
 			Ok(())
 		}
+
+		#[transactional]
+		#[pallet::weight(100_000_000_000)]
+		pub fn update_ias_cert(
+			origin: OriginFor<T>,
+			ias_cert: IasCert,
+			ias_sig: IasSig,
+			quote_body: QuoteBody,
+			quote_sig: Signature,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			let mernclave_codes = MrenclaveCodes::<T>::get();
+
+			let mr_signer = MrSignerValue::<T>::get();
+
+			let puk = cp_crypto::verify_miner_cert(
+				&ias_sig,
+				&ias_cert,
+				&quote_sig,
+				&quote_body,
+				&mernclave_codes,
+				&mr_signer,
+			).ok_or(Error::<T>::InvalidCert)?;
+
+			<MinerItems<T>>::try_mutate(&sender, |miner_opt| -> DispatchResult {
+				let miner = miner_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
+
+				miner.ias_cert = ias_cert.try_into().map_err(|_| Error::<T>::BoundedVecError)?;
+				miner.puk = puk;
+
+				Ok(())
+			})?;
+
+			Self::deposit_event(Event::<T>::UpdateIasCert{ acc: sender });
+
+			Ok(())
+		}
 		/// Miners receive rewards
 		/// 
 		/// Miners can receive rewards only after successfully challenging 
@@ -447,19 +508,19 @@ pub mod pallet {
 					let reward_pot = T::PalletId::get().into_account();
 					<T as pallet::Config>::Currency::transfer(&reward_pot, &sender, reward.currently_available_reward.clone(), AllowDeath)?;
 
+					reward.reward_issued = reward.reward_issued
+						.checked_add(&reward.currently_available_reward).ok_or(Error::<T>::Overflow)?;
+
 					Self::deposit_event(Event::<T>::Receive {
 						acc: sender.clone(),
 						reward: reward.currently_available_reward,
 					});
 
-					reward.reward_issued = reward.reward_issued
-						.checked_add(&reward.currently_available_reward).ok_or(Error::<T>::Overflow)?;
-
 					reward.currently_available_reward = 0u32.saturated_into();
 
 					Ok(())
 				})?;
-			} 
+			}
 
 			Ok(())
 		}
@@ -534,7 +595,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// updata miner beneficiary.
+		/// update miner beneficiary.
 		///
 		/// Parameters:
 		/// - `beneficiary`: The beneficiary related to signer account.
@@ -553,11 +614,11 @@ pub mod pallet {
 				Ok(())
 			})?;
 
-			Self::deposit_event(Event::<T>::UpdataBeneficiary { acc: sender, new: beneficiary });
+			Self::deposit_event(Event::<T>::UpdateBeneficiary { acc: sender, new: beneficiary });
 			Ok(())
 		}
 
-		/// updata miner IP.
+		/// update miner IP.
 		///
 		/// Parameters:
 		/// - `ip`: The registered IP of storage miner.
@@ -574,7 +635,7 @@ pub mod pallet {
 				Ok(old)
 			})?;
 
-			Self::deposit_event(Event::<T>::UpdataIp { acc: sender, old, new: ip });
+			Self::deposit_event(Event::<T>::UpdateIp { acc: sender, old, new: ip });
 			Ok(())
 		}
 
