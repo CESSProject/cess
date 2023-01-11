@@ -20,6 +20,8 @@ cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 cp-bloom-filter = { path = '../../primitives/bloom-filter', version = '0.1.0', default-features = false }
 sp-application-crypto = { version = '6.0.0', branch = 'monthly-2022-04-cess', git = 'https://github.com/CESSProject/substrate.git', default-features = false }
+base64 = { default-features = false, features = ["alloc"], version = "0.12.2" }
+cp-crypto = { path = '../../primitives/crypto', version = '0.1.0', default-features = false }
 
 [dependencies.frame-benchmarking]
 default-features = false
@@ -144,6 +146,7 @@ std = [
 	"cp-cess-common/std",
 	"cp-bloom-filter/std",
 	"sp-application-crypto/std",
+	"cp-crypto/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
