@@ -483,7 +483,7 @@ pub mod pallet {
 
 			let _ = Self::clear_miner_idle_file(&sender);
 			let _ = Self::clear_miner_autonomy_file(&sender);
-			let _ = T::MinerControl::miner_exit(sender.clone());
+			T::MinerControl::miner_exit(sender.clone())?;
 		
 			Self::deposit_event(Event::<T>::MinerExit { acc: sender });
 			
@@ -1119,58 +1119,6 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::ClearInvalidFile { acc: sender, file_hash });
 			Ok(())
 		}
-		/// Recover files.
-		///
-		/// The dispatch origin of this call must be Signed.
-		///
-		/// When one or more slices of the service file have problems,
-		/// the file needs to be scheduled for recovery.
-		/// When more than one third of the contents of the file are damaged,
-		/// the file cannot be recovered.
-		///
-		/// Parameters:
-		/// - `shard_id`: Corrupt file slice id.
-		/// - `slice_info`: New slice information.
-		/// - `avail`: Whether the file can be recovered normally.
-		// #[transactional]
-		// #[pallet::weight(<T as pallet::Config>::WeightInfo::recover_file())]
-		// pub fn recover_file(
-		// 	origin: OriginFor<T>,
-		// 	shard_id: [u8; 68],
-		// 	slice_info: SliceInfo<T>,
-		// 	avail: bool,
-		// ) -> DispatchResult {
-		// 	//Vec to BoundedVec
-		// 	let sender = ensure_signed(origin)?;
-		// 	//Get fileid from shardid,
-		// 	let file_hash = Hash::from_shard_id(&shard_id).map_err(|_| Error::<T>::ConvertHashError)?;
-		// 	//Delete the corresponding recovery slice request pool
-		// 	<FileRecovery<T>>::try_mutate(&sender, |o| -> DispatchResult {
-		// 		o.retain(|x| *x != shard_id);
-		// 		Ok(())
-		// 	})?;
-		// 	if !<File<T>>::contains_key(&file_hash) {
-		// 		Err(Error::<T>::FileNonExistent)?;
-		// 	}
-		// 	if avail {
-		// 		<File<T>>::try_mutate(&file_hash, |opt| -> DispatchResult {
-		// 			let o = opt.as_mut().unwrap();
-		// 			o.slice_info
-		// 				.try_push(slice_info)
-		// 				.map_err(|_| Error::<T>::StorageLimitReached)?;
-		// 			o.file_state = FILE_ACTIVE
-		// 				.as_bytes()
-		// 				.to_vec()
-		// 				.try_into()
-		// 				.map_err(|_e| Error::<T>::BoundedVecError)?;
-		// 			Ok(())
-		// 		})?;
-		// 	} else {
-		// 		let _weight = Self::clear_file(file_hash)?;
-		// 	}
-		// 	Self::deposit_event(Event::<T>::RecoverFile { acc: sender, file_hash: shard_id });
-		// 	Ok(())
-		// }
 
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::create_bucket())]

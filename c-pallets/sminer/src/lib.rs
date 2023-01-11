@@ -65,7 +65,7 @@ pub use pallet::*;
 
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::{AccountIdConversion, CheckedAdd, CheckedSub, CheckedMul, SaturatedConversion, Zero},
+	traits::{AccountIdConversion, CheckedAdd, CheckedSub, CheckedMul, CheckedDiv, SaturatedConversion, Zero},
 	RuntimeDebug, Perbill
 };
 use sp_std::{convert::TryInto, prelude::*};
@@ -159,10 +159,6 @@ pub mod pallet {
 			acc: AccountOf<T>,
 			reward: BalanceOf<T>,
 		},
-		/// Storage space is triggered periodically.
-		TimingStorageSpace(),
-		/// Scheduled Task Execution
-		TimedTask(),
 		/// Users to withdraw faucet money
 		DrawFaucetMoney(),
 		/// User recharges faucet
@@ -174,16 +170,8 @@ pub mod pallet {
 			last: BlockNumberOf<T>,
 			now: BlockNumberOf<T>,
 		},
-		//The miners have been frozen
-		AlreadyFrozen {
-			acc: AccountOf<T>,
-		},
 		//Miner exit event
 		MinerExit {
-			acc: AccountOf<T>,
-		},
-
-		MinerClaim {
 			acc: AccountOf<T>,
 		},
 
@@ -206,12 +194,6 @@ pub mod pallet {
 		},
 		UpdateIasCert {
 			acc: AccountOf<T>,
-		},
-		StartOfBufferPeriod {
-			when: BlockNumberOf<T>,
-		},
-		EndOfBufferPeriod {
-			when: BlockNumberOf<T>,
 		},
 	}
 
@@ -241,8 +223,6 @@ pub mod pallet {
 		DivideByZero,
 
 		InsufficientAvailableSpace,
-		//The account has been frozen
-		AlreadyFrozen,
 
 		LockInNotOver,
 
@@ -583,7 +563,7 @@ pub mod pallet {
 					STATE_EXIT => {
 						Err(Error::<T>::NonExisted)?;
 					},
-					_ => Err(Error::<T>::NonExisted)?,
+					_ => {},
 				};
 
 				balance = miner_info.collaterals;
@@ -1110,6 +1090,7 @@ impl<T: Config> Pallet<T> {
 		let miner_prop = Perbill::from_rational(power, total_power);
 		let this_round_reward = miner_prop.mul_floor(reward);
 		let each_share = Perbill::from_percent(80).mul_floor(this_round_reward);
+		let each_share = each_share.checked_div(&180u32.saturated_into()).ok_or(Error::<T>::Overflow)?;
 		let issued = Perbill::from_percent(20).mul_floor(this_round_reward);
 		let order = RewardOrder::<BalanceOf<T>>{
 			order_reward: this_round_reward,
@@ -1479,7 +1460,7 @@ impl<T: Config> MinerControl<
 
 	fn miner_exit(acc: Self::Acc) -> DispatchResult {
 		let miner = <MinerItems<T>>::try_get(&acc).map_err(|_| Error::<T>::NonExisted)?;
-		ensure!(miner.state != STATE_POSITIVE.as_bytes().to_vec(), Error::<T>::NotpositiveState);
+		ensure!(miner.state == STATE_POSITIVE.as_bytes().to_vec(), Error::<T>::NotpositiveState);
 
 		T::Currency::unreserve(&acc, miner.collaterals.clone());
 
