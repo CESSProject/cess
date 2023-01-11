@@ -14,17 +14,16 @@ impl<T: pallet::Config> ChallengeReport<T> {
         let binding = body["service_bloom_filter"].as_array().ok_or(Error::<T>::ParseError)?;
         let service_filter_array = Self::parse_array(binding)?;
         let service_filter = BloomFilter(service_filter_array);
-        log::info!("---2---");
+        log::info!("---3---");
         let binding = body["autonomous_bloom_filter"].as_array().ok_or(Error::<T>::ParseError)?;
         let autonomy_filter_array = Self::parse_array(binding)?;
         let autonomy_filter = BloomFilter(autonomy_filter_array);
         log::info!("---4---");
         let binding = body["chal_id"].as_str().ok_or(Error::<T>::ParseError)?;
-        let random_bytes: Vec<u8> = match base64::decode(binding) {
-            Ok(value) => value,
-            Err(_) => Err(Error::<T>::ParseError)?,
-        };
-        let random: [u8; 20] = random_bytes.try_into().map_err(|_| Error::<T>::ParseError)?;
+        log::info!("strbinding: {:?}", binding);
+        let mut random: [u8; 20]  = [0u8; 20];
+        cp_crypto::hexstr_to_u8v(binding, random.as_mut_slice());
+        log::info!("random: {:?}", random);
         log::info!("---5---");
         let mut failed_idle_file: Vec<Hash> = Default::default();
         let binding = body["idle_failed_file_hashes"].as_str().ok_or(Error::<T>::ParseError)?;

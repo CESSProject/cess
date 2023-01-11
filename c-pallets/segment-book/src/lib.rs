@@ -433,6 +433,20 @@ pub mod pallet {
 
 		#[transactional]
 		#[pallet::weight(100_000_000)]
+		pub fn update_block(origin: OriginFor<T>, block: BlockNumberOf<T>) -> DispatchResult {
+			let _sender = ensure_signed(origin)?;
+
+			<ChallengeSnapshot<T>>::try_mutate(|s_opt| -> DispatchResult {
+				let s = s_opt.as_mut().unwrap();
+				s.deadline = block;
+				Ok(())
+			})?;
+
+			Ok(())
+		}
+
+		#[transactional]
+		#[pallet::weight(100_000_000)]
 		pub fn submit_challenge_result(origin: OriginFor<T>, report: ChallengeReport<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let net_snapshot = match <ChallengeSnapshot<T>>::get() {
