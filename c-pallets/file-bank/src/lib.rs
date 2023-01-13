@@ -189,6 +189,8 @@ pub mod pallet {
 		RecoverFile { acc: AccountOf<T>, file_hash: [u8; 68] },
 		// The miner cleaned up an invalid file event
 		ClearInvalidFile { acc: AccountOf<T>, file_hash: Hash },
+
+		ClearInvalidSlice { acc: AccountOf<T>, slice: [u8; 68] },
 		// Event to successfully create a bucket
 		CreateBucket { operator: AccountOf<T>, owner: AccountOf<T>, bucket_name: Vec<u8>},
 		// Successfully delete the bucket event
@@ -341,6 +343,11 @@ pub mod pallet {
 	#[pallet::getter(fn invalid_file)]
 	pub(super) type InvalidFile<T: Config> =
 		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<Hash, T::InvalidLimit>, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn invalid_slice)]
+	pub(super) type InvalidSlice<T: Config> =
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<[u8; 68], T::InvalidLimit>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn user_owned_space)]
@@ -515,7 +522,7 @@ pub mod pallet {
 			let index = Self::generate_random_number(seed)?;
 			let scheduler = T::Scheduler::get_random_scheduler(index as usize)?;
 			// Create Timed Tasks
-			let survival_block = seed.checked_add(1200).ok_or(Error::<T>::Overflow)?;
+			let survival_block = seed.checked_add(1200 * DEAL_EXCUTIVE_COUNT_MAX as u32).ok_or(Error::<T>::Overflow)?;
 			let scheduler_id: Vec<u8> = file_hash.0.to_vec();
 			T::SScheduler::schedule_named(
 					scheduler_id,
@@ -529,7 +536,7 @@ pub mod pallet {
 			Self::lock_space(
 				&user_details.user, 
 				BACKUP_COUNT as u128 * slices.len() as u128 * SLICE_DEFAULT_BYTE, 
-				(survival_block * DEAL_EXCUTIVE_COUNT_MAX as u32).into(),
+				survival_block.into(),
 			)?;
 			// create new deal.
 			let scheduler_id: [u8; 64] = Hash::slice_to_array_64(&file_hash.0).map_err(|_| Error::<T>::ConversionError)?;
@@ -686,9 +693,11 @@ pub mod pallet {
 			// Create file meta information
 			let mut user_details_list: BoundedVec<Details<T>, T::StringLimit> = Default::default();
 			user_details_list.try_push(deal.user_details.clone()).map_err(|_| Error::<T>::BoundedVecError)?;
+			let now = <frame_system::Pallet<T>>::block_number();
 			let file = FileInfo::<T> {
 				file_size: deal.file_size,
 				file_state: FILE_ACTIVE.as_bytes().to_vec().try_into().map_err(|_| Error::<T>::BoundedVecError)?,
+				completion: now,
 				user_details_list: user_details_list,
 				backups: backups,
 			};
@@ -801,7 +810,7 @@ pub mod pallet {
 			ensure!(<Bucket<T>>::contains_key(&target_brief.user, &target_brief.bucket_name), Error::<T>::NonExistent);
 			//Modify the space usage of target acc,
 			//and determine whether the space is enough to support transfer
-			Self::update_user_space(target_brief.user.clone(), 1, file.file_size.into())?;
+			Self::update_user_space(target_brief.user.clone(), 1, BACKUP_COUNT as u128 * file.backups[0].slices.len() as u128 * SLICE_DEFAULT_BYTE)?;
 			//Increase the ownership of the file for target acc
 			<File<T>>::try_mutate(&file_hash, |file_opt| -> DispatchResult {
 				let file = file_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
@@ -825,7 +834,7 @@ pub mod pallet {
 				file.file_size.into(),
 			)?;
 			//Clean up the file holding information of the original user
-			let _ = Self::clear_bucket_file(&file_hash, &sender, &owner_bucket_name)?;
+			// let _ = Self::clear_bucket_file(&file_hash, &sender, &owner_bucket_name)?;
 			let _ = Self::clear_user_file(file_hash.clone(), &sender, true)?;
 
 			Ok(())
@@ -949,7 +958,7 @@ pub mod pallet {
 			for user_details_temp in file.user_details_list.iter() {
 				if user_details_temp.user == owner.clone() {
 					//The above has been judged. Unwrap will be performed only if the key exists
-					let _ = Self::clear_bucket_file(&fileid, &owner, &user_details_temp.bucket_name)?;
+					// let _ = Self::clear_bucket_file(&fileid, &owner, &user_details_temp.bucket_name)?;
 					let _ = Self::clear_user_file(fileid, &owner, file.user_details_list.len() > 1)?;
 
 					result = true;
@@ -1117,6 +1126,18 @@ pub mod pallet {
 				Ok(())
 			})?;
 			Self::deposit_event(Event::<T>::ClearInvalidFile { acc: sender, file_hash });
+			Ok(())
+		}
+
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::clear_invalid_file())]
+		pub fn clear_invalid_slice(origin: OriginFor<T>, shard_id: [u8; 68]) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			<InvalidSlice<T>>::try_mutate(&sender, |o| -> DispatchResult {
+				o.retain(|x| *x != shard_id);
+				Ok(())
+			})?;
+			Self::deposit_event(Event::<T>::ClearInvalidSlice { acc: sender, slice: shard_id });
 			Ok(())
 		}
 
@@ -1438,18 +1459,27 @@ pub mod pallet {
 					<File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::FileNonExistent)?; //read 1
 			  weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
 			for user_details in file.user_details_list.iter() {
-				Self::update_user_space(user_details.user.clone(), 2, file.file_size.into())?; //read 1 write 1 * n
+				log::info!("--------kkk--------");
+				Self::update_user_space(user_details.user.clone(), 2, BACKUP_COUNT as u128 * file.backups[0].slices.len() as u128 * SLICE_DEFAULT_BYTE)?; //read 1 write 1 * n
+				log::info!("--------1--------");
 				let weight_temp = Self::clear_bucket_file(&file_hash, &user_details.user, &user_details.bucket_name)?;
+				log::info!("--------1.5--------");
 				weight = weight.saturating_add(weight_temp);
 				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 			}
 
 			for backup in file.backups.iter() {
 				for slice in backup.slices.iter() {
-					let hash_temp = Hash::from_shard_id(&slice.shard_id).map_err(|_| Error::<T>::ConvertHashError)?;
-					Self::add_invalid_file(slice.miner_acc.clone(), hash_temp)?; //read 1 write 1 * n
+					// let hash_temp = Hash::from_shard_id(&slice.shard_id).map_err(|_| Error::<T>::ConvertHashError)?;
+					if <UniqueHashMap<T>>::contains_key(&slice.slice_hash) {
+						<UniqueHashMap<T>>::remove(&slice.slice_hash)
+					}
+					log::info!("--------2--------");
+					Self::add_invalid_slice(slice.miner_acc.clone(), slice.shard_id)?; //read 1 write 1 * n
+					log::info!("--------3--------");
 					weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-					T::MinerControl::sub_service_space(slice.miner_acc.clone(), slice.shard_size.into())?; //read 3 write 2
+					T::MinerControl::sub_service_space(slice.miner_acc.clone(), SLICE_DEFAULT_BYTE)?; //read 3 write 2
+					log::info!("--------4--------");
 					weight = weight.saturating_add(T::DbWeight::get().reads_writes(3, 2));
 				}
 			}
@@ -1505,10 +1535,8 @@ pub mod pallet {
 			//If the owner is unique, the file meta information will be cleared.
 			if is_multi {
 				//read 1 write 1
-				let mut file_size: u64 = 0;
 				<File<T>>::try_mutate(&file_hash, |s_opt| -> DispatchResult {
 					let s = s_opt.as_mut().unwrap();
-					file_size = s.file_size;
 					let mut index: usize = 0;
 					for user_details in s.user_details_list.iter() {
 						if user_details.user == user.clone() {
@@ -1521,9 +1549,10 @@ pub mod pallet {
 					
 					weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 					s.user_details_list.remove(index);
+					Self::update_user_space(user.clone(), 2, BACKUP_COUNT as u128 * s.backups[0].slices.len() as u128 * SLICE_DEFAULT_BYTE)?; //read 1 write 1
 					Ok(())
 				})?;
-				Self::update_user_space(user.clone(), 2, file_size.into())?; //read 1 write 1
+				
 				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 			} else {
 				let weight_temp = Self::clear_file(file_hash.clone())?;
@@ -1597,6 +1626,16 @@ pub mod pallet {
 		pub fn add_invalid_file(miner_acc: AccountOf<T>, file_hash: Hash) -> DispatchResult {
 			<InvalidFile<T>>::try_mutate(&miner_acc, |o| -> DispatchResult {
 				o.try_push(file_hash.try_into().map_err(|_e| Error::<T>::BoundedVecError)?)
+					.map_err(|_e| Error::<T>::StorageLimitReached)?;
+				Ok(())
+			})?; //read 1 write 1
+
+			Ok(())
+		}
+
+		pub fn add_invalid_slice(miner_acc: AccountOf<T>, slice_id: [u8; 68]) -> DispatchResult {
+			<InvalidSlice<T>>::try_mutate(&miner_acc, |o| -> DispatchResult {
+				o.try_push(slice_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?)
 					.map_err(|_e| Error::<T>::StorageLimitReached)?;
 				Ok(())
 			})?; //read 1 write 1
