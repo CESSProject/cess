@@ -931,11 +931,6 @@ impl<T: Config> OneSessionHandler<T::AccountId> for Pallet<T> {
 	where
 		I: Iterator<Item = (&'a T::AccountId, T::AuthorityId)>,
 	{
-		// Tell the offchain worker to start making the next session's heartbeats.
-		// Since we consider producing blocks as being online,
-		// the heartbeat is deferred a bit to prevent spamming.
-
-		// Remember who the authorities are for the new session.
 		let keys = validators.map(|x| x.1).collect::<Vec<_>>();
 		let bounded_keys = WeakBoundedVec::<_, T::StringLimit>::force_from(
 			keys,
