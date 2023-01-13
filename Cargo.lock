@@ -5480,8 +5480,10 @@ dependencies = [
 name = "pallet-segment-book"
 version = "0.6.0"
 dependencies = [
+ "base64 0.12.3",
  "cp-bloom-filter",
  "cp-cess-common",
+ "cp-crypto",
  "cp-scheduler-credit",
  "frame-benchmarking",
  "frame-election-provider-support",

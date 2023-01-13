@@ -161,12 +161,12 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type FrozenDays: Get<BlockNumberOf<Self>> + Clone + Eq + PartialEq;
-		//Minimum length of bucket name
+		//Minimum length of bucket name.
 		#[pallet::constant]
 		type MinLength: Get<u32> + Clone + Eq + PartialEq;
 
 		type CreditCounter: SchedulerCreditCounter<Self::AccountId>;
-		//Used to confirm whether the origin is authorized
+		//Used to confirm whether the origin is authorized.
 		type OssFindAuthor: OssFindAuthor<Self::AccountId>;
 	}
 
@@ -175,39 +175,39 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		//file uploaded.
 		FileUpload { acc: AccountOf<T>, file_hash: Hash },
-		// User buy package event
+		// User buy package event.
 		BuySpace { acc: AccountOf<T>, storage_capacity: u128, spend: BalanceOf<T> },
-		// Expansion Space
+		// Expansion Space.
 		ExpansionSpace { acc: AccountOf<T>, expansion_space: u128, fee: BalanceOf<T> },
-		// Package upgrade
+		// Package upgrade.
 		RenewalSpace { acc: AccountOf<T>, renewal_days: u32, fee: BalanceOf<T> },
-		// File deletion event
+		// File deletion event.
 		DeleteFile { operator:AccountOf<T>, owner: AccountOf<T>, file_hash: Hash },
-		// Filler chain success event
+		// Filler chain success event.
 		FillerUpload { acc: AccountOf<T>, file_size: u64 },
-		// File recovery
+		// File recovery.
 		RecoverFile { acc: AccountOf<T>, file_hash: [u8; 68] },
-		// The miner cleaned up an invalid file event
+		// The miner cleaned up an invalid file event.
 		ClearInvalidFile { acc: AccountOf<T>, file_hash: Hash },
-
+		// Miners' removal of invalid service slices.
 		ClearInvalidSlice { acc: AccountOf<T>, slice: [u8; 68] },
-		// Event to successfully create a bucket
+		// Event to successfully create a bucket.
 		CreateBucket { operator: AccountOf<T>, owner: AccountOf<T>, bucket_name: Vec<u8>},
-		// Successfully delete the bucket event
+		// Successfully delete the bucket event.
 		DeleteBucket { operator: AccountOf<T>, owner: AccountOf<T>, bucket_name: Vec<u8>},
-		// Deal declaration success event
+		// Deal declaration success event.
 		UploadDeal { user: AccountOf<T>, assigned: AccountOf<T>, file_hash: Hash },
-		// Event of file upload failure
+		// Event of file upload failure.
 		UploadDealFailed {user: AccountOf<T>, file_hash: Hash },
-		// Reassign events responsible for consensus for orders
+		// Reassign events responsible for consensus for orders.
 		ReassignedDeal { user: AccountOf<T>, assigned: AccountOf<T>, file_hash: Hash },
-		// Miner Upload Autonomous File
+		// Miner Upload Autonomous File.
 		UploadAutonomyFile { user: AccountOf<T>, file_hash: Hash, file_size: u64 },
-		// Miner Delete Autonomous File
+		// Miner Delete Autonomous File.
 		DeleteAutonomyFile { user: AccountOf<T>, file_hash: Hash },
-		// Fly upload file event
+		// Fly upload file event.
 		FlyUpload { operator: AccountOf<T>, owner: AccountOf<T>, file_hash: Hash },
-		// Miner exit
+		// Miner exit.
 		MinerExit { acc: AccountOf<T> },
 	}
 
