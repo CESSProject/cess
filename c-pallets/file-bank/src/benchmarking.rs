@@ -124,6 +124,7 @@ pub fn add_scheduler<T: Config>() -> Result<T::AccountId, &'static str> {
 
 fn add_filler<T: Config>() -> Result<(), &'static str> {
 	pallet_sminer::benchmarking::set_mrenclave_code::<T>();
+	pallet_sminer::benchmarking::set_mr_signer::<T>();
 	let miner = pallet_sminer::benchmarking::add_miner::<T>("miner1");
 
 	let mut filler_list: Vec<FillerInfo<T>> = Vec::new();
@@ -186,6 +187,7 @@ benchmarks! {
 		let v in 0 .. 10;
 
 		pallet_sminer::benchmarking::set_mrenclave_code::<T>();
+		pallet_sminer::benchmarking::set_mr_signer::<T>();
 		let miner = pallet_sminer::benchmarking::add_miner::<T>("miner1");
 
 		let mut filler_list: Vec<FillerInfo<T>> = Vec::new();
@@ -218,6 +220,7 @@ benchmarks! {
 		let v in 0 .. 9;
 
 		pallet_sminer::benchmarking::set_mrenclave_code::<T>();
+		pallet_sminer::benchmarking::set_mr_signer::<T>();
 		let miner = pallet_sminer::benchmarking::add_miner::<T>("miner1");
 
 		let file_hash = Hash([b'a'; 64]);
@@ -242,6 +245,7 @@ benchmarks! {
 
 	delete_autonomy_file {
 		pallet_sminer::benchmarking::set_mrenclave_code::<T>();
+		pallet_sminer::benchmarking::set_mr_signer::<T>();
 		let miner = pallet_sminer::benchmarking::add_miner::<T>("miner1");
 
 		let file_hash = Hash([b'a'; 64]);
