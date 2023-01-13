@@ -39,6 +39,7 @@ pub struct DealInfo<T: Config> {
 pub struct FileInfo<T: Config> {
 	pub(super) file_size: u64,
 	pub(super) file_state: BoundedVec<u8, T::StringLimit>,
+	pub(super) completion: BlockNumberOf<T>,
 	pub(super) user_details_list: BoundedVec<Details<T>, T::StringLimit>,
 	pub(super) backups: [Backup<T>; 3],
 }
