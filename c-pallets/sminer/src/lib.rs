@@ -858,6 +858,9 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub fn sub_miner_service_space(acc: AccountOf<T>, increment: u128) -> DispatchResult {
+		if !<MinerItems<T>>::contains_key(&acc) {
+			return Ok(())
+		}
 		<MinerItems<T>>::try_mutate(&acc, |opt_m_info| -> DispatchResult{
 			let m_info = opt_m_info.as_mut().ok_or(Error::<T>::NonExisted)?;
 			m_info.service_space = m_info.service_space.checked_sub(increment).ok_or(Error::<T>::Overflow)?;
@@ -1433,7 +1436,7 @@ impl<T: Config> MinerControl<
 		T::Currency::unreserve(&acc, miner.collaterals.clone());
 		<T as pallet::Config>::Currency::transfer(&acc, &reward_pot, miner.collaterals, AllowDeath)?;
 
-		Self::sub_total_idle_space(miner.idle_space)?;
+		// Self::sub_total_idle_space(miner.idle_space)?;
 		Self::sub_total_service_space(miner.service_space)?;
 		Self::sub_total_autonomy_space(miner.autonomy_space)?;
 		weight = weight.saturating_add(T::DbWeight::get().reads_writes(3, 3));
