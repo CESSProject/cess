@@ -370,7 +370,6 @@ pub mod pallet {
 							},
 						};
 					}
-
 					<MinerSnapshotMap<T>>::remove(miner_acc);
 				}
 			}
