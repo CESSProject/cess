@@ -1287,7 +1287,7 @@ pub mod pallet {
 				let bucket = BucketInfo::<T> {
 					total_capacity: 0,
 					available_capacity: 0,
-					object_num: 0,
+					object_num: 1,
 					object_list: object_list,
 					authority: Default::default(),
 				};
@@ -1302,6 +1302,7 @@ pub mod pallet {
 				<Bucket<T>>::try_mutate(&user, &bucket_name, |opt_bucket| -> DispatchResult {
 					let bucket = opt_bucket.as_mut().ok_or(Error::<T>::Unexpected)?;
 					bucket.object_list.try_push(file_hash.clone()).map_err(|_| Error::<T>::BoundedVecError)?;
+					bucket.object_num = bucket.object_num.checked_add(1).ok_or(Error::<T>::Overflow)?;
 					Ok(())
 				})?;
 			}
