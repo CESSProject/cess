@@ -1436,8 +1436,8 @@ impl<T: Config> MinerControl<
 		T::Currency::unreserve(&acc, miner.collaterals.clone());
 		<T as pallet::Config>::Currency::transfer(&acc, &reward_pot, miner.collaterals, AllowDeath)?;
 
-		// Self::sub_total_idle_space(miner.idle_space)?;
-		Self::sub_total_service_space(miner.service_space)?;
+		Self::sub_total_idle_space(miner.idle_space)?;
+		// Self::sub_total_service_space(miner.service_space)?;
 		Self::sub_total_autonomy_space(miner.autonomy_space)?;
 		weight = weight.saturating_add(T::DbWeight::get().reads_writes(3, 3));
 
@@ -1468,7 +1468,7 @@ impl<T: Config> MinerControl<
 		T::Currency::unreserve(&acc, miner.collaterals.clone());
 
 		Self::sub_total_idle_space(miner.idle_space)?;
-		Self::sub_total_service_space(miner.service_space)?;
+		// Self::sub_total_service_space(miner.service_space)?;
 		Self::sub_total_autonomy_space(miner.autonomy_space)?;
 
 		if let Ok(reward_info) = <RewardMap<T>>::try_get(&acc).map_err(|_| Error::<T>::NonExisted) {
