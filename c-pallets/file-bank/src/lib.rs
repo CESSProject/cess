@@ -33,7 +33,7 @@ pub use pallet::*;
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 pub mod weights;
-// pub mod migrations;
+pub mod migrations;
 
 mod types;
 pub use types::*;
@@ -293,6 +293,29 @@ pub mod pallet {
 		FillerInfo<T>,
 	>;
 
+	// #[pallet::storage]
+	// #[pallet::getter(fn test_mig_map)]
+	// pub(super) type TestMigMap<T: Config> = StorageDoubleMap<
+	// 	_,
+	// 	Blake2_128Concat,
+	// 	AccountOf<T>,
+	// 	Blake2_128Concat,
+	// 	Hash,
+	// 	bool,
+	// >;
+
+	#[pallet::storage]
+	#[pallet::getter(fn test_mig_map)]
+	pub(super) type TestMigMap<T: Config> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		u64,
+		Blake2_128Concat,
+		Hash,
+		bool,
+	>;
+
+
 	#[pallet::storage]
 	#[pallet::getter(fn invalid_file)]
 	pub(super) type InvalidFile<T: Config> =
@@ -445,6 +468,41 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		// #[transactional]
+		// #[pallet::weight(100_000_000)]
+		// pub fn insert_data(
+		// 	origin: OriginFor<T>,
+		// 	hash: Hash,
+		// ) -> DispatchResult {
+		// 	let sender = ensure_signed(origin)?;
+
+		// 	<TestMigMap<T>>::insert(
+		// 		&sender,
+		// 		&hash,
+		// 		true,
+		// 	);
+			
+		// 	Ok(())
+		// }
+
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn insert_data(
+			origin: OriginFor<T>,
+			acc: u64,
+			hash: Hash,
+		) -> DispatchResult {
+			let _sender = ensure_signed(origin)?;
+
+			<TestMigMap<T>>::insert(
+				acc,
+				&hash,
+				true,
+			);
+			
+			Ok(())
+		}
+
 		#[transactional]
 		#[pallet::weight(100_000_000)]
 		pub fn update_price(origin: OriginFor<T>) -> DispatchResult {

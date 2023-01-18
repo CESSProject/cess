@@ -74,7 +74,7 @@ use frame_system::{
 pub mod impls;
 use impls::{Author, CreditToBlockAuthor, SchedulerStashAccountFinder};
 // use frame_support::traits::OnRuntimeUpgrade;
-// pub use pallet_file_bank::migrations::TestMigrationFileBank;
+pub use pallet_file_bank::migrations::TestMigrationFileBank;
 pub mod constants;
 use fp_rpc::TransactionStatus;
 pub use pallet_balances::Call as BalancesCall;
@@ -162,7 +162,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 101,
+	spec_version: 116,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -1442,7 +1442,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	// TestMigrationFileBank<Runtime>,
+	TestMigrationFileBank<Runtime>,
 >;
 
 #[cfg(feature = "runtime-benchmarks")]
