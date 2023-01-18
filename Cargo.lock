@@ -4840,6 +4840,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-cacher"
+version = "0.5.3"
+dependencies = [
+ "cp-cess-common",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-balances",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-cess-staking"
 version = "4.0.0-dev"
 dependencies = [
