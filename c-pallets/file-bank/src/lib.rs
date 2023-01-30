@@ -1051,6 +1051,15 @@ pub mod pallet {
 				} else {
 					s.deadline = s.deadline.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
 				}
+
+				if s.deadline > now {
+					s.state = SPACE_NORMAL
+					.as_bytes()
+					.to_vec()
+					.try_into()
+					.map_err(|_e| Error::<T>::BoundedVecError)?,
+				}
+
 				Ok(())
 			})?;
 			Ok(())
