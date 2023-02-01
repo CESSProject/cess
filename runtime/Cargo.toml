@@ -390,6 +390,11 @@ default-features = false
 path = '../c-pallets/oss'
 version = '0.5.3'
 
+[dependencies.pallet-cacher]
+default-features = false
+path = '../c-pallets/cacher'
+version = '0.5.3'
+
 [features]
 default = ['std']
 runtime-benchmarks = [
@@ -430,6 +435,7 @@ std = [
     "pallet-sminer/std",
     "pallet-file-map/std",
 		"pallet-oss/std",
+    "pallet-cacher/std",
     "pallet-preimage/std",
     "pallet-assets/std",
     "pallet-child-bounties/std",

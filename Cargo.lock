@@ -789,6 +789,7 @@ dependencies = [
  "pallet-balances",
  "pallet-base-fee",
  "pallet-bounties",
+ "pallet-cacher",
  "pallet-cess-staking",
  "pallet-child-bounties",
  "pallet-collective",

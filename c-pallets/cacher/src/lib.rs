@@ -3,7 +3,7 @@
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 
-pub mod weights;
+// pub mod weights;
 
 #[cfg(test)]
 mod mock;
@@ -14,72 +14,81 @@ use frame_system::pallet_prelude::*;
 use frame_support::{
 	pallet_prelude::*,
 	transactional,
-	traits::{Currency, ReservableCurrency},
+	traits::{
+		Currency, LockableCurrency,
+		ExistenceRequirement::AllowDeath,
+	},
 };
 use cp_cess_common::{
 	IpAddress,
 };
 
 pub use pallet::*;
+use sp_runtime::traits::Zero;
+use sp_std::prelude::*;
 
-pub use weights::WeightInfo;
+// pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 /// The balance type of this pallet.
 pub type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
+#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+pub struct CacherInfo<Balance> {
+	pub ip: IpAddress,
+	pub byte_price: Balance,
+}
+
+#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+pub struct Bill<AccoutId, Balance, Hash> {
+	pub id: [u8; 16], 
+	pub to: AccoutId,
+	pub amount: Balance,
+	pub file_hash: Hash,
+	pub slice_hash: Hash,
+	pub expiration_time: u64,
+}
+
 #[frame_support::pallet]
 pub mod pallet {
 	use crate::*;
 	use frame_system::ensure_signed;
 
-	#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-	pub struct CacherInfo<Balance> {
-		pub ip: IpAddress,
-		pub byte_price: Balance,
-	}
-
 	#[pallet::config]
-	pub trait Config: frame_system::Config + sp_std::fmt::Debug {
+	pub trait Config: frame_system::Config {
 		/// The overarching event type.
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		/// The currency trait.
-		type Currency: ReservableCurrency<Self::AccountId>;
+		type Currency: LockableCurrency<Self::AccountId>;
 
-		type WeightInfo: WeightInfo;
+		// type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		//Successful Authorization Events
-		Authorize { acc: AccountOf<T>, operator: AccountOf<T> },
-		//Cancel authorization success event
-		CancelAuthorize { acc: AccountOf<T> },
 		//The event of successful Cacher registration
 		Register { acc: AccountOf<T>, info: CacherInfo<BalanceOf<T>> },
 		//Cacher information change success event
 		Update { acc: AccountOf<T>, info: CacherInfo<BalanceOf<T>> },
 		//Cacher account logout success event
 		Logout { acc: AccountOf<T> },
+		//Pay to cacher success event
+		Pay { acc: AccountOf<T>, bills: Vec<Bill<AccountOf<T>, BalanceOf<T>, T::Hash>> },
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
-		//No errors authorizing any use
-		NoAuthorization,
 		//Registered Error
 		Registered,
 		//Unregistered Error
 		UnRegister,
 		//Option parse Error
 		OptionParseError,
+		//Insufficient balance Error
+		InsufficientBalance,
 	}
-
-	#[pallet::storage]
-	#[pallet::getter(fn authority_list)]
-	pub(super) type AuthorityList<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, AccountOf<T>>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn cacher)]
@@ -91,37 +100,9 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::authorize())]
-		pub fn authorize(origin: OriginFor<T>, operator: AccountOf<T>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
 
-			AuthorityList::<T>::insert(&sender, &operator);
-
-			Self::deposit_event(Event::<T>::Authorize {
-				acc: sender,
-				operator,
-			});
-
-			Ok(())
-		}
-
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::cancel_authorize())]
-		pub fn cancel_authorize(origin: OriginFor<T>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			ensure!(<AuthorityList<T>>::contains_key(&sender), Error::<T>::NoAuthorization);
-
-			<AuthorityList<T>>::remove(&sender);
-
-			Self::deposit_event(Event::<T>::CancelAuthorize {
-				acc: sender,
-			});
-
-			Ok(())
-		}
-
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::register())]
+		// #[pallet::weight(<T as pallet::Config>::WeightInfo::register())]
+		#[pallet::weight(1000)]
 		pub fn register(origin: OriginFor<T>, info: CacherInfo<BalanceOf<T>>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!<Cachers<T>>::contains_key(&sender), Error::<T>::Registered);
@@ -132,7 +113,8 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::update())]
+		// #[pallet::weight(<T as pallet::Config>::WeightInfo::update())]
+		#[pallet::weight(1000)]
 		pub fn update(origin: OriginFor<T>, info: CacherInfo<BalanceOf<T>>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(<Cachers<T>>::contains_key(&sender), Error::<T>::UnRegister);
@@ -148,7 +130,8 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::logout())]
+		// #[pallet::weight(<T as pallet::Config>::WeightInfo::logout())]
+		#[pallet::weight(1000)]
 		pub fn logout(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(<Cachers<T>>::contains_key(&sender), Error::<T>::UnRegister);
@@ -156,6 +139,25 @@ pub mod pallet {
 			<Cachers<T>>::remove(&sender);
 
 			Self::deposit_event(Event::<T>::Logout { acc: sender });
+
+			Ok(())
+		}
+
+		// #[pallet::weight(<T as pallet::Config>::WeightInfo::pay())]
+		#[pallet::weight(1000)]
+		pub fn pay(origin: OriginFor<T>, bills: Vec<Bill<AccountOf<T>, BalanceOf<T>, T::Hash>>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			let mut total_amount: BalanceOf<T> = Zero::zero();
+			for bill in bills.iter() {
+				total_amount += bill.amount;
+			}
+			ensure!(T::Currency::free_balance(&sender) >= total_amount, Error::<T>::InsufficientBalance);
+			
+			for bill in bills.iter() {
+				T::Currency::transfer(&sender, &bill.to, bill.amount, AllowDeath)?;
+			}
+			
+			Self::deposit_event(Event::<T>::Pay { acc: sender, bills });
 
 			Ok(())
 		}
