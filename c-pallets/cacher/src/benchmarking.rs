@@ -1,59 +1,63 @@
-use crate::{Pallet as CacherPallet, *};
-use frame_benchmarking::{
-	account, benchmarks, impl_benchmark_test_suite, whitelist_account, whitelisted_caller,
-};
-use frame_support::dispatch::RawOrigin;
+#![cfg(feature = "runtime-benchmarks")]
 
-const SEED: u32 = 2190502;
+use super::*;
+
+use frame_benchmarking::{account, benchmarks};
+use frame_system::RawOrigin;
+
+use crate::Pallet as Cacher;
+
+const SEED: u32 = 0;
 
 benchmarks! {
-	authorize {
-		let owner: AccountOf<T> = account("owner", 100, SEED);
-		let operator: AccountOf<T> = account("operator", 100, SEED);
-	}: _(RawOrigin::Signed(owner.clone()), operator.clone())
-	verify {
-		assert!(<AuthorityList<T>>::contains_key(&owner));
-		let acc = <AuthorityList<T>>::get(&owner).unwrap();
-		assert_eq!(acc, operator);
-	}
-
-	cancel_authorize {
-		let owner: AccountOf<T> = account("owner", 100, SEED);
-		let operator: AccountOf<T> = account("operator", 100, SEED);
-		<AuthorityList<T>>::insert(&owner, operator.clone());
-	}: _(RawOrigin::Signed(owner.clone()))
-	verify {
-		assert!(!<AuthorityList<T>>::contains_key(&owner));
-	}
 
 	register {
-		let oss: AccountOf<T> = account("oss", 100, SEED);
-		let ip: IpAddress = IpAddress::IPV4([127,0,0,1], 15000);
-	}: _(RawOrigin::Signed(oss.clone()), ip.clone())
+		let alice: AccountOf<T> = account("alice", 100, SEED);
+		let info = CacherInfo::<AccountOf<T>, BalanceOf<T>> {
+			acc: alice.clone(),
+			ip: IpAddress::IPV4([127,0,0,1], 8080),
+			byte_price: 100u32.into(),
+		};
+	}: _(RawOrigin::Signed(alice.clone()), info.clone())
 	verify {
-		assert!(<Cachers<T>>::contains_key(&oss));
-		let oss_ip = <Cachers<T>>::get(&oss).unwrap();
-		assert_eq!(ip, oss_ip);
+		assert!(Cachers::<T>::contains_key(&alice));
+		let cacher_info = Cachers::<T>::get(&alice).unwrap();
+		assert_eq!(info, cacher_info);
 	}
 
 	update {
-		let oss: AccountOf<T> = account("oss", 100, SEED);
-		let ip: IpAddress = IpAddress::IPV4([127,0,0,1], 15000);
-		<Cachers<T>>::insert(&oss, ip);
-		let new_ip: IpAddress = IpAddress::IPV4([127,0,0,1], 15001);
-	}: _(RawOrigin::Signed(oss.clone()), new_ip.clone())
+		let alice: AccountOf<T> = account("alice", 100, SEED);
+		let info = CacherInfo::<AccountOf<T>, BalanceOf<T>> {
+			acc: alice.clone(),
+			ip: IpAddress::IPV4([127,0,0,1], 8080),
+			byte_price: 100u32.into(),
+		};
+		Cachers::<T>::insert(&alice, info);
+
+		let new_info = CacherInfo::<AccountOf<T>, BalanceOf<T>> {
+			acc: alice.clone(),
+			ip: IpAddress::IPV4([127,0,0,1], 80),
+			byte_price: 200u32.into(),
+		};
+	}: _(RawOrigin::Signed(alice.clone()), new_info.clone())
 	verify {
-		assert!(<Cachers<T>>::contains_key(&oss));
-		let oss_ip = <Cachers<T>>::get(&oss).unwrap();
-		assert_eq!(new_ip, oss_ip);
+		assert!(Cachers::<T>::contains_key(&alice));
+		let cacher_info = Cachers::<T>::get(&alice).unwrap();
+		assert_eq!(new_info, cacher_info);
 	}
 
 	logout {
-		let oss: AccountOf<T> = account("oss", 100, SEED);
-		let ip: IpAddress = IpAddress::IPV4([127,0,0,1], 15000);
-		<Cachers<T>>::insert(&oss, ip.clone());
-	}: _(RawOrigin::Signed(oss.clone()))
+		let alice: AccountOf<T> = account("alice", 100, SEED);
+		let info = CacherInfo::<AccountOf<T>, BalanceOf<T>> {
+			acc: alice.clone(),
+			ip: IpAddress::IPV4([127,0,0,1], 8080),
+			byte_price: 100u32.into(),
+		};
+		Cachers::<T>::insert(&alice, info);
+	}: _(RawOrigin::Signed(alice.clone()))
 	verify {
-		assert!(!<Cachers<T>>::contains_key(&oss));
+		assert!(!Cachers::<T>::contains_key(&alice));
 	}
+
+	impl_benchmark_test_suite!(Cacher, crate::mock::new_test_ext(), crate::mock::Test)
 }

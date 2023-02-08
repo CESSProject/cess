@@ -1,19 +1,16 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "runtime-benchmarks")]
-pub mod benchmarking;
-
-// pub mod weights;
-
+mod benchmarking;
 #[cfg(test)]
-mod mock;
+pub mod mock;
 #[cfg(test)]
 mod tests;
+pub mod weights;
 
 use frame_system::pallet_prelude::*;
 use frame_support::{
 	pallet_prelude::*,
-	transactional,
 	traits::{
 		Currency, LockableCurrency,
 		ExistenceRequirement::AllowDeath,
@@ -26,8 +23,7 @@ use cp_cess_common::{
 pub use pallet::*;
 use sp_runtime::traits::Zero;
 use sp_std::prelude::*;
-
-// pub use weights::WeightInfo;
+pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 /// The balance type of this pallet.
@@ -35,7 +31,8 @@ pub type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-pub struct CacherInfo<Balance> {
+pub struct CacherInfo<AccoutId, Balance> {
+	pub acc: AccoutId,
 	pub ip: IpAddress,
 	pub byte_price: Balance,
 }
@@ -62,16 +59,16 @@ pub mod pallet {
 		/// The currency trait.
 		type Currency: LockableCurrency<Self::AccountId>;
 
-		// type WeightInfo: WeightInfo;
+		type WeightInfo: WeightInfo;
 	}
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		//The event of successful Cacher registration
-		Register { acc: AccountOf<T>, info: CacherInfo<BalanceOf<T>> },
+		Register { acc: AccountOf<T>, info: CacherInfo<AccountOf<T>, BalanceOf<T>> },
 		//Cacher information change success event
-		Update { acc: AccountOf<T>, info: CacherInfo<BalanceOf<T>> },
+		Update { acc: AccountOf<T>, info: CacherInfo<AccountOf<T>, BalanceOf<T>> },
 		//Cacher account logout success event
 		Logout { acc: AccountOf<T> },
 		//Pay to cacher success event
@@ -92,7 +89,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn cacher)]
-	pub(super) type Cachers<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, CacherInfo<BalanceOf<T>>>;
+	pub(super) type Cachers<T: Config> = StorageMap<_, Twox64Concat, AccountOf<T>, CacherInfo<AccountOf<T>, BalanceOf<T>>>;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -103,7 +100,7 @@ pub mod pallet {
 
 		// #[pallet::weight(<T as pallet::Config>::WeightInfo::register())]
 		#[pallet::weight(1000)]
-		pub fn register(origin: OriginFor<T>, info: CacherInfo<BalanceOf<T>>) -> DispatchResult {
+		pub fn register(origin: OriginFor<T>, info: CacherInfo<AccountOf<T>, BalanceOf<T>>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!<Cachers<T>>::contains_key(&sender), Error::<T>::Registered);
 			<Cachers<T>>::insert(&sender, info.clone());
@@ -115,7 +112,7 @@ pub mod pallet {
 
 		// #[pallet::weight(<T as pallet::Config>::WeightInfo::update())]
 		#[pallet::weight(1000)]
-		pub fn update(origin: OriginFor<T>, info: CacherInfo<BalanceOf<T>>) -> DispatchResult {
+		pub fn update(origin: OriginFor<T>, info: CacherInfo<AccountOf<T>, BalanceOf<T>>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(<Cachers<T>>::contains_key(&sender), Error::<T>::UnRegister);
 

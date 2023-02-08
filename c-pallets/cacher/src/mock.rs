@@ -1,16 +1,16 @@
+//! Test utilities
+
+use super::*;
 use crate as pallet_cacher;
-use frame_benchmarking::account;
-use frame_support::parameter_types;
-use sp_runtime::{
-	testing::{Header},
-	traits::{BlakeTwo256, IdentityLookup},
+
+use frame_support::{
+	traits::{ConstU32, ConstU64, ConstU128}
 };
 use sp_core::H256;
-use frame_support::traits::{ConstU32};
-
-pub(crate) type AccountId = u32;
-type BlockNumber = u64;
-type Balance = u64;
+use sp_runtime::{
+	testing::Header,
+	traits::{BlakeTwo256, IdentityLookup},
+};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -22,52 +22,30 @@ frame_support::construct_runtime!(
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Cacher: pallet_cacher::{Pallet, Call, Storage, Event<T>},
-		// Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 	}
 );
-
-// parameter_types! {
-// 	pub const ExistentialDeposit: u64 = 1;
-// }
-//
-// impl pallet_balances::Config for Test {
-// 	type Balance = u64;
-// 	type DustRemoval = ();
-// 	type Event = Event;
-// 	type ExistentialDeposit = ExistentialDeposit;
-// 	type AccountStore = System;
-// 	type WeightInfo = ();
-// 	type MaxLocks = ();
-// 	type MaxReserves = ();
-// 	type ReserveIdentifier = [u8; 8];
-// }
-
-parameter_types! {
-	pub const BlockHashCount: u64 = 250;
-	pub BlockWeights: frame_system::limits::BlockWeights =
-		frame_system::limits::BlockWeights::simple_max(1024);
-	}
 
 impl frame_system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = ();
 	type BlockLength = ();
+	type DbWeight = ();
 	type Origin = Origin;
-	type Call = Call;
 	type Index = u64;
+	type Call = Call;
 	type BlockNumber = u64;
 	type Hash = H256;
 	type Hashing = BlakeTwo256;
-	type AccountId = AccountId;
+	type AccountId = u64;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
 	type Event = Event;
-	type BlockHashCount = BlockHashCount;
-	type DbWeight = ();
+	type BlockHashCount = ConstU64<250>;
 	type Version = ();
 	type PalletInfo = PalletInfo;
-	type AccountData = ();
+	type AccountData = pallet_balances::AccountData<u128>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
@@ -76,68 +54,33 @@ impl frame_system::Config for Test {
 	type MaxConsumers = ConstU32<16>;
 }
 
-impl pallet_cacher::Config for Test {
+impl pallet_balances::Config for Test {
+	type MaxLocks = ();
+	type MaxReserves = ();
+	type ReserveIdentifier = [u8; 8];
+	type Balance = u128;
 	type Event = Event;
-
+	type DustRemoval = ();
+	type ExistentialDeposit = ConstU128<1>;
+	type AccountStore = System;
 	type WeightInfo = ();
 }
 
-	pub fn account1() -> AccountId {
-	account("account1", 0, 0)
-	}
-
-	pub fn account2() -> AccountId {
-	account("account2", 0, 0)
-	}
-
-	pub fn miner1() -> AccountId {
-	account("miner1", 0, 0)
-	}
-
-	pub fn stash1() -> AccountId {
-	account("stash1", 0, 0)
-	}
-
-	pub fn controller1() -> AccountId {
-	account("controller1", 0, 0)
-	}
-
-pub struct ExtBuilder;
-
-impl Default for ExtBuilder {
-	fn default() -> Self {
-		Self {}
-	}
+impl pallet_cacher::Config for Test {
+	type Event = Event;
+	type Currency = Balances;
+	type WeightInfo = ();
 }
 
-impl ExtBuilder {
-	fn build(self) -> sp_io::TestExternalities {
-		let storage = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
-		let ext = sp_io::TestExternalities::from(storage);
-		ext
+pub fn new_test_ext() -> sp_io::TestExternalities {
+	let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+	pallet_balances::GenesisConfig::<Test> {
+		balances: vec![(1, 100), (2, 100), (3, 100), (4, 100), (5, 100)],
 	}
+	.assimilate_storage(&mut t)
+	.unwrap();
 
-	pub fn build_and_execute(self, test: impl FnOnce() -> ()) {
-		self.build().execute_with(test);
-	}
+	let mut ext: sp_io::TestExternalities = t.into();
+	ext.execute_with(|| System::set_block_number(1));
+	ext
 }
-
-// pub fn new_test_ext() -> sp_io::TestExternalities {
-// 	let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
-// 	pallet_balances::GenesisConfig::<Test> {
-// 		balances: vec![
-// 			(account1(), 18_000_000_000_000_000_000),
-// 			(account2(), 1_000_000_000_000),
-// 			(miner1(), 1_000_000_000_000),
-// 			(stash1(), 1_000_000_000_000),
-// 			(controller1(), 1_000_000_000_000),
-// 		],
-// 	}
-// 		.assimilate_storage(&mut t)
-// 		.unwrap();
-// 	let mut ext = sp_io::TestExternalities::new(t);
-// 	ext.execute_with(|| {
-// 		System::set_block_number(1); //must set block_number, otherwise the deposit_event() don't work
-// 	});
-// 	ext
-// }

@@ -1,69 +1,67 @@
+//! Tests for the module.
+
 use super::*;
-use crate::mock::{*, Cacher};
-use crate::Cachers;
-use frame_support::{assert_err, assert_ok};
+use frame_support::{assert_noop, assert_ok};
+use mock::{new_test_ext, Cacher, Origin, Test};
+
 
 #[test]
-fn authorize_work() {
-	ExtBuilder::default().build_and_execute(|| {
-		let owner = account1();
-		let operator = account2();
+fn register_works() {
+	new_test_ext().execute_with(|| {
+		let info = CacherInfo::<AccountOf<Test>, BalanceOf<Test>> {
+			acc: 1,
+			ip: IpAddress::IPV4([127,0,0,1], 8080),
+			byte_price: 100u32.into(),
+		};
+		// Register works.
+		assert_ok!(Cacher::register(Origin::signed(1), info.clone()));
 
-		assert_ok!(Cacher::authorize(Origin::signed(owner.clone()), operator.clone()));
-		let verify_operator = AuthorityList::<Test>::get(&owner).unwrap();
-		assert_eq!(verify_operator, operator);
+		let result_info = Cachers::<Test>::get(&1).unwrap();
+		assert_eq!(result_info, info);
+
+		// Register again fails.
+		assert_noop!(Cacher::register(Origin::signed(1), info.clone()), Error::<Test>::Registered);
 	});
 }
 
 #[test]
-fn cancel_authorize_work() {
-	ExtBuilder::default().build_and_execute(|| {
-		let owner = account1();
-		let operator = account2();
-		assert_ok!(Cacher::authorize(Origin::signed(owner.clone()), operator.clone()));
-		assert!(AuthorityList::<Test>::contains_key(&owner));
+fn update_works() {
+	new_test_ext().execute_with(|| {
+		let info = CacherInfo::<AccountOf<Test>, BalanceOf<Test>> {
+			acc: 1,
+			ip: IpAddress::IPV4([127,0,0,1], 8080),
+			byte_price: 100u32.into(),
+		};
+		assert_ok!(Cacher::register(Origin::signed(1), info.clone()));
 
-		assert_ok!(Cacher::cancel_authorize(Origin::signed(owner.clone())));
-		assert!(!AuthorityList::<Test>::contains_key(&owner));
+		let new_info = CacherInfo::<AccountOf<Test>, BalanceOf<Test>> {
+			acc: 1,
+			ip: IpAddress::IPV4([127,0,0,1], 80),
+			byte_price: 200u32.into(),
+		};
+		// Wrong accout update fails.
+		assert_noop!(Cacher::update(Origin::signed(2), new_info.clone()), Error::<Test>::UnRegister);
+		// Update works.
+		assert_ok!(Cacher::update(Origin::signed(1), new_info.clone()));
+
+		let result_info = Cachers::<Test>::get(&1).unwrap();
+		assert_eq!(result_info, new_info);
 	});
 }
 
 #[test]
-fn register_work() {
-	ExtBuilder::default().build_and_execute(|| {
-		let oss = account1();
-		let ip = IpAddress::IPV4([127,0,0,1], 15000);
-		assert_ok!(Cacher::register(Origin::signed(oss.clone()), ip.clone()));
+fn logout_works() {
+	new_test_ext().execute_with(|| {
+		let info = CacherInfo::<AccountOf<Test>, BalanceOf<Test>> {
+			acc: 1,
+			ip: IpAddress::IPV4([127,0,0,1], 8080),
+			byte_price: 100u32.into(),
+		};
+		assert_ok!(Cacher::register(Origin::signed(1), info.clone()));
 
-		let result_ip = Cachers::<Test>::get(&oss).unwrap();
-		assert_eq!(result_ip, ip);
-	});
-}
-
-#[test]
-fn register_err_registered() {
-	ExtBuilder::default().build_and_execute(|| {
-		let oss = account1();
-		let ip = IpAddress::IPV4([127,0,0,1], 15000);
-		assert_ok!(Cacher::register(Origin::signed(oss.clone()), ip.clone()));
-		assert_err!(Cacher::register(Origin::signed(oss.clone()), ip.clone()), Error::<Test>::Registered);
-	});
-}
-
-#[test]
-fn update_work() {
-	ExtBuilder::default().build_and_execute(|| {
-		let oss = account1();
-		let ip = IpAddress::IPV4([127,0,0,1], 15000);
-		assert_ok!(Cacher::register(Origin::signed(oss.clone()), ip.clone()));
-
-		let result_ip = Cachers::<Test>::get(&oss).unwrap();
-		assert_eq!(result_ip, ip);
-
-		let new_ip = IpAddress::IPV4([127,0,0,1], 15001);
-		assert_ok!(Cacher::update(Origin::signed(oss.clone()), new_ip.clone()));
-
-		let result_ip = Cachers::<Test>::get(&oss).unwrap();
-		assert_eq!(result_ip, new_ip);
+		// Wrong accout logout fails.
+		assert_noop!(Cacher::logout(Origin::signed(2)), Error::<Test>::UnRegister);
+		// Logout works.
+		assert_ok!(Cacher::logout(Origin::signed(1)));
 	});
 }
