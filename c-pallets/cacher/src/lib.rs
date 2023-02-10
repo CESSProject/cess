@@ -98,8 +98,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 
-		// #[pallet::weight(<T as pallet::Config>::WeightInfo::register())]
-		#[pallet::weight(1000)]
+		#[pallet::weight(T::WeightInfo::register())]
 		pub fn register(origin: OriginFor<T>, info: CacherInfo<AccountOf<T>, BalanceOf<T>>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!<Cachers<T>>::contains_key(&sender), Error::<T>::Registered);
@@ -110,8 +109,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		// #[pallet::weight(<T as pallet::Config>::WeightInfo::update())]
-		#[pallet::weight(1000)]
+		#[pallet::weight(T::WeightInfo::update())]
 		pub fn update(origin: OriginFor<T>, info: CacherInfo<AccountOf<T>, BalanceOf<T>>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(<Cachers<T>>::contains_key(&sender), Error::<T>::UnRegister);
@@ -127,8 +125,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		// #[pallet::weight(<T as pallet::Config>::WeightInfo::logout())]
-		#[pallet::weight(1000)]
+		#[pallet::weight(T::WeightInfo::logout())]
 		pub fn logout(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(<Cachers<T>>::contains_key(&sender), Error::<T>::UnRegister);
@@ -140,8 +137,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		// #[pallet::weight(<T as pallet::Config>::WeightInfo::pay())]
-		#[pallet::weight(1000)]
+		#[pallet::weight(T::WeightInfo::pay(bills.len() as u32))]
 		pub fn pay(origin: OriginFor<T>, bills: Vec<Bill<AccountOf<T>, BalanceOf<T>, T::Hash>>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let mut total_amount: BalanceOf<T> = Zero::zero();

@@ -1336,8 +1336,7 @@ impl pallet_scheduler_credit::Config for Runtime {
 impl pallet_cacher::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
-	// type WeightInfo = pallet_oss::weights::SubstrateWeight<Runtime>;
-	type WeightInfo = ();
+	type WeightInfo = pallet_cacher::weights::SubstrateWeight<Runtime>;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
