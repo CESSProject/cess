@@ -13,7 +13,7 @@ use frame_support::{
 	pallet_prelude::*,
 	traits::{
 		Currency, LockableCurrency,
-		ExistenceRequirement::AllowDeath,
+		ExistenceRequirement::KeepAlive,
 	},
 };
 use cp_cess_common::{
@@ -151,7 +151,7 @@ pub mod pallet {
 			ensure!(T::Currency::free_balance(&sender) >= total_amount, Error::<T>::InsufficientBalance);
 			
 			for bill in bills.iter() {
-				T::Currency::transfer(&sender, &bill.to, bill.amount, AllowDeath)?;
+				T::Currency::transfer(&sender, &bill.to, bill.amount, KeepAlive)?;
 			}
 			
 			Self::deposit_event(Event::<T>::Pay { acc: sender, bills });

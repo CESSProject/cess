@@ -65,3 +65,15 @@ fn logout_works() {
 		assert_ok!(Cacher::logout(Origin::signed(1)));
 	});
 }
+
+#[test]
+fn pay_works() {
+	new_test_ext().execute_with(|| {
+		let bills = vec![
+
+		];
+
+		// Logout works.
+		assert_ok!(Cacher::pay(Origin::signed(1), bills));
+	});
+}

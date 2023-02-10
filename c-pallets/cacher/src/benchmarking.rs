@@ -2,8 +2,9 @@
 
 use super::*;
 
-use frame_benchmarking::{account, benchmarks};
+use frame_benchmarking::{account, benchmarks, whitelisted_caller};
 use frame_system::RawOrigin;
+use sp_runtime::traits::{Bounded, Hash};
 
 use crate::Pallet as Cacher;
 
@@ -12,7 +13,7 @@ const SEED: u32 = 0;
 benchmarks! {
 
 	register {
-		let alice: AccountOf<T> = account("alice", 100, SEED);
+		let alice: AccountOf<T> = account("alice", 0, SEED);
 		let info = CacherInfo::<AccountOf<T>, BalanceOf<T>> {
 			acc: alice.clone(),
 			ip: IpAddress::IPV4([127,0,0,1], 8080),
@@ -26,7 +27,7 @@ benchmarks! {
 	}
 
 	update {
-		let alice: AccountOf<T> = account("alice", 100, SEED);
+		let alice: AccountOf<T> = account("alice", 0, SEED);
 		let info = CacherInfo::<AccountOf<T>, BalanceOf<T>> {
 			acc: alice.clone(),
 			ip: IpAddress::IPV4([127,0,0,1], 8080),
@@ -47,7 +48,7 @@ benchmarks! {
 	}
 
 	logout {
-		let alice: AccountOf<T> = account("alice", 100, SEED);
+		let alice: AccountOf<T> = account("alice", 0, SEED);
 		let info = CacherInfo::<AccountOf<T>, BalanceOf<T>> {
 			acc: alice.clone(),
 			ip: IpAddress::IPV4([127,0,0,1], 8080),
@@ -57,6 +58,28 @@ benchmarks! {
 	}: _(RawOrigin::Signed(alice.clone()))
 	verify {
 		assert!(!Cachers::<T>::contains_key(&alice));
+	}
+
+	pay {
+		let v in 0 .. 10;
+		let alice: AccountOf<T> = account("alice", 0, SEED);
+		T::Currency::make_free_balance_be(&alice, BalanceOf::<T>::max_value());
+		let bob: AccountOf<T> = account("bob", 1, SEED);
+		let mut bills = Vec::new();
+		for i in 0 .. v {
+			let bill = Bill::<AccountOf<T>, BalanceOf<T>, T::Hash> {
+				id: [i as u8; 16],
+				to: bob.clone(),
+				amount: 10u32.into(),
+				file_hash: T::Hashing::hash(&*b"file"),
+				slice_hash: T::Hashing::hash(&*b"slice"),
+				expiration_time: 1675900800u64,
+			};
+			bills.push(bill);
+		}
+	}: _(RawOrigin::Signed(alice), bills)
+	verify {
+		
 	}
 
 	impl_benchmark_test_suite!(Cacher, crate::mock::new_test_ext(), crate::mock::Test)
