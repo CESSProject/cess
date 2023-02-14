@@ -30,6 +30,7 @@ type AccountOf<T> = <T as frame_system::Config>::AccountId;
 pub type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
+/// The custom struct for cacher info.
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct CacherInfo<AccoutId, Balance> {
 	pub acc: AccoutId,
@@ -37,6 +38,7 @@ pub struct CacherInfo<AccoutId, Balance> {
 	pub byte_price: Balance,
 }
 
+/// The custom struct for bill info.
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct Bill<AccoutId, Balance, Hash> {
 	pub id: [u8; 16], 
@@ -87,6 +89,7 @@ pub mod pallet {
 		InsufficientBalance,
 	}
 
+	/// Store all cacher info
 	#[pallet::storage]
 	#[pallet::getter(fn cacher)]
 	pub(super) type Cachers<T: Config> = StorageMap<_, Twox64Concat, AccountOf<T>, CacherInfo<AccountOf<T>, BalanceOf<T>>>;
@@ -98,6 +101,10 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 
+		/// Register for cacher.
+		///	
+		/// Parameters:
+		/// - `info`: The cacher info related to signer account.
 		#[pallet::weight(T::WeightInfo::register())]
 		pub fn register(origin: OriginFor<T>, info: CacherInfo<AccountOf<T>, BalanceOf<T>>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -109,6 +116,10 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Update cacher info.
+		///	
+		/// Parameters:
+		/// - `info`: The cacher info related to signer account.
 		#[pallet::weight(T::WeightInfo::update())]
 		pub fn update(origin: OriginFor<T>, info: CacherInfo<AccountOf<T>, BalanceOf<T>>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -125,6 +136,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Cacher exit method, Irreversible process.
 		#[pallet::weight(T::WeightInfo::logout())]
 		pub fn logout(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -137,6 +149,10 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Pay to cachers for downloading files.
+		///	
+		/// Parameters:
+		/// - `bills`: list of bill.
 		#[pallet::weight(T::WeightInfo::pay(bills.len() as u32))]
 		pub fn pay(origin: OriginFor<T>, bills: Vec<Bill<AccountOf<T>, BalanceOf<T>, T::Hash>>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
