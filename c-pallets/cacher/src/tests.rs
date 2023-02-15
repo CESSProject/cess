@@ -80,8 +80,8 @@ fn pay_works() {
 				id: [i as u8; 16],
 				to: 2,
 				amount,
-				file_hash: <Test as frame_system::Config>::Hashing::hash(format!("{}{}", s_file, i).as_bytes()),
-				slice_hash: <Test as frame_system::Config>::Hashing::hash(format!("{}{}", s_slice, i).as_bytes()),
+				file_hash: <Test as frame_system::Config>::Hashing::hash_of(&format!("{}{}", s_file, i)),
+				slice_hash: <Test as frame_system::Config>::Hashing::hash_of(&format!("{}{}", s_slice, i)),
 				expiration_time: 1675900800u64,
 			};
 			bills.push(bill);

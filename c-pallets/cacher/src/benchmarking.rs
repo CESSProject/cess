@@ -66,14 +66,16 @@ benchmarks! {
 		T::Currency::make_free_balance_be(&alice, BalanceOf::<T>::max_value());
 		let bob: AccountOf<T> = account("bob", 1, SEED);
 		T::Currency::make_free_balance_be(&bob, T::Currency::minimum_balance());
+		let s_file = String::from("file");
+		let s_slice = String::from("slice");
 		let mut bills = Vec::new();
 		for i in 0 .. v {
 			let bill = Bill::<AccountOf<T>, BalanceOf<T>, T::Hash> {
 				id: [i as u8; 16],
 				to: bob.clone(),
 				amount: 10000u32.into(),
-				file_hash: T::Hashing::hash(&*b"file"),
-				slice_hash: T::Hashing::hash(&*b"slice"),
+				file_hash: T::Hashing::hash_of(&format!("{}{}", s_file, i)),
+				slice_hash: T::Hashing::hash_of(&format!("{}{}", s_slice, i)),
 				expiration_time: 1675900800u64,
 			};
 			bills.push(bill);
