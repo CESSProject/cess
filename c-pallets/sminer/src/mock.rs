@@ -165,7 +165,7 @@ pub mod consts {
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	use consts::*;
 	let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
-	let jackpot_account: u64 = RewardPalletId::get().into_account();
+	let jackpot_account: u64 = RewardPalletId::get().into_account_truncating();
 	pallet_balances::GenesisConfig::<Test> {
 		balances: vec![
 			ACCOUNT1,

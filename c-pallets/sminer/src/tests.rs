@@ -525,7 +525,7 @@ fn timed_user_receive_award1_should_work() {
 		assert_eq!(500000000000000000, rc2.total_not_receive);
 		assert_eq!(0, rc2.have_to_receive);
 
-		let jackpot_balance = Balances::free_balance(&mock::RewardPalletId::get().into_account());
+		let jackpot_balance = Balances::free_balance(&mock::RewardPalletId::get().into_account_truncating());
 		assert_ok!(Sminer::timed_user_receive_award1(Origin::root())); // <-- target method here!
 
 		let rc1b = RewardClaimMap::<Test>::try_get(ACCOUNT1.0).unwrap();
@@ -543,7 +543,7 @@ fn timed_user_receive_award1_should_work() {
 		assert_eq!(rc2b.have_to_receive, Balances::free_balance(&321));
 		assert_eq!(
 			jackpot_balance - rc1b.have_to_receive - rc2b.have_to_receive,
-			Balances::free_balance(&mock::RewardPalletId::get().into_account())
+			Balances::free_balance(&mock::RewardPalletId::get().into_account_truncating())
 		);
 	});
 }

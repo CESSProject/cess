@@ -118,7 +118,7 @@ pub mod pallet {
 				let period: u32 = (now / period_duration).saturated_into();
 				Self::figure_credit_values(period.saturating_sub(1))
 			} else {
-				0
+				Weight::from_ref_time(0)
 			}
 		}
 	}
@@ -142,7 +142,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub fn figure_credit_values(period: u32) -> Weight {
-		let mut weight: Weight = 0;
+		let mut weight: Weight = Weight::from_ref_time(0);
 		let mut total_size = 0_u64;
 		for (_, counter_entry) in <CurrentCounters<T>>::iter() {
 			total_size += counter_entry.proceed_block_size;

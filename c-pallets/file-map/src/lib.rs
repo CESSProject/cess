@@ -21,7 +21,7 @@ use frame_support::{
 pub use pallet::*;
 use scale_info::TypeInfo;
 use sp_runtime::{DispatchError, RuntimeDebug};
-use sp_std::prelude::*;
+use sp_std::{ convert::TryInto, prelude::* };
 use cp_scheduler_credit::SchedulerCreditCounter;
 pub use weights::WeightInfo;
 use cp_cess_common::*;
@@ -69,7 +69,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config + pallet_cess_staking::Config {
 		/// The overarching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// The currency trait.
 		type Currency: ReservableCurrency<Self::AccountId>;
 		/// pallet address.
@@ -142,6 +142,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		//Scheduling registration method
+		#[pallet::call_index(0)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::registration_scheduler())]
 		pub fn registration_scheduler(
@@ -172,6 +173,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(1)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_scheduler())]
 		pub fn update_scheduler(origin: OriginFor<T>, ip: IpAddress) -> DispatchResult {
@@ -198,6 +200,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(2)]
 		#[transactional]
 		#[pallet::weight(10_000)]
 		pub fn init_public_key(origin: OriginFor<T>) -> DispatchResult {

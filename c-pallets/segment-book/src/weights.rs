@@ -60,20 +60,20 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: SegmentBook ChallengeMap (r:1 w:1)
 	// Storage: SegmentBook UnVerifyProof (r:1 w:1)
 	fn submit_challenge_prove(v: u32, ) -> Weight {
-		(116_351_000 as Weight)
+		Weight::from_ref_time(116_351_000 as u64)
 			// Standard Error: 82_000
-			.saturating_add((6_532_000 as Weight).saturating_mul(v as Weight))
-			.saturating_add(T::DbWeight::get().reads(4 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+			.saturating_add(Weight::from_ref_time(6_532_000 as u64).saturating_mul(v as u64))
+			.saturating_add(T::DbWeight::get().reads(4 as u64))
+			.saturating_add(T::DbWeight::get().writes(2 as u64))
 	}
 	// Storage: FileMap SchedulerMap (r:1 w:0)
 	// Storage: SegmentBook UnVerifyProof (r:1 w:1)
 	fn verify_proof(v: u32, ) -> Weight {
-		(144_028_000 as Weight)
+		Weight::from_ref_time(144_028_000 as u64)
 			// Standard Error: 120_000
-			.saturating_add((15_284_000 as Weight).saturating_mul(v as Weight))
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+			.saturating_add(Weight::from_ref_time(15_284_000 as u64).saturating_mul(v as u64))
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 }
 
@@ -84,19 +84,19 @@ impl WeightInfo for () {
 	// Storage: SegmentBook ChallengeMap (r:1 w:1)
 	// Storage: SegmentBook UnVerifyProof (r:1 w:1)
 	fn submit_challenge_prove(v: u32, ) -> Weight {
-		(116_351_000 as Weight)
+		Weight::from_ref_time(116_351_000 as u64)
 			// Standard Error: 82_000
-			.saturating_add((6_532_000 as Weight).saturating_mul(v as Weight))
-			.saturating_add(RocksDbWeight::get().reads(4 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(2 as Weight))
+			.saturating_add(Weight::from_ref_time(6_532_000 as u64).saturating_mul(v as u64))
+			.saturating_add(RocksDbWeight::get().reads(4 as u64))
+			.saturating_add(RocksDbWeight::get().writes(2 as u64))
 	}
 	// Storage: FileMap SchedulerMap (r:1 w:0)
 	// Storage: SegmentBook UnVerifyProof (r:1 w:1)
 	fn verify_proof(v: u32, ) -> Weight {
-		(144_028_000 as Weight)
+		Weight::from_ref_time(144_028_000 as u64)
 			// Standard Error: 120_000
-			.saturating_add((15_284_000 as Weight).saturating_mul(v as Weight))
-			.saturating_add(RocksDbWeight::get().reads(2 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
+			.saturating_add(Weight::from_ref_time(15_284_000 as u64).saturating_mul(v as u64))
+			.saturating_add(RocksDbWeight::get().reads(2 as u64))
+			.saturating_add(RocksDbWeight::get().writes(1 as u64))
 	}
 }
