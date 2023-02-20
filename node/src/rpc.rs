@@ -62,7 +62,7 @@ pub struct GrandpaDeps<B> {
 }
 
 /// Full client dependencies.
-pub struct FullDeps<C, P, SC, B, /*A: ChainApi*/> {
+pub struct FullDeps<C, P, SC, B, A: ChainApi> {
 	/// The client instance to use.
 	pub client: Arc<C>,
 	/// Transaction pool instance.
@@ -77,8 +77,8 @@ pub struct FullDeps<C, P, SC, B, /*A: ChainApi*/> {
 	pub rrsc: RRSCDeps,
 	/// GRANDPA specific dependencies.
 	pub grandpa: GrandpaDeps<B>,
-	// /// Graph pool instance.
-	// pub graph: Arc<Pool<A>>,
+	/// Graph pool instance.
+	pub graph: Arc<Pool<A>>,
 	// /// The Node authority flag
 	// pub is_authority: bool,
 	// /// Whether to enable dev signer
@@ -136,8 +136,8 @@ where
 }
 
 /// Instantiate all full RPC extensions.
-pub fn create_full<C, P, SC, B, BE,/* A*/>(
-	deps: FullDeps<C, P, SC, B, /* A*/>,
+pub fn create_full<C, P, SC, B, BE, A>(
+	deps: FullDeps<C, P, SC, B,  A>,
 	backend: Arc<B>,
 ) -> Result<RpcModule<()>, Box<dyn std::error::Error + Send + Sync>>
 where
@@ -164,7 +164,7 @@ where
 	SC: SelectChain<Block> + 'static,
 	B: sc_client_api::Backend<Block> + Send + Sync + 'static,
 	B::State: sc_client_api::backend::StateBackend<sp_runtime::traits::HashFor<Block>>,
-	// A: ChainApi<Block = Block> + 'static,
+	A: ChainApi<Block = Block> + 'static,
 {
 	use fc_rpc::{
 		Eth, EthApiServer, EthDevSigner, EthFilter, EthFilterApiServer, EthPubSub,
@@ -188,7 +188,7 @@ where
 		deny_unsafe,
 		rrsc,
 		grandpa,
-		// graph,
+		graph,
 		// is_authority,
 		// enable_dev_signer,
 		// network,
