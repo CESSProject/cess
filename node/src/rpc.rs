@@ -247,7 +247,7 @@ where
 		SyncState::new(chain_spec, client.clone(), shared_authority_set, shared_epoch_changes)?
 				.into_rpc(),
 	)?;
-	io.merge(Dev::new(client.clone(), deny_unsafe).into_rpc());
+	io.merge(Dev::new(client.clone(), deny_unsafe).into_rpc())?;
 
 	// Extend this RPC with a custom API by using the following syntax.
 	// `YourRpcStruct` should have a reference to a client, which is needed
