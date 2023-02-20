@@ -184,6 +184,7 @@ pub fn new_partial(
 		let select_chain = select_chain.clone();
 		let keystore = keystore_container.sync_keystore();
 		let chain_spec = config.chain_spec.cloned_box();
+		let is_authority = config.role.is_authority();
 
 		let rpc_backend = backend.clone();
 		let rpc_extensions_builder = move |deny_unsafe, subscription_executor| {
@@ -206,6 +207,7 @@ pub fn new_partial(
 					finality_provider: finality_proof_provider.clone(),
 				},
 				graph: pool.pool().clone(),
+				is_authority,
 			};
 
 			node_rpc::create_full(deps, rpc_backend.clone()).map_err(Into::into)

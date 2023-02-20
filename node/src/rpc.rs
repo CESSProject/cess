@@ -79,8 +79,8 @@ pub struct FullDeps<C, P, SC, B, A: ChainApi> {
 	pub grandpa: GrandpaDeps<B>,
 	/// Graph pool instance.
 	pub graph: Arc<Pool<A>>,
-	// /// The Node authority flag
-	// pub is_authority: bool,
+	/// The Node authority flag
+	pub is_authority: bool,
 	// /// Whether to enable dev signer
 	// pub enable_dev_signer: bool,
 	// /// Network service
@@ -189,7 +189,7 @@ where
 		rrsc,
 		grandpa,
 		graph,
-		// is_authority,
+		is_authority,
 		// enable_dev_signer,
 		// network,
 		// filter_pool,
