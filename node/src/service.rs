@@ -207,7 +207,7 @@ pub fn new_partial(
 		let keystore = keystore_container.sync_keystore();
 		let chain_spec = config.chain_spec.cloned_box();
 		let is_authority = config.role.is_authority();
-
+		let filter_pool: Option<FilterPool> = Some(Arc::new(Mutex::new(BTreeMap::new()))); 
 		let frontier_backend = open_frontier_backend(client.clone(), &config)?;
 		// let frontier_backend_clone = frontier_backend.clone();
 
@@ -235,6 +235,7 @@ pub fn new_partial(
 				},
 				graph: pool.pool().clone(),
 				is_authority,
+				filter_pool: filter_pool.clone(),
 				frontier_backend: frontier_backend.clone(),
 				overrides: overrides.clone(),
 			};

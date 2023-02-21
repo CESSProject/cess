@@ -85,8 +85,8 @@ pub struct FullDeps<C, P, SC, B, A: ChainApi> {
 	// pub enable_dev_signer: bool,
 	// /// Network service
 	// pub network: Arc<NetworkService<Block, Hash>>,
-	// /// EthFilterApi pool.
-	// pub filter_pool: Option<FilterPool>,
+	/// EthFilterApi pool.
+	pub filter_pool: Option<FilterPool>,
 	/// Backend.
 	pub frontier_backend: Arc<fc_db::Backend<Block>>,
 	// /// Maximum number of logs in a query.
@@ -192,7 +192,7 @@ where
 		is_authority,
 		// enable_dev_signer,
 		// network,
-		// filter_pool,
+		filter_pool,
 		frontier_backend,
 		// max_past_logs,
 		// fee_history_limit,
