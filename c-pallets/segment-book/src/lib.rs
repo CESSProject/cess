@@ -476,7 +476,7 @@ pub mod pallet {
 			if sp_io::offchain::is_validator() {
 				if now > deadline {
 					//Determine whether to trigger a challenge
-					if Self::trigger_challenge(now) {
+					// if Self::trigger_challenge(now) {
 						log::info!("offchain worker random challenge start");
 						if let Err(e) = Self::offchain_work_start(now) {
 							match e {
@@ -485,7 +485,7 @@ pub mod pallet {
 							};
 						}
 						log::info!("offchain worker random challenge end");
-					}
+					// }
 				}
 			}
 		}
@@ -493,6 +493,40 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn update_verify_duration(origin: OriginFor<T>, now: BlockNumberOf<T>) -> DispatchResult {
+			let _sender = ensure_root(origin)?;
+			<VerifyDuration<T>>::put(now);
+			Ok(())
+		}
+
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn clear_all_unverify_proof(origin: OriginFor<T>) -> DispatchResult {
+			let _sender = ensure_root(origin)?;
+			for (acc, v_list) in <UnVerifyProof<T>>::iter() {
+				if v_list.len() > 0 {
+					<UnVerifyProof<T>>::remove(acc);
+				}
+			}
+
+			Ok(())
+		}
+
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn clear_all_challenge_proof(origin: OriginFor<T>) -> DispatchResult {
+			let _sender = ensure_root(origin)?;
+			for (acc, v_list) in <ChallengeMap<T>>::iter() {
+				if v_list.len() > 0 {
+					<ChallengeMap<T>>::remove(acc);
+				}
+			}
+
+			Ok(())
+		}
+
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_challenge_prove(prove_info.len() as u32))]
 		pub fn submit_challenge_prove(
