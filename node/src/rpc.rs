@@ -87,16 +87,16 @@ pub struct FullDeps<C, P, SC, B, A: ChainApi> {
 	// pub network: Arc<NetworkService<Block, Hash>>,
 	// /// EthFilterApi pool.
 	// pub filter_pool: Option<FilterPool>,
-	// /// Backend.
-	// pub frontier_backend: Arc<fc_db::Backend<Block>>,
+	/// Backend.
+	pub frontier_backend: Arc<fc_db::Backend<Block>>,
 	// /// Maximum number of logs in a query.
 	// pub max_past_logs: u32,
 	// /// Maximum fee history cache size.
 	// pub fee_history_limit: u64,
 	// /// Fee history cache.
 	// pub fee_history_cache: FeeHistoryCache,
-	// /// Ethereum data access overrides.
-	// pub overrides: Arc<OverrideHandle<Block>>,
+	/// Ethereum data access overrides.
+	pub overrides: Arc<OverrideHandle<Block>>,
 	// /// Cache for Ethereum block data.
 	// pub block_data_cache: Arc<EthBlockDataCacheTask<Block>>,
 }
@@ -193,11 +193,11 @@ where
 		// enable_dev_signer,
 		// network,
 		// filter_pool,
-		// frontier_backend,
+		frontier_backend,
 		// max_past_logs,
 		// fee_history_limit,
 		// fee_history_cache,
-		// overrides,
+		overrides,
 		// block_data_cache,
 		// execute_gas_limit_multiplier,
 	} = deps;

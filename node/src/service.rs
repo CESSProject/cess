@@ -16,12 +16,16 @@ use cessc_consensus_rrsc::{self, SlotProportion};
 use sc_executor::NativeElseWasmExecutor;
 use sc_network::NetworkService;
 use sc_network_common::{protocol::event::Event, service::NetworkEventStream};
-use sc_service::{config::Configuration, error::Error as ServiceError, RpcHandlers, TaskManager};
+use sc_service::{ BasePath, config::Configuration, error::Error as ServiceError, RpcHandlers, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_api::ProvideRuntimeApi;
 use sp_core::crypto::Pair;
 use sp_runtime::{generic, traits::Block as BlockT, SaturatedConversion};
-use std::sync::Arc;
+use std::{
+	collections::BTreeMap,
+	sync::{Arc, Mutex},
+	time::Duration,
+};
 
 /// The full client type definition.
 pub type FullClient =
@@ -45,14 +49,32 @@ pub type TransactionPool = sc_transaction_pool::FullPool<Block, FullClient>;
 // 		.expect("Fetching account nonce works; qed")
 // }
 
-/// Create a transaction using the given `call`.
-///
-/// The transaction will be signed by `sender`. If `nonce` is `None` it will be fetched from the
-/// state of the best block.
-///
-/// Note: Should only be used for tests.
+pub fn frontier_database_dir(config: &Configuration) -> std::path::PathBuf {
+	let config_dir = config
+		.base_path
+		.as_ref()
+		.map(|base_path| base_path.config_dir(config.chain_spec.id()))
+		.unwrap_or_else(|| {
+			BasePath::from_project("", "", &crate::cli::Cli::executable_name())
+				.config_dir(config.chain_spec.id())
+		});
+	config_dir.join("frontier").join("db")
+}
 
-
+pub fn open_frontier_backend<C: sp_blockchain::HeaderBackend<Block>>(
+	client: Arc<C>,
+	config: &Configuration) 
+	-> Result<Arc<fc_db::Backend<Block>>, String> {
+	Ok(Arc::new(fc_db::Backend::<Block>::new(
+		client,
+		&fc_db::DatabaseSettings {
+			source: fc_db::DatabaseSource::RocksDb {
+				path: frontier_database_dir(&config),
+				cache_size: 0,
+			},
+		})?)
+	)
+}
 
 /// Creates a new partial node.
 pub fn new_partial(
@@ -186,6 +208,11 @@ pub fn new_partial(
 		let chain_spec = config.chain_spec.cloned_box();
 		let is_authority = config.role.is_authority();
 
+		let frontier_backend = open_frontier_backend(client.clone(), &config)?;
+		// let frontier_backend_clone = frontier_backend.clone();
+
+		let overrides = crate::rpc::overrides_handle(client.clone());
+
 		let rpc_backend = backend.clone();
 		let rpc_extensions_builder = move |deny_unsafe, subscription_executor| {
 			let deps = node_rpc::FullDeps {
@@ -208,6 +235,8 @@ pub fn new_partial(
 				},
 				graph: pool.pool().clone(),
 				is_authority,
+				frontier_backend: frontier_backend.clone(),
+				overrides: overrides.clone(),
 			};
 
 			node_rpc::create_full(deps, rpc_backend.clone()).map_err(Into::into)
@@ -332,7 +361,22 @@ pub fn new_full_base(
 		telemetry: telemetry.as_mut(),
 	})?;
 
-	// 2. This is where I removed 
+	// task_manager.spawn_essential_handle().spawn(
+	// 	"frontier-mapping-sync-worker",
+	// 	None,
+	// 	MappingSyncWorker::new(
+	// 		client.import_notification_stream(),
+	// 		Duration::new(6, 0),
+	// 		client.clone(),
+	// 		backend.clone(),
+	// 		frontier_backend.clone(),
+	// 		3,
+	// 		0,
+	// 		SyncStrategy::Normal,
+	// 	)
+	// 	.for_each(|()| futures::future::ready(())),
+	// );
+
 	if let Some(hwbench) = hwbench {
 		sc_sysinfo::print_hwbench(&hwbench);
 
