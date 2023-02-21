@@ -329,6 +329,13 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn sub_spec_power(origin: OriginFor<T>, num: u128) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			Self::sub_power(&sender, num * 1024 * 1024);
+			Ok(())
+		}
 		/// Staking and register for storage miner.
 		///
 		/// The dispatch origin of this call must be _Signed_.
