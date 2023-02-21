@@ -325,8 +325,8 @@ pub fn cess_develop_config() -> ChainSpec {
 pub fn cess_testnet_generate_config() -> ChainSpec {
 	let boot_nodes = vec![];
 	ChainSpec::from_genesis(
-		"cess-testnet",
-		"cess-testnet",
+		"cess-devnet",
+		"cess-devnet",
 		ChainType::Live,
 		cess_testnet_config_genesis,
 		boot_nodes,
