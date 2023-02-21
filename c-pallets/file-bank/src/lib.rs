@@ -447,6 +447,22 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		#[transactional]
 		#[pallet::weight(100_000_000)]
+		pub fn clear_all_filler(origin: OriginFor<T>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			let mut x = 0;
+			for (_, value) in FillerMap::<T>::iter_prefix(&sender) {
+				<FillerKeysMap<T>>::remove(value.index);
+				x += 1;
+			}
+			let _ = FillerMap::<T>::remove_prefix(&sender, Option::None);
+
+			let _ = T::MinerControl::sub_power(sender, x * 8 * 1024 * 1024)?;
+
+			Ok(())
+		}
+
+		#[transactional]
+		#[pallet::weight(100_000_000)]
 		pub fn update_price(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 			let default_price: BalanceOf<T> = 30u32.saturated_into();
@@ -1057,7 +1073,7 @@ pub mod pallet {
 					.as_bytes()
 					.to_vec()
 					.try_into()
-					.map_err(|_e| Error::<T>::BoundedVecError)?,
+					.map_err(|_e| Error::<T>::BoundedVecError)?;
 				}
 
 				Ok(())
