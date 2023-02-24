@@ -22,20 +22,20 @@ cargo test --package pallet-cacher --features runtime-benchmarks
 ## Code Walkthrough
 1. A cache miner calls `register` method to join the CDN. Cache miner information will be saved to the `Cachers` StorageMap.
 
+https://github.com/CESSProject/cess/blob/1acaa2de1a7dcf0c6ec676f1ffa4d605cf43c830/c-pallets/cacher/src/lib.rs#L109-L117
 
+2. Retrieval miners periodically query the `Cachers` StorageMap for all cache miner information.
 
-1. Retrieval miners periodically query the `Cachers` StorageMap for all cache miner information.
+https://github.com/CESSProject/cess/blob/1acaa2de1a7dcf0c6ec676f1ffa4d605cf43c830/c-pallets/cacher/src/lib.rs#L95
 
+3. A retrieval miner calls `pay` method to pay cache miners separately for downloading file fragments in batches.
 
+https://github.com/CESSProject/cess/blob/1acaa2de1a7dcf0c6ec676f1ffa4d605cf43c830/c-pallets/cacher/src/lib.rs#L157-L172
 
-1. A retrieval miner calls `pay` method to pay cache miners separately for downloading file fragments in batches.
+4. A cache miner calls `update` method to change ip or unit price.
 
+https://github.com/CESSProject/cess/blob/1acaa2de1a7dcf0c6ec676f1ffa4d605cf43c830/c-pallets/cacher/src/lib.rs#L124-L137
 
+5. A cache miner calls `logout` method to exit the CDN.
 
-1. A cache miner calls `update` method to change ip or unit price.
-
-
-
-1. A cache miner calls `logout` method to exit the CDN.
-
-
+https://github.com/CESSProject/cess/blob/1acaa2de1a7dcf0c6ec676f1ffa4d605cf43c830/c-pallets/cacher/src/lib.rs#L141-L150
