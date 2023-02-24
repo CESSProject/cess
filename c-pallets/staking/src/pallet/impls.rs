@@ -164,7 +164,7 @@ impl<T: Config> Pallet<T> {
 			.retain(|&x| x >= current_era.saturating_sub(history_depth));
 
 		match ledger.claimed_rewards.binary_search(&era) {
-			Ok(_) => 
+			Ok(_) =>
 				return Err(Error::<T>::AlreadyClaimed
 					.with_weight(T::WeightInfo::payout_stakers_alive_staked(0))),
 			Err(pos) => ledger

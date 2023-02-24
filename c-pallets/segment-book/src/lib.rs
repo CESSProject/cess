@@ -433,8 +433,11 @@ pub mod pallet {
 					};
 					// weight = weight.staurating_add(Self::clear_failure_map(5000, None));
 					// weight = weight.staurating_add(Self::clear_total_proof(5000, None));
+					#[allow(deprecated)]
 					<FailureNumMap<T>>::remove_all();
 					weight = weight.saturating_add(T::DbWeight::get().writes(<FailureNumMap<T>>::count() as u64));
+
+					#[allow(deprecated)]
 					<MinerTotalProof<T>>::remove_all();
 					weight = weight.saturating_add(T::DbWeight::get().writes(<MinerTotalProof<T>>::count() as u64));
 				} else {

@@ -1,3 +1,4 @@
+use grandpa_primitives::AuthorityId as GrandpaId;
 use cess_node_runtime::{
 	opaque::SessionKeys, wasm_binary_unwrap, AccountId, AuthorityDiscoveryConfig, Balance,
 	BalancesConfig, Block, CouncilConfig, GenesisConfig, GrandpaConfig, ImOnlineConfig,
@@ -5,16 +6,19 @@ use cess_node_runtime::{
 	StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig, DOLLARS,
 	FileBankConfig,
 };
-use cessp_consensus_rrsc::AuthorityId as RRSCId;
-use grandpa_primitives::AuthorityId as GrandpaId;
+
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_segment_book::sr25519::AuthorityId as SegmentBookId;
 use sc_chain_spec::ChainSpecExtension;
 use sc_service::{config::TelemetryEndpoints, ChainType};
 use serde::{Deserialize, Serialize};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
+use cessp_consensus_rrsc::AuthorityId as RRSCId;
 use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public};
-use sp_runtime::{traits::{IdentifyAccount, Verify}, Perbill, SaturatedConversion};
+use sp_runtime::{
+	traits::{IdentifyAccount, Verify},
+	Perbill, SaturatedConversion
+};
 
 // The URL for the telemetry server.
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";

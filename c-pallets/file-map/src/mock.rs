@@ -1,6 +1,9 @@
 #![cfg(test)]
 
-use std::cell::RefCell;
+use std::{
+    convert::{TryFrom, TryInto},
+    cell::RefCell
+};
 use crate as pallet_file_map;
 use frame_support::parameter_types;
 use frame_support::PalletId;
@@ -63,15 +66,15 @@ frame_support::construct_runtime!(
 		NodeBlock = Block,
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
-		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-		Staking: pallet_cess_staking::{Pallet, Call, Config<T>, Storage, Event<T>},
-		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
-		Historical: pallet_session::historical::{Pallet, Storage},
-		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>},
-		FileMap: pallet_file_map::{Pallet, Call, Storage, Event<T>},
-		SchedulerCredit: pallet_scheduler_credit::{Pallet, Storage},
+		System: frame_system,
+		Balances: pallet_balances,
+		Timestamp: pallet_timestamp,
+		Staking: pallet_cess_staking,
+		Session: pallet_session,
+		Historical: pallet_session::historical,
+		BagsList: pallet_bags_list,
+		FileMap: pallet_file_map,
+		SchedulerCredit: pallet_scheduler_credit,
 	}
 );
 
@@ -101,8 +104,8 @@ impl frame_system::Config for Test {
     type BaseCallFilter = frame_support::traits::Everything;
     type BlockWeights = ();
     type BlockLength = ();
-    type Origin = Origin;
-    type Call = Call;
+    type RuntimeOrigin = RuntimeOrigin;
+    type RuntimeCall = RuntimeCall;
     type Index = u64;
     type BlockNumber = u64;
     type Hash = H256;
@@ -110,7 +113,7 @@ impl frame_system::Config for Test {
     type AccountId = u64;
     type Lookup = IdentityLookup<Self::AccountId>;
     type Header = Header;
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type BlockHashCount = BlockHashCount;
     type DbWeight = ();
     type Version = ();
@@ -131,7 +134,7 @@ parameter_types! {
 impl pallet_balances::Config for Test {
     type Balance = u64;
     type DustRemoval = ();
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type ExistentialDeposit = ExistentialDeposit;
     type AccountStore = System;
     type WeightInfo = ();
@@ -158,7 +161,7 @@ parameter_types! {
 }
 
 impl pallet_file_map::Config for Test {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
     type FileMapPalletId = FileMapPalletId;
     type StringLimit = StringLimit;
@@ -177,7 +180,7 @@ parameter_types! {
 }
 
 impl pallet_bags_list::Config for Test {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type WeightInfo = ();
     type ScoreProvider = Staking;
     type BagThresholds = BagThresholds;
@@ -187,7 +190,7 @@ impl pallet_bags_list::Config for Test {
 parameter_types! {
 	pub BlockWeights: frame_system::limits::BlockWeights =
 		frame_system::limits::BlockWeights::simple_max(
-			frame_support::weights::constants::WEIGHT_PER_SECOND * 2
+			frame_support::pallet_prelude::Weight::from_ref_time(frame_support::weights::constants::WEIGHT_REF_TIME_PER_SECOND * 2)
 		);
 	pub static SessionsPerEra: SessionIndex = 3;
 	pub static SlashDeferDuration: EraIndex = 0;
@@ -201,7 +204,7 @@ sp_runtime::impl_opaque_keys! {
 	}
 }
 impl pallet_session::Config for Test {
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type ValidatorId = AccountId;
     type ValidatorIdOf = StashOf<Test>;
     type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
@@ -223,10 +226,14 @@ thread_local! {
 
 pub struct OnChainSeqPhragmen;
 
-impl onchain::ExecutionConfig for OnChainSeqPhragmen {
+impl onchain::Config for OnChainSeqPhragmen {
     type System = Test;
     type Solver = SequentialPhragmen<AccountId, Perbill>;
     type DataProvider = Staking;
+    type WeightInfo = ();
+    type MaxWinners = ConstU32<100>;
+	type VotersBound = ConstU32<{ u32::MAX }>;
+	type TargetsBound = ConstU32<{ u32::MAX }>;
 }
 
 impl pallet_cess_staking::Config for Test {
@@ -236,13 +243,14 @@ impl pallet_cess_staking::Config for Test {
     const REWARD_DECREASE_RATIO: Perbill = Perbill::from_perthousand(794);
     type SminerRewardPool = ();
     type Currency = Balances;
+    type CurrencyBalance = <Self as pallet_balances::Config>::Balance;
     type UnixTime = Timestamp;
     type CurrencyToVote = frame_support::traits::SaturatingCurrencyToVote;
-    type ElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
+    type ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
     type GenesisElectionProvider = Self::ElectionProvider;
     type MaxNominations = MaxNominations;
     type RewardRemainder = ();
-    type Event = Event;
+    type RuntimeEvent = RuntimeEvent;
     type Slash = ();
     type Reward = ();
     type SessionsPerEra = ();
@@ -255,19 +263,22 @@ impl pallet_cess_staking::Config for Test {
     type MaxNominatorRewardedPerValidator = ConstU32<64>;
     type OffendingValidatorsThreshold = ();
     type VoterList = BagsList;
+    type TargetList = pallet_cess_staking::UseValidatorsMap<Self>;
     type MaxUnlockingChunks = ConstU32<32>;
+    type HistoryDepth = ConstU32<84>;
+    type OnStakerSlash = ();
     type BenchmarkingConfig = pallet_cess_staking::TestBenchmarkingConfig;
     type WeightInfo = ();
 }
 
-pub type Extrinsic = TestXt<Call, ()>;
+pub type Extrinsic = TestXt<RuntimeCall, ()>;
 
 impl<LocalCall> frame_system::offchain::SendTransactionTypes<LocalCall> for Test
     where
-        Call: From<LocalCall>,
+        RuntimeCall: From<LocalCall>,
 {
     type Extrinsic = Extrinsic;
-    type OverarchingCall = Call;
+    type OverarchingCall = RuntimeCall;
 }
 
 pub struct ExtBuilder;

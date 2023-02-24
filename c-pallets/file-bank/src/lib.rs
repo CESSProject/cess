@@ -99,7 +99,7 @@ pub mod pallet {
 
 		type WeightInfo: WeightInfo;
 
-		type Call: From<Call<Self>>;
+		type RuntimeCall: From<Call<Self>>;
 		//Find the consensus of the current block
 		type FindAuthor: FindAuthor<Self::AccountId>;
 		//Used to find out whether the schedule exists
@@ -1848,6 +1848,7 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 			<FillerKeysMap<T>>::remove(value.index);
 			weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
 		}
+		#[allow(deprecated)]
 		let _ = FillerMap::<T>::remove_prefix(&miner_acc, Option::None);
 		weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
 		Ok(weight)

@@ -160,7 +160,7 @@ where
 	C::Api: BlockBuilder<Block>,
 	C::Api: fp_rpc::ConvertTransactionRuntimeApi<Block>,
 	C::Api: fp_rpc::EthereumRuntimeRPCApi<Block>,
-	P: TransactionPool<Block = Block> + 'static,
+	P: TransactionPool + 'static,
 	SC: SelectChain<Block> + 'static,
 	B: sc_client_api::Backend<Block> + Send + Sync + 'static,
 	B::State: sc_client_api::backend::StateBackend<sp_runtime::traits::HashFor<Block>>,
@@ -175,6 +175,7 @@ where
 	use cessc_consensus_rrsc_rpc::{ RRSC, RRSCApiServer };
 	use sc_finality_grandpa_rpc::{Grandpa, GrandpaApiServer};
 	use sc_rpc::dev::{Dev, DevApiServer};
+	use sc_rpc_spec_v2::chain_spec::{ChainSpec, ChainSpecApiServer};
 	use cessc_sync_state_rpc::{SyncState, SyncStateApiServer};
 	use substrate_frame_rpc_system::{System, SystemApiServer};
 	use substrate_state_trie_migration_rpc::{StateMigration, StateMigrationApiServer};
@@ -210,11 +211,12 @@ where
 		finality_provider,
 	} = grandpa;
 
-	io.merge(System::new(
-		client.clone(),
-		pool,
-		deny_unsafe).into_rpc()
-	)?;
+	let chain_name = chain_spec.name().to_string();
+	let genesis_hash = client.block_hash(0).ok().flatten().expect("Genesis block exists; qed");
+	let properties = chain_spec.properties();
+	io.merge(ChainSpec::new(chain_name, genesis_hash, properties).into_rpc())?;
+
+	io.merge(System::new(client.clone(), pool, deny_unsafe).into_rpc())?;
 	// Making synchronous calls in light client freezes the browser currently,
 	// more context: https://github.com/paritytech/substrate/pull/3480
 	// These RPCs should use an asynchronous caller instead.
@@ -242,64 +244,14 @@ where
 		)
 		.into_rpc(),
 	)?;
-	io.merge(StateMigration::new(client.clone(), backend, deny_unsafe).into_rpc())?;
+
 	io.merge(
 		SyncState::new(chain_spec, client.clone(), shared_authority_set, shared_epoch_changes)?
-				.into_rpc(),
+			.into_rpc(),
 	)?;
-	io.merge(Dev::new(client.clone(), deny_unsafe).into_rpc())?;
-
-	// Extend this RPC with a custom API by using the following syntax.
-	// `YourRpcStruct` should have a reference to a client, which is needed
-	// to call into the runtime.
-	// `io.extend_with(YourRpcTrait::to_delegate(YourRpcStruct::new(ReferenceToClient, ...)));`
-
-	// let mut signers = Vec::new();
-	// if enable_dev_signer {
-	// 	signers.push(Box::new(EthDevSigner::new()) as Box<dyn EthSigner>);
-	// }
-
-	// io.merge(
-	// 	Eth::new(
-	// 		client.clone(),
-	// 		pool.clone(),
-	// 		graph,
-	// 		Some(cess_node_runtime::TransactionConverter),
-	// 		network.clone(),
-	// 		signers,
-	// 		overrides.clone(),
-	// 		frontier_backend.clone(),
-	// 		is_authority,
-	// 		block_data_cache.clone(),
-	// 		fee_history_cache,
-	// 		fee_history_limit,
-	// 		execute_gas_limit_multiplier
-	// 	).into_rpc()
-	// )?;
-
-	// if let Some(filter_pool) = filter_pool {
-	// 	io.merge(
-	// 		EthFilter::new(
-	// 			client.clone(),
-	// 			frontier_backend,
-	// 			filter_pool.clone(),
-	// 			500 as usize, // max stored filters
-	// 			max_past_logs,
-	// 			block_data_cache.clone()
-	// 		).into_rpc(),
-	// 	)?;
-	// }
-
-	// io.merge(
-	// 	Net::new(
-	// 		client.clone(),
-	// 		network.clone(),
-	// 		// Whether to format the `peer_count` response as Hex (default) or not.
-	// 		true,
-	// 	).into_rpc()
-	// )?;
-
 	io.merge(Web3::new(client.clone()).into_rpc())?;
+	io.merge(StateMigration::new(client.clone(), backend, deny_unsafe).into_rpc())?;
+	io.merge(Dev::new(client, deny_unsafe).into_rpc())?;
 
 	Ok(io)
 }

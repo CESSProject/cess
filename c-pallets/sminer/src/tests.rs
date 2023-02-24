@@ -20,7 +20,7 @@
 use super::*;
 use frame_benchmarking::account;
 use frame_support::{assert_noop, assert_ok, traits::Len};
-use mock::{consts::*, new_test_ext, run_to_block, Balances, Origin, Sminer, System as Sys, Test};
+use mock::{consts::*, new_test_ext, run_to_block, Balances, RuntimeOrigin, Sminer, System as Sys, Test};
 
 const UNIT_POWER_LIMIT: u128 = 2000_000_000_000_000u128;
 const STATE_POSITIVE: &str = "positive";
@@ -41,7 +41,7 @@ fn miner_register_works() {
 		let ip_new: IpAddress = IpAddress::IPV4([127,0,0,1],15001);
 
 		assert_ok!(Sminer::regnstk(
-			Origin::signed(ACCOUNT1.0),
+			RuntimeOrigin::signed(ACCOUNT1.0),
 			beneficiary,
 			ip.clone(),
 			stake_amount
@@ -64,29 +64,29 @@ fn miner_register_works() {
 		let event =
 			Sys::events().pop().expect("Expected at least one Registered to be found").event;
 		assert_eq!(
-			mock::Event::from(Event::Registered { acc: ACCOUNT1.0, staking_val: stake_amount }),
+			mock::RuntimeEvent::from(Event::Registered { acc: ACCOUNT1.0, staking_val: stake_amount }),
 			event
 		);
 
 		assert_eq!(beneficiary, mr.beneficiary);
-		assert_ok!(Sminer::update_beneficiary(Origin::signed(ACCOUNT1.0), beneficiary_new.clone()));
+		assert_ok!(Sminer::update_beneficiary(RuntimeOrigin::signed(ACCOUNT1.0), beneficiary_new.clone()));
 		let mr = &MinerItems::<Test>::get(ACCOUNT1.0).unwrap();
 		assert_eq!(beneficiary_new, mr.beneficiary);
 		let event =
 			Sys::events().pop().expect("Expected at least one Registered to be found").event;
 		assert_eq!(
-			mock::Event::from(Event::UpdataBeneficiary { acc: ACCOUNT1.0, new: beneficiary_new }),
+			mock::RuntimeEvent::from(Event::UpdataBeneficiary { acc: ACCOUNT1.0, new: beneficiary_new }),
 			event
 		);
 
 		assert_eq!(ip, mr.ip);
-		assert_ok!(Sminer::update_ip(Origin::signed(ACCOUNT1.0), ip_new.clone()));
+		assert_ok!(Sminer::update_ip(RuntimeOrigin::signed(ACCOUNT1.0), ip_new.clone()));
 		let mr = &MinerItems::<Test>::get(ACCOUNT1.0).unwrap();
 		assert_eq!(ip_new, mr.ip);
 		let event =
 			Sys::events().pop().expect("Expected at least one Registered to be found").event;
 		assert_eq!(
-			mock::Event::from(Event::UpdataIp { acc: ACCOUNT1.0, old: ip, new: ip_new }),
+			mock::RuntimeEvent::from(Event::UpdataIp { acc: ACCOUNT1.0, old: ip, new: ip_new }),
 			event
 		);
 	});
@@ -96,18 +96,18 @@ fn miner_register_works() {
 fn increase_collateral_works_on_normal_state() {
 	new_test_ext().execute_with(|| {
 		assert_noop!(
-			Sminer::increase_collateral(Origin::signed(ACCOUNT1.0), 3000),
+			Sminer::increase_collateral(RuntimeOrigin::signed(ACCOUNT1.0), 3000),
 			Error::<Test>::NotMiner
 		);
 
 		assert_ok!(Sminer::regnstk(
-			Origin::signed(ACCOUNT1.0),
+			RuntimeOrigin::signed(ACCOUNT1.0),
 			123,
 			IpAddress::IPV4([127,0,0,1],15000),
 			2000
 		));
 
-		assert_ok!(Sminer::increase_collateral(Origin::signed(ACCOUNT1.0), 3000));
+		assert_ok!(Sminer::increase_collateral(RuntimeOrigin::signed(ACCOUNT1.0), 3000));
 		// balance check
 		assert_eq!(ACCOUNT1.1 - 2000 - 3000, Balances::free_balance(&ACCOUNT1.0));
 		assert_eq!(2000 + 3000, Balances::reserved_balance(&ACCOUNT1.0));
@@ -122,7 +122,7 @@ fn increase_collateral_works_on_normal_state() {
 			.expect("Expected at least one IncreaseCollateral to be found")
 			.event;
 		assert_eq!(
-			mock::Event::from(Event::IncreaseCollateral {
+			mock::RuntimeEvent::from(Event::IncreaseCollateral {
 				acc: ACCOUNT1.0,
 				balance: mi.collaterals
 			}),
@@ -143,7 +143,7 @@ fn set_miner_state(account_id: u64, state: &str) {
 fn increase_collateral_works_on_frozen_state() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Sminer::regnstk(
-			Origin::signed(ACCOUNT1.0),
+			RuntimeOrigin::signed(ACCOUNT1.0),
 			123,
 			IpAddress::IPV4([127,0,0,1],15000),
 			2000
@@ -151,14 +151,14 @@ fn increase_collateral_works_on_frozen_state() {
 		set_miner_state(ACCOUNT1.0, STATE_FROZEN);
 
 		assert_eq!(UNIT_POWER_LIMIT, Sminer::check_collateral_limit(0u128).unwrap());
-		assert_ok!(Sminer::increase_collateral(Origin::signed(ACCOUNT1.0), 3000));
+		assert_ok!(Sminer::increase_collateral(RuntimeOrigin::signed(ACCOUNT1.0), 3000));
 		assert_eq!(
 			Vec::from(STATE_FROZEN),
 			MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap().state.to_vec()
 		);
 
 		assert_ok!(Sminer::increase_collateral(
-			Origin::signed(ACCOUNT1.0),
+			RuntimeOrigin::signed(ACCOUNT1.0),
 			2 * UNIT_POWER_LIMIT + 1
 		));
 		assert_eq!(
@@ -172,21 +172,21 @@ fn increase_collateral_works_on_frozen_state() {
 fn increase_collateral_works_on_exit_frozen_state() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Sminer::regnstk(
-			Origin::signed(ACCOUNT1.0),
+			RuntimeOrigin::signed(ACCOUNT1.0),
 			123,
 			IpAddress::IPV4([127,0,0,1],15000),
 			2000
 		));
 		set_miner_state(ACCOUNT1.0, STATE_EXIT_FROZEN);
 
-		assert_ok!(Sminer::increase_collateral(Origin::signed(ACCOUNT1.0), 3000));
+		assert_ok!(Sminer::increase_collateral(RuntimeOrigin::signed(ACCOUNT1.0), 3000));
 		assert_eq!(
 			Vec::from(STATE_EXIT_FROZEN),
 			MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap().state.to_vec()
 		);
 
 		assert_ok!(Sminer::increase_collateral(
-			Origin::signed(ACCOUNT1.0),
+			RuntimeOrigin::signed(ACCOUNT1.0),
 			2 * UNIT_POWER_LIMIT + 1
 		));
 		assert_eq!(
@@ -199,16 +199,16 @@ fn increase_collateral_works_on_exit_frozen_state() {
 #[test]
 fn exit_miner_works() {
 	new_test_ext().execute_with(|| {
-		assert_noop!(Sminer::exit_miner(Origin::signed(ACCOUNT1.0)), Error::<Test>::NotMiner);
+		assert_noop!(Sminer::exit_miner(RuntimeOrigin::signed(ACCOUNT1.0)), Error::<Test>::NotMiner);
 		assert_ok!(Sminer::regnstk(
-			Origin::signed(ACCOUNT1.0),
+			RuntimeOrigin::signed(ACCOUNT1.0),
 			123,
 			IpAddress::IPV4([127,0,0,1],15000),
 			UNIT_POWER_LIMIT
 		));
 
 		Sys::set_block_number(2);
-		assert_ok!(Sminer::exit_miner(Origin::signed(ACCOUNT1.0)));
+		assert_ok!(Sminer::exit_miner(RuntimeOrigin::signed(ACCOUNT1.0)));
 
 		assert_eq!(
 			Vec::from(STATE_EXIT),
@@ -216,7 +216,7 @@ fn exit_miner_works() {
 		);
 		assert_eq!(2, MinerLockIn::<Test>::try_get(ACCOUNT1.0).unwrap());
 		let event = Sys::events().pop().expect("Expected at least one MinerExit to be found").event;
-		assert_eq!(mock::Event::from(Event::MinerExit { acc: ACCOUNT1.0 }), event);
+		assert_eq!(mock::RuntimeEvent::from(Event::MinerExit { acc: ACCOUNT1.0 }), event);
 	});
 }
 
@@ -224,7 +224,7 @@ fn exit_miner_works() {
 fn exit_miner_on_abnormal_state() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Sminer::regnstk(
-			Origin::signed(ACCOUNT1.0),
+			RuntimeOrigin::signed(ACCOUNT1.0),
 			123,
 			IpAddress::IPV4([127,0,0,1],15000),
 			UNIT_POWER_LIMIT
@@ -232,7 +232,7 @@ fn exit_miner_on_abnormal_state() {
 
 		set_miner_state(ACCOUNT1.0, STATE_EXIT);
 		assert_noop!(
-			Sminer::exit_miner(Origin::signed(ACCOUNT1.0)),
+			Sminer::exit_miner(RuntimeOrigin::signed(ACCOUNT1.0)),
 			Error::<Test>::NotpositiveState
 		);
 	});
@@ -241,9 +241,9 @@ fn exit_miner_on_abnormal_state() {
 #[test]
 fn withdraw_should_work() {
 	new_test_ext().execute_with(|| {
-		assert_noop!(Sminer::withdraw(Origin::signed(ACCOUNT1.0)), Error::<Test>::NotMiner);
+		assert_noop!(Sminer::withdraw(RuntimeOrigin::signed(ACCOUNT1.0)), Error::<Test>::NotMiner);
 		assert_ok!(Sminer::regnstk(
-			Origin::signed(ACCOUNT1.0),
+			RuntimeOrigin::signed(ACCOUNT1.0),
 			123,
 			IpAddress::IPV4([127,0,0,1], 15000),
 			UNIT_POWER_LIMIT
@@ -252,15 +252,15 @@ fn withdraw_should_work() {
 		let free_balance_after_reg = Balances::free_balance(&ACCOUNT1.0);
 
 		// the miner should exit before withdraw
-		assert_noop!(Sminer::withdraw(Origin::signed(ACCOUNT1.0)), Error::<Test>::NotExisted);
-		assert_ok!(Sminer::exit_miner(Origin::signed(ACCOUNT1.0)));
+		assert_noop!(Sminer::withdraw(RuntimeOrigin::signed(ACCOUNT1.0)), Error::<Test>::NotExisted);
+		assert_ok!(Sminer::exit_miner(RuntimeOrigin::signed(ACCOUNT1.0)));
 		// the miner should withdraw after 1200 blocks
-		assert_noop!(Sminer::withdraw(Origin::signed(ACCOUNT1.0)), Error::<Test>::LockInNotOver);
+		assert_noop!(Sminer::withdraw(RuntimeOrigin::signed(ACCOUNT1.0)), Error::<Test>::LockInNotOver);
 
 		let all_miner_cnt = AllMiner::<Test>::try_get().unwrap().len();
 
 		Sys::set_block_number(57700);
-		assert_ok!(Sminer::withdraw(Origin::signed(ACCOUNT1.0)));
+		assert_ok!(Sminer::withdraw(RuntimeOrigin::signed(ACCOUNT1.0)));
 
 		// balance check
 		assert_eq!(free_balance_after_reg + UNIT_POWER_LIMIT, Balances::free_balance(&ACCOUNT1.0));
@@ -272,7 +272,7 @@ fn withdraw_should_work() {
 		// event check
 		let event =
 			Sys::events().pop().expect("Expected at least one MinerClaim to be found").event;
-		assert_eq!(mock::Event::from(Event::MinerClaim { acc: ACCOUNT1.0 }), event);
+		assert_eq!(mock::RuntimeEvent::from(Event::MinerClaim { acc: ACCOUNT1.0 }), event);
 	});
 }
 
@@ -321,7 +321,7 @@ fn add_reward_order1_should_panic_on_exceed_item_limit() {
 fn add_power_should_work() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Sminer::regnstk(
-			Origin::signed(ACCOUNT1.0),
+			RuntimeOrigin::signed(ACCOUNT1.0),
 			123,
 			IpAddress::IPV4([127,0,0,1],15000),
 			UNIT_POWER_LIMIT
@@ -334,7 +334,7 @@ fn add_power_should_work() {
 		assert_eq!(10_000, TotalIdleSpace::<Test>::try_get().unwrap());
 
 		assert_ok!(Sminer::regnstk(
-			Origin::signed(ACCOUNT2.0),
+			RuntimeOrigin::signed(ACCOUNT2.0),
 			321,
 			IpAddress::IPV4([127,0,0,1],15000),
 			UNIT_POWER_LIMIT
@@ -355,16 +355,16 @@ const FIXED_REWARD_AMOUNT: u128 = 750_000_000000000000_u128;
 fn increase_rewards_should_work() {
 	new_test_ext().execute_with(|| {
 		CurrencyReward::<Test>::put(750_000_000_000_000_000);
-		assert_noop!(Sminer::timed_increase_rewards(Origin::root()), Error::<Test>::DivideByZero);
+		assert_noop!(Sminer::timed_increase_rewards(RuntimeOrigin::root()), Error::<Test>::DivideByZero);
 
 		assert_ok!(Sminer::regnstk(
-			Origin::signed(ACCOUNT1.0),
+			RuntimeOrigin::signed(ACCOUNT1.0),
 			123,
 			IpAddress::IPV4([127,0,0,1],15000),
 			UNIT_POWER_LIMIT
 		));
 		assert_ok!(Sminer::regnstk(
-			Origin::signed(ACCOUNT2.0),
+			RuntimeOrigin::signed(ACCOUNT2.0),
 			123,
 			IpAddress::IPV4([127,0,0,1],15000),
 			UNIT_POWER_LIMIT
@@ -378,7 +378,7 @@ fn increase_rewards_should_work() {
 		let total_power = TotalIdleSpace::<Test>::try_get().unwrap();
 		assert_eq!(30_000, total_power);
 
-		assert_ok!(Sminer::timed_increase_rewards(Origin::root()));
+		assert_ok!(Sminer::timed_increase_rewards(RuntimeOrigin::root()));
 
 		let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
 		let m2 = MinerItems::<Test>::try_get(ACCOUNT2.0).unwrap();
@@ -401,7 +401,7 @@ fn increase_rewards_should_work() {
 
 		// event check
 		let event = Sys::events().pop().expect("Expected at least one TimedTask to be found").event;
-		assert_eq!(mock::Event::from(Event::TimedTask()), event);
+		assert_eq!(mock::RuntimeEvent::from(Event::TimedTask()), event);
 	});
 }
 
@@ -410,13 +410,13 @@ fn task_award_table_should_work() {
 	new_test_ext().execute_with(|| {
 		CurrencyReward::<Test>::put(750_000_000_000_000_000);
 		assert_ok!(Sminer::regnstk(
-			Origin::signed(ACCOUNT1.0),
+			RuntimeOrigin::signed(ACCOUNT1.0),
 			123,
 			IpAddress::IPV4([127,0,0,1],15000),
 			UNIT_POWER_LIMIT
 		));
 		assert_ok!(Sminer::regnstk(
-			Origin::signed(ACCOUNT2.0),
+			RuntimeOrigin::signed(ACCOUNT2.0),
 			321,
 			IpAddress::IPV4([127,0,0,1],15001),
 			UNIT_POWER_LIMIT
@@ -427,9 +427,9 @@ fn task_award_table_should_work() {
 		let total_power = TotalIdleSpace::<Test>::try_get().unwrap();
 
 		assert_eq!(30_000, total_power);
-		assert_ok!(Sminer::timed_increase_rewards(Origin::root())); // <-- dependency method
+		assert_ok!(Sminer::timed_increase_rewards(RuntimeOrigin::root())); // <-- dependency method
 
-		assert_ok!(Sminer::timed_task_award_table(Origin::root())); // <-- target method here!
+		assert_ok!(Sminer::timed_task_award_table(RuntimeOrigin::root())); // <-- target method here!
 
 		let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
 		let total_reward = FIXED_REWARD_AMOUNT * m1.power / total_power;
@@ -458,8 +458,8 @@ fn task_award_table_should_work() {
 
 		// second reward period
 		Sys::set_block_number(1200);
-		assert_ok!(Sminer::timed_increase_rewards(Origin::root()));
-		assert_ok!(Sminer::timed_task_award_table(Origin::root()));
+		assert_ok!(Sminer::timed_increase_rewards(RuntimeOrigin::root()));
+		assert_ok!(Sminer::timed_task_award_table(RuntimeOrigin::root()));
 		assert_eq!(2, CalculateRewardOrderMap::<Test>::try_get(ACCOUNT1.0).unwrap().len());
 		let ro2 = CalculateRewardOrderMap::<Test>::try_get(ACCOUNT1.0)
 			.unwrap()
@@ -486,7 +486,7 @@ fn task_award_table_should_work() {
 
 		// event check
 		let event = Sys::events().pop().expect("Expected at least one TimedTask to be found").event;
-		assert_eq!(mock::Event::from(Event::TimedTask()), event);
+		assert_eq!(mock::RuntimeEvent::from(Event::TimedTask()), event);
 	});
 }
 
@@ -495,13 +495,13 @@ fn timed_user_receive_award1_should_work() {
 	new_test_ext().execute_with(|| {
 		CurrencyReward::<Test>::put(750_000_000_000_000_000);
 		assert_ok!(Sminer::regnstk(
-			Origin::signed(ACCOUNT1.0),
+			RuntimeOrigin::signed(ACCOUNT1.0),
 			123,
 			IpAddress::IPV4([127,0,0,1],15000),
 			UNIT_POWER_LIMIT
 		));
 		assert_ok!(Sminer::regnstk(
-			Origin::signed(ACCOUNT2.0),
+			RuntimeOrigin::signed(ACCOUNT2.0),
 			321,
 			IpAddress::IPV4([127,0,0,1],15001),
 			UNIT_POWER_LIMIT
@@ -511,8 +511,8 @@ fn timed_user_receive_award1_should_work() {
 		let total_power = TotalIdleSpace::<Test>::try_get().unwrap();
 		assert_eq!(30_000, total_power);
 
-		assert_ok!(Sminer::timed_increase_rewards(Origin::root())); // <-- dependency method
-		assert_ok!(Sminer::timed_task_award_table(Origin::root())); // <-- dependency method
+		assert_ok!(Sminer::timed_increase_rewards(RuntimeOrigin::root())); // <-- dependency method
+		assert_ok!(Sminer::timed_task_award_table(RuntimeOrigin::root())); // <-- dependency method
 
 		let rc1 = RewardClaimMap::<Test>::try_get(ACCOUNT1.0).unwrap();
 		let rc2 = RewardClaimMap::<Test>::try_get(ACCOUNT2.0).unwrap();
@@ -526,7 +526,7 @@ fn timed_user_receive_award1_should_work() {
 		assert_eq!(0, rc2.have_to_receive);
 
 		let jackpot_balance = Balances::free_balance(&mock::RewardPalletId::get().into_account_truncating());
-		assert_ok!(Sminer::timed_user_receive_award1(Origin::root())); // <-- target method here!
+		assert_ok!(Sminer::timed_user_receive_award1(RuntimeOrigin::root())); // <-- target method here!
 
 		let rc1b = RewardClaimMap::<Test>::try_get(ACCOUNT1.0).unwrap();
 		let rc2b = RewardClaimMap::<Test>::try_get(ACCOUNT2.0).unwrap();
@@ -552,7 +552,7 @@ fn timed_user_receive_award1_should_work() {
 fn timed_user_receive_award1_total_award() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Sminer::regnstk(
-			Origin::signed(ACCOUNT1.0),
+			RuntimeOrigin::signed(ACCOUNT1.0),
 			123,
 			IpAddress::IPV4([127,0,0,1],15000),
 			UNIT_POWER_LIMIT
@@ -560,11 +560,11 @@ fn timed_user_receive_award1_total_award() {
 		let m1 = MinerItems::<Test>::try_get(ACCOUNT1.0).unwrap();
 		let _ = Sminer::add_power(&m1.peer_id, 10_000);
 
-		assert_ok!(Sminer::timed_increase_rewards(Origin::root()));
+		assert_ok!(Sminer::timed_increase_rewards(RuntimeOrigin::root()));
 
 		for _ in 0..180 {
-			assert_ok!(Sminer::timed_task_award_table(Origin::root()));
-			assert_ok!(Sminer::timed_user_receive_award1(Origin::root()));
+			assert_ok!(Sminer::timed_task_award_table(RuntimeOrigin::root()));
+			assert_ok!(Sminer::timed_user_receive_award1(RuntimeOrigin::root()));
 			let rc1a = RewardClaimMap::<Test>::try_get(ACCOUNT1.0).unwrap();
 			if rc1a.have_to_receive == rc1a.total_reward {
 				break;
@@ -579,7 +579,7 @@ fn timed_user_receive_award1_total_award() {
 fn failure_to_replenish_sufficient_deposit() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Sminer::regnstk(
-			Origin::signed(ACCOUNT1.0),
+			RuntimeOrigin::signed(ACCOUNT1.0),
 			123,
 			IpAddress::IPV4([127,0,0,1],15000),
 			1u128
@@ -593,7 +593,7 @@ fn failure_to_replenish_sufficient_deposit() {
 		assert_ok!(Sminer::start_buffer_period_schedule());
 		assert!(BadMiner::<Test>::contains_key(ACCOUNT1.0));
 		let event = Sys::events().pop().expect("Expected at least one MinerExit to be found").event;
-		assert_eq!(mock::Event::from(Event::StartOfBufferPeriod { when: 1 }), event);
+		assert_eq!(mock::RuntimeEvent::from(Event::StartOfBufferPeriod { when: 1 }), event);
 
 		run_to_block(3 * 14400 + 1);
 		assert!(!BadMiner::<Test>::contains_key(ACCOUNT1.0));
@@ -605,7 +605,7 @@ fn failure_to_replenish_sufficient_deposit() {
 fn full_deposit_within_the_buffer_period() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(Sminer::regnstk(
-			Origin::signed(ACCOUNT1.0),
+			RuntimeOrigin::signed(ACCOUNT1.0),
 			123,
 			IpAddress::IPV4([127,0,0,1],15000),
 			1u128
@@ -615,13 +615,13 @@ fn full_deposit_within_the_buffer_period() {
 		assert_ok!(Sminer::start_buffer_period_schedule());
 		assert!(BadMiner::<Test>::contains_key(ACCOUNT1.0));
 		let event = Sys::events().pop().expect("Expected at least one MinerExit to be found").event;
-		assert_eq!(mock::Event::from(Event::StartOfBufferPeriod { when: 1 }), event);
+		assert_eq!(mock::RuntimeEvent::from(Event::StartOfBufferPeriod { when: 1 }), event);
 
-		assert_ok!(Sminer::increase_collateral(Origin::signed(ACCOUNT1.0), UNIT_POWER_LIMIT));
+		assert_ok!(Sminer::increase_collateral(RuntimeOrigin::signed(ACCOUNT1.0), UNIT_POWER_LIMIT));
 		assert!(!BadMiner::<Test>::contains_key(ACCOUNT1.0));
 		let event = Sys::events().pop().expect("Expected at least one MinerExit to be found").event;
 		assert_eq!(
-			mock::Event::from(Event::IncreaseCollateral {
+			mock::RuntimeEvent::from(Event::IncreaseCollateral {
 				acc: ACCOUNT1.0,
 				balance: UNIT_POWER_LIMIT + 1u128
 			}),
@@ -634,18 +634,18 @@ const FIXED_CHARGE_AMOUNT: u128 = 10000000000000000u128;
 #[test]
 fn faucet_should_work() {
 	new_test_ext().execute_with(|| {
-		assert_ok!(Sminer::faucet(Origin::signed(ACCOUNT1.0), 777));
+		assert_ok!(Sminer::faucet(RuntimeOrigin::signed(ACCOUNT1.0), 777));
 		assert_eq!(FIXED_CHARGE_AMOUNT, Balances::free_balance(&777));
 
 		//FIXME! the assert_noop! not work, why?
-		//assert_noop!(Sminer::faucet(Origin::signed(ACCOUNT1.0), 777), Error::<Test>::LessThan24Hours);
-		if let Err(e) = Sminer::faucet(Origin::signed(ACCOUNT1.0), 777) {
+		//assert_noop!(Sminer::faucet(RuntimeOrigin::signed(ACCOUNT1.0), 777), Error::<Test>::LessThan24Hours);
+		if let Err(e) = Sminer::faucet(RuntimeOrigin::signed(ACCOUNT1.0), 777) {
 			if let DispatchError::Module(m) = e {
 				assert_eq!("LessThan24Hours", m.message.unwrap());
 			}
 		}
 		Sys::set_block_number(1u64 + 28800u64);
-		assert_ok!(Sminer::faucet(Origin::signed(ACCOUNT1.0), 777));
+		assert_ok!(Sminer::faucet(RuntimeOrigin::signed(ACCOUNT1.0), 777));
 	});
 }
 

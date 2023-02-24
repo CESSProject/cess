@@ -162,6 +162,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		// Clear CurrentCounters
+		#[allow(deprecated)]
 		let cc_outcome = CurrentCounters::<T>::remove_all(None);
 		let cc_keys_removed= match cc_outcome {
 			KillStorageResult::AllRemoved(count) => count,
@@ -172,6 +173,7 @@ impl<T: Config> Pallet<T> {
 		// Remove `period - history_depth` credit values in history.
 		let history_depth = PERIOD_WEIGHT.len() as u32;
 		if period >= history_depth {
+			#[allow(deprecated)]
 			let hcv_outcome = HistoryCreditValues::<T>::remove_prefix(&period.saturating_sub(history_depth), None);
 			let hcv_keys_removed= match hcv_outcome {
 				KillStorageResult::AllRemoved(count) => count,
