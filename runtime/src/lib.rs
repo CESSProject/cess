@@ -1333,6 +1333,12 @@ impl pallet_scheduler_credit::Config for Runtime {
 	type StashAccountFinder = SchedulerStashAccountFinder;
 }
 
+impl pallet_cacher::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type WeightInfo = pallet_cacher::weights::SubstrateWeight<Runtime>;
+}
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
 	pub enum Runtime where
@@ -1393,6 +1399,7 @@ construct_runtime!(
 		Sminer: pallet_sminer = 63,
 		SchedulerCredit: pallet_scheduler_credit = 64,
 		Oss: pallet_oss = 65,
+		Cacher: pallet_cacher = 66,
 	}
 );
 
@@ -1459,6 +1466,7 @@ mod benches {
 		[pallet_contracts, Contracts]
 		[pallet_sminer, Sminer]
 		[pallet_oss, Oss]
+		[pallet_cacher, Cacher]
 		[pallet_file_bank, FileBankBench::<Runtime>]
 		[pallet_file_map, FileMapBench::<Runtime>]
 		[pallet_segment_book, SegmentBookBench::<Runtime>]
