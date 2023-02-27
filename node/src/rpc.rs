@@ -62,7 +62,7 @@ pub struct GrandpaDeps<B> {
 }
 
 /// Full client dependencies.
-pub struct FullDeps<C, P, SC, B, A: ChainApi> {
+pub struct FullDeps<C, P, SC, B, /*A: ChainApi*/> {
 	/// The client instance to use.
 	pub client: Arc<C>,
 	/// Transaction pool instance.
@@ -77,28 +77,28 @@ pub struct FullDeps<C, P, SC, B, A: ChainApi> {
 	pub rrsc: RRSCDeps,
 	/// GRANDPA specific dependencies.
 	pub grandpa: GrandpaDeps<B>,
-	/// Graph pool instance.
-	pub graph: Arc<Pool<A>>,
-	/// The Node authority flag
-	pub is_authority: bool,
-	// /// Whether to enable dev signer
-	// pub enable_dev_signer: bool,
-	// /// Network service
-	// pub network: Arc<NetworkService<Block, Hash>>,
-	/// EthFilterApi pool.
-	pub filter_pool: Option<FilterPool>,
-	/// Backend.
-	pub frontier_backend: Arc<fc_db::Backend<Block>>,
-	// /// Maximum number of logs in a query.
-	// pub max_past_logs: u32,
-	// /// Maximum fee history cache size.
-	// pub fee_history_limit: u64,
-	// /// Fee history cache.
-	// pub fee_history_cache: FeeHistoryCache,
-	/// Ethereum data access overrides.
-	pub overrides: Arc<OverrideHandle<Block>>,
-	// /// Cache for Ethereum block data.
-	// pub block_data_cache: Arc<EthBlockDataCacheTask<Block>>,
+	// /// Graph pool instance.
+	// pub graph: Arc<Pool<A>>,
+	// /// The Node authority flag
+	// pub is_authority: bool,
+	// // /// Whether to enable dev signer
+	// // pub enable_dev_signer: bool,
+	// // /// Network service
+	// // pub network: Arc<NetworkService<Block, Hash>>,
+	// /// EthFilterApi pool.
+	// pub filter_pool: Option<FilterPool>,
+	// /// Backend.
+	// pub frontier_backend: Arc<fc_db::Backend<Block>>,
+	// // /// Maximum number of logs in a query.
+	// // pub max_past_logs: u32,
+	// // /// Maximum fee history cache size.
+	// // pub fee_history_limit: u64,
+	// // /// Fee history cache.
+	// // pub fee_history_cache: FeeHistoryCache,
+	// /// Ethereum data access overrides.
+	// pub overrides: Arc<OverrideHandle<Block>>,
+	// // /// Cache for Ethereum block data.
+	// // pub block_data_cache: Arc<EthBlockDataCacheTask<Block>>,
 }
 
 pub fn overrides_handle<C, BE>(client: Arc<C>) -> Arc<OverrideHandle<Block>>
@@ -136,8 +136,8 @@ where
 }
 
 /// Instantiate all full RPC extensions.
-pub fn create_full<C, P, SC, B, BE, A>(
-	deps: FullDeps<C, P, SC, B,  A>,
+pub fn create_full<C, P, SC, B, BE, /*A*/>(
+	deps: FullDeps<C, P, SC, B,  /*A*/>,
 	backend: Arc<B>,
 ) -> Result<RpcModule<()>, Box<dyn std::error::Error + Send + Sync>>
 where
@@ -158,13 +158,13 @@ where
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
 	C::Api: RRSCApi<Block>,
 	C::Api: BlockBuilder<Block>,
-	C::Api: fp_rpc::ConvertTransactionRuntimeApi<Block>,
-	C::Api: fp_rpc::EthereumRuntimeRPCApi<Block>,
+	// C::Api: fp_rpc::ConvertTransactionRuntimeApi<Block>,
+	// C::Api: fp_rpc::EthereumRuntimeRPCApi<Block>,
 	P: TransactionPool + 'static,
 	SC: SelectChain<Block> + 'static,
 	B: sc_client_api::Backend<Block> + Send + Sync + 'static,
 	B::State: sc_client_api::backend::StateBackend<sp_runtime::traits::HashFor<Block>>,
-	A: ChainApi<Block = Block> + 'static,
+	// A: ChainApi<Block = Block> + 'static,
 {
 	use fc_rpc::{
 		Eth, EthApiServer, EthDevSigner, EthFilter, EthFilterApiServer, EthPubSub,
@@ -189,18 +189,18 @@ where
 		deny_unsafe,
 		rrsc,
 		grandpa,
-		graph,
-		is_authority,
-		// enable_dev_signer,
-		// network,
-		filter_pool,
-		frontier_backend,
-		// max_past_logs,
-		// fee_history_limit,
-		// fee_history_cache,
-		overrides,
-		// block_data_cache,
-		// execute_gas_limit_multiplier,
+		// graph,
+		// is_authority,
+		// // enable_dev_signer,
+		// // network,
+		// filter_pool,
+		// frontier_backend,
+		// // max_past_logs,
+		// // fee_history_limit,
+		// // fee_history_cache,
+		// overrides,
+		// // block_data_cache,
+		// // execute_gas_limit_multiplier,
 	} = deps;
 	let RRSCDeps { keystore, rrsc_config, shared_epoch_changes } = rrsc;
 	let GrandpaDeps {
@@ -249,7 +249,7 @@ where
 		SyncState::new(chain_spec, client.clone(), shared_authority_set, shared_epoch_changes)?
 			.into_rpc(),
 	)?;
-	io.merge(Web3::new(client.clone()).into_rpc())?;
+	// io.merge(Web3::new(client.clone()).into_rpc())?;
 	io.merge(StateMigration::new(client.clone(), backend, deny_unsafe).into_rpc())?;
 	io.merge(Dev::new(client, deny_unsafe).into_rpc())?;
 
