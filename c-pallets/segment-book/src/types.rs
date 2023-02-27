@@ -19,6 +19,23 @@ pub struct ChallengeInfo<T: pallet::Config> {
 }
 
 //Structure for storing miner certificates
+// #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+// #[scale_info(skip_type_params(T))]
+// #[codec(mel_bound())]
+// pub struct ProveInfo<T: pallet::Config> {
+// 	pub(super) file_id: Hash,
+// 	pub(super) miner_acc: AccountOf<T>,
+// 	//Verify required parameters
+// 	pub(super) challenge_info: ChallengeInfo<T>,
+// 	//Proof of relevant information
+// 	pub(super) mu: BoundedList<T>,
+// 	//Proof of relevant information
+// 	pub(super) sigma: BoundedVec<u8, T::StringLimit>,
+// 	pub(super) name: BoundedVec<u8, T::StringLimit>,
+// 	pub(super) u: BoundedList<T>,
+// }
+
+// Structure for storing miner certificates
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
@@ -27,12 +44,14 @@ pub struct ProveInfo<T: pallet::Config> {
 	pub(super) miner_acc: AccountOf<T>,
 	//Verify required parameters
 	pub(super) challenge_info: ChallengeInfo<T>,
+	pub(super) u: BoundedVec<u8, T::StringLimit>,
 	//Proof of relevant information
-	pub(super) mu: BoundedList<T>,
+	pub(super) mu: BoundedVec<u8, T::StringLimit>,
 	//Proof of relevant information
 	pub(super) sigma: BoundedVec<u8, T::StringLimit>,
-	pub(super) name: BoundedVec<u8, T::StringLimit>,
-	pub(super) u: BoundedList<T>,
+	pub(super) omega: BoundedVec<u8, T::StringLimit>,
+	pub(super) sig_root_hash: BoundedVec<u8, T::StringLimit>,
+	pub(super) hash_mi: BoundedList<T>,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
