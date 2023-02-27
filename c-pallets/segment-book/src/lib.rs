@@ -43,6 +43,8 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+pub mod migrations;
+
 pub use pallet::*;
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -64,7 +66,7 @@ use frame_support::{
 	storage::bounded_vec::BoundedVec,
 	traits::{
 		FindAuthor, Randomness, ReservableCurrency, EstimateNextSessionRotation,
-		ValidatorSetWithIdentification, ValidatorSet, OneSessionHandler,
+		ValidatorSetWithIdentification, ValidatorSet, OneSessionHandler, StorageVersion,
 	},
 	PalletId, WeakBoundedVec, BoundedSlice,
 };
@@ -90,6 +92,8 @@ type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 type Hash = H68;
 pub const SEGMENT_BOOK: KeyTypeId = KeyTypeId(*b"cess");
 // type FailureRate = u32;
+
+const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 pub mod sr25519 {
 	mod app_sr25519 {
@@ -312,6 +316,7 @@ pub mod pallet {
 		StorageMap<_, Blake2_128Concat, T::AccountId, u8, ValueQuery>;
 
 	#[pallet::pallet]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
 

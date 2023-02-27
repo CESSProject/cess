@@ -75,6 +75,8 @@ pub mod impls;
 use impls::{Author, CreditToBlockAuthor, SchedulerStashAccountFinder};
 // use frame_support::traits::OnRuntimeUpgrade;
 // pub use pallet_file_bank::migrations::TestMigrationFileBank;
+pub use pallet_segment_book::migrations::MigrationSegmentBook;
+
 pub mod constants;
 use fp_rpc::TransactionStatus;
 pub use pallet_balances::Call as BalancesCall;
@@ -1443,6 +1445,7 @@ pub type Executive = frame_executive::Executive<
 	Runtime,
 	AllPalletsWithSystem,
 	// TestMigrationFileBank<Runtime>,
+	MigrationSegmentBook<Runtime>,
 >;
 
 #[cfg(feature = "runtime-benchmarks")]

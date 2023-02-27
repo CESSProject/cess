@@ -1387,7 +1387,8 @@ pub mod pallet {
 						break
 					}
 				}
-				let random = Self::generate_random_number(seed)? % limit;
+				// bug !!
+				let random = Self::generate_random_number(seed)? % limit + 1;
 				let result: bool = match random_type {
 					1 => Self::judge_filler_exist(random),
 					2 => Self::judge_file_exist(random),
