@@ -789,6 +789,7 @@ dependencies = [
  "pallet-balances",
  "pallet-base-fee",
  "pallet-bounties",
+ "pallet-cacher",
  "pallet-cess-staking",
  "pallet-child-bounties",
  "pallet-collective",
@@ -4831,6 +4832,24 @@ dependencies = [
  "frame-system",
  "log",
  "pallet-treasury",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-cacher"
+version = "0.5.4"
+dependencies = [
+ "cp-cess-common",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-balances",
  "parity-scale-codec",
  "scale-info",
  "sp-core",
