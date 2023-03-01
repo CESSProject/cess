@@ -6,36 +6,42 @@
 #![warn(missing_docs)]
 
 use crate::primitives as node_primitives;
-use fc_rpc::{
-	EthBlockDataCacheTask, OverrideHandle, RuntimeApiStorageOverride, SchemaV1Override,
-	SchemaV2Override, SchemaV3Override, StorageOverride,
-};
-use fc_rpc_core::types::{FeeHistoryCache, FilterPool};
-use fp_storage::EthereumStorageSchema;
-use grandpa::{
-	FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState,
-};
+use std::{collections::BTreeMap, sync::Arc};
+
 use node_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Index};
 use jsonrpsee::RpcModule;
+
+// Substrate
 use sc_client_api::{
 	backend::{AuxStore, Backend, StateBackend, StorageProvider},
 	client::BlockchainEvents,
 };
-use cessc_consensus_rrsc::{RRSCConfiguration, Epoch};
-use sc_consensus_epochs::SharedEpochChanges;
+use grandpa::{
+	FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState,
+};
 use sc_network::NetworkService;
 use sc_rpc::SubscriptionTaskExecutor;
-pub use sc_rpc_api::DenyUnsafe;
-use sc_service::TransactionPool;
 use sc_transaction_pool::{ChainApi, Pool};
+use sc_service::TransactionPool;
 use sp_api::ProvideRuntimeApi;
-use sp_block_builder::BlockBuilder;
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
+use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
+use cessc_consensus_rrsc::{RRSCConfiguration, Epoch};
+use sc_consensus_epochs::SharedEpochChanges;
+pub use sc_rpc_api::DenyUnsafe;
+use sp_block_builder::BlockBuilder;
 use sp_consensus::SelectChain;
 use cessp_consensus_rrsc::RRSCApi;
 use sp_keystore::SyncCryptoStorePtr;
-use sp_runtime::traits::BlakeTwo256;
-use std::{collections::BTreeMap, sync::Arc};
+
+// Frontier
+use fc_db::Backend as FrontierBackend;
+use fc_rpc::{
+	EthBlockDataCacheTask, OverrideHandle, RuntimeApiStorageOverride, SchemaV1Override,
+	SchemaV2Override, SchemaV3Override, StorageOverride,
+};
+use fc_rpc_core::types::{FeeHistoryCache, FeeHistoryCacheLimit, FilterPool};
+use fp_storage::EthereumStorageSchema;
 
 /// Extra dependencies for RRSC.
 pub struct RRSCDeps {
@@ -62,7 +68,7 @@ pub struct GrandpaDeps<B> {
 }
 
 /// Full client dependencies.
-pub struct FullDeps<C, P, SC, B, /*A: ChainApi*/> {
+pub struct FullDeps<C, P, SC, B, A: ChainApi, CT> {
 	/// The client instance to use.
 	pub client: Arc<C>,
 	/// Transaction pool instance.
@@ -77,28 +83,33 @@ pub struct FullDeps<C, P, SC, B, /*A: ChainApi*/> {
 	pub rrsc: RRSCDeps,
 	/// GRANDPA specific dependencies.
 	pub grandpa: GrandpaDeps<B>,
-	// /// Graph pool instance.
-	// pub graph: Arc<Pool<A>>,
-	// /// The Node authority flag
-	// pub is_authority: bool,
-	// // /// Whether to enable dev signer
-	// // pub enable_dev_signer: bool,
-	// // /// Network service
-	// // pub network: Arc<NetworkService<Block, Hash>>,
-	// /// EthFilterApi pool.
-	// pub filter_pool: Option<FilterPool>,
-	// /// Backend.
-	// pub frontier_backend: Arc<fc_db::Backend<Block>>,
-	// // /// Maximum number of logs in a query.
-	// // pub max_past_logs: u32,
-	// // /// Maximum fee history cache size.
-	// // pub fee_history_limit: u64,
-	// // /// Fee history cache.
-	// // pub fee_history_cache: FeeHistoryCache,
-	// /// Ethereum data access overrides.
-	// pub overrides: Arc<OverrideHandle<Block>>,
-	// // /// Cache for Ethereum block data.
-	// // pub block_data_cache: Arc<EthBlockDataCacheTask<Block>>,
+	/// Graph pool instance.
+	pub graph: Arc<Pool<A>>,
+	/// Ethereum transaction converter.
+	pub converter: Option<CT>,
+	/// The Node authority flag
+	pub is_authority: bool,
+	/// Whether to enable dev signer
+	pub enable_dev_signer: bool,
+	/// Network service
+	pub network: Arc<NetworkService<Block, Hash>>,
+	/// EthFilterApi pool.
+	pub filter_pool: Option<FilterPool>,
+	/// Backend.
+	pub frontier_backend: Arc<fc_db::Backend<Block>>,
+	/// Maximum number of logs in a query.
+	pub max_past_logs: u32,
+	/// Maximum fee history cache size.
+	pub fee_history_limit: u64,
+	/// Fee history cache.
+	pub fee_history_cache: FeeHistoryCache,
+	/// Ethereum data access overrides.
+	pub overrides: Arc<OverrideHandle<Block>>,
+	/// Cache for Ethereum block data.
+	pub block_data_cache: Arc<EthBlockDataCacheTask<Block>>,
+	/// Maximum allowed gas limit will be ` block.gas_limit * execute_gas_limit_multiplier` when
+	/// using eth_call/eth_estimateGas.
+	pub execute_gas_limit_multiplier: u64,
 }
 
 pub fn overrides_handle<C, BE>(client: Arc<C>) -> Arc<OverrideHandle<Block>>
@@ -136,8 +147,8 @@ where
 }
 
 /// Instantiate all full RPC extensions.
-pub fn create_full<C, P, SC, B, BE, /*A*/>(
-	deps: FullDeps<C, P, SC, B,  /*A*/>,
+pub fn create_full<C, P, SC, B, BE, A, CT>(
+	deps: FullDeps<C, P, SC, B, A, CT>,
 	backend: Arc<B>,
 ) -> Result<RpcModule<()>, Box<dyn std::error::Error + Send + Sync>>
 where
@@ -158,13 +169,14 @@ where
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
 	C::Api: RRSCApi<Block>,
 	C::Api: BlockBuilder<Block>,
-	// C::Api: fp_rpc::ConvertTransactionRuntimeApi<Block>,
-	// C::Api: fp_rpc::EthereumRuntimeRPCApi<Block>,
-	P: TransactionPool + 'static,
+	C::Api: fp_rpc::ConvertTransactionRuntimeApi<Block>,
+	C::Api: fp_rpc::EthereumRuntimeRPCApi<Block>,
+	P: TransactionPool<Block = Block> + 'static,
 	SC: SelectChain<Block> + 'static,
 	B: sc_client_api::Backend<Block> + Send + Sync + 'static,
 	B::State: sc_client_api::backend::StateBackend<sp_runtime::traits::HashFor<Block>>,
-	// A: ChainApi<Block = Block> + 'static,
+	A: ChainApi<Block = Block> + 'static,
+	CT: fp_rpc::ConvertTransaction<<Block as BlockT>::Extrinsic> + Send + Sync + 'static,
 {
 	use fc_rpc::{
 		Eth, EthApiServer, EthDevSigner, EthFilter, EthFilterApiServer, EthPubSub,
@@ -189,18 +201,19 @@ where
 		deny_unsafe,
 		rrsc,
 		grandpa,
-		// graph,
-		// is_authority,
-		// // enable_dev_signer,
-		// // network,
-		// filter_pool,
-		// frontier_backend,
-		// // max_past_logs,
-		// // fee_history_limit,
-		// // fee_history_cache,
-		// overrides,
-		// // block_data_cache,
-		// // execute_gas_limit_multiplier,
+		graph,
+		converter,
+		is_authority,
+		enable_dev_signer,
+		network,
+		filter_pool,
+		frontier_backend,
+		max_past_logs,
+		fee_history_limit,
+		fee_history_cache,
+		overrides,
+		block_data_cache,
+		execute_gas_limit_multiplier,
 	} = deps;
 	let RRSCDeps { keystore, rrsc_config, shared_epoch_changes } = rrsc;
 	let GrandpaDeps {
@@ -216,7 +229,7 @@ where
 	let properties = chain_spec.properties();
 	io.merge(ChainSpec::new(chain_name, genesis_hash, properties).into_rpc())?;
 
-	io.merge(System::new(client.clone(), pool, deny_unsafe).into_rpc())?;
+	io.merge(System::new(client.clone(), pool.clone(), deny_unsafe).into_rpc())?;
 	// Making synchronous calls in light client freezes the browser currently,
 	// more context: https://github.com/paritytech/substrate/pull/3480
 	// These RPCs should use an asynchronous caller instead.
@@ -236,7 +249,7 @@ where
 	)?;
 	io.merge(
 		Grandpa::new(
-			subscription_executor,
+			subscription_executor.clone(),
 			shared_authority_set.clone(),
 			shared_voter_state,
 			justification_stream,
@@ -249,7 +262,67 @@ where
 		SyncState::new(chain_spec, client.clone(), shared_authority_set, shared_epoch_changes)?
 			.into_rpc(),
 	)?;
-	// io.merge(Web3::new(client.clone()).into_rpc())?;
+
+	let mut signers = Vec::new();
+	if enable_dev_signer {
+		signers.push(Box::new(EthDevSigner::new()) as Box<dyn EthSigner>);
+	}
+
+	io.merge(
+		Eth::new(
+			client.clone(),
+			pool.clone(),
+			graph,
+			converter,
+			network.clone(),
+			vec![],
+			overrides.clone(),
+			frontier_backend.clone(),
+			is_authority,
+			block_data_cache.clone(),
+			fee_history_cache,
+			fee_history_limit,
+			execute_gas_limit_multiplier,
+		)
+		.into_rpc(),
+	)?;
+
+	if let Some(filter_pool) = filter_pool {
+		io.merge(
+			EthFilter::new(
+				client.clone(),
+				frontier_backend,
+				filter_pool,
+				500_usize, // max stored filters
+				max_past_logs,
+				block_data_cache,
+			)
+			.into_rpc(),
+		)?;
+	}
+
+	io.merge(
+		EthPubSub::new(
+			pool,
+			client.clone(),
+			network.clone(),
+			subscription_executor,
+			overrides,
+		)
+		.into_rpc(),
+	)?;
+
+	io.merge(
+		Net::new(
+			client.clone(),
+			network,
+			// Whether to format the `peer_count` response as Hex (default) or not.
+			true,
+		)
+		.into_rpc(),
+	)?;
+
+	io.merge(Web3::new(client.clone()).into_rpc())?;
 	io.merge(StateMigration::new(client.clone(), backend, deny_unsafe).into_rpc())?;
 	io.merge(Dev::new(client, deny_unsafe).into_rpc())?;
 
