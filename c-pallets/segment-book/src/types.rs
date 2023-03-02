@@ -11,7 +11,7 @@ pub type BoundedList<T> =
 pub struct ChallengeInfo<T: pallet::Config> {
 	pub(super) file_size: u64,
 	pub(super) file_type: DataType,
-	pub(super) block_list: BoundedVec<u8, T::StringLimit>,
+	pub(super) block_list: BoundedVec<u32, T::StringLimit>,
 	pub(super) file_id: Hash,
 	pub(super) shard_id: [u8; 68],
 	//48 bit random number
