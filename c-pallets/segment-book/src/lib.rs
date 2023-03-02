@@ -43,7 +43,7 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-pub mod migrations;
+// pub mod migrations;
 
 pub use pallet::*;
 
@@ -1079,10 +1079,12 @@ pub mod pallet {
 		//The number of pieces generated is VEC
 		fn generate_random_number(seed: u32, length: u32) -> Vec<Vec<u8>> {
 			let mut random_list: Vec<Vec<u8>> = Vec::new();
+			let mut x = seed;
 			for _ in 0..length {
 				loop {
+					x += 1;
 					let (r_seed, _) =
-						T::MyRandomness::random(&(T::MyPalletId::get(), seed).encode());
+						T::MyRandomness::random(&(T::MyPalletId::get(), x).encode());
 					let r_seed = match r_seed {
 						Some(v) => v,
 						None => Default::default(),
@@ -1091,7 +1093,7 @@ pub mod pallet {
 						.expect("secure hashes should always be bigger than u32; qed");
 					let random_vec = random_seed.as_bytes().to_vec();
 					if random_vec.len() >= 20 {
-						random_list.push(random_vec[0..19].to_vec());
+						random_list.push(random_vec[0..20].to_vec());
 						break;
 					}
 				}
