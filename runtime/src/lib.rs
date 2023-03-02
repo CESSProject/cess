@@ -75,7 +75,7 @@ pub mod impls;
 use impls::{Author, CreditToBlockAuthor, SchedulerStashAccountFinder};
 // use frame_support::traits::OnRuntimeUpgrade;
 // pub use pallet_file_bank::migrations::TestMigrationFileBank;
-pub use pallet_segment_book::migrations::MigrationSegmentBook;
+// pub use pallet_segment_book::migrations::MigrationSegmentBook;
 
 pub mod constants;
 use fp_rpc::TransactionStatus;
@@ -164,7 +164,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 109,
+	spec_version: 112,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -902,7 +902,7 @@ impl pallet_sminer::Config for Runtime {
 parameter_types! {
 	pub const SegbkPalletId: PalletId = PalletId(*b"rewardpt");
 	#[derive(Clone, PartialEq, Eq)]
-	pub const StringLimit: u32 = 50240;
+	pub const StringLimit: u32 = 60240;
 	#[derive(Clone, PartialEq, Eq)]
 	pub const ChallengeMaximum: u32 = 8000;
 	#[derive(Clone, PartialEq, Eq)]
@@ -1452,7 +1452,7 @@ pub type Executive = frame_executive::Executive<
 	Runtime,
 	AllPalletsWithSystem,
 	// TestMigrationFileBank<Runtime>,
-	MigrationSegmentBook<Runtime>,
+	// MigrationSegmentBook<Runtime>,
 >;
 
 #[cfg(feature = "runtime-benchmarks")]
