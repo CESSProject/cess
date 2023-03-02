@@ -6,7 +6,7 @@ pub use crate::executor::ExecutorDispatch;
 use crate::{
 	cli::Cli, 
 	primitives as node_primitives, 
-	rpc as node_rpc
+	rpc::{self as node_rpc, EthConfiguration}
 };
 use cess_node_runtime::RuntimeApi;
 use fc_mapping_sync::{MappingSyncWorker, SyncStrategy};
@@ -226,6 +226,7 @@ pub struct NewFullBase {
 /// Creates a full service from the configuration.
 pub fn new_full_base(
 	mut config: Configuration,
+	eth_config: EthConfiguration,
 	disable_hardware_benchmarks: bool,
 	with_startup_data: impl FnOnce(
 		&cessc_consensus_rrsc::RRSCBlockImport<Block, FullClient, FullGrandpaBlockImport>,
@@ -284,7 +285,11 @@ pub fn new_full_base(
 	let network_clone = network.clone();
 	let frontier_backend = open_frontier_backend(client.clone(), &config)?;
 	let fee_history_cache: FeeHistoryCache = Arc::new(Mutex::new(BTreeMap::new()));
-	let fee_history_limit = 2048;
+	let fee_history_limit = eth_config.fee_history_limit;
+	let max_past_logs = eth_config.max_past_logs;
+	let enable_dev_signer = eth_config.enable_dev_signer;
+	let execute_gas_limit_multiplier = eth_config.execute_gas_limit_multiplier;
+
 	let overrides = crate::rpc::overrides_handle(client.clone());
 	let filter_pool: Option<FilterPool> = Some(Arc::new(Mutex::new(BTreeMap::new()))); 
 	let (rpc_builder, rpc_setup) = {
@@ -346,16 +351,16 @@ pub fn new_full_base(
 				graph: pool.pool().clone(),
 				converter: Some(TransactionConverter),
 				is_authority,
-				enable_dev_signer: true,
+				enable_dev_signer: enable_dev_signer.clone(),
 				network: network_clone.clone(),
 				filter_pool: filter_pool.clone(),
 				frontier_backend: frontier_backend.clone(),
-				max_past_logs: 10000,
+				max_past_logs: max_past_logs.clone(),
 				fee_history_limit: fee_history_limit.clone(),
 				fee_history_cache: fee_history_cache.clone(),
 				block_data_cache: block_data_cache.clone(),
 				overrides: overrides.clone(),
-				execute_gas_limit_multiplier: 10,
+				execute_gas_limit_multiplier: execute_gas_limit_multiplier.clone(),
 			};
 
 			node_rpc::create_full(deps, rpc_backend.clone()).map_err(Into::into)
@@ -594,8 +599,9 @@ pub fn new_full_base(
 /// Builds a new service for a full client.
 pub fn new_full(
 	config: Configuration,
+	eth_config: EthConfiguration,
 	disable_hardware_benchmarks: bool,
 ) -> Result<TaskManager, ServiceError> {
-	new_full_base(config, disable_hardware_benchmarks, |_, _| ())
+	new_full_base(config, eth_config, disable_hardware_benchmarks, |_, _| ())
 		.map(|NewFullBase { task_manager, .. }| task_manager)
 }

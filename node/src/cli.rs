@@ -1,3 +1,5 @@
+use crate::rpc::EthConfiguration;
+
 /// An overarching CLI command definition.
 #[derive(Debug, clap::Parser)]
 pub struct Cli {
@@ -8,6 +10,9 @@ pub struct Cli {
 	#[allow(missing_docs)]
 	#[clap(flatten)]
 	pub run: sc_cli::RunCmd,
+
+	#[clap(flatten)]
+	pub eth: EthConfiguration,
 
 	/// Disable automatic hardware benchmarks.
 	///

@@ -67,6 +67,24 @@ pub struct GrandpaDeps<B> {
 	pub finality_provider: Arc<FinalityProofProvider<B, Block>>,
 }
 
+#[derive(Clone, Debug, clap::Parser)]
+pub struct EthConfiguration {
+	/// Maximum number of logs in a query.
+	#[arg(long, default_value = "10000")]
+	pub max_past_logs: u32,
+
+	/// Maximum fee history cache size.
+	#[arg(long, default_value = "2048")]
+	pub fee_history_limit: u64,
+
+	#[arg(long)]
+	pub enable_dev_signer: bool,
+
+	/// Maximueth_statuses_cachem allowed gas limit will be `block.gas_limit * execute_gas_limit_multiplier`
+	/// when using eth_call/eth_estimateGas.
+	#[arg(long, default_value = "10")]
+	pub execute_gas_limit_multiplier: u64,
+}
 /// Full client dependencies.
 pub struct FullDeps<C, P, SC, B, A: ChainApi, CT> {
 	/// The client instance to use.
