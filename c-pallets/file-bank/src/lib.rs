@@ -1222,11 +1222,11 @@ pub mod pallet {
 		/// - `tuple.3`: file size or shard size.
 		/// - `tuple.4`: file type 1 or 2, 1 is file slice, 2 is filler.
 		pub fn get_random_challenge_data(
-		) -> Result<Vec<(AccountOf<T>, Hash, [u8; 68], Vec<u8>, u64, DataType)>, DispatchError> {
+		) -> Result<Vec<(AccountOf<T>, Hash, [u8; 68], Vec<u32>, u64, DataType)>, DispatchError> {
 			log::info!("get random filler...");
 			let filler_list = Self::get_random_filler()?;
 			log::info!("get random filler success");
-			let mut data: Vec<(AccountOf<T>, Hash, [u8; 68], Vec<u8>, u64, DataType)> = Vec::new();
+			let mut data: Vec<(AccountOf<T>, Hash, [u8; 68], Vec<u32>, u64, DataType)> = Vec::new();
 			log::info!("storage filler data...");
 			for v in filler_list {
 				let length = v.block_num;
@@ -1234,9 +1234,9 @@ pub mod pallet {
 				let miner_acc = v.miner_address.clone();
 				let filler_hash = v.filler_hash.clone();
 				let file_size = v.filler_size.clone();
-				let mut block_list: Vec<u8> = Vec::new();
+				let mut block_list: Vec<u32> = Vec::new();
 				for i in number_list.iter() {
-					block_list.push((*i as u8) + 1);
+					block_list.push(*i as u32);
 				}
 				data.push((miner_acc, filler_hash, [0u8; 68], block_list, file_size, DataType::Filler));
 			}
@@ -1252,22 +1252,23 @@ pub mod pallet {
 					file.slice_info.len() as u32,
 				)?;
 				for slice_index in slice_number_list.iter() {
+					let index_temp = *slice_index - 1;
 					let miner_id = T::MinerControl::get_miner_id(
-						file.slice_info[*slice_index as usize].miner_acc.clone(),
+						file.slice_info[index_temp as usize].miner_acc.clone(),
 					)?;
-					if file.slice_info[*slice_index as usize].miner_id != miner_id {
+					if file.slice_info[index_temp as usize].miner_id != miner_id {
 						continue
 					}
-					let mut block_list: Vec<u8> = Vec::new();
-					let length = file.slice_info[*slice_index as usize].block_num;
+					let mut block_list: Vec<u32> = Vec::new();
+					let length = file.slice_info[index_temp as usize].block_num;
 					let number_list = Self::get_random_numberlist(length, 3, length)?;
-					let file_hash = Hash::from_shard_id(&file.slice_info[*slice_index as usize].shard_id).map_err(|_| Error::<T>::ConvertHashError)?;
-					let miner_acc = file.slice_info[*slice_index as usize].miner_acc.clone();
-					let slice_size = file.slice_info[*slice_index as usize].shard_size;
+					let file_hash = Hash::from_shard_id(&file.slice_info[index_temp as usize].shard_id).map_err(|_| Error::<T>::ConvertHashError)?;
+					let miner_acc = file.slice_info[index_temp as usize].miner_acc.clone();
+					let slice_size = file.slice_info[index_temp as usize].shard_size;
 					for i in number_list.iter() {
-						block_list.push((*i as u8) + 1);
+						block_list.push(*i as u32);
 					}
-					data.push((miner_acc, file_hash, file.slice_info[*slice_index as usize].shard_id, block_list, slice_size, DataType::File));
+					data.push((miner_acc, file_hash, file.slice_info[index_temp as usize].shard_id, block_list, slice_size, DataType::File));
 				}
 				log::info!("storage filler success!");
 			}
@@ -1831,7 +1832,7 @@ pub mod pallet {
 pub trait RandomFileList<AccountId> {
 	//Get random challenge data
 	fn get_random_challenge_data(
-	) -> Result<Vec<(AccountId, Hash, [u8; 68], Vec<u8>, u64, DataType)>, DispatchError>;
+	) -> Result<Vec<(AccountId, Hash, [u8; 68], Vec<u32>, u64, DataType)>, DispatchError>;
 	//Delete filler file
 	fn delete_filler(miner_acc: AccountId, filler_hash: Hash) -> DispatchResult;
 	//Delete all filler according to miner_acc
@@ -1846,7 +1847,7 @@ pub trait RandomFileList<AccountId> {
 
 impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Pallet<T> {
 	fn get_random_challenge_data(
-	) -> Result<Vec<(AccountOf<T>, Hash, [u8; 68], Vec<u8>, u64, DataType)>, DispatchError> {
+	) -> Result<Vec<(AccountOf<T>, Hash, [u8; 68], Vec<u32>, u64, DataType)>, DispatchError> {
 		let result = Pallet::<T>::get_random_challenge_data()?;
 		Ok(result)
 	}
