@@ -93,13 +93,13 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config + sp_std::fmt::Debug {
 		/// The overarching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// The currency trait.
 		type Currency: ReservableCurrency<Self::AccountId>;
 
 		type WeightInfo: WeightInfo;
 
-		type Call: From<Call<Self>>;
+		type RuntimeCall: From<Call<Self>>;
 		//Find the consensus of the current block
 		type FindAuthor: FindAuthor<Self::AccountId>;
 		//Used to find out whether the schedule exists
@@ -389,7 +389,7 @@ pub mod pallet {
 			if number % oneday as u128 == 0 {
 				log::info!("Start lease expiration check");
 				for (acc, info) in <UserOwnedSpace<T>>::iter() {
-					weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
+					weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
 					if now > info.deadline {
 						let frozen_day: BlockNumberOf<T> = <T as pallet::Config>::FrozenDays::get();
 						if now > info.deadline + frozen_day {
@@ -408,7 +408,7 @@ pub mod pallet {
 								},
 								Err(e) => {
 									log::error!("failed clear expired file: {:?}", e);
-									0
+									Weight::from_ref_time(0)
 						 		},
 							};
 							weight = weight.saturating_add(weight_temp);
@@ -445,6 +445,7 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[pallet::call_index(0)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
 		pub fn clear_all_filler(origin: OriginFor<T>) -> DispatchResult {
@@ -483,6 +484,7 @@ pub mod pallet {
 		/// Parameters:
 		/// - `file_hash`: Hash of the file to be uploaded.
 		/// - `file_name`: User defined file name.
+		#[pallet::call_index(1)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_declaration())]
 		pub fn upload_declaration(
@@ -561,6 +563,7 @@ pub mod pallet {
 		/// - `owner_bucket_name`: Origin stores the bucket name corresponding to the file
 		/// - `target_brief`: Information about the transfer object
 		/// - `file_hash`: File hash, which is also the unique identifier of the file
+		#[pallet::call_index(2)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::ownership_transfer())]
 		pub fn ownership_transfer(
@@ -619,6 +622,7 @@ pub mod pallet {
 		/// - `file_hash`: The beneficiary related to signer account.
 		/// - `file_size`: File size calculated by consensus.
 		/// - `slice_info`: List of file slice information.
+		#[pallet::call_index(3)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload(slice_info.len() as u32))]
 		pub fn upload(
@@ -682,6 +686,7 @@ pub mod pallet {
 		/// Parameters:
 		/// - `miner`: For which miner, miner's wallet address.
 		/// - `filler_list`: Meta information list of idle files.
+		#[pallet::call_index(4)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_filler(filler_list.len() as u32))]
 		pub fn upload_filler(
@@ -736,6 +741,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `fileid`: For which miner, miner's wallet address.
+		#[pallet::call_index(5)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::delete_file())]
 		pub fn delete_file(origin: OriginFor<T>, owner: AccountOf<T>, fileid: Hash) -> DispatchResult {
@@ -773,6 +779,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `gib_count`: Quantity of several gibs purchased.
+		#[pallet::call_index(6)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_space())]
 		pub fn buy_space(origin: OriginFor<T>, gib_count: u32) -> DispatchResult {
@@ -791,7 +798,7 @@ pub mod pallet {
 				<T as pallet::Config>::Currency::can_slash(&sender, price.clone()),
 				Error::<T>::InsufficientBalance
 			);
-			let acc = T::FilbakPalletId::get().into_account();
+			let acc = T::FilbakPalletId::get().into_account_truncating();
 			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), AllowDeath)?;
 
 			Self::deposit_event(Event::<T>::BuySpace { acc: sender, storage_capacity: space, spend: price });
@@ -804,6 +811,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `gib_count`: Additional purchase quantity of several gibs.
+		#[pallet::call_index(7)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::expansion_space())]
 		pub fn expansion_space(origin: OriginFor<T>, gib_count: u32) -> DispatchResult {
@@ -849,7 +857,7 @@ pub mod pallet {
 				Error::<T>::InsufficientBalance
 			);
 
-			let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
+			let acc: AccountOf<T> = T::FilbakPalletId::get().into_account_truncating();
 			T::MinerControl::add_purchased_space(
 				space,
 			)?;
@@ -868,6 +876,7 @@ pub mod pallet {
 		/// Package renewal
 		///
 		/// Currently, lease renewal only supports single month renewal
+		#[pallet::call_index(8)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_space())]
 		pub fn renewal_space(origin: OriginFor<T>, days: u32) -> DispatchResult {
@@ -891,7 +900,7 @@ pub mod pallet {
 				<T as pallet::Config>::Currency::can_slash(&sender, price.clone()),
 				Error::<T>::InsufficientBalance
 			);
-			let acc = T::FilbakPalletId::get().into_account();
+			let acc = T::FilbakPalletId::get().into_account_truncating();
 			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), AllowDeath)?;
 			Self::update_puchased_package(sender.clone(), days)?;
 			Self::deposit_event(Event::<T>::RenewalSpace {
@@ -908,6 +917,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `file_hash`: Invalid file hash
+		#[pallet::call_index(9)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::clear_invalid_file())]
 		pub fn clear_invalid_file(origin: OriginFor<T>, file_hash: Hash) -> DispatchResult {
@@ -932,6 +942,7 @@ pub mod pallet {
 		/// - `shard_id`: Corrupt file slice id.
 		/// - `slice_info`: New slice information.
 		/// - `avail`: Whether the file can be recovered normally.
+		#[pallet::call_index(10)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::recover_file())]
 		pub fn recover_file(
@@ -972,6 +983,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(11)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::create_bucket())]
 		pub fn create_bucket(
@@ -1006,6 +1018,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(12)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::delete_bucket())]
 		pub fn delete_bucket(
@@ -1515,10 +1528,10 @@ pub mod pallet {
 		/// Result:
 		/// - DispatchResult
 		pub fn clear_file(file_hash: Hash) -> Result<Weight, DispatchError> {
-			let mut weight: Weight = 0;
+			let mut weight: Weight = Weight::from_ref_time(0);
 			let file =
 					<File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::FileNonExistent)?; //read 1
-			  weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
+			  weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
 			for user_brief in file.user_brief_list.iter() {
 				Self::update_user_space(user_brief.user.clone(), 2, file.file_size.into())?; //read 1 write 1 * n
 				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
@@ -1539,7 +1552,7 @@ pub mod pallet {
 			owner: &AccountOf<T>,
 			bucket_name: &BoundedVec<u8, T::NameStrLimit>,
 		) -> Result<Weight, DispatchError> {
-			let mut weight: Weight = 0;
+			let mut weight: Weight = Weight::from_ref_time(0);
 			ensure!(<Bucket<T>>::contains_key(owner, bucket_name), Error::<T>::NonExistent);
 
 			<Bucket<T>>::try_mutate(owner, bucket_name, |bucket_opt| -> DispatchResult {
@@ -1576,7 +1589,7 @@ pub mod pallet {
 			user: &AccountOf<T>,
 			is_multi: bool,
 		) -> Result<Weight, DispatchError> {
-			let mut weight: Weight = 0;
+			let mut weight: Weight = Weight::from_ref_time(0);
 			//If the file still has an owner, only the corresponding owner will be cleared.
 			//If the owner is unique, the file meta information will be cleared.
 			if is_multi {
@@ -1788,7 +1801,7 @@ pub mod pallet {
 		/// Result:
 		/// - DispatchResult
 		fn clear_expired_file(acc: &AccountOf<T>) -> Result<Weight, DispatchError> {
-			let mut weight: Weight = 0;
+			let mut weight: Weight = Weight::from_ref_time(0);
 			let file_list =
 				<UserHoldFileList<T>>::try_get(&acc).map_err(|_| Error::<T>::Overflow)?;
 			for v in file_list.iter() {
@@ -1857,13 +1870,14 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 		Ok(())
 	}
 	fn delete_miner_all_filler(miner_acc: AccountOf<T>) -> Result<Weight, DispatchError> {
-		let mut weight: Weight = 0;
+		let mut weight: Weight = Weight::from_ref_time(0);
 		for (_, value) in FillerMap::<T>::iter_prefix(&miner_acc) {
 			<FillerKeysMap<T>>::remove(value.index);
-			weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
+			weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
 		}
+		#[allow(deprecated)]
 		let _ = FillerMap::<T>::remove_prefix(&miner_acc, Option::None);
-		weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
+		weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
 		Ok(weight)
 	}
 

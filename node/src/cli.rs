@@ -1,58 +1,48 @@
-#[allow(missing_docs)]
-#[derive(Debug, clap::Parser)]
-pub struct RunCmd {
-	#[allow(missing_docs)]
-	#[clap(flatten)]
-	pub base: sc_cli::RunCmd,
-
-	#[clap(long)]
-	pub enable_dev_signer: bool,
-
-	/// Maximum number of logs in a query.
-	#[clap(long, default_value = "10000")]
-	pub max_past_logs: u32,
-
-	/// Maximum fee history cache size.
-	#[clap(long, default_value = "2048")]
-	pub fee_history_limit: u64,
-
-	/// The dynamic-fee pallet target gas price set by block author
-	#[clap(long, default_value = "1")]
-	pub target_gas_price: u64,
-}
-
+/// An overarching CLI command definition.
 #[derive(Debug, clap::Parser)]
 pub struct Cli {
 	/// Possible subcommand with parameters.
-	#[clap(subcommand)]
+	#[command(subcommand)]
 	pub subcommand: Option<Subcommand>,
 
+	#[allow(missing_docs)]
 	#[clap(flatten)]
-	pub run: RunCmd,
+	pub run: sc_cli::RunCmd,
+
+	/// Disable automatic hardware benchmarks.
+	///
+	/// By default these benchmarks are automatically ran at startup and measure
+	/// the CPU speed, the memory bandwidth and the disk speed.
+	///
+	/// The results are then printed out in the logs, and also sent as part of
+	/// telemetry, if telemetry is enabled.
+	#[arg(long)]
+	pub no_hardware_benchmarks: bool,
 }
 
 /// Possible subcommands of the main binary.
 #[derive(Debug, clap::Subcommand)]
 pub enum Subcommand {
-	/// The custom inspect subcommmand for decoding blocks and extrinsics.
-
-	/// The custom benchmark subcommmand benchmarking runtime pallets.
-	#[clap(name = "benchmark", about = "Benchmark runtime pallets.")]
-	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
-
-	/// Benchmark the execution time of historic blocks and compare it to their consumed weight.
-
 	/// Try some command against runtime state.
-		#[cfg(feature = "try-runtime")]
-		TryRuntime(try_runtime_cli::TryRuntimeCmd),
+	#[cfg(feature = "try-runtime")]
+	TryRuntime(try_runtime_cli::TryRuntimeCmd),
 
-		/// Try some command against runtime state. Note: `try-runtime` feature must be enabled.
-		#[cfg(not(feature = "try-runtime"))]
-		TryRuntime,
+	/// Try some command against runtime state. Note: `try-runtime` feature must be enabled.
+	#[cfg(not(feature = "try-runtime"))]
+	TryRuntime,
 
 	/// Key management cli utilities
-	#[clap(subcommand)]
+	#[command(subcommand)]
 	Key(sc_cli::KeySubcommand),
+
+	/// Verify a signature for a message, provided on STDIN, with a given (public or secret) key.
+	Verify(sc_cli::VerifyCmd),
+
+	/// Generate a seed that provides a vanity address.
+	Vanity(sc_cli::VanityCmd),
+
+	/// Sign a message, with a given (secret) key.
+	Sign(sc_cli::SignCmd),
 
 	/// Build a chain specification.
 	BuildSpec(sc_cli::BuildSpecCmd),
@@ -74,4 +64,7 @@ pub enum Subcommand {
 
 	/// Revert the chain to a previous state.
 	Revert(sc_cli::RevertCmd),
+
+	/// Db meta columns information.
+	ChainInfo(sc_cli::ChainInfoCmd),
 }

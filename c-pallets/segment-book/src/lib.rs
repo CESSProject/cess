@@ -81,7 +81,11 @@ use pallet_file_map::ScheduleFind;
 use pallet_sminer::MinerControl;
 use scale_info::TypeInfo;
 use sp_core::H256;
-use sp_std::{collections::btree_map::BTreeMap, prelude::*};
+use sp_std::{ 
+		convert:: { TryFrom, TryInto },
+		collections::btree_map::BTreeMap, 
+		prelude::*
+	};
 use cp_cess_common::DataType;
 pub mod weights;
 pub use weights::WeightInfo;
@@ -152,7 +156,7 @@ pub mod pallet {
 		frame_system::Config + sp_std::fmt::Debug + CreateSignedTransaction<Call<Self>>
 	{
 		/// The overarching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// The currency trait.
 		type Currency: ReservableCurrency<Self::AccountId>;
 		//the weights
@@ -330,7 +334,7 @@ pub mod pallet {
 			let _number: u128 = now.saturated_into();
 			let challenge_deadline = Self::challenge_duration();
 			let verify_deadline = Self::verify_duration();
-			let mut weight: Weight = 0;
+			let mut weight: Weight = Weight::from_ref_time(0);
 			//The waiting time for the challenge has reached the deadline
 			if now == challenge_deadline {
 				//After the waiting time for the challenge reaches the deadline,
@@ -353,7 +357,7 @@ pub mod pallet {
 							Ok(weights) => weights,
 							Err(e) => {
 								log::error!("punish error: {:?}", e);
-								0
+								Weight::from_ref_time(0)
 							},
 						};
 						weight = weight.saturating_add(weight1);
@@ -368,7 +372,7 @@ pub mod pallet {
 						});
 					}
 					<ChallengeMap<T>>::remove(acc.clone());
-					weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
+					weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
 				}
 			}
 
@@ -387,7 +391,7 @@ pub mod pallet {
 							Err(e) => log::error!("punish scheduler failed: {:?}", e),
 						};
 						<UnVerifyProof<T>>::remove(&acc);
-						weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
+						weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
 					}
 				}
 				if is_end {
@@ -408,7 +412,7 @@ pub mod pallet {
 								}
 							} else {
 								<ConsecutiveFines<T>>::insert(&miner, 1);
-								weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
+								weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
 							}
 							let result = Self::punish(
 								miner.clone(),
@@ -423,7 +427,7 @@ pub mod pallet {
 							};
 						} else {
 							<ConsecutiveFines<T>>::remove(&miner);
-							weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
+							weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
 						}
 					}
 
@@ -434,10 +438,13 @@ pub mod pallet {
 					};
 					// weight = weight.staurating_add(Self::clear_failure_map(5000, None));
 					// weight = weight.staurating_add(Self::clear_total_proof(5000, None));
+					#[allow(deprecated)]
 					<FailureNumMap<T>>::remove_all();
-					weight = weight.saturating_add(T::DbWeight::get().writes(<FailureNumMap<T>>::count() as Weight));
+					weight = weight.saturating_add(T::DbWeight::get().writes(<FailureNumMap<T>>::count() as u64));
+
+					#[allow(deprecated)]
 					<MinerTotalProof<T>>::remove_all();
-					weight = weight.saturating_add(T::DbWeight::get().writes(<MinerTotalProof<T>>::count() as Weight));
+					weight = weight.saturating_add(T::DbWeight::get().writes(<MinerTotalProof<T>>::count() as u64));
 
 					let max = Keys::<T>::get().len() as u16;
 					let mut index = CurAuthorityIndex::<T>::get();
@@ -450,32 +457,32 @@ pub mod pallet {
 
 				} else {
 					let result = Self::get_current_scheduler();
-					weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
+					weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
 					match result {
 						Ok(cur_acc) =>  {
 							let new_deadline = match now.checked_add(&1200u32.saturated_into()).ok_or(Error::<T>::Overflow) {
 								Ok(new_deadline) => new_deadline,
 								Err(e) => {
 									log::error!("over flow: {:?}", e);
-									return 0
+									return Weight::from_ref_time(0)
 								},
 							};
 							<VerifyDuration<T>>::put(new_deadline);
-							weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
+							weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
 							let bound_verify_list: BoundedVec<ProveInfo<T>, T::ChallengeMaximum> = match verify_list.try_into().map_err(|_e| Error::<T>::BoundedVecError) {
 								Ok(bound_verify_list) => bound_verify_list,
 								Err(e) => {
 									log::error!("over flow: {:?}", e);
-									return 0
+									return Weight::from_ref_time(0)
 								},
 							};
 							let result = Self::storage_prove(cur_acc, bound_verify_list);
-							weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
+							weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
 							match result {
 								Ok(()) => log::info!("storage prove success"),
 								Err(e) => {
 									log::error!("storage prove failed: {:?}", e);
-									return 0
+									return Weight::from_ref_time(0)
 								},
 							};
 						},
@@ -508,6 +515,7 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[pallet::call_index(0)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
 		pub fn update_verify_duration(origin: OriginFor<T>, now: BlockNumberOf<T>) -> DispatchResult {
@@ -571,6 +579,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(1)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::verify_proof(result_list.len() as u32))]
 		pub fn verify_proof(
@@ -622,6 +631,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(2)]
 		#[transactional]
 		#[pallet::weight(0)]
 		pub fn save_challenge_info(
@@ -644,6 +654,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(3)]
 		#[transactional]
 		#[pallet::weight(0)]
 		pub fn save_challenge_time(
@@ -1109,9 +1120,9 @@ pub mod pallet {
 			file_type: DataType,
 		) -> Result<Weight, DispatchError> {
 			if !T::MinerControl::miner_is_exist(acc.clone()) {
-				return Ok(0 as Weight);
+				return Ok(Weight::from_ref_time(0 as u64));
 			}
-			let mut weight: Weight = 0;
+			let mut weight: Weight = Weight::from_ref_time(0);
 			match file_type {
 				DataType::Filler => {
 					T::MinerControl::sub_power(acc.clone(), file_size.into())?; //read 3 write 2

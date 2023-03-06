@@ -17,61 +17,62 @@ scale-info = { default-features = false, features = ['derive'], version = "2.0.1
 log = { version = "0.4.14", default-features = false }
 pallet-cess-staking = { path = '../staking', version = '4.0.0-dev', default-features = false }
 cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
+pallet-preimage = { version = "4.0.0-dev", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36" }
 
 [dependencies.frame-benchmarking]
 default-features = false
 git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
+branch = "cess-polkadot-v0.9.36"
 version = '4.0.0-dev'
 optional = true
 
 [dependencies.frame-support]
 default-features = false
 git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
+branch = "cess-polkadot-v0.9.36"
 version = '4.0.0-dev'
 
 [dependencies.frame-system]
 default-features = false
 git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
+branch = "cess-polkadot-v0.9.36"
 version = '4.0.0-dev'
 
 [dependencies.sp-io]
 default-features = false
 git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '6.0.0'
+branch = "cess-polkadot-v0.9.36"
+version = '7.0.0'
 
 [dependencies.sp-std]
 default-features = false
 git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
+branch = "cess-polkadot-v0.9.36"
+version = '5.0.0'
 
 [dependencies.pallet-balances]
 default-features = false
 git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
+branch = "cess-polkadot-v0.9.36"
 version = '4.0.0-dev'
 
 [dependencies.sp-core]
 default-features = false
 git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '6.0.0'
+branch = "cess-polkadot-v0.9.36"
+version = '7.0.0'
 
 [dev-dependencies.pallet-timestamp]
 default-features = false
 git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
+branch = "cess-polkadot-v0.9.36"
 version = '4.0.0-dev'
 
 [dependencies.sp-runtime]
 default-features = false
 git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '6.0.0'
+branch = "cess-polkadot-v0.9.36"
+version = '7.0.0'
 
 # local dependencies
 [dependencies.pallet-file-bank]
@@ -88,19 +89,19 @@ version = '0.5.3'
 [dev-dependencies.frame-support-test]
 default-features = false
 git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
+branch = "cess-polkadot-v0.9.36"
 version = '3.0.0'
 
 [dev-dependencies.pallet-balances]
 #default-features = false
 git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
+branch = "cess-polkadot-v0.9.36"
 version = '4.0.0-dev'
 
 [dev-dependencies.pallet-scheduler]
 #default-features = false
 git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
+branch = "cess-polkadot-v0.9.36"
 version = '4.0.0-dev'
 
 # local dependencies
@@ -111,13 +112,13 @@ version = '0.5.3'
 
 [dev-dependencies]
 pallet-cess-staking = { path = '../staking', version = '4.0.0-dev', default-features = false}
-sp-staking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2022-04-cess" }
-sp-npos-elections = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2022-04-cess" }
-frame-election-provider-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2022-04-cess" }
+sp-staking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+sp-npos-elections = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+frame-election-provider-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 pallet-session = { version = "4.0.0-dev", default-features = false, features = [
 	"historical",
-], git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2022-04-cess" }
-pallet-bags-list = { version = "4.0.0-dev", features = ["runtime-benchmarks"], git = "https://github.com/CESSProject/substrate.git", branch = "monthly-2022-04-cess" }
+], git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+pallet-bags-list = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 pallet-scheduler-credit = { version = "0.1.0", default-features = false, path = '../scheduler-credit'}
 cp-scheduler-credit = { path = '../../primitives/scheduler-credit', version = '0.1.0', default-features = false }
 cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
