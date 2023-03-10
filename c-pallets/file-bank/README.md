@@ -12,6 +12,7 @@ Contain operations related info of files on multi-direction. Provide storage spa
 
 ### Dispatchable Functions
 * `upload_declaration` - Users need to call this method to "place an order" when uploading files.
+* `update_price` - Update the unit price of storage space with root privileges.
 * `upload` - The method of uploading file meta information can only be called by consensus.
 * `upload_filler` - The method of uploading filled files can only be called by consensus.
 * `delete_file` - Delete file meta information.
