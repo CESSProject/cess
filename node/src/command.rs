@@ -19,13 +19,11 @@
 use crate::{
 	chain_spec,
 	cli::{Cli, Subcommand},
-	executor::ExecutorDispatch,
 	service::{ self, new_partial, FullClient },
 };
-use cess_node_runtime::{Block, ExistentialDeposit, RuntimeApi};
+use cess_node_runtime::Block;
 use sc_cli::{ChainSpec, Result, RuntimeVersion, SubstrateCli};
 use sc_service::PartialComponents;
-use sp_keyring::Sr25519Keyring;
 
 use std::sync::Arc;
 
