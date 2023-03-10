@@ -89,8 +89,6 @@ pub mod pallet {
 	const DEMOCRACY_IDB: LockIdentifier = *b"msminerB";
 	const DEMOCRACY_IDC: LockIdentifier = *b"msminerC";
 
-	// const DEMOCRACY_IDD: LockIdentifier = *b"msminerD";
-
 	#[pallet::config]
 	pub trait Config: pallet_timestamp::Config + frame_system::Config {
 		/// The overarching event type.
@@ -210,8 +208,6 @@ pub mod pallet {
 		EarningsIsEmpty,
 		/// An operation would lead to an overflow.
 		Overflow,
-		/// No owner.
-		// NotOwner,
 		/// User does not exist.
 		NotExisted,
 		/// Lack of permissions.
@@ -467,7 +463,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		//Miner exit method, Irreversible process.
+		/// Miner exit method, Irreversible process.
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::exit_miner())]
 		pub fn exit_miner(origin: OriginFor<T>) -> DispatchResult {
@@ -493,7 +489,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		//Method for miners to redeem deposit
+		/// Method for miners to redeem deposit
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::withdraw())]
 		pub fn withdraw(origin: OriginFor<T>) -> DispatchResult {
@@ -525,12 +521,7 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::MinerClaim { acc: sender });
 			Ok(())
 		}
-		// 	storage_info_vec.append(&mut info1);
 
-		// 	<StorageInfoVec<T>>::put(storage_info_vec);
-		// 	Self::deposit_event(Event::<T>::TimingStorageSpace());
-		// 	Ok(())
-		// }
 		/// Add reward orders.
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timed_increase_rewards())]
@@ -539,7 +530,6 @@ pub mod pallet {
 			let total_power = <TotalIdleSpace<T>>::get().checked_add(<TotalServiceSpace<T>>::get()).ok_or(Error::<T>::Overflow)?;
 			ensure!(total_power != 0, Error::<T>::DivideByZero);
 
-			// let reward_pot = T::PalletId::get().into_account();
 			let mut total_award: u128 =
 				<CurrencyReward<T>>::get().try_into().map_err(|_| Error::<T>::Overflow)?;
 			let max_award = T::MaxAward::get();
@@ -598,7 +588,6 @@ pub mod pallet {
 				frame_support::print("LOGIC ERROR: timed_increase_rewards/schedule_named failed");
 			}
 
-			// Self::deposit_event(Event::<T>::Add(sender.clone()));
 			Ok(())
 		}
 
@@ -662,6 +651,7 @@ pub mod pallet {
 
 			Ok(())
 		}
+
 		/// Users receive rewards for scheduled tasks.
 		///
 		/// The dispatch origin of this call must be _root_.
@@ -690,9 +680,9 @@ pub mod pallet {
 				);
 			}
 
-			// Self::deposit_event(Event::<T>::Add(sender.clone()));
 			Ok(())
 		}
+
 		/// Update the user reward table for scheduled tasks.
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timed_task_award_table(<CalculateRewardOrderMap<T>>::count()))]
@@ -815,6 +805,7 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::TimedTask());
 			Ok(())
 		}
+
 		/// Update the user reward table for scheduled tasks.
 		///
 		/// The dispatch origin of this call must be _root_.
@@ -840,8 +831,6 @@ pub mod pallet {
 			{
 				frame_support::print("LOGIC ERROR: timed_task_receive_award/schedule_named failed");
 			}
-
-			// Self::deposit_event(Event::<T>::Add(sender.clone()));
 			Ok(())
 		}
 
@@ -1067,6 +1056,7 @@ impl<T: Config> Pallet<T> {
 
 		Ok(())
 	}
+
 	/// Sub space calculation power to corresponding miners.
 	///
 	/// Parameters:
@@ -1261,11 +1251,6 @@ impl<T: Config> Pallet<T> {
 	pub fn add_reward_order1(acc: &AccountOf<T>, calculate_reward: u128) -> DispatchResult {
 		let now_block = <frame_system::Pallet<T>>::block_number();
 		// With block timing, 180 days =5184000 blocks
-		// let deadline = now + T::BlockNumber::from(5184000u32);
-		// // test 5 minutes
-		// let deadline = now + T::BlockNumber::from(18000u32);
-		// test 6 hours
-		// test 1 hours
 		let th_day = T::OneDayBlock::get()
 			.checked_mul(&180u32.saturated_into())
 			.ok_or(Error::<T>::Overflow)?;
