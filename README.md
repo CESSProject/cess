@@ -106,10 +106,10 @@ cargo test --release
 ## Module Documentation
 
 
-* [Files Bank](https://github.com/CESSProject/cess/tree/main/c-pallets/file-bank)
-* [Segment Book](https://github.com/CESSProject/cess/tree/main/c-pallets/segment-book)
-* [Sminer](https://github.com/CESSProject/cess/tree/main/c-pallets/sminer)
-* [File Map](https://github.com/CESSProject/cess/tree/main/c-pallets/file-map)
+* [Files Bank](c-pallets/file-bank)
+* [Segment Book](c-pallets/segment-book)
+* [Sminer](c-pallets/sminer)
+* [File Map](c-pallets/file-map)
 
 ## Contribute
 
