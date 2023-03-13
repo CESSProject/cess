@@ -14,7 +14,7 @@
 
 ### Install Guide
 
-Follow [Setup](https://github.com/CESSProject/cess/tree/main/docs/setup.md) to guide you install the CESS development.
+Follow [Setup](docs/setup.md) to guide you install the CESS development.
 
 ### Build Node
 
