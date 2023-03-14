@@ -14,7 +14,7 @@
 
 ### Install Guide
 
-Follow [Setup](https://github.com/CESSProject/cess/tree/main/docs/setup.md) to guide you install the CESS development.
+Follow [Setup](docs/setup.md) to guide you install the CESS development.
 
 ### Build Node
 
@@ -106,14 +106,14 @@ cargo test --release
 ## Module Documentation
 
 
-* [Files Bank](https://github.com/CESSProject/cess/tree/main/c-pallets/file-bank)
-* [Segment Book](https://github.com/CESSProject/cess/tree/main/c-pallets/segment-book)
-* [Sminer](https://github.com/CESSProject/cess/tree/main/c-pallets/sminer)
-* [File Map](https://github.com/CESSProject/cess/tree/main/c-pallets/file-map)
+* [Files Bank](c-pallets/file-bank)
+* [Segment Book](c-pallets/segment-book)
+* [Sminer](c-pallets/sminer)
+* [File Map](c-pallets/file-map)
 
 ## Contribute
 
-Please follow the contributions guidelines as outlined in [`docs/CONTRIBUTING.adoc`](https://github.com/CESSProject/cess/tree/main/docs/CONTRIBUTING.adoc). In all communications and contributions, this project follows the [Contributor Covenant Code of Conduct](https://github.com/paritytech/substrate/blob/master/docs/CODE_OF_CONDUCT.md).
+Please follow the contributions guidelines as outlined in [`docs/CONTRIBUTING.adoc`](docs/CONTRIBUTING.adoc). In all communications and contributions, this project follows the [Contributor Covenant Code of Conduct](docs/CODE_OF_CONDUCT.md).
 
 ## cess-bootstrap
 
