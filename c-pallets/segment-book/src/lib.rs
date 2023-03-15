@@ -325,165 +325,13 @@ pub mod pallet {
 		//Used to calculate whether it is implied to submit spatiotemporal proof
 		//Cycle every 7.2 hours
 		//When there is an uncommitted space-time certificate, the corresponding miner will be
-		// punished and the corresponding data segment will be removed
+		//punished and the corresponding data segment will be removed
 		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
-			let _number: u128 = now.saturated_into();
-			let challenge_deadline = Self::challenge_duration();
-			let verify_deadline = Self::verify_duration();
-			let mut weight: Weight = 0;
-			//The waiting time for the challenge has reached the deadline
-			if now == challenge_deadline {
-				//After the waiting time for the challenge reaches the deadline,
-				//the miners who fail to complete the challenge will be punished
-				for (acc, challenge_list) in <ChallengeMap<T>>::iter() {
-					for v in challenge_list {
-						let result = Self::set_failure(acc.clone());
-						match result {
-							Ok(()) => log::info!("set_failure success"),
-							Err(e) => log::error!("set_failure failed: {:?}", e),
-						};
-						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-						let weight1 = match Self::update_miner_file(
-							acc.clone(),
-							v.file_id,
-							v.shard_id,
-							v.file_size,
-							v.file_type,
-						) {
-							Ok(weights) => weights,
-							Err(e) => {
-								log::error!("punish error: {:?}", e);
-								0
-							},
-						};
-						weight = weight.saturating_add(weight1);
-						log::info!(
-							"challenge draw a blank, miner_acc:{:?}, file_id: {:?}",
-							acc.clone(),
-							v.file_id
-						);
-						Self::deposit_event(Event::<T>::OutstandingChallenges {
-							miner: acc.clone(),
-							file_id: v.file_id,
-						});
-					}
-					<ChallengeMap<T>>::remove(acc.clone());
-					weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
-				}
-			}
-
-			//Punish the scheduler who fails to verify the results for a long time
-			if now == verify_deadline {
-				let mut is_end = true;
-
-				let mut verify_list: Vec<ProveInfo<T>> = Vec::new();
-				for (acc, v_list) in <UnVerifyProof<T>>::iter() {
-					if v_list.len() > 0 {
-						is_end = false;
-						verify_list.append(&mut v_list.to_vec());
-						let result = T::Scheduler::punish_scheduler(acc.clone());
-						match result {
-							Ok(()) => log::info!("punish scheduler success"),
-							Err(e) => log::error!("punish scheduler failed: {:?}", e),
-						};
-						<UnVerifyProof<T>>::remove(&acc);
-						weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
-					}
-				}
-				if is_end {
-					for (miner, total_proof) in <MinerTotalProof<T>>::iter() {
-						if <FailureNumMap<T>>::contains_key(&miner) {
-							if <ConsecutiveFines<T>>::contains_key(&miner) {
-								let result = <ConsecutiveFines<T>>::try_mutate(
-									miner.clone(),
-									|s_opt| -> DispatchResult {
-										s_opt.checked_add(1).ok_or(Error::<T>::Overflow)?;
-										Ok(())
-									},
-									).map_err(|_e| Error::<T>::BoundedVecError);
-								weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-								match result {
-									Ok(()) => log::info!("ConsecutiveFines update success"),
-									Err(e) => log::error!("ConsecutiveFines update failed: {:?}", e),
-								}
-							} else {
-								<ConsecutiveFines<T>>::insert(&miner, 1);
-								weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
-							}
-							let result = Self::punish(
-								miner.clone(),
-								<FailureNumMap<T>>::get(&miner),
-								total_proof,
-								<ConsecutiveFines<T>>::get(&miner),
-							).map_err(|e| e);
-							weight = weight.saturating_add(T::DbWeight::get().reads_writes(6, 4));
-							match result {
-								Ok(()) => log::info!("punish success"),
-								Err(e) => log::error!("punish failed: {:?}", e),
-							};
-						} else {
-							<ConsecutiveFines<T>>::remove(&miner);
-							weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
-						}
-					}
-
-					let result = Self::start_buffer_period_schedule().map_err(|e| e);
-					match result {
-						Ok(()) => log::info!("start_buffer_period_schedule success!"),
-						Err(e) => log::error!("start_buffer_period_schedule failed: {:?}", e),
-					};
-					// weight = weight.staurating_add(Self::clear_failure_map(5000, None));
-					// weight = weight.staurating_add(Self::clear_total_proof(5000, None));
-					<FailureNumMap<T>>::remove_all();
-					weight = weight.saturating_add(T::DbWeight::get().writes(<FailureNumMap<T>>::count() as Weight));
-					<MinerTotalProof<T>>::remove_all();
-					weight = weight.saturating_add(T::DbWeight::get().writes(<MinerTotalProof<T>>::count() as Weight));
-
-					let max = Keys::<T>::get().len() as u16;
-					let mut index = CurAuthorityIndex::<T>::get();
-					if index >= max - 1 {
-						index = 0;
-					} else {
-						index = index + 1;
-					}
-					CurAuthorityIndex::<T>::put(index);		
-
-				} else {
-					let result = Self::get_current_scheduler();
-					weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
-					match result {
-						Ok(cur_acc) =>  {
-							let new_deadline = match now.checked_add(&1200u32.saturated_into()).ok_or(Error::<T>::Overflow) {
-								Ok(new_deadline) => new_deadline,
-								Err(e) => {
-									log::error!("over flow: {:?}", e);
-									return 0
-								},
-							};
-							<VerifyDuration<T>>::put(new_deadline);
-							weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
-							let bound_verify_list: BoundedVec<ProveInfo<T>, T::ChallengeMaximum> = match verify_list.try_into().map_err(|_e| Error::<T>::BoundedVecError) {
-								Ok(bound_verify_list) => bound_verify_list,
-								Err(e) => {
-									log::error!("over flow: {:?}", e);
-									return 0
-								},
-							};
-							let result = Self::storage_prove(cur_acc, bound_verify_list);
-							weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
-							match result {
-								Ok(()) => log::info!("storage prove success"),
-								Err(e) => {
-									log::error!("storage prove failed: {:?}", e);
-									return 0
-								},
-							};
-						},
-						Err(_e) => log::error!("get_current_scheduler err"),
-					}
-				}
-			}
-			weight
+			Weight::default()
+				//The waiting time for the challenge has reached the deadline
+				.saturating_add(Self::handle_challenge_deadline(now))
+				//Punish the scheduler who fails to verify the results for a long time
+				.saturating_add(Self::handle_verify_deadline(now))
 		}
 
 		fn offchain_worker(now: T::BlockNumber) {
@@ -1164,6 +1012,149 @@ pub mod pallet {
 			}
 
 			Ok(result)
+		}
+
+		fn handle_challenge_deadline(now: BlockNumberOf<T>) -> Weight {
+			if now != Self::challenge_duration() {
+				return 0
+			}
+			let mut weight: Weight = 0;
+			//After the waiting time for the challenge reaches the deadline,
+			//the miners who fail to complete the challenge will be punished
+			for (acc, challenge_list) in <ChallengeMap<T>>::iter() {
+				for v in challenge_list {
+					match Self::set_failure(acc.clone()) {
+						Ok(()) => log::info!("set_failure success"),
+						Err(e) => log::error!("set_failure failed: {:?}", e),
+					};
+					weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+					match Self::update_miner_file(
+						acc.clone(),
+						v.file_id,
+						v.shard_id,
+						v.file_size,
+						v.file_type,
+					) {
+						Ok(w) => 
+							weight = weight.saturating_add(w),
+						Err(e) => {
+							log::error!("punish error: {:?}", e);
+						},
+					};
+					log::info!(
+						"challenge draw a blank, miner_acc:{:?}, file_id: {:?}",
+						acc.clone(),
+						v.file_id
+					);
+					Self::deposit_event(Event::<T>::OutstandingChallenges {
+						miner: acc.clone(),
+						file_id: v.file_id,
+					});
+				}
+				<ChallengeMap<T>>::remove(acc.clone());
+				weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
+			}
+			weight
+		}
+
+		fn handle_verify_deadline(now: BlockNumberOf<T>) -> Weight {
+			if now != Self::verify_duration() {
+				return 0
+			}
+			let mut weight: Weight = 0;	
+			let mut is_end = true;
+			let mut verify_list: Vec<ProveInfo<T>> = Vec::new();
+			for (acc, v_list) in <UnVerifyProof<T>>::iter() {
+				if v_list.len() > 0 {
+					is_end = false;
+					verify_list.append(&mut v_list.to_vec());
+					match T::Scheduler::punish_scheduler(acc.clone()) {
+						Ok(()) => log::info!("punish scheduler success"),
+						Err(e) => log::error!("punish scheduler failed: {:?}", e),
+					};
+					<UnVerifyProof<T>>::remove(&acc);
+					weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
+				}
+			}
+			if is_end {
+				for (miner, total_proof) in <MinerTotalProof<T>>::iter() {
+					if <FailureNumMap<T>>::contains_key(&miner) {
+						if <ConsecutiveFines<T>>::contains_key(&miner) {
+							let result = <ConsecutiveFines<T>>::try_mutate(
+								miner.clone(),
+								|s_opt| -> DispatchResult {
+									s_opt.checked_add(1).ok_or(Error::<T>::Overflow)?;
+									Ok(())
+								},
+								).map_err(|_e| Error::<T>::BoundedVecError);
+							weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+							match result {
+								Ok(()) => log::info!("ConsecutiveFines update success"),
+								Err(e) => log::error!("ConsecutiveFines update failed: {:?}", e),
+							}
+						} else {
+							<ConsecutiveFines<T>>::insert(&miner, 1);
+							weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
+						}
+						let result = Self::punish(
+							miner.clone(),
+							<FailureNumMap<T>>::get(&miner),
+							total_proof,
+							<ConsecutiveFines<T>>::get(&miner),
+						).map_err(|e| e);
+						weight = weight.saturating_add(T::DbWeight::get().reads_writes(6, 4));
+						match result {
+							Ok(()) => log::info!("punish success"),
+							Err(e) => log::error!("punish failed: {:?}", e),
+						};
+					} else {
+						<ConsecutiveFines<T>>::remove(&miner);
+						weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
+					}
+				}
+	
+				match Self::start_buffer_period_schedule().map_err(|e| e) {
+					Ok(()) => log::info!("start_buffer_period_schedule success!"),
+					Err(e) => log::error!("start_buffer_period_schedule failed: {:?}", e),
+				};
+				<FailureNumMap<T>>::remove_all();
+				weight = weight.saturating_add(T::DbWeight::get().writes(<FailureNumMap<T>>::count() as Weight));
+				<MinerTotalProof<T>>::remove_all();
+				weight = weight.saturating_add(T::DbWeight::get().writes(<MinerTotalProof<T>>::count() as Weight));
+			} else {
+				weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
+				match Self::get_current_scheduler() {
+					Ok(cur_acc) =>  {
+						let new_deadline = match now.checked_add(&1200u32.saturated_into()).ok_or(Error::<T>::Overflow) {
+							Ok(new_deadline) => new_deadline,
+							Err(e) => {
+								log::error!("over flow: {:?}", e);
+								return 0
+							},
+						};
+						<VerifyDuration<T>>::put(new_deadline);
+						weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
+						let bound_verify_list: BoundedVec<ProveInfo<T>, T::ChallengeMaximum> = match verify_list.try_into().map_err(|_e| Error::<T>::BoundedVecError) {
+							Ok(bound_verify_list) => bound_verify_list,
+							Err(e) => {
+								log::error!("over flow: {:?}", e);
+								return 0
+							},
+						};
+						let result = Self::storage_prove(cur_acc, bound_verify_list);
+						weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
+						match result {
+							Ok(()) => log::info!("storage prove success"),
+							Err(e) => {
+								log::error!("storage prove failed: {:?}", e);
+								return 0
+							},
+						};
+					},
+					Err(_e) => log::error!("get_current_scheduler err"),
+				}
+			}
+			weight
 		}
 	}
 }
