@@ -172,7 +172,7 @@ pub mod pallet {
 		//Storage space expiring within 24 hours
 		LeaseExpireIn24Hours { acc: AccountOf<T>, size: u128 },
 		//File deletion event
-		DeleteFile { operator:AccountOf<T>, owner: AccountOf<T>, file_hash: Hash },
+		DeleteFile { operator:AccountOf<T>, owner: AccountOf<T>, file_hash_list: Vec<Hash>, failed_list: Vec<Hash> },
 		//Filler chain success event
 		FillerUpload { acc: AccountOf<T>, file_size: u64 },
 		//File recovery
@@ -738,26 +738,57 @@ pub mod pallet {
 		/// - `fileid`: For which miner, miner's wallet address.
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::delete_file())]
-		pub fn delete_file(origin: OriginFor<T>, owner: AccountOf<T>, fileid: Hash) -> DispatchResult {
+		pub fn delete_file(origin: OriginFor<T>, owner: AccountOf<T>, file_hash_list: Vec<Hash>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			ensure!(<File<T>>::contains_key(fileid.clone()), Error::<T>::FileNonExistent);
-			ensure!(Self::check_permission(sender.clone(), owner.clone()), Error::<T>::NoPermission);
-
-			let file = <File<T>>::try_get(&fileid).map_err(|_| Error::<T>::NonExistent)?; //read 1
-
-			let mut result: bool = false;
-			for user_brief_temp in file.user_brief_list.iter() {
-				if user_brief_temp.user == owner.clone() {
-					//The above has been judged. Unwrap will be performed only if the key exists
-					let _ = Self::clear_bucket_file(&fileid, &owner, &user_brief_temp.bucket_name)?;
-					let _ = Self::clear_user_file(fileid, &owner, file.user_brief_list.len() > 1)?;
-
-					result = true;
-					break;
+			let mut delete_failed_list: Vec<Hash> = Default::default();
+			for file_hash in file_hash_list.iter() {
+				if !<File<T>>::contains_key(file_hash) {
+					delete_failed_list.push(*file_hash);
+					continue;
 				}
-			}
-			ensure!(result, Error::<T>::NotOwner);
-			Self::deposit_event(Event::<T>::DeleteFile { operator: sender, owner, file_hash: fileid });
+				if !Self::check_permission(sender.clone(), owner.clone()) {
+					delete_failed_list.push(*file_hash);
+					continue;
+				}
+
+				let file = match <File<T>>::try_get(file_hash) {
+					Ok(file) => file,
+					Err(e) => {
+						delete_failed_list.push(*file_hash);
+						continue;
+					},
+				}; //read 1
+
+				let mut result: bool = false;
+				for user_brief_temp in file.user_brief_list.iter() {
+					if user_brief_temp.user == owner.clone() {
+						//The above has been judged. Unwrap will be performed only if the key exists
+						let _ = match Self::clear_bucket_file(file_hash, &owner, &user_brief_temp.bucket_name) {
+							Ok(weight) => weight,
+							Err(e) => {
+								delete_failed_list.push(*file_hash);
+								continue;
+							},
+						};
+
+						let _ = match Self::clear_user_file(*file_hash, &owner, file.user_brief_list.len() > 1){
+							Ok(weight) => weight,
+							Err(e) => {
+								delete_failed_list.push(*file_hash);
+								continue;
+							},
+						};
+
+						result = true;
+						break;
+					}
+				}
+				if !result {
+					delete_failed_list.push(*file_hash);
+					continue;
+				}
+			}		
+			Self::deposit_event(Event::<T>::DeleteFile { operator: sender, owner, file_hash_list: file_hash_list,  failed_list: delete_failed_list });
 			Ok(())
 		}
 
