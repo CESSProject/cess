@@ -753,7 +753,7 @@ pub mod pallet {
 
 				let file = match <File<T>>::try_get(file_hash) {
 					Ok(file) => file,
-					Err(e) => {
+					Err(_e) => {
 						delete_failed_list.push(*file_hash);
 						continue;
 					},
@@ -765,7 +765,7 @@ pub mod pallet {
 						//The above has been judged. Unwrap will be performed only if the key exists
 						let _ = match Self::clear_bucket_file(file_hash, &owner, &user_brief_temp.bucket_name) {
 							Ok(weight) => weight,
-							Err(e) => {
+							Err(_e) => {
 								delete_failed_list.push(*file_hash);
 								continue;
 							},
@@ -773,7 +773,7 @@ pub mod pallet {
 
 						let _ = match Self::clear_user_file(*file_hash, &owner, file.user_brief_list.len() > 1){
 							Ok(weight) => weight,
-							Err(e) => {
+							Err(_e) => {
 								delete_failed_list.push(*file_hash);
 								continue;
 							},

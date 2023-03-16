@@ -145,10 +145,10 @@ fn submit_challenge_prove_works() {
     new_test_ext().execute_with(|| {
         let miner_acc = miner1();
         let file_id = Hash([5u8; 64]);
-        let mu = vec![vec![2_u8]];
+        let mu = vec![2_u8];
         let sigma = vec![1_u8];
 				let name = vec![5_u8];
-				let u = vec![vec![3_u8, 3u8]];
+        let u = vec![3_u8, 3u8]
         let controller1 = controller1();
         let stash1 = stash1();
         assert_ok!(register_scheduler(stash1.clone(), controller1.clone()));
@@ -166,10 +166,9 @@ fn submit_challenge_prove_works() {
             file_id: file_id.clone(),
             miner_acc: miner_acc.clone(),
             challenge_info: challenge_info.clone(),
-            mu: to_bounded_vec2(mu),
+            mu: to_bounded_vec(mu),
             sigma: to_bounded_vec(sigma),
-						name: to_bounded_vec(name),
-						u: to_bounded_vec2(u),
+						u: to_bounded_vec(u),
         };
         prove_list.push(prove_info);
         assert_noop!(SegmentBook::submit_challenge_prove(Origin::signed(miner_acc.clone()), prove_list.clone()), Error::<Test>::NoChallenge);
