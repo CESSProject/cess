@@ -81,7 +81,11 @@ use pallet_file_map::ScheduleFind;
 use pallet_sminer::MinerControl;
 use scale_info::TypeInfo;
 use sp_core::H256;
-use sp_std::{collections::btree_map::BTreeMap, prelude::*};
+use sp_std::{ 
+		convert:: { TryFrom, TryInto },
+		collections::btree_map::BTreeMap, 
+		prelude::*
+	};
 use cp_cess_common::DataType;
 pub mod weights;
 pub use weights::WeightInfo;
@@ -152,7 +156,7 @@ pub mod pallet {
 		frame_system::Config + sp_std::fmt::Debug + CreateSignedTransaction<Call<Self>>
 	{
 		/// The overarching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// The currency trait.
 		type Currency: ReservableCurrency<Self::AccountId>;
 		//the weights
@@ -356,6 +360,7 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[pallet::call_index(0)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
 		pub fn update_verify_duration(origin: OriginFor<T>, now: BlockNumberOf<T>) -> DispatchResult {
@@ -419,6 +424,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(1)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::verify_proof(result_list.len() as u32))]
 		pub fn verify_proof(
@@ -470,6 +476,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(2)]
 		#[transactional]
 		#[pallet::weight(0)]
 		pub fn save_challenge_info(
@@ -492,6 +499,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(3)]
 		#[transactional]
 		#[pallet::weight(0)]
 		pub fn save_challenge_time(
@@ -957,9 +965,9 @@ pub mod pallet {
 			file_type: DataType,
 		) -> Result<Weight, DispatchError> {
 			if !T::MinerControl::miner_is_exist(acc.clone()) {
-				return Ok(0 as Weight);
+				return Ok(Weight::from_ref_time(0 as u64));
 			}
-			let mut weight: Weight = 0;
+			let mut weight: Weight = Weight::from_ref_time(0);
 			match file_type {
 				DataType::Filler => {
 					T::MinerControl::sub_power(acc.clone(), file_size.into())?; //read 3 write 2
@@ -1117,8 +1125,10 @@ pub mod pallet {
 					Ok(()) => log::info!("start_buffer_period_schedule success!"),
 					Err(e) => log::error!("start_buffer_period_schedule failed: {:?}", e),
 				};
+				#[allow(deprecated)]
 				<FailureNumMap<T>>::remove_all();
 				weight = weight.saturating_add(T::DbWeight::get().writes(<FailureNumMap<T>>::count() as Weight));
+				#[allow(deprecated)]
 				<MinerTotalProof<T>>::remove_all();
 				weight = weight.saturating_add(T::DbWeight::get().writes(<MinerTotalProof<T>>::count() as Weight));
 			} else {

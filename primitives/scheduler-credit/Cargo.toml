@@ -8,11 +8,11 @@ edition = "2021"
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
-sp-api = { version = "4.0.0-dev", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'monthly-2022-04-cess' }
-sp-core = { version = "6.0.0", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'monthly-2022-04-cess' }
-sp-std = { version = "4.0.0", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'monthly-2022-04-cess' }
-sp-application-crypto = { version = "6.0.0", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'monthly-2022-04-cess' }
-frame-support = {default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'monthly-2022-04-cess', version = '4.0.0-dev'}
+sp-api = { version = "4.0.0-dev", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36" }
+sp-core = { version = "7.0.0", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36" }
+sp-std = { version = "5.0.0", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36" }
+sp-application-crypto = { version = "7.0.0", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36" }
+frame-support = {default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36", version = '4.0.0-dev'}
 
 [features]
 default = ["std"]

@@ -51,12 +51,12 @@
 
 use crate::{
 	BalanceOf, Config, Error, Exposure, NegativeImbalanceOf, Pallet, Perbill, SessionInterface,
-	Store, UnappliedSlash,
+	Store, UnappliedSlash, CurrentEra,
 };
-use codec::{Decode, Encode};
+use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	ensure,
-	traits::{Currency, Get, Imbalance, OnUnbalanced},
+	traits::{Currency, Defensive, Get, Imbalance, OnUnbalanced},
 };
 use scale_info::TypeInfo;
 use sp_runtime::{
@@ -182,7 +182,7 @@ impl SlashingSpans {
 }
 
 /// A slashing-span record for a particular stash.
-#[derive(Encode, Decode, Default, TypeInfo)]
+#[derive(Encode, Decode, Default, TypeInfo, MaxEncodedLen)]
 pub(crate) struct SpanRecord<Balance> {
 	slashed: Balance,
 	paid_out: Balance,
@@ -239,9 +239,9 @@ pub(crate) fn compute_slash<T: Config>(
 		return None
 	}
 
-	let (prior_slash_p, _era_slash) =
+	let prior_slash_p =
 		<Pallet<T> as Store>::ValidatorSlashInEra::get(&params.slash_era, params.stash)
-			.unwrap_or((Perbill::zero(), Zero::zero()));
+			.map_or(Zero::zero(), |(prior_slash_proportion, _)| prior_slash_proportion);
 
 	// compare slash proportions rather than slash values to avoid issues due to rounding
 	// error.
@@ -389,10 +389,8 @@ fn slash_nominators<T: Config>(
 
 			let mut era_slash =
 				<Pallet<T> as Store>::NominatorSlashInEra::get(&params.slash_era, stash)
-					.unwrap_or_else(|| Zero::zero());
-
+					.unwrap_or_else(Zero::zero);
 			era_slash += own_slash_difference;
-
 			<Pallet<T> as Store>::NominatorSlashInEra::insert(&params.slash_era, stash, &era_slash);
 
 			era_slash
@@ -411,12 +409,10 @@ fn slash_nominators<T: Config>(
 			let target_span = spans.compare_and_update_span_slash(params.slash_era, era_slash);
 
 			if target_span == Some(spans.span_index()) {
-				// End the span, but don't chill the nominator. its nomination
-				// on this validator will be ignored in the future.
+				// end the span, but don't chill the nominator.
 				spans.end_span(params.now);
 			}
 		}
-
 		nominators_slashed.push((stash.clone(), nom_slashed));
 	}
 
@@ -557,7 +553,9 @@ impl<'a, T: 'a + Config> Drop for InspectingSpans<'a, T> {
 
 /// Clear slashing metadata for an obsolete era.
 pub(crate) fn clear_era_metadata<T: Config>(obsolete_era: EraIndex) {
+	#[allow(deprecated)]
 	<Pallet<T> as Store>::ValidatorSlashInEra::remove_prefix(&obsolete_era, None);
+	#[allow(deprecated)]
 	<Pallet<T> as Store>::NominatorSlashInEra::remove_prefix(&obsolete_era, None);
 }
 
@@ -598,9 +596,10 @@ pub fn do_slash<T: Config>(
 	value: BalanceOf<T>,
 	reward_payout: &mut BalanceOf<T>,
 	slashed_imbalance: &mut NegativeImbalanceOf<T>,
+	slash_era: EraIndex,
 ) {
-	let controller = match <Pallet<T>>::bonded(stash) {
-		None => return, // defensive: should always exist.
+	let controller = match <Pallet<T>>::bonded(stash).defensive() {
+		None => return,
 		Some(c) => c,
 	};
 
@@ -609,7 +608,7 @@ pub fn do_slash<T: Config>(
 		None => return, // nothing to do.
 	};
 
-	let value = ledger.slash(value, T::Currency::minimum_balance());
+	let value = ledger.slash(value, T::Currency::minimum_balance(), slash_era);
 
 	if !value.is_zero() {
 		let (imbalance, missing) = T::Currency::slash(stash, value);
@@ -623,12 +622,18 @@ pub fn do_slash<T: Config>(
 		<Pallet<T>>::update_ledger(&controller, &ledger);
 
 		// trigger the event
-		<Pallet<T>>::deposit_event(super::Event::<T>::Slashed(stash.clone(), value));
+		<Pallet<T>>::deposit_event(super::Event::<T>::Slashed {
+			staker: stash.clone(),
+			amount: value,
+		});
 	}
 }
 
 /// Apply a previously-unapplied slash.
-pub(crate) fn apply_slash<T: Config>(unapplied_slash: UnappliedSlash<T::AccountId, BalanceOf<T>>) {
+pub(crate) fn apply_slash<T: Config>(
+	unapplied_slash: UnappliedSlash<T::AccountId, BalanceOf<T>>,
+	slash_era: EraIndex,
+) {
 	let mut slashed_imbalance = NegativeImbalanceOf::<T>::zero();
 	let mut reward_payout = unapplied_slash.payout;
 
@@ -637,10 +642,17 @@ pub(crate) fn apply_slash<T: Config>(unapplied_slash: UnappliedSlash<T::AccountI
 		unapplied_slash.own,
 		&mut reward_payout,
 		&mut slashed_imbalance,
+		slash_era,
 	);
 
 	for &(ref nominator, nominator_slash) in &unapplied_slash.others {
-		do_slash::<T>(&nominator, nominator_slash, &mut reward_payout, &mut slashed_imbalance);
+		do_slash::<T>(
+			nominator,
+			nominator_slash,
+			&mut reward_payout,
+			&mut slashed_imbalance,
+			slash_era,
+		);
 	}
 
 	pay_reporters::<T>(reward_payout, slashed_imbalance, &unapplied_slash.reporters);
@@ -681,7 +693,7 @@ fn pay_reporters<T: Config>(
 /// Apply a slash to a scheduler
 pub fn slash_scheduler<T: Config>(stash: &T::AccountId) {
 	let min_bond = <Pallet<T> as Store>::MinValidatorBond::get();
-
+	let slash_era = CurrentEra::<T>::get().unwrap();
 	let unapplied_slash = UnappliedSlash::<T::AccountId, BalanceOf<T>> {
 		validator: stash.clone(),
 		own: Perbill::from_percent(5) * min_bond,
@@ -689,7 +701,7 @@ pub fn slash_scheduler<T: Config>(stash: &T::AccountId) {
 		reporters: Vec::new(),
 		payout: Zero::zero(),
 	};
-	apply_slash::<T>(unapplied_slash);
+	apply_slash::<T>(unapplied_slash, slash_era);
 }
 
 #[cfg(test)]

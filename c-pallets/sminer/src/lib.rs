@@ -92,7 +92,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: pallet_timestamp::Config + frame_system::Config {
 		/// The overarching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// The currency trait.
 		type Currency: ReservableCurrency<Self::AccountId>;
 		/// The treasury's pallet id, used for deriving its sovereign account ID.
@@ -118,7 +118,7 @@ pub mod pallet {
 		/// Overarching type of all pallets origins.
 		type SPalletsOrigin: From<system::RawOrigin<Self::AccountId>>;
 		/// The SProposal.
-		type SProposal: Parameter + Dispatchable<Origin = Self::Origin> + From<Call<Self>>;
+		type SProposal: Parameter + Dispatchable<RuntimeOrigin = Self::RuntimeOrigin> + From<Call<Self>>;
 		/// The WeightInfo.
 		type WeightInfo: WeightInfo;
 	}
@@ -340,6 +340,7 @@ pub mod pallet {
 		/// - `beneficiary`: The beneficiary related to signer account.
 		/// - `ip`: The registered IP of storage miner.
 		/// - `staking_val`: The number of staking.
+		#[pallet::call_index(0)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
 		pub fn regnstk(
@@ -389,6 +390,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `collaterals`: Miner's TCESS.
+		#[pallet::call_index(1)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::increase_collateral())]
 		pub fn increase_collateral(
@@ -430,6 +432,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `beneficiary`: The beneficiary related to signer account.
+		#[pallet::call_index(2)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_beneficiary())]
 		pub fn update_beneficiary(
@@ -453,6 +456,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `ip`: The registered IP of storage miner.
+		#[pallet::call_index(3)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_ip())]
 		pub fn update_ip(origin: OriginFor<T>, ip: IpAddress) -> DispatchResult {
@@ -470,7 +474,8 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Miner exit method, Irreversible process.
+		//Miner exit method, Irreversible process.
+		#[pallet::call_index(4)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::exit_miner())]
 		pub fn exit_miner(origin: OriginFor<T>) -> DispatchResult {
@@ -496,7 +501,8 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Method for miners to redeem deposit
+		//Method for miners to redeem deposit
+		#[pallet::call_index(5)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::withdraw())]
 		pub fn withdraw(origin: OriginFor<T>) -> DispatchResult {
@@ -530,6 +536,7 @@ pub mod pallet {
 		}
 
 		/// Add reward orders.
+		#[pallet::call_index(6)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timed_increase_rewards())]
 		pub fn timed_increase_rewards(origin: OriginFor<T>) -> DispatchResult {
@@ -572,6 +579,7 @@ pub mod pallet {
 		/// Added timed tasks for reward orders.
 		///
 		/// The dispatch origin of this call must be _root_.
+		#[pallet::call_index(7)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timing_task_increase_power_rewards())]
 		pub fn timing_task_increase_power_rewards(
@@ -599,6 +607,7 @@ pub mod pallet {
 		}
 
 		/// Users receive rewards for scheduled tasks.
+		#[pallet::call_index(8)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timed_user_receive_award1(<RewardClaimMap<T>>::count()))]
 		pub fn timed_user_receive_award1(origin: OriginFor<T>) -> DispatchResult {
@@ -615,7 +624,7 @@ pub mod pallet {
 					continue;
 				}
 
-				let reward_pot = T::PalletId::get().into_account();
+				let reward_pot = T::PalletId::get().into_account_truncating();
 
 				let award = info.current_availability;
 				let total = info.total_reward;
@@ -662,6 +671,7 @@ pub mod pallet {
 		/// Users receive rewards for scheduled tasks.
 		///
 		/// The dispatch origin of this call must be _root_.
+		#[pallet::call_index(9)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timing_user_receive_award())]
 		pub fn timing_user_receive_award(
@@ -691,6 +701,7 @@ pub mod pallet {
 		}
 
 		/// Update the user reward table for scheduled tasks.
+		#[pallet::call_index(10)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timed_task_award_table(<CalculateRewardOrderMap<T>>::count()))]
 		pub fn timed_task_award_table(origin: OriginFor<T>) -> DispatchResult {
@@ -816,6 +827,7 @@ pub mod pallet {
 		/// Update the user reward table for scheduled tasks.
 		///
 		/// The dispatch origin of this call must be _root_.
+		#[pallet::call_index(11)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::timing_task_award_table())]
 		pub fn timing_task_award_table(
@@ -845,6 +857,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `when`: The block when the buffer period starts.
+		#[pallet::call_index(12)]
 		#[transactional]
 		#[pallet::weight(1_000_000)]
 		pub fn buffer_period_end(origin: OriginFor<T>, when: BlockNumberOf<T>) -> DispatchResult {
@@ -880,12 +893,13 @@ pub mod pallet {
 		/// Parameters:
 		/// - `acc`: Top-up account .
 		/// - `acc`: Top-up amount .
+		#[pallet::call_index(13)]
 		#[transactional]
 		#[pallet::weight(100_000)]
 		pub fn faucet_top_up(origin: OriginFor<T>, award: BalanceOf<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
-			let reward_pot = T::PalletId::get().into_account();
+			let reward_pot = T::PalletId::get().into_account_truncating();
 			<T as pallet::Config>::Currency::transfer(&sender, &reward_pot, award, AllowDeath)?;
 
 			Self::deposit_event(Event::<T>::FaucetTopUpMoney { acc: sender.clone() });
@@ -898,6 +912,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `acc`: Withdraw money account.
+		#[pallet::call_index(14)]
 		#[transactional]
 		#[pallet::weight(100_000)]
 		pub fn faucet(origin: OriginFor<T>, to: AccountOf<T>) -> DispatchResult {
@@ -912,7 +927,7 @@ pub mod pallet {
 				);
 
 				let now = <frame_system::Pallet<T>>::block_number();
-				let reward_pot = T::PalletId::get().into_account();
+				let reward_pot = T::PalletId::get().into_account_truncating();
 
 				<T as pallet::Config>::Currency::transfer(
 					&reward_pot,
@@ -956,7 +971,7 @@ pub mod pallet {
 				}
 				ensure!(flag, Error::<T>::LessThan24Hours);
 
-				let reward_pot = T::PalletId::get().into_account();
+				let reward_pot = T::PalletId::get().into_account_truncating();
 				<T as pallet::Config>::Currency::transfer(
 					&reward_pot,
 					&to,
@@ -1111,7 +1126,7 @@ impl<T: Config> Pallet<T> {
 
 		//There is a judgment on whether the primary key exists above
 		let mr = MinerItems::<T>::try_get(&aid).map_err(|_e| Error::<T>::NotMiner)?; //read 1
-		let acc = T::PalletId::get().into_account();
+		let acc = T::PalletId::get().into_account_truncating();
 
 		let calcu_failure_fee =
 			Self::calcu_failure_fee(aid.clone(), failure_num, total_proof)?; // read 1
@@ -1350,7 +1365,7 @@ impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for Pallet<T> {
 		let numeric_amount = amount.peek();
 
 		// Must resolve into existing but better to be safe.
-		let _ = T::Currency::resolve_creating(&T::PalletId::get().into_account(), amount);
+		let _ = T::Currency::resolve_creating(&T::PalletId::get().into_account_truncating(), amount);
 		<CurrencyReward<T>>::mutate(|v| {
 			*v = *v + numeric_amount;
 		});

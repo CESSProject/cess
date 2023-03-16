@@ -32,7 +32,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config + sp_std::fmt::Debug {
 		/// The overarching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		type WeightInfo: WeightInfo;
 	}
@@ -78,6 +78,7 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[pallet::call_index(0)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::authorize())]
 		pub fn authorize(origin: OriginFor<T>, operator: AccountOf<T>) -> DispatchResult {
@@ -93,6 +94,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(1)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::cancel_authorize())]
 		pub fn cancel_authorize(origin: OriginFor<T>) -> DispatchResult {
@@ -108,6 +110,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(2)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::register())]
 		pub fn register(origin: OriginFor<T>, endpoint: IpAddress) -> DispatchResult {
@@ -120,6 +123,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(3)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update())]
 		pub fn update(origin: OriginFor<T>, endpoint: IpAddress) -> DispatchResult {
@@ -137,6 +141,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(4)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::destroy())]
 		pub fn destroy(origin: OriginFor<T>) -> DispatchResult {

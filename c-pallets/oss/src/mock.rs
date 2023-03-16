@@ -1,16 +1,19 @@
 use crate as pallet_oss;
 use frame_benchmarking::account;
-use frame_support::parameter_types;
+use frame_support:: {
+	parameter_types,
+	pallet_prelude::*,
+	traits::ConstU32,
+};
 use sp_runtime::{
-	testing::{Header},
+	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
 };
 use sp_core::H256;
-use frame_support::traits::{ConstU32};
 
 pub(crate) type AccountId = u32;
-type BlockNumber = u64;
-type Balance = u64;
+// type BlockNumber = u64;
+// type Balance = u64;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -21,8 +24,8 @@ frame_support::construct_runtime!(
 		NodeBlock = Block,
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
-		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-		Oss: pallet_oss::{Pallet, Call, Storage, Event<T>},
+		System: frame_system,
+		Oss: pallet_oss,
 		// Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 	}
 );
@@ -46,15 +49,15 @@ frame_support::construct_runtime!(
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
 	pub BlockWeights: frame_system::limits::BlockWeights =
-		frame_system::limits::BlockWeights::simple_max(1024);
+		frame_system::limits::BlockWeights::simple_max(Weight::from_ref_time(1024));
 	}
 
 impl frame_system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = ();
 	type BlockLength = ();
-	type Origin = Origin;
-	type Call = Call;
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
 	type Index = u64;
 	type BlockNumber = u64;
 	type Hash = H256;
@@ -62,7 +65,7 @@ impl frame_system::Config for Test {
 	type AccountId = AccountId;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type DbWeight = ();
 	type Version = ();
@@ -77,7 +80,7 @@ impl frame_system::Config for Test {
 }
 
 impl pallet_oss::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 
 	type WeightInfo = ();
 }
