@@ -325,6 +325,7 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[pallet::call_index(16)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
 		pub fn sub_spec_power(origin: OriginFor<T>, num: u128) -> DispatchResult {

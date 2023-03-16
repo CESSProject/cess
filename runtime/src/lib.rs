@@ -1396,7 +1396,7 @@ impl pallet_scheduler_credit::Config for Runtime {
 }
 
 impl pallet_cacher::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type WeightInfo = pallet_cacher::weights::SubstrateWeight<Runtime>;
 }

@@ -362,40 +362,6 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		#[pallet::call_index(0)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn update_verify_duration(origin: OriginFor<T>, now: BlockNumberOf<T>) -> DispatchResult {
-			let _sender = ensure_root(origin)?;
-			<VerifyDuration<T>>::put(now);
-			Ok(())
-		}
-
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn clear_all_unverify_proof(origin: OriginFor<T>) -> DispatchResult {
-			let _sender = ensure_root(origin)?;
-			for (acc, v_list) in <UnVerifyProof<T>>::iter() {
-				if v_list.len() > 0 {
-					<UnVerifyProof<T>>::remove(acc);
-				}
-			}
-
-			Ok(())
-		}
-
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn clear_all_challenge_proof(origin: OriginFor<T>) -> DispatchResult {
-			let _sender = ensure_root(origin)?;
-			for (acc, v_list) in <ChallengeMap<T>>::iter() {
-				if v_list.len() > 0 {
-					<ChallengeMap<T>>::remove(acc);
-				}
-			}
-
-			Ok(())
-		}
-
-		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_challenge_prove(prove_info.len() as u32))]
 		pub fn submit_challenge_prove(
 			origin: OriginFor<T>,
@@ -516,6 +482,43 @@ pub mod pallet {
 
 			for (acc, challenge_list) in <ChallengeMap<T>>::iter() {
 				<MinerTotalProof<T>>::insert(acc, challenge_list.len() as u32);
+			}
+
+			Ok(())
+		}
+
+		#[pallet::call_index(4)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn update_verify_duration(origin: OriginFor<T>, now: BlockNumberOf<T>) -> DispatchResult {
+			let _sender = ensure_root(origin)?;
+			<VerifyDuration<T>>::put(now);
+			Ok(())
+		}
+
+		#[pallet::call_index(5)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn clear_all_unverify_proof(origin: OriginFor<T>) -> DispatchResult {
+			let _sender = ensure_root(origin)?;
+			for (acc, v_list) in <UnVerifyProof<T>>::iter() {
+				if v_list.len() > 0 {
+					<UnVerifyProof<T>>::remove(acc);
+				}
+			}
+
+			Ok(())
+		}
+
+		#[pallet::call_index(6)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn clear_all_challenge_proof(origin: OriginFor<T>) -> DispatchResult {
+			let _sender = ensure_root(origin)?;
+			for (acc, v_list) in <ChallengeMap<T>>::iter() {
+				if v_list.len() > 0 {
+					<ChallengeMap<T>>::remove(acc);
+				}
 			}
 
 			Ok(())
@@ -1024,9 +1027,9 @@ pub mod pallet {
 
 		fn handle_challenge_deadline(now: BlockNumberOf<T>) -> Weight {
 			if now != Self::challenge_duration() {
-				return 0
+				return Weight::default()
 			}
-			let mut weight: Weight = 0;
+			let mut weight: Weight = Weight::default();
 			//After the waiting time for the challenge reaches the deadline,
 			//the miners who fail to complete the challenge will be punished
 			for (acc, challenge_list) in <ChallengeMap<T>>::iter() {
@@ -1060,16 +1063,16 @@ pub mod pallet {
 					});
 				}
 				<ChallengeMap<T>>::remove(acc.clone());
-				weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
+				weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
 			}
 			weight
 		}
 
 		fn handle_verify_deadline(now: BlockNumberOf<T>) -> Weight {
 			if now != Self::verify_duration() {
-				return 0
+				return Weight::default()
 			}
-			let mut weight: Weight = 0;	
+			let mut weight: Weight = Weight::default();	
 			let mut is_end = true;
 			let mut verify_list: Vec<ProveInfo<T>> = Vec::new();
 			for (acc, v_list) in <UnVerifyProof<T>>::iter() {
@@ -1081,7 +1084,7 @@ pub mod pallet {
 						Err(e) => log::error!("punish scheduler failed: {:?}", e),
 					};
 					<UnVerifyProof<T>>::remove(&acc);
-					weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
+					weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
 				}
 			}
 			if is_end {
@@ -1102,7 +1105,7 @@ pub mod pallet {
 							}
 						} else {
 							<ConsecutiveFines<T>>::insert(&miner, 1);
-							weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
+							weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
 						}
 						let result = Self::punish(
 							miner.clone(),
@@ -1117,7 +1120,7 @@ pub mod pallet {
 						};
 					} else {
 						<ConsecutiveFines<T>>::remove(&miner);
-						weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
+						weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
 					}
 				}
 	
@@ -1127,37 +1130,37 @@ pub mod pallet {
 				};
 				#[allow(deprecated)]
 				<FailureNumMap<T>>::remove_all();
-				weight = weight.saturating_add(T::DbWeight::get().writes(<FailureNumMap<T>>::count() as Weight));
+				weight = weight.saturating_add(T::DbWeight::get().writes(<FailureNumMap<T>>::count() as u64));
 				#[allow(deprecated)]
 				<MinerTotalProof<T>>::remove_all();
-				weight = weight.saturating_add(T::DbWeight::get().writes(<MinerTotalProof<T>>::count() as Weight));
+				weight = weight.saturating_add(T::DbWeight::get().writes(<MinerTotalProof<T>>::count() as u64));
 			} else {
-				weight = weight.saturating_add(T::DbWeight::get().reads(1 as Weight));
+				weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
 				match Self::get_current_scheduler() {
 					Ok(cur_acc) =>  {
 						let new_deadline = match now.checked_add(&1200u32.saturated_into()).ok_or(Error::<T>::Overflow) {
 							Ok(new_deadline) => new_deadline,
 							Err(e) => {
 								log::error!("over flow: {:?}", e);
-								return 0
+								return Weight::default()
 							},
 						};
 						<VerifyDuration<T>>::put(new_deadline);
-						weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
+						weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
 						let bound_verify_list: BoundedVec<ProveInfo<T>, T::ChallengeMaximum> = match verify_list.try_into().map_err(|_e| Error::<T>::BoundedVecError) {
 							Ok(bound_verify_list) => bound_verify_list,
 							Err(e) => {
 								log::error!("over flow: {:?}", e);
-								return 0
+								return Weight::default()
 							},
 						};
 						let result = Self::storage_prove(cur_acc, bound_verify_list);
-						weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
+						weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
 						match result {
 							Ok(()) => log::info!("storage prove success"),
 							Err(e) => {
 								log::error!("storage prove failed: {:?}", e);
-								return 0
+								return Weight::default()
 							},
 						};
 					},
