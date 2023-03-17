@@ -44,7 +44,8 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use scale_info::TypeInfo;
-use cp_cess_common::{DataType, Hash as H68};
+use cp_cess_common::{DataType, Hash as H68, M_BYTE, T_BYTE, G_BYTE};
+use pallet_storage_handler::StorageHandle;
 use cp_scheduler_credit::SchedulerCreditCounter;
 use sp_runtime::{
 	traits::{
@@ -59,8 +60,6 @@ pub use weights::WeightInfo;
 
 type Hash = H68;
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
-type BalanceOf<T> =
-	<<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 
 const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
@@ -74,7 +73,6 @@ pub mod pallet {
 	use pallet_oss::OssFindAuthor;
 	//pub use crate::weights::WeightInfo;
 	use frame_system::ensure_signed;
-	use cp_cess_common::*;
 
 	pub const PACKAGE_1_SIZE: u128 = G_BYTE * 10;
 	pub const PACKAGE_2_SIZE: u128 = G_BYTE * 500;
@@ -100,6 +98,8 @@ pub mod pallet {
 		type MinerControl: MinerControl<Self::AccountId>;
 		//Interface that can generate random seeds
 		type MyRandomness: Randomness<Option<Self::Hash>, Self::BlockNumber>;
+
+		type StorageHandle: StorageHandle<Self::AccountId>;
 		/// pallet address.
 		#[pallet::constant]
 		type FilbakPalletId: Get<PalletId>;
@@ -335,8 +335,8 @@ pub mod pallet {
 			}
 			let _ = FillerMap::<T>::remove_prefix(&sender, Option::None);
 
-			let _ = T::MinerControl::sub_miner_idle_space(sender, x * 8 * 1024 * 1024)?;
-			sub_total_idle_space(x * 8 * 1024 * 1024)?;
+			let _ = T::MinerControl::sub_miner_idle_space(&sender, x * 8 * 1024 * 1024)?;
+			T::StorageHandle::sub_total_idle_space(x * 8 * 1024 * 1024)?;
 			Ok(())
 		}
 		/// Users need to make a declaration before uploading files.
@@ -370,7 +370,7 @@ pub mod pallet {
 					if s.user_brief_list.contains(&user_brief) {
 						Err(Error::<T>::Declarated)?;
 					}
-					Self::update_user_space(user_brief.user.clone(), 1, s.file_size.into())?;
+					T::StorageHandle::update_user_space(&user_brief.user, 1, s.file_size.into())?;
 					Self::add_user_hold_fileslice(
 						user_brief.user.clone(),
 						file_hash.clone(),
@@ -450,7 +450,7 @@ pub mod pallet {
 			ensure!(<Bucket<T>>::contains_key(&target_brief.user, &target_brief.bucket_name), Error::<T>::NonExistent);
 			//Modify the space usage of target acc,
 			//and determine whether the space is enough to support transfer
-			Self::update_user_space(target_brief.user.clone(), 1, file.file_size.into())?;
+			T::StorageHandle::update_user_space(&target_brief.user, 1, file.file_size.into())?;
 			//Increase the ownership of the file for target acc
 			<File<T>>::try_mutate(&file_hash, |file_opt| -> DispatchResult {
 				let file = file_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
@@ -509,7 +509,7 @@ pub mod pallet {
 			<File<T>>::try_mutate(&file_hash, |s_opt| -> DispatchResult {
 				let s = s_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
 				for user_brief in s.user_brief_list.iter() {
-					Self::update_user_space(user_brief.user.clone(), 1, file_size.into())?;
+					T::StorageHandle::update_user_space(&user_brief.user, 1, file_size.into())?;
 					Self::add_user_hold_fileslice(
 						user_brief.user.clone(),
 						file_hash.clone(),
@@ -593,7 +593,7 @@ pub mod pallet {
 				.checked_mul(filler_list.len() as u128)
 				.ok_or(Error::<T>::Overflow)?;
 			T::MinerControl::add_miner_idle_space(&miner, power)?;
-			add_total_idle_space(power)?;
+			T::StorageHandle::add_total_idle_space(power)?;
 			Self::record_uploaded_fillers_size(&sender, &filler_list)?;
 
 			Self::deposit_event(Event::<T>::FillerUpload { acc: sender, file_size: power as u64 });
@@ -1128,15 +1128,15 @@ pub mod pallet {
 					<File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::FileNonExistent)?; //read 1
 			  weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
 			for user_brief in file.user_brief_list.iter() {
-				Self::update_user_space(user_brief.user.clone(), 2, file.file_size.into())?; //read 1 write 1 * n
+				T::StorageHandle::update_user_space(&user_brief.user, 2, file.file_size.into())?; //read 1 write 1 * n
 				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 			}
 			for slice in file.slice_info.iter() {
 				let hash = Hash::from_shard_id(&slice.shard_id).map_err(|_| Error::<T>::ConvertHashError)?;
 				Self::add_invalid_file(slice.miner_acc.clone(), hash)?; //read 1 write 1 * n
 				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-				T::MinerControl::sub_miner_space(&slice.miner_acc, slice.shard_size.into())?; //read 3 write 2
-				sub_total_space(slice.shard_size.into())
+				T::MinerControl::sub_miner_service_space(&slice.miner_acc, slice.shard_size.into())?; //read 3 write 2
+				T::StorageHandle::sub_total_service_space(slice.shard_size.into());
 				weight = weight.saturating_add(T::DbWeight::get().reads_writes(3, 2));
 			}
 			<File<T>>::remove(file_hash);
@@ -1206,7 +1206,7 @@ pub mod pallet {
 					s.user_brief_list.remove(index);
 					Ok(())
 				})?;
-				Self::update_user_space(user.clone(), 2, file_size.into())?; //read 1 write 1
+				T::StorageHandle::update_user_space(&user, 2, file_size.into())?; //read 1 write 1
 				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 			} else {
 				let weight_temp = Self::clear_file(file_hash.clone())?;
@@ -1300,9 +1300,9 @@ pub mod pallet {
 			})?;
 			//add space
 			T::MinerControl::add_miner_service_space(&miner_acc, file_size.into())?;
-			add_total_service_space(file_size.into())?;
-			T::MinerControl::sub_miner_idle_space(miner_acc.clone(), replace_num * M_BYTE * 8)?;
-			sub_miner_total_space(replace_num * M_BYTE * 8)?;
+			T::StorageHandle::add_total_service_space(file_size.into())?;
+			T::MinerControl::sub_miner_idle_space(&miner_acc, replace_num * M_BYTE * 8)?;
+			T::StorageHandle::sub_total_idle_space(replace_num * M_BYTE * 8)?;
 			Ok(())
 		}
 		/// helper: add invalid file.
