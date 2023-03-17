@@ -258,24 +258,11 @@ pub mod pallet {
 	#[pallet::getter(fn peer_index)]
 	pub(super) type PeerIndex<T: Config> = StorageValue<_, u64, ValueQuery>;
 
-	/// The total power of all storage miners.
-	#[pallet::storage]
-	#[pallet::getter(fn total_power)]
-	pub(super) type TotalIdleSpace<T: Config> = StorageValue<_, u128, ValueQuery>;
-
-	/// The total storage space to fill of all storage miners.
-	#[pallet::storage]
-	#[pallet::getter(fn total_space)]
-	pub(super) type TotalServiceSpace<T: Config> = StorageValue<_, u128, ValueQuery>;
 	/// Store all miner information
 	#[pallet::storage]
 	#[pallet::getter(fn miner_info)]
 	pub(super) type AllMiner<T: Config> =
 		StorageValue<_, BoundedVec<AccountOf<T>, T::ItemLimit>, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn purchased_space)]
-	pub(super) type PurchasedSpace<T: Config> = StorageValue<_, u128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn dad_miner)]
@@ -330,7 +317,7 @@ pub mod pallet {
 		#[pallet::weight(100_000_000)]
 		pub fn sub_spec_power(origin: OriginFor<T>, num: u128) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			Self::sub_power(&sender, num * 1024 * 1024);
+			Self::sub_miner_idle_space(&sender, num * 1024 * 1024);
 			Ok(())
 		}
 		/// Staking and register for storage miner.
@@ -490,8 +477,6 @@ pub mod pallet {
 			MinerItems::<T>::try_mutate(&sender, |miner_info_opt| -> DispatchResult {
 				let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
 
-				Self::sub_space(&sender, miner_info.space)?;
-				Self::sub_power(&sender, miner_info.power)?;
 				miner_info.state = Self::vec_to_bound(STATE_EXIT.as_bytes().to_vec())?;
 				Ok(())
 			})?;
@@ -533,324 +518,6 @@ pub mod pallet {
 			MinerLockIn::<T>::remove(&sender);
 
 			Self::deposit_event(Event::<T>::MinerClaim { acc: sender });
-			Ok(())
-		}
-
-		/// Add reward orders.
-		#[pallet::call_index(6)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::timed_increase_rewards())]
-		pub fn timed_increase_rewards(origin: OriginFor<T>) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-			let total_power = <TotalIdleSpace<T>>::get().checked_add(<TotalServiceSpace<T>>::get()).ok_or(Error::<T>::Overflow)?;
-			ensure!(total_power != 0, Error::<T>::DivideByZero);
-
-			let mut total_award: u128 =
-				<CurrencyReward<T>>::get().try_into().map_err(|_| Error::<T>::Overflow)?;
-			let max_award = T::MaxAward::get();
-			if total_award > max_award {
-				<CurrencyReward<T>>::try_mutate(|currency_reward| -> DispatchResult {
-					*currency_reward = currency_reward
-						.checked_sub(&max_award.try_into().map_err(|_| Error::<T>::Overflow)?)
-						.ok_or(Error::<T>::Overflow)?;
-					Ok(())
-				})?;
-				total_award = max_award;
-			} else {
-				<CurrencyReward<T>>::try_mutate(|currency_reward| -> DispatchResult {
-					*currency_reward = 0u128.try_into().map_err(|_| Error::<T>::Overflow)?;
-					Ok(())
-				})?;
-			}
-			for (acc, detail) in <MinerItems<T>>::iter() {
-				let miner_total_power = detail.power.checked_add(detail.space).ok_or(Error::<T>::Overflow)?;
-				if miner_total_power == 0 {
-					continue;
-				}
-				let miner_award: u128 = total_award
-					.checked_mul(miner_total_power).ok_or(Error::<T>::Overflow)?
-					.checked_div(total_power).ok_or(Error::<T>::Overflow)?;
-				let _ = Self::add_reward_order1(&acc, miner_award);
-			}
-
-			Self::deposit_event(Event::<T>::TimedTask());
-			Ok(())
-		}
-
-		/// Added timed tasks for reward orders.
-		///
-		/// The dispatch origin of this call must be _root_.
-		#[pallet::call_index(7)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::timing_task_increase_power_rewards())]
-		pub fn timing_task_increase_power_rewards(
-			origin: OriginFor<T>,
-			when: BlockNumberOf<T>,
-			cycle: BlockNumberOf<T>,
-			degree: u32,
-		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			if T::SScheduler::schedule_named(
-				(DEMOCRACY_IDA).encode(),
-				DispatchTime::At(when),
-				Some((cycle, degree)),
-				schedule::HIGHEST_PRIORITY,
-				frame_system::RawOrigin::Root.into(),
-				Call::timed_increase_rewards {}.into(),
-			)
-			.is_err()
-			{
-				frame_support::print("LOGIC ERROR: timed_increase_rewards/schedule_named failed");
-			}
-
-			Ok(())
-		}
-
-		/// Users receive rewards for scheduled tasks.
-		#[pallet::call_index(8)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::timed_user_receive_award1(<RewardClaimMap<T>>::count()))]
-		pub fn timed_user_receive_award1(origin: OriginFor<T>) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			for (sender, info) in <RewardClaimMap<T>>::iter() {
-				let acc = info.clone().beneficiary;
-				let state =
-					<MinerItems<T>>::try_get(&sender).map_err(|_e| Error::<T>::NotMiner)?.state;
-				if state == STATE_FROZEN.as_bytes().to_vec()
-					|| state == STATE_EXIT_FROZEN.as_bytes().to_vec()
-				{
-					Self::deposit_event(Event::<T>::AlreadyFrozen { acc: acc.clone() });
-					continue;
-				}
-
-				let reward_pot = T::PalletId::get().into_account_truncating();
-
-				let award = info.current_availability;
-				let total = info.total_reward;
-
-				ensure!(
-					info
-						.have_to_receive
-						.checked_add(&award)
-						.ok_or(Error::<T>::Overflow)?
-						<= info.total_reward,
-					Error::<T>::BeyondClaim
-				);
-
-				<T as pallet::Config>::Currency::transfer(&reward_pot, &acc, award, AllowDeath)?;
-
-				RewardClaimMap::<T>::try_mutate(&sender, |reward_claim_opt| -> DispatchResult {
-					let reward_claim =
-						reward_claim_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
-					let have_to_receive = reward_claim
-						.have_to_receive
-						.checked_add(&award)
-						.ok_or(Error::<T>::Overflow)?;
-					reward_claim.have_to_receive = have_to_receive;
-					reward_claim.current_availability = 0u32.into();
-					reward_claim.total_not_receive =
-						total.checked_sub(&award).ok_or(Error::<T>::Overflow)?;
-					Ok(())
-				})?;
-				MinerItems::<T>::try_mutate(&sender, |miner_info_opt| -> DispatchResult {
-					let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
-					let total_not_receive = info.total_not_receive;
-					miner_info.reward_info.total_not_receive = total_not_receive;
-					Ok(())
-				})?;
-
-				if Self::check_exist_miner_reward(&sender)? {
-					Self::clean_reward_map(&sender)
-				}
-			}
-
-			Ok(())
-		}
-
-		/// Users receive rewards for scheduled tasks.
-		///
-		/// The dispatch origin of this call must be _root_.
-		#[pallet::call_index(9)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::timing_user_receive_award())]
-		pub fn timing_user_receive_award(
-			origin: OriginFor<T>,
-			when: BlockNumberOf<T>,
-			cycle: BlockNumberOf<T>,
-			degree: u32,
-		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			if T::SScheduler::schedule_named(
-				(DEMOCRACY_IDC).encode(),
-				DispatchTime::At(when),
-				Some((cycle, degree)),
-				schedule::HIGHEST_PRIORITY,
-				frame_system::RawOrigin::Root.into(),
-				Call::timed_user_receive_award1 {}.into(),
-			)
-			.is_err()
-			{
-				frame_support::print(
-					"LOGIC ERROR: timed_user_receive_award1/schedule_named failed",
-				);
-			}
-
-			Ok(())
-		}
-
-		/// Update the user reward table for scheduled tasks.
-		#[pallet::call_index(10)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::timed_task_award_table(<CalculateRewardOrderMap<T>>::count()))]
-		pub fn timed_task_award_table(origin: OriginFor<T>) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			for (acc, order_vec) in <CalculateRewardOrderMap<T>>::iter() {
-				if !<MinerItems<T>>::contains_key(&acc) {
-					Self::clean_reward_map(&acc);
-					continue;
-				}
-
-				let mut total: u128 = 0;
-
-				let now = <frame_system::Pallet<T>>::block_number();
-				let mut avail: BalanceOf<T> =
-					0u128.try_into().map_err(|_e| Error::<T>::ConversionError)?;
-
-				for i in &order_vec.to_vec() {
-					total = total.checked_add(i.calculate_reward).ok_or(Error::<T>::Overflow)?;
-					if i.deadline > now {
-						//div 225 = * 80% / 180
-						let this_avail: BalanceOf<T> = i.calculate_reward
-							.checked_div(225).ok_or(Error::<T>::Overflow)?
-							.try_into().map_err(|_e| Error::<T>::Overflow)?;
-						avail = avail.checked_add(&this_avail).ok_or(Error::<T>::Overflow)?;
-					}
-				}
-
-				let total_20_percent: BalanceOf<T> = Perbill::from_percent(20).mul_floor(total)
-					.try_into()
-					.map_err(|_e| Error::<T>::ConversionError)?;
-
-				let currently_available: BalanceOf<T> = avail;
-
-				let reward2: BalanceOf<T> =
-					total.try_into().map_err(|_e| Error::<T>::ConversionError)?;
-
-				let miner = MinerItems::<T>::try_get(&acc).map_err(|_e| Error::<T>::NotMiner)?;
-
-				if !<RewardClaimMap<T>>::contains_key(&acc) {
-					<RewardClaimMap<T>>::insert(
-						&acc,
-						RewardClaim::<T::AccountId, BalanceOf<T>> {
-							beneficiary: miner.beneficiary,
-							total_reward: reward2,
-							have_to_receive: 0u32.into(),
-							current_availability: currently_available
-								.checked_add(&total_20_percent)
-								.ok_or(Error::<T>::Overflow)?,
-							total_not_receive: reward2,
-						},
-					);
-
-					if <MinerItems<T>>::contains_key(&acc) {
-						MinerItems::<T>::try_mutate(&acc, |miner_info_opt| -> DispatchResult {
-							let miner_info =
-								miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
-							miner_info.reward_info.total_reward = reward2;
-							miner_info.reward_info.total_rewards_currently_available =
-								currently_available
-									.checked_add(&total_20_percent)
-									.ok_or(Error::<T>::Overflow)?;
-							miner_info.reward_info.total_not_receive = reward2;
-							Ok(())
-						})?;
-					}
-				} else {
-					RewardClaimMap::<T>::try_mutate(&acc, |reward_claim_opt| -> DispatchResult {
-						//Convert balance to U128 for multiplication and division
-						let reward_claim =
-							reward_claim_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
-						let diff = reward2
-							.checked_sub(&reward_claim.total_reward)
-							.ok_or(Error::<T>::Overflow)?;
-						let diff128 =
-							TryInto::<u128>::try_into(diff).map_err(|_e| Error::<T>::Overflow)?;
-						let diff_20_percent: BalanceOf<T> = Perbill::from_percent(20).mul_floor(diff128)
-							.try_into()
-							.map_err(|_e| Error::<T>::ConversionError)?;
-						//Before switching back to balance
-						//Plus 20% of the new share
-						reward_claim.total_reward = reward2;
-						reward_claim.current_availability = reward_claim
-							.current_availability
-							.checked_add(&currently_available)
-							.ok_or(Error::<T>::Overflow)?
-							.checked_add(&diff_20_percent)
-							.ok_or(Error::<T>::Overflow)?;
-						reward_claim.total_not_receive = reward2
-							.checked_sub(&reward_claim.have_to_receive)
-							.ok_or(Error::<T>::Overflow)?;
-						Ok(())
-					})?;
-
-					if <MinerItems<T>>::contains_key(&acc) {
-						MinerItems::<T>::try_mutate(&acc, |miner_info_opt| -> DispatchResult {
-							let miner_info =
-								miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
-							miner_info.reward_info.total_reward = reward2;
-
-							let reward_claim_map = RewardClaimMap::<T>::try_get(&acc)
-								.map_err(|_e| Error::<T>::NotMiner)?;
-							miner_info.reward_info.total_rewards_currently_available =
-								reward_claim_map
-									.have_to_receive
-									.checked_add(&reward_claim_map.current_availability)
-									.ok_or(Error::<T>::Overflow)?;
-
-							let total_not_receive = RewardClaimMap::<T>::try_get(&acc)
-								.map_err(|_e| Error::<T>::NotMiner)?
-								.total_not_receive;
-							miner_info.reward_info.total_not_receive = total_not_receive;
-							Ok(())
-						})?;
-					}
-				}
-			}
-
-			Self::deposit_event(Event::<T>::TimedTask());
-			Ok(())
-		}
-
-		/// Update the user reward table for scheduled tasks.
-		///
-		/// The dispatch origin of this call must be _root_.
-		#[pallet::call_index(11)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::timing_task_award_table())]
-		pub fn timing_task_award_table(
-			origin: OriginFor<T>,
-			when: BlockNumberOf<T>,
-			cycle: BlockNumberOf<T>,
-			degree: u32,
-		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			if T::SScheduler::schedule_named(
-				(DEMOCRACY_IDB).encode(),
-				DispatchTime::At(when),
-				Some((cycle, degree)),
-				schedule::HIGHEST_PRIORITY,
-				frame_system::RawOrigin::Root.into(),
-				Call::timed_task_award_table {}.into(),
-			)
-			.is_err()
-			{
-				frame_support::print("LOGIC ERROR: timed_task_receive_award/schedule_named failed");
-			}
 			Ok(())
 		}
 
@@ -997,7 +664,7 @@ impl<T: Config> Pallet<T> {
 	/// Parameters:
 	/// - `peerid`: peerid.
 	/// - `increment`: computing power.
-	pub fn add_power(acc: &AccountOf<T>, increment: u128) -> DispatchResult {
+	pub fn add_miner_idle_space(acc: &AccountOf<T>, increment: u128) -> DispatchResult {
 		//check exist
 		if !<MinerItems<T>>::contains_key(acc) {
 			Err(Error::<T>::NotMiner)?;
@@ -1014,11 +681,6 @@ impl<T: Config> Pallet<T> {
 			Ok(())
 		})?;
 
-		TotalIdleSpace::<T>::try_mutate(|total_power| -> DispatchResult {
-			*total_power = total_power.checked_add(increment).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
-
 		Ok(())
 	}
 	/// Sub computing power to corresponding miners.
@@ -1026,7 +688,7 @@ impl<T: Config> Pallet<T> {
 	/// Parameters:
 	/// - `peerid`: peerid.
 	/// - `increment`: computing power.
-	pub fn sub_power(acc: &AccountOf<T>, increment: u128) -> DispatchResult {
+	pub fn sub_miner_idle_space(acc: &AccountOf<T>, increment: u128) -> DispatchResult {
 		//check exist
 		if !<MinerItems<T>>::contains_key(acc) {
 			return Ok(());
@@ -1043,11 +705,6 @@ impl<T: Config> Pallet<T> {
 			Ok(())
 		})?; //read 1 write 1
 
-		TotalIdleSpace::<T>::try_mutate(|total_power| -> DispatchResult {
-			*total_power = total_power.checked_sub(increment).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?; //read 1 write 1
-
 		Ok(())
 	}
 
@@ -1056,7 +713,7 @@ impl<T: Config> Pallet<T> {
 	/// Parameters:
 	/// - `peerid`: peerid.
 	/// - `increment`: computing power.
-	pub fn add_space(acc: &AccountOf<T>, increment: u128) -> DispatchResult {
+	pub fn add_miner_service_space(acc: &AccountOf<T>, increment: u128) -> DispatchResult {
 		//check exist
 		if !<MinerItems<T>>::contains_key(acc) {
 			return Ok(());
@@ -1072,10 +729,6 @@ impl<T: Config> Pallet<T> {
 				miner_info.space.checked_add(increment).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})?;
-		TotalServiceSpace::<T>::try_mutate(|total_space| -> DispatchResult {
-			*total_space = total_space.checked_add(increment).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
 
 		Ok(())
 	}
@@ -1085,7 +738,7 @@ impl<T: Config> Pallet<T> {
 	/// Parameters:
 	/// - `peerid`: peerid.
 	/// - `increment`: computing power.
-	pub fn sub_space(acc: &AccountOf<T>, increment: u128) -> DispatchResult {
+	pub fn sub_miner_service_space(acc: &AccountOf<T>, increment: u128) -> DispatchResult {
 		//check exist
 		if !<MinerItems<T>>::contains_key(acc) {
 			return Ok(());
@@ -1099,10 +752,6 @@ impl<T: Config> Pallet<T> {
 			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
 			miner_info.space =
 				miner_info.space.checked_sub(increment).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
-		TotalServiceSpace::<T>::mutate(|total_space| -> DispatchResult {
-			*total_space = total_space.checked_sub(increment).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})?;
 
@@ -1227,15 +876,6 @@ impl<T: Config> Pallet<T> {
 	fn delete_miner_info(acc: &AccountOf<T>) -> DispatchResult {
 		//There is a judgment on whether the primary key exists above
 		let miner = MinerItems::<T>::try_get(&acc).map_err(|_e| Error::<T>::NotMiner)?;
-		TotalIdleSpace::<T>::try_mutate(|total_power| -> DispatchResult {
-			*total_power = total_power.checked_sub(miner.power).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
-
-		TotalServiceSpace::<T>::try_mutate(|total_space| -> DispatchResult {
-			*total_space = total_space.checked_sub(miner.space).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
 
 		let mut miner_list = AllMiner::<T>::get();
 		miner_list.retain(|s| *s != acc.clone());
@@ -1299,43 +939,6 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	//Get the available space on the current chain.
-	pub fn get_space() -> Result<u128, DispatchError> {
-		let purchased_space = <PurchasedSpace<T>>::get();
-		let total_space = <TotalIdleSpace<T>>::get().checked_add(<TotalServiceSpace<T>>::get()).ok_or(Error::<T>::Overflow)?;
-		//If the total space on the current chain is less than the purchased space, 0 will be
-		// returned.
-		if total_space < purchased_space {
-			return Ok(0);
-		}
-		//Calculate available space.
-		let value = total_space.checked_sub(purchased_space).ok_or(Error::<T>::Overflow)?;
-
-		Ok(value)
-	}
-
-	pub fn add_purchased_space(size: u128) -> DispatchResult {
-		<PurchasedSpace<T>>::try_mutate(|purchased_space| -> DispatchResult {
-			let total_space = <TotalIdleSpace<T>>::get().checked_add(<TotalServiceSpace<T>>::get()).ok_or(Error::<T>::Overflow)?;
-			if *purchased_space + size > total_space {
-				Err(<Error<T>>::InsufficientAvailableSpace)?;
-			}
-			*purchased_space = purchased_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
-
-		Ok(())
-	}
-
-	pub fn sub_purchased_space(size: u128) -> DispatchResult {
-		<PurchasedSpace<T>>::try_mutate(|purchased_space| -> DispatchResult {
-			*purchased_space = purchased_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
-
-		Ok(())
-	}
-
 	fn check_collateral_limit(power: u128) -> Result<BalanceOf<T>, Error<T>> {
 		let mut current_power_num: u128 = 1;
 		current_power_num += power.checked_div(1024 * 1024 * M_BYTE).ok_or(Error::<T>::Overflow)?;
@@ -1376,10 +979,10 @@ impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for Pallet<T> {
 }
 
 pub trait MinerControl<AccountId> {
-	fn add_power(acc: &AccountId, power: u128) -> DispatchResult;
-	fn sub_power(acc: AccountId, power: u128) -> DispatchResult;
-	fn add_space(acc: &AccountId, power: u128) -> DispatchResult;
-	fn sub_space(acc: &AccountId, power: u128) -> DispatchResult;
+	fn add_miner_idle_space(acc: &AccountId, power: u128) -> DispatchResult;
+	fn sub_miner_idle_space(acc: &AccountId, power: u128) -> DispatchResult;
+	fn add_miner_service_space(acc: &AccountId, power: u128) -> DispatchResult;
+	fn sub_miner_service_space(acc: &AccountId, power: u128) -> DispatchResult;
 	fn get_power_and_space(acc: AccountId) -> Result<(u128, u128), DispatchError>;
 	fn get_miner_id(acc: AccountId) -> Result<u64, DispatchError>;
 	fn punish_miner(
@@ -1390,30 +993,27 @@ pub trait MinerControl<AccountId> {
 	) -> DispatchResult;
 	fn miner_is_exist(acc: AccountId) -> bool;
 	fn get_miner_state(acc: AccountId) -> Result<Vec<u8>, DispatchError>;
-	fn add_purchased_space(size: u128) -> DispatchResult;
-	fn sub_purchased_space(size: u128) -> DispatchResult;
 	fn start_buffer_period_schedule() -> DispatchResult;
-	fn get_space() -> Result<u128, DispatchError>;
 }
 
 impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<T> {
-	fn add_power(acc: &<T as frame_system::Config>::AccountId, power: u128) -> DispatchResult {
-		Pallet::<T>::add_power(acc, power)?;
+	fn add_miner_idle_space(acc: &<T as frame_system::Config>::AccountId, power: u128) -> DispatchResult {
+		Pallet::<T>::add_miner_idle_space(acc, power)?;
 		Ok(())
 	}
 
-	fn sub_power(acc: <T as frame_system::Config>::AccountId, power: u128) -> DispatchResult {
-		Pallet::<T>::sub_power(&acc, power)?;
+	fn sub_miner_idle_space(acc: &<T as frame_system::Config>::AccountId, power: u128) -> DispatchResult {
+		Pallet::<T>::sub_miner_idle_space(acc, power)?;
 		Ok(())
 	}
 
-	fn add_space(acc: &<T as frame_system::Config>::AccountId, power: u128) -> DispatchResult {
-		Pallet::<T>::add_space(acc, power)?;
+	fn add_miner_service_space(acc: &<T as frame_system::Config>::AccountId, power: u128) -> DispatchResult {
+		Pallet::<T>::add_miner_service_space(acc, power)?;
 		Ok(())
 	}
 
-	fn sub_space(acc: &<T as frame_system::Config>::AccountId, power: u128) -> DispatchResult {
-		Pallet::<T>::sub_space(&acc, power)?;
+	fn sub_miner_service_space(acc: &<T as frame_system::Config>::AccountId, power: u128) -> DispatchResult {
+		Pallet::<T>::sub_miner_service_space(acc, power)?;
 		Ok(())
 	}
 
@@ -1458,21 +1058,6 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 	fn get_miner_state(acc: AccountOf<T>) -> Result<Vec<u8>, DispatchError> {
 		let miner = <MinerItems<T>>::try_get(&acc).map_err(|_| Error::<T>::NotMiner)?;
 		Ok(miner.state.to_vec())
-	}
-
-	fn add_purchased_space(size: u128) -> DispatchResult {
-		Self::add_purchased_space(size)?;
-		Ok(())
-	}
-
-	fn sub_purchased_space(size: u128) -> DispatchResult {
-		Self::sub_purchased_space(size)?;
-		Ok(())
-	}
-
-	fn get_space() -> Result<u128, DispatchError> {
-		let size = Self::get_space()?;
-		Ok(size)
 	}
 }
 

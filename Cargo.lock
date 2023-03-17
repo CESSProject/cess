@@ -5341,6 +5341,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-storage-handler"
+version = "0.5.4"
+dependencies = [
+ "cp-cess-common",
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-balances",
+ "pallet-sminer",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-sudo"
 version = "4.0.0-dev"
 source = "git+https://github.com/CESSProject/substrate.git?branch=cess-polkadot-v0.9.36#12811a70544e228018650a0a625730ca310c58a1"

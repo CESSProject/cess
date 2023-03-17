@@ -74,11 +74,7 @@ pub mod pallet {
 	use pallet_oss::OssFindAuthor;
 	//pub use crate::weights::WeightInfo;
 	use frame_system::ensure_signed;
-	use cp_cess_common::Hash;
-
-	pub const M_BYTE: u128 = 1_048_576;
-	pub const G_BYTE: u128 = 1_048_576 * 1024;
-	pub const T_BYTE: u128 = 1_048_576 * 1024 * 1024;
+	use cp_cess_common::*;
 
 	pub const PACKAGE_1_SIZE: u128 = G_BYTE * 10;
 	pub const PACKAGE_2_SIZE: u128 = G_BYTE * 500;
@@ -87,15 +83,11 @@ pub mod pallet {
 
 	pub const FILE_PENDING: &str = "pending";
 	pub const FILE_ACTIVE: &str = "active";
-	pub const SPACE_NORMAL: &str = "normal";
-	pub const SPACE_FROZEN: &str = "frozen";
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + sp_std::fmt::Debug {
 		/// The overarching event type.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-		/// The currency trait.
-		type Currency: ReservableCurrency<Self::AccountId>;
 
 		type WeightInfo: WeightInfo;
 
@@ -136,9 +128,6 @@ pub mod pallet {
 		//Maximum number of containers that users can create
 		#[pallet::constant]
 		type BucketLimit: Get<u32> + Clone + Eq + PartialEq;
-
-		#[pallet::constant]
-		type FrozenDays: Get<BlockNumberOf<Self>> + Clone + Eq + PartialEq;
 		//Minimum length of bucket name
 		#[pallet::constant]
 		type MinLength: Get<u32> + Clone + Eq + PartialEq;
@@ -161,16 +150,6 @@ pub mod pallet {
 		FileChangeState { acc: AccountOf<T>, fileid: Vec<u8> },
 		//Storage information of scheduling storage file slice
 		InsertFileSlice { fileid: Vec<u8> },
-		//User buy package event
-		BuySpace { acc: AccountOf<T>, storage_capacity: u128, spend: BalanceOf<T> },
-		//Expansion Space
-		ExpansionSpace { acc: AccountOf<T>, expansion_space: u128, fee: BalanceOf<T> },
-		//Package upgrade
-		RenewalSpace { acc: AccountOf<T>, renewal_days: u32, fee: BalanceOf<T> },
-		//Expired storage space
-		LeaseExpired { acc: AccountOf<T>, size: u128 },
-		//Storage space expiring within 24 hours
-		LeaseExpireIn24Hours { acc: AccountOf<T>, size: u128 },
 		//File deletion event
 		DeleteFile { operator:AccountOf<T>, owner: AccountOf<T>, file_hash_list: Vec<Hash>, failed_list: Vec<Hash> },
 		//Filler chain success event
@@ -179,8 +158,6 @@ pub mod pallet {
 		RecoverFile { acc: AccountOf<T>, file_hash: [u8; 68] },
 		//The miner cleaned up an invalid file event
 		ClearInvalidFile { acc: AccountOf<T>, file_hash: Hash },
-		//Users receive free space events
-		ReceiveSpace { acc: AccountOf<T> },
 		//Event to successfully create a bucket
 		CreateBucket { operator: AccountOf<T>, owner: AccountOf<T>, bucket_name: Vec<u8>},
 		//Successfully delete the bucket event
@@ -299,15 +276,6 @@ pub mod pallet {
 		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<Hash, T::InvalidLimit>, ValueQuery>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn user_owned_space)]
-	pub(super) type UserOwnedSpace<T: Config> =
-		StorageMap<_, Blake2_128Concat, AccountOf<T>, OwnedSpaceDetails<T>>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn unit_price)]
-	pub(super) type UnitPrice<T: Config> = StorageValue<_, BalanceOf<T>>;
-
-	#[pallet::storage]
 	#[pallet::getter(fn file_keys_map)]
 	pub(super) type FileKeysMap<T: Config> =
 		CountedStorageMap<_, Blake2_128Concat, u32, (bool, Hash)>;
@@ -353,96 +321,6 @@ pub mod pallet {
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(PhantomData<T>);
 
-	#[pallet::genesis_config]
-	pub struct GenesisConfig<T: Config> {
-		// price / gib / 30days
-		pub price: BalanceOf<T>,
-	}
-
-	#[cfg(feature = "std")]
-	impl<T: Config> Default for GenesisConfig<T> {
-		fn default() -> Self {
-			Self {
-				price: 30u32.saturated_into(),
-			}
-		}
-	}
-
-	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
-		fn build(&self) {
-			UnitPrice::<T>::put(self.price);
-		}
-	}
-
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberOf<T>> for Pallet<T> {
-		//Used to calculate whether it is implied to submit spatiotemporal proof
-		//Cycle every 7.2 hours
-		//When there is an uncommitted space-time certificate, the corresponding miner will be
-		// punished and the corresponding data segment will be removed
-		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
-			let number: u128 = now.saturated_into();
-			let block_oneday: BlockNumberOf<T> = <T as pallet::Config>::OneDay::get();
-			let oneday: u32 = block_oneday.saturated_into();
-			let mut weight: Weight = Default::default();
-			if number % oneday as u128 == 0 {
-				log::info!("Start lease expiration check");
-				for (acc, info) in <UserOwnedSpace<T>>::iter() {
-					weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
-					if now > info.deadline {
-						let frozen_day: BlockNumberOf<T> = <T as pallet::Config>::FrozenDays::get();
-						if now > info.deadline + frozen_day {
-							log::info!("clear user:#{}'s files", number);
-							let result = T::MinerControl::sub_purchased_space(info.total_space);
-							match result {
-								Ok(()) => log::info!("sub purchased space success"),
-								Err(e) => log::error!("failed sub purchased space: {:?}", e),
-							};
-							weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-							let result = Self::clear_expired_file(&acc);
-							let weight_temp = match result {
-								Ok(weight) => {
-									log::info!("clear expired file success");
-									weight
-								},
-								Err(e) => {
-									log::error!("failed clear expired file: {:?}", e);
-									Weight::from_ref_time(0)
-						 		},
-							};
-							weight = weight.saturating_add(weight_temp);
-						} else {
-							if info.state.to_vec() != SPACE_FROZEN.as_bytes().to_vec() {
-								let result = <UserOwnedSpace<T>>::try_mutate(
-									&acc,
-									|s_opt| -> DispatchResult {
-										let s = s_opt
-											.as_mut()
-											.ok_or(Error::<T>::NotPurchasedSpace)?;
-										s.state = SPACE_FROZEN
-											.as_bytes()
-											.to_vec()
-											.try_into()
-											.map_err(|_e| Error::<T>::BoundedVecError)?;
-										Ok(())
-									},
-								);
-								match result {
-									Ok(()) => log::info!("user space frozen: #{}", number),
-									Err(e) => log::error!("frozen failed: {:?}", e),
-								}
-								weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-							}
-						}
-					}
-				}
-				log::info!("End lease expiration check");
-			}
-			weight
-		}
-	}
-
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::call_index(0)]
@@ -457,8 +335,8 @@ pub mod pallet {
 			}
 			let _ = FillerMap::<T>::remove_prefix(&sender, Option::None);
 
-			let _ = T::MinerControl::sub_power(sender, x * 8 * 1024 * 1024)?;
-
+			let _ = T::MinerControl::sub_miner_idle_space(sender, x * 8 * 1024 * 1024)?;
+			sub_total_idle_space(x * 8 * 1024 * 1024)?;
 			Ok(())
 		}
 		/// Users need to make a declaration before uploading files.
@@ -714,8 +592,8 @@ pub mod pallet {
 				.ok_or(Error::<T>::Overflow)?
 				.checked_mul(filler_list.len() as u128)
 				.ok_or(Error::<T>::Overflow)?;
-			T::MinerControl::add_power(&miner, power)?;
-
+			T::MinerControl::add_miner_idle_space(&miner, power)?;
+			add_total_idle_space(power)?;
 			Self::record_uploaded_fillers_size(&sender, &filler_list)?;
 
 			Self::deposit_event(Event::<T>::FillerUpload { acc: sender, file_size: power as u64 });
@@ -785,150 +663,6 @@ pub mod pallet {
 				}
 			}		
 			Self::deposit_event(Event::<T>::DeleteFile { operator: sender, owner, file_hash_list: file_hash_list,  failed_list: delete_failed_list });
-			Ok(())
-		}
-
-		//**********************************************************************************************************************************************
-		//************************************************************Storage space lease***********
-		//************************************************************Storage **********************
-		//************************************************************Storage **********************
-		//************************************************************Storage ********
-		//**********************************************************************************************************************************************
-		/// Transaction of user purchasing space.
-		///
-		/// The dispatch origin of this call must be Signed.
-		///
-		/// Parameters:
-		/// - `gib_count`: Quantity of several gibs purchased.
-		#[pallet::call_index(6)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_space())]
-		pub fn buy_space(origin: OriginFor<T>, gib_count: u32) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			ensure!(!<UserOwnedSpace<T>>::contains_key(&sender), Error::<T>::PurchasedSpace);
-			let space= G_BYTE.checked_mul(gib_count as u128).ok_or(Error::<T>::Overflow)?;
-			let unit_price = <UnitPrice<T>>::try_get()
-				.map_err(|_e| Error::<T>::BugInvalid)?;
-
-			Self::add_puchased_space(sender.clone(), space, 30)?;
-			T::MinerControl::add_purchased_space(space)?;
-			let price: BalanceOf<T> = unit_price
-				.checked_mul(&gib_count.saturated_into())
-				.ok_or(Error::<T>::Overflow)?;
-			ensure!(
-				<T as pallet::Config>::Currency::can_slash(&sender, price.clone()),
-				Error::<T>::InsufficientBalance
-			);
-			let acc = T::FilbakPalletId::get().into_account_truncating();
-			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), AllowDeath)?;
-
-			Self::deposit_event(Event::<T>::BuySpace { acc: sender, storage_capacity: space, spend: price });
-			Ok(())
-		}
-		/// Upgrade package (expansion of storage space)
-		///
-		/// It can only be called when the package has been purchased,
-		/// And the upgrade target needs to be higher than the current package.
-		///
-		/// Parameters:
-		/// - `gib_count`: Additional purchase quantity of several gibs.
-		#[pallet::call_index(7)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::expansion_space())]
-		pub fn expansion_space(origin: OriginFor<T>, gib_count: u32) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			let cur_owned_space = <UserOwnedSpace<T>>::try_get(&sender)
-				.map_err(|_e| Error::<T>::NotPurchasedSpace)?;
-			let now = <frame_system::Pallet<T>>::block_number();
-			ensure!(now < cur_owned_space.deadline, Error::<T>::LeaseExpired);
-			ensure!(
-				cur_owned_space.state.to_vec() != SPACE_FROZEN.as_bytes().to_vec(),
-				Error::<T>::LeaseFreeze
-			);
-			// The unit price recorded in UnitPrice is the unit price of one month.
-			// Here, the daily unit price is calculated.
-			let day_unit_price = <UnitPrice<T>>::try_get()
-				.map_err(|_e| Error::<T>::BugInvalid)?
-				.checked_div(&30u32.saturated_into()).ok_or(Error::<T>::Overflow)?;
-			let space = G_BYTE.checked_mul(gib_count as u128).ok_or(Error::<T>::Overflow)?;
-			//Calculate remaining days.
-			let block_oneday: BlockNumberOf<T> = <T as pallet::Config>::OneDay::get();
-			let diff_block = cur_owned_space.deadline.checked_sub(&now).ok_or(Error::<T>::Overflow)?;
-			let mut remain_day: u32 = diff_block
-				.checked_div(&block_oneday)
-				.ok_or(Error::<T>::Overflow)?
-				.saturated_into();
-			if diff_block % block_oneday != 0u32.saturated_into() {
-				remain_day = remain_day
-					.checked_add(1)
-					.ok_or(Error::<T>::Overflow)?
-					.saturated_into();
-			}
-			//Calculate the final price difference to be made up.
-			let price: BalanceOf<T> = day_unit_price
-				.checked_mul(&gib_count.saturated_into())
-				.ok_or(Error::<T>::Overflow)?
-				.checked_mul(&remain_day.saturated_into())
-				.ok_or(Error::<T>::Overflow)?
-				.try_into()
-				.map_err(|_e| Error::<T>::Overflow)?;
-			//Judge whether the balance is sufficient
-			ensure!(
-				<T as pallet::Config>::Currency::can_slash(&sender, price.clone()),
-				Error::<T>::InsufficientBalance
-			);
-
-			let acc: AccountOf<T> = T::FilbakPalletId::get().into_account_truncating();
-			T::MinerControl::add_purchased_space(
-				space,
-			)?;
-
-			Self::expension_puchased_package(sender.clone(), space)?;
-
-			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), AllowDeath)?;
-
-			Self::deposit_event(Event::<T>::ExpansionSpace {
-				acc: sender,
-				expansion_space: space,
-				fee: price,
-			});
-			Ok(())
-		}
-		/// Package renewal
-		///
-		/// Currently, lease renewal only supports single month renewal
-		#[pallet::call_index(8)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_space())]
-		pub fn renewal_space(origin: OriginFor<T>, days: u32) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			let cur_owned_space = <UserOwnedSpace<T>>::try_get(&sender)
-				.map_err(|_e| Error::<T>::NotPurchasedSpace)?;
-
-			let days_unit_price = <UnitPrice<T>>::try_get()
-				.map_err(|_e| Error::<T>::BugInvalid)?
-				.checked_div(&30u32.saturated_into())
-				.ok_or(Error::<T>::Overflow)?;
-			let gib_count = cur_owned_space.total_space.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
-			let price: BalanceOf<T> = days_unit_price
-				.checked_mul(&gib_count.saturated_into())
-				.ok_or(Error::<T>::Overflow)?
-				.checked_mul(&days.saturated_into())
-				.ok_or(Error::<T>::Overflow)?
-				.try_into()
-				.map_err(|_e| Error::<T>::Overflow)?;
-			ensure!(
-				<T as pallet::Config>::Currency::can_slash(&sender, price.clone()),
-				Error::<T>::InsufficientBalance
-			);
-			let acc = T::FilbakPalletId::get().into_account_truncating();
-			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), AllowDeath)?;
-			Self::update_puchased_package(sender.clone(), days)?;
-			Self::deposit_event(Event::<T>::RenewalSpace {
-				acc: sender,
-				renewal_days: days,
-				fee: price,
-			});
 			Ok(())
 		}
 		/// Clean up invalid idle files
@@ -1077,181 +811,9 @@ pub mod pallet {
 			});
 			Ok(())
 		}
-
-		
-		#[pallet::call_index(13)]
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn update_price(origin: OriginFor<T>) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-			let default_price: BalanceOf<T> = 30u32.saturated_into();
-			UnitPrice::<T>::put(default_price);
-
-			Ok(())
-		}
 	}
 
 	impl<T: Config> Pallet<T> {
-		/// helper: update_puchased_package.
-		///
-		/// How to update the corresponding data after renewing the package.
-		/// Currently, it only supports and defaults to one month.
-		///
-		/// Parameters:
-		/// - `acc`: Account
-		/// - `days`: Days of renewal
-		fn update_puchased_package(acc: AccountOf<T>, days: u32) -> DispatchResult {
-			<UserOwnedSpace<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
-				let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
-				let one_day = <T as pallet::Config>::OneDay::get();
-				let now = <frame_system::Pallet<T>>::block_number();
-				let sur_block: BlockNumberOf<T> =
-					one_day.checked_mul(&days.saturated_into()).ok_or(Error::<T>::Overflow)?;
-				if now > s.deadline {
-					s.start = now;
-					s.deadline = now.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
-				} else {
-					s.deadline = s.deadline.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
-				}
-
-				if s.deadline > now {
-					s.state = SPACE_NORMAL
-					.as_bytes()
-					.to_vec()
-					.try_into()
-					.map_err(|_e| Error::<T>::BoundedVecError)?;
-				}
-
-				Ok(())
-			})?;
-			Ok(())
-		}
-		/// helper: Expand storage space.
-		///
-		/// Relevant data of users after updating the expansion package.
-		///
-		/// Parameters:
-		/// - `space`: Size after expansion.
-		/// - `package_type`: New package type.
-		fn expension_puchased_package(
-			acc: AccountOf<T>,
-			space: u128,
-		) -> DispatchResult {
-			<UserOwnedSpace<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
-				let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
-				s.remaining_space = s.remaining_space.checked_add(space).ok_or(Error::<T>::Overflow)?;
-				s.total_space = s.total_space.checked_add(space).ok_or(Error::<T>::Overflow)?;
-				Ok(())
-			})?;
-
-			Ok(())
-		}
-		/// helper: Initial purchase space initialization method.
-		///
-		/// Purchase a package and create data corresponding to the user.
-		/// UserOwnedSpace Storage.
-		///
-		/// Parameters:
-		/// - `space`: Buy storage space size.
-		/// - `month`: Month of purchase of package, It is 1 at present.
-		/// - `package_type`: Package type.
-		fn add_puchased_space(
-			acc: AccountOf<T>,
-			space: u128,
-			days: u32,
-		) -> DispatchResult {
-			let now = <frame_system::Pallet<T>>::block_number();
-			let one_day = <T as pallet::Config>::OneDay::get();
-			let sur_block: BlockNumberOf<T> = one_day
-				.checked_mul(&days.saturated_into())
-				.ok_or(Error::<T>::Overflow)?;
-			let deadline = now.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
-			let info = OwnedSpaceDetails::<T> {
-				total_space: space,
-				used_space: 0,
-				remaining_space: space,
-				start: now,
-				deadline,
-				state: SPACE_NORMAL
-					.as_bytes()
-					.to_vec()
-					.try_into()
-					.map_err(|_e| Error::<T>::BoundedVecError)?,
-			};
-			<UserOwnedSpace<T>>::insert(&acc, info);
-			Ok(())
-		}
-
-		/// helper: update user storage space.
-		///
-		/// Modify the corresponding data after the user uploads the file or deletes the file
-		/// Modify used_space, remaining_space
-		/// operation = 1, add used_space
-		/// operation = 2, sub used_space
-		///
-		/// Parameters:
-		/// - `operation`: operation type 1 or 2.
-		/// - `size`: file size.
-		fn update_user_space(acc: AccountOf<T>, operation: u8, size: u128) -> DispatchResult {
-			match operation {
-				1 => {
-					<UserOwnedSpace<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
-						let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
-						if s.state.to_vec() == SPACE_FROZEN.as_bytes().to_vec() {
-							Err(Error::<T>::LeaseFreeze)?;
-						}
-						if size > s.remaining_space {
-							Err(Error::<T>::InsufficientStorage)?;
-						}
-						s.used_space =
-							s.used_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
-						s.remaining_space =
-							s.remaining_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
-						Ok(())
-					})?;
-				},
-				2 => <UserOwnedSpace<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
-					let s = s_opt.as_mut().unwrap();
-					s.used_space = s.used_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
-					s.remaining_space =
-						s.total_space.checked_sub(s.used_space).ok_or(Error::<T>::Overflow)?;
-					Ok(())
-				})?,
-				_ => Err(Error::<T>::WrongOperation)?,
-			}
-			Ok(())
-		}
-		/// helper: Get space unit price.
-		///
-		/// Calculate the unit price according to the size of the purchase space
-		///
-		/// Parameters:
-		/// - `buy_space`: Purchase space size, in bytes.
-		///
-		/// Result:
-		/// - `u128`: price.
-		pub fn get_price(buy_space: u128) -> Result<u128, DispatchError> {
-			//Get the available space on the current chain
-			let total_space = T::MinerControl::get_space()?;
-			//If it is not 0, the logic is executed normally
-			if total_space == 0 {
-				Err(Error::<T>::IsZero)?;
-			}
-			//Calculation rules
-			//The price is based on 1024 / available space on the current chain
-			//Multiply by the base value 1 tcess * 1_000 (1_000_000_000_000 * 1_000)
-			let price: u128 = buy_space
-				.checked_mul(1_000_000_000_000)
-				.ok_or(Error::<T>::Overflow)?
-				.checked_mul(10_000)
-				.ok_or(Error::<T>::Overflow)?
-				.checked_div(total_space)
-				.ok_or(Error::<T>::Overflow)?
-				.checked_add(1_000_000_000_000_000)
-				.ok_or(Error::<T>::Overflow)?;
-
-			return Ok(price)
-		}
 		/// helper: Generate random challenge data.
 		///
 		/// Generate random challenge data, package and return.
@@ -1573,13 +1135,15 @@ pub mod pallet {
 				let hash = Hash::from_shard_id(&slice.shard_id).map_err(|_| Error::<T>::ConvertHashError)?;
 				Self::add_invalid_file(slice.miner_acc.clone(), hash)?; //read 1 write 1 * n
 				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-				T::MinerControl::sub_space(&slice.miner_acc, slice.shard_size.into())?; //read 3 write 2
+				T::MinerControl::sub_miner_space(&slice.miner_acc, slice.shard_size.into())?; //read 3 write 2
+				sub_total_space(slice.shard_size.into())
 				weight = weight.saturating_add(T::DbWeight::get().reads_writes(3, 2));
 			}
 			<File<T>>::remove(file_hash);
 			<FileKeysMap<T>>::remove(file.index);
 			Ok(weight)
 		}
+
 		pub fn clear_bucket_file(
 			file_hash: &Hash,
 			owner: &AccountOf<T>,
@@ -1735,8 +1299,10 @@ pub mod pallet {
 				Ok(())
 			})?;
 			//add space
-			T::MinerControl::add_space(&miner_acc, file_size.into())?;
-			T::MinerControl::sub_power(miner_acc.clone(), replace_num * M_BYTE * 8)?;
+			T::MinerControl::add_miner_service_space(&miner_acc, file_size.into())?;
+			add_total_service_space(file_size.into())?;
+			T::MinerControl::sub_miner_idle_space(miner_acc.clone(), replace_num * M_BYTE * 8)?;
+			sub_miner_total_space(replace_num * M_BYTE * 8)?;
 			Ok(())
 		}
 		/// helper: add invalid file.
