@@ -28,7 +28,6 @@ cp-cess-common = { version = '0.1.0', path = '../../primitives/common', default-
 [features]
 default = ["std"]
 std = [
-    "codec/std",
     "frame-support/std",
     "frame-system/std",
     "sp-std/std",

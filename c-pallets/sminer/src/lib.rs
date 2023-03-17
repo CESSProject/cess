@@ -31,7 +31,7 @@ use frame_support::{
 		schedule::{Anon as ScheduleAnon, DispatchTime, Named as ScheduleNamed},
 		Currency,
 		ExistenceRequirement::AllowDeath,
-		Get, Imbalance, LockIdentifier, OnUnbalanced, ReservableCurrency,
+		Get, Imbalance, OnUnbalanced, ReservableCurrency,
 	},
 };
 use cp_cess_common::IpAddress;
@@ -53,7 +53,7 @@ pub use pallet::*;
 use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{AccountIdConversion, CheckedAdd, CheckedSub, CheckedMul, SaturatedConversion},
-	RuntimeDebug, Perbill
+	RuntimeDebug, 
 };
 use sp_std::{convert::TryInto, prelude::*};
 use types::*;
@@ -85,9 +85,6 @@ pub mod pallet {
 		traits::Get,
 	};
 	use frame_system::{ensure_root, ensure_signed, pallet_prelude::*};
-	const DEMOCRACY_IDA: LockIdentifier = *b"msminerA";
-	const DEMOCRACY_IDB: LockIdentifier = *b"msminerB";
-	const DEMOCRACY_IDC: LockIdentifier = *b"msminerC";
 
 	#[pallet::config]
 	pub trait Config: pallet_timestamp::Config + frame_system::Config {
@@ -317,7 +314,7 @@ pub mod pallet {
 		#[pallet::weight(100_000_000)]
 		pub fn sub_spec_power(origin: OriginFor<T>, num: u128) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			Self::sub_miner_idle_space(&sender, num * 1024 * 1024);
+			Self::sub_miner_idle_space(&sender, num * 1024 * 1024)?;
 			Ok(())
 		}
 		/// Staking and register for storage miner.
@@ -874,9 +871,6 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn delete_miner_info(acc: &AccountOf<T>) -> DispatchResult {
-		//There is a judgment on whether the primary key exists above
-		let miner = MinerItems::<T>::try_get(&acc).map_err(|_e| Error::<T>::NotMiner)?;
-
 		let mut miner_list = AllMiner::<T>::get();
 		miner_list.retain(|s| *s != acc.clone());
 		AllMiner::<T>::put(miner_list);
@@ -889,7 +883,7 @@ impl<T: Config> Pallet<T> {
 
 	//Check whether the rewards for exited miners have been paid out.
 	//true is Distribution completed. false is Unfinished
-	fn check_exist_miner_reward(acc: &AccountOf<T>) -> Result<bool, Error<T>> {
+	pub fn check_exist_miner_reward(acc: &AccountOf<T>) -> Result<bool, Error<T>> {
 		if !<MinerItems<T>>::contains_key(acc) {
 			let reward_map =
 				<RewardClaimMap<T>>::try_get(acc).map_err(|_e| Error::<T>::NotMiner)?;

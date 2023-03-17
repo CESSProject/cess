@@ -328,248 +328,248 @@ pub mod pallet {
 			Ok(())
 		}
     }
+}
 
-    impl<T: Config> Pallet<T> {
-        /// helper: update_puchased_package.
-		///
-		/// How to update the corresponding data after renewing the package.
-		/// Currently, it only supports and defaults to one month.
-		///
-		/// Parameters:
-		/// - `acc`: Account
-		/// - `days`: Days of renewal
-		fn update_puchased_package(acc: AccountOf<T>, days: u32) -> DispatchResult {
-			<UserOwnedSpace<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
-				let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
-				let one_day = <T as pallet::Config>::OneDay::get();
-				let now = <frame_system::Pallet<T>>::block_number();
-				let sur_block: BlockNumberOf<T> =
-					one_day.checked_mul(&days.saturated_into()).ok_or(Error::<T>::Overflow)?;
-				if now > s.deadline {
-					s.start = now;
-					s.deadline = now.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
-				} else {
-					s.deadline = s.deadline.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
-				}
-
-				if s.deadline > now {
-					s.state = SPACE_NORMAL
-					.as_bytes()
-					.to_vec()
-					.try_into()
-					.map_err(|_e| Error::<T>::BoundedVecError)?;
-				}
-
-				Ok(())
-			})?;
-			Ok(())
-		}
-		/// helper: Expand storage space.
-		///
-		/// Relevant data of users after updating the expansion package.
-		///
-		/// Parameters:
-		/// - `space`: Size after expansion.
-		/// - `package_type`: New package type.
-		fn expension_puchased_package(
-			acc: AccountOf<T>,
-			space: u128,
-		) -> DispatchResult {
-			<UserOwnedSpace<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
-				let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
-				s.remaining_space = s.remaining_space.checked_add(space).ok_or(Error::<T>::Overflow)?;
-				s.total_space = s.total_space.checked_add(space).ok_or(Error::<T>::Overflow)?;
-				Ok(())
-			})?;
-
-			Ok(())
-		}
-		/// helper: Initial purchase space initialization method.
-		///
-		/// Purchase a package and create data corresponding to the user.
-		/// UserOwnedSpace Storage.
-		///
-		/// Parameters:
-		/// - `space`: Buy storage space size.
-		/// - `month`: Month of purchase of package, It is 1 at present.
-		/// - `package_type`: Package type.
-		fn add_user_purchased_space(
-			acc: AccountOf<T>,
-			space: u128,
-			days: u32,
-		) -> DispatchResult {
-			let now = <frame_system::Pallet<T>>::block_number();
-			let one_day = <T as pallet::Config>::OneDay::get();
-			let sur_block: BlockNumberOf<T> = one_day
-				.checked_mul(&days.saturated_into())
-				.ok_or(Error::<T>::Overflow)?;
-			let deadline = now.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
-			let info = OwnedSpaceDetails::<T> {
-				total_space: space,
-				used_space: 0,
-				remaining_space: space,
-				start: now,
-				deadline,
-				state: SPACE_NORMAL
-					.as_bytes()
-					.to_vec()
-					.try_into()
-					.map_err(|_e| Error::<T>::BoundedVecError)?,
-			};
-			<UserOwnedSpace<T>>::insert(&acc, info);
-			Ok(())
-		}
-
-		/// helper: update user storage space.
-		///
-		/// Modify the corresponding data after the user uploads the file or deletes the file
-		/// Modify used_space, remaining_space
-		/// operation = 1, add used_space
-		/// operation = 2, sub used_space
-		///
-		/// Parameters:
-		/// - `operation`: operation type 1 or 2.
-		/// - `size`: file size.
-		fn update_user_space(acc: &AccountOf<T>, operation: u8, size: u128) -> DispatchResult {
-			match operation {
-				1 => {
-					<UserOwnedSpace<T>>::try_mutate(acc, |s_opt| -> DispatchResult {
-						let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
-						if s.state.to_vec() == SPACE_FROZEN.as_bytes().to_vec() {
-							Err(Error::<T>::LeaseFreeze)?;
-						}
-						if size > s.remaining_space {
-							Err(Error::<T>::InsufficientStorage)?;
-						}
-						s.used_space =
-							s.used_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
-						s.remaining_space =
-							s.remaining_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
-						Ok(())
-					})?;
-				},
-				2 => <UserOwnedSpace<T>>::try_mutate(acc, |s_opt| -> DispatchResult {
-					let s = s_opt.as_mut().unwrap();
-					s.used_space = s.used_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
-					s.remaining_space =
-						s.total_space.checked_sub(s.used_space).ok_or(Error::<T>::Overflow)?;
-					Ok(())
-				})?,
-				_ => Err(Error::<T>::WrongOperation)?,
-			}
-			Ok(())
-		}
-
-        fn frozen_task(now: BlockNumberOf<T>) -> Weight {
-            let number: u128 = now.saturated_into();
-			let block_oneday: BlockNumberOf<T> = <T as pallet::Config>::OneDay::get();
-			let oneday: u32 = block_oneday.saturated_into();
-			let mut weight: Weight = Default::default();
-			if number % oneday as u128 == 0 {
-				log::info!("Start lease expiration check");
-				for (acc, info) in <UserOwnedSpace<T>>::iter() {
-					weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
-					if now > info.deadline {
-						let frozen_day: BlockNumberOf<T> = <T as pallet::Config>::FrozenDays::get();
-						if now > info.deadline + frozen_day {
-							log::info!("clear user:#{}'s files", number);
-							let result = Self::sub_purchased_space(info.total_space);
-							match result {
-								Ok(()) => log::info!("sub purchased space success"),
-								Err(e) => log::error!("failed sub purchased space: {:?}", e),
-							};
-							weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-                            // TODO！！
-						} else {
-							if info.state.to_vec() != SPACE_FROZEN.as_bytes().to_vec() {
-								let result = <UserOwnedSpace<T>>::try_mutate(
-									&acc,
-									|s_opt| -> DispatchResult {
-										let s = s_opt
-											.as_mut()
-											.ok_or(Error::<T>::NotPurchasedSpace)?;
-										s.state = SPACE_FROZEN
-											.as_bytes()
-											.to_vec()
-											.try_into()
-											.map_err(|_e| Error::<T>::BoundedVecError)?;
-										Ok(())
-									},
-								);
-								match result {
-									Ok(()) => log::info!("user space frozen: #{}", number),
-									Err(e) => log::error!("frozen failed: {:?}", e),
-								}
-								weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-							}
-						}
-					}
-				}
-				log::info!("End lease expiration check");
-			}
-			weight
-        }
-
-        //Get the available space on the current chain.
-        pub fn get_space() -> Result<u128, DispatchError> {
-            let purchased_space = <PurchasedSpace<T>>::get();
-            let total_space = <TotalIdleSpace<T>>::get().checked_add(<TotalServiceSpace<T>>::get()).ok_or(Error::<T>::Overflow)?;
-            //If the total space on the current chain is less than the purchased space, 0 will be
-            // returned.
-            if total_space < purchased_space {
-                return Ok(0);
+impl<T: Config> Pallet<T> {
+    /// helper: update_puchased_package.
+    ///
+    /// How to update the corresponding data after renewing the package.
+    /// Currently, it only supports and defaults to one month.
+    ///
+    /// Parameters:
+    /// - `acc`: Account
+    /// - `days`: Days of renewal
+    fn update_puchased_package(acc: AccountOf<T>, days: u32) -> DispatchResult {
+        <UserOwnedSpace<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+            let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
+            let one_day = <T as pallet::Config>::OneDay::get();
+            let now = <frame_system::Pallet<T>>::block_number();
+            let sur_block: BlockNumberOf<T> =
+                one_day.checked_mul(&days.saturated_into()).ok_or(Error::<T>::Overflow)?;
+            if now > s.deadline {
+                s.start = now;
+                s.deadline = now.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
+            } else {
+                s.deadline = s.deadline.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
             }
-            //Calculate available space.
-            let value = total_space.checked_sub(purchased_space).ok_or(Error::<T>::Overflow)?;
 
-            Ok(value)
-        }
+            if s.deadline > now {
+                s.state = SPACE_NORMAL
+                .as_bytes()
+                .to_vec()
+                .try_into()
+                .map_err(|_e| Error::<T>::BoundedVecError)?;
+            }
 
-        fn add_total_idle_space(increment: u128) -> DispatchResult {
-            TotalIdleSpace::<T>::try_mutate(|total_power| -> DispatchResult {
-                *total_power = total_power.checked_add(increment).ok_or(Error::<T>::Overflow)?;
+            Ok(())
+        })?;
+        Ok(())
+    }
+    /// helper: Expand storage space.
+    ///
+    /// Relevant data of users after updating the expansion package.
+    ///
+    /// Parameters:
+    /// - `space`: Size after expansion.
+    /// - `package_type`: New package type.
+    fn expension_puchased_package(
+        acc: AccountOf<T>,
+        space: u128,
+    ) -> DispatchResult {
+        <UserOwnedSpace<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
+            let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
+            s.remaining_space = s.remaining_space.checked_add(space).ok_or(Error::<T>::Overflow)?;
+            s.total_space = s.total_space.checked_add(space).ok_or(Error::<T>::Overflow)?;
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+    /// helper: Initial purchase space initialization method.
+    ///
+    /// Purchase a package and create data corresponding to the user.
+    /// UserOwnedSpace Storage.
+    ///
+    /// Parameters:
+    /// - `space`: Buy storage space size.
+    /// - `month`: Month of purchase of package, It is 1 at present.
+    /// - `package_type`: Package type.
+    fn add_user_purchased_space(
+        acc: AccountOf<T>,
+        space: u128,
+        days: u32,
+    ) -> DispatchResult {
+        let now = <frame_system::Pallet<T>>::block_number();
+        let one_day = <T as pallet::Config>::OneDay::get();
+        let sur_block: BlockNumberOf<T> = one_day
+            .checked_mul(&days.saturated_into())
+            .ok_or(Error::<T>::Overflow)?;
+        let deadline = now.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
+        let info = OwnedSpaceDetails::<T> {
+            total_space: space,
+            used_space: 0,
+            remaining_space: space,
+            start: now,
+            deadline,
+            state: SPACE_NORMAL
+                .as_bytes()
+                .to_vec()
+                .try_into()
+                .map_err(|_e| Error::<T>::BoundedVecError)?,
+        };
+        <UserOwnedSpace<T>>::insert(&acc, info);
+        Ok(())
+    }
+
+    /// helper: update user storage space.
+    ///
+    /// Modify the corresponding data after the user uploads the file or deletes the file
+    /// Modify used_space, remaining_space
+    /// operation = 1, add used_space
+    /// operation = 2, sub used_space
+    ///
+    /// Parameters:
+    /// - `operation`: operation type 1 or 2.
+    /// - `size`: file size.
+    fn update_user_space(acc: &AccountOf<T>, operation: u8, size: u128) -> DispatchResult {
+        match operation {
+            1 => {
+                <UserOwnedSpace<T>>::try_mutate(acc, |s_opt| -> DispatchResult {
+                    let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
+                    if s.state.to_vec() == SPACE_FROZEN.as_bytes().to_vec() {
+                        Err(Error::<T>::LeaseFreeze)?;
+                    }
+                    if size > s.remaining_space {
+                        Err(Error::<T>::InsufficientStorage)?;
+                    }
+                    s.used_space =
+                        s.used_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+                    s.remaining_space =
+                        s.remaining_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
+                    Ok(())
+                })?;
+            },
+            2 => <UserOwnedSpace<T>>::try_mutate(acc, |s_opt| -> DispatchResult {
+                let s = s_opt.as_mut().unwrap();
+                s.used_space = s.used_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
+                s.remaining_space =
+                    s.total_space.checked_sub(s.used_space).ok_or(Error::<T>::Overflow)?;
                 Ok(())
-            }) //read 1 write 1
+            })?,
+            _ => Err(Error::<T>::WrongOperation)?,
         }
+        Ok(())
+    }
 
-        fn add_total_service_space(increment: u128) -> DispatchResult {
-            TotalServiceSpace::<T>::try_mutate(|total_space| -> DispatchResult {
-                *total_space = total_space.checked_add(increment).ok_or(Error::<T>::Overflow)?;
-                Ok(())
-            })
-        }
-
-        fn sub_total_idle_space(decrement: u128) -> DispatchResult {
-            TotalIdleSpace::<T>::try_mutate(|total_power| -> DispatchResult {
-                *total_power = total_power.checked_sub(decrement).ok_or(Error::<T>::Overflow)?;
-                Ok(())
-            }) //read 1 write 1
-        }
-
-        fn sub_total_service_space(decrement: u128) -> DispatchResult {
-            TotalServiceSpace::<T>::try_mutate(|total_space| -> DispatchResult {
-                *total_space = total_space.checked_sub(decrement).ok_or(Error::<T>::Overflow)?;
-                Ok(())
-            })
-        }
-
-        fn add_purchased_space(size: u128) -> DispatchResult {
-            <PurchasedSpace<T>>::try_mutate(|purchased_space| -> DispatchResult {
-                let total_space = <TotalIdleSpace<T>>::get().checked_add(<TotalServiceSpace<T>>::get()).ok_or(Error::<T>::Overflow)?;
-                if *purchased_space + size > total_space {
-                    Err(<Error<T>>::InsufficientAvailableSpace)?;
+    fn frozen_task(now: BlockNumberOf<T>) -> Weight {
+        let number: u128 = now.saturated_into();
+        let block_oneday: BlockNumberOf<T> = <T as pallet::Config>::OneDay::get();
+        let oneday: u32 = block_oneday.saturated_into();
+        let mut weight: Weight = Default::default();
+        if number % oneday as u128 == 0 {
+            log::info!("Start lease expiration check");
+            for (acc, info) in <UserOwnedSpace<T>>::iter() {
+                weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
+                if now > info.deadline {
+                    let frozen_day: BlockNumberOf<T> = <T as pallet::Config>::FrozenDays::get();
+                    if now > info.deadline + frozen_day {
+                        log::info!("clear user:#{}'s files", number);
+                        let result = Self::sub_purchased_space(info.total_space);
+                        match result {
+                            Ok(()) => log::info!("sub purchased space success"),
+                            Err(e) => log::error!("failed sub purchased space: {:?}", e),
+                        };
+                        weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+                        // TODO！！
+                    } else {
+                        if info.state.to_vec() != SPACE_FROZEN.as_bytes().to_vec() {
+                            let result = <UserOwnedSpace<T>>::try_mutate(
+                                &acc,
+                                |s_opt| -> DispatchResult {
+                                    let s = s_opt
+                                        .as_mut()
+                                        .ok_or(Error::<T>::NotPurchasedSpace)?;
+                                    s.state = SPACE_FROZEN
+                                        .as_bytes()
+                                        .to_vec()
+                                        .try_into()
+                                        .map_err(|_e| Error::<T>::BoundedVecError)?;
+                                    Ok(())
+                                },
+                            );
+                            match result {
+                                Ok(()) => log::info!("user space frozen: #{}", number),
+                                Err(e) => log::error!("frozen failed: {:?}", e),
+                            }
+                            weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+                        }
+                    }
                 }
-                *purchased_space = purchased_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
-                Ok(())
-            })
+            }
+            log::info!("End lease expiration check");
         }
-    
-        fn sub_purchased_space(size: u128) -> DispatchResult {
-            <PurchasedSpace<T>>::try_mutate(|purchased_space| -> DispatchResult {
-                *purchased_space = purchased_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
-                Ok(())
-            })
+        weight
+    }
+
+    //Get the available space on the current chain.
+    pub fn get_space() -> Result<u128, DispatchError> {
+        let purchased_space = <PurchasedSpace<T>>::get();
+        let total_space = <TotalIdleSpace<T>>::get().checked_add(<TotalServiceSpace<T>>::get()).ok_or(Error::<T>::Overflow)?;
+        //If the total space on the current chain is less than the purchased space, 0 will be
+        // returned.
+        if total_space < purchased_space {
+            return Ok(0);
         }
+        //Calculate available space.
+        let value = total_space.checked_sub(purchased_space).ok_or(Error::<T>::Overflow)?;
+
+        Ok(value)
+    }
+
+    fn add_total_idle_space(increment: u128) -> DispatchResult {
+        TotalIdleSpace::<T>::try_mutate(|total_power| -> DispatchResult {
+            *total_power = total_power.checked_add(increment).ok_or(Error::<T>::Overflow)?;
+            Ok(())
+        }) //read 1 write 1
+    }
+
+    fn add_total_service_space(increment: u128) -> DispatchResult {
+        TotalServiceSpace::<T>::try_mutate(|total_space| -> DispatchResult {
+            *total_space = total_space.checked_add(increment).ok_or(Error::<T>::Overflow)?;
+            Ok(())
+        })
+    }
+
+    fn sub_total_idle_space(decrement: u128) -> DispatchResult {
+        TotalIdleSpace::<T>::try_mutate(|total_power| -> DispatchResult {
+            *total_power = total_power.checked_sub(decrement).ok_or(Error::<T>::Overflow)?;
+            Ok(())
+        }) //read 1 write 1
+    }
+
+    fn sub_total_service_space(decrement: u128) -> DispatchResult {
+        TotalServiceSpace::<T>::try_mutate(|total_space| -> DispatchResult {
+            *total_space = total_space.checked_sub(decrement).ok_or(Error::<T>::Overflow)?;
+            Ok(())
+        })
+    }
+
+    fn add_purchased_space(size: u128) -> DispatchResult {
+        <PurchasedSpace<T>>::try_mutate(|purchased_space| -> DispatchResult {
+            let total_space = <TotalIdleSpace<T>>::get().checked_add(<TotalServiceSpace<T>>::get()).ok_or(Error::<T>::Overflow)?;
+            if *purchased_space + size > total_space {
+                Err(<Error<T>>::InsufficientAvailableSpace)?;
+            }
+            *purchased_space = purchased_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+            Ok(())
+        })
+    }
+
+    fn sub_purchased_space(size: u128) -> DispatchResult {
+        <PurchasedSpace<T>>::try_mutate(|purchased_space| -> DispatchResult {
+            *purchased_space = purchased_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
+            Ok(())
+        })
     }
 }
 
@@ -586,34 +586,34 @@ pub trait StorageHandle<AccountId> {
 
 impl<T: Config> StorageHandle<T::AccountId> for Pallet<T> {
     fn update_user_space(acc: &T::AccountId, opeartion: u8, size: u128) -> DispatchResult {
-        Self::update_user_space(acc, opeartion, size)
+        Pallet::<T>::update_user_space(acc, opeartion, size)
     }
 
     fn add_total_idle_space(increment: u128) -> DispatchResult {
-        Self::add_total_idle_space(increment)
+        Pallet::<T>::add_total_idle_space(increment)
     }
 
 	fn sub_total_idle_space(decrement: u128) -> DispatchResult {
-        Self::sub_total_idle_space(decrement)
+        Pallet::<T>::sub_total_idle_space(decrement)
     }
 
 	fn add_total_service_space(increment: u128) -> DispatchResult {
-        Self::add_total_service_space(increment)
+        Pallet::<T>::add_total_service_space(increment)
     }
 
 	fn sub_total_service_space(decrement: u128) -> DispatchResult {
-        Self::sub_total_service_space(decrement)
+        Pallet::<T>::sub_total_service_space(decrement)
     }  
 
     fn add_purchased_space(size: u128) -> DispatchResult {
-		Self::add_purchased_space(size)
+		Pallet::<T>::add_purchased_space(size)
 	}
 
 	fn sub_purchased_space(size: u128) -> DispatchResult {
-		Self::sub_purchased_space(size)
+		Pallet::<T>::sub_purchased_space(size)
 	}
 
     fn get_space() -> Result<u128, DispatchError> {
-		Self::get_space()
+		Pallet::<T>::get_space()
 	}
 }
