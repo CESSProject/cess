@@ -375,8 +375,8 @@ pub mod pallet {
 				}
 			}
 			let bound_prove_info: BoundedVec<ProveInfo<T>, T::ChallengeMaximum> = prove_info.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
-			Self::storage_prove(acc, bound_prove_info.clone())?;
-			Self::clear_challenge_info(sender.clone(), bound_prove_info.clone())?;
+			Self::storage_prove(&acc, bound_prove_info.clone())?;
+			Self::clear_challenge_info(&sender, bound_prove_info.clone())?;
 			Ok(())
 		}
 
@@ -409,7 +409,7 @@ pub mod pallet {
 							o.retain(|x| (x.challenge_info.file_id != result.file_id));
 							//If the result is false, a penalty will be imposed
 							if !result.result {
-								Self::set_failure(result.miner_acc.clone()).unwrap_or(());
+								Self::set_failure(&result.miner_acc).unwrap_or(());
 								Self::update_miner_file(
 									result.miner_acc.clone(),
 									result.file_id.clone(),
@@ -574,8 +574,8 @@ pub mod pallet {
 		}
 
 		//Storage proof method
-		fn storage_prove(acc: AccountOf<T>, prove_list: BoundedVec<ProveInfo<T>, T::ChallengeMaximum>) -> DispatchResult {
-			<UnVerifyProof<T>>::try_mutate(&acc, |o| -> DispatchResult {
+		fn storage_prove(acc: &AccountOf<T>, prove_list: BoundedVec<ProveInfo<T>, T::ChallengeMaximum>) -> DispatchResult {
+			<UnVerifyProof<T>>::try_mutate(acc, |o| -> DispatchResult {
 				for v in prove_list.iter() {
 					o.try_push(v.clone()).map_err(|_e| Error::<T>::StorageLimitReached)?;
 				}
@@ -584,24 +584,24 @@ pub mod pallet {
 			Ok(())
 		}
 
-		fn set_failure(acc: AccountOf<T>) -> DispatchResult {
-			if <FailureNumMap<T>>::contains_key(&acc) {
-				<FailureNumMap<T>>::try_mutate(acc.clone(), |s_opt| -> DispatchResult {
+		fn set_failure(acc: &AccountOf<T>) -> DispatchResult {
+			if <FailureNumMap<T>>::contains_key(acc) {
+				<FailureNumMap<T>>::try_mutate(acc, |s_opt| -> DispatchResult {
 					s_opt.checked_add(1).ok_or(Error::<T>::Overflow)?;
 					Ok(())
 				})?;
 			} else {
-				<FailureNumMap<T>>::insert(&acc, 1);
+				<FailureNumMap<T>>::insert(acc, 1);
 			}
 			Ok(())
 		}
 
 		//Clean up the corresponding challenges in the miner's challenge pool
 		fn clear_challenge_info(
-			miner_acc: AccountOf<T>,
+			miner_acc: &AccountOf<T>,
 			prove_list: BoundedVec<ProveInfo<T>, T::ChallengeMaximum>,
 		) -> DispatchResult {
-			<ChallengeMap<T>>::try_mutate(&miner_acc, |o| -> DispatchResult {
+			<ChallengeMap<T>>::try_mutate(miner_acc, |o| -> DispatchResult {
 				for v in prove_list.iter() {
 					o.retain(|x| x.file_id != v.file_id);
 					Self::deposit_event(Event::<T>::ChallengeProof {
@@ -988,7 +988,7 @@ pub mod pallet {
 			//the miners who fail to complete the challenge will be punished
 			for (acc, challenge_list) in <ChallengeMap<T>>::iter() {
 				for v in challenge_list {
-					match Self::set_failure(acc.clone()) {
+					match Self::set_failure(&acc) {
 						Ok(()) => log::info!("set_failure success"),
 						Err(e) => log::error!("set_failure failed: {:?}", e),
 					};
@@ -1106,7 +1106,7 @@ pub mod pallet {
 								return 0
 							},
 						};
-						let result = Self::storage_prove(cur_acc, bound_verify_list);
+						let result = Self::storage_prove(&cur_acc, bound_verify_list);
 						weight = weight.saturating_add(T::DbWeight::get().writes(1 as Weight));
 						match result {
 							Ok(()) => log::info!("storage prove success"),
