@@ -17,7 +17,6 @@ codec = { package = "parity-scale-codec", version = "3.0.0", default-features = 
 	"max-encoded-len",
 ] }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
-# static_assertions
 log = { version = "0.4.17", default-features = false }
 hex-literal = { optional = true, version = "0.3.4" }
 
@@ -26,7 +25,6 @@ sp-authority-discovery = { version = "4.0.0-dev", default-features = false, git 
 cessp-consensus-rrsc = { version = "0.10.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sp-block-builder = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sp-inherents = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-# node-premitives
 sp-offchain = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sp-core = { version = "7.0.0", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sp-std = { version = "5.0.0", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
@@ -47,7 +45,6 @@ frame-system-benchmarking = { version = "4.0.0-dev", default-features = false, g
 frame-election-provider-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 frame-system-rpc-runtime-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 frame-try-runtime = { version = "0.10.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36", optional = true }
-# pallet-alliance
 pallet-assets = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 pallet-authority-discovery = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
@@ -59,47 +56,21 @@ pallet-child-bounties = { version = "4.0.0-dev", default-features = false, git =
 pallet-collective = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 pallet-contracts = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 pallet-contracts-primitives = { version = "7.0.0", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-# pallet-conviction-voting
-# pallet-democracy
 pallet-election-provider-multi-phase = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-# pallet-election-provider-support-benchmarking
-# pallet-elections-phragmen
-# pallet-fast-unstake
-# pallet-nis
 pallet-grandpa = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 pallet-im-online = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 pallet-indices = {  version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-# pallet-identity
-# pallet-lottery
 pallet-membership = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-# pallet-message-queue
 pallet-mmr = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-# pallet-multisig
-# pallet-nomination-pools
-# pallet-nomination-pools-benchmarking
-# pallet-nomination-pools-runtime-api
 pallet-offences = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-# pallet-offences-benchmarking
 pallet-preimage = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-# pallet-proxy
 pallet-randomness-collective-flip = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-# pallet-ranked-collective
-# pallet-recovery
-# pallet-referenda
-# pallet-remark
-# pallet-root-testing
 pallet-session = { version = "4.0.0-dev", default-features = false, features = ["historical"], git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-# pallet-session-benchmarking
 pallet-cess-staking = { default-features = false, path = "../c-pallets/staking", version = "4.0.0-dev" }
-# pallet-staking-reward-curve
-# pallet-state-trie-migration
 pallet-scheduler = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-# pallet-society
 pallet-sudo = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-# pallet-tips
 pallet-treasury = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-# pallet-utility
 pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 pallet-transaction-payment-rpc-runtime-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 pallet-asset-tx-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
