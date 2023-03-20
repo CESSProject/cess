@@ -943,11 +943,21 @@ impl pallet_sminer::Config for Runtime {
 }
 
 parameter_types! {
-	pub const 
+	#[derive(Clone, Eq, PartialEq)]
+	pub const FrozenDays: BlockNumber = DAYS * 7;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const StateStringMax: u32 = 20;
 }
 
 impl pallet_storage_handler::Config for Runtime {
-	
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type WeightInfo = pallet_storage_handler::weights::SubstrateWeight<Runtime>;
+	type MinerControl = Sminer;
+	type OneDay = OneDay;
+	type FilbakPalletId = RewardPalletId;
+	type StateStringMax = StateStringMax;
+	type FrozenDays = FrozenDays;
 }
 
 parameter_types! {
@@ -982,6 +992,7 @@ impl pallet_segment_book::Config for Runtime {
 	type File = FileBank;
 	type Scheduler = TeeWorker;
 	type MinerControl = Sminer;
+	type StorageHandle = StorageHandler;
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
 	type ValidatorSet = Historical;
 	type NextSessionRotation = Babe;
@@ -1009,8 +1020,6 @@ parameter_types! {
 	pub const MinLength: u32 = 3;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const FileListLimit: u32 = 500000;
-	#[derive(Clone, Eq, PartialEq)]
-	pub const FrozenDays: BlockNumber = DAYS * 7;
 }
 
 impl pallet_file_bank::Config for Runtime {
@@ -1022,6 +1031,7 @@ impl pallet_file_bank::Config for Runtime {
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
 	type WeightInfo = pallet_file_bank::weights::SubstrateWeight<Runtime>;
 	type MinerControl = Sminer;
+	type StorageHandle = StorageHandler;
 	type MyRandomness = pallet_rrsc::ParentBlockRandomness<Runtime>;
 	type Scheduler = TeeWorker;
 	type StringLimit = StringLimit;
@@ -1030,7 +1040,6 @@ impl pallet_file_bank::Config for Runtime {
 	type UploadFillerLimit = UploadFillerLimit;
 	type InvalidLimit = InvalidLimit;
 	type RecoverLimit = RecoverLimit;
-	type FrozenDays = FrozenDays;
 	type OssFindAuthor = Oss;
 	type BucketLimit = BucketLimit;
 	type NameStrLimit = NameStrLimit;
@@ -1469,9 +1478,10 @@ construct_runtime!(
 		TeeWorker: pallet_tee_worker = 61,
 		SegmentBook: pallet_segment_book = 62,
 		Sminer: pallet_sminer = 63,
-		SchedulerCredit: pallet_scheduler_credit = 64,
-		Oss: pallet_oss = 65,
-		Cacher: pallet_cacher = 66,
+		StorageHandler: pallet_storage_handler = 64,
+		SchedulerCredit: pallet_scheduler_credit = 65,
+		Oss: pallet_oss = 66,
+		Cacher: pallet_cacher = 67,
 	}
 );
 

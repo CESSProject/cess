@@ -4,7 +4,7 @@ use cess_node_runtime::{
 	BalancesConfig, Block, CouncilConfig, GenesisConfig, GrandpaConfig, ImOnlineConfig,
 	IndicesConfig, MaxNominations, BabeConfig, SessionConfig, Signature, StakerStatus,
 	StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig, DOLLARS,
-	FileBankConfig,
+	StorageHandlerConfig,
 };
 
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
@@ -505,7 +505,7 @@ fn testnet_genesis(
 			// Configure endowed accounts with initial balance of 1 << 60.
 			balances: endowed_accounts.iter().cloned().map(|k| (k, 1 << 65)).collect(),
 		},
-		file_bank: FileBankConfig { price: 30u32.saturated_into() },
+		storage_handler: StorageHandlerConfig { price: 30 * DOLLARS },
 		indices: IndicesConfig { indices: vec![] },
 		session: SessionConfig {
 			keys: initial_authorities
