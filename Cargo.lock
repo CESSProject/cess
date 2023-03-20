@@ -636,9 +636,9 @@ dependencies = [
  "jsonrpsee",
  "log",
  "mmr-rpc",
+ "pallet-audit",
  "pallet-contracts",
  "pallet-im-online",
- "pallet-segment-book",
  "pallet-transaction-payment-rpc",
  "parity-scale-codec",
  "rand 0.8.5",
@@ -706,6 +706,7 @@ dependencies = [
  "log",
  "pallet-asset-tx-payment",
  "pallet-assets",
+ "pallet-audit",
  "pallet-authority-discovery",
  "pallet-authorship",
  "pallet-bags-list",
@@ -738,7 +739,6 @@ dependencies = [
  "pallet-rrsc",
  "pallet-scheduler",
  "pallet-scheduler-credit",
- "pallet-segment-book",
  "pallet-session",
  "pallet-sminer",
  "pallet-storage-handler",
@@ -4601,6 +4601,42 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-audit"
+version = "0.5.3"
+dependencies = [
+ "cp-cess-common",
+ "cp-scheduler-credit",
+ "frame-benchmarking",
+ "frame-election-provider-support",
+ "frame-support",
+ "frame-support-test",
+ "frame-system",
+ "log",
+ "pallet-bags-list",
+ "pallet-balances",
+ "pallet-cess-staking",
+ "pallet-file-bank",
+ "pallet-oss",
+ "pallet-preimage",
+ "pallet-scheduler",
+ "pallet-scheduler-credit",
+ "pallet-session",
+ "pallet-sminer",
+ "pallet-storage-handler",
+ "pallet-tee-worker",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-npos-elections",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-authority-discovery"
 version = "4.0.0-dev"
 source = "git+https://github.com/CESSProject/substrate.git?branch=cess-polkadot-v0.9.36#12811a70544e228018650a0a625730ca310c58a1"
@@ -5218,42 +5254,6 @@ dependencies = [
  "sp-core",
  "sp-io",
  "sp-runtime",
- "sp-std",
-]
-
-[[package]]
-name = "pallet-segment-book"
-version = "0.5.3"
-dependencies = [
- "cp-cess-common",
- "cp-scheduler-credit",
- "frame-benchmarking",
- "frame-election-provider-support",
- "frame-support",
- "frame-support-test",
- "frame-system",
- "log",
- "pallet-bags-list",
- "pallet-balances",
- "pallet-cess-staking",
- "pallet-file-bank",
- "pallet-oss",
- "pallet-preimage",
- "pallet-scheduler",
- "pallet-scheduler-credit",
- "pallet-session",
- "pallet-sminer",
- "pallet-storage-handler",
- "pallet-tee-worker",
- "pallet-timestamp",
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-core",
- "sp-io",
- "sp-npos-elections",
- "sp-runtime",
- "sp-staking",
  "sp-std",
 ]
 

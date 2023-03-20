@@ -1,7 +1,7 @@
 //! Test utilities
 
 use super::*;
-use crate as segment_book;
+use crate as audit;
 use frame_support::{
     parameter_types,
     weights::Weight,
@@ -41,7 +41,7 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system,
 		Balances: pallet_balances,
-		SegmentBook: segment_book,
+		Audit: audit,
 		Scheduler: pallet_scheduler,
 		Sminer: pallet_sminer,
 		FileBank: pallet_file_bank,
@@ -412,7 +412,7 @@ impl Config for Test {
     type File = pallet_file_bank::Pallet::<Test>;
     type Scheduler = pallet_tee_worker::Pallet::<Test>;
     type MinerControl = Sminer;
-    type AuthorityId = segment_book::sr25519::AuthorityId;
+    type AuthorityId = audit::sr25519::AuthorityId;
 		type ValidatorSet = Historical;
 		type NextSessionRotation = ();
 		type UnsignedPriority = SegUnsignedPriority;

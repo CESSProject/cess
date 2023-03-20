@@ -95,7 +95,7 @@ use cp_cess_common::Hash as H68;
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 type Hash = H68;
-pub const SEGMENT_BOOK: KeyTypeId = KeyTypeId(*b"cess");
+pub const AUDIT: KeyTypeId = KeyTypeId(*b"cess");
 // type FailureRate = u32;
 
 const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -104,7 +104,7 @@ pub mod sr25519 {
 	mod app_sr25519 {
 		use crate::*;
 		use sp_runtime::app_crypto::{app_crypto, sr25519};
-		app_crypto!(sr25519, SEGMENT_BOOK);
+		app_crypto!(sr25519, AUDIT);
 	}
 
 	sp_runtime::app_crypto::with_pair! {
@@ -231,7 +231,7 @@ pub mod pallet {
 		OutstandingChallenges { miner: AccountOf<T>, file_id: Hash },
 	}
 
-	/// Error for the segment-book pallet.
+	/// Error for the audit pallet.
 	#[pallet::error]
 	pub enum Error<T> {
 		//Vec to BoundedVec Error.
@@ -607,7 +607,7 @@ pub mod pallet {
 				}
 
 				log::info!("build valid transaction");
-				ValidTransaction::with_tag_prefix("SegmentBook")
+				ValidTransaction::with_tag_prefix("Audit")
 					.priority(T::UnsignedPriority::get())
 					.and_provides((current_session, authority_id, signature))
 					.longevity(

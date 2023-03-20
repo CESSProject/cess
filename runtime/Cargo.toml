@@ -109,7 +109,7 @@ pallet-scheduler-credit = { default-features = false, version = "0.1.0", path = 
 
 # local dependencies
 pallet-sminer = { default-features = false, path = "../c-pallets/sminer", version = "0.5.3" }
-pallet-segment-book = { default-features = false, path = "../c-pallets/segment-book", version = "0.5.3" }
+pallet-audit = { default-features = false, path = "../c-pallets/audit", version = "0.5.3" }
 pallet-file-bank = { default-features = false, path = "../c-pallets/file-bank", version = "0.5.3" }
 pallet-tee-worker = { default-features = false, path = "../c-pallets/tee-worker", version = "0.5.3" }
 pallet-storage-handler = { default-features = false, path = "../c-pallets/storage-handler", version = "0.5.4" }
@@ -151,7 +151,7 @@ std = [
     "pallet-cess-staking/std",
     "pallet-treasury/std",
     "pallet-file-bank/std",
-    "pallet-segment-book/std",
+    "pallet-audit/std",
     "pallet-sminer/std",
     "pallet-tee-worker/std",
     "pallet-storage-handler/std",
@@ -219,7 +219,7 @@ runtime-benchmarks = [
     "pallet-tee-worker/runtime-benchmarks",
 		"pallet-oss/runtime-benchmarks",
     "pallet-cess-staking/runtime-benchmarks",
-    "pallet-segment-book/runtime-benchmarks",
+    "pallet-audit/runtime-benchmarks",
     "pallet-sminer/runtime-benchmarks",
     "sp-runtime/runtime-benchmarks",
     "pallet-contracts/runtime-benchmarks",

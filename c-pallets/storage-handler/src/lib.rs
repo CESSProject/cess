@@ -10,11 +10,7 @@ use frame_support::{
     traits::{
         StorageVersion, Currency, ReservableCurrency, ExistenceRequirement::AllowDeath,
     },
-    pallet_prelude::{
-        DispatchResult, DispatchError, Hooks, GenesisBuild,
-        PhantomData, ValueQuery, StorageValue, StorageMap,
-        Get, IsType,
-    },
+    pallet_prelude::*,
 };
 use sp_runtime::{
 	traits::{
@@ -30,7 +26,7 @@ use scale_info::TypeInfo;
 use cp_cess_common::*;
 use pallet_sminer::MinerControl;
 
-mod weights;
+pub mod weights;
 use weights::WeightInfo;
 
 mod types;

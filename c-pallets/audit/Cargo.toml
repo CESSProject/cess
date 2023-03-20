@@ -1,5 +1,5 @@
 [package]
-name = "pallet-segment-book"
+name = "pallet-audit"
 authors = ["CESS LAB"]
 version = "0.5.3"
 edition = "2018"

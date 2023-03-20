@@ -8,7 +8,7 @@ use cess_node_runtime::{
 };
 
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
-use pallet_segment_book::sr25519::AuthorityId as SegmentBookId;
+use pallet_audit::sr25519::AuthorityId as SegmentBookId;
 use sc_chain_spec::ChainSpecExtension;
 use sc_service::{config::TelemetryEndpoints, ChainType};
 use serde::{Deserialize, Serialize};
@@ -53,9 +53,9 @@ fn session_keys(
 	rrsc: RRSCId,
 	im_online: ImOnlineId,
 	authority_discovery: AuthorityDiscoveryId,
-	segment_book: SegmentBookId,
+	audit: SegmentBookId,
 ) -> SessionKeys {
-	SessionKeys { grandpa, rrsc, im_online, authority_discovery, segment_book }
+	SessionKeys { grandpa, rrsc, im_online, authority_discovery, audit }
 }
 
 /// Generate an account ID from seed.

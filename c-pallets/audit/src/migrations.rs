@@ -9,13 +9,13 @@ use frame_support::traits::OnRuntimeUpgrade;
 pub struct MigrationSegmentBook<T: crate::Config>(sp_std::marker::PhantomData<T>);
 impl<T: crate::Config> OnRuntimeUpgrade for MigrationSegmentBook<T> {
 	fn on_runtime_upgrade() -> Weight {
-        log::info!("SegmentBook migrate start!");
+        log::info!("Audit migrate start!");
 		migrate::<T>()
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<(), &'static str> {
-		log::info!("segment-book check access");
+		log::info!("audit check access");
 		return Ok(())
 	}
 
@@ -31,7 +31,7 @@ pub fn migrate<T: Config>() -> Weight {
 	let mut weight: Weight = 0;
 
 	if version < 1 {
-        log::info!("SegmentBook version 1 -> 2 migrations start!");
+        log::info!("Audit version 1 -> 2 migrations start!");
         weight = weight.saturating_add(v2::migrate::<T>());
         StorageVersion::new(2).put::<Pallet<T>>();
 	}
@@ -54,7 +54,7 @@ mod v2 {
     }
 
     generate_storage_alias!(
-		SegmentBook,
+		Audit,
 		UnVerifyProof<T: Config> => Map<
             (Blake2_128Concat, T::AccountId),
             BoundedVec<OldProveInfo<T>, T::ChallengeMaximum>

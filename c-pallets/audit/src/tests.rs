@@ -171,13 +171,13 @@ fn submit_challenge_prove_works() {
 						u,
         };
         prove_list.push(prove_info);
-        assert_noop!(SegmentBook::submit_challenge_prove(RuntimeOrigin::signed(miner_acc.clone()), prove_list.clone()), Error::<Test>::NoChallenge);
+        assert_noop!(Audit::submit_challenge_prove(RuntimeOrigin::signed(miner_acc.clone()), prove_list.clone()), Error::<Test>::NoChallenge);
         assert_ok!(ChallengeMap::<Test>::try_mutate(miner_acc, |value| -> DispatchResult {
             value.try_push(challenge_info).map_err(|_| Error::<Test>::BoundedVecError)?;
             Ok(())
         }));
 
-        assert_ok!(SegmentBook::submit_challenge_prove(RuntimeOrigin::signed(miner_acc.clone()), prove_list));
+        assert_ok!(Audit::submit_challenge_prove(RuntimeOrigin::signed(miner_acc.clone()), prove_list));
 
         assert!(UnVerifyProof::<Test>::contains_key(&controller1));
         let prove_info = UnVerifyProof::<Test>::try_get(&controller1).unwrap().pop().unwrap();
@@ -229,7 +229,7 @@ fn verify_proof_works() {
             Ok(())
         }));
 
-        assert_ok!(SegmentBook::verify_proof(RuntimeOrigin::signed(controller1.clone()), verify_result_list.clone()));
+        assert_ok!(Audit::verify_proof(RuntimeOrigin::signed(controller1.clone()), verify_result_list.clone()));
         assert_eq!(0, UnVerifyProof::<Test>::try_get(controller1.clone()).unwrap().len());
 
         let event = Sys::events().pop().expect("Expected at least one VerifyProof to be found").event;
@@ -302,17 +302,17 @@ fn verify_proof_on_punish() {
             Ok(())
         }));
 
-        assert_ok!(SegmentBook::submit_challenge_prove(RuntimeOrigin::signed(miner_acc.clone()), prove_list));
+        assert_ok!(Audit::submit_challenge_prove(RuntimeOrigin::signed(miner_acc.clone()), prove_list));
         assert_ok!(Sminer::add_reward_order1(&miner_acc, 1000000));
         //FIXME! the punish action is hard to test now, as it's depend concrete pallet: sminer. Suggest doing this use Trait instead.
-        assert_ok!(SegmentBook::verify_proof(RuntimeOrigin::signed(controller1.clone()), verify_result_list));  // the last parameter indicate whether punish
+        assert_ok!(Audit::verify_proof(RuntimeOrigin::signed(controller1.clone()), verify_result_list));  // the last parameter indicate whether punish
         assert_eq!(0, UnVerifyProof::<Test>::try_get(controller1.clone()).unwrap().len());
 
         let event = Sys::events().pop().expect("Expected at least one VerifyProof to be found").event;
         assert_eq!(mock::RuntimeEvent::from(Event::VerifyProof { miner: miner_acc.clone(), file_id: mfi.file_hash }), event);
         <MinerTotalProof<Test>>::insert(&miner_acc, 1);
         <VerifyDuration<Test>>::put(10);
-        <SegmentBook as Hooks<u64>>::on_initialize(10);
+        <Audit as Hooks<u64>>::on_initialize(10);
         Sys::set_block_number(11);
 
         let state = Sminer::get_miner_state(miner_acc.clone()).unwrap();

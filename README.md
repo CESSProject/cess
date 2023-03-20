@@ -107,7 +107,7 @@ cargo test --release
 
 
 * [Files Bank](c-pallets/file-bank)
-* [Segment Book](c-pallets/segment-book)
+* [Segment Book](c-pallets/audit)
 * [Sminer](c-pallets/sminer)
 * [Tee Worker](c-pallets/tee-worker)
 

@@ -1,5 +1,5 @@
 use super::*;
-use crate::{Pallet as SegmentBook, *};
+use crate::{Pallet as Audit, *};
 use cp_cess_common::{IpAddress, Hash, DataType};
 use codec::{alloc::string::ToString, Decode};
 pub use frame_benchmarking::{
@@ -23,7 +23,7 @@ use sp_std::prelude::*;
 
 use frame_system::RawOrigin;
 
-pub struct Pallet<T: Config>(SegmentBook<T>);
+pub struct Pallet<T: Config>(Audit<T>);
 pub trait Config:
 	crate::Config + pallet_cess_staking::Config + pallet_tee_worker::Config + pallet_sminer::Config
 {

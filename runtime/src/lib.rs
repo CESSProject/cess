@@ -80,7 +80,7 @@ pub mod impls;
 use impls::{Author, CreditToBlockAuthor, SchedulerStashAccountFinder};
 // use frame_support::traits::OnRuntimeUpgrade;
 // pub use pallet_file_bank::migrations::TestMigrationFileBank;
-// pub use pallet_segment_book::migrations::MigrationSegmentBook;
+// pub use pallet_audit::migrations::MigrationSegmentBook;
 
 pub mod constants;
 use fp_rpc::TransactionStatus;
@@ -152,7 +152,7 @@ pub mod opaque {
 			pub grandpa: Grandpa,
 			pub im_online: ImOnline,
 			pub authority_discovery: AuthorityDiscovery,
-			pub segment_book: SegmentBook,
+			pub audit: Audit,
 		}
 	}
 }
@@ -977,14 +977,14 @@ parameter_types! {
 	pub const LockTime: BlockNumber = HOURS / 60;
 }
 
-impl pallet_segment_book::Config for Runtime {
+impl pallet_audit::Config for Runtime {
 	type Currency = Balances;
 	// The ubiquitous event type.
 	type RuntimeEvent = RuntimeEvent;
 	type MyPalletId = SegbkPalletId;
 	type MyRandomness = pallet_rrsc::ParentBlockRandomness<Runtime>;
-	type WeightInfo = pallet_segment_book::weights::SubstrateWeight<Runtime>;
-	type AuthorityId = pallet_segment_book::sr25519::AuthorityId;
+	type WeightInfo = pallet_audit::weights::SubstrateWeight<Runtime>;
+	type AuthorityId = pallet_audit::sr25519::AuthorityId;
 	type StringLimit = StringLimit;
 	type RandomLimit = RandomLimit;
 	type OneDay = OneDay;
@@ -1023,7 +1023,6 @@ parameter_types! {
 }
 
 impl pallet_file_bank::Config for Runtime {
-	type Currency = Balances;
 	// The ubiquitous event type.
 	type RuntimeEvent = RuntimeEvent;
 	type RuntimeCall = RuntimeCall;
@@ -1476,7 +1475,7 @@ construct_runtime!(
 		// CESS pallets
 		FileBank: pallet_file_bank = 60,
 		TeeWorker: pallet_tee_worker = 61,
-		SegmentBook: pallet_segment_book = 62,
+		Audit: pallet_audit = 62,
 		Sminer: pallet_sminer = 63,
 		StorageHandler: pallet_storage_handler = 64,
 		SchedulerCredit: pallet_scheduler_credit = 65,
@@ -1552,7 +1551,7 @@ mod benches {
 		[pallet_cacher, Cacher]
 		[pallet_file_bank, FileBankBench::<Runtime>]
 		[pallet_tee_worker, TeeWorkerBench::<Runtime>]
-		[pallet_segment_book, SegmentBookBench::<Runtime>]
+		[pallet_audit, SegmentBookBench::<Runtime>]
 		[pallet_collective::<Instance1>, Council]
 		[pallet_collective::<Instance2>, TechnicalCommittee]
 		[pallet_evm, PalletEvmBench::<Runtime>]
@@ -2050,7 +2049,7 @@ impl_runtime_apis! {
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
 			use pallet_tee_worker::benchmarking::Pallet as TeeWorkerBench;
-			use pallet_segment_book::benchmarking::Pallet as SegmentBookBench;
+			use pallet_audit::benchmarking::Pallet as SegmentBookBench;
 			// use pallet_sminer::benchmarking::Pallet as SminerBench;
 			use baseline::Pallet as BaselineBench;
 
@@ -2070,14 +2069,14 @@ impl_runtime_apis! {
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
 			use pallet_tee_worker::benchmarking::Pallet as TeeWorkerBench;
-			use pallet_segment_book::benchmarking::Pallet as SegmentBookBench;
+			use pallet_audit::benchmarking::Pallet as SegmentBookBench;
 
 			// use pallet_sminer::benchmarking::::Pallet as SminerBench;
 			use baseline::Pallet as BaselineBench;
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl pallet_file_bank::benchmarking::Config for Runtime{}
 			impl pallet_tee_worker::benchmarking::Config for Runtime{}
-			impl pallet_segment_book::benchmarking::Config for Runtime{}
+			impl pallet_audit::benchmarking::Config for Runtime{}
 
 			// impl pallet_file_bank::benchmarking::Config for Runtime{}
 			impl baseline::Config for Runtime {}
