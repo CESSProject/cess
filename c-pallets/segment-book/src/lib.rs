@@ -79,6 +79,7 @@ use frame_system::offchain::{CreateSignedTransaction, SubmitTransaction};
 use pallet_file_bank::RandomFileList;
 use pallet_file_map::ScheduleFind;
 use pallet_sminer::MinerControl;
+use pallet_storage_handler::StorageHandle;
 use scale_info::TypeInfo;
 use sp_core::H256;
 use sp_std::{ 
@@ -196,6 +197,8 @@ pub mod pallet {
 		//It is used to increase or decrease the miners' computing power, space, and execute
 		// punishment
 		type MinerControl: MinerControl<Self::AccountId>;
+
+		type StorageHandle: StorageHandle<Self::AccountId>;
 		//Configuration to be used for offchain worker
 		type AuthorityId: Member
 			+ Parameter
@@ -973,13 +976,14 @@ pub mod pallet {
 			let mut weight: Weight = Weight::from_ref_time(0);
 			match file_type {
 				DataType::Filler => {
-					T::MinerControl::sub_power(acc.clone(), file_size.into())?; //read 3 write 2
+					T::MinerControl::sub_miner_idle_space(&acc, file_size.into())?; //read 3 write 2
+					T::StorageHandle::sub_total_idle_space(file_size.into())?;
 					T::File::delete_filler(acc.clone(), file_id.clone())?; //read 1 write 2
 					T::File::add_invalid_file(acc.clone(), file_id.clone())?; //read 1 write 1
 					weight = weight.saturating_add(T::DbWeight::get().reads_writes(5, 5));
 				},
 				DataType::File => {
-					T::MinerControl::sub_space(&acc, file_size.into())?; //read 3 write 2
+					T::MinerControl::sub_miner_service_space(&acc, file_size.into())?; //read 3 write 2
 					T::File::add_recovery_file(shard_id.clone())?; //read 2 write 2
 					// T::File::add_invalid_file(acc.clone(), file_id.clone())?; //read 1 write 1
 					weight = weight.saturating_add(T::DbWeight::get().reads_writes(6, 5));

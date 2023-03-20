@@ -110,6 +110,11 @@ default-features = false
 path = '../file-map'
 version = '0.5.3'
 
+[dependencies.pallet-storage-handler]
+default-features = false
+path = '../storage-handler'
+version = '0.5.4'
+
 [dev-dependencies]
 pallet-cess-staking = { path = '../staking', version = '4.0.0-dev', default-features = false}
 sp-staking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }

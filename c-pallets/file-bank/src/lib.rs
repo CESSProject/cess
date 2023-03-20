@@ -49,10 +49,9 @@ use pallet_storage_handler::StorageHandle;
 use cp_scheduler_credit::SchedulerCreditCounter;
 use sp_runtime::{
 	traits::{
-		AccountIdConversion, BlockNumberProvider, CheckedAdd, CheckedDiv, CheckedMul, CheckedSub,
-		SaturatedConversion,
+		AccountIdConversion, BlockNumberProvider, CheckedAdd,
 	},
-	RuntimeDebug,
+	RuntimeDebug, SaturatedConversion,
 };
 use sp_std::{convert::TryInto, prelude::*, str};
 
@@ -73,11 +72,6 @@ pub mod pallet {
 	use pallet_oss::OssFindAuthor;
 	//pub use crate::weights::WeightInfo;
 	use frame_system::ensure_signed;
-
-	pub const PACKAGE_1_SIZE: u128 = G_BYTE * 10;
-	pub const PACKAGE_2_SIZE: u128 = G_BYTE * 500;
-	pub const PACKAGE_3_SIZE: u128 = T_BYTE * 1;
-	pub const PACKAGE_4_SIZE: u128 = T_BYTE * 5;
 
 	pub const FILE_PENDING: &str = "pending";
 	pub const FILE_ACTIVE: &str = "active";
@@ -333,6 +327,8 @@ pub mod pallet {
 				<FillerKeysMap<T>>::remove(value.index);
 				x += 1;
 			}
+
+			#[warn(deprecated)]
 			let _ = FillerMap::<T>::remove_prefix(&sender, Option::None);
 
 			let _ = T::MinerControl::sub_miner_idle_space(&sender, x * 8 * 1024 * 1024)?;
@@ -1136,7 +1132,7 @@ pub mod pallet {
 				Self::add_invalid_file(slice.miner_acc.clone(), hash)?; //read 1 write 1 * n
 				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 				T::MinerControl::sub_miner_service_space(&slice.miner_acc, slice.shard_size.into())?; //read 3 write 2
-				T::StorageHandle::sub_total_service_space(slice.shard_size.into());
+				T::StorageHandle::sub_total_service_space(slice.shard_size.into())?;
 				weight = weight.saturating_add(T::DbWeight::get().reads_writes(3, 2));
 			}
 			<File<T>>::remove(file_hash);
