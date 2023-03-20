@@ -68,7 +68,7 @@ frame_support::construct_runtime!(
 		Session: pallet_session,
 		Historical: pallet_session::historical,
 		BagsList: pallet_bags_list,
-		FileMap: pallet_file_map,
+		TeeWorker: pallet_tee_worker,
 		SchedulerCredit: pallet_scheduler_credit,
 		Oss: pallet_oss,
 		Preimage: pallet_preimage
@@ -145,17 +145,17 @@ impl pallet_sminer::Config for Test {
 }
 
 parameter_types! {
-	pub const FileMapPalletId: PalletId = PalletId(*b"filmpdpt");
+	pub const TeeWorkerPalletId: PalletId = PalletId(*b"filmpdpt");
 	#[derive(Clone, PartialEq, Eq)]
 	pub const SchedulerMaximum: u32 = 10000;
 	#[derive(Clone, PartialEq, Eq)]
 	pub const ParamsLimit: u32 = 359;
 }
 
-impl pallet_file_map::Config for Test {
+impl pallet_tee_worker::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
-	type FileMapPalletId = FileMapPalletId;
+	type TeeWorkerPalletId = TeeWorkerPalletId;
 	type StringLimit = StringLimit;
 	type WeightInfo = ();
 	type CreditCounter = SchedulerCredit;
@@ -436,7 +436,7 @@ impl Config for Test {
 	type RuntimeCall = RuntimeCall;
 	type FindAuthor = ();
 	type CreditCounter = SchedulerCredit;
-	type Scheduler = pallet_file_map::Pallet::<Test>;
+	type Scheduler = pallet_tee_worker::Pallet::<Test>;
 	type MinerControl = pallet_sminer::Pallet::<Test>;
 	type MyRandomness = TestRandomness<Self>;
 	type FilbakPalletId = FilbakPalletId;

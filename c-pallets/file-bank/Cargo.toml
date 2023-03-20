@@ -78,9 +78,9 @@ default-features = false
 path = '../sminer'
 version = '0.5.3'
 
-[dependencies.pallet-file-map]
+[dependencies.pallet-tee-worker]
 default-features = false
-path = '../file-map'
+path = '../tee-worker'
 version = '0.5.3'
 
 [dependencies.pallet-storage-handler]
@@ -117,7 +117,7 @@ std = [
 	"frame-system/std",
 	"pallet-balances/std",
 	"frame-benchmarking/std",
-	"pallet-file-map/std",
+	"pallet-tee-worker/std",
 	"cp-scheduler-credit/std",
 	"cp-cess-common/std",
 ]

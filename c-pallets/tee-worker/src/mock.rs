@@ -4,7 +4,7 @@ use std::{
     convert::{TryFrom, TryInto},
     cell::RefCell
 };
-use crate as pallet_file_map;
+use crate as pallet_tee_worker;
 use frame_support::parameter_types;
 use frame_support::PalletId;
 use frame_support::traits::{ConstU32, ConstU64, Currency, OneSessionHandler};
@@ -73,7 +73,7 @@ frame_support::construct_runtime!(
 		Session: pallet_session,
 		Historical: pallet_session::historical,
 		BagsList: pallet_bags_list,
-		FileMap: pallet_file_map,
+		TeeWorker: pallet_tee_worker,
 		SchedulerCredit: pallet_scheduler_credit,
 	}
 );
@@ -151,7 +151,7 @@ impl pallet_timestamp::Config for Test {
 }
 
 parameter_types! {
-    pub const FileMapPalletId: PalletId = PalletId(*b"filmpdpt");
+    pub const TeeWorkerPalletId: PalletId = PalletId(*b"filmpdpt");
     #[derive(Clone, PartialEq, Eq)]
 		pub const StringLimit: u32 = 1024;
 		#[derive(Clone, PartialEq, Eq)]
@@ -160,10 +160,10 @@ parameter_types! {
 		pub const ParamsLimit: u32 = 359;
 }
 
-impl pallet_file_map::Config for Test {
+impl pallet_tee_worker::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type Currency = Balances;
-    type FileMapPalletId = FileMapPalletId;
+    type TeeWorkerPalletId = TeeWorkerPalletId;
     type StringLimit = StringLimit;
     type WeightInfo = ();
 		type CreditCounter = SchedulerCredit;

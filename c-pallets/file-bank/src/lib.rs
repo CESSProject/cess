@@ -67,7 +67,7 @@ const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 pub mod pallet {
 	use super::*;
 	use frame_support::{ensure, traits::Get};
-	use pallet_file_map::ScheduleFind;
+	use pallet_tee_worker::ScheduleFind;
 	use pallet_sminer::MinerControl;
 	use pallet_oss::OssFindAuthor;
 	//pub use crate::weights::WeightInfo;
@@ -917,7 +917,7 @@ pub mod pallet {
 		/// Result:
 		/// - `Vec<(BoundedString<T>, FileInfo<T>)>`: Fill file information list.
 		fn get_random_file() -> Result<Vec<(Hash, FileInfo<T>)>, DispatchError> {
-			let length = Self::get_file_map_length()?;
+			let length = Self::get_tee_worker_length()?;
 			log::info!("file length: {}", length);
 			let limit = <FileIndexCount<T>>::get();
 			log::info!("file limit: {}", limit);
@@ -1054,7 +1054,7 @@ pub mod pallet {
 			let count = <FillerKeysMap<T>>::count();
 			Ok(count)
 		}
-		/// helper: get filemap length.
+		/// helper: get TeeWorker length.
 		///
 		/// Gets the length of the padding file.
 		///
@@ -1062,7 +1062,7 @@ pub mod pallet {
 		/// - `index`: filler index.
 		/// Result:
 		/// - `bool`: Length of the whole network service file.
-		fn get_file_map_length() -> Result<u32, DispatchError> {
+		fn get_tee_worker_length() -> Result<u32, DispatchError> {
 			Ok(<FileKeysMap<T>>::count())
 		}
 		/// helper: generate random number.

@@ -77,7 +77,7 @@ use sp_core::{
 use sp_runtime::app_crypto::RuntimeAppPublic;
 use frame_system::offchain::{CreateSignedTransaction, SubmitTransaction};
 use pallet_file_bank::RandomFileList;
-use pallet_file_map::ScheduleFind;
+use pallet_tee_worker::ScheduleFind;
 use pallet_sminer::MinerControl;
 use pallet_storage_handler::StorageHandle;
 use scale_info::TypeInfo;

@@ -99,7 +99,7 @@ fn create_new_bucket(acc: AccountId, bucket_name: Vec<u8>) -> DispatchResult {
 
 fn register_scheduler(stash: AccountId, controller: AccountId) -> DispatchResult {
     pallet_cess_staking::Bonded::<Test>::insert(&stash, controller.clone());
-    FileMap::registration_scheduler(
+    TeeWorker::registration_scheduler(
         RuntimeOrigin::signed(controller),
         stash,
         IpAddress::IPV4([127,0,0,1], 15000),

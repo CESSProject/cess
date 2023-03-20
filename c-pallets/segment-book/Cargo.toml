@@ -105,9 +105,9 @@ branch = "cess-polkadot-v0.9.36"
 version = '4.0.0-dev'
 
 # local dependencies
-[dependencies.pallet-file-map]
+[dependencies.pallet-tee-worker]
 default-features = false
-path = '../file-map'
+path = '../tee-worker'
 version = '0.5.3'
 
 [dependencies.pallet-storage-handler]
@@ -143,7 +143,7 @@ std = [
 	"frame-benchmarking/std",
 	"pallet-sminer/std",
 	"pallet-file-bank/std",
-	"pallet-file-map/std",
+	"pallet-tee-worker/std",
 	"cp-cess-common/std",
 	"cp-cess-common/std",
 ]

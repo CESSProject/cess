@@ -5274,6 +5274,7 @@ dependencies = [
  "pallet-scheduler-credit",
  "pallet-session",
  "pallet-sminer",
+ "pallet-storage-handler",
  "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",

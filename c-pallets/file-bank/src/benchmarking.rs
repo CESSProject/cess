@@ -13,7 +13,7 @@ use frame_support::{
 use pallet_cess_staking::{
 	testing_utils, Config as StakingConfig, Pallet as Staking, RewardDestination,
 };
-use pallet_file_map::{Config as FileMapConfig, Pallet as FileMap};
+use pallet_tee_worker::{Config as TeeWorkerConfig, Pallet as TeeWorker};
 use pallet_sminer::{Config as SminerConfig, Pallet as Sminer};
 use sp_runtime::{
 	traits::{Bounded, One, StaticLookup, TrailingZeroInput, Zero},
@@ -25,7 +25,7 @@ use frame_system::RawOrigin;
 
 pub struct Pallet<T: Config>(FileBank<T>);
 pub trait Config:
-	crate::Config + pallet_cess_staking::Config + pallet_file_map::Config + pallet_sminer::Config
+	crate::Config + pallet_cess_staking::Config + pallet_tee_worker::Config + pallet_sminer::Config
 {
 }
 type SminerBalanceOf<T> = <<T as pallet_sminer::Config>::Currency as Currency<
@@ -115,7 +115,7 @@ pub fn add_scheduler<T: Config>() -> Result<T::AccountId, &'static str> {
 		reward_destination,
 	)?;
 	whitelist_account!(controller);
-	FileMap::<T>::registration_scheduler(RawOrigin::Signed(controller.clone()).into(), stash, IpAddress::IPV4([127,0,0,1], 15001))?;
+	TeeWorker::<T>::registration_scheduler(RawOrigin::Signed(controller.clone()).into(), stash, IpAddress::IPV4([127,0,0,1], 15001))?;
 	Ok(controller)
 }
 
@@ -193,7 +193,7 @@ benchmarks! {
 		Staking::<T>::bond(RawOrigin::Signed(stash.clone()).into(), controller_lookup, amount, reward_destination)?;
 		whitelist_account!(controller);
 
-		FileMap::<T>::registration_scheduler(RawOrigin::Signed(controller.clone()).into(), stash, ip)?;
+		TeeWorker::<T>::registration_scheduler(RawOrigin::Signed(controller.clone()).into(), stash, ip)?;
 
 		let mut filler_list: Vec<FillerInfo<T>> = Vec::new();
 		let miner = add_miner::<T>()?;

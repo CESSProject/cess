@@ -11,7 +11,7 @@ pub fn add_scheduler<T: Config>(
         controller_user: controller.clone(),
     };
     let mut s_vec = SchedulerMap::<T>::get();
-    s_vec.try_push(scheduler).map_err(|_e| "file-map testing_utils convert push err!")?;
+    s_vec.try_push(scheduler).map_err(|_e| "tee-worker testing_utils convert push err!")?;
     SchedulerMap::<T>::put(s_vec);
 
     Ok(())

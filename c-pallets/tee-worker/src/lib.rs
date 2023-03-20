@@ -1,4 +1,4 @@
-//! # File Map Module
+//! # Tee Worker Module
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -74,7 +74,7 @@ pub mod pallet {
 		type Currency: ReservableCurrency<Self::AccountId>;
 		/// pallet address.
 		#[pallet::constant]
-		type FileMapPalletId: Get<PalletId>;
+		type TeeWorkerPalletId: Get<PalletId>;
 
 		#[pallet::constant]
 		type StringLimit: Get<u32> + PartialEq + Eq + Clone;

@@ -62,7 +62,7 @@ pub trait WeightInfo {
 /// Weights for pallet_file_bank using the Substrate node and recommended hardware.
 pub struct SubstrateWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
-	// Storage: FileMap SchedulerMap (r:1 w:0)
+	// Storage: TeeWorker SchedulerMap (r:1 w:0)
 	// Storage: Sminer MinerItems (r:1 w:1)
 	// Storage: FileBank FillerIndexCount (r:1 w:1)
 	// Storage: Sminer TotalIdleSpace (r:1 w:1)
@@ -87,7 +87,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 			.saturating_add(T::DbWeight::get().reads(3 as u64))
 			.saturating_add(T::DbWeight::get().writes(3 as u64))
 	}
-	// Storage: FileMap SchedulerMap (r:1 w:0)
+	// Storage: TeeWorker SchedulerMap (r:1 w:0)
 	// Storage: FileBank File (r:1 w:1)
 	// Storage: FileBank UserOwnedSpace (r:1 w:1)
 	// Storage: FileBank UserHoldFileList (r:1 w:1)
@@ -171,7 +171,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 
 // For backwards compatibility and tests
 impl WeightInfo for () {
-	// Storage: FileMap SchedulerMap (r:1 w:0)
+	// Storage: TeeWorker SchedulerMap (r:1 w:0)
 	// Storage: Sminer MinerItems (r:1 w:1)
 	// Storage: FileBank FillerIndexCount (r:1 w:1)
 	// Storage: Sminer TotalIdleSpace (r:1 w:1)
@@ -196,7 +196,7 @@ impl WeightInfo for () {
 			.saturating_add(RocksDbWeight::get().reads(3 as u64))
 			.saturating_add(RocksDbWeight::get().writes(3 as u64))
 	}
-	// Storage: FileMap SchedulerMap (r:1 w:0)
+	// Storage: TeeWorker SchedulerMap (r:1 w:0)
 	// Storage: FileBank File (r:1 w:1)
 	// Storage: FileBank UserOwnedSpace (r:1 w:1)
 	// Storage: FileBank UserHoldFileList (r:1 w:1)

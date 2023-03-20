@@ -56,7 +56,7 @@ pub trait WeightInfo {
 pub struct SubstrateWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: System Digest (r:1 w:0)
-	// Storage: FileMap SchedulerMap (r:1 w:0)
+	// Storage: TeeWorker SchedulerMap (r:1 w:0)
 	// Storage: SegmentBook ChallengeMap (r:1 w:1)
 	// Storage: SegmentBook UnVerifyProof (r:1 w:1)
 	fn submit_challenge_prove(v: u32, ) -> Weight {
@@ -66,7 +66,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 			.saturating_add(T::DbWeight::get().reads(4 as u64))
 			.saturating_add(T::DbWeight::get().writes(2 as u64))
 	}
-	// Storage: FileMap SchedulerMap (r:1 w:0)
+	// Storage: TeeWorker SchedulerMap (r:1 w:0)
 	// Storage: SegmentBook UnVerifyProof (r:1 w:1)
 	fn verify_proof(v: u32, ) -> Weight {
 		Weight::from_ref_time(144_028_000 as u64)
@@ -80,7 +80,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 // For backwards compatibility and tests
 impl WeightInfo for () {
 	// Storage: System Digest (r:1 w:0)
-	// Storage: FileMap SchedulerMap (r:1 w:0)
+	// Storage: TeeWorker SchedulerMap (r:1 w:0)
 	// Storage: SegmentBook ChallengeMap (r:1 w:1)
 	// Storage: SegmentBook UnVerifyProof (r:1 w:1)
 	fn submit_challenge_prove(v: u32, ) -> Weight {
@@ -90,7 +90,7 @@ impl WeightInfo for () {
 			.saturating_add(RocksDbWeight::get().reads(4 as u64))
 			.saturating_add(RocksDbWeight::get().writes(2 as u64))
 	}
-	// Storage: FileMap SchedulerMap (r:1 w:0)
+	// Storage: TeeWorker SchedulerMap (r:1 w:0)
 	// Storage: SegmentBook UnVerifyProof (r:1 w:1)
 	fn verify_proof(v: u32, ) -> Weight {
 		Weight::from_ref_time(144_028_000 as u64)

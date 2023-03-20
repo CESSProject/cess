@@ -1,5 +1,5 @@
 use super::*;
-use crate::{Pallet as FileMap, testing_utils as FMTestUtils,*};
+use crate::{Pallet as TeeWorker, testing_utils as FMTestUtils,*};
 use codec::{alloc::string::ToString, Decode};
 pub use frame_benchmarking::{
 	account, benchmarks, impl_benchmark_test_suite, whitelist_account, whitelisted_caller,
@@ -14,7 +14,7 @@ use pallet_cess_staking::{
 };
 use frame_system::RawOrigin;
 
-pub struct Pallet<T: Config>(FileMap<T>);
+pub struct Pallet<T: Config>(TeeWorker<T>);
 pub trait Config:
 	crate::Config + pallet_cess_staking::Config
 {

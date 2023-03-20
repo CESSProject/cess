@@ -13,7 +13,7 @@ use frame_support::{
 use pallet_cess_staking::{
 	testing_utils, Config as StakingConfig, Pallet as Staking, RewardDestination,
 };
-use pallet_file_map::{Config as FileMapConfig, testing_utils::add_scheduler, Pallet as FileMap};
+use pallet_tee_worker::{Config as TeeWorkerConfig, testing_utils::add_scheduler, Pallet as TeeWorker};
 use pallet_sminer::{Config as SminerConfig, Pallet as Sminer};
 use sp_runtime::{
 	traits::{Bounded, One, StaticLookup, TrailingZeroInput, Zero},
@@ -25,7 +25,7 @@ use frame_system::RawOrigin;
 
 pub struct Pallet<T: Config>(SegmentBook<T>);
 pub trait Config:
-	crate::Config + pallet_cess_staking::Config + pallet_file_map::Config + pallet_sminer::Config
+	crate::Config + pallet_cess_staking::Config + pallet_tee_worker::Config + pallet_sminer::Config
 {
 }
 
@@ -36,7 +36,7 @@ benchmarks! {
         let v in 0 .. T::SubmitProofLimit::get() - 1;
         let ip = IpAddress::IPV4([127,0,0,1],15000);
         let (stash, controller) = pallet_cess_staking::testing_utils::create_stash_controller::<T>(USER_SEED, 100, Default::default())?;
-        pallet_file_map::testing_utils::add_scheduler::<T>(controller.clone(), stash.clone(), ip.clone())?;
+        pallet_tee_worker::testing_utils::add_scheduler::<T>(controller.clone(), stash.clone(), ip.clone())?;
         let miner: AccountOf<T> = account("miner1", 100, USER_SEED);
         Sminer::<T>::regnstk(
             RawOrigin::Signed(miner.clone()).into(),
@@ -89,7 +89,7 @@ benchmarks! {
         let v in 0 .. T::SubmitValidationLimit::get() - 1;
         let ip = IpAddress::IPV4([127,0,0,1],15000);
         let (stash, controller) = pallet_cess_staking::testing_utils::create_stash_controller::<T>(USER_SEED, 100, Default::default())?;
-        pallet_file_map::testing_utils::add_scheduler::<T>(controller.clone(), stash.clone(), ip.clone())?;
+        pallet_tee_worker::testing_utils::add_scheduler::<T>(controller.clone(), stash.clone(), ip.clone())?;
         let miner: AccountOf<T> = account("miner1", 100, USER_SEED);
         let mut challenge_list: Vec<ChallengeInfo<T>> = Vec::new();
 				//ChallengeMaximum = 8000
