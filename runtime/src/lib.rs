@@ -21,6 +21,7 @@ use frame_election_provider_support::{
 	onchain, ExtendedBalance, ElectionDataProvider, VoteWeight
 };
 pub use pallet_file_bank;
+pub use pallet_storage_handler;
 pub use pallet_oss;
 use pallet_grandpa::{
 	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
@@ -168,7 +169,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 113,
+	spec_version: 100,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -940,6 +941,15 @@ impl pallet_sminer::Config for Runtime {
 	type MaxAward = MaxAward;
 	type LockInPeriod = LockInPeriod;
 }
+
+parameter_types! {
+	pub const 
+}
+
+impl pallet_storage_handler::Config for Runtime {
+	
+}
+
 parameter_types! {
 	pub const SegbkPalletId: PalletId = PalletId(*b"rewardpt");
 	#[derive(Clone, PartialEq, Eq)]
@@ -970,7 +980,7 @@ impl pallet_segment_book::Config for Runtime {
 	type OneDay = OneDay;
 	type OneHours = OneHours;
 	type File = FileBank;
-	type Scheduler = FileMap;
+	type Scheduler = TeeWorker;
 	type MinerControl = Sminer;
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
 	type ValidatorSet = Historical;
@@ -1013,7 +1023,7 @@ impl pallet_file_bank::Config for Runtime {
 	type WeightInfo = pallet_file_bank::weights::SubstrateWeight<Runtime>;
 	type MinerControl = Sminer;
 	type MyRandomness = pallet_rrsc::ParentBlockRandomness<Runtime>;
-	type Scheduler = FileMap;
+	type Scheduler = TeeWorker;
 	type StringLimit = StringLimit;
 	type OneDay = OneDay;
 	type CreditCounter = SchedulerCredit;
@@ -1029,21 +1039,21 @@ impl pallet_file_bank::Config for Runtime {
 }
 
 parameter_types! {
-	pub const FileMapPalletId: PalletId = PalletId(*b"filmpdpt");
+	pub const TeeWorkerPalletId: PalletId = PalletId(*b"filmpdpt");
 	#[derive(Clone, PartialEq, Eq)]
 	pub const SchedulerMaximum: u32 = 10000;
 	#[derive(Clone, PartialEq, Eq)]
 	pub const ParamsLimit: u32 = 359;
 }
 
-impl pallet_file_map::Config for Runtime {
+impl pallet_tee_worker::Config for Runtime {
 	type Currency = Balances;
 	// The ubiquitous event type.
 	type RuntimeEvent = RuntimeEvent;
-	type FileMapPalletId = FileMapPalletId;
+	type TeeWorkerPalletId = TeeWorkerPalletId;
 	type StringLimit = StringLimit;
 	type SchedulerMaximum = SchedulerMaximum;
-	type WeightInfo = pallet_file_map::weights::SubstrateWeight<Runtime>;
+	type WeightInfo = pallet_tee_worker::weights::SubstrateWeight<Runtime>;
 	type CreditCounter = SchedulerCredit;
 	type ParamsLimit = ParamsLimit;
 }
@@ -1456,7 +1466,7 @@ construct_runtime!(
 
 		// CESS pallets
 		FileBank: pallet_file_bank = 60,
-		FileMap: pallet_file_map = 61,
+		TeeWorker: pallet_tee_worker = 61,
 		SegmentBook: pallet_segment_book = 62,
 		Sminer: pallet_sminer = 63,
 		SchedulerCredit: pallet_scheduler_credit = 64,
@@ -1531,7 +1541,7 @@ mod benches {
 		[pallet_oss, Oss]
 		[pallet_cacher, Cacher]
 		[pallet_file_bank, FileBankBench::<Runtime>]
-		[pallet_file_map, FileMapBench::<Runtime>]
+		[pallet_tee_worker, TeeWorkerBench::<Runtime>]
 		[pallet_segment_book, SegmentBookBench::<Runtime>]
 		[pallet_collective::<Instance1>, Council]
 		[pallet_collective::<Instance2>, TechnicalCommittee]
@@ -2029,7 +2039,7 @@ impl_runtime_apis! {
 			use frame_support::traits::StorageInfoTrait;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
-			use pallet_file_map::benchmarking::Pallet as FileMapBench;
+			use pallet_tee_worker::benchmarking::Pallet as TeeWorkerBench;
 			use pallet_segment_book::benchmarking::Pallet as SegmentBookBench;
 			// use pallet_sminer::benchmarking::Pallet as SminerBench;
 			use baseline::Pallet as BaselineBench;
@@ -2049,14 +2059,14 @@ impl_runtime_apis! {
 			use pallet_evm::Pallet as PalletEvmBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
-			use pallet_file_map::benchmarking::Pallet as FileMapBench;
+			use pallet_tee_worker::benchmarking::Pallet as TeeWorkerBench;
 			use pallet_segment_book::benchmarking::Pallet as SegmentBookBench;
 
 			// use pallet_sminer::benchmarking::::Pallet as SminerBench;
 			use baseline::Pallet as BaselineBench;
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl pallet_file_bank::benchmarking::Config for Runtime{}
-			impl pallet_file_map::benchmarking::Config for Runtime{}
+			impl pallet_tee_worker::benchmarking::Config for Runtime{}
 			impl pallet_segment_book::benchmarking::Config for Runtime{}
 
 			// impl pallet_file_bank::benchmarking::Config for Runtime{}
