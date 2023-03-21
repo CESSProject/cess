@@ -6,6 +6,7 @@ use super::*;
 pub struct OwnedSpaceDetails<T: Config> {
 	pub(super) total_space: u128,
 	pub(super) used_space: u128,
+	pub(super) locked_space: u128,
 	pub(super) remaining_space: u128,
 	pub(super) start: BlockNumberOf<T>,
 	pub(super) deadline: BlockNumberOf<T>,

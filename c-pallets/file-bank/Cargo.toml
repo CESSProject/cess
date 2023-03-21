@@ -23,6 +23,9 @@ cp-scheduler-credit = { path = '../../primitives/scheduler-credit', version = '0
 cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
 pallet-oss = { path = '../oss', version = '0.5.3', default-features = false }
 
+# substrate pallet
+pallet-scheduler = { version = '4.0.0-dev', git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36", default-features = false }
+
 [dependencies.frame-benchmarking]
 default-features = false
 git = 'https://github.com/CESSProject/substrate.git'

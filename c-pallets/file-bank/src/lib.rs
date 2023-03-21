@@ -27,6 +27,7 @@ mod tests;
 use frame_support::traits::{
 	Currency, ExistenceRequirement::AllowDeath, FindAuthor, Randomness, ReservableCurrency,
 	StorageVersion,
+	schedule::{DispatchTime, Named as ScheduleNamed},
 };
 
 pub use pallet::*;
@@ -44,7 +45,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use scale_info::TypeInfo;
-use cp_cess_common::{DataType, Hash as H68, M_BYTE, T_BYTE, G_BYTE};
+use cp_cess_common::{DataType, Hash as H68, M_BYTE, T_BYTE, G_BYTE, FRAGMENT_SIZE, SEGMENT_SIZE};
 use pallet_storage_handler::StorageHandle;
 use cp_scheduler_credit::SchedulerCreditCounter;
 use sp_runtime::{
@@ -84,6 +85,8 @@ pub mod pallet {
 		type WeightInfo: WeightInfo;
 
 		type RuntimeCall: From<Call<Self>>;
+
+		type SScheduler: ScheduleNamed<Self::BlockNumber, Self::SProposal, Self::SPalletsOrigin>;
 		//Find the consensus of the current block
 		type FindAuthor: FindAuthor<Self::AccountId>;
 		//Used to find out whether the schedule exists
@@ -112,19 +115,28 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type InvalidLimit: Get<u32> + Clone + Eq + PartialEq;
-		//User defined name length limit
+		// User defined name length limit
 		#[pallet::constant]
 		type NameStrLimit: Get<u32> + Clone + Eq + PartialEq;
-		//In order to enable users to store unlimited number of files,
-		//a large number is set as the boundary of BoundedVec.
+		// In order to enable users to store unlimited number of files,
+		// a large number is set as the boundary of BoundedVec.
 		#[pallet::constant]
 		type FileListLimit: Get<u32> + Clone + Eq + PartialEq;
-		//Maximum number of containers that users can create
+		// Maximum number of containers that users can create.
 		#[pallet::constant]
 		type BucketLimit: Get<u32> + Clone + Eq + PartialEq;
-		//Minimum length of bucket name
+		// Minimum length of bucket name.
 		#[pallet::constant]
-		type MinLength: Get<u32> + Clone + Eq + PartialEq;
+		type NameMinLength: Get<u32> + Clone + Eq + PartialEq;
+		// Maximum number of segments.
+		#[pallet::constant]
+		type SegmentCount: Get<u32> + Clone + Eq + PartialEq;
+		// Set number of fragment redundancy.
+		#[pallet::constant]
+		type FragmentCount: Get<u32> + Clone + Eq + PartialEq;
+		// Maximum number of holders of a file
+		#[pallet::constant]
+		type OwnerLimit: Get<u32> + Clone + Eq + PartialEq;
 
 		type CreditCounter: SchedulerCreditCounter<Self::AccountId>;
 		//Used to confirm whether the origin is authorized
@@ -164,38 +176,10 @@ pub mod pallet {
 		FileNonExistent,
 		//overflow.
 		Overflow,
-		//When the user uploads a file, the purchased space is not enough
-		InsufficientStorage,
-		//Internal developer usage error
-		WrongOperation,
-		//haven't bought space at all
-		NotPurchasedSpace,
-
-		PurchasedSpace,
-		//Expired storage space
-		LeaseExpired,
-
-		LeaseFreeze,
-		//Exceeded the maximum amount expected by the user
-		ExceedExpectations,
-
-		ConversionError,
-
-		InsufficientBalance,
-
-		AlreadyRepair,
 
 		NotOwner,
 
-		AlreadyReceive,
-
-		AlreadyExist,
-
 		NotQualified,
-
-		UserNotDeclared,
-		//Signature error of offline working machine
-		NoLocalAcctForSigning,
 		//It is not an error message for scheduling operation
 		ScheduleNonExistent,
 		//Error reporting when boundedvec is converted to VEC
@@ -231,6 +215,8 @@ pub mod pallet {
 		Unprepared,
 		//Transfer target acc already have this file
 		IsOwned,
+		//The file does not meet the specification
+		SpecError,
 	}
 
 	#[pallet::storage]
@@ -269,23 +255,11 @@ pub mod pallet {
 	pub(super) type InvalidFile<T: Config> =
 		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<Hash, T::InvalidLimit>, ValueQuery>;
 
+	// Stores the hash of the entire network segment and the sharing of each segment.
+	// Used to determine whether segments can be shared.
 	#[pallet::storage]
-	#[pallet::getter(fn file_keys_map)]
-	pub(super) type FileKeysMap<T: Config> =
-		CountedStorageMap<_, Blake2_128Concat, u32, (bool, Hash)>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn file_index_count)]
-	pub(super) type FileIndexCount<T: Config> = StorageValue<_, u32, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn filler_keys_map)]
-	pub(super) type FillerKeysMap<T: Config> =
-		CountedStorageMap<_, Blake2_128Concat, u32, (AccountOf<T>, Hash)>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn filler_index_count)]
-	pub(super) type FillerIndexCount<T: Config> = StorageValue<_, u32, ValueQuery>;
+	#[pallet::getter(fn segment_map)]
+	pub(super) type SegmentMap<T: Config> = StorageMap<_, Blake2_128Concat, Hash, u32>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn bucket)]
@@ -354,61 +328,49 @@ pub mod pallet {
 		pub fn upload_declaration(
 			origin: OriginFor<T>,
 			file_hash: Hash,
+			file_info: SegmentList<T>,
 			user_brief: UserBrief<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
+			// Check if you have operation permissions.
 			ensure!(Self::check_permission(sender.clone(), user_brief.user.clone()), Error::<T>::NoPermission);
-			ensure!(<Bucket<T>>::contains_key(&user_brief.user, &user_brief.bucket_name), Error::<T>::NonExistent);
-
+			// Check file specifications.
+			ensure!(Self::check_file_spec(&file_info), Error::<T>::SpecError);
+			// Check whether the user-defined name meets the rules.
+			let minimum = T::NameMinLength::get();
+			ensure!(user_brief.file_name >= minimum, Error::<T>::SpecError);
+			ensure!(user_brief.bucket_name >= minimum, Error::<T>::SpecError);
+			
 			if <File<T>>::contains_key(&file_hash) {
-				<File<T>>::try_mutate(&file_hash, |s_opt| -> DispatchResult {
-					let s = s_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
-					if s.user_brief_list.contains(&user_brief) {
-						Err(Error::<T>::Declarated)?;
-					}
-					T::StorageHandle::update_user_space(&user_brief.user, 1, s.file_size.into())?;
-					Self::add_user_hold_fileslice(
-						user_brief.user.clone(),
-						file_hash.clone(),
-						s.file_size,
-					)?;
-					s.user_brief_list.try_push(user_brief.clone()).map_err(|_| Error::<T>::StorageLimitReached)?;
-					Ok(())
-				})?;
+
 			} else {
-				let count =
-					<FileIndexCount<T>>::get().checked_add(1).ok_or(Error::<T>::Overflow)?;
-				<File<T>>::insert(
-					&file_hash,
-					FileInfo::<T> {
-						file_size: 0,
-						index: count,
-						file_state: FILE_PENDING
-							.as_bytes()
-							.to_vec()
-							.try_into()
-							.map_err(|_| Error::<T>::BoundedVecError)?,
-						user_brief_list: vec![user_brief.clone()]
-							.try_into()
-							.map_err(|_| Error::<T>::BoundedVecError)?,
-						slice_info: Default::default(),
-					},
-				);
-				<FileIndexCount<T>>::put(count);
+				// Check whether the user's storage space is sufficient, 
+				// if sufficient lock user's storage space.
+				T::StorageHandle::lock_user_space(&user_brief.user, file_info.len() as u128 * SEGMENT_SIZE)?;
+
+				let mut share_list: Vec<Hash> = Default::default();
+				let mut counter = 0;
+				for (hash, _list) in &file_info {
+					if <SegmentMap<T>>::contains_key(hash) {
+						share_list.push(*hash);
+						counter += 1;
+						<SegmentMap<T>>::try_mutate(hash, |share_count_opt| -> DispatchResult {
+							let share_count = share_count_opt.ok_or(Error::<T>::BugInvalid)?;
+							share_count.checked_add(1).ok_or(Error::<T>::Overflow)?;
+							Ok(())
+						})?;
+					}
+				}
+
+				if counter == file_info.len() {
+
+				} else {
+
+				}
 
 			}
-			<Bucket<T>>::try_mutate(&user_brief.user, &user_brief.bucket_name, |bucket_opt| -> DispatchResult {
-				let bucket = bucket_opt.as_mut().ok_or(Error::<T>::Unexpected)?;
-				bucket.object_num = bucket.object_num.checked_add(1).ok_or(Error::<T>::Overflow)?;
-				bucket.object_list.try_push(file_hash.clone()).map_err(|_| Error::<T>::LengthExceedsLimit)?;
-				Ok(())
-			})?;
-			Self::deposit_event(Event::<T>::UploadDeclaration {
-				operator: sender,
-				owner: user_brief.user,
-				file_hash,
-				file_name: user_brief.file_name.to_vec(),
-			});
+
+
 			Ok(())
 		}
 		//TODO!
@@ -745,7 +707,7 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 			ensure!(Self::check_permission(sender.clone(), owner.clone()), Error::<T>::NoPermission);
 			ensure!(!<Bucket<T>>::contains_key(&sender, &name), Error::<T>::SameBucketName);
-			ensure!(name.len() >= T::MinLength::get() as usize, Error::<T>::LessMinLength);
+			ensure!(name.len() >= T::NameMinLength::get() as usize, Error::<T>::LessMinLength);
 			let bucket = BucketInfo::<T>{
 				total_capacity: 0,
 				available_capacity: 0,
@@ -810,6 +772,53 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
+		pub fn check_file_spec(seg_list: &SegmentList<T>) -> bool {
+			let spec_len = T::FragmentCount::get();
+
+			for (_hash, frag_list) in seg_list {
+				if frag_list.len() as u32 != spec_len {
+					return false
+				}
+			}
+
+			true 
+		}
+
+		pub fn generate_deal(
+			file_hash: Hash, 
+			share_list: Vec<Hash>, 
+			file_info: SegmentList<T>, 
+			user_brief: UserBrief<T>,
+		) -> Result<DealInfo<T>, DispatchError> {
+			
+			let task_id: Vec<u8> = file_hash.0.to_vec(); // TODO!
+
+			DealInfo::<T> {
+				stage: 1,
+				count: 0,
+				time_task: Hash,
+				share_list: BoundedVec<Hash, T::SegemtnCount>,
+				segment_list: SegmentList<T>,
+				user: UserBrief<T>,
+				assigned_miner: MinerTaskList<T>,
+			}
+		}
+
+		pub fn start_first_task() -> DispatchResult {
+			let start: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
+			let survival_block = start.checked_add(600 * file_info.len()).ok_or(Error::<T>::Overflow)?;
+			let task_id: Vec<u8> = file_hash.0.to_vec(); // TODO!
+			T::SScheduler::schedule_named(
+					task_id,
+					DispatchTime::At(survival_block.saturated_into()),
+					Option::None,
+					schedule::HARD_DEADLINE,
+					frame_system::RawOrigin::Root.into(),
+					Call::reassign_deal{file_hash: file_hash.clone()}.into(), // TODO!
+			).map_err(|_| Error::<T>::Unexpected)?;
+
+			Ok(())
+		}
 		/// helper: Generate random challenge data.
 		///
 		/// Generate random challenge data, package and return.

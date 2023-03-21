@@ -322,6 +322,11 @@ pub mod pallet {
 	pub(super) type ConsecutiveFines<T: Config> =
 		StorageMap<_, Blake2_128Concat, T::AccountId, u8, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn test_option)]
+	pub(super) type TestOption<T: Config> = 
+		StorageValue<_, Option<T::AccountId>>;
+
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -524,6 +529,15 @@ pub mod pallet {
 				}
 			}
 
+			Ok(())
+		}
+
+		#[pallet::call_index(7)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn test_put_option(origin: OriginFor<T>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			<TestOption<T>>::put(Some(sender));
 			Ok(())
 		}
 	}
