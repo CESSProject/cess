@@ -988,6 +988,9 @@ pub trait MinerControl<AccountId> {
 	fn miner_is_exist(acc: AccountId) -> bool;
 	fn get_miner_state(acc: AccountId) -> Result<Vec<u8>, DispatchError>;
 	fn start_buffer_period_schedule() -> DispatchResult;
+	fn get_all_miner() -> Result<KeyPrefixIterator<AccountId>, DispatchError>;
+	fn lock_space(acc: &AccountId, space: u128) -> DispatchResult;
+	fn get_miner_idle_space(acc: &AccountId) -> Result<u128, DispatchError>;
 }
 
 impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -1037,6 +1040,11 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 		Ok((miner.power, miner.space))
 	}
 
+	fn get_miner_idle_space(acc: &AccountOf<T>) -> Result<u128, DispatchError> {
+		let miner = <MinerItems<T>>::try_get(acc).map_err(|_e| Error::<T>::NotExisted)?;
+		Ok(miner.power)
+	}
+
 	fn miner_is_exist(acc: <T as frame_system::Config>::AccountId) -> bool {
 		if <MinerItems<T>>::contains_key(&acc) {
 			return true;
@@ -1052,6 +1060,17 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 	fn get_miner_state(acc: AccountOf<T>) -> Result<Vec<u8>, DispatchError> {
 		let miner = <MinerItems<T>>::try_get(&acc).map_err(|_| Error::<T>::NotMiner)?;
 		Ok(miner.state.to_vec())
+	}
+
+	fn get_all_miner() -> Result<KeyPrefixIterator<AccountId>, DispatchError> {
+		Ok(<MinerItems<T>>::iter_keys())
+	}
+
+	fn lock_space(acc: &AccountOf<T>, space: u128) -> DispatchResult {
+		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
+			let miner = miner_opt.ok_or(Error::<T>::NotExisted)?;
+			miner.lock
+		})?;
 	}
 }
 

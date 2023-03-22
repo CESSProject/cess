@@ -21,8 +21,7 @@ pub(super) enum FileState {
 pub struct DealInfo<T: Config> {
 	pub(super) stage: u8,
 	pub(super) count: u8,
-	pub(super) time_task: Hash,
-	pub(super) share_list: BoundedVec<Hash, T::SegmentCount>,
+	pub(super) time_task: [u8; 32],
 	pub(super) segment_list: SegmentList<T>,
 	pub(super) user: UserBrief<T>,
 	pub(super) assigned_miner: MinerTaskList<T>,
