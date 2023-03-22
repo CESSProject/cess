@@ -4,7 +4,7 @@ use super::*;
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 // Cess type
-type SegmentList<T> = BoundedVec<BoundedVec<Hash, T::FragmentCount>, T::SegmentCount>;
+type SegmentList<T> = BoundedVec<(Hash, BoundedVec<Hash, T::FragmentCount>), T::SegmentCount>;
 type MinerTaskList<T> = BoundedVec<(AccountOf<T>, BoundedVec<Hash, T::FragmentCount>), T::FragmentCount>;
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
@@ -25,6 +25,7 @@ pub struct DealInfo<T: Config> {
 	pub(super) segment_list: SegmentList<T>,
 	pub(super) user: UserBrief<T>,
 	pub(super) assigned_miner: MinerTaskList<T>,
+	pub(super) share_info: BoundedVec<SegmentInfo<T>, T::SegemtnCount>,
 }
 // [s...]
 // s{acc, [Hash...]}

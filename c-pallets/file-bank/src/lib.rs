@@ -217,7 +217,17 @@ pub mod pallet {
 		IsOwned,
 		//The file does not meet the specification
 		SpecError,
+
+		NodesInsuffcient,
+		// This is a bug that is reported only when the most undesirable 
+		// situation occurs during a transaction execution process.
+		PanicOverflow,
 	}
+
+	
+	#[pallet::storage]
+	#[pallet::getter(fn deal_map)]
+	pub(super) type DealMap<T: Config> = StorageMap<_, Blake2_128Concat, Hash, DealInfo<T>>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn file)]
@@ -259,7 +269,7 @@ pub mod pallet {
 	// Used to determine whether segments can be shared.
 	#[pallet::storage]
 	#[pallet::getter(fn segment_map)]
-	pub(super) type SegmentMap<T: Config> = StorageMap<_, Blake2_128Concat, Hash, u32>;
+	pub(super) type SegmentMap<T: Config> = StorageMap<_, Blake2_128Concat, Hash, (SegmentInfo<T>, u32)>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn bucket)]
@@ -342,33 +352,34 @@ pub mod pallet {
 			ensure!(user_brief.bucket_name >= minimum, Error::<T>::SpecError);
 			
 			if <File<T>>::contains_key(&file_hash) {
-
+				
 			} else {
 				// Check whether the user's storage space is sufficient, 
 				// if sufficient lock user's storage space.
 				// Perform space calculations based on 1.5 times redundancy.
-				T::StorageHandle::lock_user_space(&user_brief.user, file_info.len() as u128 * (SEGMENT_SIZE * 10 / 5))?;
+				T::StorageHandle::lock_user_space(&user_brief.user, file_info.len() as u128 * (SEGMENT_SIZE * 15 / 10))?;
 
 				let mut needed_list: SegmentList<T> = Default::default();
-				let mut counter = 0;
+				let mut share_info: Vec<SegmentInfo<T>> = Default::default();
 				// Check whether there are segments that can be shared.
-				for (hash, list) in &file_info {
+				for (hash, list) in &mut file_info {
 					if <SegmentMap<T>>::contains_key(hash) {
-						counter += 1;
-						<SegmentMap<T>>::try_mutate(hash, |share_count_opt| -> DispatchResult {
-							let share_count = share_count_opt.ok_or(Error::<T>::BugInvalid)?;
-							share_count.checked_add(1).ok_or(Error::<T>::Overflow)?;
-							Ok(())
+						let segment_info = <SegmentMap<T>>::try_mutate(hash, |segment_opt| -> Result<SegmentInfo<T>, DispatchError> {
+							let (segment_info, share_count) = segment_opt.as_mut().ok_or(Error::<T>::BugInvalid)?;
+							share_count = share_count.checked_add(1).ok_or(Error::<T>::Overflow)?;
+							Ok(segment_info)
 						})?;
+						share_info.push(segment_info);
 					} else {
-						needed_list.push(*list);
+						needed_list.try_push((hash, *list)).map_err(|_e| Error::<T>::);
 					}
 				}
 
-				if counter == file_info.len() {
+				if share_info.len() == file_info.len() {
 
 				} else {
-					Self::generate_deal()
+					// TODO! Replace the file_hash param
+					let deal_info = Self::generate_deal(file_hash.clone(), needed_list, file_info, user_brief, share_info)?;
 				}
 
 			}
@@ -787,25 +798,54 @@ pub mod pallet {
 			true 
 		}
 
+		pub fn generate_file(
+			file_hash: Hash,
+			deal_info: SegmentList<T>,
+			miner_task_list: MinerTaskList<T>,
+			share_info: Vec<SegmentInfo<T>>,
+			user_brief: UserBrief<T>,
+		) -> DispatchResult {
+			let mut segment_info_list: Vec<SegmentInfo<T>> = Default::default();
+			for (hash, frag_list) in file_info.iter() {
+				let segment_info = SegmentInfo::<T> {
+					hash: *hash,
+					
+				}
+				for share_segment_info in share_info.iter() {
+					if hash == share_segment_info.hash {
+
+					}
+				}
+			}
+
+			Ok(())
+		}
+
 		pub fn generate_deal(
 			file_hash: Hash, 
 			needed_list: SegmentList<T>, 
 			file_info: SegmentList<T>, 
 			user_brief: UserBrief<T>,
-		) -> Result<DealInfo<T>, DispatchError> {
+			share_info: Vec<SegmentInfo<T>>,
+		) -> DispatchResult {
 			let task_id: Vec<u8> = file_hash.0.to_vec(); // TODO!
-			Self::start_first_task(task_id.clone())?;
 
 			let miner_task_list = Self::random_assign_miner(needed_list)?;
 
-			DealInfo::<T> {
+			Self::start_first_task(task_id.clone())?;
+
+			let deal = DealInfo::<T> {
 				stage: 1,
 				count: 0,
 				time_task: task_id,
 				segment_list: file_info,
 				user: user_brief,
 				assigned_miner: miner_task_list,
-			}
+			};
+
+			DealMap::insert(&file_hash, deal);
+
+			Ok(())
 		}
 
 		pub fn start_first_task(task_id: Vec<u8>) -> DispatchResult {
@@ -827,43 +867,89 @@ pub mod pallet {
 		pub fn random_assign_miner(needed_list: Vec<Hash>) -> Result<MinerTaskList<T>, DispatchError> {
 			let mut index_list: Vec<u32> = Default::default();
 			let mut miner_task_list: MinerTaskList<T> = Default::default();
-			// Number of miners required
+			let mut miner_idle_space_list: Vec<u128> = Default::default();
+			// The optimal number of miners required for storage.
+			// segment_size * 1.5 / fragment_size.
 			let miner_count = SEGMENT_SIZE * 15 / 10 / FRAGMENT_SIZE;
-			let mut seed = 0;
+			let mut seed = <frame_system::Pallet<T>>::block_number().saturated_into();
 
 			let all_miner = T::MinerControl::get_all_miner()?;
+			let total = all_miner.len();
 
+			ensure!(total > miner_count, Error::<T>::NodesInsuffcient);
+			// Maximum number of cycles set to prevent dead cycles
+			let max_count = miner_count * 5;
+			let mut cur_count = 0;
+			let mut total_idle_space = 0;
+			// start random choose miner
 			loop {
-				let index = Self::generate_random_number(seed)? % miner_count;
+				// Get a random subscript.
+				let index = Self::generate_random_number(seed)? % total;
+				// seed + 1
 				seed = seed.checked_add(1).ok_or(Error::<T>::Overflow)?;
+				// Number of cycles plus 1
+				cur_count += 1;
+				// When the number of cycles reaches the upper limit, the cycle ends.
+				if cur_count == max_count {
+					break;
+				}
+				// End the cycle after all storage nodes have been traversed.
+				if total == index_list {
+					break;
+				}
+				// Continue to the next cycle when the current random result already exists.
 				if index_list::contains(index) {
 					continue;
 				}
+				// Record current cycle results.
 				index_list.push(index);
-				if index_list.len() == miner_count {
-					for (m_index, hash) in all_miner.enumerate() {
-						if index_list::contains(m_index) {
-
-						}
-					}
+				// Judge whether the idle space of the miners is sufficient.
+				let miner = all_miner[index as usize];
+				let cur_space = T::MinerControl::get_miner_idle_space(&miner);
+				// If sufficient, the miner is selected.
+				if cur_space > needed_list.len() * FRAGMENT_SIZE {
+					// Accumulate all idle space of currently selected miners
+					total_idle_space = total_idle_space.checked_add(cur_space).ok_or(Error::<T>::Overflow)?;
+					miner_task_list.try_push((miner, Default::default())).map_err(|_e| Error::<T>::BoundedVecError)?;
+					miner_idle_space_list.push(cur_space);
+				}
+				// If the selected number of miners has reached the optimal number, the cycle ends.
+				if miner_task_list.len() == miner_count {
 					break;
 				}
 			}
+			
+			ensure!(miner_task_list.len() != 0, Error::<T>::BugInvalid);
+			ensure!(total_idle_space > SEGMENT_SIZE * 15 / 10, Error::<T>::NodesInsuffcient);
 
-			miner_task_list.push((*hash, Default::default()));
-	
-			enuser!(miner_task_list.len() == miner_count, Error::<T>::BugInvalid);
-			for frag_list in needed_list {
+			// According to the selected miner.
+			// Assign responsible documents to miners.
+			for (_hash, frag_list) in needed_list {
 				let mut index = 0;
 				for hash in frag_list {
-					miner_task_list[index].1.try_push(*hash).map_err(|_e| Error::<T>::BoundedVecError)?;
-					index += 1;
+					// To prevent the number of miners from not meeting the fragment number.
+					// It may occur that one miner stores multiple fragments
+					loop {
+						// Obtain the account of the storage node through the subscript.
+						// To prevent exceeding the boundary, use '%'.
+						temp_index = index % miner_task_list.len();
+						let cur_space = miner_idle_space_list[temp_index];
+						// To prevent a miner from storing multiple fragments, 
+						// the idle space is insufficient
+						if cur_space > (miner_task_list[temp_index].1.len() + 1) * FRAGMENT_SIZE {
+							miner_task_list[temp_index].1.try_push(*hash).map_err(|_e| Error::<T>::BoundedVecError)?;
+							break;
+						}
+						index = index.checked_add(1).ok_or(Error::<T>::PanicOverflow)?;
+					}
+					index = index.checked_add(1).ok_or(Error::<T>::PanicOverflow)?;
 				}
 			}
-		
 			// lock miner space
-			let lock_space: u128 =  (needed_list.len() * FRAGMENT_SIZE).into();
-			for 
+			for (acc, task_hash_list) in miner_task_list {
+				T::MinerControl::lock_space(acc, task_hash_list.len() * FRAGMENT_SIZE)?;
+			}
+			 
 			
 			Ok(miner_task_list)
 		}

@@ -988,7 +988,7 @@ pub trait MinerControl<AccountId> {
 	fn miner_is_exist(acc: AccountId) -> bool;
 	fn get_miner_state(acc: AccountId) -> Result<Vec<u8>, DispatchError>;
 	fn start_buffer_period_schedule() -> DispatchResult;
-	fn get_all_miner() -> Result<KeyPrefixIterator<AccountId>, DispatchError>;
+	fn get_all_miner() -> Result<Vec<AccountId>, DispatchError>;
 	fn lock_space(acc: &AccountId, space: u128) -> DispatchResult;
 	fn get_miner_idle_space(acc: &AccountId) -> Result<u128, DispatchError>;
 }
@@ -1062,13 +1062,13 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 		Ok(miner.state.to_vec())
 	}
 
-	fn get_all_miner() -> Result<KeyPrefixIterator<AccountId>, DispatchError> {
-		Ok(<MinerItems<T>>::iter_keys())
+	fn get_all_miner() -> Result<Vec<AccountOf<T>>, DispatchError> {
+		Ok(AllMiner::<T>::get().to_vec())
 	}
 
 	fn lock_space(acc: &AccountOf<T>, space: u128) -> DispatchResult {
 		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
-			let miner = miner_opt.ok_or(Error::<T>::NotExisted)?;
+			let miner = miner_opt.as_mut().ok_or(Error::<T>::NotExisted)?;
 			miner.lock
 		})?;
 	}
