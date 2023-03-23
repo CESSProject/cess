@@ -41,6 +41,17 @@ pub struct Extensions {
 	pub bad_blocks: sc_client_api::BadBlocks<Block>,
 	/// The light sync state extension used by the sync-state rpc.
 	pub light_sync_state: cessc_sync_state_rpc::LightSyncStateExtension,
+	/// The relay chain of the Parachain.
+	pub relay_chain: String,
+	/// The id of the Parachain.
+	pub para_id: u32,
+}
+
+impl Extensions {
+	/// Try to get the extension from the given `ChainSpec`.
+	pub fn try_get(chain_spec: &dyn sc_service::ChainSpec) -> Option<&Self> {
+		sc_chain_spec::get_extension(chain_spec.extensions())
+	}
 }
 
 /// Specialized `ChainSpec`.

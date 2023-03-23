@@ -63,6 +63,7 @@ sc-rpc-spec-v2 = { version = "0.10.0-dev", git = "https://github.com/CESSProject
 sc-basic-authorship = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sc-service = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sc-telemetry = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.36" }
 sc-executor = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sc-authority-discovery = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 cessc-sync-state-rpc = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
@@ -89,6 +90,7 @@ substrate-state-trie-migration-rpc = { version = "4.0.0-dev", git = "https://git
 pallet-transaction-payment-rpc = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 pallet-segment-book = { version = "0.5.3", default-features = false, path = "../c-pallets/segment-book" }
 pallet-contracts = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.36" }
 
 # Frontier
 fc-consensus = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
@@ -102,14 +104,39 @@ fp-evm = { git = "https://github.com/CESSProject/frontier", branch = "cess-polka
 fp-rpc = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
 fp-storage = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
 
+# Polkadot
+polkadot-cli = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.36" }
+polkadot-primitives = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.36" }
+polkadot-service = { git = "https://github.com/paritytech/polkadot", branch = "release-v0.9.36" }
+# xcm = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "release-v0.9.36" }
+
+# Cumulus
+cumulus-client-cli = { git = "https://github.com/paritytech/cumulus.git", branch = "polkadot-v0.9.36" }
+cumulus-client-consensus-aura = { git = "https://github.com/paritytech/cumulus.git", branch = "polkadot-v0.9.36" }
+cumulus-client-consensus-common = { git = "https://github.com/paritytech/cumulus.git", branch = "polkadot-v0.9.36" }
+cumulus-client-network = { git = "https://github.com/paritytech/cumulus.git", branch = "polkadot-v0.9.36" }
+cumulus-client-service = { git = "https://github.com/paritytech/cumulus.git", branch = "polkadot-v0.9.36" }
+cumulus-primitives-core = { git = "https://github.com/paritytech/cumulus.git", branch = "polkadot-v0.9.36" }
+cumulus-primitives-parachain-inherent = { git = "https://github.com/paritytech/cumulus.git", branch = "polkadot-v0.9.36" }
+cumulus-relay-chain-interface = { git = "https://github.com/paritytech/cumulus.git", branch = "polkadot-v0.9.36" }
+
+sp-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.36" }
+
 [build-dependencies]
 try-runtime-cli = { version = "0.10.0-dev", optional = true , git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 
 [features]
 default = ["cli"]
-runtime-benchmarks = ['cess-node-runtime/runtime-benchmarks']
-try-runtime = ["cess-node-runtime/try-runtime", "try-runtime-cli"]
+runtime-benchmarks = [
+	"try-runtime-cli/try-runtime",
+	"cess-node-runtime/runtime-benchmarks",
+	# "polkadot-cli/runtime-benchmarks",
+]
+try-runtime = [
+	"cess-node-runtime/try-runtime", 
+	"try-runtime-cli/try-runtime",
+]
 
 cli = [
 	"clap",

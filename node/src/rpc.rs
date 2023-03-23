@@ -85,7 +85,7 @@ pub struct EthConfiguration {
 	pub execute_gas_limit_multiplier: u64,
 }
 /// Full client dependencies.
-pub struct FullDeps<C, P, SC, B, A: ChainApi, CT> {
+pub struct FullDeps<C, P, SC, A: ChainApi, CT> {
 	/// The client instance to use.
 	pub client: Arc<C>,
 	/// Transaction pool instance.
@@ -98,8 +98,8 @@ pub struct FullDeps<C, P, SC, B, A: ChainApi, CT> {
 	pub deny_unsafe: DenyUnsafe,
 	/// RRSC specific dependencies.
 	pub rrsc: RRSCDeps,
-	/// GRANDPA specific dependencies.
-	pub grandpa: GrandpaDeps<B>,
+	// /// GRANDPA specific dependencies.
+	// pub grandpa: GrandpaDeps<B>,
 	/// Graph pool instance.
 	pub graph: Arc<Pool<A>>,
 	/// Ethereum transaction converter.
@@ -127,6 +127,8 @@ pub struct FullDeps<C, P, SC, B, A: ChainApi, CT> {
 	/// Maximum allowed gas limit will be ` block.gas_limit * execute_gas_limit_multiplier` when
 	/// using eth_call/eth_estimateGas.
 	pub execute_gas_limit_multiplier: u64,
+	/// Executor to drive the subscription manager in the Grandpa RPC handler.
+	pub subscription_executor: SubscriptionTaskExecutor,
 }
 
 pub fn overrides_handle<C, BE>(client: Arc<C>) -> Arc<OverrideHandle<Block>>
@@ -165,7 +167,7 @@ where
 
 /// Instantiate all full RPC extensions.
 pub fn create_full<C, P, SC, B, BE, A, CT>(
-	deps: FullDeps<C, P, SC, B, A, CT>,
+	deps: FullDeps<C, P, SC, A, CT>,
 	backend: Arc<B>,
 ) -> Result<RpcModule<()>, Box<dyn std::error::Error + Send + Sync>>
 where
@@ -217,7 +219,7 @@ where
 		chain_spec,
 		deny_unsafe,
 		rrsc,
-		grandpa,
+		// grandpa,
 		graph,
 		converter,
 		is_authority,
@@ -231,15 +233,16 @@ where
 		overrides,
 		block_data_cache,
 		execute_gas_limit_multiplier,
+		subscription_executor,
 	} = deps;
 	let RRSCDeps { keystore, rrsc_config, shared_epoch_changes } = rrsc;
-	let GrandpaDeps {
-		shared_voter_state,
-		shared_authority_set,
-		justification_stream,
-		subscription_executor,
-		finality_provider,
-	} = grandpa;
+	// let GrandpaDeps {
+	// 	shared_voter_state,
+	// 	shared_authority_set,
+	// 	justification_stream,
+	// 	subscription_executor,
+	// 	finality_provider,
+	// } = grandpa;
 
 	let chain_name = chain_spec.name().to_string();
 	let genesis_hash = client.block_hash(0).ok().flatten().expect("Genesis block exists; qed");
@@ -264,21 +267,21 @@ where
 		)
 		.into_rpc(),
 	)?;
-	io.merge(
-		Grandpa::new(
-			subscription_executor.clone(),
-			shared_authority_set.clone(),
-			shared_voter_state,
-			justification_stream,
-			finality_provider,
-		)
-		.into_rpc(),
-	)?;
+	// io.merge(
+	// 	Grandpa::new(
+	// 		subscription_executor.clone(),
+	// 		shared_authority_set.clone(),
+	// 		shared_voter_state,
+	// 		justification_stream,
+	// 		finality_provider,
+	// 	)
+	// 	.into_rpc(),
+	// )?;
 
-	io.merge(
-		SyncState::new(chain_spec, client.clone(), shared_authority_set, shared_epoch_changes)?
-			.into_rpc(),
-	)?;
+	// io.merge(
+	// 	SyncState::new(chain_spec, client.clone(), shared_authority_set, shared_epoch_changes)?
+	// 		.into_rpc(),
+	// )?;
 
 	let mut signers = Vec::new();
 	if enable_dev_signer {
