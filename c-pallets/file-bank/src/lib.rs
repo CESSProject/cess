@@ -807,6 +807,26 @@ pub mod pallet {
 			});
 			Ok(())
 		}
+
+		#[pallet::call_index(13)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn printmap(origin: OriginFor<T>) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+
+			let mut count = 0;
+			for (key1, key2, info) in <FillerMap<T>>::iter() {
+				if count == 10 {
+					break;
+				}
+				log::info!("--------------start-------------");
+				log::info!("key1: {:?}, key2: {:?}, value: {:?}, index: {:?}", key1, key2, info, info.index);
+				log::info!("--------------end-------------");
+				count += 1;
+			}
+
+			Ok(())
+		}
 	}
 
 	impl<T: Config> Pallet<T> {
