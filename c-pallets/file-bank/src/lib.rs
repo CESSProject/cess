@@ -338,18 +338,20 @@ pub mod pallet {
 		pub fn upload_declaration(
 			origin: OriginFor<T>,
 			file_hash: Hash,
-			file_info: SegmentList<T>,
+			deal_info: SegmentList<T>,
 			user_brief: UserBrief<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			// Check if you have operation permissions.
 			ensure!(Self::check_permission(sender.clone(), user_brief.user.clone()), Error::<T>::NoPermission);
 			// Check file specifications.
-			ensure!(Self::check_file_spec(&file_info), Error::<T>::SpecError);
+			ensure!(Self::check_file_spec(&deal_info), Error::<T>::SpecError);
 			// Check whether the user-defined name meets the rules.
 			let minimum = T::NameMinLength::get();
 			ensure!(user_brief.file_name >= minimum, Error::<T>::SpecError);
 			ensure!(user_brief.bucket_name >= minimum, Error::<T>::SpecError);
+
+			let needed_space = deal_info.len() as u128 * (SEGMENT_SIZE * 15 / 10);
 			
 			if <File<T>>::contains_key(&file_hash) {
 				
@@ -357,12 +359,12 @@ pub mod pallet {
 				// Check whether the user's storage space is sufficient, 
 				// if sufficient lock user's storage space.
 				// Perform space calculations based on 1.5 times redundancy.
-				T::StorageHandle::lock_user_space(&user_brief.user, file_info.len() as u128 * (SEGMENT_SIZE * 15 / 10))?;
+				T::StorageHandle::lock_user_space(&user_brief.user, needed_space)?;
 
 				let mut needed_list: SegmentList<T> = Default::default();
 				let mut share_info: Vec<SegmentInfo<T>> = Default::default();
 				// Check whether there are segments that can be shared.
-				for (hash, list) in &mut file_info {
+				for (hash, list) in &mut deal_info {
 					if <SegmentMap<T>>::contains_key(hash) {
 						let segment_info = <SegmentMap<T>>::try_mutate(hash, |segment_opt| -> Result<SegmentInfo<T>, DispatchError> {
 							let (segment_info, share_count) = segment_opt.as_mut().ok_or(Error::<T>::BugInvalid)?;
@@ -375,11 +377,14 @@ pub mod pallet {
 					}
 				}
 
-				if share_info.len() == file_info.len() {
+				if share_info.len() == deal_info.len() {
+					T::StorageHandler::update_user_space(&user_brief.user, 1, needed_space)?;
+					if <Bucket<T>>::contains_key()
 
+					Self::generate_file(&file_hash, deal_info, Default::default(), share_info, user_brief, FileState::Active)?;
 				} else {
 					// TODO! Replace the file_hash param
-					let deal_info = Self::generate_deal(file_hash.clone(), needed_list, file_info, user_brief, share_info)?;
+					let deal_info = Self::generate_deal(file_hash.clone(), needed_list, deal_info, user_brief, share_info)?;
 				}
 
 			}
@@ -799,27 +804,58 @@ pub mod pallet {
 		}
 
 		pub fn generate_file(
-			file_hash: Hash,
+			file_hash: &Hash,
 			deal_info: SegmentList<T>,
 			miner_task_list: MinerTaskList<T>,
 			share_info: Vec<SegmentInfo<T>>,
 			user_brief: UserBrief<T>,
+			stat: FileState,
 		) -> DispatchResult {
-			let mut segment_info_list: Vec<SegmentInfo<T>> = Default::default();
+			let mut segment_info_list: BoundedVec<SegmentInfo<T>, T::SegmentCount> = Default::default();
 			for (hash, frag_list) in file_info.iter() {
 				let segment_info = SegmentInfo::<T> {
 					hash: *hash,
-					
-				}
+					fragment_list: Default::default(),
+				};
+
 				for share_segment_info in share_info.iter() {
 					if hash == share_segment_info.hash {
-
+						segment_info.fragment_list = share_segment_info.fragment_list;
+						break;
 					}
 				}
+
+				for frag_hash in frag_list.iter() {
+					for (miner, task_list) in miner_task_list {
+						if task_list.contains(&frag_hash) {
+							let frag_info = FragmentInfo::<T> {
+								hash: frag_hash,
+								avail: true,
+								miner: miner,
+							};
+							segment_info.fragment_list.try_push(frag_info).map_err(|_e| Error::<T>::BoundedVecError)?;
+						}
+					}
+				}
+
+				segment_info_list.try_push(segment_info).map_err(|_e| Error::<T>::BoundedVecError)?;
 			}
+
+			let cur_block = <frame_system::Pallet<T>>::block_number();
+
+			let file_info = FileInfo::<T> {
+				completion: cur_block,
+				stat: stat,
+				segment_list: segment_info_list,
+				owner: user_brief,
+			};
+
+			<File<T>>::insert(file_hash, file_info);
 
 			Ok(())
 		}
+
+		pub fn add_file_to_bucket()
 
 		pub fn generate_deal(
 			file_hash: Hash, 
@@ -841,6 +877,8 @@ pub mod pallet {
 				segment_list: file_info,
 				user: user_brief,
 				assigned_miner: miner_task_list,
+				share_info: share_info.try_into().map_err(|_| Error::<T>::BoundedVecError)?,
+				complete_list: Default::default(),
 			};
 
 			DealMap::insert(&file_hash, deal);

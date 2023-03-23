@@ -26,6 +26,7 @@ pub struct DealInfo<T: Config> {
 	pub(super) user: UserBrief<T>,
 	pub(super) assigned_miner: MinerTaskList<T>,
 	pub(super) share_info: BoundedVec<SegmentInfo<T>, T::SegemtnCount>,
+	pub(super) complete_list: BoundedVec<AccountOf<T>, T::FragmentCount>,
 }
 // [s...]
 // s{acc, [Hash...]}
