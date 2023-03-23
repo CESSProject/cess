@@ -4,8 +4,8 @@ use super::*;
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 // Cess type
-type SegmentList<T> = BoundedVec<(Hash, BoundedVec<Hash, T::FragmentCount>), T::SegmentCount>;
-type MinerTaskList<T> = BoundedVec<(AccountOf<T>, BoundedVec<Hash, T::FragmentCount>), T::FragmentCount>;
+pub(super) type SegmentList<T> = BoundedVec<(Hash, BoundedVec<Hash, <T as pallet::Config>::FragmentCount>),  <T as pallet::Config>::SegmentCount>;
+pub(super) type MinerTaskList<T> = BoundedVec<(AccountOf<T>, BoundedVec<Hash,  <T as pallet::Config>::FragmentCount>),  <T as pallet::Config>::FragmentCount>;
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub(super) enum FileState {
@@ -25,7 +25,7 @@ pub struct DealInfo<T: Config> {
 	pub(super) segment_list: SegmentList<T>,
 	pub(super) user: UserBrief<T>,
 	pub(super) assigned_miner: MinerTaskList<T>,
-	pub(super) share_info: BoundedVec<SegmentInfo<T>, T::SegemtnCount>,
+	pub(super) share_info: BoundedVec<SegmentInfo<T>, T::SegmentCount>,
 	pub(super) complete_list: BoundedVec<AccountOf<T>, T::FragmentCount>,
 }
 // [s...]
@@ -36,7 +36,7 @@ pub struct DealInfo<T: Config> {
 pub struct FileInfo<T: Config> {
 	pub(super) completion: BlockNumberOf<T>,
 	pub(super) stat: FileState,
-	pub(super) segment_list: BoundedVec<SegmentInfo<T>, T::SegemtnCount>,
+	pub(super) segment_list: BoundedVec<SegmentInfo<T>, T::SegmentCount>,
 	pub(super) owner: BoundedVec<UserBrief<T>, T::OwnerLimit>,
 }
 
@@ -45,7 +45,7 @@ pub struct FileInfo<T: Config> {
 #[codec(mel_bound())]
 pub struct SegmentInfo<T: Config> {
 	pub(super) hash: Hash,
-	pub(super) fragment_list: BoundedVec<FragmentInfo<T: Config>, T::FragmentCount>,
+	pub(super) fragment_list: BoundedVec<FragmentInfo<T>, T::FragmentCount>,
 }
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
@@ -63,7 +63,6 @@ pub struct FragmentInfo<T: Config> {
 #[codec(mel_bound())]
 pub struct FillerInfo<T: Config> {
 	pub filler_size: u64,
-	pub index: u32,
 	pub block_num: u32,
 	pub segment_size: u32,
 	pub scan_size: u32,
@@ -74,16 +73,13 @@ pub struct FillerInfo<T: Config> {
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct UserFileSliceInfo {
 	pub(super) file_hash: Hash,
-	pub(super) file_size: u64,
+	pub(super) file_size: u128,
 }
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct BucketInfo<T: Config> {
-	pub(super) total_capacity: u32,
-	pub(super) available_capacity: u32,
-	pub(super) object_num: u32,
 	pub(super) object_list: BoundedVec<Hash, T::FileListLimit>,
 	pub(super) authority: BoundedVec<AccountOf<T>, T::StringLimit>,
 }

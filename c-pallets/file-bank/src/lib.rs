@@ -27,7 +27,7 @@ mod tests;
 use frame_support::traits::{
 	Currency, ExistenceRequirement::AllowDeath, FindAuthor, Randomness, ReservableCurrency,
 	StorageVersion,
-	schedule::{DispatchTime, Named as ScheduleNamed},
+	schedule::{Anon as ScheduleAnon, DispatchTime, Named as ScheduleNamed}, 
 };
 
 pub use pallet::*;
@@ -41,7 +41,13 @@ pub use types::*;
 
 use codec::{Decode, Encode};
 use frame_support::{
-	dispatch::DispatchResult, pallet_prelude::*, transactional, weights::Weight, PalletId,
+	// bounded_vec, 
+	transactional, 
+	PalletId, 
+	dispatch::{Dispatchable, DispatchResult}, 
+	pallet_prelude::*,
+	weights::Weight,
+	traits::schedule,
 };
 use frame_system::pallet_prelude::*;
 use scale_info::TypeInfo;
@@ -86,7 +92,13 @@ pub mod pallet {
 
 		type RuntimeCall: From<Call<Self>>;
 
-		type SScheduler: ScheduleNamed<Self::BlockNumber, Self::SProposal, Self::SPalletsOrigin>;
+		type FScheduler: ScheduleNamed<Self::BlockNumber, Self::SProposal, Self::SPalletsOrigin>;
+
+		type AScheduler: ScheduleAnon<Self::BlockNumber, Self::SProposal, Self::SPalletsOrigin>;
+		/// Overarching type of all pallets origins.
+		type SPalletsOrigin: From<frame_system::RawOrigin<Self::AccountId>>;
+		/// The SProposal.
+		type SProposal: Parameter + Dispatchable<RuntimeOrigin = Self::RuntimeOrigin> + From<Call<Self>>;
 		//Find the consensus of the current block
 		type FindAuthor: FindAuthor<Self::AccountId>;
 		//Used to find out whether the schedule exists
@@ -171,6 +183,8 @@ pub mod pallet {
 	}
 	#[pallet::error]
 	pub enum Error<T> {
+		Existed,
+
 		FileExistent,
 		//file doesn't exist.
 		FileNonExistent,
@@ -222,6 +236,8 @@ pub mod pallet {
 		// This is a bug that is reported only when the most undesirable 
 		// situation occurs during a transaction execution process.
 		PanicOverflow,
+
+		InsufficientAvailableSpace,
 	}
 
 	
@@ -307,10 +323,6 @@ pub mod pallet {
 		pub fn clear_all_filler(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			let mut x = 0;
-			for (_, value) in FillerMap::<T>::iter_prefix(&sender) {
-				<FillerKeysMap<T>>::remove(value.index);
-				x += 1;
-			}
 
 			#[warn(deprecated)]
 			let _ = FillerMap::<T>::remove_prefix(&sender, Option::None);
@@ -347,44 +359,68 @@ pub mod pallet {
 			// Check file specifications.
 			ensure!(Self::check_file_spec(&deal_info), Error::<T>::SpecError);
 			// Check whether the user-defined name meets the rules.
+			
 			let minimum = T::NameMinLength::get();
-			ensure!(user_brief.file_name >= minimum, Error::<T>::SpecError);
-			ensure!(user_brief.bucket_name >= minimum, Error::<T>::SpecError);
+			ensure!(user_brief.file_name.len() as u32 >= minimum, Error::<T>::SpecError);
+			ensure!(user_brief.bucket_name.len() as u32 >= minimum, Error::<T>::SpecError);
 
 			let needed_space = deal_info.len() as u128 * (SEGMENT_SIZE * 15 / 10);
-			
+			ensure!(T::StorageHandle::get_user_avail_space(&user_brief.user)? > needed_space, Error::<T>::InsufficientAvailableSpace);
+
 			if <File<T>>::contains_key(&file_hash) {
-				
+				<File<T>>::try_mutate(&file_hash, |file_opt| -> DispatchResult {
+					let file = file_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
+					file.owner.try_push(user_brief).map_err(|_e| Error::<T>::BoundedVecError)?;
+					Ok(())
+				})?;
+
+				T::StorageHandle::update_user_space(&user_brief.user, 1, needed_space)?;
+
+				if <Bucket<T>>::contains_key(&user_brief.user, &user_brief.bucket_name) {
+						Self::add_file_to_bucket(&user_brief.user, &user_brief.bucket_name, &file_hash)?;
+					} else {
+						Self::create_bucket_helper(&user_brief.user, &user_brief.bucket_name, Some(file_hash))?;
+					}
+
+				Self::add_user_hold_fileslice(&user_brief.user, file_hash, needed_space)?;
 			} else {
 				// Check whether the user's storage space is sufficient, 
 				// if sufficient lock user's storage space.
 				// Perform space calculations based on 1.5 times redundancy.
-				T::StorageHandle::lock_user_space(&user_brief.user, needed_space)?;
-
 				let mut needed_list: SegmentList<T> = Default::default();
 				let mut share_info: Vec<SegmentInfo<T>> = Default::default();
 				// Check whether there are segments that can be shared.
 				for (hash, list) in &mut deal_info {
 					if <SegmentMap<T>>::contains_key(hash) {
 						let segment_info = <SegmentMap<T>>::try_mutate(hash, |segment_opt| -> Result<SegmentInfo<T>, DispatchError> {
-							let (segment_info, share_count) = segment_opt.as_mut().ok_or(Error::<T>::BugInvalid)?;
-							share_count = share_count.checked_add(1).ok_or(Error::<T>::Overflow)?;
-							Ok(segment_info)
+							let segment_info = segment_opt.as_mut().ok_or(Error::<T>::BugInvalid)?;
+							segment_info.1 = segment_info.1.checked_add(1).ok_or(Error::<T>::Overflow)?;
+							Ok(segment_info.0.clone())
 						})?;
 						share_info.push(segment_info);
 					} else {
-						needed_list.try_push((hash, *list)).map_err(|_e| Error::<T>::);
+						needed_list.try_push((*hash, *list)).map_err(|_e| Error::<T>::BoundedVecError)?;
 					}
 				}
 
 				if share_info.len() == deal_info.len() {
-					T::StorageHandler::update_user_space(&user_brief.user, 1, needed_space)?;
-					if <Bucket<T>>::contains_key()
+					T::StorageHandle::update_user_space(&user_brief.user, 1, needed_space)?;
 
 					Self::generate_file(&file_hash, deal_info, Default::default(), share_info, user_brief, FileState::Active)?;
+
+					if <Bucket<T>>::contains_key(&user_brief.user, &user_brief.bucket_name) {
+						Self::add_file_to_bucket(&user_brief.user, &user_brief.bucket_name, &file_hash)?;
+					} else {
+						Self::create_bucket_helper(&user_brief.user, &user_brief.bucket_name, Some(file_hash))?;
+					}
+
+					Self::add_user_hold_fileslice(&user_brief.user, file_hash, needed_space)?;
+
 				} else {
 					// TODO! Replace the file_hash param
 					let deal_info = Self::generate_deal(file_hash.clone(), needed_list, deal_info, user_brief, share_info)?;
+
+					T::StorageHandle::lock_user_space(&user_brief.user, needed_space)?;
 				}
 
 			}
@@ -423,15 +459,16 @@ pub mod pallet {
 			ensure!(Self::check_is_file_owner(&sender, &file_hash), Error::<T>::NotOwner);
 			ensure!(!Self::check_is_file_owner(&target_brief.user, &file_hash), Error::<T>::IsOwned);
 
-			ensure!(file.file_state.to_vec() == FILE_ACTIVE.as_bytes().to_vec(), Error::<T>::Unprepared);
+			ensure!(file.stat == FileState::Active, Error::<T>::Unprepared);
 			ensure!(<Bucket<T>>::contains_key(&target_brief.user, &target_brief.bucket_name), Error::<T>::NonExistent);
 			//Modify the space usage of target acc,
 			//and determine whether the space is enough to support transfer
-			T::StorageHandle::update_user_space(&target_brief.user, 1, file.file_size.into())?;
+			let file_size = Self::cal_file_size(file.segment_list.len() as u128);
+			T::StorageHandle::update_user_space(&target_brief.user, 1, file_size)?;
 			//Increase the ownership of the file for target acc
 			<File<T>>::try_mutate(&file_hash, |file_opt| -> DispatchResult {
 				let file = file_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
-				file.user_brief_list.try_push(target_brief.clone()).map_err(|_| Error::<T>::BoundedVecError)?;
+				file.owner.try_push(target_brief.clone()).map_err(|_| Error::<T>::BoundedVecError)?;
 				Ok(())
 			})?;
 			//Add files to the bucket of target acc
@@ -440,19 +477,19 @@ pub mod pallet {
 				&target_brief.bucket_name,
 				|bucket_info_opt| -> DispatchResult {
 					let bucket_info = bucket_info_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
-					bucket_info.object_num = bucket_info.object_num.checked_add(1).ok_or(Error::<T>::Overflow)?;
 					bucket_info.object_list.try_push(file_hash.clone()).map_err(|_| Error::<T>::LengthExceedsLimit)?;
 					Ok(())
 			})?;
 			//Increase the corresponding space usage for target acc
 			Self::add_user_hold_fileslice(
-				target_brief.user.clone(),
+				&target_brief.user,
 				file_hash.clone(),
-				file.file_size.into(),
+				file_size,
 			)?;
 			//Clean up the file holding information of the original user
 			let _ = Self::clear_bucket_file(&file_hash, &sender, &owner_bucket_name)?;
-			let _ = Self::clear_user_file(file_hash.clone(), &sender, true)?;
+			// TODO! delete
+			// let _ = Self::clear_user_file(file_hash.clone(), &sender, true)?;
 
 			Ok(())
 		}
@@ -469,55 +506,13 @@ pub mod pallet {
 		/// - `slice_info`: List of file slice information.
 		#[pallet::call_index(3)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload(slice_info.len() as u32))]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload(2))]
 		pub fn upload(
 			origin: OriginFor<T>,
 			file_hash: Hash,
-			file_size: u64,
-			slice_info: Vec<SliceInfo<T>>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			ensure!(
-				T::Scheduler::contains_scheduler(sender.clone()),
-				Error::<T>::ScheduleNonExistent
-			);
-			ensure!(<File<T>>::contains_key(&file_hash), Error::<T>::FileNonExistent);
-
-			<File<T>>::try_mutate(&file_hash, |s_opt| -> DispatchResult {
-				let s = s_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
-				for user_brief in s.user_brief_list.iter() {
-					T::StorageHandle::update_user_space(&user_brief.user, 1, file_size.into())?;
-					Self::add_user_hold_fileslice(
-						user_brief.user.clone(),
-						file_hash.clone(),
-						file_size,
-					)?;
-				}
-				if s.file_state.to_vec() == FILE_ACTIVE.as_bytes().to_vec() {
-					Err(Error::<T>::FileExistent)?;
-				}
-				s.file_size = file_size;
-				s.slice_info =
-					slice_info.clone().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
-				s.file_state = FILE_ACTIVE
-					.as_bytes()
-					.to_vec()
-					.try_into()
-					.map_err(|_| Error::<T>::BoundedVecError)?;
-				if !<FileKeysMap<T>>::contains_key(s.index) {
-					<FileKeysMap<T>>::insert(s.index, (true, file_hash.clone()));
-				}
-				Ok(())
-			})?;
-
-			//To be tested
-			for v in slice_info.iter() {
-				Self::replace_file(v.miner_acc.clone(), v.shard_size)?;
-			}
-
-			Self::record_uploaded_files_size(&sender, file_size)?;
-
-			Self::deposit_event(Event::<T>::FileUpload { acc: sender.clone() });
+			
 			Ok(())
 		}
 
@@ -551,18 +546,13 @@ pub mod pallet {
 			if !(miner_state == "positive".as_bytes().to_vec()) {
 				Err(Error::<T>::NotQualified)?;
 			}
-			let mut count: u32 = <FillerIndexCount<T>>::get();
 			for i in filler_list.iter() {
-				count = count.checked_add(1).ok_or(Error::<T>::Overflow)?;
 				if <FillerMap<T>>::contains_key(&miner, i.filler_hash.clone()) {
 					Err(Error::<T>::FileExistent)?;
 				}
 				let mut value = i.clone();
-				value.index = count;
 				<FillerMap<T>>::insert(miner.clone(), i.filler_hash.clone(), value);
-				<FillerKeysMap<T>>::insert(count, (miner.clone(), i.filler_hash.clone()));
 			}
-			<FillerIndexCount<T>>::put(count);
 
 			let power = M_BYTE
 				.checked_mul(8)
@@ -574,72 +564,6 @@ pub mod pallet {
 			Self::record_uploaded_fillers_size(&sender, &filler_list)?;
 
 			Self::deposit_event(Event::<T>::FillerUpload { acc: sender, file_size: power as u64 });
-			Ok(())
-		}
-		/// User deletes uploaded files.
-		///
-		/// The dispatch origin of this call must be Signed.
-		///
-		/// If a file has multiple holders,
-		/// only the user's ownership of the file will be deleted
-		/// and the space purchased by the user will be released
-		///
-		/// Parameters:
-		/// - `fileid`: For which miner, miner's wallet address.
-		#[pallet::call_index(5)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::delete_file())]
-		pub fn delete_file(origin: OriginFor<T>, owner: AccountOf<T>, file_hash_list: Vec<Hash>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			let mut delete_failed_list: Vec<Hash> = Default::default();
-			for file_hash in file_hash_list.iter() {
-				if !<File<T>>::contains_key(file_hash) {
-					delete_failed_list.push(*file_hash);
-					continue;
-				}
-				if !Self::check_permission(sender.clone(), owner.clone()) {
-					delete_failed_list.push(*file_hash);
-					continue;
-				}
-
-				let file = match <File<T>>::try_get(file_hash) {
-					Ok(file) => file,
-					Err(_e) => {
-						delete_failed_list.push(*file_hash);
-						continue;
-					},
-				}; //read 1
-
-				let mut result: bool = false;
-				for user_brief_temp in file.user_brief_list.iter() {
-					if user_brief_temp.user == owner.clone() {
-						//The above has been judged. Unwrap will be performed only if the key exists
-						let _ = match Self::clear_bucket_file(file_hash, &owner, &user_brief_temp.bucket_name) {
-							Ok(weight) => weight,
-							Err(_e) => {
-								delete_failed_list.push(*file_hash);
-								continue;
-							},
-						};
-
-						let _ = match Self::clear_user_file(*file_hash, &owner, file.user_brief_list.len() > 1){
-							Ok(weight) => weight,
-							Err(_e) => {
-								delete_failed_list.push(*file_hash);
-								continue;
-							},
-						};
-
-						result = true;
-						break;
-					}
-				}
-				if !result {
-					delete_failed_list.push(*file_hash);
-					continue;
-				}
-			}		
-			Self::deposit_event(Event::<T>::DeleteFile { operator: sender, owner, file_hash_list: file_hash_list,  failed_list: delete_failed_list });
 			Ok(())
 		}
 		/// Clean up invalid idle files
@@ -661,59 +585,7 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::ClearInvalidFile { acc: sender, file_hash });
 			Ok(())
 		}
-		/// Recover files.
-		///
-		/// The dispatch origin of this call must be Signed.
-		///
-		/// When one or more slices of the service file have problems,
-		/// the file needs to be scheduled for recovery.
-		/// When more than one third of the contents of the file are damaged,
-		/// the file cannot be recovered.
-		///
-		/// Parameters:
-		/// - `shard_id`: Corrupt file slice id.
-		/// - `slice_info`: New slice information.
-		/// - `avail`: Whether the file can be recovered normally.
-		#[pallet::call_index(10)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::recover_file())]
-		pub fn recover_file(
-			origin: OriginFor<T>,
-			shard_id: [u8; 68],
-			slice_info: SliceInfo<T>,
-			avail: bool,
-		) -> DispatchResult {
-			//Vec to BoundedVec
-			let sender = ensure_signed(origin)?;
-			//Get fileid from shardid,
-			let file_hash = Hash::from_shard_id(&shard_id).map_err(|_| Error::<T>::ConvertHashError)?;
-			//Delete the corresponding recovery slice request pool
-			<FileRecovery<T>>::try_mutate(&sender, |o| -> DispatchResult {
-				o.retain(|x| *x != shard_id);
-				Ok(())
-			})?;
-			if !<File<T>>::contains_key(&file_hash) {
-				Err(Error::<T>::FileNonExistent)?;
-			}
-			if avail {
-				<File<T>>::try_mutate(&file_hash, |opt| -> DispatchResult {
-					let o = opt.as_mut().unwrap();
-					o.slice_info
-						.try_push(slice_info)
-						.map_err(|_| Error::<T>::StorageLimitReached)?;
-					o.file_state = FILE_ACTIVE
-						.as_bytes()
-						.to_vec()
-						.try_into()
-						.map_err(|_e| Error::<T>::BoundedVecError)?;
-					Ok(())
-				})?;
-			} else {
-				let _weight = Self::clear_file(file_hash)?;
-			}
-			Self::deposit_event(Event::<T>::RecoverFile { acc: sender, file_hash: shard_id });
-			Ok(())
-		}
+
 
 		#[pallet::call_index(11)]
 		#[transactional]
@@ -728,9 +600,6 @@ pub mod pallet {
 			ensure!(!<Bucket<T>>::contains_key(&sender, &name), Error::<T>::SameBucketName);
 			ensure!(name.len() >= T::NameMinLength::get() as usize, Error::<T>::LessMinLength);
 			let bucket = BucketInfo::<T>{
-				total_capacity: 0,
-				available_capacity: 0,
-				object_num: 0,
 				object_list: Default::default(),
 				authority: vec![owner.clone()].try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
 			};
@@ -764,7 +633,6 @@ pub mod pallet {
 			let bucket = <Bucket<T>>::try_get(&owner, &name).map_err(|_| Error::<T>::Unexpected)?;
 			for file_hash in bucket.object_list.iter() {
 				let file = <File<T>>::try_get(file_hash).map_err(|_| Error::<T>::Unexpected)?;
-				Self::clear_user_file(*file_hash, &owner, file.user_brief_list.len() > 1)?;
 			}
 			<Bucket<T>>::remove(&owner, &name);
 			<UserBucketList<T>>::try_mutate(&owner, |bucket_list| -> DispatchResult {
@@ -812,14 +680,14 @@ pub mod pallet {
 			stat: FileState,
 		) -> DispatchResult {
 			let mut segment_info_list: BoundedVec<SegmentInfo<T>, T::SegmentCount> = Default::default();
-			for (hash, frag_list) in file_info.iter() {
+			for (hash, frag_list) in deal_info.iter() {
 				let segment_info = SegmentInfo::<T> {
 					hash: *hash,
 					fragment_list: Default::default(),
 				};
 
 				for share_segment_info in share_info.iter() {
-					if hash == share_segment_info.hash {
+					if hash == &share_segment_info.hash {
 						segment_info.fragment_list = share_segment_info.fragment_list;
 						break;
 					}
@@ -827,9 +695,9 @@ pub mod pallet {
 
 				for frag_hash in frag_list.iter() {
 					for (miner, task_list) in miner_task_list {
-						if task_list.contains(&frag_hash) {
+						if task_list.contains(frag_hash) {
 							let frag_info = FragmentInfo::<T> {
-								hash: frag_hash,
+								hash: *frag_hash,
 								avail: true,
 								miner: miner,
 							};
@@ -847,7 +715,7 @@ pub mod pallet {
 				completion: cur_block,
 				stat: stat,
 				segment_list: segment_info_list,
-				owner: user_brief,
+				owner: vec![user_brief].try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
 			};
 
 			<File<T>>::insert(file_hash, file_info);
@@ -855,7 +723,41 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub fn add_file_to_bucket()
+		pub fn create_bucket_helper(
+			user: &AccountOf<T>, 
+			bucket_name: &BoundedVec<u8, T::NameStrLimit>, 
+			file_hash: Option<Hash>,
+		) -> DispatchResult {
+			// TODO! len() & ?
+			ensure!(bucket_name.len() >= 3, Error::<T>::LessMinLength);
+			ensure!(!<Bucket<T>>::contains_key(user, bucket_name), Error::<T>::Existed);
+
+			let mut bucket = BucketInfo::<T> {
+				object_list: Default::default(),
+				authority: vec![*user].try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
+			};
+
+			if let Some(hash) = file_hash {
+				bucket.object_list.try_push(hash).map_err(|_e| Error::<T>::BoundedVecError)?;
+			}
+
+			<Bucket<T>>::insert(user, bucket_name, bucket);
+
+			Ok(())
+		}
+
+		pub fn add_file_to_bucket(
+			user: &AccountOf<T>, 
+			bucket_name: &BoundedVec<u8, T::NameStrLimit>, 
+			file_hash: &Hash,
+		) -> DispatchResult {
+			<Bucket<T>>::try_mutate(user, bucket_name, |bucket_opt| -> DispatchResult {
+				let bucket = bucket_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
+				bucket.object_list.try_push(*file_hash).map_err(|_e| Error::<T>::BoundedVecError)?;
+
+				Ok(())
+			})
+		}
 
 		pub fn generate_deal(
 			file_hash: Hash, 
@@ -864,11 +766,11 @@ pub mod pallet {
 			user_brief: UserBrief<T>,
 			share_info: Vec<SegmentInfo<T>>,
 		) -> DispatchResult {
-			let task_id: Vec<u8> = file_hash.0.to_vec(); // TODO!
+			let task_id: [u8; 32] = file_hash.0[0 .. 32].try_into().map_err(|_e| Error::<T>::BoundedVecError)?; // TODO!
 
 			let miner_task_list = Self::random_assign_miner(needed_list)?;
 
-			Self::start_first_task(task_id.clone())?;
+			// Self::start_first_task(task_id.clone())?;
 
 			let deal = DealInfo::<T> {
 				stage: 1,
@@ -886,33 +788,33 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub fn start_first_task(task_id: Vec<u8>) -> DispatchResult {
-			let start: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
-			let survival_block = start.checked_add(600 * file_info.len()).ok_or(Error::<T>::Overflow)?;
+		// pub fn start_first_task(task_id: Vec<u8>, count: u32) -> DispatchResult {
+		// 	let start: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
+		// 	let survival_block = start.checked_add(600 * count).ok_or(Error::<T>::Overflow)?;
 
-			T::SScheduler::schedule_named(
-					task_id, // TODO!
-					DispatchTime::At(survival_block.saturated_into()),
-					Option::None,
-					schedule::HARD_DEADLINE,
-					frame_system::RawOrigin::Root.into(),
-					Call::reassign_deal{file_hash: file_hash.clone()}.into(), // TODO!
-			).map_err(|_| Error::<T>::Unexpected)?;
+		// 	T::SScheduler::schedule_named(
+		// 			task_id, // TODO!
+		// 			DispatchTime::At(survival_block.saturated_into()),
+		// 			Option::None,
+		// 			schedule::HARD_DEADLINE,
+		// 			frame_system::RawOrigin::Root.into(),
+		// 			Call::reassign_deal{file_hash: file_hash.clone()}.into(), // TODO!
+		// 	).map_err(|_| Error::<T>::Unexpected)?;
 
-			Ok(())
-		}
+		// 	Ok(())
+		// }
 
-		pub fn random_assign_miner(needed_list: Vec<Hash>) -> Result<MinerTaskList<T>, DispatchError> {
+		pub fn random_assign_miner(needed_list: SegmentList<T>) -> Result<MinerTaskList<T>, DispatchError> {
 			let mut index_list: Vec<u32> = Default::default();
 			let mut miner_task_list: MinerTaskList<T> = Default::default();
 			let mut miner_idle_space_list: Vec<u128> = Default::default();
 			// The optimal number of miners required for storage.
 			// segment_size * 1.5 / fragment_size.
-			let miner_count = SEGMENT_SIZE * 15 / 10 / FRAGMENT_SIZE;
+			let miner_count: u32 = (SEGMENT_SIZE * 15 / 10 / FRAGMENT_SIZE) as u32;
 			let mut seed = <frame_system::Pallet<T>>::block_number().saturated_into();
 
 			let all_miner = T::MinerControl::get_all_miner()?;
-			let total = all_miner.len();
+			let total = all_miner.len() as u32;
 
 			ensure!(total > miner_count, Error::<T>::NodesInsuffcient);
 			// Maximum number of cycles set to prevent dead cycles
@@ -922,7 +824,7 @@ pub mod pallet {
 			// start random choose miner
 			loop {
 				// Get a random subscript.
-				let index = Self::generate_random_number(seed)? % total;
+				let index = Self::generate_random_number(seed)? as u32 % total;
 				// seed + 1
 				seed = seed.checked_add(1).ok_or(Error::<T>::Overflow)?;
 				// Number of cycles plus 1
@@ -932,27 +834,27 @@ pub mod pallet {
 					break;
 				}
 				// End the cycle after all storage nodes have been traversed.
-				if total == index_list {
+				if total == index_list.len() as u32 {
 					break;
 				}
 				// Continue to the next cycle when the current random result already exists.
-				if index_list::contains(index) {
+				if index_list.contains(&index) {
 					continue;
 				}
 				// Record current cycle results.
 				index_list.push(index);
 				// Judge whether the idle space of the miners is sufficient.
 				let miner = all_miner[index as usize];
-				let cur_space = T::MinerControl::get_miner_idle_space(&miner);
+				let cur_space: u128 = T::MinerControl::get_miner_idle_space(&miner)?;
 				// If sufficient, the miner is selected.
-				if cur_space > needed_list.len() * FRAGMENT_SIZE {
+				if cur_space > needed_list.len() as u128 * FRAGMENT_SIZE {
 					// Accumulate all idle space of currently selected miners
-					total_idle_space = total_idle_space.checked_add(cur_space).ok_or(Error::<T>::Overflow)?;
+					total_idle_space = total_idle_space.checked_add(&cur_space).ok_or(Error::<T>::Overflow)?;
 					miner_task_list.try_push((miner, Default::default())).map_err(|_e| Error::<T>::BoundedVecError)?;
 					miner_idle_space_list.push(cur_space);
 				}
 				// If the selected number of miners has reached the optimal number, the cycle ends.
-				if miner_task_list.len() == miner_count {
+				if miner_task_list.len() as u32 == miner_count {
 					break;
 				}
 			}
@@ -970,12 +872,12 @@ pub mod pallet {
 					loop {
 						// Obtain the account of the storage node through the subscript.
 						// To prevent exceeding the boundary, use '%'.
-						temp_index = index % miner_task_list.len();
+						let temp_index = index % miner_task_list.len();
 						let cur_space = miner_idle_space_list[temp_index];
 						// To prevent a miner from storing multiple fragments, 
 						// the idle space is insufficient
-						if cur_space > (miner_task_list[temp_index].1.len() + 1) * FRAGMENT_SIZE {
-							miner_task_list[temp_index].1.try_push(*hash).map_err(|_e| Error::<T>::BoundedVecError)?;
+						if cur_space > (miner_task_list[temp_index].1.len() as u128 + 1) * FRAGMENT_SIZE {
+							miner_task_list[temp_index].1.try_push(hash.clone()).map_err(|_e| Error::<T>::BoundedVecError)?;
 							break;
 						}
 						index = index.checked_add(1).ok_or(Error::<T>::PanicOverflow)?;
@@ -984,267 +886,16 @@ pub mod pallet {
 				}
 			}
 			// lock miner space
-			for (acc, task_hash_list) in miner_task_list {
-				T::MinerControl::lock_space(acc, task_hash_list.len() * FRAGMENT_SIZE)?;
+			for (acc, task_hash_list) in miner_task_list.iter() {
+				T::MinerControl::lock_space(acc, task_hash_list.len() as u128 * FRAGMENT_SIZE)?;
 			}
 			 
 			
 			Ok(miner_task_list)
 		}
-		/// helper: Generate random challenge data.
-		///
-		/// Generate random challenge data, package and return.
-		/// Extract 4.6% of idle documents,
-		/// and then extract 4.6% of service documents
-		///
-		/// Parameters:
-		///
-		/// Result:
-		/// - `Vec<(AccountOf<T>, Vec<u8>, Vec<u8>, u64, u8)>`: Returns a tuple.
-		/// - `tuple.0`: miner AccountId.
-		/// - `tuple.1`: filler id or shard id
-		/// - `tuple.2`: List of extracted blocks.
-		/// - `tuple.3`: file size or shard size.
-		/// - `tuple.4`: file type 1 or 2, 1 is file slice, 2 is filler.
-		pub fn get_random_challenge_data(
-		) -> Result<Vec<(AccountOf<T>, Hash, [u8; 68], Vec<u32>, u64, DataType)>, DispatchError> {
-			log::info!("get random filler...");
-			let filler_list = Self::get_random_filler()?;
-			log::info!("get random filler success");
-			let mut data: Vec<(AccountOf<T>, Hash, [u8; 68], Vec<u32>, u64, DataType)> = Vec::new();
-			log::info!("storage filler data...");
-			for v in filler_list {
-				let length = v.block_num;
-				let number_list = Self::get_random_numberlist(length, 3, length)?;
-				let miner_acc = v.miner_address.clone();
-				let filler_hash = v.filler_hash.clone();
-				let file_size = v.filler_size.clone();
-				let mut block_list: Vec<u32> = Vec::new();
-				for i in number_list.iter() {
-					block_list.push(*i as u32);
-				}
-				data.push((miner_acc, filler_hash, [0u8; 68], block_list, file_size, DataType::Filler));
-			}
-			log::info!("storage filler success!");
-			log::info!("get file data...");
-			let file_list = Self::get_random_file()?;
-			log::info!("get file data success!");
-			log::info!("storage filler data...");
-			for (_, file) in file_list {
-				let slice_number_list = Self::get_random_numberlist(
-					file.slice_info.len() as u32,
-					3,
-					file.slice_info.len() as u32,
-				)?;
-				for slice_index in slice_number_list.iter() {
-					let index_temp = *slice_index - 1;
-					let miner_id = T::MinerControl::get_miner_id(
-						file.slice_info[index_temp as usize].miner_acc.clone(),
-					)?;
-					if file.slice_info[index_temp as usize].miner_id != miner_id {
-						continue
-					}
-					let mut block_list: Vec<u32> = Vec::new();
-					let length = file.slice_info[index_temp as usize].block_num;
-					let number_list = Self::get_random_numberlist(length, 3, length)?;
-					let file_hash = Hash::from_shard_id(&file.slice_info[index_temp as usize].shard_id).map_err(|_| Error::<T>::ConvertHashError)?;
-					let miner_acc = file.slice_info[index_temp as usize].miner_acc.clone();
-					let slice_size = file.slice_info[index_temp as usize].shard_size;
-					for i in number_list.iter() {
-						block_list.push(*i as u32);
-					}
-					data.push((miner_acc, file_hash, file.slice_info[index_temp as usize].shard_id, block_list, slice_size, DataType::File));
-				}
-				log::info!("storage filler success!");
-			}
 
-			Ok(data)
-		}
-		/// helper: get random filler.
-		///
-		/// Extract 4.6% of idle documents,
-		///
-		/// Parameters:
-		///
-		/// Result:
-		/// - `Vec<FillerInfo<T>>`: Fill file information list.
-		fn get_random_filler() -> Result<Vec<FillerInfo<T>>, DispatchError> {
-			let length = Self::get_fillermap_length()?;
-			log::info!("filler length: {}", length);
-			let limit = <FillerIndexCount<T>>::get();
-			log::info!("filler limit: {}", limit);
-			log::info!("get filler random data...");
-			let number_list = Self::get_random_numberlist(length, 1, limit)?;
-			log::info!("get filler random data success");
-			let mut filler_list: Vec<FillerInfo<T>> = Vec::new();
-			for i in number_list.iter() {
-				let result = <FillerKeysMap<T>>::get(i);
-				let (acc, filler_hash) = match result {
-					Some(x) => x,
-					None => Err(Error::<T>::BugInvalid)?,
-				};
-				let filler =
-					<FillerMap<T>>::try_get(acc, filler_hash).map_err(|_e| Error::<T>::BugInvalid)?;
-				filler_list.push(filler);
-			}
-			Ok(filler_list)
-		}
-		/// helper: get random file.
-		///
-		/// Extract 4.6% of service documents,
-		///
-		/// Parameters:
-		///
-		/// Result:
-		/// - `Vec<(BoundedString<T>, FileInfo<T>)>`: Fill file information list.
-		fn get_random_file() -> Result<Vec<(Hash, FileInfo<T>)>, DispatchError> {
-			let length = Self::get_tee_worker_length()?;
-			log::info!("file length: {}", length);
-			let limit = <FileIndexCount<T>>::get();
-			log::info!("file limit: {}", limit);
-			log::info!("file random number start generate...");
-			let number_list = Self::get_random_numberlist(length, 2, limit)?;
-			log::info!("file random number generate success!");
-			let mut file_list: Vec<(Hash, FileInfo<T>)> = Vec::new();
-			for i in number_list.iter() {
-				let file_id =
-					<FileKeysMap<T>>::try_get(i).map_err(|_e| Error::<T>::FileNonExistent)?.1;
-				let value =
-					<File<T>>::try_get(&file_id).map_err(|_e| Error::<T>::FileNonExistent)?;
-				if value.file_state.to_vec() == FILE_ACTIVE.as_bytes().to_vec() {
-					file_list.push((file_id.clone(), value));
-				}
-			}
-			Ok(file_list)
-		}
-		/// helper: get random number list.
-		///
-		/// Method to get random subscript array.
-		///
-		/// Parameters:
-		/// - `length`: Total number of randomly extracted files.
-		/// - `random_type`: Random type.
-		/// - `limit`: What is the upper limit of the acquisition range.
-		/// Result:
-		/// - `Vec<u32>`: random number list.
-		fn get_random_numberlist(
-			length: u32,
-			random_type: u8,
-			limit: u32,
-		) -> Result<Vec<u32>, DispatchError> {
-			log::info!("random number generate start...");
-			let mut seed: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
-			if length == 0 {
-				return Ok(Vec::new())
-			}
-			let num = match random_type {
-				1 => length
-					.checked_mul(46)
-					.ok_or(Error::<T>::Overflow)?
-					.checked_div(1000)
-					.ok_or(Error::<T>::Overflow)?
-					.checked_add(1)
-					.ok_or(Error::<T>::Overflow)?,
-				2 => length
-					.checked_mul(46)
-					.ok_or(Error::<T>::Overflow)?
-					.checked_div(1000)
-					.ok_or(Error::<T>::Overflow)?
-					.checked_add(1)
-					.ok_or(Error::<T>::Overflow)?,
-				_ => length
-					.checked_mul(46)
-					.ok_or(Error::<T>::Overflow)?
-					.checked_div(1000)
-					.ok_or(Error::<T>::Overflow)?
-					.checked_add(1)
-					.ok_or(Error::<T>::Overflow)?,
-			};
-			log::info!("num is: {}", num);
-			let mut number_list: Vec<u32> = Vec::new();
-			log::info!("goto in loop...");
-			loop {
-				seed = seed.checked_add(1).ok_or(Error::<T>::Overflow)?;
-				log::info!("seed is: {}, list len: {}, num is: {}, length: {}, limit: {}", seed, number_list.len(), num, length, limit);
-				if number_list.len() >= num as usize {
-					number_list.sort();
-					number_list.dedup();
-					if number_list.len() >= num as usize {
-						break
-					}
-				}
-
-				let random = Self::generate_random_number(seed)? % limit + 1;
-				let result: bool = match random_type {
-					1 => Self::judge_filler_exist(random),
-					2 => Self::judge_file_exist(random),
-					_ => true,
-				};
-				log::info!("random is: {}, is exist: {}", random, result);
-				if !result {
-					//Start the next cycle if the file does not exist
-					continue
-				}
-				number_list.push(random);
-			}
-			Ok(number_list)
-		}
-		/// helper: judge_file_exist.
-		///
-		/// Help method for generating random files.
-		/// Used to determine whether the file of the subscript exists.
-		///
-		/// Parameters:
-		/// - `index`: file index.
-		/// Result:
-		/// - `bool`: True represents existence, False represents unexistence.
-		fn judge_file_exist(index: u32) -> bool {
-			let result = <FileKeysMap<T>>::get(index);
-			let result = match result {
-				Some(x) => x.0,
-				None => false,
-			};
-			result
-		}
-		/// helper: judge filler exist.
-		///
-		/// Help method for generating random fillers.
-		/// Used to determine whether the filler of the subscript exists.
-		///
-		/// Parameters:
-		/// - `index`: filler index.
-		/// Result:
-		/// - `bool`: True represents existence, False represents unexistence.
-		fn judge_filler_exist(index: u32) -> bool {
-			let result = <FillerKeysMap<T>>::get(index);
-			let result = match result {
-				Some(_x) => true,
-				None => false,
-			};
-			result
-		}
-		/// helper: get fillermap length.
-		///
-		/// Gets the length of the padding filler.
-		///
-		/// Parameters:
-		/// - `index`: filler index.
-		/// Result:
-		/// - `u32`: Length of the whole network filling file.
-		fn get_fillermap_length() -> Result<u32, DispatchError> {
-			let count = <FillerKeysMap<T>>::count();
-			Ok(count)
-		}
-		/// helper: get TeeWorker length.
-		///
-		/// Gets the length of the padding file.
-		///
-		/// Parameters:
-		/// - `index`: filler index.
-		/// Result:
-		/// - `bool`: Length of the whole network service file.
-		fn get_tee_worker_length() -> Result<u32, DispatchError> {
-			Ok(<FileKeysMap<T>>::count())
+		fn cal_file_size(len: u128) -> u128 {
+			len * (SEGMENT_SIZE * 15 / 10)
 		}
 		/// helper: generate random number.
 		///
@@ -1285,40 +936,9 @@ pub mod pallet {
 			}
 			let value = <FillerMap<T>>::try_get(&miner_acc, filler_hash.clone()) //read 1
 				.map_err(|_e| Error::<T>::FileNonExistent)?;
-			<FillerKeysMap<T>>::remove(value.index); //write 1
 			<FillerMap<T>>::remove(miner_acc, filler_hash.clone()); //write 1
 
 			Ok(())
-		}
-		/// helper: clear file.
-		///
-		/// delete file.
-		///
-		/// Parameters:
-		/// - `file_hash`: file hash.
-		///
-		/// Result:
-		/// - DispatchResult
-		pub fn clear_file(file_hash: Hash) -> Result<Weight, DispatchError> {
-			let mut weight: Weight = Weight::from_ref_time(0);
-			let file =
-					<File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::FileNonExistent)?; //read 1
-			  weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
-			for user_brief in file.user_brief_list.iter() {
-				T::StorageHandle::update_user_space(&user_brief.user, 2, file.file_size.into())?; //read 1 write 1 * n
-				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-			}
-			for slice in file.slice_info.iter() {
-				let hash = Hash::from_shard_id(&slice.shard_id).map_err(|_| Error::<T>::ConvertHashError)?;
-				Self::add_invalid_file(slice.miner_acc.clone(), hash)?; //read 1 write 1 * n
-				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-				T::MinerControl::sub_miner_service_space(&slice.miner_acc, slice.shard_size.into())?; //read 3 write 2
-				T::StorageHandle::sub_total_service_space(slice.shard_size.into())?;
-				weight = weight.saturating_add(T::DbWeight::get().reads_writes(3, 2));
-			}
-			<File<T>>::remove(file_hash);
-			<FileKeysMap<T>>::remove(file.index);
-			Ok(weight)
 		}
 
 		pub fn clear_bucket_file(
@@ -1340,91 +960,11 @@ pub mod pallet {
 					index = index.checked_add(1).ok_or(Error::<T>::Overflow)?;
 				}
 				bucket.object_list.remove(index);
-				bucket.object_num = bucket.object_num.checked_sub(1).ok_or(Error::<T>::Overflow)?;
 				Ok(())
 			})?;
 			weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
 			Ok(weight)
-		}
-		/// helper: clear user file.
-		///
-		/// Remove a holder from the file.
-		/// If a file has no holder, it will be cleaned up
-		///
-		/// Parameters:
-		/// - `file_hash`: file hash.
-		/// - `user`: hloder AccountId
-		///
-		/// Result:
-		/// - DispatchResult
-		pub fn clear_user_file(
-			file_hash: Hash,
-			user: &AccountOf<T>,
-			is_multi: bool,
-		) -> Result<Weight, DispatchError> {
-			let mut weight: Weight = Weight::from_ref_time(0);
-			//If the file still has an owner, only the corresponding owner will be cleared.
-			//If the owner is unique, the file meta information will be cleared.
-			if is_multi {
-				//read 1 write 1
-				let mut file_size: u64 = 0;
-				<File<T>>::try_mutate(&file_hash, |s_opt| -> DispatchResult {
-					let s = s_opt.as_mut().unwrap();
-					file_size = s.file_size;
-					let mut index: usize = 0;
-					for user_brief in s.user_brief_list.iter() {
-						if user_brief.user == user.clone() {
-							break
-						}
-						index = index.checked_add(1).ok_or(Error::<T>::Overflow)?;
-					}
-					weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-					s.user_brief_list.remove(index);
-					Ok(())
-				})?;
-				T::StorageHandle::update_user_space(&user, 2, file_size.into())?; //read 1 write 1
-				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-			} else {
-				let weight_temp = Self::clear_file(file_hash.clone())?;
-				weight = weight.saturating_add(weight_temp);
-			}
-			//read 1 write 1
-			<UserHoldFileList<T>>::try_mutate(&user, |s| -> DispatchResult {
-				s.retain(|x| x.file_hash != file_hash.clone());
-				Ok(())
-			})?;
-			weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-			Ok(weight)
-		}
-		/// helper: add recovery file.
-		///
-		/// Create a recovery task,
-		/// and the executor is the consensus of the current block
-		///
-		/// Parameters:
-		/// - `shard id`: shard id.
-		///
-		/// Result:
-		/// - DispatchResult
-		pub fn add_recovery_file(shard_id: [u8; 68]) -> DispatchResult {
-			let acc = Self::get_current_scheduler()?;
-			let file_id = Hash::from_shard_id(&shard_id).map_err(|_| Error::<T>::ConvertHashError)?;
-			if !<File<T>>::contains_key(&file_id) {
-				Err(Error::<T>::FileNonExistent)?;
-			}
-			<File<T>>::try_mutate(&file_id, |opt| -> DispatchResult {
-				let o = opt.as_mut().unwrap();
-				o.slice_info.retain(|x| x.shard_id.to_vec() != shard_id);
-				Ok(())
-			})?; //read 1 write 1
-			<FileRecovery<T>>::try_mutate(&acc, |o| -> DispatchResult {
-				o.try_push(shard_id.try_into().map_err(|_e| Error::<T>::BoundedVecError)?)
-					.map_err(|_e| Error::<T>::StorageLimitReached)?;
-				Ok(())
-			})?; //read 1 write 1
-
-			Ok(())
 		}
 		/// helper: replace file.
 		///
@@ -1515,13 +1055,13 @@ pub mod pallet {
 		/// Result:
 		/// - DispatchResult
 		fn add_user_hold_fileslice(
-			user: AccountOf<T>,
+			user: &AccountOf<T>,
 			file_hash: Hash,
-			file_size: u64,
+			file_size: u128,
 		) -> DispatchResult {
 			let file_info =
-				UserFileSliceInfo { file_hash: file_hash.clone(), file_size };
-			<UserHoldFileList<T>>::try_mutate(&user, |v| -> DispatchResult {
+				UserFileSliceInfo { file_hash: file_hash, file_size };
+			<UserHoldFileList<T>>::try_mutate(user, |v| -> DispatchResult {
 				v.try_push(file_info).map_err(|_| Error::<T>::StorageLimitReached)?;
 				Ok(())
 			})?;
@@ -1557,36 +1097,13 @@ pub mod pallet {
 		/// - file_hash: File hash, the unique identifier of the file.
 		pub fn check_is_file_owner(acc: &AccountOf<T>, file_hash: &Hash) -> bool {
 			if let Some(file) = <File<T>>::get(file_hash) {
-				for user_brief in file.user_brief_list.iter() {
+				for user_brief in file.owner.iter() {
 					if &user_brief.user == acc {
 						return true;
 					}
 				}
 			}
 			false
-		}
-		/// helper: clear expired file.
-		///
-		/// It is used to perform the final step
-		/// when the user's space expires
-		/// and no renewal is performed within the specified time
-		///
-		/// Parameters:
-		/// - `acc`: AccountId.
-		///
-		/// Result:
-		/// - DispatchResult
-		fn clear_expired_file(acc: &AccountOf<T>) -> Result<Weight, DispatchError> {
-			let mut weight: Weight = Weight::from_ref_time(0);
-			let file_list =
-				<UserHoldFileList<T>>::try_get(&acc).map_err(|_| Error::<T>::Overflow)?;
-			for v in file_list.iter() {
-				let file = <File<T>>::try_get(&v.file_hash).map_err(|_| Error::<T>::Overflow)?;
-				let weight_temp = Self::clear_user_file(v.file_hash.clone(), acc, file.user_brief_list.len() > 1)?;
-				weight = weight.saturating_add(weight_temp);
-			}
-
-			Ok(weight)
 		}
 		/// helper: Permission check method.
 		/// Check whether the origin has the owner's authorization
@@ -1637,8 +1154,7 @@ pub trait RandomFileList<AccountId> {
 impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Pallet<T> {
 	fn get_random_challenge_data(
 	) -> Result<Vec<(AccountOf<T>, Hash, [u8; 68], Vec<u32>, u64, DataType)>, DispatchError> {
-		let result = Pallet::<T>::get_random_challenge_data()?;
-		Ok(result)
+		Ok(Default::default())
 	}
 
 	fn delete_filler(miner_acc: AccountOf<T>, filler_hash: Hash) -> DispatchResult {
@@ -1648,7 +1164,6 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 	fn delete_miner_all_filler(miner_acc: AccountOf<T>) -> Result<Weight, DispatchError> {
 		let mut weight: Weight = Weight::from_ref_time(0);
 		for (_, value) in FillerMap::<T>::iter_prefix(&miner_acc) {
-			<FillerKeysMap<T>>::remove(value.index);
 			weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
 		}
 		#[allow(deprecated)]
@@ -1658,7 +1173,7 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 	}
 
 	fn clear_file(file_hash: Hash) -> Result<Weight, DispatchError> {
-		let weight = Pallet::<T>::clear_file(file_hash)?;
+		let mut weight: Weight = Weight::from_ref_time(0);
 		Ok(weight)
 	}
 

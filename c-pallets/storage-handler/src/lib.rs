@@ -404,7 +404,7 @@ impl<T: Config> Pallet<T> {
         let info = OwnedSpaceDetails::<T> {
             total_space: space,
             used_space: 0,
-            locked_space: u32::MIN,
+            locked_space: u128::MIN,
             remaining_space: space,
             start: now,
             deadline,
@@ -510,12 +510,13 @@ impl<T: Config> Pallet<T> {
 
     pub fn lock_user_space(acc: &T::AccountId, needed_space: u128) -> DispatchResult {
         <UserOwnedSpace<T>>::try_mutate(acc, |storage_space_opt| -> DispatchResult {
-            let storage_space = storage_space_opt.ok_or(Error::<T>::NotPurchasedSpace)?;
+            let storage_space = storage_space_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
             if storage_space.remaining_space < needed_space {
                 Err(Error::<T>::InsufficientStorage)?;
             }
             storage_space.locked_space = storage_space.locked_space.checked_add(needed_space).ok_or(Error::<T>::Overflow)?;
             storage_space.remaining_space = storage_space.remaining_space.checked_sub(needed_space).ok_or(Error::<T>::Overflow)?;
+            Ok(())
         })
     }
 
@@ -597,6 +598,7 @@ pub trait StorageHandle<AccountId> {
 	fn sub_purchased_space(size: u128) -> DispatchResult;
     fn get_total_space() -> Result<u128, DispatchError>;
     fn lock_user_space(acc: &AccountId, needed_space: u128) -> DispatchResult;
+    fn get_user_avail_space(acc: &AccountId) -> Result<u128, DispatchError>;
 }
 
 impl<T: Config> StorageHandle<T::AccountId> for Pallet<T> {
@@ -632,7 +634,12 @@ impl<T: Config> StorageHandle<T::AccountId> for Pallet<T> {
 		Pallet::<T>::get_total_space()
 	}
 
-    fn lock_user_space(acc: &T::AccountId, needed_space: u128) -> bool {
-        Pallet::<T>::lock_user_space()
+    fn lock_user_space(acc: &T::AccountId, needed_space: u128) -> DispatchResult {
+        Pallet::<T>::lock_user_space(acc, needed_space)
+    }
+
+    fn get_user_avail_space(acc: &T::AccountId) -> Result<u128, DispatchError> {
+        let info = <UserOwnedSpace<T>>::try_get(acc).map_err(|_e| Error::<T>::NotPurchasedSpace)?;
+        Ok(info.remaining_space)
     }
 }

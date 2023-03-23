@@ -17,6 +17,7 @@ pub struct MinerInfo<AccountId, Balance, BoundedString> {
 	pub(super) state: BoundedString,
 	pub(super) power: u128,
 	pub(super) space: u128,
+	pub(super) lock_space: u128,
 	pub(super) reward_info: RewardInfo<Balance>,
 }
 

@@ -349,6 +349,7 @@ pub mod pallet {
 					state: Self::vec_to_bound::<u8>(STATE_POSITIVE.as_bytes().to_vec())?,
 					power: 0,
 					space: 0,
+					lock_space: 0,
 					reward_info: RewardInfo::<BalanceOf<T>> {
 						total_reward: BalanceOf::<T>::from(0u32),
 						total_rewards_currently_available: BalanceOf::<T>::from(0u32),
@@ -1069,8 +1070,10 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 	fn lock_space(acc: &AccountOf<T>, space: u128) -> DispatchResult {
 		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
 			let miner = miner_opt.as_mut().ok_or(Error::<T>::NotExisted)?;
-			miner.lock
-		})?;
+			miner.lock_space = miner.lock_space.checked_add(space).ok_or(Error::<T>::Overflow)?;
+			miner.power = miner.power.checked_sub(space).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})
 	}
 }
 
