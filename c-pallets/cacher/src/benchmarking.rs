@@ -1,11 +1,12 @@
 #![cfg(feature = "runtime-benchmarks")]
 
 use super::*;
-
+// We can remove `whitelisted_caller` import, if we are not using.
 use frame_benchmarking::{account, benchmarks, whitelisted_caller};
 use frame_system::RawOrigin;
 use sp_runtime::traits::{Bounded, Hash};
-
+// Added this tag to ignore warning
+#[allow(unused)]
 use crate::Pallet as Cacher;
 
 const SEED: u32 = 0;
@@ -82,7 +83,7 @@ benchmarks! {
 		}
 	}: _(RawOrigin::Signed(alice), bills)
 	verify {
-		
+
 	}
 
 	impl_benchmark_test_suite!(Cacher, crate::mock::new_test_ext(), crate::mock::Test)

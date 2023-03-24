@@ -30,9 +30,12 @@ type AccountOf<T> = <T as frame_system::Config>::AccountId;
 pub type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
+// Can we create `types.rs` and move these structs there to make it more clean
 /// The custom struct for cacher info.
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+// Can we rename to AccoutId --> AccountId
 pub struct CacherInfo<AccoutId, Balance> {
+	// What type of account is this? Can we rename this to appropriate variable name like member, account etc?
 	pub acc: AccoutId,
 	pub ip: IpAddress,
 	pub byte_price: Balance,
@@ -40,8 +43,9 @@ pub struct CacherInfo<AccoutId, Balance> {
 
 /// The custom struct for bill info.
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+// Can we rename to AccoutId --> AccountId
 pub struct Bill<AccoutId, Balance, Hash> {
-	pub id: [u8; 16], 
+	pub id: [u8; 16],
 	pub to: AccoutId,
 	pub amount: Balance,
 	pub file_hash: Hash,
@@ -79,8 +83,10 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
+		// Can we rename it to `AlreadyRegistered`
 		//Registered Error
 		Registered,
+		// Can we rename it to `UnRegistered`
 		//Unregistered Error
 		UnRegister,
 		//Option parse Error
@@ -92,6 +98,7 @@ pub mod pallet {
 	/// Store all cacher info
 	#[pallet::storage]
 	#[pallet::getter(fn cacher)]
+	// Please check https://github.com/CESSProject/cess/issues/42. Can we use `Blake2`?
 	pub(super) type Cachers<T: Config> = StorageMap<_, Twox64Concat, AccountOf<T>, CacherInfo<AccountOf<T>, BalanceOf<T>>>;
 
 	#[pallet::pallet]
@@ -102,7 +109,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 
 		/// Register for cacher.
-		///	
+		///
 		/// Parameters:
 		/// - `info`: The cacher info related to signer account.
 		#[pallet::weight(T::WeightInfo::register())]
@@ -117,11 +124,12 @@ pub mod pallet {
 		}
 
 		/// Update cacher info.
-		///	
+		///
 		/// Parameters:
 		/// - `info`: The cacher info related to signer account.
 		#[pallet::weight(T::WeightInfo::update())]
 		pub fn update(origin: OriginFor<T>, info: CacherInfo<AccountOf<T>, BalanceOf<T>>) -> DispatchResult {
+			// Is anyone allowed to update cacher information? Can we put some validation for origin?
 			let sender = ensure_signed(origin)?;
 			ensure!(<Cachers<T>>::contains_key(&sender), Error::<T>::UnRegister);
 
@@ -139,6 +147,7 @@ pub mod pallet {
 		/// Cacher exit method, Irreversible process.
 		#[pallet::weight(T::WeightInfo::logout())]
 		pub fn logout(origin: OriginFor<T>) -> DispatchResult {
+			// Can we add validation for origin?
 			let sender = ensure_signed(origin)?;
 			ensure!(<Cachers<T>>::contains_key(&sender), Error::<T>::UnRegister);
 
@@ -150,22 +159,35 @@ pub mod pallet {
 		}
 
 		/// Pay to cachers for downloading files.
-		///	
+		///
 		/// Parameters:
 		/// - `bills`: list of bill.
 		#[pallet::weight(T::WeightInfo::pay(bills.len() as u32))]
 		pub fn pay(origin: OriginFor<T>, bills: Vec<Bill<AccountOf<T>, BalanceOf<T>, T::Hash>>) -> DispatchResult {
+			// Can we add validation for origin? This should not be allowed by everyone.
 			let sender = ensure_signed(origin)?;
-			let mut total_amount: BalanceOf<T> = Zero::zero();
-			for bill in bills.iter() {
-				total_amount += bill.amount;
-			}
-			ensure!(T::Currency::free_balance(&sender) >= total_amount, Error::<T>::InsufficientBalance);
-			
-			for bill in bills.iter() {
+
+			// We don't need this. `T::Currency::transfer` is already taking care of `InsufficientBalance`.
+			// let mut total_amount: BalanceOf<T> = Zero::zero();
+			// for bill in bills.iter() {
+			// 	total_amount += bill.amount;
+			// }
+			// ensure!(T::Currency::free_balance(&sender) >= total_amount, Error::<T>::InsufficientBalance);
+
+			// This method looks like a simple balance transfer.
+			// Can we make it more secure and add checks to verify biller information?
+			// For ex: We can match payment receiving account from `Bill` with `CacherInfo`.
+
+			// What is the use of `expiration_time` in `Bill`? Can we add a check for the same?
+
+			// What is the use of `file_hash` and `slice_hash`? I don't see its usage anywhere.
+
+			// We can remove `.iter()`.
+
+			for bill in &bills {
 				T::Currency::transfer(&sender, &bill.to, bill.amount, KeepAlive)?;
 			}
-			
+
 			Self::deposit_event(Event::<T>::Pay { acc: sender, bills });
 
 			Ok(())

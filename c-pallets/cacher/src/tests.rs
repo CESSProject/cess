@@ -4,7 +4,7 @@ use super::*;
 use frame_support::{assert_noop, assert_ok};
 use mock::{new_test_ext, Cacher, Origin, Test};
 use sp_runtime::traits::Hash;
-
+use pallet_balances::Error as BalancesError;
 
 #[test]
 fn register_works() {
@@ -87,7 +87,7 @@ fn pay_works() {
 			bills.push(bill);
 		}
 		// Pay fails.
-		assert_noop!(Cacher::pay(Origin::signed(1), bills.clone()), Error::<Test>::InsufficientBalance);
+		assert_noop!(Cacher::pay(Origin::signed(1), bills.clone()), BalancesError::<Test>::InsufficientBalance);
 
 		<Test as Config>::Currency::make_free_balance_be(&1, BalanceOf::<Test>::max_value());
 		let balance_befor_1 = <Test as Config>::Currency::free_balance(&1);
