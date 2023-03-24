@@ -104,7 +104,7 @@ pub mod pallet {
 		/// Register for cacher.
 		///	
 		/// Parameters:
-		/// - `info`: The cacher info related to signer account.
+		/// - `info`: The cache miner info related to signer account.
 		#[pallet::weight(T::WeightInfo::register())]
 		pub fn register(origin: OriginFor<T>, info: CacherInfo<AccountOf<T>, BalanceOf<T>>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
