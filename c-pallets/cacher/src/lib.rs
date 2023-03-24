@@ -119,7 +119,7 @@ pub mod pallet {
 		/// Update cacher info.
 		///	
 		/// Parameters:
-		/// - `info`: The cacher info related to signer account.
+		/// - `info`: The cache miner info related to signer account.
 		#[pallet::weight(T::WeightInfo::update())]
 		pub fn update(origin: OriginFor<T>, info: CacherInfo<AccountOf<T>, BalanceOf<T>>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
