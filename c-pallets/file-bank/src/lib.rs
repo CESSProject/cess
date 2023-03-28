@@ -161,7 +161,7 @@ pub mod pallet {
 		//file upload declaration
 		UploadDeclaration { operator: AccountOf<T>, owner: AccountOf<T>, file_hash: Hash, file_name: Vec<u8> },
 		//file uploaded.
-		FileUpload { acc: AccountOf<T> },
+		TransferReport { acc: AccountOf<T>, failed_list: Vec<Hash> },
 		//file updated.
 		FileUpdate { acc: AccountOf<T>, fileid: Vec<u8> },
 
@@ -317,20 +317,6 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		#[pallet::call_index(0)]
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn clear_all_filler(origin: OriginFor<T>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			let mut x = 0;
-
-			#[warn(deprecated)]
-			let _ = FillerMap::<T>::remove_prefix(&sender, Option::None);
-
-			let _ = T::MinerControl::sub_miner_idle_space(&sender, x * 8 * 1024 * 1024)?;
-			T::StorageHandle::sub_total_idle_space(x * 8 * 1024 * 1024)?;
-			Ok(())
-		}
 		/// Users need to make a declaration before uploading files.
 		///
 		/// This method is used to declare the file to be uploaded.
@@ -344,7 +330,7 @@ pub mod pallet {
 		/// Parameters:
 		/// - `file_hash`: Hash of the file to be uploaded.
 		/// - `file_name`: User defined file name.
-		#[pallet::call_index(1)]
+		#[pallet::call_index(0)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_declaration())]
 		pub fn upload_declaration(
@@ -368,12 +354,6 @@ pub mod pallet {
 			ensure!(T::StorageHandle::get_user_avail_space(&user_brief.user)? > needed_space, Error::<T>::InsufficientAvailableSpace);
 
 			if <File<T>>::contains_key(&file_hash) {
-				<File<T>>::try_mutate(&file_hash, |file_opt| -> DispatchResult {
-					let file = file_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
-					file.owner.try_push(user_brief).map_err(|_e| Error::<T>::BoundedVecError)?;
-					Ok(())
-				})?;
-
 				T::StorageHandle::update_user_space(&user_brief.user, 1, needed_space)?;
 
 				if <Bucket<T>>::contains_key(&user_brief.user, &user_brief.bucket_name) {
@@ -383,6 +363,12 @@ pub mod pallet {
 					}
 
 				Self::add_user_hold_fileslice(&user_brief.user, file_hash, needed_space)?;
+
+				<File<T>>::try_mutate(&file_hash, |file_opt| -> DispatchResult {
+					let file = file_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
+					file.owner.try_push(user_brief).map_err(|_e| Error::<T>::BoundedVecError)?;
+					Ok(())
+				})?;
 			} else {
 				// Check whether the user's storage space is sufficient, 
 				// if sufficient lock user's storage space.
@@ -390,7 +376,7 @@ pub mod pallet {
 				let mut needed_list: SegmentList<T> = Default::default();
 				let mut share_info: Vec<SegmentInfo<T>> = Default::default();
 				// Check whether there are segments that can be shared.
-				for (hash, list) in &mut deal_info {
+				for (hash, list) in &deal_info {
 					if <SegmentMap<T>>::contains_key(hash) {
 						let segment_info = <SegmentMap<T>>::try_mutate(hash, |segment_opt| -> Result<SegmentInfo<T>, DispatchError> {
 							let segment_info = segment_opt.as_mut().ok_or(Error::<T>::BugInvalid)?;
@@ -399,14 +385,12 @@ pub mod pallet {
 						})?;
 						share_info.push(segment_info);
 					} else {
-						needed_list.try_push((*hash, *list)).map_err(|_e| Error::<T>::BoundedVecError)?;
+						needed_list.try_push((*hash, list.clone())).map_err(|_e| Error::<T>::BoundedVecError)?;
 					}
 				}
 
 				if share_info.len() == deal_info.len() {
 					T::StorageHandle::update_user_space(&user_brief.user, 1, needed_space)?;
-
-					Self::generate_file(&file_hash, deal_info, Default::default(), share_info, user_brief, FileState::Active)?;
 
 					if <Bucket<T>>::contains_key(&user_brief.user, &user_brief.bucket_name) {
 						Self::add_file_to_bucket(&user_brief.user, &user_brief.bucket_name, &file_hash)?;
@@ -416,17 +400,28 @@ pub mod pallet {
 
 					Self::add_user_hold_fileslice(&user_brief.user, file_hash, needed_space)?;
 
+					Self::generate_file(&file_hash, deal_info, Default::default(), share_info, user_brief, FileState::Active)?;
+
 				} else {
+					T::StorageHandle::lock_user_space(&user_brief.user, needed_space)?;
+
 					// TODO! Replace the file_hash param
 					let deal_info = Self::generate_deal(file_hash.clone(), needed_list, deal_info, user_brief, share_info)?;
-
-					T::StorageHandle::lock_user_space(&user_brief.user, needed_space)?;
 				}
 
 			}
 
 
 			Ok(())
+		}
+		
+		#[pallet::call_index(0)]
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_declaration())]
+		pub fn upload_declaration(
+			origin: OriginFor<T>,
+		) -> DispatchResult {
+			
 		}
 		//TODO!
 		// Transfer needs to be restricted, such as target consent
@@ -507,11 +502,50 @@ pub mod pallet {
 		#[pallet::call_index(3)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload(2))]
-		pub fn upload(
+		pub fn transfer_report(
 			origin: OriginFor<T>,
-			file_hash: Hash,
+			deal_hash: Vec<Hash>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
+			ensure!(deal_hash.len() < 5, Error::<T>::LengthExceedsLimit);
+			let mut failed_list: Vec<Hash> = Default::default();
+			for hash in deal_hash {
+				if !<DealMap<T>>::contains_key(&hash) {
+					failed_list.push(hash);
+					continue;
+				} else {
+					<DealMap<T>>::try_mutate(&hash, |deal_info_opt| -> DispatchResult {
+						// can use unwrap because there was a judgment above
+						let deal_info = deal_info_opt.as_mut().unwrap();
+						let mut task_miner_list: Vec<AccountOf<T>> = Default::default();
+						for (miner, _) in &deal_info.assigned_miner {
+							task_miner_list.push(miner.clone());
+						}
+						if task_miner_list.contains(&sender) {
+							if !deal_info.complete_list.contains(&sender) {
+								deal_info.complete_list.try_push(sender.clone()).map_err(|_| Error::<T>::BoundedVecError)?;
+							}
+							if deal_info.complete_list.len() == deal_info.assigned_miner.len() {
+								deal_info.stage = 2;
+								Self::generate_file(
+									&hash,
+									deal_info.segment_list.clone(),
+									deal_info.assigned_miner.clone(),
+									deal_info.share_info.to_vec(),
+									deal_info.user.clone(),
+									FileState::Calculate,
+								)?;
+							}
+						} else {
+							failed_list.push(hash);
+						}
+
+						Ok(())
+					})?;
+				}
+			}
+
+			Self::deposit_event(Event::<T>::TransferReport{acc: sender, failed_list});
 			
 			Ok(())
 		}
@@ -550,8 +584,7 @@ pub mod pallet {
 				if <FillerMap<T>>::contains_key(&miner, i.filler_hash.clone()) {
 					Err(Error::<T>::FileExistent)?;
 				}
-				let mut value = i.clone();
-				<FillerMap<T>>::insert(miner.clone(), i.filler_hash.clone(), value);
+				<FillerMap<T>>::insert(miner.clone(), i.filler_hash.clone(), i);
 			}
 
 			let power = M_BYTE
@@ -681,25 +714,25 @@ pub mod pallet {
 		) -> DispatchResult {
 			let mut segment_info_list: BoundedVec<SegmentInfo<T>, T::SegmentCount> = Default::default();
 			for (hash, frag_list) in deal_info.iter() {
-				let segment_info = SegmentInfo::<T> {
+				let mut segment_info = SegmentInfo::<T> {
 					hash: *hash,
 					fragment_list: Default::default(),
 				};
 
-				for share_segment_info in share_info.iter() {
+				for share_segment_info in &share_info {
 					if hash == &share_segment_info.hash {
-						segment_info.fragment_list = share_segment_info.fragment_list;
+						segment_info.fragment_list = share_segment_info.fragment_list.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
 						break;
 					}
 				}
 
 				for frag_hash in frag_list.iter() {
-					for (miner, task_list) in miner_task_list {
+					for (miner, task_list) in &miner_task_list {
 						if task_list.contains(frag_hash) {
 							let frag_info = FragmentInfo::<T> {
-								hash: *frag_hash,
+								hash:  *frag_hash,
 								avail: true,
-								miner: miner,
+								miner: miner.clone(),
 							};
 							segment_info.fragment_list.try_push(frag_info).map_err(|_e| Error::<T>::BoundedVecError)?;
 						}
@@ -734,7 +767,7 @@ pub mod pallet {
 
 			let mut bucket = BucketInfo::<T> {
 				object_list: Default::default(),
-				authority: vec![*user].try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
+				authority: vec![user.clone()].try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
 			};
 
 			if let Some(hash) = file_hash {
@@ -844,7 +877,7 @@ pub mod pallet {
 				// Record current cycle results.
 				index_list.push(index);
 				// Judge whether the idle space of the miners is sufficient.
-				let miner = all_miner[index as usize];
+				let miner = all_miner[index as usize].clone();
 				let cur_space: u128 = T::MinerControl::get_miner_idle_space(&miner)?;
 				// If sufficient, the miner is selected.
 				if cur_space > needed_list.len() as u128 * FRAGMENT_SIZE {
@@ -1173,7 +1206,7 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 	}
 
 	fn clear_file(file_hash: Hash) -> Result<Weight, DispatchError> {
-		let mut weight: Weight = Weight::from_ref_time(0);
+		let weight: Weight = Weight::from_ref_time(0);
 		Ok(weight)
 	}
 

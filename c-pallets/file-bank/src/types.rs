@@ -8,7 +8,7 @@ pub(super) type SegmentList<T> = BoundedVec<(Hash, BoundedVec<Hash, <T as pallet
 pub(super) type MinerTaskList<T> = BoundedVec<(AccountOf<T>, BoundedVec<Hash,  <T as pallet::Config>::FragmentCount>),  <T as pallet::Config>::FragmentCount>;
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-pub(super) enum FileState {
+pub enum FileState {
 	Active,
 	Calculate,
 	Missing,
