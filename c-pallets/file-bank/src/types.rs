@@ -20,9 +20,8 @@ pub enum FileState {
 #[codec(mel_bound())]
 pub struct DealInfo<T: Config> {
 	pub(super) stage: u8,
-	pub(super) count: u8,
-	pub(super) time_task: [u8; 32],
 	pub(super) segment_list: SegmentList<T>,
+	pub(super) needed_list: SegmentList<T>,
 	pub(super) user: UserBrief<T>,
 	pub(super) assigned_miner: MinerTaskList<T>,
 	pub(super) share_info: BoundedVec<SegmentInfo<T>, T::SegmentCount>,

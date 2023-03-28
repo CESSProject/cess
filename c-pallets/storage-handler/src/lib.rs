@@ -520,6 +520,24 @@ impl<T: Config> Pallet<T> {
         })
     }
 
+    pub fn unlock_user_space(acc: &T::AccountId, needed_space: u128) -> DispatchResult {
+        <UserOwnedSpace<T>>::try_mutate(acc, |storage_space_opt| -> DispatchResult {
+            let storage_space = storage_space_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
+            storage_space.locked_space = storage_space.locked_space.checked_sub(needed_space).ok_or(Error::<T>::Overflow)?;
+            storage_space.remaining_space = storage_space.remaining_space.checked_add(needed_space).ok_or(Error::<T>::Overflow)?;
+            Ok(())
+        })
+    }
+
+    pub fn unlock_and_used_user_space(acc: &T::AccountId, needed_space: u128) -> DispatchResult {
+        <UserOwnedSpace<T>>::try_mutate(acc, |storage_space_opt| -> DispatchResult {
+            let storage_space = storage_space_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
+            storage_space.locked_space = storage_space.locked_space.checked_sub(needed_space).ok_or(Error::<T>::Overflow)?;
+            storage_space.used_space = storage_space.used_space.checked_add(needed_space).ok_or(Error::<T>::Overflow)?;
+            Ok(())
+        })
+    }
+
     pub fn check_user_space(acc: &T::AccountId, needed_space: u128) -> Result<bool, DispatchError> {
         let user_storage = <UserOwnedSpace<T>>::try_get(acc).map_err(|_e| Error::<T>::NotPurchasedSpace)?;
 
@@ -598,6 +616,8 @@ pub trait StorageHandle<AccountId> {
 	fn sub_purchased_space(size: u128) -> DispatchResult;
     fn get_total_space() -> Result<u128, DispatchError>;
     fn lock_user_space(acc: &AccountId, needed_space: u128) -> DispatchResult;
+    fn unlock_user_space(acc: &AccountId, needed_space: u128) -> DispatchResult;
+    fn unlock_and_used_user_space(acc: &AccountId, needed_space: u128) -> DispatchResult;
     fn get_user_avail_space(acc: &AccountId) -> Result<u128, DispatchError>;
 }
 
@@ -636,6 +656,14 @@ impl<T: Config> StorageHandle<T::AccountId> for Pallet<T> {
 
     fn lock_user_space(acc: &T::AccountId, needed_space: u128) -> DispatchResult {
         Pallet::<T>::lock_user_space(acc, needed_space)
+    }
+
+    fn unlock_user_space(acc: &T::AccountId, needed_space: u128) -> DispatchResult {
+        Pallet::<T>::unlock_user_space(acc, needed_space)
+    }
+
+    fn unlock_and_used_user_space(acc: &T::AccountId, needed_space: u128) -> DispatchResult {
+        Pallet::<T>::unlock_user_space(acc, needed_space)
     }
 
     fn get_user_avail_space(acc: &T::AccountId) -> Result<u128, DispatchError> {

@@ -415,13 +415,34 @@ pub mod pallet {
 			Ok(())
 		}
 		
-		#[pallet::call_index(0)]
+		#[pallet::call_index(1)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_declaration())]
-		pub fn upload_declaration(
+		#[pallet::weight(1_000_000_000)]
+		pub fn deal_reassign_miner(
 			origin: OriginFor<T>,
+			deal_hash: Hash,
+			count: u8,
 		) -> DispatchResult {
-			
+			let _ = ensure_root(origin)?;
+
+			if count < 5 {
+				<DealMap<T>>::try_mutate(&deal_hash, |opt| -> DispatchResult {
+					let deal_info = opt.as_mut().ok_or(Error::<T>::NonExistent)?;
+					let miner_task_list = Self::random_assign_miner(&deal_info.needed_list)?;
+					deal_info.assigned_miner = miner_task_list;
+					deal_info.complete_list = Default::default();
+					Self::start_first_task(deal_hash.0.to_vec(), deal_hash, count + 1)?;
+
+					Ok(())
+				})?;
+			} else {
+				let deal_info = <DealMap<T>>::try_get(&deal_hash).map_err(|_| Error::<T>::NonExistent)?;
+				let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
+				T::StorageHandle::unlock_user_space(&deal_info.user.user, needed_space)?;
+				<DealMap<T>>::remove(&deal_hash);
+			}
+
+			Ok(())
 		}
 		//TODO!
 		// Transfer needs to be restricted, such as target consent
@@ -535,6 +556,15 @@ pub mod pallet {
 									deal_info.user.clone(),
 									FileState::Calculate,
 								)?;
+
+								let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
+								T::StorageHandle::unlock_and_used_user_space(&deal_info.user.user, needed_space)?;
+								T::FScheduler::cancel_named(hash.0.to_vec()).map_err(|_| Error::<T>::Unexpected)?;
+								if <Bucket<T>>::contains_key(&deal_info.user.user, &deal_info.user.bucket_name) {
+									Self::add_file_to_bucket(&deal_info.user.user, &deal_info.user.bucket_name, &hash)?;
+								} else {
+									Self::create_bucket_helper(&deal_info.user.user, &deal_info.user.bucket_name, Some(hash))?;
+								}
 							}
 						} else {
 							failed_list.push(hash);
@@ -550,6 +580,19 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(4)]
+		#[transactional]
+		#[pallet::weight(1_000_000_000)]
+		pub fn calculate_end(
+			origin: OriginFor<T>,
+			deal_hash: Hash,
+		) -> DispatchResult {
+
+			Ok(())
+		}
+
+
+
 		/// Upload idle files for miners.
 		///
 		/// The dispatch origin of this call must be _Signed_.
@@ -560,7 +603,7 @@ pub mod pallet {
 		/// Parameters:
 		/// - `miner`: For which miner, miner's wallet address.
 		/// - `filler_list`: Meta information list of idle files.
-		#[pallet::call_index(4)]
+		#[pallet::call_index(8)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_filler(filler_list.len() as u32))]
 		pub fn upload_filler(
@@ -799,17 +842,14 @@ pub mod pallet {
 			user_brief: UserBrief<T>,
 			share_info: Vec<SegmentInfo<T>>,
 		) -> DispatchResult {
-			let task_id: [u8; 32] = file_hash.0[0 .. 32].try_into().map_err(|_e| Error::<T>::BoundedVecError)?; // TODO!
+			let miner_task_list = Self::random_assign_miner(&needed_list)?;
 
-			let miner_task_list = Self::random_assign_miner(needed_list)?;
-
-			// Self::start_first_task(task_id.clone())?;
+			Self::start_first_task(file_hash.0.to_vec(), file_hash, 1)?;
 
 			let deal = DealInfo::<T> {
 				stage: 1,
-				count: 0,
-				time_task: task_id,
 				segment_list: file_info,
+				needed_list: needed_list,
 				user: user_brief,
 				assigned_miner: miner_task_list,
 				share_info: share_info.try_into().map_err(|_| Error::<T>::BoundedVecError)?,
@@ -821,23 +861,23 @@ pub mod pallet {
 			Ok(())
 		}
 
-		// pub fn start_first_task(task_id: Vec<u8>, count: u32) -> DispatchResult {
-		// 	let start: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
-		// 	let survival_block = start.checked_add(600 * count).ok_or(Error::<T>::Overflow)?;
+		pub fn start_first_task(task_id: Vec<u8>, deal_hash: Hash, count: u8) -> DispatchResult {
+			let start: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
+			let survival_block = start.checked_add(600 * (count as u32)).ok_or(Error::<T>::Overflow)?;
 
-		// 	T::SScheduler::schedule_named(
-		// 			task_id, // TODO!
-		// 			DispatchTime::At(survival_block.saturated_into()),
-		// 			Option::None,
-		// 			schedule::HARD_DEADLINE,
-		// 			frame_system::RawOrigin::Root.into(),
-		// 			Call::reassign_deal{file_hash: file_hash.clone()}.into(), // TODO!
-		// 	).map_err(|_| Error::<T>::Unexpected)?;
+			T::FScheduler::schedule_named(
+					task_id, // TODO!
+					DispatchTime::At(survival_block.saturated_into()),
+					Option::None,
+					schedule::HARD_DEADLINE,
+					frame_system::RawOrigin::Root.into(),
+					Call::deal_reassign_miner{deal_hash: deal_hash, count: count}.into(), // TODO!
+			).map_err(|_| Error::<T>::Unexpected)?;
 
-		// 	Ok(())
-		// }
+			Ok(())
+		}
 
-		pub fn random_assign_miner(needed_list: SegmentList<T>) -> Result<MinerTaskList<T>, DispatchError> {
+		pub fn random_assign_miner(needed_list: &SegmentList<T>) -> Result<MinerTaskList<T>, DispatchError> {
 			let mut index_list: Vec<u32> = Default::default();
 			let mut miner_task_list: MinerTaskList<T> = Default::default();
 			let mut miner_idle_space_list: Vec<u128> = Default::default();
@@ -910,7 +950,7 @@ pub mod pallet {
 						// To prevent a miner from storing multiple fragments, 
 						// the idle space is insufficient
 						if cur_space > (miner_task_list[temp_index].1.len() as u128 + 1) * FRAGMENT_SIZE {
-							miner_task_list[temp_index].1.try_push(hash.clone()).map_err(|_e| Error::<T>::BoundedVecError)?;
+							miner_task_list[temp_index].1.try_push(*hash).map_err(|_e| Error::<T>::BoundedVecError)?;
 							break;
 						}
 						index = index.checked_add(1).ok_or(Error::<T>::PanicOverflow)?;
