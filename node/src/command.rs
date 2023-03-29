@@ -302,7 +302,8 @@ pub fn run() -> Result<()> {
 					cli.eth,
 					id,
 					cli.no_hardware_benchmarks
-				)
+				).await
+				.map(|r| r.0)
 				.map_err(sc_cli::Error::Service)
 			})
 		},

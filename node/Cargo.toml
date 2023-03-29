@@ -108,7 +108,7 @@ fp-storage = { git = "https://github.com/CESSProject/frontier", branch = "cess-p
 polkadot-cli = { git = "https://github.com/CESSProject/polkadot", branch = "cess-release-v0.9.36" }
 polkadot-primitives = { git = "https://github.com/CESSProject/polkadot", branch = "cess-release-v0.9.36" }
 polkadot-service = { git = "https://github.com/CESSProject/polkadot", branch = "cess-release-v0.9.36" }
-# xcm = { git = "https://github.com/CESSProject/polkadot", default-features = false, branch = "cess-release-v0.9.36" }
+xcm = { git = "https://github.com/CESSProject/polkadot", default-features = false, branch = "cess-release-v0.9.36" }
 
 # Cumulus
 cumulus-client-cli = { git = "https://github.com/CESSProject/cumulus.git", branch = "cess-polkadot-v0.9.36" }

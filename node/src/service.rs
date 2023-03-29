@@ -352,7 +352,7 @@ pub async fn new_full_base(
 	};
 
 	let parachain_config = cumulus_client_service::prepare_node_config(parachain_config);
-
+	
 	let sc_service::PartialComponents {
 		client,
 		backend,
@@ -363,7 +363,8 @@ pub async fn new_full_base(
 		transaction_pool,
 		other: (block_import, mut telemetry, telemetry_worker_handle),
 	} = new_partial(&parachain_config)?;
-
+	
+	let import_queue_service = import_queue.service();
 	let (relay_chain_interface, collator_key) = cumulus_client_service::build_relay_chain_interface(
 		polkadot_config,
 		&parachain_config,
@@ -406,7 +407,9 @@ pub async fn new_full_base(
 			transaction_pool: transaction_pool.clone(),
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
-			block_announce_validator_builder: None,
+			block_announce_validator_builder: Some(Box::new(|_| {
+				Box::new(block_announce_validator)
+			})),
 			warp_sync: None,
 		})?;
 
@@ -421,7 +424,7 @@ pub async fn new_full_base(
 
 	let force_authoring = parachain_config.force_authoring;
 	let validator = parachain_config.role.is_authority();
-	let import_queue_service = import_queue.service();
+	
 	let network_clone = network.clone();
 	let frontier_backend = open_frontier_backend(client.clone(), &parachain_config)?;
 	let fee_history_cache: FeeHistoryCache = Arc::new(Mutex::new(BTreeMap::new()));
@@ -514,8 +517,8 @@ pub async fn new_full_base(
 
 	let role = parachain_config.role.clone();
 	let force_authoring = parachain_config.force_authoring;
-	let backoff_authoring_blocks =
-		Some(sc_consensus_slots::BackoffAuthoringOnFinalizedHeadLagging::default());
+	// let backoff_authoring_blocks =
+	// 	Some(sc_consensus_slots::BackoffAuthoringOnFinalizedHeadLagging::default());
 	let name = parachain_config.network.node_name.clone();
 	let enable_grandpa = !parachain_config.disable_grandpa;
 	let prometheus_registry = parachain_config.prometheus_registry().cloned();
@@ -591,13 +594,13 @@ pub async fn new_full_base(
 	// (with_startup_data)(&block_import, &rrsc_link);
 
 	if let sc_service::config::Role::Authority { .. } = &role {
-		let proposer = sc_basic_authorship::ProposerFactory::new(
-			task_manager.spawn_handle(),
-			client.clone(),
-			transaction_pool.clone(),
-			prometheus_registry.as_ref(),
-			telemetry.as_ref().map(|x| x.handle()),
-		);
+		// let proposer = sc_basic_authorship::ProposerFactory::with_proof_recording(
+		// 	task_manager.spawn_handle(),
+		// 	client.clone(),
+		// 	transaction_pool.clone(),
+		// 	prometheus_registry.as_ref(),
+		// 	telemetry.as_ref().map(|x| x.handle()),
+		// );
 
 		let client_clone = client.clone();
 		// let slot_duration = rrsc_link.config().slot_duration();

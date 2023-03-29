@@ -847,6 +847,7 @@ dependencies = [
  "substrate-prometheus-endpoint",
  "substrate-state-trie-migration-rpc",
  "try-runtime-cli",
+ "xcm",
 ]
 
 [[package]]
@@ -875,6 +876,7 @@ dependencies = [
  "log",
  "pallet-asset-tx-payment",
  "pallet-assets",
+ "pallet-aura",
  "pallet-authority-discovery",
  "pallet-authorship",
  "pallet-bags-list",
@@ -925,6 +927,7 @@ dependencies = [
  "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
+ "sp-consensus-aura",
  "sp-core",
  "sp-inherents",
  "sp-io",
@@ -5571,6 +5574,22 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "sp-core",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-aura"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate.git?branch=cess-polkadot-v0.9.36#12811a70544e228018650a0a625730ca310c58a1"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-application-crypto",
+ "sp-consensus-aura",
  "sp-runtime",
  "sp-std",
 ]

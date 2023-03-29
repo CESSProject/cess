@@ -18,6 +18,7 @@ pub fn wasm_binary_unwrap() -> &'static [u8] {
 
 use cumulus_pallet_parachain_system::RelayNumberStrictlyIncreases;
 use smallvec::smallvec;
+pub use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 
 pub mod xcm_config;
 use xcm_config::{XcmConfig, XcmOriginToTransactDispatchOrigin};
@@ -580,6 +581,12 @@ impl pallet_session::Config for Runtime {
 	type SessionHandler = <opaque::SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = opaque::SessionKeys;
 	type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
+}
+
+impl pallet_aura::Config for Runtime {
+	type AuthorityId = AuraId;
+	type DisabledValidators = ();
+	type MaxAuthorities = ConstU32<100_000>;
 }
 
 impl pallet_session::historical::Config for Runtime {
@@ -1490,6 +1497,7 @@ construct_runtime!(
 		Assets: pallet_assets = 12,
 		AssetTxPayment: pallet_asset_tx_payment = 13,
 
+		Aura: pallet_aura::{Pallet, Storage, Config<T>} = 19,		
 		// Consensus
 		Authorship: pallet_authorship = 20,
 		Babe: pallet_rrsc = 21,  // retain Babe alias for Polka-dot official browser
@@ -1615,6 +1623,16 @@ mod benches {
 }
 
 impl_runtime_apis! {
+	impl sp_consensus_aura::AuraApi<Block, AuraId> for Runtime {
+		fn slot_duration() -> sp_consensus_aura::SlotDuration {
+			sp_consensus_aura::SlotDuration::from_millis(Aura::slot_duration())
+		}
+
+		fn authorities() -> Vec<AuraId> {
+			Aura::authorities().into_inner()
+		}
+	}
+
 	impl sp_api::Core<Block> for Runtime {
 		fn version() -> RuntimeVersion {
 			VERSION
