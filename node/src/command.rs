@@ -197,15 +197,20 @@ pub fn run() -> Result<()> {
 			})
 		},
 		Some(Subcommand::Revert(cmd)) => {
+			// let runner = cli.create_runner(cmd)?;
+			// runner.async_run(|config| {
+			// 	let PartialComponents { client, task_manager, backend, .. } = new_partial(&config)?;
+			// 	let aux_revert = Box::new(|client: Arc<ParachainNativeExecutor>, backend, blocks| {
+			// 		cessc_consensus_rrsc::revert(client.clone(), backend, blocks)?;
+			// 		grandpa::revert(client, blocks)?;
+			// 		Ok(())
+			// 	});
+			// 	Ok((cmd.run(client, backend, Some(aux_revert)), task_manager))
+			// })
 			let runner = cli.create_runner(cmd)?;
 			runner.async_run(|config| {
 				let PartialComponents { client, task_manager, backend, .. } = new_partial(&config)?;
-				let aux_revert = Box::new(|client: Arc<ParachainNativeExecutor>, backend, blocks| {
-					cessc_consensus_rrsc::revert(client.clone(), backend, blocks)?;
-					grandpa::revert(client, blocks)?;
-					Ok(())
-				});
-				Ok((cmd.run(client, backend, Some(aux_revert)), task_manager))
+				Ok((cmd.run(client, backend, None), task_manager))
 			})
 		},
 		#[cfg(feature = "try-runtime")]

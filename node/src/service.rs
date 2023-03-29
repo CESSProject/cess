@@ -5,7 +5,7 @@ use crate::{
 	primitives as node_primitives, 
 	rpc::{self as node_rpc, EthConfiguration}
 };
-use cess_node_runtime::{Hash, RuntimeApi, TransactionConverter};
+use cess_node_runtime::{opaque::Block, Hash, RuntimeApi, TransactionConverter};
 use fc_mapping_sync::{MappingSyncWorker, SyncStrategy};
 use fc_rpc::EthTask;
 use fc_rpc_core::types::{
@@ -13,9 +13,8 @@ use fc_rpc_core::types::{
 	FilterPool
 };
 use futures::prelude::*;
-use node_primitives::Block;
 use sc_cli::SubstrateCli;
-use sc_client_api::{BlockBackend, BlockchainEvents};
+use sc_client_api::BlockchainEvents;
 use sc_executor::NativeElseWasmExecutor;
 use sc_network::NetworkService;
 use sc_network_common::{
@@ -25,6 +24,7 @@ use sc_network_common::{
 		NetworkEventStream
 	}
 };
+use sc_consensus::ImportQueue;
 use sc_service::{ BasePath, config::Configuration, error::Error as ServiceError, RpcHandlers, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryHandle , TelemetryWorker, TelemetryWorkerHandle};
 use sp_keystore::SyncCryptoStorePtr;
@@ -172,13 +172,13 @@ pub fn new_partial(
 		telemetry
 	});
 
-	let select_chain = sc_consensus::LongestChain::new(backend.clone());
-	let (grandpa_block_import, grandpa_link) = grandpa::block_import(
-		client.clone(),
-		&(client.clone() as Arc<_>),
-		select_chain.clone(),
-		telemetry.as_ref().map(|x| x.handle()),
-	)?;
+	// let select_chain = sc_consensus::LongestChain::new(backend.clone());
+	// let (grandpa_block_import, grandpa_link) = grandpa::block_import(
+	// 	client.clone(),
+	// 	&(client.clone() as Arc<_>),
+	// 	select_chain.clone(),
+	// 	telemetry.as_ref().map(|x| x.handle()),
+	// )?;
 
 	let transaction_pool = sc_transaction_pool::BasicPool::new_full(
 		config.transaction_pool.clone(),
@@ -187,7 +187,7 @@ pub fn new_partial(
 		task_manager.spawn_essential_handle(),
 		client.clone(),
 	);
-	let justification_import = grandpa_block_import.clone();
+	// let justification_import = grandpa_block_import.clone();
 
 	let block_import = ParachainBlockImport::new(client.clone(), backend.clone());
 
@@ -204,7 +204,7 @@ pub fn new_partial(
 		backend,
 		task_manager,
 		keystore_container,
-		select_chain,
+		select_chain: (),
 		import_queue,
 		transaction_pool,
 		other: (block_import, telemetry, telemetry_worker_handle),
@@ -359,7 +359,7 @@ pub async fn new_full_base(
 		mut task_manager,
 		import_queue,
 		keystore_container,
-		select_chain,
+		select_chain: (),
 		transaction_pool,
 		other: (block_import, mut telemetry, telemetry_worker_handle),
 	} = new_partial(&parachain_config)?;
@@ -433,7 +433,7 @@ pub async fn new_full_base(
 	let overrides = crate::rpc::overrides_handle(client.clone());
 	let filter_pool: Option<FilterPool> = Some(Arc::new(Mutex::new(BTreeMap::new()))); 
 	let rpc_builder = {
-		 let (_, _, rrsc_link) = &block_import;
+		// let (_, _, rrsc_link) = &block_import;
 
 		// let justification_stream = grandpa_link.justification_stream();
 		// let shared_authority_set = grandpa_link.shared_authority_set().clone();
@@ -445,12 +445,12 @@ pub async fn new_full_base(
 		// 	Some(shared_authority_set.clone()),
 		// );
 
-		let rrsc_config = rrsc_link.config().clone();
-		let shared_epoch_changes = rrsc_link.epoch_changes().clone();
+		// let rrsc_config = rrsc_link.config().clone();
+		// let shared_epoch_changes = rrsc_link.epoch_changes().clone();
 
 		let client = client.clone();
 		let pool = transaction_pool.clone();
-		let select_chain = select_chain.clone();
+		// let select_chain = select_chain.clone();
 		let keystore = keystore_container.sync_keystore();
 		let chain_spec = parachain_config.chain_spec.cloned_box();
 		let is_authority = parachain_config.role.is_authority();
@@ -473,14 +473,14 @@ pub async fn new_full_base(
 			let deps = node_rpc::FullDeps {
 				client: client.clone(),
 				pool: pool.clone(),
-				select_chain: select_chain.clone(),
+				// select_chain: select_chain.clone(),
 				chain_spec: chain_spec.cloned_box(),
 				deny_unsafe,
-				rrsc: node_rpc::RRSCDeps {
-					rrsc_config: rrsc_config.clone(),
-					shared_epoch_changes: shared_epoch_changes.clone(),
-					keystore: keystore.clone(),
-				},
+				// rrsc: node_rpc::RRSCDeps {
+				// 	rrsc_config: rrsc_config.clone(),
+				// 	shared_epoch_changes: shared_epoch_changes.clone(),
+				// 	keystore: keystore.clone(),
+				// },
 				// grandpa: node_rpc::GrandpaDeps {
 				// 	shared_voter_state: shared_voter_state.clone(),
 				// 	shared_authority_set: shared_authority_set.clone(),
@@ -586,7 +586,7 @@ pub async fn new_full_base(
 		}
 	}
 
-	let (_, _, rrsc_link) = block_import;
+	// let (_, _, rrsc_link) = block_import;
 
 	// (with_startup_data)(&block_import, &rrsc_link);
 
@@ -600,54 +600,54 @@ pub async fn new_full_base(
 		);
 
 		let client_clone = client.clone();
-		let slot_duration = rrsc_link.config().slot_duration();
-		let rrsc_config = cessc_consensus_rrsc::RRSCParams {
-			keystore: keystore_container.sync_keystore(),
-			client: client.clone(),
-			select_chain,
-			env: proposer,
-			block_import,
-			sync_oracle: network.clone(),
-			justification_sync_link: network.clone(),
-			create_inherent_data_providers: move |parent, ()| {
-				let client_clone = client_clone.clone();
-				async move {
-					let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
-						&*client_clone,
-						parent,
-					)?;
+		// let slot_duration = rrsc_link.config().slot_duration();
+		// let rrsc_config = cessc_consensus_rrsc::RRSCParams {
+		// 	keystore: keystore_container.sync_keystore(),
+		// 	client: client.clone(),
+		// 	select_chain: (),
+		// 	env: proposer,
+		// 	block_import,
+		// 	sync_oracle: network.clone(),
+		// 	justification_sync_link: network.clone(),
+		// 	create_inherent_data_providers: move |parent, ()| {
+		// 		let client_clone = client_clone.clone();
+		// 		async move {
+		// 			let uncles = sc_consensus_uncles::create_uncles_inherent_data_provider(
+		// 				&*client_clone,
+		// 				parent,
+		// 			)?;
 
-					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
+		// 			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
-					let slot =
-						cessp_consensus_rrsc::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
-							*timestamp,
-							slot_duration,
-						);
+		// 			let slot =
+		// 				cessp_consensus_rrsc::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+		// 					*timestamp,
+		// 					slot_duration,
+		// 				);
 
-					let storage_proof =
-						sp_transaction_storage_proof::registration::new_data_provider(
-							&*client_clone,
-							&parent,
-						)?;
+		// 			let storage_proof =
+		// 				sp_transaction_storage_proof::registration::new_data_provider(
+		// 					&*client_clone,
+		// 					&parent,
+		// 				)?;
 
-					Ok((slot, timestamp, uncles, storage_proof))
-				}
-			},
-			force_authoring,
-			backoff_authoring_blocks,
-			rrsc_link,
-			block_proposal_slot_portion: SlotProportion::new(0.5),
-			max_block_proposal_slot_portion: None,
-			telemetry: telemetry.as_ref().map(|x| x.handle()),
-		};
+		// 			Ok((slot, timestamp, uncles, storage_proof))
+		// 		}
+		// 	},
+		// 	force_authoring,
+		// 	backoff_authoring_blocks,
+		// 	rrsc_link,
+		// 	block_proposal_slot_portion: SlotProportion::new(0.5),
+		// 	max_block_proposal_slot_portion: None,
+		// 	telemetry: telemetry.as_ref().map(|x| x.handle()),
+		// };
 
-		let rrsc = cessc_consensus_rrsc::start_rrsc(rrsc_config)?;
-		task_manager.spawn_essential_handle().spawn_blocking(
-			"rrsc-proposer",
-			Some("block-authoring"),
-			rrsc,
-		);
+		// let rrsc = cessc_consensus_rrsc::start_rrsc(rrsc_config)?;
+		// task_manager.spawn_essential_handle().spawn_blocking(
+		// 	"rrsc-proposer",
+		// 	Some("block-authoring"),
+		// 	rrsc,
+		// );
 	}
 
 	// Spawn authority discovery module.
