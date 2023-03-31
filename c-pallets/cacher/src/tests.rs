@@ -11,7 +11,7 @@ fn register_works() {
 	new_test_ext().execute_with(|| {
 		let info = CacherInfo::<AccountOf<Test>, BalanceOf<Test>> {
 			acc: 1,
-			ip: IpAddress::IPV4([127,0,0,1], 8088),
+			ip: IpAddress::IPV4([127,0,0,1], 8080),
 			byte_price: 100u32.into(),
 		};
 		// Register works.
