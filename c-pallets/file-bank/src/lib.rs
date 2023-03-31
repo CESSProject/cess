@@ -277,6 +277,10 @@ pub mod pallet {
 	>;
 
 	#[pallet::storage]
+	#[pallet::getter(fn pending_replacements)]
+	pub(super) type PendingReplacements<T: Config> = <_, Blake2_128Concat, AccountOf<T>, u32, ValueQuery>;
+
+	#[pallet::storage]
 	#[pallet::getter(fn invalid_file)]
 	pub(super) type InvalidFile<T: Config> =
 		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<Hash, T::InvalidLimit>, ValueQuery>;
@@ -301,7 +305,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn user_bucket_list)]
-	pub(super) type UserBucketList<T: Config> =
+	pub(super) type UserBucketList<T: Config> = 
 		StorageMap<
 			_,
 			Blake2_128Concat,
@@ -378,11 +382,7 @@ pub mod pallet {
 				// Check whether there are segments that can be shared.
 				for (hash, list) in &deal_info {
 					if <SegmentMap<T>>::contains_key(hash) {
-						let segment_info = <SegmentMap<T>>::try_mutate(hash, |segment_opt| -> Result<SegmentInfo<T>, DispatchError> {
-							let segment_info = segment_opt.as_mut().ok_or(Error::<T>::BugInvalid)?;
-							segment_info.1 = segment_info.1.checked_add(1).ok_or(Error::<T>::Overflow)?;
-							Ok(segment_info.0.clone())
-						})?;
+						let segment_info = <SegmentMap<T>>::try_get(&hash).map_err(|_| Error::<T>::BugInvalid)?.0;
 						share_info.push(segment_info);
 					} else {
 						needed_list.try_push((*hash, list.clone())).map_err(|_e| Error::<T>::BoundedVecError)?;
@@ -432,13 +432,23 @@ pub mod pallet {
 					deal_info.assigned_miner = miner_task_list;
 					deal_info.complete_list = Default::default();
 					Self::start_first_task(deal_hash.0.to_vec(), deal_hash, count + 1)?;
-
+					// unlock mienr space
+					for (miner, task_list) in deal_info.assigned_miner {
+						let count = task_list.len() as u128;
+						T::MinerControl::unlock_space(&miner, FRAGMENT_SIZE * count)?;
+					}
 					Ok(())
 				})?;
 			} else {
 				let deal_info = <DealMap<T>>::try_get(&deal_hash).map_err(|_| Error::<T>::NonExistent)?;
 				let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
 				T::StorageHandle::unlock_user_space(&deal_info.user.user, needed_space)?;
+				// unlock mienr space
+				for (miner, task_list) in deal_info.assigned_miner {
+					let count = task_list.len() as u128;
+					T::MinerControl::unlock_space(&miner, FRAGMENT_SIZE * count)?;
+				}
+				
 				<DealMap<T>>::remove(&deal_hash);
 			}
 
@@ -560,6 +570,7 @@ pub mod pallet {
 								let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
 								T::StorageHandle::unlock_and_used_user_space(&deal_info.user.user, needed_space)?;
 								T::FScheduler::cancel_named(hash.0.to_vec()).map_err(|_| Error::<T>::Unexpected)?;
+								Self::start_second_task(hash.0.to_vec(), hash)?;
 								if <Bucket<T>>::contains_key(&deal_info.user.user, &deal_info.user.bucket_name) {
 									Self::add_file_to_bucket(&deal_info.user.user, &deal_info.user.bucket_name, &hash)?;
 								} else {
@@ -587,6 +598,63 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			deal_hash: Hash,
 		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			let deal_info = <DealMap<T>>::try_get(&deal_hash).map_err(|_| Error::<T>::NonExistent)?;
+			let mut idle_count: u128 = 0;
+			for (miner, task_list) in deal_info.assigned_miner {
+				let count = task_list.len() as u32;
+				// Accumulate the number of fragments stored by each miner
+				idle_count += count.into();
+				T::MinerControl::unlock_space_to_service(&miner, FRAGMENT_SIZE * count.into())?;
+				// Miners need to report the replaced documents themselves. 
+				// If a challenge is triggered before the report is completed temporarily, 
+				// these documents to be replaced also need to be verified
+				<PendingReplacements<T>>::mutate(&miner, |pending_count| -> DispatchResult {
+					pengding_count = pengding_count.checked_add(count).ok_or(Error::<T>::Overflow)?;
+					Ok(())
+				})?;
+			}
+
+			let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
+			T::StorageHandle::sub_total_idle_space(idle_count * FRAGMENT_SIZE)?;
+
+			<File<T>>::try_mutate(&deal_hash, |file_opt| -> DispatchResult {
+				let file = file_opt.as_mut().ok_or(Error::<T>::BugInvalid)?;
+				file.stat = FileState::Active;
+				Ok(())
+			})?;
+
+			<DealMap<T>>::remove(&deal_hash);
+
+			Ok(())
+		}
+
+		#[pallet::call_index(4)]
+		#[transactional]
+		#[pallet::weight(1_000_000_000)]
+		pub fn replace_file_report(
+			origin: OriginFor<T>,
+			filler: Vec<Hash>,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			ensure!(filler.len() < 30, Error::<T>::LengthExceedsLimit);
+			let pending_count = <PendingReplacements<T>>::get(&sender);
+			ensure!(filler.len() as u128 <= pending_count, Error::<T>::LengthExceedsLimit);
+
+			let mut count: u32 = 0;
+			for filler_hash in filler {
+				if <FillerMap<T>>::contains_key(&sender, &filler_hash) {
+					count += 1;
+					<FillerMap<T>>::remove(&sender, &filler_hash);
+				}
+			}
+
+			<PendingReplacements<T>>::mutate(&sender, |pending_count| -> DispatchResult {
+				pengding_count = pengding_count.checked_sub(count).ok_or(Error::<T>::Overflow)?;
+				Ok(())
+			})?;
 
 			Ok(())
 		}
@@ -785,6 +853,19 @@ pub mod pallet {
 				segment_info_list.try_push(segment_info).map_err(|_e| Error::<T>::BoundedVecError)?;
 			}
 
+			for segment_info in &segment_info_list {
+				if <SegmentMap<T>>::contains_key(segment_info.hash) {
+					<SegmentMap<T>>::try_mutate(segment_info.hash, |segment_opt| -> DispatchResult {
+						let segment_tuple = segment_opt.as_mut().ok_or(Error::<T>::BugInvalid)?;
+						segment_tuple.1 = segment_tuple.1.checked_add(1).ok_or(Error::<T>::Overflow)?;
+						Ok(())
+					})?;
+				} else {
+					<SegmentMap<T>>::insert(segment_info.hash, 1);
+					T::StorageHandle::add_total_service_space(Self::cal_file_size(1));
+				}
+			}
+
 			let cur_block = <frame_system::Pallet<T>>::block_number();
 
 			let file_info = FileInfo::<T> {
@@ -877,6 +958,22 @@ pub mod pallet {
 			Ok(())
 		}
 
+		pub fn start_second_task(task_id: Vec<u8>, deal_hash: Hash, count: u8) -> DispatchResult {
+			let start: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
+			let survival_block = start.checked_add(600 * (count as u32)).ok_or(Error::<T>::Overflow)?;
+
+			T::FScheduler::schedule_named(
+					task_id, // TODO!
+					DispatchTime::At(survival_block.saturated_into()),
+					Option::None,
+					schedule::HARD_DEADLINE,
+					frame_system::RawOrigin::Root.into(),
+					Call::calculate_end{deal_hash: deal_hash}.into(), // TODO!
+			).map_err(|_| Error::<T>::Unexpected)?;
+
+			Ok(())
+		}
+
 		pub fn random_assign_miner(needed_list: &SegmentList<T>) -> Result<MinerTaskList<T>, DispatchError> {
 			let mut index_list: Vec<u32> = Default::default();
 			let mut miner_task_list: MinerTaskList<T> = Default::default();
@@ -890,7 +987,7 @@ pub mod pallet {
 			let total = all_miner.len() as u32;
 
 			ensure!(total > miner_count, Error::<T>::NodesInsuffcient);
-			// Maximum number of cycles set to prevent dead cycles
+			// Maximum number of cycles set to prevent dead cycles TODO!
 			let max_count = miner_count * 5;
 			let mut cur_count = 0;
 			let mut total_idle_space = 0;
@@ -1039,83 +1136,6 @@ pub mod pallet {
 
 			Ok(weight)
 		}
-		/// helper: replace file.
-		///
-		/// service file replace fill file.
-		/// Determine which filler files to replace according to size.
-		///
-		/// Parameters:
-		/// - `miner_acc`: miner AccountId.
-		/// - `file_size`: service file size
-		///
-		/// Result:
-		/// - DispatchResult
-		fn replace_file(miner_acc: AccountOf<T>, file_size: u64) -> DispatchResult {
-			let (power, space) = T::MinerControl::get_power_and_space(miner_acc.clone())?;
-			//Judge whether the current miner's remaining is enough to store files
-			if power > space {
-				if power - space < file_size.into() {
-					Err(Error::<T>::MinerPowerInsufficient)?;
-				}
-			} else {
-				Err(Error::<T>::Overflow)?;
-			}
-			//How many files to replace, round up
-			let replace_num = (file_size as u128)
-				.checked_div(8)
-				.ok_or(Error::<T>::Overflow)?
-				.checked_div(M_BYTE)
-				.ok_or(Error::<T>::Overflow)?
-				.checked_add(1)
-				.ok_or(Error::<T>::Overflow)?;
-			let mut counter = 0;
-			let mut filler_hash_list: BoundedVec<Hash, T::StringLimit> = Default::default();
-			for (filler_hash, _) in <FillerMap<T>>::iter_prefix(miner_acc.clone()) {
-				if counter == replace_num {
-					break
-				}
-				filler_hash_list
-					.try_push(filler_hash.clone())
-					.map_err(|_| Error::<T>::StorageLimitReached)?;
-				counter = counter.checked_add(1).ok_or(Error::<T>::Overflow)?;
-				//Clear information on the chain
-				Self::delete_filler(miner_acc.clone(), filler_hash)?;
-			}
-			//Notify the miner to clear the corresponding data segment
-			<InvalidFile<T>>::try_mutate(&miner_acc, |o| -> DispatchResult {
-				for file_hash in filler_hash_list {
-					o.try_push(file_hash).map_err(|_e| Error::<T>::StorageLimitReached)?;
-				}
-				Ok(())
-			})?;
-			//add space
-			T::MinerControl::add_miner_service_space(&miner_acc, file_size.into())?;
-			T::StorageHandle::add_total_service_space(file_size.into())?;
-			T::MinerControl::sub_miner_idle_space(&miner_acc, replace_num * M_BYTE * 8)?;
-			T::StorageHandle::sub_total_idle_space(replace_num * M_BYTE * 8)?;
-			Ok(())
-		}
-		/// helper: add invalid file.
-		///
-		/// Clear the files that failed
-		/// the challenge or have been replaced
-		///
-		/// Parameters:
-		/// - `miner_acc`: miner AccountId.
-		/// - `file_hash`: file hash.
-		///
-		/// Result:
-		/// - DispatchResult
-		pub fn add_invalid_file(miner_acc: AccountOf<T>, file_hash: Hash) -> DispatchResult {
-			<InvalidFile<T>>::try_mutate(&miner_acc, |o| -> DispatchResult {
-				o.try_push(file_hash.try_into().map_err(|_e| Error::<T>::BoundedVecError)?)
-					.map_err(|_e| Error::<T>::StorageLimitReached)?;
-				Ok(())
-			})?; //read 1 write 1
-
-			Ok(())
-		}
-
 		/// helper: add user hold fileslice.
 		///
 		/// Add files held by users.
