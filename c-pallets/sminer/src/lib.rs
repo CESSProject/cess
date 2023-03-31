@@ -991,6 +991,7 @@ pub trait MinerControl<AccountId> {
 	fn start_buffer_period_schedule() -> DispatchResult;
 	fn get_all_miner() -> Result<Vec<AccountId>, DispatchError>;
 	fn lock_space(acc: &AccountId, space: u128) -> DispatchResult;
+	fn unlock_space(acc: &AccountId, space: u128) -> DispatchResult;
 	fn get_miner_idle_space(acc: &AccountId) -> Result<u128, DispatchError>;
 }
 
@@ -1072,6 +1073,24 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 			let miner = miner_opt.as_mut().ok_or(Error::<T>::NotExisted)?;
 			miner.lock_space = miner.lock_space.checked_add(space).ok_or(Error::<T>::Overflow)?;
 			miner.power = miner.power.checked_sub(space).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})
+	}
+
+	fn unlock_space(acc: &AccountOf<T>, space: u128) -> DispatchResult {
+		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
+			let miner = miner_opt.as_mut().ok_or(Error::<T>::NotExisted)?;
+			miner.lock_space = miner.lock_space.checked_sub(space).ok_or(Error::<T>::Overflow)?;
+			miner.power = miner.power.checked_add(space).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})
+	}
+
+	fn unlock_space_to_service(acc: &AccountOf<T>, space: u128) -> DispatchResult {
+		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
+			let miner = miner_opt.as_mut().ok_or(Error::<T>::NotExisted)?;
+			miner.lock_space = miner.lock_space.checked_sub(space).ok_or(Error::<T>::Overflow)?;
+			miner.power = miner.space.checked_add(space).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})
 	}
