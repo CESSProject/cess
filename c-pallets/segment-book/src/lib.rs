@@ -506,32 +506,6 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
-		// fn clear_failure_map(limit: u32 , maybe_cursor: Option<&[u8]>) -> Weight {
-		// 	let result = <FailureNumMap<T>>::clear(limit, maybe_cursor);
-		// 	let mut weight: Weight = 0;
-		// 	match result.maybe_cursor {
-		// 		Some(v) => weight = Self::clear_failure_map(limit, result.maybe_cursor),
-		// 		None => {
-		// 			weight = weight.saturating_add(T::DbWeight::get().writes(result.backend));
-		// 			weight = weight.saturating_add(T::DbWeight::get().reads_writes(result.loops, result.loops));
-		// 		},
-		// 	};
-		// 	return weight;
-		// }
-		//
-		// fn clear_total_proof(limit: u32 , maybe_cursor: Option<&[u8]>) -> Weight {
-		// 	let result = <MinerTotalProof<T>>::clear(limit, maybe_cursor);
-		// 	let mut weight: Weight = 0;
-		// 	match result.maybe_cursor {
-		// 		Some(v) => weight = Self::clear_total_proof(limit, result.maybe_cursor),
-		// 		None => {
-		// 			weight = weight.saturating_add(T::DbWeight::get().writes(result.backend));
-		// 			weight = weight.saturating_add(T::DbWeight::get().reads_writes(result.loops, result.loops));
-		// 		},
-		// 	};
-		// 	return weight;
-		// }
-
 		fn check_unsign(
 			seg_digest: &SegDigest<BlockNumberOf<T>>,
 			signature: &<T::AuthorityId as RuntimeAppPublic>::Signature,
