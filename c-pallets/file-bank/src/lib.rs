@@ -164,7 +164,7 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		//file upload declaration
-		UploadDeclaration { operator: AccountOf<T>, owner: AccountOf<T>, file_hash: Hash, file_name: Vec<u8> },
+		UploadDeclaration { operator: AccountOf<T>, owner: AccountOf<T>, deal_hash: Hash },
 		//file uploaded.
 		TransferReport { acc: AccountOf<T>, failed_list: Vec<Hash> },
 		//file updated.
@@ -174,7 +174,11 @@ pub mod pallet {
 		//Storage information of scheduling storage file slice
 		InsertFileSlice { fileid: Vec<u8> },
 		//File deletion event
-		DeleteFile { operator:AccountOf<T>, owner: AccountOf<T>, file_hash_list: Vec<Hash>, failed_list: Vec<Hash> },
+		DeleteFile { operator:AccountOf<T>, owner: AccountOf<T>, file_hash: Hash },
+
+		ReplaceFiller { acc: AccountOf<T>, filler_list: Vec<Hash> },
+
+		CalculateEnd{ file_hash: Hash },
 		//Filler chain success event
 		FillerUpload { acc: AccountOf<T>, file_size: u64 },
 		//File recovery
@@ -377,7 +381,7 @@ pub mod pallet {
 
 				<File<T>>::try_mutate(&file_hash, |file_opt| -> DispatchResult {
 					let file = file_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
-					file.owner.try_push(user_brief).map_err(|_e| Error::<T>::BoundedVecError)?;
+					file.owner.try_push(user_brief.clone()).map_err(|_e| Error::<T>::BoundedVecError)?;
 					Ok(())
 				})?;
 			} else {
@@ -407,17 +411,18 @@ pub mod pallet {
 
 					Self::add_user_hold_fileslice(&user_brief.user, file_hash, needed_space)?;
 
-					Self::generate_file(&file_hash, deal_info, Default::default(), share_info, user_brief, FileState::Active)?;
+					Self::generate_file(&file_hash, deal_info, Default::default(), share_info, user_brief.clone(), FileState::Active)?;
 
 				} else {
 					T::StorageHandle::lock_user_space(&user_brief.user, needed_space)?;
 
 					// TODO! Replace the file_hash param
-					let deal_info = Self::generate_deal(file_hash.clone(), needed_list, deal_info, user_brief, share_info)?;
+					let deal_info = Self::generate_deal(file_hash.clone(), needed_list, deal_info, user_brief.clone(), share_info)?;
 				}
 
 			}
 
+			Self::deposit_event(Event::<T>::UploadDeclaration { operator: sender, owner: user_brief.user, deal_hash: file_hash });
 
 			Ok(())
 		}
@@ -635,6 +640,8 @@ pub mod pallet {
 
 			<DealMap<T>>::remove(&deal_hash);
 
+			Self::deposit_event(Event::<T>::CalculateEnd{ file_hash: deal_hash });
+
 			Ok(())
 		}
 
@@ -652,10 +659,10 @@ pub mod pallet {
 			ensure!(filler.len() as u32 <= pending_count, Error::<T>::LengthExceedsLimit);
 
 			let mut count: u32 = 0;
-			for filler_hash in filler {
-				if <FillerMap<T>>::contains_key(&sender, &filler_hash) {
+			for filler_hash in filler.iter() {
+				if <FillerMap<T>>::contains_key(&sender, filler_hash) {
 					count += 1;
-					<FillerMap<T>>::remove(&sender, &filler_hash);
+					<FillerMap<T>>::remove(&sender, filler_hash);
 				}
 			}
 
@@ -664,6 +671,8 @@ pub mod pallet {
 				*pending_count = pending_count_temp;
 				Ok(())
 			})?;
+
+			Self::deposit_event(Event::<T>::ReplaceFiller{ acc: sender, filler_list: filler });
 
 			Ok(())
 		}
@@ -690,6 +699,8 @@ pub mod pallet {
 			} else {
 				Self::remove_file_last_owner(&file_hash, &owner)?;
 			}
+
+			Self::deposit_event(Event::<T>::DeleteFile{ operator: sender, owner, file_hash });
 
 			Ok(())
 		}
