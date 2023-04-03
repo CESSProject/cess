@@ -60,7 +60,12 @@ use sp_runtime::{
 	},
 	RuntimeDebug, SaturatedConversion,
 };
-use sp_std::{convert::TryInto, prelude::*, str};
+use sp_std::{
+	convert::TryInto, 
+	prelude::*, 
+	str, 
+	collections::btree_map::BTreeMap
+};
 
 pub use weights::WeightInfo;
 
@@ -238,6 +243,8 @@ pub mod pallet {
 		PanicOverflow,
 
 		InsufficientAvailableSpace,
+		// The file is in a calculated tag state and cannot be deleted
+		Calculate,
 	}
 
 	
@@ -278,7 +285,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn pending_replacements)]
-	pub(super) type PendingReplacements<T: Config> = <_, Blake2_128Concat, AccountOf<T>, u32, ValueQuery>;
+	pub(super) type PendingReplacements<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, u32, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn invalid_file)]
@@ -433,9 +440,9 @@ pub mod pallet {
 					deal_info.complete_list = Default::default();
 					Self::start_first_task(deal_hash.0.to_vec(), deal_hash, count + 1)?;
 					// unlock mienr space
-					for (miner, task_list) in deal_info.assigned_miner {
+					for (miner, task_list) in &deal_info.assigned_miner {
 						let count = task_list.len() as u128;
-						T::MinerControl::unlock_space(&miner, FRAGMENT_SIZE * count)?;
+						T::MinerControl::unlock_space(miner, FRAGMENT_SIZE * count)?;
 					}
 					Ok(())
 				})?;
@@ -570,7 +577,7 @@ pub mod pallet {
 								let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
 								T::StorageHandle::unlock_and_used_user_space(&deal_info.user.user, needed_space)?;
 								T::FScheduler::cancel_named(hash.0.to_vec()).map_err(|_| Error::<T>::Unexpected)?;
-								Self::start_second_task(hash.0.to_vec(), hash)?;
+								Self::start_second_task(hash.0.to_vec(), hash, 5)?;
 								if <Bucket<T>>::contains_key(&deal_info.user.user, &deal_info.user.bucket_name) {
 									Self::add_file_to_bucket(&deal_info.user.user, &deal_info.user.bucket_name, &hash)?;
 								} else {
@@ -603,15 +610,16 @@ pub mod pallet {
 			let deal_info = <DealMap<T>>::try_get(&deal_hash).map_err(|_| Error::<T>::NonExistent)?;
 			let mut idle_count: u128 = 0;
 			for (miner, task_list) in deal_info.assigned_miner {
-				let count = task_list.len() as u32;
+				let mut count = task_list.len() as u32;
 				// Accumulate the number of fragments stored by each miner
-				idle_count += count.into();
-				T::MinerControl::unlock_space_to_service(&miner, FRAGMENT_SIZE * count.into())?;
+				idle_count += count as u128;
+				T::MinerControl::unlock_space_to_service(&miner, FRAGMENT_SIZE * count as u128)?;
 				// Miners need to report the replaced documents themselves. 
 				// If a challenge is triggered before the report is completed temporarily, 
 				// these documents to be replaced also need to be verified
-				<PendingReplacements<T>>::mutate(&miner, |pending_count| -> DispatchResult {
-					pengding_count = pengding_count.checked_add(count).ok_or(Error::<T>::Overflow)?;
+				<PendingReplacements<T>>::try_mutate(&miner, |pending_count| -> DispatchResult {
+					let pending_count_temp = pending_count.checked_add(count).ok_or(Error::<T>::Overflow)?;
+					*pending_count = pending_count_temp;
 					Ok(())
 				})?;
 			}
@@ -630,7 +638,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(4)]
+		#[pallet::call_index(5)]
 		#[transactional]
 		#[pallet::weight(1_000_000_000)]
 		pub fn replace_file_report(
@@ -641,7 +649,7 @@ pub mod pallet {
 
 			ensure!(filler.len() < 30, Error::<T>::LengthExceedsLimit);
 			let pending_count = <PendingReplacements<T>>::get(&sender);
-			ensure!(filler.len() as u128 <= pending_count, Error::<T>::LengthExceedsLimit);
+			ensure!(filler.len() as u32 <= pending_count, Error::<T>::LengthExceedsLimit);
 
 			let mut count: u32 = 0;
 			for filler_hash in filler {
@@ -652,9 +660,36 @@ pub mod pallet {
 			}
 
 			<PendingReplacements<T>>::mutate(&sender, |pending_count| -> DispatchResult {
-				pengding_count = pengding_count.checked_sub(count).ok_or(Error::<T>::Overflow)?;
+				let pending_count_temp = pending_count.checked_sub(count).ok_or(Error::<T>::Overflow)?;
+				*pending_count = pending_count_temp;
 				Ok(())
 			})?;
+
+			Ok(())
+		}
+
+		#[pallet::call_index(6)]
+		#[transactional]
+		#[pallet::weight(1_000_000_000)]
+		pub fn delete_file(origin: OriginFor<T>, owner: AccountOf<T>, file_hash: Hash) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			// Check if you have operation permissions.
+			ensure!(Self::check_permission(sender.clone(), owner.clone()), Error::<T>::NoPermission);
+
+			let file = <File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::NonExistent)?;
+			ensure!(file.stat != FileState::Calculate, Error::<T>::Calculate);
+
+			let mut acc_list: Vec<AccountOf<T>> = Default::default();
+			for user_brief in file.owner.into_iter() {
+				acc_list.push(user_brief.user);
+			}
+			ensure!(acc_list.contains(&owner), Error::<T>::NotOwner);
+
+			if acc_list.len() > 1 {
+				Self::remove_file_owner(&file_hash, &owner)?;
+			} else {
+				Self::remove_file_last_owner(&file_hash, &owner)?;
+			}
 
 			Ok(())
 		}
@@ -861,7 +896,7 @@ pub mod pallet {
 						Ok(())
 					})?;
 				} else {
-					<SegmentMap<T>>::insert(segment_info.hash, 1);
+					<SegmentMap<T>>::insert(segment_info.hash, (segment_info, 1));
 					T::StorageHandle::add_total_service_space(Self::cal_file_size(1));
 				}
 			}
@@ -1066,6 +1101,74 @@ pub mod pallet {
 
 		fn cal_file_size(len: u128) -> u128 {
 			len * (SEGMENT_SIZE * 15 / 10)
+		}
+
+		// The status of the file must be confirmed before use.
+		fn remove_file_owner(file_hash: &Hash, acc: &AccountOf<T>) -> DispatchResult {
+			<File<T>>::try_mutate(file_hash, |file_opt| -> DispatchResult {
+				let file = file_opt.as_mut().ok_or(Error::<T>::Overflow)?;
+				for (index, user_brief) in file.owner.iter().enumerate() {
+					if acc == &user_brief.user {
+						let file_size = Self::cal_file_size(file.segment_list.len() as u128);
+						T::StorageHandle::update_user_space(acc, 2, file_size)?;
+						file.owner.remove(index);
+						break;
+					}
+				}
+				Ok(())
+			})?;
+
+			Ok(())
+		}
+
+		// The status of the file must be confirmed before use.
+		fn remove_file_last_owner(file_hash: &Hash, acc: &AccountOf<T>) -> DispatchResult {
+			let file = <File<T>>::try_get(file_hash).map_err(|_| Error::<T>::NonExistent)?;
+			// Record the total number of fragments that need to be deleted.
+			let mut total_fragment_dec = 0;
+			// Used to record and store the amount of service space that miners need to reduce, 
+			// and read changes once through counting
+			let mut miner_list: BTreeMap<AccountOf<T>, u32> = Default::default();
+			// Traverse every segment
+			for segment_info in file.segment_list.iter() {
+				let flag = <SegmentMap<T>>::try_mutate(segment_info.hash, |segment_opt| -> Result<bool, DispatchError> {
+					let (segment_info, count) = segment_opt.as_mut().ok_or(Error::<T>::BugInvalid)?;
+					// Determine whether the segment is shared
+					if *count > 1 {
+						*count = count.checked_sub(1).ok_or(Error::<T>::Overflow)?;
+					} else {
+						for fragment_info in segment_info.fragment_list.iter() {
+							// The total number of fragments in a file should never exceed u32
+							total_fragment_dec += 1;
+							if miner_list.contains_key(&fragment_info.miner) {
+								let temp_count = miner_list.get_mut(&fragment_info.miner).ok_or(Error::<T>::BugInvalid)?;
+								// The total number of fragments in a file should never exceed u32
+								*temp_count += 1;
+							} else {
+								miner_list.insert(fragment_info.miner.clone(), 1);
+							}
+						}
+						return Ok(true);
+					}
+					Ok(false)
+				})?;
+
+				if flag {
+					<SegmentMap<T>>::remove(segment_info.hash);
+				}
+			}
+
+			for (miner, count) in miner_list.iter() {
+				T::MinerControl::sub_miner_service_space(miner, FRAGMENT_SIZE * *count as u128)?;
+			}
+
+			let file_size = Self::cal_file_size(file.segment_list.len() as u128);
+			T::StorageHandle::update_user_space(acc, 2, file_size);
+			T::StorageHandle::sub_total_service_space(total_fragment_dec as u128 * FRAGMENT_SIZE)?;
+
+			<File<T>>::remove(file_hash);
+
+			Ok(())
 		}
 		/// helper: generate random number.
 		///

@@ -992,6 +992,7 @@ pub trait MinerControl<AccountId> {
 	fn get_all_miner() -> Result<Vec<AccountId>, DispatchError>;
 	fn lock_space(acc: &AccountId, space: u128) -> DispatchResult;
 	fn unlock_space(acc: &AccountId, space: u128) -> DispatchResult;
+	fn unlock_space_to_service(acc: &AccountId, space: u128) -> DispatchResult;
 	fn get_miner_idle_space(acc: &AccountId) -> Result<u128, DispatchError>;
 }
 
