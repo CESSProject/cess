@@ -708,7 +708,7 @@ pub mod pallet {
 		}
 
 		//Trigger: whether to trigger the challenge
-		fn trigger_challenge(now: BlockNumberOf<T>) -> bool {
+		fn _trigger_challenge(now: BlockNumberOf<T>) -> bool {
 			const START_FINAL_PERIOD: Permill = Permill::from_percent(80);
 
 			let time_point = Self::random_time_number(20220509);
@@ -941,7 +941,7 @@ pub mod pallet {
 		}
 
 		// Generate a random number from a given seed.
-		fn random_time_number(seed: u32) -> u64 {
+		pub fn random_time_number(seed: u32) -> u64 {
 			let (random_seed, _) = T::MyRandomness::random(&(T::MyPalletId::get(), seed).encode());
 			let random_seed = match random_seed {
 				Some(v) => v,
@@ -980,7 +980,7 @@ pub mod pallet {
 		fn update_miner_file(
 			acc: AccountOf<T>,
 			file_id: Hash,
-			shard_id: [u8; 68],
+			_shard_id: [u8; 68],
 			file_size: u64,
 			file_type: DataType,
 		) -> Result<Weight, DispatchError> {
@@ -993,12 +993,10 @@ pub mod pallet {
 					T::MinerControl::sub_miner_idle_space(&acc, file_size.into())?; //read 3 write 2
 					T::StorageHandle::sub_total_idle_space(file_size.into())?;
 					T::File::delete_filler(acc.clone(), file_id.clone())?; //read 1 write 2
-					T::File::add_invalid_file(acc.clone(), file_id.clone())?; //read 1 write 1
 					weight = weight.saturating_add(T::DbWeight::get().reads_writes(5, 5));
 				},
 				DataType::File => {
 					T::MinerControl::sub_miner_service_space(&acc, file_size.into())?; //read 3 write 2
-					T::File::add_recovery_file(shard_id.clone())?; //read 2 write 2
 					// T::File::add_invalid_file(acc.clone(), file_id.clone())?; //read 1 write 1
 					weight = weight.saturating_add(T::DbWeight::get().reads_writes(6, 5));
 				},

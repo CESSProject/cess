@@ -1,10 +1,6 @@
 // This file is part of Substrate.
-
-use codec::Encode;
-use frame_system_rpc_runtime_api::AccountNonceApi;
 pub use crate::executor::ExecutorDispatch;
 use crate::{
-	cli::Cli, 
 	primitives as node_primitives, 
 	rpc as node_rpc
 };
@@ -25,12 +21,8 @@ use sc_network::NetworkService;
 use sc_network_common::{protocol::event::Event, service::NetworkEventStream};
 use sc_service::{ BasePath, config::Configuration, error::Error as ServiceError, RpcHandlers, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
-use sp_api::ProvideRuntimeApi;
-use sp_core::crypto::Pair;
 use sp_runtime::{
-	generic, 
 	traits::Block as BlockT, 
-	SaturatedConversion
 };
 use std::{
 	collections::BTreeMap,

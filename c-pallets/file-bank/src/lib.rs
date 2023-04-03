@@ -25,7 +25,7 @@ mod mock;
 mod tests;
 
 use frame_support::traits::{
-	Currency, ExistenceRequirement::AllowDeath, FindAuthor, Randomness, ReservableCurrency,
+	FindAuthor, Randomness,
 	StorageVersion,
 	schedule::{Anon as ScheduleAnon, DispatchTime, Named as ScheduleNamed}, 
 };
@@ -51,12 +51,12 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use scale_info::TypeInfo;
-use cp_cess_common::{DataType, Hash as H68, M_BYTE, T_BYTE, G_BYTE, FRAGMENT_SIZE, SEGMENT_SIZE};
+use cp_cess_common::{DataType, Hash as H68, M_BYTE, FRAGMENT_SIZE, SEGMENT_SIZE};
 use pallet_storage_handler::StorageHandle;
 use cp_scheduler_credit::SchedulerCreditCounter;
 use sp_runtime::{
 	traits::{
-		AccountIdConversion, BlockNumberProvider, CheckedAdd,
+		BlockNumberProvider, CheckedAdd,
 	},
 	RuntimeDebug, SaturatedConversion,
 };
@@ -272,11 +272,6 @@ pub mod pallet {
 	>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn file_recovery)]
-	pub(super) type FileRecovery<T: Config> =
-		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<[u8; 68], T::RecoverLimit>, ValueQuery>;
-
-	#[pallet::storage]
 	#[pallet::getter(fn filler_map)]
 	pub(super) type FillerMap<T: Config> = StorageDoubleMap<
 		_,
@@ -415,9 +410,8 @@ pub mod pallet {
 
 				} else {
 					T::StorageHandle::lock_user_space(&user_brief.user, needed_space)?;
-
 					// TODO! Replace the file_hash param
-					let deal_info = Self::generate_deal(file_hash.clone(), needed_list, deal_info, user_brief.clone(), share_info)?;
+					Self::generate_deal(file_hash.clone(), needed_list, deal_info, user_brief.clone(), share_info)?;
 				}
 
 			}
@@ -615,7 +609,7 @@ pub mod pallet {
 			let deal_info = <DealMap<T>>::try_get(&deal_hash).map_err(|_| Error::<T>::NonExistent)?;
 			let mut idle_count: u128 = 0;
 			for (miner, task_list) in deal_info.assigned_miner {
-				let mut count = task_list.len() as u32;
+				let count = task_list.len() as u32;
 				// Accumulate the number of fragments stored by each miner
 				idle_count += count as u128;
 				T::MinerControl::unlock_space_to_service(&miner, FRAGMENT_SIZE * count as u128)?;
@@ -629,7 +623,7 @@ pub mod pallet {
 				})?;
 			}
 
-			let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
+			let _needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
 			T::StorageHandle::sub_total_idle_space(idle_count * FRAGMENT_SIZE)?;
 
 			<File<T>>::try_mutate(&deal_hash, |file_opt| -> DispatchResult {
@@ -822,7 +816,7 @@ pub mod pallet {
 			ensure!(<Bucket<T>>::contains_key(&owner, &name), Error::<T>::NonExistent);
 			let bucket = <Bucket<T>>::try_get(&owner, &name).map_err(|_| Error::<T>::Unexpected)?;
 			for file_hash in bucket.object_list.iter() {
-				let file = <File<T>>::try_get(file_hash).map_err(|_| Error::<T>::Unexpected)?;
+				let _file = <File<T>>::try_get(file_hash).map_err(|_| Error::<T>::Unexpected)?;
 			}
 			<Bucket<T>>::remove(&owner, &name);
 			<UserBucketList<T>>::try_mutate(&owner, |bucket_list| -> DispatchResult {
@@ -908,7 +902,7 @@ pub mod pallet {
 					})?;
 				} else {
 					<SegmentMap<T>>::insert(segment_info.hash, (segment_info, 1));
-					T::StorageHandle::add_total_service_space(Self::cal_file_size(1));
+					T::StorageHandle::add_total_service_space(Self::cal_file_size(1))?;
 				}
 			}
 
@@ -1174,7 +1168,7 @@ pub mod pallet {
 			}
 
 			let file_size = Self::cal_file_size(file.segment_list.len() as u128);
-			T::StorageHandle::update_user_space(acc, 2, file_size);
+			T::StorageHandle::update_user_space(acc, 2, file_size)?;
 			T::StorageHandle::sub_total_service_space(total_fragment_dec as u128 * FRAGMENT_SIZE)?;
 
 			<File<T>>::remove(file_hash);
@@ -1218,7 +1212,7 @@ pub mod pallet {
 			if !<FillerMap<T>>::contains_key(&miner_acc, filler_hash.clone()) {
 				Err(Error::<T>::FileNonExistent)?;
 			}
-			let value = <FillerMap<T>>::try_get(&miner_acc, filler_hash.clone()) //read 1
+			let _value = <FillerMap<T>>::try_get(&miner_acc, filler_hash.clone()) //read 1
 				.map_err(|_e| Error::<T>::FileNonExistent)?;
 			<FillerMap<T>>::remove(miner_acc, filler_hash.clone()); //write 1
 
@@ -1283,7 +1277,7 @@ pub mod pallet {
 		///
 		/// Result:
 		/// - AccountOf: consensus
-		fn get_current_scheduler() -> Result<AccountOf<T>, DispatchError> {
+		fn _get_current_scheduler() -> Result<AccountOf<T>, DispatchError> {
 			let digest = <frame_system::Pallet<T>>::digest();
 			let pre_runtime_digests = digest.logs.iter().filter_map(|d| d.as_pre_runtime());
 			let acc = T::FindAuthor::find_author(pre_runtime_digests).map(|a| a);
@@ -1328,7 +1322,7 @@ pub mod pallet {
 			false
 		}
 
-		fn record_uploaded_files_size(scheduler_id: &T::AccountId, file_size: u64) -> DispatchResult {
+		fn _record_uploaded_files_size(scheduler_id: &T::AccountId, file_size: u64) -> DispatchResult {
 			T::CreditCounter::record_proceed_block_size(scheduler_id, file_size)?;
 			Ok(())
 		}
@@ -1351,11 +1345,7 @@ pub trait RandomFileList<AccountId> {
 	//Delete all filler according to miner_acc
 	fn delete_miner_all_filler(miner_acc: AccountId) -> Result<Weight, DispatchError>;
 	//Delete file backup
-	fn clear_file(file_hash: Hash) -> Result<Weight, DispatchError>;
-	//The function executed when the challenge fails, allowing the miner to delete invalid files
-	fn add_recovery_file(file_id: [u8; 68]) -> DispatchResult;
-	//The function executed when the challenge fails to let the consensus schedule recover the file
-	fn add_invalid_file(miner_acc: AccountId, file_hash: Hash) -> DispatchResult;
+	fn clear_file(_file_hash: Hash) -> Result<Weight, DispatchError>;
 }
 
 impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -1370,7 +1360,7 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 	}
 	fn delete_miner_all_filler(miner_acc: AccountOf<T>) -> Result<Weight, DispatchError> {
 		let mut weight: Weight = Weight::from_ref_time(0);
-		for (_, value) in FillerMap::<T>::iter_prefix(&miner_acc) {
+		for (_, _value) in FillerMap::<T>::iter_prefix(&miner_acc) {
 			weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
 		}
 		#[allow(deprecated)]
@@ -1379,19 +1369,9 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 		Ok(weight)
 	}
 
-	fn clear_file(file_hash: Hash) -> Result<Weight, DispatchError> {
+	fn clear_file(_file_hash: Hash) -> Result<Weight, DispatchError> {
 		let weight: Weight = Weight::from_ref_time(0);
 		Ok(weight)
-	}
-
-	fn add_recovery_file(file_id: [u8; 68]) -> DispatchResult {
-		Pallet::<T>::add_recovery_file(file_id)?;
-		Ok(())
-	}
-
-	fn add_invalid_file(miner_acc: AccountOf<T>, file_hash: Hash) -> DispatchResult {
-		Pallet::<T>::add_invalid_file(miner_acc, file_hash)?;
-		Ok(())
 	}
 }
 

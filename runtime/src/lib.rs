@@ -1017,9 +1017,15 @@ parameter_types! {
 	#[derive(Clone, Eq, PartialEq)]
 	pub const NameStrLimit: u32 = 63;
 	#[derive(Clone, Eq, PartialEq)]
-	pub const MinLength: u32 = 3;
-	#[derive(Clone, Eq, PartialEq)]
 	pub const FileListLimit: u32 = 500000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const SegmentCount: u32 = 1000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const FragmentCount: u32 = 1000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const OwnerLimit: u32 = 50000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const NameMinLength: u32 = 3;
 }
 
 impl pallet_file_bank::Config for Runtime {
@@ -1028,6 +1034,10 @@ impl pallet_file_bank::Config for Runtime {
 	type RuntimeCall = RuntimeCall;
 	type FilbakPalletId = FilbakPalletId;
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
+	type FScheduler = Scheduler;
+	type AScheduler = Scheduler;
+	type SPalletsOrigin = OriginCaller;
+	type SProposal = RuntimeCall;
 	type WeightInfo = pallet_file_bank::weights::SubstrateWeight<Runtime>;
 	type MinerControl = Sminer;
 	type StorageHandle = StorageHandler;
@@ -1043,7 +1053,10 @@ impl pallet_file_bank::Config for Runtime {
 	type BucketLimit = BucketLimit;
 	type NameStrLimit = NameStrLimit;
 	type FileListLimit = FileListLimit;
-	type MinLength = MinLength;
+	type SegmentCount = SegmentCount;
+	type FragmentCount = FragmentCount;
+	type OwnerLimit = OwnerLimit;
+	type NameMinLength = NameMinLength;
 }
 
 parameter_types! {

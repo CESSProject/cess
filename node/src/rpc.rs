@@ -34,13 +34,11 @@ use sp_consensus::SelectChain;
 use cessp_consensus_rrsc::RRSCApi;
 use sp_keystore::SyncCryptoStorePtr;
 
-// Frontier
-use fc_db::Backend as FrontierBackend;
 use fc_rpc::{
 	EthBlockDataCacheTask, OverrideHandle, RuntimeApiStorageOverride, SchemaV1Override,
 	SchemaV2Override, SchemaV3Override, StorageOverride,
 };
-use fc_rpc_core::types::{FeeHistoryCache, FeeHistoryCacheLimit, FilterPool};
+use fc_rpc_core::types::{FeeHistoryCache, FilterPool};
 use fp_storage::EthereumStorageSchema;
 
 /// Extra dependencies for RRSC.

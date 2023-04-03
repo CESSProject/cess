@@ -1,4 +1,3 @@
-use cp_cess_common::IpAddress;
 use super::*;
 // Substrate type
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
