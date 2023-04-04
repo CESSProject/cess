@@ -562,6 +562,7 @@ pub mod pallet {
 							if !deal_info.complete_list.contains(&sender) {
 								deal_info.complete_list.try_push(sender.clone()).map_err(|_| Error::<T>::BoundedVecError)?;
 							}
+							// If it is the last submitter of the order.
 							if deal_info.complete_list.len() == deal_info.assigned_miner.len() {
 								deal_info.stage = 2;
 								Self::generate_file(
@@ -572,6 +573,18 @@ pub mod pallet {
 									deal_info.user.clone(),
 									FileState::Calculate,
 								)?;
+
+								for (miner, fragment_list) in deal_info.assigned_miner.iter() {
+									let count = fragment_list.len() as u32;
+									// Miners need to report the replaced documents themselves. 
+									// If a challenge is triggered before the report is completed temporarily, 
+									// these documents to be replaced also need to be verified
+									<PendingReplacements<T>>::try_mutate(miner, |pending_count| -> DispatchResult {
+										let pending_count_temp = pending_count.checked_add(count).ok_or(Error::<T>::Overflow)?;
+										*pending_count = pending_count_temp;
+										Ok(())
+									})?;
+								}	
 
 								let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
 								T::StorageHandle::unlock_and_used_user_space(&deal_info.user.user, needed_space)?;
@@ -607,24 +620,11 @@ pub mod pallet {
 			let _ = ensure_root(origin)?;
 
 			let deal_info = <DealMap<T>>::try_get(&deal_hash).map_err(|_| Error::<T>::NonExistent)?;
-			let mut idle_count: u128 = 0;
 			for (miner, task_list) in deal_info.assigned_miner {
 				let count = task_list.len() as u32;
 				// Accumulate the number of fragments stored by each miner
-				idle_count += count as u128;
 				T::MinerControl::unlock_space_to_service(&miner, FRAGMENT_SIZE * count as u128)?;
-				// Miners need to report the replaced documents themselves. 
-				// If a challenge is triggered before the report is completed temporarily, 
-				// these documents to be replaced also need to be verified
-				<PendingReplacements<T>>::try_mutate(&miner, |pending_count| -> DispatchResult {
-					let pending_count_temp = pending_count.checked_add(count).ok_or(Error::<T>::Overflow)?;
-					*pending_count = pending_count_temp;
-					Ok(())
-				})?;
 			}
-
-			let _needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
-			T::StorageHandle::sub_total_idle_space(idle_count * FRAGMENT_SIZE)?;
 
 			<File<T>>::try_mutate(&deal_hash, |file_opt| -> DispatchResult {
 				let file = file_opt.as_mut().ok_or(Error::<T>::BugInvalid)?;
@@ -901,8 +901,9 @@ pub mod pallet {
 						Ok(())
 					})?;
 				} else {
-					<SegmentMap<T>>::insert(segment_info.hash, (segment_info, 1));
+					<SegmentMap<T>>::insert(segment_info.hash, (segment_info, 0));
 					T::StorageHandle::add_total_service_space(Self::cal_file_size(1))?;
+					T::StorageHandle::sub_total_idle_space(Self::cal_file_size(1))?;
 				}
 			}
 
@@ -1139,7 +1140,7 @@ pub mod pallet {
 				let flag = <SegmentMap<T>>::try_mutate(segment_info.hash, |segment_opt| -> Result<bool, DispatchError> {
 					let (segment_info, count) = segment_opt.as_mut().ok_or(Error::<T>::BugInvalid)?;
 					// Determine whether the segment is shared
-					if *count > 1 {
+					if *count >= 1 {
 						*count = count.checked_sub(1).ok_or(Error::<T>::Overflow)?;
 					} else {
 						for fragment_info in segment_info.fragment_list.iter() {
