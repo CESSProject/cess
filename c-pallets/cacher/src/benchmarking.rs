@@ -2,10 +2,11 @@
 
 use super::*;
 
-use frame_benchmarking::{account, benchmarks, whitelisted_caller};
+use frame_benchmarking::{account, benchmarks};
 use frame_system::RawOrigin;
 use sp_runtime::traits::{Bounded, Hash};
 
+#[allow(unused)]
 use crate::Pallet as Cacher;
 
 const SEED: u32 = 0;
@@ -15,7 +16,7 @@ benchmarks! {
 	register {
 		let alice: AccountOf<T> = account("alice", 0, SEED);
 		let info = CacherInfo::<AccountOf<T>, BalanceOf<T>> {
-			acc: alice.clone(),
+			payee: alice.clone(),
 			ip: IpAddress::IPV4([127,0,0,1], 8080),
 			byte_price: 100u32.into(),
 		};
@@ -29,14 +30,14 @@ benchmarks! {
 	update {
 		let alice: AccountOf<T> = account("alice", 0, SEED);
 		let info = CacherInfo::<AccountOf<T>, BalanceOf<T>> {
-			acc: alice.clone(),
+			payee: alice.clone(),
 			ip: IpAddress::IPV4([127,0,0,1], 8080),
 			byte_price: 100u32.into(),
 		};
 		Cachers::<T>::insert(&alice, info);
 
 		let new_info = CacherInfo::<AccountOf<T>, BalanceOf<T>> {
-			acc: alice.clone(),
+			payee: alice.clone(),
 			ip: IpAddress::IPV4([127,0,0,1], 80),
 			byte_price: 200u32.into(),
 		};
@@ -50,7 +51,7 @@ benchmarks! {
 	logout {
 		let alice: AccountOf<T> = account("alice", 0, SEED);
 		let info = CacherInfo::<AccountOf<T>, BalanceOf<T>> {
-			acc: alice.clone(),
+			payee: alice.clone(),
 			ip: IpAddress::IPV4([127,0,0,1], 8080),
 			byte_price: 100u32.into(),
 		};
