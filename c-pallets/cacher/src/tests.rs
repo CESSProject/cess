@@ -4,13 +4,13 @@ use super::*;
 use frame_support::{assert_noop, assert_ok};
 use mock::{new_test_ext, Cacher, Origin, Test};
 use sp_runtime::traits::Hash;
-
+use pallet_balances::Error as BalancesError;
 
 #[test]
 fn register_works() {
 	new_test_ext().execute_with(|| {
 		let info = CacherInfo::<AccountOf<Test>, BalanceOf<Test>> {
-			acc: 1,
+			payee: 1,
 			ip: IpAddress::IPV4([127,0,0,1], 8080),
 			byte_price: 100u32.into(),
 		};
@@ -21,7 +21,7 @@ fn register_works() {
 		assert_eq!(result_info, info);
 
 		// Register again fails.
-		assert_noop!(Cacher::register(Origin::signed(1), info.clone()), Error::<Test>::Registered);
+		assert_noop!(Cacher::register(Origin::signed(1), info.clone()), Error::<Test>::AlreadyRegistered);
 	});
 }
 
@@ -29,19 +29,19 @@ fn register_works() {
 fn update_works() {
 	new_test_ext().execute_with(|| {
 		let info = CacherInfo::<AccountOf<Test>, BalanceOf<Test>> {
-			acc: 1,
+			payee: 1,
 			ip: IpAddress::IPV4([127,0,0,1], 8080),
 			byte_price: 100u32.into(),
 		};
 		assert_ok!(Cacher::register(Origin::signed(1), info.clone()));
 
 		let new_info = CacherInfo::<AccountOf<Test>, BalanceOf<Test>> {
-			acc: 1,
+			payee: 1,
 			ip: IpAddress::IPV4([127,0,0,1], 80),
 			byte_price: 200u32.into(),
 		};
 		// Wrong accout update fails.
-		assert_noop!(Cacher::update(Origin::signed(2), new_info.clone()), Error::<Test>::UnRegister);
+		assert_noop!(Cacher::update(Origin::signed(2), new_info.clone()), Error::<Test>::UnRegistered);
 		// Update works.
 		assert_ok!(Cacher::update(Origin::signed(1), new_info.clone()));
 
@@ -54,14 +54,14 @@ fn update_works() {
 fn logout_works() {
 	new_test_ext().execute_with(|| {
 		let info = CacherInfo::<AccountOf<Test>, BalanceOf<Test>> {
-			acc: 1,
+			payee: 1,
 			ip: IpAddress::IPV4([127,0,0,1], 8080),
 			byte_price: 100u32.into(),
 		};
 		assert_ok!(Cacher::register(Origin::signed(1), info.clone()));
 
 		// Wrong accout logout fails.
-		assert_noop!(Cacher::logout(Origin::signed(2)), Error::<Test>::UnRegister);
+		assert_noop!(Cacher::logout(Origin::signed(2)), Error::<Test>::UnRegistered);
 		// Logout works.
 		assert_ok!(Cacher::logout(Origin::signed(1)));
 	});
@@ -87,7 +87,7 @@ fn pay_works() {
 			bills.push(bill);
 		}
 		// Pay fails.
-		assert_noop!(Cacher::pay(Origin::signed(1), bills.clone()), Error::<Test>::InsufficientBalance);
+		assert_noop!(Cacher::pay(Origin::signed(1), bills.clone()), BalancesError::<Test>::InsufficientBalance);
 
 		<Test as Config>::Currency::make_free_balance_be(&1, BalanceOf::<Test>::max_value());
 		let balance_befor_1 = <Test as Config>::Currency::free_balance(&1);
