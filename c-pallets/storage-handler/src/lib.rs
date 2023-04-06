@@ -44,6 +44,7 @@ type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 
 const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
+
 #[frame_support::pallet]
 pub mod pallet {
     use super::*;
@@ -130,7 +131,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn total_space)]
 	pub(super) type TotalServiceSpace<T: Config> = StorageValue<_, u128, ValueQuery>;
-    
+
 	#[pallet::storage]
 	#[pallet::getter(fn purchased_space)]
 	pub(super) type PurchasedSpace<T: Config> = StorageValue<_, u128, ValueQuery>;

@@ -699,6 +699,32 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(7)]
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_filler(filler_list.len() as u32))]
+		pub fn test_add_idle_space(
+			origin: OriginFor<T>,
+			filler_list: Vec<FillerInfo<T>>,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			for i in filler_list.iter() {
+				if <FillerMap<T>>::contains_key(&sender, i.filler_hash) {
+					Err(Error::<T>::FileExistent)?;
+				}
+				<FillerMap<T>>::insert(&sender, i.filler_hash, i);
+			}
+
+			let idle_space = M_BYTE
+				.checked_mul(8)
+				.ok_or(Error::<T>::Overflow)?
+				.checked_mul(filler_list.len() as u128)
+				.ok_or(Error::<T>::Overflow)?;
+			T::MinerControl::add_miner_idle_space(&sender, idle_space)?;
+			T::StorageHandle::add_total_idle_space(idle_space)?;
+
+			Ok(())
+		}
 
 
 		/// Upload idle files for miners.

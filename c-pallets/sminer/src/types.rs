@@ -11,7 +11,7 @@ pub struct MinerInfo<AccountId, Balance, BoundedString> {
 	pub(super) peer_id: u64,
 	//Income account
 	pub(super) beneficiary: AccountId,
-	pub(super) ip: IpAddress,
+	pub(super) ip: BoundedString,
 	pub(super) collaterals: Balance,
 	//nomal, exit, frozen, e_frozen
 	pub(super) state: BoundedString,

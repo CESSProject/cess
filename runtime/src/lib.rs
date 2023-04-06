@@ -947,6 +947,7 @@ parameter_types! {
 	pub const FrozenDays: BlockNumber = DAYS * 7;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const StateStringMax: u32 = 20;
+
 }
 
 impl pallet_storage_handler::Config for Runtime {
@@ -1065,6 +1066,8 @@ parameter_types! {
 	pub const SchedulerMaximum: u32 = 10000;
 	#[derive(Clone, PartialEq, Eq)]
 	pub const ParamsLimit: u32 = 359;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const MaxWhitelist: u32 = 200;
 }
 
 impl pallet_tee_worker::Config for Runtime {
@@ -1077,6 +1080,7 @@ impl pallet_tee_worker::Config for Runtime {
 	type WeightInfo = pallet_tee_worker::weights::SubstrateWeight<Runtime>;
 	type CreditCounter = SchedulerCredit;
 	type ParamsLimit = ParamsLimit;
+	type MaxWhitelist = MaxWhitelist;
 }
 
 impl pallet_oss::Config for Runtime {

@@ -88,6 +88,9 @@ pub mod pallet {
 		type WeightInfo: WeightInfo;
 
 		type CreditCounter: SchedulerCreditCounter<Self::AccountId>;
+
+        #[pallet::constant]
+        type MaxWhitelist: Get<u32> + Clone + Eq + PartialEq;
 	}
 
 	#[pallet::event]
@@ -135,6 +138,11 @@ pub mod pallet {
 	#[pallet::getter(fn bond_acc)]
 	pub(super) type BondAcc<T: Config> =
 		StorageValue<_, BoundedVec<AccountOf<T>, T::SchedulerMaximum>, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn mr_enclave_whitelist)]
+	pub(super) type MrEnclaveWhitelist<T: Config> = StorageValue<_, BoundedVec<[u8; 64], T::MaxWhitelist>, ValueQuery>;
+	
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -248,6 +256,20 @@ pub mod pallet {
 
 			let public_key = PublicKey::<T>{ spk, shared_params, shared_g };
 			<SchedulerPuk<T>>::put(public_key);
+
+			Ok(())
+		}
+
+		
+        #[pallet::call_index(3)]
+        #[transactional]
+		#[pallet::weight(100_000_000)]
+        pub fn update_whitelist(origin: OriginFor<T>, mr_enclave: [u8; 64]) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+			<MrEnclaveWhitelist<T>>::mutate(|list| -> DispatchResult {
+                list.try_push(mr_enclave).unwrap();
+                Ok(())
+            })?;
 
 			Ok(())
 		}

@@ -34,7 +34,7 @@ use frame_support::{
 		Get, Imbalance, OnUnbalanced, ReservableCurrency,
 	},
 };
-use cp_cess_common::IpAddress;
+// use cp_cess_common::IpAddress;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
@@ -180,8 +180,8 @@ pub mod pallet {
 		},
 		UpdataIp {
 			acc: AccountOf<T>,
-			old: IpAddress,
-			new: IpAddress,
+			old: Vec<u8>,
+			new: Vec<u8>,
 		},
 		StartOfBufferPeriod {
 			when: BlockNumberOf<T>,
@@ -331,7 +331,7 @@ pub mod pallet {
 		pub fn regnstk(
 			origin: OriginFor<T>,
 			beneficiary: AccountOf<T>,
-			ip: IpAddress,
+			ip: BoundedVec<u8, T::ItemLimit>,
 			staking_val: BalanceOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -445,18 +445,18 @@ pub mod pallet {
 		#[pallet::call_index(3)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_ip())]
-		pub fn update_ip(origin: OriginFor<T>, ip: IpAddress) -> DispatchResult {
+		pub fn update_ip(origin: OriginFor<T>, ip: BoundedVec<u8, T::ItemLimit>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
 
-			let old = <MinerItems<T>>::try_mutate(&sender, |miner_info_opt| -> Result<IpAddress, DispatchError> {
+			let old = <MinerItems<T>>::try_mutate(&sender, |miner_info_opt| -> Result<Vec<u8>, DispatchError> {
 				let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
 				let old = miner_info.ip.clone();
 				miner_info.ip = ip.clone();
-				Ok(old)
+				Ok(old.to_vec())
 			})?;
 
-			Self::deposit_event(Event::<T>::UpdataIp { acc: sender, old, new: ip });
+			Self::deposit_event(Event::<T>::UpdataIp { acc: sender, old, new: ip.into() });
 			Ok(())
 		}
 
