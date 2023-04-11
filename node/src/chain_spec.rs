@@ -1,4 +1,3 @@
-use cumulus_primitives_core::ParaId;
 use grandpa_primitives::AuthorityId as GrandpaId;
 use cess_node_runtime::{
 	opaque::SessionKeys, wasm_binary_unwrap, AccountId, AuthorityDiscoveryConfig, Balance,
@@ -42,24 +41,10 @@ pub struct Extensions {
 	pub bad_blocks: sc_client_api::BadBlocks<Block>,
 	/// The light sync state extension used by the sync-state rpc.
 	pub light_sync_state: cessc_sync_state_rpc::LightSyncStateExtension,
-	/// The relay chain of the Parachain.
-	pub relay_chain: String,
-	/// The id of the Parachain.
-	pub para_id: u32,
-}
-
-impl Extensions {
-	/// Try to get the extension from the given `ChainSpec`.
-	pub fn try_get(chain_spec: &dyn sc_service::ChainSpec) -> Option<&Self> {
-		sc_chain_spec::get_extension(chain_spec.extensions())
-	}
 }
 
 /// Specialized `ChainSpec`.
 pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig, Extensions>;
-
-/// The default XCM version to set in genesis config.
-const SAFE_XCM_VERSION: u32 = xcm::prelude::XCM_VERSION;
 
 type AccountPublic = <Signature as Verify>::Signer;
 
@@ -219,7 +204,7 @@ fn cess_main_genesis() -> GenesisConfig {
 		array_bytes::hex_n_into_unchecked("521917850191d8787c10d9e35a0f3ff218e992e4ed476e5c33f7de5ab04f1a38"),
 	];
 
-	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts), 1000.into())
+	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts))
 }
 
 fn cess_testnet_config_genesis() -> GenesisConfig {
@@ -327,7 +312,7 @@ fn cess_testnet_config_genesis() -> GenesisConfig {
 		array_bytes::hex_n_into_unchecked("5ce2722592557b41c2359fec3367f782703706784f193abc735b937abae71e30",)
 	];
 
-	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts), 1000.into())
+	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts))
 }
 
 pub fn cess_testnet_config() -> ChainSpec {
@@ -392,7 +377,6 @@ fn development_config_genesis() -> GenesisConfig {
 		vec![],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
-		1000.into(),
 	)
 }
 
@@ -424,7 +408,6 @@ fn local_testnet_genesis() -> GenesisConfig {
 		vec![],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
-		1000.into()
 	)
 }
 
@@ -464,7 +447,6 @@ fn testnet_genesis(
 	initial_nominators: Vec<AccountId>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
-	id: ParaId,
 ) -> GenesisConfig {
 	let mut endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(|| {
 		vec![
@@ -579,16 +561,5 @@ fn testnet_genesis(
 		ethereum: Default::default(),
 		dynamic_fee: Default::default(),
 		base_fee: Default::default(),
-		parachain_info: cess_node_runtime::ParachainInfoConfig { parachain_id: id },
-		// collator_selection: parachain_template_runtime::CollatorSelectionConfig {
-		// 	invulnerables: invulnerables.iter().cloned().map(|(acc, _)| acc).collect(),
-		// 	candidacy_bond: EXISTENTIAL_DEPOSIT * 16,
-		// 	..Default::default()
-		// },
-		aura: Default::default(),
-		parachain_system: Default::default(),
-		polkadot_xcm: cess_node_runtime::PolkadotXcmConfig {
-			safe_xcm_version: Some(SAFE_XCM_VERSION),
-		},
 	}
 }

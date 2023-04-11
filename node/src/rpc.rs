@@ -85,21 +85,21 @@ pub struct EthConfiguration {
 	pub execute_gas_limit_multiplier: u64,
 }
 /// Full client dependencies.
-pub struct FullDeps<C, P, A: ChainApi, CT> {
+pub struct FullDeps<C, P, SC, B, A: ChainApi, CT> {
 	/// The client instance to use.
 	pub client: Arc<C>,
 	/// Transaction pool instance.
 	pub pool: Arc<P>,
-	// /// The SelectChain Strategy
-	// pub select_chain: SC,
+	/// The SelectChain Strategy
+	pub select_chain: SC,
 	/// A copy of the chain spec.
 	pub chain_spec: Box<dyn sc_chain_spec::ChainSpec>,
 	/// Whether to deny unsafe calls
 	pub deny_unsafe: DenyUnsafe,
-	// /// RRSC specific dependencies.
-	// pub rrsc: RRSCDeps,
-	// /// GRANDPA specific dependencies.
-	// pub grandpa: GrandpaDeps<B>,
+	/// RRSC specific dependencies.
+	pub rrsc: RRSCDeps,
+	/// GRANDPA specific dependencies.
+	pub grandpa: GrandpaDeps<B>,
 	/// Graph pool instance.
 	pub graph: Arc<Pool<A>>,
 	/// Ethereum transaction converter.
@@ -127,8 +127,6 @@ pub struct FullDeps<C, P, A: ChainApi, CT> {
 	/// Maximum allowed gas limit will be ` block.gas_limit * execute_gas_limit_multiplier` when
 	/// using eth_call/eth_estimateGas.
 	pub execute_gas_limit_multiplier: u64,
-	/// Executor to drive the subscription manager in the Grandpa RPC handler.
-	pub subscription_executor: SubscriptionTaskExecutor,
 }
 
 pub fn overrides_handle<C, BE>(client: Arc<C>) -> Arc<OverrideHandle<Block>>
@@ -166,8 +164,8 @@ where
 }
 
 /// Instantiate all full RPC extensions.
-pub fn create_full<C, P, B, BE, A, CT>(
-	deps: FullDeps<C, P, A, CT>,
+pub fn create_full<C, P, SC, B, BE, A, CT>(
+	deps: FullDeps<C, P, SC, B, A, CT>,
 	backend: Arc<B>,
 ) -> Result<RpcModule<()>, Box<dyn std::error::Error + Send + Sync>>
 where
@@ -186,12 +184,12 @@ where
 	C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Index>,
 	C::Api: pallet_mmr_rpc::MmrRuntimeApi<Block, <Block as sp_runtime::traits::Block>::Hash, BlockNumber>,
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
-	// C::Api: RRSCApi<Block>,
+	C::Api: RRSCApi<Block>,
 	C::Api: BlockBuilder<Block>,
 	C::Api: fp_rpc::ConvertTransactionRuntimeApi<Block>,
 	C::Api: fp_rpc::EthereumRuntimeRPCApi<Block>,
 	P: TransactionPool<Block = Block> + 'static,
-	// SC: SelectChain<Block> + 'static,
+	SC: SelectChain<Block> + 'static,
 	B: sc_client_api::Backend<Block> + Send + Sync + 'static,
 	B::State: sc_client_api::backend::StateBackend<sp_runtime::traits::HashFor<Block>>,
 	A: ChainApi<Block = Block> + 'static,
@@ -203,7 +201,7 @@ where
 	};
 	use pallet_mmr_rpc::{Mmr, MmrApiServer};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
-	// use cessc_consensus_rrsc_rpc::{ RRSC, RRSCApiServer };
+	use cessc_consensus_rrsc_rpc::{ RRSC, RRSCApiServer };
 	use sc_finality_grandpa_rpc::{Grandpa, GrandpaApiServer};
 	use sc_rpc::dev::{Dev, DevApiServer};
 	use sc_rpc_spec_v2::chain_spec::{ChainSpec, ChainSpecApiServer};
@@ -215,11 +213,11 @@ where
 	let FullDeps {
 		client,
 		pool,
-		// select_chain,
+		select_chain,
 		chain_spec,
 		deny_unsafe,
-		// rrsc,
-		// grandpa,
+		rrsc,
+		grandpa,
 		graph,
 		converter,
 		is_authority,
@@ -233,16 +231,15 @@ where
 		overrides,
 		block_data_cache,
 		execute_gas_limit_multiplier,
-		subscription_executor,
 	} = deps;
-	// let RRSCDeps { keystore, rrsc_config, shared_epoch_changes } = rrsc;
-	// let GrandpaDeps {
-	// 	shared_voter_state,
-	// 	shared_authority_set,
-	// 	justification_stream,
-	// 	subscription_executor,
-	// 	finality_provider,
-	// } = grandpa;
+	let RRSCDeps { keystore, rrsc_config, shared_epoch_changes } = rrsc;
+	let GrandpaDeps {
+		shared_voter_state,
+		shared_authority_set,
+		justification_stream,
+		subscription_executor,
+		finality_provider,
+	} = grandpa;
 
 	let chain_name = chain_spec.name().to_string();
 	let genesis_hash = client.block_hash(0).ok().flatten().expect("Genesis block exists; qed");
@@ -256,32 +253,32 @@ where
 	// io.merge(Contracts::new(client.clone()).into_rpc())?;
 	io.merge(Mmr::new(client.clone()).into_rpc())?;
 	io.merge(TransactionPayment::new(client.clone()).into_rpc())?;
-	// io.merge(
-	// 	RRSC::new(
-	// 		client.clone(),
-	// 		shared_epoch_changes.clone(),
-	// 		keystore,
-	// 		rrsc_config,
-	// 		select_chain,
-	// 		deny_unsafe,
-	// 	)
-	// 	.into_rpc(),
-	// )?;
-	// io.merge(
-	// 	Grandpa::new(
-	// 		subscription_executor.clone(),
-	// 		shared_authority_set.clone(),
-	// 		shared_voter_state,
-	// 		justification_stream,
-	// 		finality_provider,
-	// 	)
-	// 	.into_rpc(),
-	// )?;
+	io.merge(
+		RRSC::new(
+			client.clone(),
+			shared_epoch_changes.clone(),
+			keystore,
+			rrsc_config,
+			select_chain,
+			deny_unsafe,
+		)
+		.into_rpc(),
+	)?;
+	io.merge(
+		Grandpa::new(
+			subscription_executor.clone(),
+			shared_authority_set.clone(),
+			shared_voter_state,
+			justification_stream,
+			finality_provider,
+		)
+		.into_rpc(),
+	)?;
 
-	// io.merge(
-	// 	SyncState::new(chain_spec, client.clone(), shared_authority_set, shared_epoch_changes)?
-	// 		.into_rpc(),
-	// )?;
+	io.merge(
+		SyncState::new(chain_spec, client.clone(), shared_authority_set, shared_epoch_changes)?
+			.into_rpc(),
+	)?;
 
 	let mut signers = Vec::new();
 	if enable_dev_signer {
