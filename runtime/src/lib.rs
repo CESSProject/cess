@@ -169,7 +169,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 100,
+	spec_version: 102,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -1022,7 +1022,7 @@ parameter_types! {
 	#[derive(Clone, Eq, PartialEq)]
 	pub const SegmentCount: u32 = 1000;
 	#[derive(Clone, Eq, PartialEq)]
-	pub const FragmentCount: u32 = 1000;
+	pub const FragmentCount: u32 = 3;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const OwnerLimit: u32 = 50000;
 	#[derive(Clone, Eq, PartialEq)]
@@ -1083,10 +1083,15 @@ impl pallet_tee_worker::Config for Runtime {
 	type MaxWhitelist = MaxWhitelist;
 }
 
+parameter_types! {
+	#[derive(Clone, Eq, PartialEq)]
+	pub const P2PLength: u32 = 200;
+}
+
 impl pallet_oss::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-
 	type WeightInfo = pallet_oss::weights::SubstrateWeight<Runtime>;
+	type P2PLength = P2PLength;
 }
 
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
