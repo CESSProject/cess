@@ -238,7 +238,7 @@ pub mod pallet {
 		//The file does not meet the specification
 		SpecError,
 
-		NodesInsuffcient,
+		NodesInsufficient,
 		// This is a bug that is reported only when the most undesirable 
 		// situation occurs during a transaction execution process.
 		PanicOverflow,
@@ -343,7 +343,7 @@ pub mod pallet {
 		pub fn upload_declaration(
 			origin: OriginFor<T>,
 			file_hash: Hash,
-			deal_info: SegmentList<T>,
+			deal_info: BoundedVec<SegmentList<T>, T::SegmentCount>,
 			user_brief: UserBrief<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -358,7 +358,7 @@ pub mod pallet {
 			ensure!(user_brief.bucket_name.len() as u32 >= minimum, Error::<T>::SpecError);
 
 			let needed_space = deal_info.len() as u128 * (SEGMENT_SIZE * 15 / 10);
-			ensure!(T::StorageHandle::get_user_avail_space(&user_brief.user)? > needed_space, Error::<T>::InsufficientAvailableSpace);
+			ensure!(T::StorageHandle::get_user_avail_space(&user_brief.user)? > needed_space, Error::<T>::InsufficientAvailableSpace);		
 
 			if <File<T>>::contains_key(&file_hash) {
 				T::StorageHandle::update_user_space(&user_brief.user, 1, needed_space)?;
@@ -380,15 +380,15 @@ pub mod pallet {
 				// Check whether the user's storage space is sufficient, 
 				// if sufficient lock user's storage space.
 				// Perform space calculations based on 1.5 times redundancy.
-				let mut needed_list: SegmentList<T> = Default::default();
+				let mut needed_list: BoundedVec<SegmentList<T>, T::SegmentCount> = Default::default();
 				let mut share_info: Vec<SegmentInfo<T>> = Default::default();
 				// Check whether there are segments that can be shared.
-				for (hash, list) in &deal_info {
-					if <SegmentMap<T>>::contains_key(hash) {
-						let segment_info = <SegmentMap<T>>::try_get(&hash).map_err(|_| Error::<T>::BugInvalid)?.0;
+				for segment_list in &deal_info {
+					if <SegmentMap<T>>::contains_key(segment_list.hash) {
+						let segment_info = <SegmentMap<T>>::try_get(&segment_list.hash).map_err(|_| Error::<T>::BugInvalid)?.0;
 						share_info.push(segment_info);
 					} else {
-						needed_list.try_push((*hash, list.clone())).map_err(|_e| Error::<T>::BoundedVecError)?;
+						needed_list.try_push(segment_list.clone()).map_err(|_e| Error::<T>::BoundedVecError)?;
 					}
 				}
 
@@ -436,9 +436,9 @@ pub mod pallet {
 					deal_info.complete_list = Default::default();
 					Self::start_first_task(deal_hash.0.to_vec(), deal_hash, count + 1)?;
 					// unlock mienr space
-					for (miner, task_list) in &deal_info.assigned_miner {
-						let count = task_list.len() as u128;
-						T::MinerControl::unlock_space(miner, FRAGMENT_SIZE * count)?;
+					for miner_task in &deal_info.assigned_miner {
+						let count = miner_task.fragment_list.len() as u128;
+						T::MinerControl::unlock_space(&miner_task.miner, FRAGMENT_SIZE * count)?;
 					}
 					Ok(())
 				})?;
@@ -447,9 +447,9 @@ pub mod pallet {
 				let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
 				T::StorageHandle::unlock_user_space(&deal_info.user.user, needed_space)?;
 				// unlock mienr space
-				for (miner, task_list) in deal_info.assigned_miner {
-					let count = task_list.len() as u128;
-					T::MinerControl::unlock_space(&miner, FRAGMENT_SIZE * count)?;
+				for miner_task in deal_info.assigned_miner {
+					let count = miner_task.fragment_list.len() as u128;
+					T::MinerControl::unlock_space(&miner_task.miner, FRAGMENT_SIZE * count)?;
 				}
 				
 				<DealMap<T>>::remove(&deal_hash);
@@ -552,8 +552,8 @@ pub mod pallet {
 						// can use unwrap because there was a judgment above
 						let deal_info = deal_info_opt.as_mut().unwrap();
 						let mut task_miner_list: Vec<AccountOf<T>> = Default::default();
-						for (miner, _) in &deal_info.assigned_miner {
-							task_miner_list.push(miner.clone());
+						for miner_task in &deal_info.assigned_miner {
+							task_miner_list.push(miner_task.miner.clone());
 						}
 						if task_miner_list.contains(&sender) {
 							if !deal_info.complete_list.contains(&sender) {
@@ -571,12 +571,12 @@ pub mod pallet {
 									FileState::Calculate,
 								)?;
 
-								for (miner, fragment_list) in deal_info.assigned_miner.iter() {
-									let count = fragment_list.len() as u32;
+								for miner_task in deal_info.assigned_miner.iter() {
+									let count = miner_task.fragment_list.len() as u32;
 									// Miners need to report the replaced documents themselves. 
 									// If a challenge is triggered before the report is completed temporarily, 
 									// these documents to be replaced also need to be verified
-									<PendingReplacements<T>>::try_mutate(miner, |pending_count| -> DispatchResult {
+									<PendingReplacements<T>>::try_mutate(miner_task.miner.clone(), |pending_count| -> DispatchResult {
 										let pending_count_temp = pending_count.checked_add(count).ok_or(Error::<T>::Overflow)?;
 										*pending_count = pending_count_temp;
 										Ok(())
@@ -617,10 +617,10 @@ pub mod pallet {
 			let _ = ensure_root(origin)?;
 
 			let deal_info = <DealMap<T>>::try_get(&deal_hash).map_err(|_| Error::<T>::NonExistent)?;
-			for (miner, task_list) in deal_info.assigned_miner {
-				let count = task_list.len() as u32;
+			for miner_task in deal_info.assigned_miner {
+				let count = miner_task.fragment_list.len() as u32;
 				// Accumulate the number of fragments stored by each miner
-				T::MinerControl::unlock_space_to_service(&miner, FRAGMENT_SIZE * count as u128)?;
+				T::MinerControl::unlock_space_to_service(&miner_task.miner, FRAGMENT_SIZE * count as u128)?;
 			}
 
 			<File<T>>::try_mutate(&deal_hash, |file_opt| -> DispatchResult {
@@ -654,6 +654,8 @@ pub mod pallet {
 				if <FillerMap<T>>::contains_key(&sender, filler_hash) {
 					count += 1;
 					<FillerMap<T>>::remove(&sender, filler_hash);
+				} else {
+					log::info!("filler nonexist!");
 				}
 			}
 

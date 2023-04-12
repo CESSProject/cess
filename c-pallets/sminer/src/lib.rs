@@ -1091,7 +1091,7 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
 			let miner = miner_opt.as_mut().ok_or(Error::<T>::NotExisted)?;
 			miner.lock_space = miner.lock_space.checked_sub(space).ok_or(Error::<T>::Overflow)?;
-			miner.power = miner.space.checked_add(space).ok_or(Error::<T>::Overflow)?;
+			miner.space = miner.space.checked_add(space).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})
 	}
