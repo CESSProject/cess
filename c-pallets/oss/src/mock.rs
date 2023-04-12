@@ -1,15 +1,11 @@
 use crate as pallet_oss;
 use frame_benchmarking::account;
-use frame_support:: {
-	parameter_types,
-	pallet_prelude::*,
-	traits::ConstU32,
-};
+use frame_support::{pallet_prelude::*, parameter_types, traits::ConstU32};
+use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
 };
-use sp_core::H256;
 
 pub(crate) type AccountId = u32;
 // type BlockNumber = u64;
@@ -47,10 +43,10 @@ frame_support::construct_runtime!(
 // }
 
 parameter_types! {
-	pub const BlockHashCount: u64 = 250;
-	pub BlockWeights: frame_system::limits::BlockWeights =
-		frame_system::limits::BlockWeights::simple_max(Weight::from_ref_time(1024));
-	}
+pub const BlockHashCount: u64 = 250;
+pub BlockWeights: frame_system::limits::BlockWeights =
+	frame_system::limits::BlockWeights::simple_max(Weight::from_ref_time(1024));
+}
 
 impl frame_system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
@@ -85,25 +81,25 @@ impl pallet_oss::Config for Test {
 	type WeightInfo = ();
 }
 
-	pub fn account1() -> AccountId {
+pub fn account1() -> AccountId {
 	account("account1", 0, 0)
-	}
+}
 
-	pub fn account2() -> AccountId {
+pub fn account2() -> AccountId {
 	account("account2", 0, 0)
-	}
+}
 
-	pub fn miner1() -> AccountId {
+pub fn miner1() -> AccountId {
 	account("miner1", 0, 0)
-	}
+}
 
-	pub fn stash1() -> AccountId {
+pub fn stash1() -> AccountId {
 	account("stash1", 0, 0)
-	}
+}
 
-	pub fn controller1() -> AccountId {
+pub fn controller1() -> AccountId {
 	account("controller1", 0, 0)
-	}
+}
 
 pub struct ExtBuilder;
 

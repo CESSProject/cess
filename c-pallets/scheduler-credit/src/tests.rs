@@ -17,7 +17,7 @@ fn figure_credit_scores_works() {
 		let period_duration = PeriodDuration::get();
 		System::set_block_number(period_duration);
 		Pallet::<Test>::on_initialize(System::block_number());
-		
+
 		// figure credit values works
 		assert_eq!(HistoryCreditValues::<Test>::get(&0, &1), 500);
 		assert_eq!(HistoryCreditValues::<Test>::get(&0, &2), 125);
@@ -29,7 +29,7 @@ fn figure_credit_scores_works() {
 		assert_eq!(CurrentCounters::<Test>::contains_key(&3), false);
 
 		// figure credit scores works
-        let vc_map = <Pallet<Test> as ValidatorCredits<AccountId>>::credits(0);
+		let vc_map = <Pallet<Test> as ValidatorCredits<AccountId>>::credits(0);
 		assert_eq!(&250, vc_map.get(&1).unwrap());
 		assert_eq!(&62, vc_map.get(&2).unwrap());
 		assert_eq!(&187, vc_map.get(&3).unwrap());

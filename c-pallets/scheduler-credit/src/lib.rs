@@ -8,17 +8,13 @@ mod tests;
 use codec::{Decode, Encode, MaxEncodedLen};
 
 use frame_support::{
-	pallet_prelude::*,
-	storage::child::KillStorageResult,
-	traits::ValidatorCredits,
-	weights::Weight,
+	pallet_prelude::*, storage::child::KillStorageResult, traits::ValidatorCredits, weights::Weight,
 };
 use log::{debug, warn};
 use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{SaturatedConversion, Zero},
-	Percent,
-	RuntimeDebug, Perbill,
+	Perbill, Percent, RuntimeDebug,
 };
 
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
@@ -49,7 +45,8 @@ pub struct SchedulerCounterEntry {
 
 impl SchedulerCounterEntry {
 	pub fn increase_block_size<T: Config>(&mut self, block_size: u64) -> DispatchResult {
-		self.proceed_block_size = self.proceed_block_size.checked_add(block_size).ok_or(Error::<T>::Overflow)?;
+		self.proceed_block_size =
+			self.proceed_block_size.checked_add(block_size).ok_or(Error::<T>::Overflow)?;
 		Ok(())
 	}
 
@@ -60,7 +57,8 @@ impl SchedulerCounterEntry {
 
 	pub fn figure_credit_value(&self, total_block_size: u64) -> CreditScore {
 		if total_block_size != 0 {
-			let a = Perbill::from_rational(self.proceed_block_size, total_block_size) * FULL_CREDIT_SCORE;
+			let a = Perbill::from_rational(self.proceed_block_size, total_block_size) *
+				FULL_CREDIT_SCORE;
 			return a.saturating_sub(self.punishment_part())
 		}
 		return 0
@@ -89,7 +87,6 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-
 		#[pallet::constant]
 		type PeriodDuration: Get<Self::BlockNumber>;
 
@@ -125,7 +122,10 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	pub fn record_proceed_block_size(scheduler_id: &T::AccountId, block_size: u64) -> DispatchResult {
+	pub fn record_proceed_block_size(
+		scheduler_id: &T::AccountId,
+		block_size: u64,
+	) -> DispatchResult {
 		<CurrentCounters<T>>::mutate(scheduler_id, |scb| -> DispatchResult {
 			scb.increase_block_size::<T>(block_size)?;
 			Ok(())
@@ -153,9 +153,7 @@ impl<T: Config> Pallet<T> {
 			let credit_value = counter_entry.figure_credit_value(total_size);
 			debug!(
 				target: LOG_TARGET,
-				"scheduler control account: {:?}, credit value: {}",
-				ctrl_account_id,
-				credit_value
+				"scheduler control account: {:?}, credit value: {}", ctrl_account_id, credit_value
 			);
 			HistoryCreditValues::<T>::insert(&period, &ctrl_account_id, credit_value);
 			weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
@@ -164,7 +162,7 @@ impl<T: Config> Pallet<T> {
 		// Clear CurrentCounters
 		#[allow(deprecated)]
 		let cc_outcome = CurrentCounters::<T>::remove_all(None);
-		let cc_keys_removed= match cc_outcome {
+		let cc_keys_removed = match cc_outcome {
 			KillStorageResult::AllRemoved(count) => count,
 			KillStorageResult::SomeRemaining(count) => count,
 		};
@@ -174,8 +172,11 @@ impl<T: Config> Pallet<T> {
 		let history_depth = PERIOD_WEIGHT.len() as u32;
 		if period >= history_depth {
 			#[allow(deprecated)]
-			let hcv_outcome = HistoryCreditValues::<T>::remove_prefix(&period.saturating_sub(history_depth), None);
-			let hcv_keys_removed= match hcv_outcome {
+			let hcv_outcome = HistoryCreditValues::<T>::remove_prefix(
+				&period.saturating_sub(history_depth),
+				None,
+			);
+			let hcv_keys_removed = match hcv_outcome {
 				KillStorageResult::AllRemoved(count) => count,
 				KillStorageResult::SomeRemaining(count) => count,
 			};
@@ -191,37 +192,39 @@ impl<T: Config> Pallet<T> {
 		let period: u32 = (now / period_duration).saturated_into();
 
 		if period == 0 {
-			return result;
+			return result
 		}
 
 		let last_period = period.saturating_sub(1);
-		HistoryCreditValues::<T>::iter_key_prefix(&last_period)
-			.for_each(|ctrl_account_id| {
-				if let Some(stash_account_id) =
-					T::StashAccountFinder::find_stash_account_id(&ctrl_account_id)
-				{
-					let mut credit_score = 0_u32;
-					for (index, weight) in PERIOD_WEIGHT.into_iter().enumerate() {
-						if last_period >= index as u32 {
-							let credit_value = HistoryCreditValues::<T>::try_get(&last_period.saturating_sub(index as u32), &ctrl_account_id)
-								.unwrap_or(0);
-							credit_score += weight * credit_value;
-						}
+		HistoryCreditValues::<T>::iter_key_prefix(&last_period).for_each(|ctrl_account_id| {
+			if let Some(stash_account_id) =
+				T::StashAccountFinder::find_stash_account_id(&ctrl_account_id)
+			{
+				let mut credit_score = 0_u32;
+				for (index, weight) in PERIOD_WEIGHT.into_iter().enumerate() {
+					if last_period >= index as u32 {
+						let credit_value = HistoryCreditValues::<T>::try_get(
+							&last_period.saturating_sub(index as u32),
+							&ctrl_account_id,
+						)
+						.unwrap_or(0);
+						credit_score += weight * credit_value;
 					}
-					debug!(
-						target: LOG_TARGET,
-						"scheduler stash account: {:?}, credit value: {}",
-						stash_account_id,
-						credit_score
-					);
-					result.insert(stash_account_id, credit_score);
-				} else {
-					warn!(
-						target: LOG_TARGET,
-						"can not find the scheduler stash account for the controller account: {:?}",
-						ctrl_account_id
-					);
 				}
+				debug!(
+					target: LOG_TARGET,
+					"scheduler stash account: {:?}, credit value: {}",
+					stash_account_id,
+					credit_score
+				);
+				result.insert(stash_account_id, credit_score);
+			} else {
+				warn!(
+					target: LOG_TARGET,
+					"can not find the scheduler stash account for the controller account: {:?}",
+					ctrl_account_id
+				);
+			}
 		});
 		result
 	}
@@ -252,8 +255,7 @@ impl<T: Config> ValidatorCredits<T::AccountId> for Pallet<T> {
 
 #[cfg(test)]
 mod test {
-	use crate::SchedulerCounterEntry;
-	use crate::mock::Test;
+	use crate::{mock::Test, SchedulerCounterEntry};
 	#[test]
 	fn scheduler_counter_works() {
 		let mut sce = SchedulerCounterEntry::default();

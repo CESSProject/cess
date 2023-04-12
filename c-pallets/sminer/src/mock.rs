@@ -32,7 +32,7 @@ use sp_runtime::{
 	Perbill,
 };
 
-use std::convert::{ TryFrom };
+use std::convert::TryFrom;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;

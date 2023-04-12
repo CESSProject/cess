@@ -15,16 +15,16 @@ pub mod testing_utils;
 pub mod benchmarking;
 
 use codec::{Decode, Encode};
+use cp_cess_common::*;
+use cp_scheduler_credit::SchedulerCreditCounter;
 use frame_support::{
 	dispatch::DispatchResult, traits::ReservableCurrency, transactional, BoundedVec, PalletId,
 };
 pub use pallet::*;
 use scale_info::TypeInfo;
 use sp_runtime::{DispatchError, RuntimeDebug};
-use sp_std::{ convert::TryInto, prelude::* };
-use cp_scheduler_credit::SchedulerCreditCounter;
+use sp_std::{convert::TryInto, prelude::*};
 pub use weights::WeightInfo;
-use cp_cess_common::*;
 
 pub mod weights;
 
@@ -58,7 +58,9 @@ pub mod pallet {
 		pub shared_g: [u8; 128],
 	}
 
-	#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, Default, MaxEncodedLen, TypeInfo)]
+	#[derive(
+		PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, Default, MaxEncodedLen, TypeInfo,
+	)]
 	#[scale_info(skip_type_params(T))]
 	#[codec(mel_bound())]
 	pub struct ExceptionReport<T: pallet::Config> {
@@ -129,7 +131,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn scheduler_puk)]
-	pub(super) type SchedulerPuk<T: Config> = StorageValue<_, PublicKey::<T>>;
+	pub(super) type SchedulerPuk<T: Config> = StorageValue<_, PublicKey<T>>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn bond_acc)]
@@ -234,7 +236,9 @@ pub mod pallet {
 				52, 53, 50, 48, 52, 56, 53, 55, 54, 53, 49, 49, 10, 101, 120, 112, 50, 32, 49, 53,
 				57, 10, 101, 120, 112, 49, 32, 49, 49, 48, 10, 115, 105, 103, 110, 49, 32, 49, 10,
 				115, 105, 103, 110, 48, 32, 45, 49, 10,
-			].try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+			]
+			.try_into()
+			.map_err(|_e| Error::<T>::BoundedVecError)?;
 			let shared_g: [u8; 128] = [
 				6, 82, 21, 158, 104, 141, 100, 78, 98, 180, 126, 135, 86, 92, 214, 75, 221, 27,
 				157, 4, 92, 203, 235, 234, 39, 170, 30, 218, 100, 100, 155, 185, 152, 19, 67, 73,
@@ -246,7 +250,7 @@ pub mod pallet {
 				243,
 			];
 
-			let public_key = PublicKey::<T>{ spk, shared_params, shared_g };
+			let public_key = PublicKey::<T> { spk, shared_params, shared_g };
 			<SchedulerPuk<T>>::put(public_key);
 
 			Ok(())

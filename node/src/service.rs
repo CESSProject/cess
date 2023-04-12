@@ -2,35 +2,52 @@
 
 pub use crate::executor::ExecutorDispatch;
 use crate::{
-	primitives as node_primitives, 
-	rpc::{self as node_rpc, EthConfiguration}
+	primitives as node_primitives,
+	rpc::{self as node_rpc, EthConfiguration},
 };
-use cess_node_runtime::RuntimeApi;
+use cess_node_runtime::{RuntimeApi, TransactionConverter};
+use cessc_consensus_rrsc::{self, SlotProportion};
 use fc_mapping_sync::{MappingSyncWorker, SyncStrategy};
 use fc_rpc::EthTask;
-use fc_rpc_core::types::{
-	FeeHistoryCache, 
-	FilterPool
-};
+use fc_rpc_core::types::{FeeHistoryCache, FilterPool};
 use futures::prelude::*;
 use node_primitives::Block;
 use sc_cli::SubstrateCli;
 use sc_client_api::{BlockBackend, BlockchainEvents};
-use cessc_consensus_rrsc::{self, SlotProportion};
 use sc_executor::NativeElseWasmExecutor;
 use sc_network::NetworkService;
 use sc_network_common::{protocol::event::Event, service::NetworkEventStream};
-use sc_service::{ BasePath, config::Configuration, error::Error as ServiceError, RpcHandlers, TaskManager};
-use sc_telemetry::{Telemetry, TelemetryWorker};
-use sp_runtime::{
-	traits::Block as BlockT, 
+use sc_service::{
+	config::Configuration, error::Error as ServiceError, BasePath, RpcHandlers, TaskManager,
 };
+use sc_telemetry::{Telemetry, TelemetryWorker};
+use sp_runtime::traits::Block as BlockT;
 use std::{
 	collections::BTreeMap,
 	sync::{Arc, Mutex},
 	time::Duration,
 };
-use cess_node_runtime::TransactionConverter;
+
+use nimbus_consensus::{
+	BuildNimbusConsensusParams, NimbusConsensus, NimbusManualSealConsensusDataProvider,
+};
+
+// Cumulus Imports
+use cumulus_client_cli::CollatorOptions;
+use cumulus_client_consensus_common::ParachainConsensus;
+use cumulus_client_network::BlockAnnounceValidator;
+use cumulus_client_service::{
+	prepare_node_config, start_collator, start_full_node, StartCollatorParams, StartFullNodeParams,
+};
+use cumulus_primitives_core::ParaId;
+use cumulus_primitives_parachain_inherent::{
+	MockValidationDataInherentDataProvider, MockXcmConfig,
+};
+use cumulus_relay_chain_inprocess_interface::build_inprocess_relay_chain;
+use cumulus_relay_chain_interface::{RelayChainError, RelayChainInterface, RelayChainResult};
+use cumulus_relay_chain_minimal_node::build_minimal_relay_chain_node;
+
+use polkadot_service::CollatorPair;
 
 /// The full client type definition.
 pub type FullClient =
@@ -68,8 +85,8 @@ pub fn frontier_database_dir(config: &Configuration) -> std::path::PathBuf {
 
 pub fn open_frontier_backend<C: sp_blockchain::HeaderBackend<Block>>(
 	client: Arc<C>,
-	config: &Configuration) 
-	-> Result<Arc<fc_db::Backend<Block>>, String> {
+	config: &Configuration,
+) -> Result<Arc<fc_db::Backend<Block>>, String> {
 	Ok(Arc::new(fc_db::Backend::<Block>::new(
 		client,
 		&fc_db::DatabaseSettings {
@@ -77,8 +94,8 @@ pub fn open_frontier_backend<C: sp_blockchain::HeaderBackend<Block>>(
 				path: frontier_database_dir(&config),
 				cache_size: 0,
 			},
-		})?)
-	)
+		},
+	)?))
 }
 
 /// Creates a new partial node.
@@ -254,10 +271,10 @@ pub fn new_full_base(
 	);
 
 	config
-	.network
-	.extra_sets
-	.push(grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone()));
-	
+		.network
+		.extra_sets
+		.push(grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone()));
+
 	let warp_sync = Arc::new(grandpa::warp_proof::NetworkProvider::new(
 		backend.clone(),
 		import_setup.1.shared_authority_set().clone(),
@@ -284,7 +301,7 @@ pub fn new_full_base(
 	let execute_gas_limit_multiplier = eth_config.execute_gas_limit_multiplier;
 
 	let overrides = crate::rpc::overrides_handle(client.clone());
-	let filter_pool: Option<FilterPool> = Some(Arc::new(Mutex::new(BTreeMap::new()))); 
+	let filter_pool: Option<FilterPool> = Some(Arc::new(Mutex::new(BTreeMap::new())));
 	let (rpc_builder, rpc_setup) = {
 		let (_, grandpa_link, rrsc_link) = &import_setup;
 
@@ -320,7 +337,7 @@ pub fn new_full_base(
 			50,
 			prometheus_registry.clone(),
 		));
-		
+
 		let rpc_backend = backend.clone();
 		let rpc_builder = move |deny_unsafe, subscription_executor| {
 			let deps = node_rpc::FullDeps {
@@ -426,12 +443,7 @@ pub fn new_full_base(
 	task_manager.spawn_essential_handle().spawn(
 		"frontier-fee-history",
 		Some("frontier"),
-		EthTask::fee_history_task(
-			client.clone(),
-			overrides,
-			fee_history_cache,
-			fee_history_limit,
-		),
+		EthTask::fee_history_task(client.clone(), overrides, fee_history_cache, fee_history_limit),
 	);
 
 	if let Some(hwbench) = hwbench {
@@ -592,8 +604,11 @@ pub fn new_full_base(
 /// Builds a new service for a full client.
 pub fn new_full(
 	config: Configuration,
+	polkadot_config: Configuration,
+	collator_options: CollatorOptions,
 	eth_config: EthConfiguration,
 	disable_hardware_benchmarks: bool,
+	id: ParaId,
 ) -> Result<TaskManager, ServiceError> {
 	new_full_base(config, eth_config, disable_hardware_benchmarks, |_, _| ())
 		.map(|NewFullBase { task_manager, .. }| task_manager)

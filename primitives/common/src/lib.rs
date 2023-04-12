@@ -1,11 +1,11 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 /* use */
+use codec::MaxEncodedLen;
 use frame_support::{
-	RuntimeDebug,
 	dispatch::{Decode, Encode},
+	RuntimeDebug,
 };
-use codec::{MaxEncodedLen};
 use scale_info::TypeInfo;
 
 #[derive(Copy, Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
@@ -88,8 +88,6 @@ impl Hash {
 	}
 }
 
-
-
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub enum PackageType {
 	Package1,
@@ -110,4 +108,3 @@ pub enum IpAddress {
 	IPV4([u8; 4], u16),
 	IPV6([u16; 8], u16),
 }
-

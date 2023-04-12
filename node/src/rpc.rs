@@ -8,31 +8,31 @@
 use crate::primitives as node_primitives;
 use std::{collections::BTreeMap, sync::Arc};
 
-use node_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Index};
 use jsonrpsee::RpcModule;
+use node_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Index};
 
 // Substrate
+use cessc_consensus_rrsc::{Epoch, RRSCConfiguration};
+use cessp_consensus_rrsc::RRSCApi;
+use grandpa::{
+	FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState,
+};
 use sc_client_api::{
 	backend::{AuxStore, Backend, StateBackend, StorageProvider},
 	client::BlockchainEvents,
 };
-use grandpa::{
-	FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState,
-};
+use sc_consensus_epochs::SharedEpochChanges;
 use sc_network::NetworkService;
 use sc_rpc::SubscriptionTaskExecutor;
-use sc_transaction_pool::{ChainApi, Pool};
-use sc_service::TransactionPool;
-use sp_api::ProvideRuntimeApi;
-use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
-use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
-use cessc_consensus_rrsc::{RRSCConfiguration, Epoch};
-use sc_consensus_epochs::SharedEpochChanges;
 pub use sc_rpc_api::DenyUnsafe;
+use sc_service::TransactionPool;
+use sc_transaction_pool::{ChainApi, Pool};
+use sp_api::ProvideRuntimeApi;
 use sp_block_builder::BlockBuilder;
+use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
 use sp_consensus::SelectChain;
-use cessp_consensus_rrsc::RRSCApi;
 use sp_keystore::SyncCryptoStorePtr;
+use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
 
 // Frontier
 use fc_rpc::{
@@ -79,8 +79,8 @@ pub struct EthConfiguration {
 	#[arg(long)]
 	pub enable_dev_signer: bool,
 
-	/// Maximueth_statuses_cachem allowed gas limit will be `block.gas_limit * execute_gas_limit_multiplier`
-	/// when using eth_call/eth_estimateGas.
+	/// Maximueth_statuses_cachem allowed gas limit will be `block.gas_limit *
+	/// execute_gas_limit_multiplier` when using eth_call/eth_estimateGas.
 	#[arg(long, default_value = "10")]
 	pub execute_gas_limit_multiplier: u64,
 }
@@ -182,7 +182,11 @@ where
 		+ 'static,
 	C: BlockchainEvents<Block>,
 	C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Index>,
-	C::Api: pallet_mmr_rpc::MmrRuntimeApi<Block, <Block as sp_runtime::traits::Block>::Hash, BlockNumber>,
+	C::Api: pallet_mmr_rpc::MmrRuntimeApi<
+		Block,
+		<Block as sp_runtime::traits::Block>::Hash,
+		BlockNumber,
+	>,
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
 	C::Api: RRSCApi<Block>,
 	C::Api: BlockBuilder<Block>,
@@ -195,17 +199,17 @@ where
 	A: ChainApi<Block = Block> + 'static,
 	CT: fp_rpc::ConvertTransaction<<Block as BlockT>::Extrinsic> + Send + Sync + 'static,
 {
+	use cessc_consensus_rrsc_rpc::{RRSCApiServer, RRSC};
+	use cessc_sync_state_rpc::{SyncState, SyncStateApiServer};
 	use fc_rpc::{
 		Eth, EthApiServer, EthDevSigner, EthFilter, EthFilterApiServer, EthPubSub,
-		EthPubSubApiServer, EthSigner, Net, NetApiServer, Web3,	Web3ApiServer,
+		EthPubSubApiServer, EthSigner, Net, NetApiServer, Web3, Web3ApiServer,
 	};
 	use pallet_mmr_rpc::{Mmr, MmrApiServer};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
-	use cessc_consensus_rrsc_rpc::{ RRSC, RRSCApiServer };
 	use sc_finality_grandpa_rpc::{Grandpa, GrandpaApiServer};
 	use sc_rpc::dev::{Dev, DevApiServer};
 	use sc_rpc_spec_v2::chain_spec::{ChainSpec, ChainSpecApiServer};
-	use cessc_sync_state_rpc::{SyncState, SyncStateApiServer};
 	use substrate_frame_rpc_system::{System, SystemApiServer};
 	use substrate_state_trie_migration_rpc::{StateMigration, StateMigrationApiServer};
 
@@ -319,14 +323,8 @@ where
 	}
 
 	io.merge(
-		EthPubSub::new(
-			pool,
-			client.clone(),
-			network.clone(),
-			subscription_executor,
-			overrides,
-		)
-		.into_rpc(),
+		EthPubSub::new(pool, client.clone(), network.clone(), subscription_executor, overrides)
+			.into_rpc(),
 	)?;
 
 	io.merge(

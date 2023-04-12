@@ -96,6 +96,31 @@ pallet-evm-precompile-modexp = { git = "https://github.com/CESSProject/frontier"
 pallet-evm-precompile-sha3fips = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
 pallet-evm-precompile-simple = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
 
+# Cumulus dependencies
+cumulus-pallet-dmp-queue = { git = "https://github.com/CESSProject/cumulus", branch = "cess-polkadot-v0.9.36", default-features = false }
+cumulus-pallet-parachain-system = { git = "https://github.com/CESSProject/cumulus", branch = "cess-polkadot-v0.9.36", default-features = false }
+cumulus-pallet-xcm = { git = "https://github.com/CESSProject/cumulus", branch = "cess-polkadot-v0.9.36", default-features = false }
+cumulus-pallet-xcmp-queue = { git = "https://github.com/CESSProject/cumulus", branch = "cess-polkadot-v0.9.36", default-features = false }
+cumulus-primitives-core = { git = "https://github.com/CESSProject/cumulus", branch = "cess-polkadot-v0.9.36", default-features = false }
+cumulus-primitives-timestamp = { git = "https://github.com/CESSProject/cumulus", branch = "cess-polkadot-v0.9.36", default-features = false }
+cumulus-primitives-utility = { git = "https://github.com/CESSProject/cumulus", branch = "cess-polkadot-v0.9.36", default-features = false }
+pallet-collator-selection = { git = "https://github.com/CESSProject/cumulus", branch = "cess-polkadot-v0.9.36", default-features = false }
+parachain-info = { git = "https://github.com/CESSProject/cumulus", branch = "cess-polkadot-v0.9.36", default-features = false }
+
+# Nimbus Dependencies
+nimbus-primitives = { git = "https://github.com/CESSProject/nimbus", branch = "cess-polkadot-v0.9.36", default-features = false }
+pallet-author-inherent = { git = "https://github.com/CESSProject/nimbus", branch = "cess-polkadot-v0.9.36", default-features = false }
+pallet-author-slot-filter = { git = "https://github.com/CESSProject/nimbus", branch = "cess-polkadot-v0.9.36", default-features = false }
+
+# Polkadot Dependencies
+pallet-xcm = { git = "https://github.com/CESSProject/polkadot", branch = "cess-release-v0.9.36", default-features = false }
+polkadot-parachain = { git = "https://github.com/CESSProject/polkadot", branch = "cess-release-v0.9.36", default-features = false }
+polkadot-runtime-common = { git = "https://github.com/CESSProject/polkadot", branch = "cess-release-v0.9.36", default-features = false }
+xcm = { git = "https://github.com/CESSProject/polkadot", branch = "cess-release-v0.9.36", default-features = false }
+xcm-builder = { git = "https://github.com/CESSProject/polkadot", branch = "cess-release-v0.9.36", default-features = false }
+xcm-executor = { git = "https://github.com/CESSProject/polkadot", branch = "cess-release-v0.9.36", default-features = false }
+
+
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36", version = "5.0.0-dev" }
 
@@ -103,9 +128,17 @@ substrate-wasm-builder = { git = "https://github.com/CESSProject/substrate.git",
 default = ["std"]
 with-tracing = ["frame-executive/with-tracing"]
 std = [
+    "cumulus-pallet-dmp-queue/std",
+    "cumulus-pallet-parachain-system/std",
+    "cumulus-pallet-xcm/std",
+    "cumulus-pallet-xcmp-queue/std",
+    "cumulus-primitives-core/std",
+    "cumulus-primitives-timestamp/std",
+    "cumulus-primitives-utility/std",
     "pallet-authority-discovery/std",
     "pallet-authorship/std",
     "pallet-bounties/std",
+    "pallet-collator-selection/std",
     "pallet-collective/std",
     "pallet-election-provider-multi-phase/std",
     "pallet-im-online/std",
@@ -124,6 +157,9 @@ std = [
     "pallet-assets/std",
     "pallet-child-bounties/std",
     "pallet-mmr/std",
+    "parachain-info/std",
+    "polkadot-parachain/std",
+    "polkadot-runtime-common/std",
     "sp-io/std",
     "pallet-indices/std",
     "sp-authority-discovery/std",
@@ -168,6 +204,12 @@ std = [
 		"pallet-evm-precompile-sha3fips/std",
     "cp-scheduler-credit/std",
     "pallet-scheduler-credit/std",
+    "nimbus-primitives/std",
+    "pallet-author-inherent/std",
+    "pallet-author-slot-filter/std",
+    "xcm-builder/std",
+    "xcm-executor/std",
+    "xcm/std",
 ]
 runtime-benchmarks = [
     "frame-benchmarking/runtime-benchmarks",
@@ -177,6 +219,7 @@ runtime-benchmarks = [
     "hex-literal",
     "pallet-balances/runtime-benchmarks",
     "pallet-timestamp/runtime-benchmarks",
+    "pallet-collator-selection/runtime-benchmarks",
     "pallet-collective/runtime-benchmarks",
     "pallet-file-bank/runtime-benchmarks",
     "pallet-file-map/runtime-benchmarks",
@@ -188,6 +231,8 @@ runtime-benchmarks = [
     "pallet-contracts/runtime-benchmarks",
     "pallet-ethereum/runtime-benchmarks",
 		"pallet-evm/runtime-benchmarks",
+    "pallet-xcm/runtime-benchmarks",
+    "xcm-builder/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-executive/try-runtime",
@@ -219,4 +264,5 @@ try-runtime = [
 	"pallet-transaction-payment/try-runtime",
 	"pallet-treasury/try-runtime",
 	"pallet-file-bank/try-runtime",
+  "pallet-author-slot-filter/try-runtime",
 ]

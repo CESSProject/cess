@@ -49,45 +49,40 @@ pub use pallet::*;
 pub mod benchmarking;
 
 use sp_runtime::{
+	offchain::storage::{StorageRetrievalError, StorageValueRef},
 	traits::{CheckedAdd, SaturatedConversion},
-	RuntimeDebug, Permill,
-	offchain::storage::{StorageValueRef, StorageRetrievalError},
+	Permill, RuntimeDebug,
 };
 mod types;
 use types::*;
 
 use codec::{Decode, Encode};
+use cp_cess_common::DataType;
 use frame_support::{
-	transactional,
 	dispatch::DispatchResult,
 	pallet_prelude::*,
 	storage::bounded_vec::BoundedVec,
 	traits::{
-		FindAuthor, Randomness, ReservableCurrency, EstimateNextSessionRotation,
-		ValidatorSetWithIdentification, ValidatorSet, OneSessionHandler,
+		EstimateNextSessionRotation, FindAuthor, OneSessionHandler, Randomness, ReservableCurrency,
+		ValidatorSet, ValidatorSetWithIdentification,
 	},
-	PalletId, WeakBoundedVec, BoundedSlice,
+	transactional, BoundedSlice, PalletId, WeakBoundedVec,
 };
-use sp_core::{
-	crypto::KeyTypeId,
-	offchain::OpaqueNetworkState,
-};
-use sp_runtime::app_crypto::RuntimeAppPublic;
 use frame_system::offchain::{CreateSignedTransaction, SubmitTransaction};
 use pallet_file_bank::RandomFileList;
 use pallet_file_map::ScheduleFind;
 use pallet_sminer::MinerControl;
 use scale_info::TypeInfo;
-use sp_core::H256;
-use sp_std::{ 
-		convert:: { TryFrom, TryInto },
-		collections::btree_map::BTreeMap, 
-		prelude::*
-	};
-use cp_cess_common::DataType;
+use sp_core::{crypto::KeyTypeId, offchain::OpaqueNetworkState, H256};
+use sp_runtime::app_crypto::RuntimeAppPublic;
+use sp_std::{
+	collections::btree_map::BTreeMap,
+	convert::{TryFrom, TryInto},
+	prelude::*,
+};
 pub mod weights;
-pub use weights::WeightInfo;
 use cp_cess_common::Hash as H68;
+pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
@@ -138,7 +133,7 @@ impl sp_std::fmt::Debug for OffchainErr {
 pub mod pallet {
 	use super::*;
 	// use frame_benchmarking::baseline::Config;
-	use frame_support::{traits::Get};
+	use frame_support::traits::Get;
 	use frame_system::{ensure_signed, pallet_prelude::*};
 
 	pub type BoundedString<T> = BoundedVec<u8, <T as Config>::StringLimit>;
@@ -294,7 +289,8 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn keys)]
-	pub(super) type Keys<T: Config> = StorageValue<_, WeakBoundedVec<T::AuthorityId, T::StringLimit>, ValueQuery>;
+	pub(super) type Keys<T: Config> =
+		StorageValue<_, WeakBoundedVec<T::AuthorityId, T::StringLimit>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn lock)]
@@ -399,11 +395,15 @@ pub mod pallet {
 										s_opt.checked_add(1).ok_or(Error::<T>::Overflow)?;
 										Ok(())
 									},
-									).map_err(|_e| Error::<T>::BoundedVecError);
-								weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+								)
+								.map_err(|_e| Error::<T>::BoundedVecError);
+								weight =
+									weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 								match result {
 									Ok(()) => log::info!("ConsecutiveFines update success"),
-									Err(e) => log::error!("ConsecutiveFines update failed: {:?}", e),
+									Err(e) => {
+										log::error!("ConsecutiveFines update failed: {:?}", e)
+									},
 								}
 							} else {
 								<ConsecutiveFines<T>>::insert(&miner, 1);
@@ -414,7 +414,8 @@ pub mod pallet {
 								<FailureNumMap<T>>::get(&miner),
 								total_proof,
 								<ConsecutiveFines<T>>::get(&miner),
-							).map_err(|e| e);
+							)
+							.map_err(|e| e);
 							weight = weight.saturating_add(T::DbWeight::get().reads_writes(6, 4));
 							match result {
 								Ok(()) => log::info!("punish success"),
@@ -435,17 +436,24 @@ pub mod pallet {
 					// weight = weight.staurating_add(Self::clear_total_proof(5000, None));
 					#[allow(deprecated)]
 					<FailureNumMap<T>>::remove_all();
-					weight = weight.saturating_add(T::DbWeight::get().writes(<FailureNumMap<T>>::count() as u64));
+					weight = weight.saturating_add(
+						T::DbWeight::get().writes(<FailureNumMap<T>>::count() as u64),
+					);
 
 					#[allow(deprecated)]
 					<MinerTotalProof<T>>::remove_all();
-					weight = weight.saturating_add(T::DbWeight::get().writes(<MinerTotalProof<T>>::count() as u64));
+					weight = weight.saturating_add(
+						T::DbWeight::get().writes(<MinerTotalProof<T>>::count() as u64),
+					);
 				} else {
 					let result = Self::get_current_scheduler();
 					weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
 					match result {
-						Ok(cur_acc) =>  {
-							let new_deadline = match now.checked_add(&1200u32.saturated_into()).ok_or(Error::<T>::Overflow) {
+						Ok(cur_acc) => {
+							let new_deadline = match now
+								.checked_add(&1200u32.saturated_into())
+								.ok_or(Error::<T>::Overflow)
+							{
 								Ok(new_deadline) => new_deadline,
 								Err(e) => {
 									log::error!("over flow: {:?}", e);
@@ -454,13 +462,17 @@ pub mod pallet {
 							};
 							<VerifyDuration<T>>::put(new_deadline);
 							weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
-							let bound_verify_list: BoundedVec<ProveInfo<T>, T::ChallengeMaximum> = match verify_list.try_into().map_err(|_e| Error::<T>::BoundedVecError) {
-								Ok(bound_verify_list) => bound_verify_list,
-								Err(e) => {
-									log::error!("over flow: {:?}", e);
-									return Weight::from_ref_time(0)
-								},
-							};
+							let bound_verify_list: BoundedVec<ProveInfo<T>, T::ChallengeMaximum> =
+								match verify_list
+									.try_into()
+									.map_err(|_e| Error::<T>::BoundedVecError)
+								{
+									Ok(bound_verify_list) => bound_verify_list,
+									Err(e) => {
+										log::error!("over flow: {:?}", e);
+										return Weight::from_ref_time(0)
+									},
+								};
 							let result = Self::storage_prove(cur_acc, bound_verify_list);
 							weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
 							match result {
@@ -487,8 +499,13 @@ pub mod pallet {
 						log::info!("offchain worker random challenge start");
 						if let Err(e) = Self::offchain_work_start(now) {
 							match e {
-								OffchainErr::Working => log::info!("offchain working, Unable to perform a new round of work."),
-								_ => log::info!("offchain worker generation challenge failed:{:?}", e),
+								OffchainErr::Working => log::info!(
+									"offchain working, Unable to perform a new round of work."
+								),
+								_ => log::info!(
+									"offchain worker generation challenge failed:{:?}",
+									e
+								),
 							};
 						}
 						log::info!("offchain worker random challenge end");
@@ -524,7 +541,8 @@ pub mod pallet {
 					Err(Error::<T>::NoChallenge)?;
 				}
 			}
-			let bound_prove_info: BoundedVec<ProveInfo<T>, T::ChallengeMaximum> = prove_info.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+			let bound_prove_info: BoundedVec<ProveInfo<T>, T::ChallengeMaximum> =
+				prove_info.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
 			Self::storage_prove(acc, bound_prove_info.clone())?;
 			Self::clear_challenge_info(sender.clone(), bound_prove_info.clone())?;
 			Ok(())
@@ -554,8 +572,8 @@ pub mod pallet {
 			<UnVerifyProof<T>>::try_mutate(&sender, |o| -> DispatchResult {
 				for result in result_list.iter() {
 					for value in verify_list.iter() {
-						if (value.miner_acc == result.miner_acc.clone())
-							&& (value.challenge_info.file_id == result.file_id)
+						if (value.miner_acc == result.miner_acc.clone()) &&
+							(value.challenge_info.file_id == result.file_id)
 						{
 							o.retain(|x| (x.challenge_info.file_id != result.file_id));
 							//If the result is false, a penalty will be imposed
@@ -573,7 +591,7 @@ pub mod pallet {
 								miner: result.miner_acc.clone(),
 								file_id: result.file_id,
 							});
-							break;
+							break
 						}
 					}
 				}
@@ -644,13 +662,10 @@ pub mod pallet {
 				signature,
 				miner_acc: _,
 				challenge_info: _,
-			} = call {
+			} = call
+			{
 				Self::check_unsign(seg_digest, signature)
-			} else if let Call::save_challenge_time {
-				duration: _,
-				seg_digest,
-				signature,
-			} = call {
+			} else if let Call::save_challenge_time { duration: _, seg_digest, signature } = call {
 				Self::check_unsign(seg_digest, signature)
 			} else {
 				InvalidTransaction::Call.into()
@@ -666,8 +681,8 @@ pub mod pallet {
 		// 		Some(v) => weight = Self::clear_failure_map(limit, result.maybe_cursor),
 		// 		None => {
 		// 			weight = weight.saturating_add(T::DbWeight::get().writes(result.backend));
-		// 			weight = weight.saturating_add(T::DbWeight::get().reads_writes(result.loops, result.loops));
-		// 		},
+		// 			weight = weight.saturating_add(T::DbWeight::get().reads_writes(result.loops,
+		// result.loops)); 		},
 		// 	};
 		// 	return weight;
 		// }
@@ -679,8 +694,8 @@ pub mod pallet {
 		// 		Some(v) => weight = Self::clear_total_proof(limit, result.maybe_cursor),
 		// 		None => {
 		// 			weight = weight.saturating_add(T::DbWeight::get().writes(result.backend));
-		// 			weight = weight.saturating_add(T::DbWeight::get().reads_writes(result.loops, result.loops));
-		// 		},
+		// 			weight = weight.saturating_add(T::DbWeight::get().reads_writes(result.loops,
+		// result.loops)); 		},
 		// 	};
 		// 	return weight;
 		// }
@@ -692,42 +707,45 @@ pub mod pallet {
 			let current_session = T::ValidatorSet::session_index();
 			let keys = Keys::<T>::get();
 
-				let index = CurAuthorityIndex::<T>::get();
-				if index != seg_digest.validators_index {
-					log::error!("invalid index");
-					return InvalidTransaction::Stale.into();
-				}
+			let index = CurAuthorityIndex::<T>::get();
+			if index != seg_digest.validators_index {
+				log::error!("invalid index");
+				return InvalidTransaction::Stale.into()
+			}
 
-				let authority_id = match keys.get(seg_digest.validators_index as usize) {
-					Some(authority_id) => authority_id,
-					None => return InvalidTransaction::Stale.into(),
-				};
+			let authority_id = match keys.get(seg_digest.validators_index as usize) {
+				Some(authority_id) => authority_id,
+				None => return InvalidTransaction::Stale.into(),
+			};
 
-				let signature_valid = seg_digest.using_encoded(|encoded_seg_digest| {
-					authority_id.verify(&encoded_seg_digest, &signature)
-				});
+			let signature_valid = seg_digest.using_encoded(|encoded_seg_digest| {
+				authority_id.verify(&encoded_seg_digest, &signature)
+			});
 
-				if !signature_valid {
-					log::error!("bad signature.");
-					return InvalidTransaction::BadProof.into()
-				}
+			if !signature_valid {
+				log::error!("bad signature.");
+				return InvalidTransaction::BadProof.into()
+			}
 
-				log::info!("build valid transaction");
-				ValidTransaction::with_tag_prefix("SegmentBook")
-					.priority(T::UnsignedPriority::get())
-					.and_provides((current_session, authority_id, signature))
-					.longevity(
-						TryInto::<u64>::try_into(
-							T::NextSessionRotation::average_session_length() / 2u32.into(),
-						)
-						.unwrap_or(64_u64),
+			log::info!("build valid transaction");
+			ValidTransaction::with_tag_prefix("SegmentBook")
+				.priority(T::UnsignedPriority::get())
+				.and_provides((current_session, authority_id, signature))
+				.longevity(
+					TryInto::<u64>::try_into(
+						T::NextSessionRotation::average_session_length() / 2u32.into(),
 					)
-					.propagate(true)
-					.build()
+					.unwrap_or(64_u64),
+				)
+				.propagate(true)
+				.build()
 		}
 
 		//Storage proof method
-		fn storage_prove(acc: AccountOf<T>, prove_list: BoundedVec<ProveInfo<T>, T::ChallengeMaximum>) -> DispatchResult {
+		fn storage_prove(
+			acc: AccountOf<T>,
+			prove_list: BoundedVec<ProveInfo<T>, T::ChallengeMaximum>,
+		) -> DispatchResult {
 			<UnVerifyProof<T>>::try_mutate(&acc, |o| -> DispatchResult {
 				for v in prove_list.iter() {
 					o.try_push(v.clone()).map_err(|_e| Error::<T>::StorageLimitReached)?;
@@ -809,19 +827,21 @@ pub mod pallet {
 			let range = LIMIT / probability as u64;
 			if (time_point > 2190502) && (time_point < (range + 2190502)) {
 				if let (Some(progress), _) =
-				T::NextSessionRotation::estimate_current_session_progress(now) {
+					T::NextSessionRotation::estimate_current_session_progress(now)
+				{
 					if progress >= START_FINAL_PERIOD {
 						log::error!("TooLate!");
-						return false;
+						return false
 					}
 				}
-				return true;
+				return true
 			}
 			false
 		}
 
 		//Ways to generate challenges
-		fn generation_challenge() -> Result<BTreeMap<AccountOf<T>, Vec<ChallengeInfo<T>>>, DispatchError> {
+		fn generation_challenge(
+		) -> Result<BTreeMap<AccountOf<T>, Vec<ChallengeInfo<T>>>, DispatchError> {
 			log::info!("-----------------genearion challenge start---------------------");
 			let result = T::File::get_random_challenge_data()?;
 			let mut x = 0;
@@ -864,7 +884,7 @@ pub mod pallet {
 			let (authority_id, validators_index, validators_len) = Self::get_authority()?;
 			log::info!("get loacl authority success!");
 			if !Self::check_working(&now, &authority_id) {
-				return Err(OffchainErr::Working);
+				return Err(OffchainErr::Working)
 			}
 			log::info!("get challenge data...");
 			let challenge_map = Self::generation_challenge().map_err(|e| {
@@ -873,7 +893,13 @@ pub mod pallet {
 			})?;
 			log::info!("get challenge success!");
 			log::info!("submit challenge to chain...");
-			Self::offchain_call_extrinsic(now, authority_id, challenge_map, validators_index, validators_len)?;
+			Self::offchain_call_extrinsic(
+				now,
+				authority_id,
+				challenge_map,
+				validators_index,
+				validators_len,
+			)?;
 			log::info!("submit challenge to chain!");
 			Ok(())
 		}
@@ -882,22 +908,29 @@ pub mod pallet {
 			let key = &authority_id.encode();
 			let storage = StorageValueRef::persistent(key);
 
-			let res = storage.mutate(|status: Result<Option<BlockNumberOf<T>>, StorageRetrievalError>| {
-				match status {
-					// we are still waiting for inclusion.
-					Ok(Some(last_block)) => {
-						let lock_time = T::LockTime::get();
-						if last_block + lock_time > *now {
-							log::info!("last_block: {:?}, lock_time: {:?}, now: {:?}", last_block, lock_time, now);
-							Err(OffchainErr::Working)
-						} else {
-							Ok(*now)
-						}
-					},
-					// attempt to set new status
-					_ => Ok(*now),
-				}
-			});
+			let res = storage.mutate(
+				|status: Result<Option<BlockNumberOf<T>>, StorageRetrievalError>| {
+					match status {
+						// we are still waiting for inclusion.
+						Ok(Some(last_block)) => {
+							let lock_time = T::LockTime::get();
+							if last_block + lock_time > *now {
+								log::info!(
+									"last_block: {:?}, lock_time: {:?}, now: {:?}",
+									last_block,
+									lock_time,
+									now
+								);
+								Err(OffchainErr::Working)
+							} else {
+								Ok(*now)
+							}
+						},
+						// attempt to set new status
+						_ => Ok(*now),
+					}
+				},
+			);
 
 			if res.is_err() {
 				log::error!("offchain work: {:?}", OffchainErr::Working);
@@ -920,7 +953,7 @@ pub mod pallet {
 
 			if local_keys.len() == 0 {
 				log::info!("no local_keys");
-				return Err(OffchainErr::Ineligible);
+				return Err(OffchainErr::Ineligible)
 			}
 
 			local_keys.sort();
@@ -952,7 +985,12 @@ pub mod pallet {
 				if value.len() as u32 > max_len {
 					max_len = value.len() as u32;
 				}
-				let (signature, digest) = Self::offchain_sign_digest(now, &authority_id, validators_index, validators_len)?;
+				let (signature, digest) = Self::offchain_sign_digest(
+					now,
+					&authority_id,
+					validators_index,
+					validators_len,
+				)?;
 				let call = Call::save_challenge_info {
 					seg_digest: digest.clone(),
 					signature: signature.clone(),
@@ -960,17 +998,16 @@ pub mod pallet {
 					challenge_info: value.clone(),
 				};
 
-				let result = SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into());
+				let result =
+					SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into());
 
 				if result.is_err() {
-					log::error!(
-						"failure: offchain_signed_tx: tx miner_id: {:?}",
-						key
-					);
+					log::error!("failure: offchain_signed_tx: tx miner_id: {:?}", key);
 				}
 			}
 
-			let (signature, digest) = Self::offchain_sign_digest(now, &authority_id, validators_index, validators_len)?;
+			let (signature, digest) =
+				Self::offchain_sign_digest(now, &authority_id, validators_index, validators_len)?;
 			let one_hour: u32 = T::OneHours::get().saturated_into();
 			let duration: BlockNumberOf<T> = max_len
 				.checked_mul(3)
@@ -983,13 +1020,10 @@ pub mod pallet {
 				.ok_or(OffchainErr::Overflow)?
 				.saturated_into();
 
-			let call = Call::save_challenge_time {
-				duration,
-				seg_digest: digest.clone(),
-				signature: signature,
-			};
+			let call =
+				Call::save_challenge_time { duration, seg_digest: digest.clone(), signature };
 
-			let result = SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction( call.into());
+			let result = SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into());
 
 			if result.is_err() {
 				log::error!(
@@ -1005,20 +1039,26 @@ pub mod pallet {
 			now: BlockNumberOf<T>,
 			authority_id: &T::AuthorityId,
 			validators_index: u16,
-			validators_len: usize
-		) -> Result< (<<T as pallet::Config>::AuthorityId as sp_runtime::RuntimeAppPublic>::Signature, SegDigest::<BlockNumberOf<T>>), OffchainErr> {
-
+			validators_len: usize,
+		) -> Result<
+			(
+				<<T as pallet::Config>::AuthorityId as sp_runtime::RuntimeAppPublic>::Signature,
+				SegDigest<BlockNumberOf<T>>,
+			),
+			OffchainErr,
+		> {
 			let network_state =
 				sp_io::offchain::network_state().map_err(|_| OffchainErr::NetworkState)?;
 
-			let digest = SegDigest::<BlockNumberOf<T>>{
+			let digest = SegDigest::<BlockNumberOf<T>> {
 				validators_len: validators_len as u32,
 				block_num: now,
 				validators_index,
 				network_state,
 			};
 
-			let signature = authority_id.sign(&digest.encode()).ok_or(OffchainErr::FailedSigning)?;
+			let signature =
+				authority_id.sign(&digest.encode()).ok_or(OffchainErr::FailedSigning)?;
 
 			Ok((signature, digest))
 		}
@@ -1060,7 +1100,7 @@ pub mod pallet {
 					let random_vec = random_seed.as_bytes().to_vec();
 					if random_vec.len() >= 20 {
 						random_list.push(random_vec[0..19].to_vec());
-						break;
+						break
 					}
 				}
 			}
@@ -1075,7 +1115,7 @@ pub mod pallet {
 			file_type: DataType,
 		) -> Result<Weight, DispatchError> {
 			if !T::MinerControl::miner_is_exist(acc.clone()) {
-				return Ok(Weight::from_ref_time(0 as u64));
+				return Ok(Weight::from_ref_time(0 as u64))
 			}
 			let mut weight: Weight = Weight::from_ref_time(0);
 			match file_type {
@@ -1088,11 +1128,12 @@ pub mod pallet {
 				DataType::File => {
 					T::MinerControl::sub_space(&acc, file_size.into())?; //read 3 write 2
 					T::File::add_recovery_file(shard_id.clone())?; //read 2 write 2
-					// T::File::add_invalid_file(acc.clone(), file_id.clone())?; //read 1 write 1
+											   // T::File::add_invalid_file(acc.clone(), file_id.clone())?; //read 1 write 1
 					weight = weight.saturating_add(T::DbWeight::get().reads_writes(6, 5));
 				},
 			}
-			if !T::MinerControl::miner_is_exist(acc.clone()) { //read 1
+			if !T::MinerControl::miner_is_exist(acc.clone()) {
+				//read 1
 				let weight1 = T::File::delete_miner_all_filler(acc.clone())?;
 				weight = weight.saturating_add(weight1);
 			}

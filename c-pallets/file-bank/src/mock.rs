@@ -19,32 +19,25 @@
 
 use super::*;
 use crate as file_bank;
+use cp_scheduler_credit::SchedulerStashAccountFinder;
+use frame_benchmarking::account;
+use frame_election_provider_support::{onchain, SequentialPhragmen, VoteWeight};
 use frame_support::{
-    parameter_types,
-    weights::Weight,
-    traits::{ConstU32, EqualPrivilegeOnly, OneSessionHandler},
-};
-use frame_system::{EnsureRoot};
-use sp_core::{H256, sr25519::Signature};
-use sp_runtime::{
-    testing::{Header, TestXt, UintAuthorityId},
-    traits::{BlakeTwo256, Extrinsic as ExtrinsicT, IdentityLookup, IdentifyAccount, Verify},
-    Perbill,
+	parameter_types,
+	traits::{ConstU32, EqualPrivilegeOnly, OneSessionHandler},
+	weights::Weight,
 };
 use frame_support_test::TestRandomness;
-use frame_benchmarking::account;
-use pallet_cess_staking::{StashOf, Exposure, ExposureOf};
-use frame_election_provider_support::{
-    onchain, SequentialPhragmen, VoteWeight,
+use frame_system::EnsureRoot;
+use pallet_cess_staking::{Exposure, ExposureOf, StashOf};
+use sp_core::{sr25519::Signature, H256};
+use sp_runtime::{
+	testing::{Header, TestXt, UintAuthorityId},
+	traits::{BlakeTwo256, Extrinsic as ExtrinsicT, IdentifyAccount, IdentityLookup, Verify},
+	Perbill,
 };
-use sp_staking::{
-    EraIndex, SessionIndex,
-};
-use std::{
-	cell::RefCell,
-	convert::TryFrom,
-};
-use cp_scheduler_credit::SchedulerStashAccountFinder;
+use sp_staking::{EraIndex, SessionIndex};
+use std::{cell::RefCell, convert::TryFrom};
 /// The AccountId alias in this test module.
 pub(crate) type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;
 type BlockNumber = u64;
@@ -94,10 +87,10 @@ parameter_types! {
 }
 
 impl pallet_timestamp::Config for Test {
-    type Moment = u64;
-    type OnTimestampSet = ();
-    type MinimumPeriod = MinimumPeriod;
-    type WeightInfo = ();
+	type Moment = u64;
+	type OnTimestampSet = ();
+	type MinimumPeriod = MinimumPeriod;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -164,7 +157,7 @@ impl pallet_file_map::Config for Test {
 }
 
 const THRESHOLDS: [sp_npos_elections::VoteWeight; 9] =
-    [10, 20, 30, 40, 50, 60, 1_000, 2_000, 10_000];
+	[10, 20, 30, 40, 50, 60, 1_000, 2_000, 10_000];
 
 parameter_types! {
 	pub static BagThresholds: &'static [sp_npos_elections::VoteWeight] = &THRESHOLDS;
@@ -198,7 +191,7 @@ impl pallet_session::Config for Test {
 	type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
 	type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
 	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Test, Staking>;
-	type SessionHandler = (OtherSessionHandler, );
+	type SessionHandler = (OtherSessionHandler,);
 	type Keys = SessionKeys;
 	type WeightInfo = ();
 }
@@ -225,80 +218,82 @@ impl onchain::Config for OnChainSeqPhragmen {
 }
 
 impl pallet_cess_staking::Config for Test {
-    const ERAS_PER_YEAR: u64 = 8766;
-    const FIRST_YEAR_VALIDATOR_REWARDS: BalanceOf<Test> = 618_000_000;
-    const FIRST_YEAR_SMINER_REWARDS: BalanceOf<Test> = 309_000_000;
-    const REWARD_DECREASE_RATIO: Perbill = Perbill::from_perthousand(794);
-    type SminerRewardPool = ();
-    type Currency = Balances;
+	const ERAS_PER_YEAR: u64 = 8766;
+	const FIRST_YEAR_VALIDATOR_REWARDS: BalanceOf<Test> = 618_000_000;
+	const FIRST_YEAR_SMINER_REWARDS: BalanceOf<Test> = 309_000_000;
+	const REWARD_DECREASE_RATIO: Perbill = Perbill::from_perthousand(794);
+	type SminerRewardPool = ();
+	type Currency = Balances;
 	type CurrencyBalance = <Self as pallet_balances::Config>::Balance;
-    type UnixTime = Timestamp;
-    type CurrencyToVote = frame_support::traits::SaturatingCurrencyToVote;
-    type ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
-    type GenesisElectionProvider = Self::ElectionProvider;
-    type MaxNominations = MaxNominations;
-    type RewardRemainder = ();
-    type RuntimeEvent = RuntimeEvent;
-    type Slash = ();
-    type Reward = ();
-    type SessionsPerEra = ();
-    type BondingDuration = ();
-    type SlashDeferDuration = ();
-    type SlashCancelOrigin = frame_system::EnsureRoot<Self::AccountId>;
-    type SessionInterface = Self;
-    type EraPayout = ();
-    type NextNewSession = ();
-    type MaxNominatorRewardedPerValidator = ConstU32<64>;
-    type OffendingValidatorsThreshold = ();
-    type VoterList = BagsList;
-    type TargetList = pallet_cess_staking::UseValidatorsMap<Self>;
+	type UnixTime = Timestamp;
+	type CurrencyToVote = frame_support::traits::SaturatingCurrencyToVote;
+	type ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
+	type GenesisElectionProvider = Self::ElectionProvider;
+	type MaxNominations = MaxNominations;
+	type RewardRemainder = ();
+	type RuntimeEvent = RuntimeEvent;
+	type Slash = ();
+	type Reward = ();
+	type SessionsPerEra = ();
+	type BondingDuration = ();
+	type SlashDeferDuration = ();
+	type SlashCancelOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type SessionInterface = Self;
+	type EraPayout = ();
+	type NextNewSession = ();
+	type MaxNominatorRewardedPerValidator = ConstU32<64>;
+	type OffendingValidatorsThreshold = ();
+	type VoterList = BagsList;
+	type TargetList = pallet_cess_staking::UseValidatorsMap<Self>;
 	type MaxUnlockingChunks = ConstU32<32>;
 	type HistoryDepth = ConstU32<84>;
-    type OnStakerSlash = ();
+	type OnStakerSlash = ();
 	type BenchmarkingConfig = pallet_cess_staking::TestBenchmarkingConfig;
-    type WeightInfo = ();
+	type WeightInfo = ();
 }
 
 pub type Extrinsic = TestXt<RuntimeCall, ()>;
 
 impl<LocalCall> frame_system::offchain::SendTransactionTypes<LocalCall> for Test
-    where
-        RuntimeCall: From<LocalCall>,
+where
+	RuntimeCall: From<LocalCall>,
 {
-    type Extrinsic = Extrinsic;
-    type OverarchingCall = RuntimeCall;
+	type Extrinsic = Extrinsic;
+	type OverarchingCall = RuntimeCall;
 }
 
 pub struct ExtBuilder;
 
 impl Default for ExtBuilder {
-    fn default() -> Self {
-        Self {}
-    }
+	fn default() -> Self {
+		Self {}
+	}
 }
 
 pub struct OtherSessionHandler;
 
 impl OneSessionHandler<AccountId> for OtherSessionHandler {
-    type Key = UintAuthorityId;
+	type Key = UintAuthorityId;
 
-    fn on_genesis_session<'a, I: 'a>(_: I)
-        where
-            I: Iterator<Item=(&'a AccountId, Self::Key)>,
-            AccountId: 'a,
-    {}
+	fn on_genesis_session<'a, I: 'a>(_: I)
+	where
+		I: Iterator<Item = (&'a AccountId, Self::Key)>,
+		AccountId: 'a,
+	{
+	}
 
-    fn on_new_session<'a, I: 'a>(_: bool, _: I, _: I)
-        where
-            I: Iterator<Item=(&'a AccountId, Self::Key)>,
-            AccountId: 'a,
-    {}
+	fn on_new_session<'a, I: 'a>(_: bool, _: I, _: I)
+	where
+		I: Iterator<Item = (&'a AccountId, Self::Key)>,
+		AccountId: 'a,
+	{
+	}
 
-    fn on_disabled(_validator_index: u32) {}
+	fn on_disabled(_validator_index: u32) {}
 }
 
 impl sp_runtime::BoundToRuntimeAppPublic for OtherSessionHandler {
-    type Public = UintAuthorityId;
+	type Public = UintAuthorityId;
 }
 
 // impl ExtBuilder {
@@ -315,22 +310,22 @@ impl sp_runtime::BoundToRuntimeAppPublic for OtherSessionHandler {
 // }
 
 impl frame_system::offchain::SigningTypes for Test {
-    type Public = <Signature as Verify>::Signer;
-    type Signature = Signature;
+	type Public = <Signature as Verify>::Signer;
+	type Signature = Signature;
 }
 
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Test
-    where
-        RuntimeCall: From<LocalCall>,
+where
+	RuntimeCall: From<LocalCall>,
 {
-    fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
-        call: RuntimeCall,
-        _public: <Signature as Verify>::Signer,
-        _account: AccountId,
-        nonce: u64,
-    ) -> Option<(RuntimeCall, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
-        Some((call, (nonce, ())))
-    }
+	fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
+		call: RuntimeCall,
+		_public: <Signature as Verify>::Signer,
+		_account: AccountId,
+		nonce: u64,
+	) -> Option<(RuntimeCall, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
+		Some((call, (nonce, ())))
+	}
 }
 
 parameter_types! {
@@ -340,36 +335,36 @@ parameter_types! {
 }
 
 impl frame_system::Config for Test {
-    type BaseCallFilter = frame_support::traits::Everything;
-    type BlockWeights = ();
-    type BlockLength = ();
-    type RuntimeOrigin = RuntimeOrigin;
-    type RuntimeCall = RuntimeCall;
-    type Index = u64;
-    type BlockNumber = u64;
-    type Hash = H256;
-    type Hashing = BlakeTwo256;
-    type AccountId = AccountId;
-    type Lookup = IdentityLookup<Self::AccountId>;
-    type Header = Header;
-    type RuntimeEvent = RuntimeEvent;
-    type BlockHashCount = BlockHashCount;
-    type DbWeight = ();
-    type Version = ();
-    type PalletInfo = PalletInfo;
-    type AccountData = pallet_balances::AccountData<u64>;
-    type OnNewAccount = ();
-    type OnKilledAccount = ();
-    type SystemWeightInfo = ();
-    type SS58Prefix = ();
-    type OnSetCode = ();
-    type MaxConsumers = ConstU32<16>;
+	type BaseCallFilter = frame_support::traits::Everything;
+	type BlockWeights = ();
+	type BlockLength = ();
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
+	type Index = u64;
+	type BlockNumber = u64;
+	type Hash = H256;
+	type Hashing = BlakeTwo256;
+	type AccountId = AccountId;
+	type Lookup = IdentityLookup<Self::AccountId>;
+	type Header = Header;
+	type RuntimeEvent = RuntimeEvent;
+	type BlockHashCount = BlockHashCount;
+	type DbWeight = ();
+	type Version = ();
+	type PalletInfo = PalletInfo;
+	type AccountData = pallet_balances::AccountData<u64>;
+	type OnNewAccount = ();
+	type OnKilledAccount = ();
+	type SystemWeightInfo = ();
+	type SS58Prefix = ();
+	type OnSetCode = ();
+	type MaxConsumers = ConstU32<16>;
 }
 
 pub struct MockStashAccountFinder<AccountId>(PhantomData<AccountId>);
 
 impl<AccountId: Clone> SchedulerStashAccountFinder<AccountId>
-for MockStashAccountFinder<AccountId>
+	for MockStashAccountFinder<AccountId>
 {
 	fn find_stash_account_id(ctrl_account_id: &AccountId) -> Option<AccountId> {
 		Some(ctrl_account_id.clone())
@@ -436,8 +431,8 @@ impl Config for Test {
 	type RuntimeCall = RuntimeCall;
 	type FindAuthor = ();
 	type CreditCounter = SchedulerCredit;
-	type Scheduler = pallet_file_map::Pallet::<Test>;
-	type MinerControl = pallet_sminer::Pallet::<Test>;
+	type Scheduler = pallet_file_map::Pallet<Test>;
+	type MinerControl = pallet_sminer::Pallet<Test>;
 	type MyRandomness = TestRandomness<Self>;
 	type FilbakPalletId = FilbakPalletId;
 	type StringLimit = StringLimit;
@@ -454,47 +449,44 @@ impl Config for Test {
 }
 
 pub fn account1() -> AccountId {
-    account("account1", 0, 0)
+	account("account1", 0, 0)
 }
 
 pub fn account2() -> AccountId {
-    account("account2", 0, 0)
+	account("account2", 0, 0)
 }
 
 pub fn miner1() -> AccountId {
-    account("miner1", 0, 0)
+	account("miner1", 0, 0)
 }
 
 pub fn stash1() -> AccountId {
-    account("stash1", 0, 0)
+	account("stash1", 0, 0)
 }
 
 pub fn controller1() -> AccountId {
-    account("controller1", 0, 0)
+	account("controller1", 0, 0)
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {
-    let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
-    pallet_balances::GenesisConfig::<Test> {
-        balances: vec![
-            (account1(), 18_000_000_000_000_000_000),
-            (account2(), 1_000_000_000_000),
-            (miner1(), 1_000_000_000_000),
-            (stash1(), 1_000_000_000_000),
-            (controller1(), 1_000_000_000_000),
-        ],
-    }
-        .assimilate_storage(&mut t)
-        .unwrap();
-		file_bank::GenesisConfig::<Test> {
-			price: 30
-		}
-			.assimilate_storage(&mut t)
-			.unwrap();
-    let mut ext = sp_io::TestExternalities::new(t);
-    ext.execute_with(|| {
-        System::set_block_number(1); //must set block_number, otherwise the deposit_event() don't work
-    });
-    ext
+	let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+	pallet_balances::GenesisConfig::<Test> {
+		balances: vec![
+			(account1(), 18_000_000_000_000_000_000),
+			(account2(), 1_000_000_000_000),
+			(miner1(), 1_000_000_000_000),
+			(stash1(), 1_000_000_000_000),
+			(controller1(), 1_000_000_000_000),
+		],
+	}
+	.assimilate_storage(&mut t)
+	.unwrap();
+	file_bank::GenesisConfig::<Test> { price: 30 }
+		.assimilate_storage(&mut t)
+		.unwrap();
+	let mut ext = sp_io::TestExternalities::new(t);
+	ext.execute_with(|| {
+		System::set_block_number(1); //must set block_number, otherwise the deposit_event() don't work
+	});
+	ext
 }
-

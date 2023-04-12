@@ -1,5 +1,5 @@
-use cp_cess_common::IpAddress;
 use super::*;
+use cp_cess_common::IpAddress;
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 
@@ -75,5 +75,5 @@ pub struct BucketInfo<T: Config> {
 pub struct UserBrief<T: Config> {
 	pub user: AccountOf<T>,
 	pub file_name: BoundedVec<u8, T::NameStrLimit>,
-	pub bucket_name:  BoundedVec<u8, T::NameStrLimit>,
+	pub bucket_name: BoundedVec<u8, T::NameStrLimit>,
 }

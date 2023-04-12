@@ -22,7 +22,7 @@ pub struct MinerInfo<AccountId, Balance, BoundedString> {
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct RewardInfo<Balance> {
-    pub(super) total_reward: Balance,
+	pub(super) total_reward: Balance,
 	pub(super) total_rewards_currently_available: Balance,
 	pub(super) total_not_receive: Balance,
 }

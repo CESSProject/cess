@@ -10,13 +10,9 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+use cp_cess_common::IpAddress;
+use frame_support::{pallet_prelude::*, transactional};
 use frame_system::pallet_prelude::*;
-use frame_support::{
-	pallet_prelude::*, transactional
-};
-use cp_cess_common::{
-	IpAddress,
-};
 
 pub use pallet::*;
 
@@ -66,7 +62,8 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn authority_list)]
-	pub(super) type AuthorityList<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, AccountOf<T>>;
+	pub(super) type AuthorityList<T: Config> =
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, AccountOf<T>>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn oss)]
@@ -86,10 +83,7 @@ pub mod pallet {
 
 			AuthorityList::<T>::insert(&sender, &operator);
 
-			Self::deposit_event(Event::<T>::Authorize {
-				acc: sender,
-				operator,
-			});
+			Self::deposit_event(Event::<T>::Authorize { acc: sender, operator });
 
 			Ok(())
 		}
@@ -103,9 +97,7 @@ pub mod pallet {
 
 			<AuthorityList<T>>::remove(&sender);
 
-			Self::deposit_event(Event::<T>::CancelAuthorize {
-				acc: sender,
-			});
+			Self::deposit_event(Event::<T>::CancelAuthorize { acc: sender });
 
 			Ok(())
 		}
@@ -118,7 +110,7 @@ pub mod pallet {
 			ensure!(!<Oss<T>>::contains_key(&sender), Error::<T>::Registered);
 			<Oss<T>>::insert(&sender, endpoint.clone());
 
-			Self::deposit_event(Event::<T>::OssRegister {acc: sender, endpoint});
+			Self::deposit_event(Event::<T>::OssRegister { acc: sender, endpoint });
 
 			Ok(())
 		}
@@ -136,7 +128,7 @@ pub mod pallet {
 				Ok(())
 			})?;
 
-			Self::deposit_event(Event::<T>::OssUpdate {acc: sender, new_endpoint: endpoint});
+			Self::deposit_event(Event::<T>::OssUpdate { acc: sender, new_endpoint: endpoint });
 
 			Ok(())
 		}
@@ -164,7 +156,7 @@ pub trait OssFindAuthor<AccountId> {
 impl<T: Config> OssFindAuthor<AccountOf<T>> for Pallet<T> {
 	fn is_authorized(owner: AccountOf<T>, operator: AccountOf<T>) -> bool {
 		if let Some(acc) = <AuthorityList<T>>::get(&owner) {
-			return acc == operator;
+			return acc == operator
 		}
 		false
 	}

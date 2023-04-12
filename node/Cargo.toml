@@ -102,6 +102,31 @@ fp-evm = { git = "https://github.com/CESSProject/frontier", branch = "cess-polka
 fp-rpc = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
 fp-storage = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
 
+# Cumulus dependencies
+cumulus-client-cli = { git = "https://github.com/CESSProject/cumulus", branch = "cess-polkadot-v0.9.36" }
+cumulus-client-collator = { git = "https://github.com/CESSProject/cumulus", branch = "cess-polkadot-v0.9.36" }
+cumulus-client-consensus-common = { git = "https://github.com/CESSProject/cumulus", branch = "cess-polkadot-v0.9.36" }
+cumulus-client-network = { git = "https://github.com/CESSProject/cumulus", branch = "cess-polkadot-v0.9.36" }
+cumulus-client-service = { git = "https://github.com/CESSProject/cumulus", branch = "cess-polkadot-v0.9.36" }
+cumulus-primitives-core = { git = "https://github.com/CESSProject/cumulus", branch = "cess-polkadot-v0.9.36" }
+cumulus-primitives-parachain-inherent = { git = "https://github.com/CESSProject/cumulus", branch = "cess-polkadot-v0.9.36" }
+cumulus-relay-chain-inprocess-interface = { git = "https://github.com/CESSProject/cumulus", branch = "cess-polkadot-v0.9.36" }
+cumulus-relay-chain-interface = { git = "https://github.com/CESSProject/cumulus", branch = "cess-polkadot-v0.9.36" }
+cumulus-relay-chain-rpc-interface = { git = "https://github.com/CESSProject/cumulus", branch = "cess-polkadot-v0.9.36" }
+cumulus-relay-chain-minimal-node = { git = "https://github.com/CESSProject/cumulus", branch = "cess-polkadot-v0.9.36" }
+
+# Polkadot dependencies
+polkadot-cli = { git = "https://github.com/CESSProject/polkadot", branch = "cess-release-v0.9.36" }
+polkadot-parachain = { git = "https://github.com/CESSProject/polkadot", branch = "cess-release-v0.9.36" }
+polkadot-primitives = { git = "https://github.com/CESSProject/polkadot", branch = "cess-release-v0.9.36" }
+polkadot-service = { git = "https://github.com/CESSProject/polkadot", branch = "cess-release-v0.9.36" }
+polkadot-test-service = { git = "https://github.com/CESSProject/polkadot", branch = "cess-release-v0.9.36" }
+
+# Nimbus Dependencies
+nimbus-consensus = { git = "https://github.com/CESSProject/nimbus", branch = "cess-polkadot-v0.9.36" }
+nimbus-primitives = { git = "https://github.com/CESSProject/nimbus", branch = "cess-polkadot-v0.9.36" }
+
+
 [build-dependencies]
 try-runtime-cli = { version = "0.10.0-dev", optional = true , git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }

@@ -1,6 +1,8 @@
 use super::*;
-use crate::mock::{*, Oss};
-use crate::Oss as OssList;
+use crate::{
+	mock::{Oss, *},
+	Oss as OssList,
+};
 use frame_support::{assert_err, assert_ok};
 
 #[test]
@@ -32,7 +34,7 @@ fn cancel_authorize_work() {
 fn register_work() {
 	ExtBuilder::default().build_and_execute(|| {
 		let oss = account1();
-		let ip = IpAddress::IPV4([127,0,0,1], 15000);
+		let ip = IpAddress::IPV4([127, 0, 0, 1], 15000);
 		assert_ok!(Oss::register(RuntimeOrigin::signed(oss.clone()), ip.clone()));
 
 		let result_ip = OssList::<Test>::get(&oss).unwrap();
@@ -44,9 +46,12 @@ fn register_work() {
 fn register_err_registered() {
 	ExtBuilder::default().build_and_execute(|| {
 		let oss = account1();
-		let ip = IpAddress::IPV4([127,0,0,1], 15000);
+		let ip = IpAddress::IPV4([127, 0, 0, 1], 15000);
 		assert_ok!(Oss::register(RuntimeOrigin::signed(oss.clone()), ip.clone()));
-		assert_err!(Oss::register(RuntimeOrigin::signed(oss.clone()), ip.clone()), Error::<Test>::Registered);
+		assert_err!(
+			Oss::register(RuntimeOrigin::signed(oss.clone()), ip.clone()),
+			Error::<Test>::Registered
+		);
 	});
 }
 
@@ -54,13 +59,13 @@ fn register_err_registered() {
 fn update_work() {
 	ExtBuilder::default().build_and_execute(|| {
 		let oss = account1();
-		let ip = IpAddress::IPV4([127,0,0,1], 15000);
+		let ip = IpAddress::IPV4([127, 0, 0, 1], 15000);
 		assert_ok!(Oss::register(RuntimeOrigin::signed(oss.clone()), ip.clone()));
 
 		let result_ip = OssList::<Test>::get(&oss).unwrap();
 		assert_eq!(result_ip, ip);
 
-		let new_ip = IpAddress::IPV4([127,0,0,1], 15001);
+		let new_ip = IpAddress::IPV4([127, 0, 0, 1], 15001);
 		assert_ok!(Oss::update(RuntimeOrigin::signed(oss.clone()), new_ip.clone()));
 
 		let result_ip = OssList::<Test>::get(&oss).unwrap();

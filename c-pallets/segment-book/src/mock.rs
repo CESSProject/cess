@@ -2,36 +2,30 @@
 
 use super::*;
 use crate as segment_book;
-use frame_support::{
-    parameter_types,
-    weights::Weight,
-    traits::{ConstU32, EqualPrivilegeOnly, OneSessionHandler},
-};
-use frame_system::{EnsureRoot};
-use sp_core::{H256, sr25519::Signature};
-use sp_runtime::{
-    testing::{Header, TestXt, UintAuthorityId},
-    traits::{BlakeTwo256, Extrinsic as ExtrinsicT, IdentityLookup, IdentifyAccount, Verify},
-    Perbill
-};
-use frame_benchmarking::account;
-use frame_support_test::TestRandomness;
-use pallet_cess_staking::{StashOf, Exposure, ExposureOf, BalanceOf};
-use frame_election_provider_support::{
-    onchain, SequentialPhragmen, VoteWeight,
-};
-use sp_staking::{
-    EraIndex, SessionIndex,
-};
-use std::marker::PhantomData;
-use std::cell::RefCell;
 use cp_scheduler_credit::SchedulerStashAccountFinder;
+use frame_benchmarking::account;
+use frame_election_provider_support::{onchain, SequentialPhragmen, VoteWeight};
+use frame_support::{
+	parameter_types,
+	traits::{ConstU32, EqualPrivilegeOnly, OneSessionHandler},
+	weights::Weight,
+};
+use frame_support_test::TestRandomness;
+use frame_system::EnsureRoot;
+use pallet_cess_staking::{BalanceOf, Exposure, ExposureOf, StashOf};
+use sp_core::{sr25519::Signature, H256};
+use sp_runtime::{
+	testing::{Header, TestXt, UintAuthorityId},
+	traits::{BlakeTwo256, Extrinsic as ExtrinsicT, IdentifyAccount, IdentityLookup, Verify},
+	Perbill,
+};
+use sp_staking::{EraIndex, SessionIndex};
+use std::{cell::RefCell, marker::PhantomData};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 type BlockNumber = u64;
 type Balance = u64;
-
 
 frame_support::construct_runtime!(
 	pub enum Test where
@@ -53,7 +47,7 @@ frame_support::construct_runtime!(
 		Timestamp: pallet_timestamp,
 		SchedulerCredit: pallet_scheduler_credit,
 		Oss: pallet_oss,
-        PreImage: pallet_preimage,
+		PreImage: pallet_preimage,
 	}
 );
 
@@ -72,34 +66,34 @@ pub(crate) type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::
 pub type Extrinsic = TestXt<RuntimeCall, ()>;
 
 impl frame_system::Config for Test {
-    type BaseCallFilter = frame_support::traits::Everything;
-    type BlockWeights = ();
-    type BlockLength = ();
-    type DbWeight = ();
-    type RuntimeOrigin = RuntimeOrigin;
-    type RuntimeCall = RuntimeCall;
-    type Index = u64;
-    type BlockNumber = u64;
-    type Hash = H256;
-    type Hashing = BlakeTwo256;
-    type AccountId = AccountId;
-    type Lookup = IdentityLookup<Self::AccountId>;
-    type Header = Header;
-    type RuntimeEvent = RuntimeEvent;
-    type BlockHashCount = BlockHashCount;
-    type Version = ();
-    type PalletInfo = PalletInfo;
-    type AccountData = pallet_balances::AccountData<u64>;
-    type OnNewAccount = ();
-    type OnKilledAccount = ();
-    type SystemWeightInfo = ();
-    type SS58Prefix = ();
-    type OnSetCode = ();
-    type MaxConsumers = ConstU32<16>;
+	type BaseCallFilter = frame_support::traits::Everything;
+	type BlockWeights = ();
+	type BlockLength = ();
+	type DbWeight = ();
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
+	type Index = u64;
+	type BlockNumber = u64;
+	type Hash = H256;
+	type Hashing = BlakeTwo256;
+	type AccountId = AccountId;
+	type Lookup = IdentityLookup<Self::AccountId>;
+	type Header = Header;
+	type RuntimeEvent = RuntimeEvent;
+	type BlockHashCount = BlockHashCount;
+	type Version = ();
+	type PalletInfo = PalletInfo;
+	type AccountData = pallet_balances::AccountData<u64>;
+	type OnNewAccount = ();
+	type OnKilledAccount = ();
+	type SystemWeightInfo = ();
+	type SS58Prefix = ();
+	type OnSetCode = ();
+	type MaxConsumers = ConstU32<16>;
 }
 
 parameter_types! {
-    pub const FileMapPalletId: PalletId = PalletId(*b"filmpdpt");
+	pub const FileMapPalletId: PalletId = PalletId(*b"filmpdpt");
 		#[derive(Clone, PartialEq, Eq)]
 		pub const SchedulerMaximum: u32 = 10000;
 		#[derive(Clone, PartialEq, Eq)]
@@ -107,14 +101,14 @@ parameter_types! {
 }
 
 impl pallet_file_map::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type Currency = Balances;
-    type FileMapPalletId = FileMapPalletId;
-    type StringLimit = StringLimit;
-    type WeightInfo = ();
-		type CreditCounter = SchedulerCredit;
-		type SchedulerMaximum = SchedulerMaximum;
-		type ParamsLimit = ParamsLimit;
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type FileMapPalletId = FileMapPalletId;
+	type StringLimit = StringLimit;
+	type WeightInfo = ();
+	type CreditCounter = SchedulerCredit;
+	type SchedulerMaximum = SchedulerMaximum;
+	type ParamsLimit = ParamsLimit;
 }
 
 parameter_types! {
@@ -144,8 +138,8 @@ impl pallet_file_bank::Config for Test {
 	type RuntimeCall = RuntimeCall;
 	type FindAuthor = ();
 	type CreditCounter = SchedulerCredit;
-	type Scheduler = pallet_file_map::Pallet::<Test>;
-	type MinerControl = pallet_sminer::Pallet::<Test>;
+	type Scheduler = pallet_file_map::Pallet<Test>;
+	type MinerControl = pallet_sminer::Pallet<Test>;
 	type MyRandomness = TestRandomness<Self>;
 	type FilbakPalletId = FilbakPalletId;
 	type StringLimit = StringLimit;
@@ -164,29 +158,31 @@ impl pallet_file_bank::Config for Test {
 pub struct OtherSessionHandler;
 
 impl OneSessionHandler<AccountId> for OtherSessionHandler {
-    type Key = UintAuthorityId;
+	type Key = UintAuthorityId;
 
-    fn on_genesis_session<'a, I: 'a>(_: I)
-        where
-            I: Iterator<Item=(&'a AccountId, Self::Key)>,
-            AccountId: 'a,
-    {}
+	fn on_genesis_session<'a, I: 'a>(_: I)
+	where
+		I: Iterator<Item = (&'a AccountId, Self::Key)>,
+		AccountId: 'a,
+	{
+	}
 
-    fn on_new_session<'a, I: 'a>(_: bool, _: I, _: I)
-        where
-            I: Iterator<Item=(&'a AccountId, Self::Key)>,
-            AccountId: 'a,
-    {}
+	fn on_new_session<'a, I: 'a>(_: bool, _: I, _: I)
+	where
+		I: Iterator<Item = (&'a AccountId, Self::Key)>,
+		AccountId: 'a,
+	{
+	}
 
-    fn on_disabled(_validator_index: u32) {}
+	fn on_disabled(_validator_index: u32) {}
 }
 
 impl sp_runtime::BoundToRuntimeAppPublic for OtherSessionHandler {
-    type Public = UintAuthorityId;
+	type Public = UintAuthorityId;
 }
 
 const THRESHOLDS: [sp_npos_elections::VoteWeight; 9] =
-    [10, 20, 30, 40, 50, 60, 1_000, 2_000, 10_000];
+	[10, 20, 30, 40, 50, 60, 1_000, 2_000, 10_000];
 
 parameter_types! {
 	pub static BagThresholds: &'static [sp_npos_elections::VoteWeight] = &THRESHOLDS;
@@ -194,17 +190,17 @@ parameter_types! {
 }
 
 impl pallet_bags_list::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type WeightInfo = ();
-    type ScoreProvider = Staking;
-    type BagThresholds = BagThresholds;
-    type Score = VoteWeight;
+	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = ();
+	type ScoreProvider = Staking;
+	type BagThresholds = BagThresholds;
+	type Score = VoteWeight;
 }
 
 pub struct MockStashAccountFinder<AccountId>(PhantomData<AccountId>);
 
 impl<AccountId: Clone> SchedulerStashAccountFinder<AccountId>
-for MockStashAccountFinder<AccountId>
+	for MockStashAccountFinder<AccountId>
 {
 	fn find_stash_account_id(ctrl_account_id: &AccountId) -> Option<AccountId> {
 		Some(ctrl_account_id.clone())
@@ -234,20 +230,20 @@ sp_runtime::impl_opaque_keys! {
 	}
 }
 impl pallet_session::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type ValidatorId = AccountId;
-    type ValidatorIdOf = StashOf<Test>;
-    type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
-    type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
-    type SessionManager = pallet_session::historical::NoteHistoricalRoot<Test, Staking>;
-    type SessionHandler = (OtherSessionHandler, );
-    type Keys = SessionKeys;
-    type WeightInfo = ();
+	type RuntimeEvent = RuntimeEvent;
+	type ValidatorId = AccountId;
+	type ValidatorIdOf = StashOf<Test>;
+	type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
+	type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
+	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Test, Staking>;
+	type SessionHandler = (OtherSessionHandler,);
+	type Keys = SessionKeys;
+	type WeightInfo = ();
 }
 
 impl pallet_session::historical::Config for Test {
-    type FullIdentification = Exposure<AccountId, Balance>;
-    type FullIdentificationOf = ExposureOf<Test>;
+	type FullIdentification = Exposure<AccountId, Balance>;
+	type FullIdentificationOf = ExposureOf<Test>;
 }
 
 thread_local! {
@@ -257,49 +253,48 @@ thread_local! {
 pub struct OnChainSeqPhragmen;
 
 impl onchain::Config for OnChainSeqPhragmen {
-    type System = Test;
-    type Solver = SequentialPhragmen<AccountId, Perbill>;
-    type DataProvider = Staking;
-    type WeightInfo = ();
-    type MaxWinners = ConstU32<100>;
+	type System = Test;
+	type Solver = SequentialPhragmen<AccountId, Perbill>;
+	type DataProvider = Staking;
+	type WeightInfo = ();
+	type MaxWinners = ConstU32<100>;
 	type VotersBound = ConstU32<{ u32::MAX }>;
 	type TargetsBound = ConstU32<{ u32::MAX }>;
-    
 }
 
 impl pallet_cess_staking::Config for Test {
-    const ERAS_PER_YEAR: u64 = 8766;
-    const FIRST_YEAR_VALIDATOR_REWARDS: BalanceOf<Test> = 618_000_000;
-    const FIRST_YEAR_SMINER_REWARDS: BalanceOf<Test> = 309_000_000;
-    const REWARD_DECREASE_RATIO: Perbill = Perbill::from_perthousand(794);
-    type SminerRewardPool = ();
-    type Currency = Balances;
-    type CurrencyBalance = <Self as pallet_balances::Config>::Balance;
-    type UnixTime = Timestamp;
-    type CurrencyToVote = frame_support::traits::SaturatingCurrencyToVote;
-    type ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
-    type GenesisElectionProvider = Self::ElectionProvider;
-    type MaxNominations = MaxNominations;
-    type RewardRemainder = ();
-    type RuntimeEvent = RuntimeEvent;
-    type Slash = ();
-    type Reward = ();
-    type SessionsPerEra = ();
-    type BondingDuration = ();
-    type SlashDeferDuration = ();
-    type SlashCancelOrigin = frame_system::EnsureRoot<Self::AccountId>;
-    type SessionInterface = Self;
-    type EraPayout = ();
-    type NextNewSession = ();
-    type MaxNominatorRewardedPerValidator = ConstU32<64>;
-    type OffendingValidatorsThreshold = ();
-    type VoterList = BagsList;
-    type TargetList = pallet_cess_staking::UseValidatorsMap<Self>;
-    type MaxUnlockingChunks = ConstU32<32>;
-    type HistoryDepth = ConstU32<84>;
-    type OnStakerSlash = ();
-    type BenchmarkingConfig = pallet_cess_staking::TestBenchmarkingConfig;
-    type WeightInfo = ();
+	const ERAS_PER_YEAR: u64 = 8766;
+	const FIRST_YEAR_VALIDATOR_REWARDS: BalanceOf<Test> = 618_000_000;
+	const FIRST_YEAR_SMINER_REWARDS: BalanceOf<Test> = 309_000_000;
+	const REWARD_DECREASE_RATIO: Perbill = Perbill::from_perthousand(794);
+	type SminerRewardPool = ();
+	type Currency = Balances;
+	type CurrencyBalance = <Self as pallet_balances::Config>::Balance;
+	type UnixTime = Timestamp;
+	type CurrencyToVote = frame_support::traits::SaturatingCurrencyToVote;
+	type ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
+	type GenesisElectionProvider = Self::ElectionProvider;
+	type MaxNominations = MaxNominations;
+	type RewardRemainder = ();
+	type RuntimeEvent = RuntimeEvent;
+	type Slash = ();
+	type Reward = ();
+	type SessionsPerEra = ();
+	type BondingDuration = ();
+	type SlashDeferDuration = ();
+	type SlashCancelOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type SessionInterface = Self;
+	type EraPayout = ();
+	type NextNewSession = ();
+	type MaxNominatorRewardedPerValidator = ConstU32<64>;
+	type OffendingValidatorsThreshold = ();
+	type VoterList = BagsList;
+	type TargetList = pallet_cess_staking::UseValidatorsMap<Self>;
+	type MaxUnlockingChunks = ConstU32<32>;
+	type HistoryDepth = ConstU32<84>;
+	type OnStakerSlash = ();
+	type BenchmarkingConfig = pallet_cess_staking::TestBenchmarkingConfig;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -307,15 +302,15 @@ parameter_types! {
 }
 
 impl pallet_balances::Config for Test {
-    type Balance = u64;
-    type DustRemoval = ();
-    type RuntimeEvent = RuntimeEvent;
-    type ExistentialDeposit = ExistentialDeposit;
-    type AccountStore = System;
-    type WeightInfo = ();
-    type MaxLocks = ();
-    type MaxReserves = ();
-    type ReserveIdentifier = [u8; 8];
+	type Balance = u64;
+	type DustRemoval = ();
+	type RuntimeEvent = RuntimeEvent;
+	type ExistentialDeposit = ExistentialDeposit;
+	type AccountStore = System;
+	type WeightInfo = ();
+	type MaxLocks = ();
+	type MaxReserves = ();
+	type ReserveIdentifier = [u8; 8];
 }
 
 impl pallet_preimage::Config for Test {
@@ -332,10 +327,10 @@ parameter_types! {
 }
 
 impl pallet_timestamp::Config for Test {
-    type Moment = u64;
-    type OnTimestampSet = ();
-    type MinimumPeriod = MinimumPeriod;
-    type WeightInfo = ();
+	type Moment = u64;
+	type OnTimestampSet = ();
+	type MinimumPeriod = MinimumPeriod;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -343,43 +338,43 @@ parameter_types! {
 }
 
 impl pallet_scheduler::Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type RuntimeOrigin = RuntimeOrigin;
-    type PalletsOrigin = OriginCaller;
-    type RuntimeCall = RuntimeCall;
-    type MaximumWeight = MaximumSchedulerWeight;
-    type ScheduleOrigin = EnsureRoot<AccountId>;
-    type OriginPrivilegeCmp = EqualPrivilegeOnly;
-    type MaxScheduledPerBlock = ();
-    type WeightInfo = ();
-    type Preimages = PreImage;
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeOrigin = RuntimeOrigin;
+	type PalletsOrigin = OriginCaller;
+	type RuntimeCall = RuntimeCall;
+	type MaximumWeight = MaximumSchedulerWeight;
+	type ScheduleOrigin = EnsureRoot<AccountId>;
+	type OriginPrivilegeCmp = EqualPrivilegeOnly;
+	type MaxScheduledPerBlock = ();
+	type WeightInfo = ();
+	type Preimages = PreImage;
 }
 
 parameter_types! {
-    pub const RewardPalletId: PalletId = PalletId(*b"sminerpt");
-    pub const MultipleFines: u8 = 7;
-    pub const DepositBufferPeriod: u32 = 3;
-    pub const ItemLimit: u32 = 1024;
+	pub const RewardPalletId: PalletId = PalletId(*b"sminerpt");
+	pub const MultipleFines: u8 = 7;
+	pub const DepositBufferPeriod: u32 = 3;
+	pub const ItemLimit: u32 = 1024;
 		pub const MaxAward: u128 = 1_306_849_000_000_000_000;
 		pub const LockInPeriod: u8 = 2;
 }
 
 impl pallet_sminer::Config for Test {
-    type Currency = Balances;
-      // The ubiquitous event type.
-      type RuntimeEvent = RuntimeEvent;
-      type PalletId = RewardPalletId;
-      type SScheduler = Scheduler;
-      type AScheduler = Scheduler;
-      type SPalletsOrigin = OriginCaller;
-      type SProposal = RuntimeCall;
-      type WeightInfo = ();
-      type ItemLimit = ItemLimit;
-      type MultipleFines = MultipleFines;
-      type DepositBufferPeriod = DepositBufferPeriod;
-      type OneDayBlock = OneDay;
-			type MaxAward = MaxAward;
-			type LockInPeriod = LockInPeriod;
+	type Currency = Balances;
+	// The ubiquitous event type.
+	type RuntimeEvent = RuntimeEvent;
+	type PalletId = RewardPalletId;
+	type SScheduler = Scheduler;
+	type AScheduler = Scheduler;
+	type SPalletsOrigin = OriginCaller;
+	type SProposal = RuntimeCall;
+	type WeightInfo = ();
+	type ItemLimit = ItemLimit;
+	type MultipleFines = MultipleFines;
+	type DepositBufferPeriod = DepositBufferPeriod;
+	type OneDayBlock = OneDay;
+	type MaxAward = MaxAward;
+	type LockInPeriod = LockInPeriod;
 }
 
 parameter_types! {
@@ -399,97 +394,95 @@ parameter_types! {
 }
 
 impl Config for Test {
-    type RuntimeEvent = RuntimeEvent;
-    type Currency = Balances;
-    type MyPalletId = SegmentBookPalletId;
-    type WeightInfo = ();
-    type MyRandomness = TestRandomness<Self>;
-    type StringLimit = StringLimit;
-    type RandomLimit = StringLimit;
-    type OneDay = OneDay;
-    type OneHours = OneHours;
-    type FindAuthor = ();
-    type File = pallet_file_bank::Pallet::<Test>;
-    type Scheduler = pallet_file_map::Pallet::<Test>;
-    type MinerControl = Sminer;
-    type AuthorityId = segment_book::sr25519::AuthorityId;
-		type ValidatorSet = Historical;
-		type NextSessionRotation = ();
-		type UnsignedPriority = SegUnsignedPriority;
-		type LockTime = LockTime;
-		type SubmitValidationLimit = SubmitValidationLimit;
-		type SubmitProofLimit = SubmitProofLimit;
-		type ChallengeMaximum = ChallengeMaximum;
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type MyPalletId = SegmentBookPalletId;
+	type WeightInfo = ();
+	type MyRandomness = TestRandomness<Self>;
+	type StringLimit = StringLimit;
+	type RandomLimit = StringLimit;
+	type OneDay = OneDay;
+	type OneHours = OneHours;
+	type FindAuthor = ();
+	type File = pallet_file_bank::Pallet<Test>;
+	type Scheduler = pallet_file_map::Pallet<Test>;
+	type MinerControl = Sminer;
+	type AuthorityId = segment_book::sr25519::AuthorityId;
+	type ValidatorSet = Historical;
+	type NextSessionRotation = ();
+	type UnsignedPriority = SegUnsignedPriority;
+	type LockTime = LockTime;
+	type SubmitValidationLimit = SubmitValidationLimit;
+	type SubmitProofLimit = SubmitProofLimit;
+	type ChallengeMaximum = ChallengeMaximum;
 }
 
 pub fn account1() -> AccountId {
-    account("account1", 0, 0)
+	account("account1", 0, 0)
 }
 
 pub fn account2() -> AccountId {
-    account("account2", 0, 0)
+	account("account2", 0, 0)
 }
 
 pub fn miner1() -> AccountId {
-    account("miner1", 0, 0)
+	account("miner1", 0, 0)
 }
 
 pub fn stash1() -> AccountId {
-    account("stash1", 0, 0)
+	account("stash1", 0, 0)
 }
 
 pub fn controller1() -> AccountId {
-    account("controller1", 0, 0)
+	account("controller1", 0, 0)
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {
-    let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
-    pallet_balances::GenesisConfig::<Test> {
-        balances: vec![
-            (account1(), 1_000_000_000_000_000_000),
-            (account2(), 1_000_000_000_000_000_000),
-            (miner1(), 1_000_000_000_000_000_000),
-            (stash1(), 1_000_000_000_000_000_000),
-            (controller1(), 1_000_000_000_000_000_000),
-        ],
-    }
-        .assimilate_storage(&mut t)
-        .unwrap();
-		pallet_file_bank::GenesisConfig::<Test> {
-			price: 30
-		}
-			.assimilate_storage(&mut t)
-			.unwrap();
-    let mut ext = sp_io::TestExternalities::new(t);
-    ext.execute_with(|| {
-        System::set_block_number(1); //must set block_number, otherwise the deposit_event() don't work
-    });
-    ext
+	let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+	pallet_balances::GenesisConfig::<Test> {
+		balances: vec![
+			(account1(), 1_000_000_000_000_000_000),
+			(account2(), 1_000_000_000_000_000_000),
+			(miner1(), 1_000_000_000_000_000_000),
+			(stash1(), 1_000_000_000_000_000_000),
+			(controller1(), 1_000_000_000_000_000_000),
+		],
+	}
+	.assimilate_storage(&mut t)
+	.unwrap();
+	pallet_file_bank::GenesisConfig::<Test> { price: 30 }
+		.assimilate_storage(&mut t)
+		.unwrap();
+	let mut ext = sp_io::TestExternalities::new(t);
+	ext.execute_with(|| {
+		System::set_block_number(1); //must set block_number, otherwise the deposit_event() don't work
+	});
+	ext
 }
 
 impl<LocalCall> frame_system::offchain::SendTransactionTypes<LocalCall> for Test
-    where
-        RuntimeCall: From<LocalCall>,
+where
+	RuntimeCall: From<LocalCall>,
 {
-    type Extrinsic = Extrinsic;
-    type OverarchingCall = RuntimeCall;
+	type Extrinsic = Extrinsic;
+	type OverarchingCall = RuntimeCall;
 }
 
 impl frame_system::offchain::SigningTypes for Test {
-    type Public = <Signature as Verify>::Signer;
-    type Signature = Signature;
+	type Public = <Signature as Verify>::Signer;
+	type Signature = Signature;
 }
 
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Test
-    where
-        RuntimeCall: From<LocalCall>,
+where
+	RuntimeCall: From<LocalCall>,
 {
-    fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
-        call: RuntimeCall,
-        _public: <Signature as Verify>::Signer,
-        _account: AccountId,
-        nonce: u64,
-    ) -> Option<(RuntimeCall, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
-        Some((call, (nonce, ())))
-    }
+	fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
+		call: RuntimeCall,
+		_public: <Signature as Verify>::Signer,
+		_account: AccountId,
+		nonce: u64,
+	) -> Option<(RuntimeCall, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
+		Some((call, (nonce, ())))
+	}
 }

@@ -1,23 +1,23 @@
-use grandpa_primitives::AuthorityId as GrandpaId;
 use cess_node_runtime::{
-	opaque::SessionKeys, wasm_binary_unwrap, AccountId, AuthorityDiscoveryConfig, Balance,
-	BalancesConfig, Block, CouncilConfig, GenesisConfig, GrandpaConfig, ImOnlineConfig,
-	IndicesConfig, MaxNominations, BabeConfig, SessionConfig, Signature, StakerStatus,
+	opaque::SessionKeys, wasm_binary_unwrap, AccountId, AuthorityDiscoveryConfig, BabeConfig,
+	Balance, BalancesConfig, Block, CouncilConfig, FileBankConfig, GenesisConfig, GrandpaConfig,
+	ImOnlineConfig, IndicesConfig, MaxNominations, SessionConfig, Signature, StakerStatus,
 	StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig, DOLLARS,
-	FileBankConfig,
 };
+use cumulus_primitives_core::ParaId;
+use grandpa_primitives::AuthorityId as GrandpaId;
 
+use cessp_consensus_rrsc::AuthorityId as RRSCId;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_segment_book::sr25519::AuthorityId as SegmentBookId;
 use sc_chain_spec::ChainSpecExtension;
 use sc_service::{config::TelemetryEndpoints, ChainType};
 use serde::{Deserialize, Serialize};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use cessp_consensus_rrsc::AuthorityId as RRSCId;
 use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public};
 use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
-	Perbill, SaturatedConversion
+	Perbill, SaturatedConversion,
 };
 
 // The URL for the telemetry server.
@@ -35,12 +35,23 @@ pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Pu
 #[derive(Default, Clone, Serialize, Deserialize, ChainSpecExtension)]
 #[serde(rename_all = "camelCase")]
 pub struct Extensions {
-	/// Block numbers with known hashes.
-	pub fork_blocks: sc_client_api::ForkBlocks<Block>,
-	/// Known bad block hashes.
-	pub bad_blocks: sc_client_api::BadBlocks<Block>,
-	/// The light sync state extension used by the sync-state rpc.
-	pub light_sync_state: cessc_sync_state_rpc::LightSyncStateExtension,
+	// /// Block numbers with known hashes.
+	// pub fork_blocks: sc_client_api::ForkBlocks<Block>,
+	// /// Known bad block hashes.
+	// pub bad_blocks: sc_client_api::BadBlocks<Block>,
+	// /// The light sync state extension used by the sync-state rpc.
+	// pub light_sync_state: cessc_sync_state_rpc::LightSyncStateExtension,
+	/// The relay chain of the Parachain.
+	pub relay_chain: String,
+	/// The id of the Parachain.
+	pub para_id: u32,
+}
+
+impl Extensions {
+	/// Try to get the extension from the given `ChainSpec`.
+	pub fn try_get(chain_spec: &dyn sc_service::ChainSpec) -> Option<&Self> {
+		sc_chain_spec::get_extension(chain_spec.extensions())
+	}
 }
 
 /// Specialized `ChainSpec`.
@@ -179,32 +190,68 @@ fn cess_main_genesis() -> GenesisConfig {
 	// generated with secret: subkey inspect "$secret"/fir
 	let root_key: AccountId = array_bytes::hex_n_into_unchecked(
 		// cXffK7BmstE5rXcK8pxKLufkffp9iASMntxUm6ctpR6xS3icV
-		"1e3e1c69dfbd27d398e92da4844a9abdc2786ac01588d87a2e1f5ec06ea2a936"
+		"1e3e1c69dfbd27d398e92da4844a9abdc2786ac01588d87a2e1f5ec06ea2a936",
 	);
 
 	let endowed_accounts: Vec<AccountId> = vec![
 		root_key.clone(),
-		array_bytes::hex_n_into_unchecked("1ec940be673d3613e94c4d44e3f4621422c1a0778a53a34b2b45f3118f823c03"),
-		array_bytes::hex_n_into_unchecked("92389e795eef50e9af11c997f82d7bb809b0bb9a76f96b6fb29bd60b7a2cbef7"),
-		array_bytes::hex_n_into_unchecked("2a4d86b50b2d98c3bfb02c00f9731753b01f8151774544f4e78e11ef4bb1eb79"),
-		array_bytes::hex_n_into_unchecked("928f11288d2ba2a6c625fbf34366ea533566e6f6b85661d2ea6df4fb6158b14b"),
-		array_bytes::hex_n_into_unchecked("9422fe68db986721051c6cd9841a6afc2c3edc6de3cd74c7b0e45f50b3d6c671"),
-		array_bytes::hex_n_into_unchecked("70186d841754d9f4225f922976682d580e58fce0cfd07696cb6d4324b1ede379"),
-		array_bytes::hex_n_into_unchecked("2a20b3a025722789f18ca7e459ec21d4f232b1a1d245272f14248d3cfa8b412a"),
-		array_bytes::hex_n_into_unchecked("a0749440bc4322cc700bc3678d986f50d2fe91d9322a4a1b3046c3f1bd944940"),
-		array_bytes::hex_n_into_unchecked("b4ac8b37a20935b0b390c61cd849ea533b060bb97e32b68801ec3b6220a8e131"),
-		array_bytes::hex_n_into_unchecked("c4060f93e5bb97ed21491e90ff78268caa67ec84a5d3663ffd65332509fe0dd9"),
-		array_bytes::hex_n_into_unchecked("2a66038471e6a62a2df2195efef9d25263858711337cf8dc31804f196bdb7840"),
-		array_bytes::hex_n_into_unchecked("2ed4a2c67291bf3eaa4de538ab120ba21b302db5704551864226d2fae8f87937"),
-		array_bytes::hex_n_into_unchecked("d0a9eef85d7762e89280b8fdfd4ce031530b95421214fcc28c554dbb4d9fe927"),
-		array_bytes::hex_n_into_unchecked("5ce2722592557b41c2359fec3367f782703706784f193abc735b937abae71e30"),
-		array_bytes::hex_n_into_unchecked("a69b2d0f8bb3f43f152c55e8cb1a605f927776feaa3cb08ead51de0ef3a3f34c"),
-		array_bytes::hex_n_into_unchecked("2e829b75650eac0d4c8dcfb8aa724d2df70dc5a44b16a8800b87403c3a4d8959"),
-		array_bytes::hex_n_into_unchecked("74579f9baed2d7151cb0f5adfe0084f59b4bbf8696d5aa0493f584097bfe3cb1"),
-		array_bytes::hex_n_into_unchecked("521917850191d8787c10d9e35a0f3ff218e992e4ed476e5c33f7de5ab04f1a38"),
+		array_bytes::hex_n_into_unchecked(
+			"1ec940be673d3613e94c4d44e3f4621422c1a0778a53a34b2b45f3118f823c03",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"92389e795eef50e9af11c997f82d7bb809b0bb9a76f96b6fb29bd60b7a2cbef7",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"2a4d86b50b2d98c3bfb02c00f9731753b01f8151774544f4e78e11ef4bb1eb79",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"928f11288d2ba2a6c625fbf34366ea533566e6f6b85661d2ea6df4fb6158b14b",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"9422fe68db986721051c6cd9841a6afc2c3edc6de3cd74c7b0e45f50b3d6c671",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"70186d841754d9f4225f922976682d580e58fce0cfd07696cb6d4324b1ede379",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"2a20b3a025722789f18ca7e459ec21d4f232b1a1d245272f14248d3cfa8b412a",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"a0749440bc4322cc700bc3678d986f50d2fe91d9322a4a1b3046c3f1bd944940",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"b4ac8b37a20935b0b390c61cd849ea533b060bb97e32b68801ec3b6220a8e131",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"c4060f93e5bb97ed21491e90ff78268caa67ec84a5d3663ffd65332509fe0dd9",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"2a66038471e6a62a2df2195efef9d25263858711337cf8dc31804f196bdb7840",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"2ed4a2c67291bf3eaa4de538ab120ba21b302db5704551864226d2fae8f87937",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"d0a9eef85d7762e89280b8fdfd4ce031530b95421214fcc28c554dbb4d9fe927",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"5ce2722592557b41c2359fec3367f782703706784f193abc735b937abae71e30",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"a69b2d0f8bb3f43f152c55e8cb1a605f927776feaa3cb08ead51de0ef3a3f34c",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"2e829b75650eac0d4c8dcfb8aa724d2df70dc5a44b16a8800b87403c3a4d8959",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"74579f9baed2d7151cb0f5adfe0084f59b4bbf8696d5aa0493f584097bfe3cb1",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"521917850191d8787c10d9e35a0f3ff218e992e4ed476e5c33f7de5ab04f1a38",
+		),
 	];
 
-	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts))
+	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts), 1000.into())
 }
 
 fn cess_testnet_config_genesis() -> GenesisConfig {
@@ -291,28 +338,56 @@ fn cess_testnet_config_genesis() -> GenesisConfig {
 	// generated with secret: subkey inspect "$secret"/fir
 	let root_key: AccountId = array_bytes::hex_n_into_unchecked(
 		// cXffK7BmstE5rXcK8pxKLufkffp9iASMntxUm6ctpR6xS3icV
-		"1e3e1c69dfbd27d398e92da4844a9abdc2786ac01588d87a2e1f5ec06ea2a936"
+		"1e3e1c69dfbd27d398e92da4844a9abdc2786ac01588d87a2e1f5ec06ea2a936",
 	);
 
 	let endowed_accounts: Vec<AccountId> = vec![
 		root_key.clone(),
-		array_bytes::hex_n_into_unchecked("1ec940be673d3613e94c4d44e3f4621422c1a0778a53a34b2b45f3118f823c03"),
-		array_bytes::hex_n_into_unchecked("92389e795eef50e9af11c997f82d7bb809b0bb9a76f96b6fb29bd60b7a2cbef7"),
-		array_bytes::hex_n_into_unchecked("2a4d86b50b2d98c3bfb02c00f9731753b01f8151774544f4e78e11ef4bb1eb79"),
-		array_bytes::hex_n_into_unchecked("928f11288d2ba2a6c625fbf34366ea533566e6f6b85661d2ea6df4fb6158b14b"),
-		array_bytes::hex_n_into_unchecked("9422fe68db986721051c6cd9841a6afc2c3edc6de3cd74c7b0e45f50b3d6c671"),
-		array_bytes::hex_n_into_unchecked("70186d841754d9f4225f922976682d580e58fce0cfd07696cb6d4324b1ede379"),
-		array_bytes::hex_n_into_unchecked("2a20b3a025722789f18ca7e459ec21d4f232b1a1d245272f14248d3cfa8b412a"),
-		array_bytes::hex_n_into_unchecked("a0749440bc4322cc700bc3678d986f50d2fe91d9322a4a1b3046c3f1bd944940"),
-		array_bytes::hex_n_into_unchecked("b4ac8b37a20935b0b390c61cd849ea533b060bb97e32b68801ec3b6220a8e131"),
-		array_bytes::hex_n_into_unchecked("c4060f93e5bb97ed21491e90ff78268caa67ec84a5d3663ffd65332509fe0dd9"),
-		array_bytes::hex_n_into_unchecked("2a66038471e6a62a2df2195efef9d25263858711337cf8dc31804f196bdb7840"),
-		array_bytes::hex_n_into_unchecked("2ed4a2c67291bf3eaa4de538ab120ba21b302db5704551864226d2fae8f87937"),
-		array_bytes::hex_n_into_unchecked("d0a9eef85d7762e89280b8fdfd4ce031530b95421214fcc28c554dbb4d9fe927"),
-		array_bytes::hex_n_into_unchecked("5ce2722592557b41c2359fec3367f782703706784f193abc735b937abae71e30",)
+		array_bytes::hex_n_into_unchecked(
+			"1ec940be673d3613e94c4d44e3f4621422c1a0778a53a34b2b45f3118f823c03",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"92389e795eef50e9af11c997f82d7bb809b0bb9a76f96b6fb29bd60b7a2cbef7",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"2a4d86b50b2d98c3bfb02c00f9731753b01f8151774544f4e78e11ef4bb1eb79",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"928f11288d2ba2a6c625fbf34366ea533566e6f6b85661d2ea6df4fb6158b14b",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"9422fe68db986721051c6cd9841a6afc2c3edc6de3cd74c7b0e45f50b3d6c671",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"70186d841754d9f4225f922976682d580e58fce0cfd07696cb6d4324b1ede379",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"2a20b3a025722789f18ca7e459ec21d4f232b1a1d245272f14248d3cfa8b412a",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"a0749440bc4322cc700bc3678d986f50d2fe91d9322a4a1b3046c3f1bd944940",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"b4ac8b37a20935b0b390c61cd849ea533b060bb97e32b68801ec3b6220a8e131",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"c4060f93e5bb97ed21491e90ff78268caa67ec84a5d3663ffd65332509fe0dd9",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"2a66038471e6a62a2df2195efef9d25263858711337cf8dc31804f196bdb7840",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"2ed4a2c67291bf3eaa4de538ab120ba21b302db5704551864226d2fae8f87937",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"d0a9eef85d7762e89280b8fdfd4ce031530b95421214fcc28c554dbb4d9fe927",
+		),
+		array_bytes::hex_n_into_unchecked(
+			"5ce2722592557b41c2359fec3367f782703706784f193abc735b937abae71e30",
+		),
 	];
 
-	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts))
+	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts), 1000.into())
 }
 
 pub fn cess_testnet_config() -> ChainSpec {
@@ -365,7 +440,7 @@ pub fn cess_main() -> ChainSpec {
 			serde_json::from_str(
 				"{\"tokenDecimals\": 12, \"tokenSymbol\": \"TCESS\", \"SS58Prefix\": 11330}",
 			)
-				.expect("Provided valid json map"),
+			.expect("Provided valid json map"),
 		),
 		Default::default(),
 	)
@@ -377,6 +452,7 @@ fn development_config_genesis() -> GenesisConfig {
 		vec![],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
+		1000.into(),
 	)
 }
 
@@ -408,6 +484,7 @@ fn local_testnet_genesis() -> GenesisConfig {
 		vec![],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
+		1000.into(),
 	)
 }
 
@@ -447,6 +524,7 @@ fn testnet_genesis(
 	initial_nominators: Vec<AccountId>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
+	id: ParaId,
 ) -> GenesisConfig {
 	let mut endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(|| {
 		vec![
@@ -561,5 +639,10 @@ fn testnet_genesis(
 		ethereum: Default::default(),
 		dynamic_fee: Default::default(),
 		base_fee: Default::default(),
+		parachain_info: cess_node_runtime::ParachainInfoConfig { parachain_id: id },
+		author_filter: cess_node_runtime::AuthorFilterConfig {
+			eligible_count: cess_node_runtime::EligibilityValue::default(),
+		},
+		parachain_system: Default::default(),
 	}
 }
