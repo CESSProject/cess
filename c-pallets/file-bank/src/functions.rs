@@ -1,11 +1,11 @@
 use super::*;
 
 impl<T: Config> Pallet<T> {
-    pub fn check_file_spec(seg_list: &SegmentList<T>) -> bool {
+    pub fn check_file_spec(seg_list: &BoundedVec<SegmentList<T>, T::SegmentCount>) -> bool {
         let spec_len = T::FragmentCount::get();
 
-        for (_hash, frag_list) in seg_list {
-            if frag_list.len() as u32 != spec_len {
+        for segment in seg_list {
+            if segment.fragment_list.len() as u32 != spec_len {
                 return false
             }
         }
@@ -15,39 +15,43 @@ impl<T: Config> Pallet<T> {
 
     pub fn generate_file(
         file_hash: &Hash,
-        deal_info: SegmentList<T>,
-        miner_task_list: MinerTaskList<T>,
+        deal_info: BoundedVec<SegmentList<T>, T::SegmentCount>,
+        miner_task_list: BoundedVec<MinerTaskList<T>, T::StringLimit>,
         share_info: Vec<SegmentInfo<T>>,
         user_brief: UserBrief<T>,
         stat: FileState,
     ) -> DispatchResult {
         let mut segment_info_list: BoundedVec<SegmentInfo<T>, T::SegmentCount> = Default::default();
-        for (hash, frag_list) in deal_info.iter() {
+        for segment in deal_info.iter() {
             let mut segment_info = SegmentInfo::<T> {
-                hash: *hash,
+                hash: segment.hash,
                 fragment_list: Default::default(),
             };
 
+            let mut flag = true;
             for share_segment_info in &share_info {
-                if hash == &share_segment_info.hash {
-                    segment_info.fragment_list = share_segment_info.fragment_list.clone().try_into().map_err(|_e| Error::<T>::BoundedVecError)?;
+                if segment.hash == share_segment_info.hash {
+                    segment_info.fragment_list = share_segment_info.fragment_list.clone();
+                    flag = false;
                     break;
                 }
-            }
+            };
 
-            for frag_hash in frag_list.iter() {
-                for (miner, task_list) in &miner_task_list {
-                    if task_list.contains(frag_hash) {
-                        let frag_info = FragmentInfo::<T> {
-                            hash:  *frag_hash,
-                            avail: true,
-                            miner: miner.clone(),
-                        };
-                        segment_info.fragment_list.try_push(frag_info).map_err(|_e| Error::<T>::BoundedVecError)?;
+            if flag {
+                for frag_hash in segment.fragment_list.iter() {
+                    for miner_task in &miner_task_list {
+                        if miner_task.fragment_list.contains(frag_hash) {
+                            let frag_info = FragmentInfo::<T> {
+                                hash:  *frag_hash,
+                                avail: true,
+                                miner: miner_task.miner.clone(),
+                            };
+                            segment_info.fragment_list.try_push(frag_info).map_err(|_e| Error::<T>::BoundedVecError)?;
+                        }
                     }
                 }
             }
-
+            
             segment_info_list.try_push(segment_info).map_err(|_e| Error::<T>::BoundedVecError)?;
         }
 
@@ -117,8 +121,8 @@ impl<T: Config> Pallet<T> {
 
     pub(super) fn generate_deal(
         file_hash: Hash, 
-        needed_list: SegmentList<T>, 
-        file_info: SegmentList<T>, 
+        needed_list: BoundedVec<SegmentList<T>, T::SegmentCount>, 
+        file_info: BoundedVec<SegmentList<T>, T::SegmentCount>, 
         user_brief: UserBrief<T>,
         share_info: Vec<SegmentInfo<T>>,
     ) -> DispatchResult {
@@ -159,7 +163,7 @@ impl<T: Config> Pallet<T> {
 
     pub(super) fn start_second_task(task_id: Vec<u8>, deal_hash: Hash, count: u8) -> DispatchResult {
         let start: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
-        let survival_block = start.checked_add(600 * (count as u32)).ok_or(Error::<T>::Overflow)?;
+        let survival_block = start.checked_add(1 * (count as u32)).ok_or(Error::<T>::Overflow)?;
 
         T::FScheduler::schedule_named(
                 task_id, // TODO!
@@ -173,9 +177,11 @@ impl<T: Config> Pallet<T> {
         Ok(())
     }
 
-    pub(super) fn random_assign_miner(needed_list: &SegmentList<T>) -> Result<MinerTaskList<T>, DispatchError> {
+    pub(super) fn random_assign_miner(
+        needed_list: &BoundedVec<SegmentList<T>, T::SegmentCount>
+    ) -> Result<BoundedVec<MinerTaskList<T>, T::StringLimit>, DispatchError> {
         let mut index_list: Vec<u32> = Default::default();
-        let mut miner_task_list: MinerTaskList<T> = Default::default();
+        let mut miner_task_list: BoundedVec<MinerTaskList<T>, T::StringLimit> = Default::default();
         let mut miner_idle_space_list: Vec<u128> = Default::default();
         // The optimal number of miners required for storage.
         // segment_size * 1.5 / fragment_size.
@@ -185,7 +191,7 @@ impl<T: Config> Pallet<T> {
         let all_miner = T::MinerControl::get_all_miner()?;
         let total = all_miner.len() as u32;
 
-        ensure!(total > miner_count, Error::<T>::NodesInsuffcient);
+        // ensure!(total > miner_count, Error::<T>::NodesInsufficient);
         // Maximum number of cycles set to prevent dead cycles TODO!
         let max_count = miner_count * 5;
         let mut cur_count = 0;
@@ -219,7 +225,11 @@ impl<T: Config> Pallet<T> {
             if cur_space > needed_list.len() as u128 * FRAGMENT_SIZE {
                 // Accumulate all idle space of currently selected miners
                 total_idle_space = total_idle_space.checked_add(&cur_space).ok_or(Error::<T>::Overflow)?;
-                miner_task_list.try_push((miner, Default::default())).map_err(|_e| Error::<T>::BoundedVecError)?;
+                let miner_task = MinerTaskList::<T>{
+                    miner: miner,
+                    fragment_list: Default::default(),
+                };
+                miner_task_list.try_push(miner_task).map_err(|_e| Error::<T>::BoundedVecError)?;
                 miner_idle_space_list.push(cur_space);
             }
             // If the selected number of miners has reached the optimal number, the cycle ends.
@@ -229,13 +239,13 @@ impl<T: Config> Pallet<T> {
         }
         
         ensure!(miner_task_list.len() != 0, Error::<T>::BugInvalid);
-        ensure!(total_idle_space > SEGMENT_SIZE * 15 / 10, Error::<T>::NodesInsuffcient);
+        ensure!(total_idle_space > SEGMENT_SIZE * 15 / 10, Error::<T>::NodesInsufficient);
 
         // According to the selected miner.
         // Assign responsible documents to miners.
-        for (_hash, frag_list) in needed_list {
+        for segment_list in needed_list {
             let mut index = 0;
-            for hash in frag_list {
+            for hash in &segment_list.fragment_list {
                 // To prevent the number of miners from not meeting the fragment number.
                 // It may occur that one miner stores multiple fragments
                 loop {
@@ -243,10 +253,10 @@ impl<T: Config> Pallet<T> {
                     // To prevent exceeding the boundary, use '%'.
                     let temp_index = index % miner_task_list.len();
                     let cur_space = miner_idle_space_list[temp_index];
-                    // To prevent a miner from storing multiple fragments, 
+                    // To prevent a miner from storing multiple fragments,
                     // the idle space is insufficient
-                    if cur_space > (miner_task_list[temp_index].1.len() as u128 + 1) * FRAGMENT_SIZE {
-                        miner_task_list[temp_index].1.try_push(*hash).map_err(|_e| Error::<T>::BoundedVecError)?;
+                    if cur_space > (miner_task_list[temp_index].fragment_list.len() as u128 + 1) * FRAGMENT_SIZE {
+                        miner_task_list[temp_index].fragment_list.try_push(*hash).map_err(|_e| Error::<T>::BoundedVecError)?;
                         break;
                     }
                     index = index.checked_add(1).ok_or(Error::<T>::PanicOverflow)?;
@@ -255,8 +265,8 @@ impl<T: Config> Pallet<T> {
             }
         }
         // lock miner space
-        for (acc, task_hash_list) in miner_task_list.iter() {
-            T::MinerControl::lock_space(acc, task_hash_list.len() as u128 * FRAGMENT_SIZE)?;
+        for miner_task in miner_task_list.iter() {
+            T::MinerControl::lock_space(&miner_task.miner, miner_task.fragment_list.len() as u128 * FRAGMENT_SIZE)?;
         }
          
         
