@@ -3,8 +3,24 @@ use super::*;
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 // Cess type
-pub(super) type SegmentList<T> = BoundedVec<(Hash, BoundedVec<Hash, <T as pallet::Config>::FragmentCount>),  <T as pallet::Config>::SegmentCount>;
-pub(super) type MinerTaskList<T> = BoundedVec<(AccountOf<T>, BoundedVec<Hash,  <T as pallet::Config>::FragmentCount>),  <T as pallet::Config>::FragmentCount>;
+// pub(super) type SegmentList<T> = BoundedVec<(Hash, BoundedVec<Hash, <T as pallet::Config>::FragmentCount>),  <T as pallet::Config>::SegmentCount>;
+// pub(super) type MinerTaskList<T> = BoundedVec<(AccountOf<T>, BoundedVec<Hash,  <T as pallet::Config>::FragmentCount>),  <T as pallet::Config>::FragmentCount>;
+
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+#[codec(mel_bound())]
+pub struct SegmentList<T: Config> {
+	pub(super) hash: Hash,
+	pub(super) fragment_list: BoundedVec<Hash, <T as pallet::Config>::FragmentCount>,
+}
+
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+#[codec(mel_bound())]
+pub struct MinerTaskList<T: Config> {
+	pub(super) miner: AccountOf<T>,
+	pub(super) fragment_list:  BoundedVec<Hash,  <T as pallet::Config>::FragmentCount>,
+}
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub enum FileState {
@@ -19,10 +35,10 @@ pub enum FileState {
 #[codec(mel_bound())]
 pub struct DealInfo<T: Config> {
 	pub(super) stage: u8,
-	pub(super) segment_list: SegmentList<T>,
-	pub(super) needed_list: SegmentList<T>,
+	pub(super) segment_list: BoundedVec<SegmentList<T>, T::SegmentCount>,
+	pub(super) needed_list: BoundedVec<SegmentList<T>, T::SegmentCount>,
 	pub(super) user: UserBrief<T>,
-	pub(super) assigned_miner: MinerTaskList<T>,
+	pub(super) assigned_miner: BoundedVec<MinerTaskList<T>, T::StringLimit>,
 	pub(super) share_info: BoundedVec<SegmentInfo<T>, T::SegmentCount>,
 	pub(super) complete_list: BoundedVec<AccountOf<T>, T::FragmentCount>,
 }

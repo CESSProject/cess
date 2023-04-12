@@ -664,7 +664,7 @@ impl<T: Config> StorageHandle<T::AccountId> for Pallet<T> {
     }
 
     fn unlock_and_used_user_space(acc: &T::AccountId, needed_space: u128) -> DispatchResult {
-        Pallet::<T>::unlock_user_space(acc, needed_space)
+        Pallet::<T>::unlock_and_used_user_space(acc, needed_space)
     }
 
     fn get_user_avail_space(acc: &T::AccountId) -> Result<u128, DispatchError> {
