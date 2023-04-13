@@ -126,6 +126,8 @@ impl<T: Config> Pallet<T> {
         user_brief: UserBrief<T>,
         share_info: Vec<SegmentInfo<T>>,
     ) -> DispatchResult {
+        ensure!(!<DealMap<T>>::contains_key(&file_hash), Error::<T>::Existed);
+
         let miner_task_list = Self::random_assign_miner(&needed_list)?;
 
         Self::start_first_task(file_hash.0.to_vec(), file_hash, 1)?;

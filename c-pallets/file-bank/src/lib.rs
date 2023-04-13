@@ -361,6 +361,20 @@ pub mod pallet {
 			ensure!(T::StorageHandle::get_user_avail_space(&user_brief.user)? > needed_space, Error::<T>::InsufficientAvailableSpace);		
 
 			if <File<T>>::contains_key(&file_hash) {
+
+				<File<T>>::try_mutate(&file_hash, |file_opt| -> DispatchResult {
+					let file = file_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
+
+					for user_brief_temp in &file.owner {
+						if user_brief_temp.user == user_brief.user {
+							Err(Error::<T>::IsOwned)?;
+						}
+					}
+					
+					file.owner.try_push(user_brief.clone()).map_err(|_e| Error::<T>::BoundedVecError)?;
+					Ok(())
+				})?;
+
 				T::StorageHandle::update_user_space(&user_brief.user, 1, needed_space)?;
 
 				if <Bucket<T>>::contains_key(&user_brief.user, &user_brief.bucket_name) {
@@ -371,11 +385,6 @@ pub mod pallet {
 
 				Self::add_user_hold_fileslice(&user_brief.user, file_hash, needed_space)?;
 
-				<File<T>>::try_mutate(&file_hash, |file_opt| -> DispatchResult {
-					let file = file_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
-					file.owner.try_push(user_brief.clone()).map_err(|_e| Error::<T>::BoundedVecError)?;
-					Ok(())
-				})?;
 			} else {
 				// Check whether the user's storage space is sufficient, 
 				// if sufficient lock user's storage space.
