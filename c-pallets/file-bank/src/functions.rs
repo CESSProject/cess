@@ -134,6 +134,7 @@ impl<T: Config> Pallet<T> {
 
         let deal = DealInfo::<T> {
             stage: 1,
+            count: 1,
             segment_list: file_info,
             needed_list: needed_list,
             user: user_brief,

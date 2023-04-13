@@ -35,6 +35,7 @@ pub enum FileState {
 #[codec(mel_bound())]
 pub struct DealInfo<T: Config> {
 	pub(super) stage: u8,
+	pub(super) count: u8,
 	pub(super) segment_list: BoundedVec<SegmentList<T>, T::SegmentCount>,
 	pub(super) needed_list: BoundedVec<SegmentList<T>, T::SegmentCount>,
 	pub(super) user: UserBrief<T>,
