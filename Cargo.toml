@@ -1,4 +1,10 @@
 [workspace]
+
+exclude = [
+    "utils/webpki",
+    "utils/ring",
+]
+
 members = [
     'node',
     'runtime',

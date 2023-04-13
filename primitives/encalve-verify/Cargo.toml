@@ -1,0 +1,39 @@
+[package]
+name = "cp-crypto"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+log = { version = "0.4.14", default-features = false }
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
+scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
+sp-std = { default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'cess-polkadot-v0.9.36', version = '5.0'}
+cp-cess-common = { version = "0.1.0", path = '../common', default-features = false }
+
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+
+frame-support = {default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'cess-polkadot-v0.9.36', version = '4.0.0-dev'}
+sp-api = { version = "4.0.0-dev", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'cess-polkadot-v0.9.36' }
+sp-core = { version = "7.0.0", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'cess-polkadot-v0.9.36' }
+
+# verify sgx signture
+webpki = { package = "webpki", path = '../../utils/webpki', default-features = false }
+base64 = { default-features = false, features = ["alloc"], version = "0.12.2" }
+sp-application-crypto = { version = '6.0.0', branch = 'cess-polkadot-v0.9.36', git = 'https://github.com/CESSProject/substrate.git', default-features = false }
+sp-io = { version = "7.0.0", default-features = false, branch = 'cess-polkadot-v0.9.36', git = 'https://github.com/CESSProject/substrate.git' }
+
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"scale-info/std",
+	"sp-std/std",
+	"sp-application-crypto/std",
+	"sp-io/std",
+	"sp-api/std",
+	"sp-core/std",
+	"frame-support/std",
+	"cp-cess-common/std",
+	"webpki/std",
+]
