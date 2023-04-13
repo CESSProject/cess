@@ -72,6 +72,9 @@ pub use frame_support::{
 	ConsensusEngineId, PalletId, StorageValue,
 };
 
+// Nimbus Imports 
+pub use nimbus_primitives::NimbusId;
+
 // Polkadot Imports
 use pallet_xcm::XcmPassthrough;
 use polkadot_parachain::primitives::Sibling;
@@ -1992,14 +1995,34 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentCallApi<Block, Balance, RuntimeCall>
-		for Runtime
-	{
-		fn query_call_info(call: RuntimeCall, len: u32) -> RuntimeDispatchInfo<Balance> {
-			TransactionPayment::query_call_info(call, len)
+	// impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentCallApi<Block, Balance, RuntimeCall>
+	// 	for Runtime
+	// {
+	// 	fn query_call_info(call: RuntimeCall, len: u32) -> RuntimeDispatchInfo<Balance> {
+	// 		TransactionPayment::query_call_info(call, len)
+	// 	}
+	// 	fn query_call_fee_details(call: RuntimeCall, len: u32) -> FeeDetails<Balance> {
+	// 		TransactionPayment::query_call_fee_details(call, len)
+	// 	}
+	// }
+
+	impl cumulus_primitives_core::CollectCollationInfo<Block> for Runtime {
+		fn collect_collation_info(header: &<Block as BlockT>::Header) -> cumulus_primitives_core::CollationInfo {
+			ParachainSystem::collect_collation_info(header)
 		}
-		fn query_call_fee_details(call: RuntimeCall, len: u32) -> FeeDetails<Balance> {
-			TransactionPayment::query_call_fee_details(call, len)
+	}
+
+	impl nimbus_primitives::NimbusApi<Block> for Runtime {
+		fn can_author(author: NimbusId, slot: u32, parent_header: &<Block as BlockT>::Header) -> bool {
+			// This runtime uses an entropy source that is updated during block initialization
+			// Therefore we need to initialize it to match the state it will be in when the
+			// next block is being executed.
+			System::reset_events();
+			System::initialize(&(parent_header.number + 1), &parent_header.hash(), &parent_header.digest);
+			<Self as pallet_author_slot_filter::Config>::RandomnessSource::on_initialize(System::block_number());
+
+			// And now the actual prediction call
+			<AuthorInherent as nimbus_primitives::CanAuthor<_>>::can_author(&author, &slot)
 		}
 	}
 

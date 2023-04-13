@@ -9,6 +9,7 @@ use crate::primitives as node_primitives;
 use std::{collections::BTreeMap, sync::Arc};
 
 use jsonrpsee::RpcModule;
+pub type RpcExtension = jsonrpsee::RpcModule<()>;
 use node_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Index};
 
 // Substrate
@@ -42,30 +43,6 @@ use fc_rpc::{
 use fc_rpc_core::types::{FeeHistoryCache, FilterPool};
 use fp_storage::EthereumStorageSchema;
 
-/// Extra dependencies for RRSC.
-pub struct RRSCDeps {
-	/// RRSC protocol config.
-	pub rrsc_config: RRSCConfiguration,
-	/// RRSC pending epoch changes.
-	pub shared_epoch_changes: SharedEpochChanges<Block, Epoch>,
-	/// The keystore that manages the keys of the node.
-	pub keystore: SyncCryptoStorePtr,
-}
-
-/// Extra dependencies for GRANDPA
-pub struct GrandpaDeps<B> {
-	/// Voting round info.
-	pub shared_voter_state: SharedVoterState,
-	/// Authority set info.
-	pub shared_authority_set: SharedAuthoritySet<Hash, BlockNumber>,
-	/// Receives notifications about justification events from Grandpa.
-	pub justification_stream: GrandpaJustificationStream<Block>,
-	/// Executor to drive the subscription manager in the Grandpa RPC handler.
-	pub subscription_executor: SubscriptionTaskExecutor,
-	/// Finality proof provider.
-	pub finality_provider: Arc<FinalityProofProvider<B, Block>>,
-}
-
 #[derive(Clone, Debug, clap::Parser)]
 pub struct EthConfiguration {
 	/// Maximum number of logs in a query.
@@ -85,21 +62,13 @@ pub struct EthConfiguration {
 	pub execute_gas_limit_multiplier: u64,
 }
 /// Full client dependencies.
-pub struct FullDeps<C, P, SC, B, A: ChainApi, CT> {
+pub struct FullDeps<C, P, A: ChainApi, CT, BE> {
 	/// The client instance to use.
 	pub client: Arc<C>,
 	/// Transaction pool instance.
 	pub pool: Arc<P>,
-	/// The SelectChain Strategy
-	pub select_chain: SC,
-	/// A copy of the chain spec.
-	pub chain_spec: Box<dyn sc_chain_spec::ChainSpec>,
 	/// Whether to deny unsafe calls
 	pub deny_unsafe: DenyUnsafe,
-	/// RRSC specific dependencies.
-	pub rrsc: RRSCDeps,
-	/// GRANDPA specific dependencies.
-	pub grandpa: GrandpaDeps<B>,
 	/// Graph pool instance.
 	pub graph: Arc<Pool<A>>,
 	/// Ethereum transaction converter.
@@ -112,8 +81,10 @@ pub struct FullDeps<C, P, SC, B, A: ChainApi, CT> {
 	pub network: Arc<NetworkService<Block, Hash>>,
 	/// EthFilterApi pool.
 	pub filter_pool: Option<FilterPool>,
-	/// Backend.
+	/// Frontier Backend.
 	pub frontier_backend: Arc<fc_db::Backend<Block>>,
+	/// Backend.
+	pub backend: Arc<BE>,
 	/// Maximum number of logs in a query.
 	pub max_past_logs: u32,
 	/// Maximum fee history cache size.
@@ -165,7 +136,8 @@ where
 
 /// Instantiate all full RPC extensions.
 pub fn create_full<C, P, SC, B, BE, A, CT>(
-	deps: FullDeps<C, P, SC, B, A, CT>,
+	deps: FullDeps<C, P, A, CT, BE>,
+	subscription_task_executor: SubscriptionTaskExecutor,
 	backend: Arc<B>,
 ) -> Result<RpcModule<()>, Box<dyn std::error::Error + Send + Sync>>
 where
@@ -217,11 +189,7 @@ where
 	let FullDeps {
 		client,
 		pool,
-		select_chain,
-		chain_spec,
 		deny_unsafe,
-		rrsc,
-		grandpa,
 		graph,
 		converter,
 		is_authority,
@@ -229,6 +197,7 @@ where
 		network,
 		filter_pool,
 		frontier_backend,
+		backend,
 		max_past_logs,
 		fee_history_limit,
 		fee_history_cache,
@@ -236,19 +205,6 @@ where
 		block_data_cache,
 		execute_gas_limit_multiplier,
 	} = deps;
-	let RRSCDeps { keystore, rrsc_config, shared_epoch_changes } = rrsc;
-	let GrandpaDeps {
-		shared_voter_state,
-		shared_authority_set,
-		justification_stream,
-		subscription_executor,
-		finality_provider,
-	} = grandpa;
-
-	let chain_name = chain_spec.name().to_string();
-	let genesis_hash = client.block_hash(0).ok().flatten().expect("Genesis block exists; qed");
-	let properties = chain_spec.properties();
-	io.merge(ChainSpec::new(chain_name, genesis_hash, properties).into_rpc())?;
 
 	io.merge(System::new(client.clone(), pool.clone(), deny_unsafe).into_rpc())?;
 	// Making synchronous calls in light client freezes the browser currently,
@@ -257,32 +213,6 @@ where
 	// io.merge(Contracts::new(client.clone()).into_rpc())?;
 	io.merge(Mmr::new(client.clone()).into_rpc())?;
 	io.merge(TransactionPayment::new(client.clone()).into_rpc())?;
-	io.merge(
-		RRSC::new(
-			client.clone(),
-			shared_epoch_changes.clone(),
-			keystore,
-			rrsc_config,
-			select_chain,
-			deny_unsafe,
-		)
-		.into_rpc(),
-	)?;
-	io.merge(
-		Grandpa::new(
-			subscription_executor.clone(),
-			shared_authority_set.clone(),
-			shared_voter_state,
-			justification_stream,
-			finality_provider,
-		)
-		.into_rpc(),
-	)?;
-
-	io.merge(
-		SyncState::new(chain_spec, client.clone(), shared_authority_set, shared_epoch_changes)?
-			.into_rpc(),
-	)?;
 
 	let mut signers = Vec::new();
 	if enable_dev_signer {
@@ -323,7 +253,7 @@ where
 	}
 
 	io.merge(
-		EthPubSub::new(pool, client.clone(), network.clone(), subscription_executor, overrides)
+		EthPubSub::new(pool, client.clone(), network.clone(), subscription_task_executor, overrides)
 			.into_rpc(),
 	)?;
 

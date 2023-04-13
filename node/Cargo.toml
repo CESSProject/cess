@@ -40,6 +40,9 @@ sp-keyring = { version = "7.0.0", git = "https://github.com/CESSProject/substrat
 sp-keystore = { version = "0.13.0", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sp-consensus = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sp-transaction-storage-proof = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+sp-offchain = { git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.36" }
+sp-session = { git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.36" }
+sp-transaction-pool = { git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.36" }
 
 # client dependencies
 cessc-consensus-rrsc-rpc = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
@@ -67,11 +70,13 @@ sc-executor = { version = "0.10.0-dev", git = "https://github.com/CESSProject/su
 sc-authority-discovery = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 cessc-sync-state-rpc = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sc-sysinfo = { version = "6.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+sc-client-db = { git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.36" }
 
 # frame dependencies
 frame-system-rpc-runtime-api = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 pallet-im-online = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 substrate-frame-rpc-system = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+substrate-prometheus-endpoint = { git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.36" }
 
 # node-specific dependencies
 cess-node-runtime = { path = "../runtime" }

@@ -30,8 +30,8 @@ use sc_service::PartialComponents;
 
 use std::sync::Arc;
 
-use log::info;
 use codec::Encode;
+use log::info;
 use std::net::SocketAddr;
 
 use cumulus_client_cli::generate_genesis_block;
@@ -164,7 +164,7 @@ pub fn run() -> Result<()> {
 				info!("Parachain genesis state: {}", genesis_state);
 				info!("Is collating: {}", if config.role.is_authority() { "yes" } else { "no" });
 
-				service::new_full(
+				service::start_parachain_node(
 					config,
 					polkadot_config,
 					collator_options,
@@ -218,9 +218,7 @@ pub fn run() -> Result<()> {
 			runner.sync_run(|config| {
 				let polkadot_cli = RelayChainCli::new(
 					&config,
-					[RelayChainCli::executable_name()]
-						.iter()
-						.chain(cli.relay_chain_args.iter()),
+					[RelayChainCli::executable_name()].iter().chain(cli.relay_chain_args.iter()),
 				);
 
 				let polkadot_config = SubstrateCli::create_configuration(
