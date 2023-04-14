@@ -171,8 +171,9 @@ pub fn run() -> Result<()> {
 					cli.eth,
 					cli.no_hardware_benchmarks,
 					id,
-				)
-				.map_err(sc_cli::Error::Service)
+				).await
+				.map(|r| r.0)
+				.map_err(Into::into)
 			})
 		},
 		Some(Subcommand::Key(cmd)) => cmd.run(&cli),

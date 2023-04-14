@@ -135,7 +135,7 @@ where
 }
 
 /// Instantiate all full RPC extensions.
-pub fn create_full<C, P, SC, B, BE, A, CT>(
+pub fn create_full<C, P, B, BE, A, CT>(
 	deps: FullDeps<C, P, A, CT, BE>,
 	subscription_task_executor: SubscriptionTaskExecutor,
 	backend: Arc<B>,
@@ -165,7 +165,6 @@ where
 	C::Api: fp_rpc::ConvertTransactionRuntimeApi<Block>,
 	C::Api: fp_rpc::EthereumRuntimeRPCApi<Block>,
 	P: TransactionPool<Block = Block> + 'static,
-	SC: SelectChain<Block> + 'static,
 	B: sc_client_api::Backend<Block> + Send + Sync + 'static,
 	B::State: sc_client_api::backend::StateBackend<sp_runtime::traits::HashFor<Block>>,
 	A: ChainApi<Block = Block> + 'static,

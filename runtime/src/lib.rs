@@ -61,7 +61,7 @@ pub use frame_support::{
 	traits::{
 		AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU16, ConstU32, ConstU8, Currency,
 		EitherOfDiverse, EqualPrivilegeOnly, Everything, FindAuthor, Imbalance, InstanceFilter,
-		KeyOwnerProofSystem, Nothing, OnUnbalanced, Randomness, StorageInfo, U128CurrencyToVote,
+		KeyOwnerProofSystem, Nothing, OnInitialize, OnUnbalanced, Randomness, StorageInfo, U128CurrencyToVote,
 	},
 	weights::{
 		constants::{
