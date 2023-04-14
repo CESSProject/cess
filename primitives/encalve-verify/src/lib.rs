@@ -1,6 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use frame_support::ensure;
+// use frame_support::ensure;
 use sp_std::vec::Vec;
 use sp_application_crypto::{
 	ecdsa::{Signature, Public},
@@ -143,7 +143,7 @@ pub fn verify_miner_cert(
     if let Err(_e) = sig_cert.verify_signature(
         &webpki::RSA_PKCS1_2048_8192_SHA256,
         &quote_body,
-        &ias_sig_dec
+        &ias_sig_dec,
     ) {return Option::None;}
 
 

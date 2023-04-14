@@ -1068,6 +1068,10 @@ parameter_types! {
 	pub const ParamsLimit: u32 = 359;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const MaxWhitelist: u32 = 200;
+	// #[derive(Clone, Eq, PartialEq)]
+	// pub const ReportLength: u32 = 1354;
+	// #[derive(Clone, Eq, PartialEq)]
+	// pub const CertLength: u32 = 1588;
 }
 
 impl pallet_tee_worker::Config for Runtime {

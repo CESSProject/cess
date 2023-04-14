@@ -8,6 +8,9 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+mod types;
+pub use types::*;
+
 #[cfg(any(feature = "runtime-benchmarks", test))]
 pub mod testing_utils;
 
@@ -17,6 +20,7 @@ pub mod benchmarking;
 use codec::{Decode, Encode};
 use frame_support::{
 	dispatch::DispatchResult, traits::ReservableCurrency, transactional, BoundedVec, PalletId,
+	pallet_prelude::*,
 };
 pub use pallet::*;
 use scale_info::TypeInfo;
@@ -25,6 +29,7 @@ use sp_std::{ convert::TryInto, prelude::* };
 use cp_scheduler_credit::SchedulerCreditCounter;
 pub use weights::WeightInfo;
 use cp_cess_common::*;
+use frame_system::{ensure_signed, pallet_prelude::*};
 
 pub mod weights;
 
@@ -34,37 +39,10 @@ type AccountOf<T> = <T as frame_system::Config>::AccountId;
 pub mod pallet {
 	use super::*;
 	use frame_support::{
-		pallet_prelude::{ValueQuery, *},
 		traits::Get,
 		Blake2_128Concat,
 	};
-	use frame_system::{ensure_signed, pallet_prelude::*};
 
-	#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-	#[scale_info(skip_type_params(T))]
-	#[codec(mel_bound())]
-	pub struct SchedulerInfo<T: pallet::Config> {
-		pub ip: IpAddress,
-		pub stash_user: AccountOf<T>,
-		pub controller_user: AccountOf<T>,
-	}
-
-	#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-	#[scale_info(skip_type_params(T))]
-	#[codec(mel_bound())]
-	pub struct PublicKey<T: Config> {
-		pub spk: [u8; 128],
-		pub shared_params: BoundedVec<u8, T::ParamsLimit>,
-		pub shared_g: [u8; 128],
-	}
-
-	#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, Default, MaxEncodedLen, TypeInfo)]
-	#[scale_info(skip_type_params(T))]
-	#[codec(mel_bound())]
-	pub struct ExceptionReport<T: pallet::Config> {
-		count: u32,
-		reporters: BoundedVec<AccountOf<T>, T::StringLimit>,
-	}
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + pallet_cess_staking::Config {
@@ -97,7 +75,7 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		//Scheduling registration method
-		RegistrationScheduler { acc: AccountOf<T>, ip: IpAddress },
+		RegistrationTeeWorker { acc: AccountOf<T> },
 
 		UpdateScheduler { acc: AccountOf<T>, endpoint: IpAddress },
 	}
@@ -118,22 +96,26 @@ pub mod pallet {
 		Overflow,
 
 		NotBond,
+
+		NonTeeWorker,
 	}
 
 	#[pallet::storage]
-	#[pallet::getter(fn scheduler_map)]
-	pub(super) type SchedulerMap<T: Config> =
-		StorageValue<_, BoundedVec<SchedulerInfo<T>, T::SchedulerMaximum>, ValueQuery>;
+	#[pallet::getter(fn tee_worker_map)]
+	pub(super) type TeeWorkerMap<T: Config> = CountedStorageMap<_, Blake2_128Concat, AccountOf<T>, TeeWorkerInfo<T>>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn scheduler_exception)]
-	pub(super) type SchedulerException<T: Config> =
-		StorageMap<_, Blake2_128Concat, AccountOf<T>, ExceptionReport<T>>;
+	pub(super) type SchedulerException<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, ExceptionReport<T>>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn bond_acc)]
 	pub(super) type BondAcc<T: Config> =
 		StorageValue<_, BoundedVec<AccountOf<T>, T::SchedulerMaximum>, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn tee_podr2_pk)]
+	pub(super) type TeePodr2Pk<T: Config> = StorageValue<_, [u8; 294]>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn mr_enclave_whitelist)]
@@ -149,10 +131,12 @@ pub mod pallet {
 		#[pallet::call_index(0)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::registration_scheduler())]
-		pub fn registration_scheduler(
+		pub fn regist_scheduler(
 			origin: OriginFor<T>,
 			stash_account: AccountOf<T>,
-			ip: IpAddress,
+			peer_id: [u8; 53],
+			podr2_pbk: [u8; 294],
+			sgx_attestation_report: SgxAttestationReport<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			//Even if the primary key is not present here, panic will not be caused
@@ -161,46 +145,21 @@ pub mod pallet {
 			if sender != acc {
 				Err(Error::<T>::NotController)?;
 			}
-			let mut s_vec = SchedulerMap::<T>::get();
-			let scheduler = SchedulerInfo::<T> {
-				ip: ip.clone(),
-				stash_user: stash_account.clone(),
-				controller_user: sender.clone(),
+			ensure!(!TeeWorkerMap::<T>::contains_key(&sender), Error::<T>::AlreadyRegistration);
+
+			let tee_worker_info = TeeWorkerInfo::<T> {
+				peer_id: peer_id,
+				stash_account: stash_account,
 			};
 
-			if s_vec.to_vec().contains(&scheduler) {
-				Err(Error::<T>::AlreadyRegistration)?;
+			if TeeWorkerMap::<T>::count() == 0 {
+				<TeePodr2Pk<T>>::put(podr2_pk);
 			}
-			s_vec.try_push(scheduler).map_err(|_e| Error::<T>::StorageLimitReached)?;
-			SchedulerMap::<T>::put(s_vec);
-			Self::deposit_event(Event::<T>::RegistrationScheduler { acc: sender, ip });
-			Ok(())
-		}
 
-		#[pallet::call_index(1)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_scheduler())]
-		pub fn update_scheduler(origin: OriginFor<T>, ip: IpAddress) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
+			TeeWorkerMap::<T>::insert(&sender, tee_worker_info);
 
-			SchedulerMap::<T>::try_mutate(|s| -> DispatchResult {
-				let mut count = 0;
-				for i in s.iter() {
-					if i.controller_user == sender {
-						let scheduler = SchedulerInfo::<T> {
-							ip: ip.clone(),
-							stash_user: i.stash_user.clone(),
-							controller_user: sender.clone(),
-						};
-						s.remove(count);
-						s.try_push(scheduler).map_err(|_| Error::<T>::StorageLimitReached)?;
-						return Ok(())
-					}
-					count = count.checked_add(1).ok_or(Error::<T>::Overflow)?;
-				}
-				Err(Error::<T>::NotController)?
-			})?;
-			Self::deposit_event(Event::<T>::UpdateScheduler { acc: sender, endpoint: ip });
+			Self::deposit_event(Event::<T>::RegistrationTeeWorker { acc: sender });
+
 			Ok(())
 		}
 		
@@ -228,42 +187,32 @@ pub trait ScheduleFind<AccountId> {
 
 impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<T> {
 	fn contains_scheduler(acc: <T as frame_system::Config>::AccountId) -> bool {
-		for i in <SchedulerMap<T>>::get().to_vec().iter() {
-			if i.controller_user == acc {
-				return true
-			}
-		}
-		false
+		TeeWorkerMap::<T>::contains_key(&acc)
 	}
 
 	fn get_controller_acc(
 		acc: <T as frame_system::Config>::AccountId,
 	) -> <T as frame_system::Config>::AccountId {
-		let scheduler_list = SchedulerMap::<T>::get();
-		for v in scheduler_list {
-			if v.stash_user == acc {
-				return v.controller_user
+		for (controller_user, tee_info) in TeeWorkerMap::<T>::iter() {
+			if tee_info.stash_account == acc {
+				return controller_user;
 			}
 		}
+		//TODO!
 		acc
 	}
 
 	fn punish_scheduler(acc: <T as frame_system::Config>::AccountId) -> DispatchResult {
-		let scheduler_list = SchedulerMap::<T>::get();
-		for v in scheduler_list {
-			if v.controller_user == acc {
-				pallet_cess_staking::slashing::slash_scheduler::<T>(&v.stash_user);
-				T::CreditCounter::record_punishment(&v.controller_user)?;
-			}
-		}
+		let tee_worker = TeeWorkerMap::<T>::try_get(&acc).map_err(|_| Error::<T>::NonTeeWorker)?;
+		pallet_cess_staking::slashing::slash_scheduler::<T>(&tee_worker.stash_account);
+		T::CreditCounter::record_punishment(&tee_worker.stash_account)?;
+
 		Ok(())
 	}
 
 	fn get_first_controller() -> Result<<T as frame_system::Config>::AccountId, DispatchError> {
-		let s_vec = SchedulerMap::<T>::get();
-		if s_vec.len() > 0 {
-			return Ok(s_vec[0].clone().controller_user)
-		}
-		Err(Error::<T>::Overflow)?
+		let (controller_acc, _) = TeeWorkerMap::<T>::iter().next().ok_or(Error::<T>::NonTeeWorker)?;
+		return Ok(controller_acc);
+
 	}
 }
