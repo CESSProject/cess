@@ -17,6 +17,7 @@ log = { version = "0.4.14", default-features = false }
 rand_chacha = { version = "0.2", default-features = false, optional = true }
 cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
 cp-scheduler-credit = { path = '../../primitives/scheduler-credit', version = '0.1.0', default-features = false }
+cp-enclave-verify = { path = '../../primitives/enclave-verify', version = '0.1.0', default-features = false }
 
 [dependencies.frame-benchmarking]
 default-features = false

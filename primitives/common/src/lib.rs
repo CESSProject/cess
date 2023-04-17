@@ -59,15 +59,15 @@ pub const T_BYTE: u128 = 1_048_576 * 1024 * 1024;
 pub const SEGMENT_SIZE: u128 = M_BYTE * 16;
 pub const FRAGMENT_SIZE: u128 = M_BYTE * 8;
 
-pub const SignLength: u32 = 344;
+// pub const SignLength: u32 = 344;
 // pub const ReportLength: u32 = 1354;
 // pub const CertLength: u32 = 1588;
 
 // pub type SignLength: Get<u32> = ConstU32<32>;
 
-pub type ReportSign = BoundedVec<u8, SignLength>;
-// pub type Report = BoundedVec<u8, ReportLength>;
-// pub type Cert = BoundedVec<u8, CertLength>;
+pub type ReportSign = BoundedVec<u8, ConstU32<344>>;
+pub type Report =  BoundedVec<u8, ConstU32<1354>>;
+pub type Cert = BoundedVec<u8, ConstU32<1588>> ;
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub enum DataType {

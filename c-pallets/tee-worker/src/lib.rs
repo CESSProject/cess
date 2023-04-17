@@ -30,7 +30,7 @@ use cp_scheduler_credit::SchedulerCreditCounter;
 pub use weights::WeightInfo;
 use cp_cess_common::*;
 use frame_system::{ensure_signed, pallet_prelude::*};
-
+use cp_enclave_verify::*;
 pub mod weights;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -98,15 +98,13 @@ pub mod pallet {
 		NotBond,
 
 		NonTeeWorker,
+
+		VerifyCertFailed,
 	}
 
 	#[pallet::storage]
 	#[pallet::getter(fn tee_worker_map)]
 	pub(super) type TeeWorkerMap<T: Config> = CountedStorageMap<_, Blake2_128Concat, AccountOf<T>, TeeWorkerInfo<T>>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn scheduler_exception)]
-	pub(super) type SchedulerException<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, ExceptionReport<T>>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn bond_acc)]
@@ -136,7 +134,7 @@ pub mod pallet {
 			stash_account: AccountOf<T>,
 			peer_id: [u8; 53],
 			podr2_pbk: [u8; 294],
-			sgx_attestation_report: SgxAttestationReport<T>,
+			sgx_attestation_report: SgxAttestationReport,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			//Even if the primary key is not present here, panic will not be caused
@@ -147,16 +145,24 @@ pub mod pallet {
 			}
 			ensure!(!TeeWorkerMap::<T>::contains_key(&sender), Error::<T>::AlreadyRegistration);
 
+			let _ = cp_enclave_verify::verify_miner_cert(
+				&sgx_attestation_report.sign, 
+				&sgx_attestation_report.cert_der, 
+				&sgx_attestation_report.report_json_raw,
+			).ok_or(Error::<T>::VerifyCertFailed)?;
+
 			let tee_worker_info = TeeWorkerInfo::<T> {
 				peer_id: peer_id,
 				stash_account: stash_account,
 			};
 
 			if TeeWorkerMap::<T>::count() == 0 {
-				<TeePodr2Pk<T>>::put(podr2_pk);
+				<TeePodr2Pk<T>>::put(podr2_pbk);
 			}
 
 			TeeWorkerMap::<T>::insert(&sender, tee_worker_info);
+
+
 
 			Self::deposit_event(Event::<T>::RegistrationTeeWorker { acc: sender });
 

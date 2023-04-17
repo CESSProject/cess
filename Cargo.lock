@@ -1105,7 +1105,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cp-crypto"
+name = "cp-enclave-verify"
 version = "0.1.0"
 dependencies = [
  "base64 0.12.3",
@@ -5382,6 +5382,7 @@ name = "pallet-tee-worker"
 version = "0.5.3"
 dependencies = [
  "cp-cess-common",
+ "cp-enclave-verify",
  "cp-scheduler-credit",
  "frame-benchmarking",
  "frame-election-provider-support",

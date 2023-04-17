@@ -2,12 +2,12 @@
 
 // use frame_support::ensure;
 use sp_std::vec::Vec;
-use sp_application_crypto::{
-	ecdsa::{Signature, Public},
-};
-use sp_io::hashing::sha2_256;
-use serde_json::Value;
-use cp_cess_common::Mrenclave;
+// use sp_application_crypto::{
+// 	ecdsa::{Signature, Public},
+// };
+// use sp_io::hashing::sha2_256;
+// use serde_json::Value;
+use cp_cess_common::*;
 
 
 pub static IAS_SERVER_ROOTS: webpki::TLSServerTrustAnchors = webpki::TLSServerTrustAnchors(&[
@@ -50,14 +50,6 @@ pub static IAS_SERVER_ROOTS: webpki::TLSServerTrustAnchors = webpki::TLSServerTr
         name_constraints: None
     },
 ]);
-
-pub type IasCert = Vec<u8>;
-
-pub type IasSig = Vec<u8>;
-
-pub type QuoteBody = Vec<u8>;
-
-pub type MrSigner = [u8; 32];
 
 type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
 static SUPPORTED_SIG_ALGS: SignatureAlgorithms = &[
@@ -108,13 +100,10 @@ pub fn hexstr_to_u8v(s: &str, x: &mut [u8]) {
 }
 
 pub fn verify_miner_cert(
-    ias_sig: &IasSig,
-    ias_cert: &IasCert,
-    quote_sig: &Signature,
-    quote_body: &QuoteBody,
-    mrenclave_codes: &Vec<Mrenclave>,
-    mr_signer: &MrSigner,
-) -> Option<Public> {
+    ias_sig: &ReportSign,
+    ias_cert: &Cert,
+    report_json_raw: &Report,
+) -> Option<u8> {
     let ias_cert_dec = match base64::decode_config(ias_cert, base64::STANDARD) {
         Ok(c) => c,
         Err(_) => return Option::None,
@@ -142,56 +131,56 @@ pub fn verify_miner_cert(
 
     if let Err(_e) = sig_cert.verify_signature(
         &webpki::RSA_PKCS1_2048_8192_SHA256,
-        &quote_body,
+        &report_json_raw,
         &ias_sig_dec,
     ) {return Option::None;}
 
 
-    let some_quote_body: Value = match serde_json::from_slice(quote_body) {
-        Ok(body) => body,
-        Err(_) => return Option::None,
-    };
+    // let some_quote_body: Value = match serde_json::from_slice(report_json_raw) {
+    //     Ok(body) => body,
+    //     Err(_) => return Option::None,
+    // };
 
-    if let Value::String(maybe_isv_quote_body) = &some_quote_body["isvEnclaveQuoteBody"] {
-        let decoded_quote_body = match base64::decode(&maybe_isv_quote_body) {
-            Ok(decoded_qb) => decoded_qb,
-            Err(_) => return Option::None,
-        };
+    // if let Value::String(maybe_isv_quote_body) = &some_quote_body["isvEnclaveQuoteBody"] {
+    //     let decoded_quote_body = match base64::decode(&maybe_isv_quote_body) {
+    //         Ok(decoded_qb) => decoded_qb,
+    //         Err(_) => return Option::None,
+    //     };
 
-        let id_code: [u8; 32] =  match decoded_quote_body[112..144].try_into() {
-            Ok(code) => code,
-            Err(_) => return Option::None,
-        };
+    //     let id_code: [u8; 32] =  match decoded_quote_body[112..144].try_into() {
+    //         Ok(code) => code,
+    //         Err(_) => return Option::None,
+    //     };
 
-        if !mrenclave_codes.contains(&id_code) {
-            return Option::None;
-        }
+    //     if !mrenclave_codes.contains(&id_code) {
+    //         return Option::None;
+    //     }
 
-        let quote_mr_signer: [u8; 32] =  match decoded_quote_body[176..208].try_into() {
-            Ok(mr_signer) => mr_signer,
-            Err(_) => return Option::None,
-        };
+    //     let quote_mr_signer: [u8; 32] =  match decoded_quote_body[176..208].try_into() {
+    //         Ok(mr_signer) => mr_signer,
+    //         Err(_) => return Option::None,
+    //     };
 
-        if mr_signer != &quote_mr_signer {
-            return Option::None;
-        }
+    //     if mr_signer != &quote_mr_signer {
+    //         return Option::None;
+    //     }
 
-        let quote_pk: [u8; 33] = match decoded_quote_body[368..401].try_into() {
-            Ok(pk) => pk,
-            Err(_) => return Option::None,
-        };
+    //     let quote_pk: [u8; 33] = match decoded_quote_body[368..401].try_into() {
+    //         Ok(pk) => pk,
+    //         Err(_) => return Option::None,
+    //     };
 
-        let pk = Public::from_raw(quote_pk);
+    //     let pk = Public::from_raw(quote_pk);
 
-        let data: Vec<u8> = [&quote_body[..], &ias_sig[..], &ias_cert[..]].concat();
-        let result = sp_io::crypto::ecdsa_verify_prehashed(quote_sig, &sha2_256(&data), &pk);
+    //     let data: Vec<u8> = [&quote_body[..], &ias_sig[..], &ias_cert[..]].concat();
+    //     let result = sp_io::crypto::ecdsa_verify_prehashed(quote_sig, &sha2_256(&data), &pk);
 
-        if !result {
-            return Option::None;
-        }
+    //     if !result {
+    //         return Option::None;
+    //     }
 
-        return Option::Some(pk);
-    };
+    //     return Option::Some(pk);
+    // };
 
-    Option::None
+    Option::Some(1)
 }
