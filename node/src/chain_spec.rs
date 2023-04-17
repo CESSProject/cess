@@ -418,7 +418,10 @@ pub fn cess_testnet_generate_config() -> ChainSpec {
 			)
 			.expect("Provided valid json map"),
 		),
-		Default::default(),
+		Extensions {
+			relay_chain: "rococo-local".into(), // You MUST set this to the correct network!
+			para_id: 1000,
+		},
 	)
 }
 
@@ -442,7 +445,10 @@ pub fn cess_main() -> ChainSpec {
 			)
 			.expect("Provided valid json map"),
 		),
-		Default::default(),
+		Extensions {
+			relay_chain: "rococo-local".into(), // You MUST set this to the correct network!
+			para_id: 1000,
+		},
 	)
 }
 
@@ -474,7 +480,10 @@ pub fn development_config() -> ChainSpec {
 		None,
 		None,
 		// Extensions
-		Default::default(),
+		Extensions {
+			relay_chain: "rococo-local".into(), // You MUST set this to the correct network!
+			para_id: 1000,
+		},
 	)
 }
 
@@ -506,7 +515,10 @@ pub fn local_testnet_config() -> ChainSpec {
 		None,
 		None,
 		// Extensions
-		Default::default(),
+		Extensions {
+			relay_chain: "rococo-local".into(), // You MUST set this to the correct network!
+			para_id: 1000,
+		},
 	)
 }
 
