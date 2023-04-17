@@ -243,7 +243,7 @@ pub mod pallet {
 	/// The hashmap for info of storage miners.
 	#[pallet::storage]
 	#[pallet::getter(fn miner_items)]
-	pub(super) type MinerItems<T: Config> = StorageMap<
+	pub(super) type MinerItems<T: Config> = CountedStorageMap<
 		_,
 		Blake2_128Concat,
 		T::AccountId,
@@ -978,7 +978,7 @@ pub trait MinerControl<AccountId> {
 	fn sub_miner_idle_space(acc: &AccountId, power: u128) -> DispatchResult;
 	fn add_miner_service_space(acc: &AccountId, power: u128) -> DispatchResult;
 	fn sub_miner_service_space(acc: &AccountId, power: u128) -> DispatchResult;
-	fn get_power_and_space(acc: AccountId) -> Result<(u128, u128), DispatchError>;
+	fn get_power(acc: &AccountId) -> Result<(u128, u128), DispatchError>;
 	fn get_miner_id(acc: AccountId) -> Result<u64, DispatchError>;
 	fn punish_miner(
 		acc: AccountId,
@@ -994,6 +994,8 @@ pub trait MinerControl<AccountId> {
 	fn unlock_space(acc: &AccountId, space: u128) -> DispatchResult;
 	fn unlock_space_to_service(acc: &AccountId, space: u128) -> DispatchResult;
 	fn get_miner_idle_space(acc: &AccountId) -> Result<u128, DispatchError>;
+	fn get_miner_count() -> u32;
+	fn get_reward() -> u128; 
 }
 
 impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -1032,14 +1034,14 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 		Ok(())
 	}
 
-	fn get_power_and_space(
-		acc: <T as frame_system::Config>::AccountId,
+	fn get_power(
+		acc: &<T as frame_system::Config>::AccountId,
 	) -> Result<(u128, u128), DispatchError> {
-		if !<MinerItems<T>>::contains_key(&acc) {
+		if !<MinerItems<T>>::contains_key(acc) {
 			Err(Error::<T>::NotMiner)?;
 		}
 		//There is a judgment on whether the primary key exists above
-		let miner = <MinerItems<T>>::try_get(&acc).map_err(|_| Error::<T>::NotMiner)?;
+		let miner = <MinerItems<T>>::try_get(acc).map_err(|_| Error::<T>::NotMiner)?;
 		Ok((miner.power, miner.space))
 	}
 
@@ -1094,6 +1096,15 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 			miner.space = miner.space.checked_add(space).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})
+	}
+
+	fn get_miner_count() -> u32 {
+		<MinerItems<T>>::count()
+	}
+
+	fn get_reward() -> u128 {
+		<CurrencyReward<T>>::get().saturated_into()
+		
 	}
 }
 

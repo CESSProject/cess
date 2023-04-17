@@ -31,6 +31,11 @@ pub use weights::WeightInfo;
 use cp_cess_common::*;
 use frame_system::{ensure_signed, pallet_prelude::*};
 use cp_enclave_verify::*;
+use sp_application_crypto::{
+	RuntimePublic,
+	ed25519::*,
+};
+
 pub mod weights;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -145,7 +150,7 @@ pub mod pallet {
 			}
 			ensure!(!TeeWorkerMap::<T>::contains_key(&sender), Error::<T>::AlreadyRegistration);
 
-			let _ = cp_enclave_verify::verify_miner_cert(
+			let _ = verify_miner_cert(
 				&sgx_attestation_report.sign, 
 				&sgx_attestation_report.cert_der, 
 				&sgx_attestation_report.report_json_raw,
@@ -165,6 +170,22 @@ pub mod pallet {
 
 
 			Self::deposit_event(Event::<T>::RegistrationTeeWorker { acc: sender });
+
+			Ok(())
+		}
+
+		#[pallet::call_index(1)]
+        #[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn test_verify_sig(origin: OriginFor<T>, puk: [u8; 32], sig: [u8; 64], msg: Vec<u8>) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+
+			let pk = Public::from_raw(puk);
+			let sig = Signature::from_raw(sig);
+			
+			if !sp_io::crypto::ed25519_verify(&sig, &msg, &pk) {
+				Err(Error::<T>::VerifyCertFailed)?;
+			}
 
 			Ok(())
 		}

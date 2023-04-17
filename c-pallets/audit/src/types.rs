@@ -18,22 +18,14 @@ pub struct ChallengeInfo<T: pallet::Config> {
 	pub(super) random: BoundedList<T>,
 }
 
-//Structure for storing miner certificates
-// #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-// #[scale_info(skip_type_params(T))]
-// #[codec(mel_bound())]
-// pub struct ProveInfo<T: pallet::Config> {
-// 	pub(super) file_id: Hash,
-// 	pub(super) miner_acc: AccountOf<T>,
-// 	//Verify required parameters
-// 	pub(super) challenge_info: ChallengeInfo<T>,
-// 	//Proof of relevant information
-// 	pub(super) mu: BoundedList<T>,
-// 	//Proof of relevant information
-// 	pub(super) sigma: BoundedVec<u8, T::StringLimit>,
-// 	pub(super) name: BoundedVec<u8, T::StringLimit>,
-// 	pub(super) u: BoundedList<T>,
-// }
+#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+pub struct NetSnapShot<Block> {
+	pub(super) start: Block,
+	pub(super) total_reward: u128,
+	pub(super) total_idle_space: u128,
+	pub(super) total_service_space: u128,
+	pub(super) random: [u8; 20],
+}
 
 // Structure for storing miner certificates
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]

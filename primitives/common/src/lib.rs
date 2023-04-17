@@ -7,7 +7,7 @@ use frame_support::{
 };
 use frame_support::{
 	BoundedVec,
-	pallet_prelude::{Get, ConstU32},
+	pallet_prelude::ConstU32,
 };
 use codec::{MaxEncodedLen};
 use scale_info::TypeInfo;
