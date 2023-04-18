@@ -1110,6 +1110,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.12.3",
  "cp-cess-common",
+ "ed25519-dalek",
  "frame-support",
  "log",
  "parity-scale-codec",
@@ -1118,7 +1119,9 @@ dependencies = [
  "sp-api",
  "sp-application-crypto",
  "sp-core",
+ "sp-externalities",
  "sp-io",
+ "sp-runtime-interface",
  "sp-std",
  "webpki 0.21.0",
 ]
@@ -5397,7 +5400,6 @@ dependencies = [
  "pallet-sminer",
  "pallet-timestamp",
  "parity-scale-codec",
- "rand_chacha 0.2.2",
  "scale-info",
  "serde",
  "serde_json",
