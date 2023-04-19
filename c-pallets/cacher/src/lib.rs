@@ -38,6 +38,10 @@ pub mod pallet {
 		/// The currency trait.
 		type Currency: LockableCurrency<Self::AccountId>;
 
+		/// The maximum length of bill list when calling the pay function.
+		#[pallet::constant]
+		type BillsLimit: Get<u32>;
+
 		type WeightInfo: WeightInfo;
 	}
 
@@ -51,7 +55,7 @@ pub mod pallet {
 		//Cacher account logout success event
 		Logout { acc: AccountOf<T> },
 		//Pay to cacher success event
-		Pay { acc: AccountOf<T>, bills: Vec<Bill<AccountOf<T>, BalanceOf<T>, T::Hash>> },
+		Pay { acc: AccountOf<T>, bills: BoundedVec<Bill<AccountOf<T>, BalanceOf<T>, T::Hash>, T::BillsLimit> },
 	}
 
 	#[pallet::error]
@@ -130,10 +134,10 @@ pub mod pallet {
 		/// - `bills`: list of bill.
 		#[transactional]
 		#[pallet::weight(T::WeightInfo::pay(bills.len() as u32))]
-		pub fn pay(origin: OriginFor<T>, bills: Vec<Bill<AccountOf<T>, BalanceOf<T>, T::Hash>>) -> DispatchResult {
+		pub fn pay(origin: OriginFor<T>, bills: BoundedVec<Bill<AccountOf<T>, BalanceOf<T>, T::Hash>, T::BillsLimit>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			
-			for bill in &bills {
+			for bill in bills.clone() {
 				T::Currency::transfer(&sender, &bill.to, bill.amount, KeepAlive)?;
 			}
 			

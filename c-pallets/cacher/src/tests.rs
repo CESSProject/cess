@@ -74,7 +74,7 @@ fn pay_works() {
 		let amount: BalanceOf<Test> = 10000;
 		let s_file = String::from("file");
 		let s_slice = String::from("slice");
-		let mut bills = Vec::new();
+		let mut bill_vec = Vec::new();
 		for i in 0 .. n {
 			let bill = Bill::<AccountOf<Test>, BalanceOf<Test>, <Test as frame_system::Config>::Hash> {
 				id: [i as u8; 16],
@@ -84,8 +84,10 @@ fn pay_works() {
 				slice_hash: <Test as frame_system::Config>::Hashing::hash_of(&format!("{}{}", s_slice, i)),
 				expiration_time: 1675900800u64,
 			};
-			bills.push(bill);
+			bill_vec.push(bill);
 		}
+		let bills: BoundedVec<_, <Test as Config>::BillsLimit> = bill_vec.try_into().unwrap();
+
 		// Pay fails.
 		assert_noop!(Cacher::pay(Origin::signed(1), bills.clone()), BalancesError::<Test>::InsufficientBalance);
 

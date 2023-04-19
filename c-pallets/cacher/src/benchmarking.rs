@@ -69,7 +69,7 @@ benchmarks! {
 		T::Currency::make_free_balance_be(&bob, T::Currency::minimum_balance());
 		let s_file = String::from("file");
 		let s_slice = String::from("slice");
-		let mut bills = Vec::new();
+		let mut bill_vec = Vec::new();
 		for i in 0 .. v {
 			let bill = Bill::<AccountOf<T>, BalanceOf<T>, T::Hash> {
 				id: [i as u8; 16],
@@ -79,8 +79,9 @@ benchmarks! {
 				slice_hash: T::Hashing::hash_of(&format!("{}{}", s_slice, i)),
 				expiration_time: 1675900800u64,
 			};
-			bills.push(bill);
+			bill_vec.push(bill);
 		}
+		let bills: BoundedVec<_, T::BillsLimit> = bill_vec.try_into().unwrap();
 	}: _(RawOrigin::Signed(alice), bills)
 	verify {
 		
