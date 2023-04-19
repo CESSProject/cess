@@ -5884,6 +5884,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "log",
+ "nimbus-primitives",
  "pallet-authorship",
  "pallet-bags-list",
  "pallet-balances",

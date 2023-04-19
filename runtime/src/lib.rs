@@ -1583,7 +1583,7 @@ impl cumulus_pallet_xcmp_queue::Config for Runtime {
 	type ExecuteOverweightOrigin = EnsureRoot<AccountId>;
 	type ControllerOrigin = EnsureRoot<AccountId>;
 	type ControllerOriginConverter = XcmOriginToTransactDispatchOrigin;
-	type WeightInfo = ();
+	type WeightInfo = cumulus_pallet_xcmp_queue::weights::SubstrateWeight<Self>;
 }
 
 impl cumulus_pallet_dmp_queue::Config for Runtime {
@@ -1595,16 +1595,16 @@ impl cumulus_pallet_dmp_queue::Config for Runtime {
 impl pallet_author_inherent::Config for Runtime {
 	// We start a new slot each time we see a new relay block.
 	type SlotBeacon = cumulus_pallet_parachain_system::RelaychainBlockNumberProvider<Self>;
-	type AccountLookup = ();
+	type AccountLookup = Staking;
 	type CanAuthor = AuthorFilter;
-	type WeightInfo = ();
+	type WeightInfo = pallet_author_inherent::weights::SubstrateWeight<Runtime>;
 }
 
 impl pallet_author_slot_filter::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type RandomnessSource = RandomnessCollectiveFlip;
-	type PotentialAuthors = ();
-	type WeightInfo = ();
+	type PotentialAuthors = Staking;
+	type WeightInfo = pallet_author_slot_filter::weights::SubstrateWeight<Runtime>;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.

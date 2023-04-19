@@ -62,6 +62,10 @@ pub mod pallet {
 
 	use crate::BenchmarkingConfig;
 
+	use nimbus_primitives::NimbusId;
+	#[cfg(feature = "std")]
+	use log::warn;
+
 	use super::*;
 
 	#[pallet::pallet]
@@ -587,6 +591,17 @@ pub mod pallet {
 	#[pallet::storage]
 	pub(crate) type ChillThreshold<T: Config> = StorageValue<_, Percent, OptionQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn account_id_of)]
+	/// A mapping from the AuthorIds used in the consensus layer
+	/// to the AccountIds runtime.
+	pub type Mapping<T: Config> = StorageMap<_, Twox64Concat, NimbusId, T::AccountId, OptionQuery>;
+
+	/// The set of accounts that is stored in this pallet.
+	#[pallet::storage]
+	#[pallet::unbounded]
+	pub type StoredAccounts<T: Config> = StorageValue<_, Vec<T::AccountId>, ValueQuery>;
+
 	#[pallet::genesis_config]
 	pub struct GenesisConfig<T: Config> {
 		pub validator_count: u32,
@@ -601,6 +616,8 @@ pub mod pallet {
 		pub min_validator_bond: BalanceOf<T>,
 		pub max_validator_count: Option<u32>,
 		pub max_nominator_count: Option<u32>,
+		/// The associations that should exist at chain genesis
+		pub mapping: Vec<(T::AccountId, NimbusId)>,
 	}
 
 	#[cfg(feature = "std")]
@@ -618,6 +635,7 @@ pub mod pallet {
 				min_validator_bond: Default::default(),
 				max_validator_count: None,
 				max_nominator_count: None,
+				mapping: vec![],
 			}
 		}
 	}
@@ -674,6 +692,14 @@ pub mod pallet {
 					ValidatorCount::<T>::get() <=
 						<T::ElectionProvider as ElectionProviderBase>::MaxWinners::get()
 				);
+			}
+
+			if self.mapping.is_empty() {
+				warn!(target: "account-set", "No mappings at genesis. Your chain will have no valid authors.");
+			}
+			for (account_id, author_id) in &self.mapping {
+				Mapping::<T>::insert(author_id, account_id);
+				StoredAccounts::<T>::append(account_id);
 			}
 
 			// all voters are reported to the `VoterList`.

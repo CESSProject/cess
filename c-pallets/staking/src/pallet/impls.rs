@@ -41,6 +41,7 @@ use sp_staking::{
 	EraIndex, SessionIndex, Stake, StakingInterface,
 };
 use sp_std::{convert::TryInto, prelude::*};
+use nimbus_primitives::{AccountLookup, NimbusId};
 
 use crate::{
 	log, slashing, weights::WeightInfo, ActiveEraInfo, BalanceOf, EraPayout, Exposure, ExposureOf,
@@ -976,6 +977,18 @@ impl<T: Config> Pallet<T> {
 			weight,
 			DispatchClass::Mandatory,
 		);
+	}
+}
+
+impl<T: Config> AccountLookup<T::AccountId> for Pallet<T> {
+	fn lookup_account(author: &NimbusId) -> Option<T::AccountId> {
+		Mapping::<T>::get(&author)
+	}
+}
+
+impl<T: Config> Get<Vec<T::AccountId>> for Pallet<T> {
+	fn get() -> Vec<T::AccountId> {
+		StoredAccounts::<T>::get()
 	}
 }
 
