@@ -16,12 +16,10 @@ pub fn wasm_binary_unwrap() -> &'static [u8] {
 	)
 }
 
-use codec::{Decode, Encode /* MaxEncodedLen */};
+use account::AccountId20;
+use codec::{Decode, Encode};
 use frame_election_provider_support::{onchain, ElectionDataProvider, ExtendedBalance, VoteWeight};
 pub use pallet_file_bank;
-use pallet_grandpa::{
-	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
-};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 pub use pallet_oss;
 use pallet_session::historical as pallet_session_historical;
@@ -168,8 +166,8 @@ pub mod opaque {
 
 	impl_opaque_keys! {
 		pub struct SessionKeys {
-			pub rrsc: Babe,
-			pub grandpa: Grandpa,
+			// pub rrsc: Babe,
+			pub nimbus: AuthorInherent,
 			pub im_online: ImOnline,
 			pub authority_discovery: AuthorityDiscovery,
 			pub segment_book: SegmentBook,
@@ -566,7 +564,7 @@ impl pallet_im_online::Config for Runtime {
 impl pallet_offences::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type IdentificationTuple = pallet_session::historical::IdentificationTuple<Self>;
-	type OnOffenceHandler = Staking;
+	type OnOffenceHandler = ();
 }
 
 impl pallet_authority_discovery::Config for Runtime {
@@ -641,7 +639,7 @@ impl pallet_cess_staking::Config for Runtime {
 		EnsureRoot<AccountId>,
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 4>,
 	>;
-	type SessionInterface = Self;
+	type SessionInterface = ();
 	type EraPayout = ();
 	type NextNewSession = Session;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
@@ -872,28 +870,6 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type WeightInfo = pallet_election_provider_multi_phase::weights::SubstrateWeight<Self>;
 }
 
-impl pallet_grandpa::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-
-	type KeyOwnerProofSystem = Historical;
-
-	type KeyOwnerProof =
-		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
-
-	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		GrandpaId,
-	)>>::IdentificationTuple;
-
-	type HandleEquivocation = pallet_grandpa::EquivocationHandler<
-		Self::KeyOwnerIdentification,
-		Offences,
-		ReportLongevity,
-	>;
-	type MaxAuthorities = MaxAuthorities;
-	type WeightInfo = ();
-}
-
 parameter_types! {
 	pub const MinimumPeriod: u64 = SLOT_DURATION / 2;
 }
@@ -1016,7 +992,7 @@ impl pallet_segment_book::Config for Runtime {
 	type File = FileBank;
 	type Scheduler = FileMap;
 	type MinerControl = Sminer;
-	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
+	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, AuthorInherent>;
 	type ValidatorSet = Historical;
 	type NextSessionRotation = Babe;
 	type UnsignedPriority = SegUnsignedPriority;
@@ -1285,6 +1261,22 @@ impl<F: FindAuthor<u32>> FindAuthor<H160> for FindAuthorTruncated<F> {
 			return Some(H160::from_slice(&authority_id.0.to_raw_vec()[4..24]))
 		}
 		None
+	}
+}
+
+/// The author inherent provides a AccountId20, but pallet evm needs an H160.
+/// This simple adapter makes the conversion.
+pub struct FindAuthorAdapter<Inner>(sp_std::marker::PhantomData<Inner>);
+
+impl<Inner> FindAuthor<H160> for FindAuthorAdapter<Inner>
+where
+	Inner: FindAuthor<AccountId20>,
+{
+	fn find_author<'a, I>(digests: I) -> Option<H160>
+	where
+		I: 'a + IntoIterator<Item = (sp_runtime::ConsensusEngineId, &'a [u8])>,
+	{
+		Inner::find_author(digests).map(Into::into)
 	}
 }
 
@@ -1641,7 +1633,7 @@ construct_runtime!(
 		// Consensus
 		Authorship: pallet_authorship = 20,
 		Babe: pallet_rrsc = 21,  // retain Babe alias for Polka-dot official browser
-		Grandpa: pallet_grandpa = 22,
+		// Grandpa: pallet_grandpa = 22,
 		Staking: pallet_cess_staking = 23,
 		Session: pallet_session = 24,
 		Historical: pallet_session_historical = 25,
@@ -1811,42 +1803,6 @@ impl_runtime_apis! {
 	impl sp_offchain::OffchainWorkerApi<Block> for Runtime {
 		fn offchain_worker(header: &<Block as BlockT>::Header) {
 			Executive::offchain_worker(header)
-		}
-	}
-
-	impl fg_primitives::GrandpaApi<Block> for Runtime {
-		fn grandpa_authorities() -> GrandpaAuthorityList {
-			Grandpa::grandpa_authorities()
-		}
-
-		fn current_set_id() -> fg_primitives::SetId {
-			Grandpa::current_set_id()
-		}
-
-		fn submit_report_equivocation_unsigned_extrinsic(
-			equivocation_proof: fg_primitives::EquivocationProof<
-				<Block as BlockT>::Hash,
-				NumberFor<Block>,
-			>,
-			key_owner_proof: fg_primitives::OpaqueKeyOwnershipProof,
-		) -> Option<()> {
-			let key_owner_proof = key_owner_proof.decode()?;
-
-			Grandpa::submit_unsigned_equivocation_report(
-				equivocation_proof,
-				key_owner_proof,
-			)
-		}
-
-		fn generate_key_ownership_proof(
-			_set_id: fg_primitives::SetId,
-			authority_id: GrandpaId,
-		) -> Option<fg_primitives::OpaqueKeyOwnershipProof> {
-			use codec::Encode;
-
-			Historical::prove((fg_primitives::KEY_TYPE, authority_id))
-				.map(|p| p.encode())
-				.map(fg_primitives::OpaqueKeyOwnershipProof::new)
 		}
 	}
 

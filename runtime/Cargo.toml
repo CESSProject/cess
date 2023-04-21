@@ -79,6 +79,7 @@ cp-scheduler-credit = { default-features = false, version = "0.1.0", path = "../
 pallet-scheduler-credit = { default-features = false, version = "0.1.0", path = "../c-pallets/scheduler-credit" }
 
 # local dependencies
+account = { path = "../primitives/account", default-features = false }
 pallet-sminer = { default-features = false, path = "../c-pallets/sminer", version = "0.5.3" }
 pallet-segment-book = { default-features = false, path = "../c-pallets/segment-book", version = "0.5.3" }
 pallet-file-bank = { default-features = false, path = "../c-pallets/file-bank", version = "0.5.3" }

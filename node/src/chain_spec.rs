@@ -1,6 +1,6 @@
 use cess_node_runtime::{
 	opaque::SessionKeys, wasm_binary_unwrap, AccountId, AuthorityDiscoveryConfig, BabeConfig,
-	Balance, BalancesConfig, Block, CouncilConfig, FileBankConfig, GenesisConfig, GrandpaConfig,
+	Balance, BalancesConfig, Block, CouncilConfig, FileBankConfig, GenesisConfig, /*GrandpaConfig,*/
 	ImOnlineConfig, IndicesConfig, MaxNominations, SessionConfig, Signature, StakerStatus,
 	StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig, DOLLARS,
 };
@@ -60,13 +60,13 @@ pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig, Extensions>;
 type AccountPublic = <Signature as Verify>::Signer;
 
 fn session_keys(
-	grandpa: GrandpaId,
+	// grandpa: GrandpaId,
 	rrsc: RRSCId,
 	im_online: ImOnlineId,
 	authority_discovery: AuthorityDiscoveryId,
 	segment_book: SegmentBookId,
 ) -> SessionKeys {
-	SessionKeys { grandpa, rrsc, im_online, authority_discovery, segment_book }
+	SessionKeys { /*grandpa,*/ rrsc, im_online, authority_discovery, segment_book }
 }
 
 /// Generate an account ID from seed.
@@ -605,7 +605,7 @@ fn testnet_genesis(
 						x.0.clone(),
 						x.0.clone(),
 						session_keys(
-							x.2.clone(),
+							// x.2.clone(),
 							x.3.clone(),
 							x.4.clone(),
 							x.5.clone(),
@@ -638,7 +638,7 @@ fn testnet_genesis(
 		},
 		im_online: ImOnlineConfig { keys: vec![] },
 		authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },
-		grandpa: GrandpaConfig { authorities: vec![] },
+		// grandpa: GrandpaConfig { authorities: vec![] },
 		technical_membership: Default::default(),
 		treasury: Default::default(),
 		sudo: SudoConfig {

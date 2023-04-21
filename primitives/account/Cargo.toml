@@ -1,0 +1,53 @@
+[package]
+name = "account"
+authors = ["CESS LAB"]
+edition = "2021"
+homepage = "https://moonbeam.network"
+license = "GPL-3.0-only"
+repository = "https://github.com/CESSProject/cess"
+version = "0.1.1"
+
+[package.metadata.docs.rs]
+targets = [ "x86_64-unknown-linux-gnu" ]
+
+[dependencies]
+blake2-rfc = { version = "0.2.18", default-features = false, optional = true }
+hex = { version = "0.4.3", default-features = false }
+impl-serde = { version = "0.3.1", default-features = false }
+libsecp256k1 = { version = "0.7", default-features = false , features = [ "hmac" ] }
+log = { version = "0.4.14", default-features = false }
+serde = { version = "1.0.136", default-features = false, optional = true, features = [ "derive" ] }
+sha3 = { version = "0.10", default-features = false }
+
+# Substrate
+parity-scale-codec = { version = "3.0.0", default-features = false, features = [ "derive" ] }
+scale-info =  { version = "2.1.1", default-features = false, features = [ "derive" ] }
+sp-core =  { git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.36", default-features = false }
+sp-io = { git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.36", default-features = false }
+sp-runtime = { git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.36", default-features = false }
+sp-runtime-interface = { git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.36", default-features = false }
+sp-std = { git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.36", default-features = false }
+
+[dev-dependencies]
+hex = { version = "0.4.3", default-features = false }
+
+[features]
+default = [ "std" ]
+std = [
+	"full_crypto",
+	"hex/std",
+	"impl-serde/std",
+	"libsecp256k1/std",
+	"parity-scale-codec/std",
+	"serde/std",
+	"sha3/std",
+	"sp-core/std",
+	"sp-io/std",
+	"sp-runtime/std",
+	"sp-std/std",
+]
+
+full_crypto = [
+	"blake2-rfc",
+	"sp-runtime-interface/disable_target_static_assertions",
+]
