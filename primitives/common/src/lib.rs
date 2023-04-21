@@ -31,7 +31,6 @@ impl Default for Hash {
 	}
 }
 
-
 impl Hash {
 	pub fn slice_to_array_64(slice: &[u8]) -> Result<[u8; 64], TryFromSliceError> {
 		// log::info!("slice len: {:?}", slice.len());
@@ -59,11 +58,8 @@ pub const T_BYTE: u128 = 1_048_576 * 1024 * 1024;
 pub const SEGMENT_SIZE: u128 = M_BYTE * 16;
 pub const FRAGMENT_SIZE: u128 = M_BYTE * 8;
 
-// pub const SignLength: u32 = 344;
-// pub const ReportLength: u32 = 1354;
-// pub const CertLength: u32 = 1588;
-
-// pub type SignLength: Get<u32> = ConstU32<32>;
+pub type NodePublicKey = sp_core::ed25519::Public;
+pub type NodeSignature = sp_core::ed25519::Signature;
 
 pub type ReportSign = BoundedVec<u8, ConstU32<344>>;
 pub type Report =  BoundedVec<u8, ConstU32<1354>>;

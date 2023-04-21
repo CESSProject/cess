@@ -9,22 +9,25 @@ pub type BoundedList<T> =
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct ChallengeInfo<T: pallet::Config> {
-	pub(super) file_size: u64,
-	pub(super) file_type: DataType,
-	pub(super) block_list: BoundedVec<u32, T::StringLimit>,
-	pub(super) file_id: Hash,
-	pub(super) shard_id: [u8; 68],
-	//48 bit random number
-	pub(super) random: BoundedList<T>,
+	pub(super) net_snap_shot: NetSnapShot<BlockNumberOf<T>>,
+	pub(super) miner_snapshot_list: BoundedVec<MinerSnapShot<AccountOf<T>>, T::ChallengeMinerMax>,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct NetSnapShot<Block> {
 	pub(super) start: Block,
+	pub(super) life: Block,
 	pub(super) total_reward: u128,
 	pub(super) total_idle_space: u128,
 	pub(super) total_service_space: u128,
 	pub(super) random: [u8; 20],
+}
+
+#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+pub struct MinerSnapShot<AccountId> {
+	pub(super) miner: AccountId,
+	pub(super) idle_space: u128,
+	pub(super) service_space: u128,
 }
 
 // Structure for storing miner certificates

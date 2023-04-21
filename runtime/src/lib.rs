@@ -169,7 +169,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 112,
+	spec_version: 100,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -966,7 +966,7 @@ parameter_types! {
 	#[derive(Clone, PartialEq, Eq)]
 	pub const StringLimit: u32 = 60240;
 	#[derive(Clone, PartialEq, Eq)]
-	pub const ChallengeMaximum: u32 = 8000;
+	pub const ChallengeMinerMax: u32 = 8000;
 	#[derive(Clone, PartialEq, Eq)]
 	pub const RandomLimit: u32 = 10240;
 	#[derive(Clone, PartialEq, Eq)]
@@ -999,9 +999,9 @@ impl pallet_audit::Config for Runtime {
 	type NextSessionRotation = Babe;
 	type UnsignedPriority = SegUnsignedPriority;
 	type LockTime = LockTime;
-	type ChallengeMaximum = ChallengeMaximum;
 	type SubmitProofLimit = SubmitProofLimit;
 	type SubmitValidationLimit = SubmitValidationLimit;
+	type ChallengeMinerMax = ChallengeMinerMax;
 }
 
 parameter_types! {
@@ -1085,6 +1085,7 @@ impl pallet_tee_worker::Config for Runtime {
 	type CreditCounter = SchedulerCredit;
 	type ParamsLimit = ParamsLimit;
 	type MaxWhitelist = MaxWhitelist;
+	// type AuthorityId = pallet_tee_worker::ed25519::AuthorityId;
 }
 
 parameter_types! {

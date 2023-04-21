@@ -7,21 +7,21 @@ use sp_std::vec::Vec;
 // use sp_io::hashing::sha2_256;
 // use serde_json::Value;
 use cp_cess_common::*;
-#[cfg(feature = "std")]
-use sp_externalities::{Externalities, ExternalitiesExt};
-use sp_runtime_interface::{
-	runtime_interface,
-};
-#[cfg(feature = "std")]
-sp_externalities::decl_extension! {
-	pub struct UseDalekExt;
-}
-#[cfg(feature = "std")]
-impl Default for UseDalekExt {
-	fn default() -> Self {
-		Self
-	}
-}
+// #[cfg(feature = "std")]
+// use sp_externalities::{Externalities, ExternalitiesExt};
+// use sp_runtime_interface::{
+// 	runtime_interface,
+// };
+// #[cfg(feature = "std")]
+// sp_externalities::decl_extension! {
+// 	pub struct UseDalekExt;
+// }
+// #[cfg(feature = "std")]
+// impl Default for UseDalekExt {
+// 	fn default() -> Self {
+// 		Self
+// 	}
+// }
 
 pub static IAS_SERVER_ROOTS: webpki::TLSServerTrustAnchors = webpki::TLSServerTrustAnchors(&[
     /*
@@ -112,30 +112,33 @@ pub fn hexstr_to_u8v(s: &str, x: &mut [u8]) {
     }
 }
 
-#[runtime_interface]
-pub trait Crypto {
-    fn verify_sig(puk: &[u8; 32], sig: &[u8; 64], msg: &Vec<u8>) -> bool {
-        if sp_externalities::with_externalities(|mut e| e.extension::<UseDalekExt>().is_some())
-                .unwrap_or_default()
-        {
-            use ed25519_dalek::Verifier;
+// #[runtime_interface]
+// pub trait Crypto {
+//     fn verify_sig(puk: &[u8; 32], sig: &[u8; 64], msg: &Vec<u8>) -> bool {
+//         if sp_externalities::with_externalities(|mut e| e.extension::<UseDalekExt>().is_some())
+//                 .unwrap_or_default()
+//         {
+//             use ed25519_dalek::Verifier;
 
-            let sig = ed25519_dalek::Signature::from(*sig);
+//             let sig = ed25519_dalek::Signature::from(*sig);
 
-            let public_key = if let Ok(vk) = ed25519_dalek::PublicKey::from_bytes(puk) {
-                vk
-            } else {
-                log::info!("导入公钥失败！");
-                return false;
-            };
+//             let public_key = if let Ok(vk) = ed25519_dalek::PublicKey::from_bytes(puk) {
+//                 vk
+//             } else {
+//                 log::info!("导入公钥失败！");
+//                 return false;
+//             };
 
-            return public_key.verify(msg, &sig).is_ok();
-        }
+//             return public_key.verify(msg, &sig).is_ok();
+//         }
 
-        log::info!("没走if!");
-        false
-    }
-}
+//         log::info!("没走if!");
+//         false
+//     }
+// }
+
+// #[cfg(feature = "std")]
+// pub type SubstrateHostFunctions = (crypto::HostFunctions);
 
 pub fn verify_miner_cert(
     ias_sig: &ReportSign,

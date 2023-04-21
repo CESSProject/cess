@@ -17,9 +17,8 @@ log = { version = "0.4.14", default-features = false }
 cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
 cp-scheduler-credit = { path = '../../primitives/scheduler-credit', version = '0.1.0', default-features = false }
 cp-enclave-verify = { path = '../../primitives/enclave-verify', version = '0.1.0', default-features = false }
+
 sp-application-crypto = { version = '7.0.0', branch = 'cess-polkadot-v0.9.36', git = 'https://github.com/CESSProject/substrate.git', default-features = false }
-
-
 
 [dependencies.frame-benchmarking]
 default-features = false
@@ -103,8 +102,8 @@ std = [
 	"pallet-session/std",
 	"pallet-cess-staking/std",
 	"cp-cess-common/std",
-	
 ]
+
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 ]

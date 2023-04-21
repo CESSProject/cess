@@ -4,7 +4,9 @@ use super::*;
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct TeeWorkerInfo<T: pallet::Config> {
+    pub controller_account: AccountOf<T>,
     pub peer_id: [u8; 53],
+    pub node_key: NodePublicKey,
     pub stash_account: AccountOf<T>,
 }
 

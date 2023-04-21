@@ -115,6 +115,7 @@ pub mod sr25519 {
 
 	pub type AuthorityId = app_sr25519::Public;
 }
+
 enum OffchainErr {
 	UnexpectedError,
 	Ineligible,
@@ -170,7 +171,7 @@ pub mod pallet {
 		type StringLimit: Get<u32> + Clone + Eq + PartialEq;
 
 		#[pallet::constant]
-		type ChallengeMaximum: Get<u32> + Clone + Eq + PartialEq;
+		type ChallengeMinerMax: Get<u32> + Clone + Eq + PartialEq;
 
 		#[pallet::constant]
 		type RandomLimit: Get<u32> + Clone + Eq + PartialEq;
@@ -262,16 +263,7 @@ pub mod pallet {
 		Locked,
 	}
 
-	//Information about storage challenges
-	#[pallet::storage]
-	#[pallet::getter(fn challenge_map)]
-	pub type ChallengeMap<T: Config> = StorageMap<
-		_,
-		Blake2_128Concat,
-		AccountOf<T>,
-		BoundedVec<ChallengeInfo<T>, T::ChallengeMaximum>,
-		ValueQuery,
-	>;
+
 
 	//Relevant time nodes for storage challenges
 	#[pallet::storage]
@@ -287,40 +279,21 @@ pub mod pallet {
 	#[pallet::getter(fn cur_authority_index)]
 	pub(super) type CurAuthorityIndex<T: Config> = StorageValue<_, u16, ValueQuery>;
 
-	//Store the certification information submitted by the miner and wait for the specified
-	// scheduling verification
-	#[pallet::storage]
-	#[pallet::getter(fn unverify_proof)]
-	pub(super) type UnVerifyProof<T: Config> = StorageMap<
-		_,
-		Blake2_128Concat,
-		AccountOf<T>,
-		BoundedVec<ProveInfo<T>, T::ChallengeMaximum>,
-		ValueQuery,
-	>;
-
 	#[pallet::storage]
 	#[pallet::getter(fn keys)]
 	pub(super) type Keys<T: Config> = StorageValue<_, WeakBoundedVec<T::AuthorityId, T::StringLimit>, ValueQuery>;
 
 	#[pallet::storage]
+	#[pallet::getter(fn challenge_proposal)]
+	pub(super) type ChallengeProposal<T: Config> = CountedStorageMap<_, Blake2_128Concat, [u8; 32], (u32, ChallengeInfo<T>)>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn challenge_snap_shot)]
+	pub(super) type ChallengeSnapShot<T: Config> = StorageValue<_, ChallengeInfo<T>>;
+
+	#[pallet::storage]
 	#[pallet::getter(fn lock)]
 	pub(super) type Lock<T: Config> = StorageValue<_, bool, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn failure_rate_map)]
-	pub(super) type FailureNumMap<T: Config> =
-		CountedStorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn miner_total_proof)]
-	pub(super) type MinerTotalProof<T: Config> =
-		CountedStorageMap<_, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn consecutive_fines)]
-	pub(super) type ConsecutiveFines<T: Config> =
-		StorageMap<_, Blake2_128Concat, T::AccountId, u8, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn test_option)]
@@ -366,77 +339,72 @@ pub mod pallet {
 		#[pallet::call_index(3)]
 		#[transactional]
 		#[pallet::weight(0)]
-		pub fn save_challenge_time(
+		pub fn save_challenge_info(
 			origin: OriginFor<T>,
-			duration: BlockNumberOf<T>,
+			challenge_info: ChallengeInfo<T>,
+			_key: T::AuthorityId,
 			_seg_digest: SegDigest<BlockNumberOf<T>>,
 			_signature: <T::AuthorityId as RuntimeAppPublic>::Signature,
 		) -> DispatchResult {
 			ensure_none(origin)?;
-			if let Err(e) = Self::record_challenge_time(duration.clone()) {
-				log::info!("save challenge time Err:{:?}", e);
-				Err(Error::<T>::RecordTimeError)?;
-			}
+			
+			let encode_info: Vec<u8> = challenge_info.encode();
 
-			for (acc, challenge_list) in <ChallengeMap<T>>::iter() {
-				<MinerTotalProof<T>>::insert(acc, challenge_list.len() as u32);
+			let hash = sp_io::hashing::sha2_256(&encode_info);
+
+			let count: u32 = Keys::<T>::get().len() as u32;
+			let limit = count
+				.checked_mul(2).ok_or(Error::<T>::Overflow)?
+				.checked_div(3).ok_or(Error::<T>::Overflow)?;
+				
+
+			if ChallengeProposal::<T>::contains_key(&hash) {
+				let proposal = ChallengeProposal::<T>::get(&hash).unwrap();
+				if proposal.0 + 1 >= limit {
+					let cur_blcok = <ChallengeDuration<T>>::get();
+					let now = <frame_system::Pallet<T>>::block_number();
+					if now > cur_blcok {
+						let duration = now.checked_add(&proposal.1.net_snap_shot.life).ok_or(Error::<T>::Overflow)?;
+						<ChallengeSnapShot<T>>::put(proposal.1);
+						<ChallengeDuration<T>>::put(duration);
+						let _ = ChallengeProposal::<T>::clear(ChallengeProposal::<T>::count(), None);
+					}
+				}
+			} else {
+				if ChallengeProposal::<T>::count() > count {
+					// TODO! clear usage
+					let _ = ChallengeProposal::<T>::clear(ChallengeProposal::<T>::count(), None);
+				} else {
+					ChallengeProposal::<T>::insert(
+						&hash,
+						(1, challenge_info),
+					);
+				}
 			}
 
 			Ok(())
 		}
 	}
 
-	// #[pallet::validate_unsigned]
-	// impl<T: Config> ValidateUnsigned for Pallet<T> {
-	// 	type Call = Call<T>;
+	#[pallet::validate_unsigned]
+	impl<T: Config> ValidateUnsigned for Pallet<T> {
+		type Call = Call<T>;
 
-		// fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
-			// if let Call::save_challenge_info {
-			// 	seg_digest,
-			// 	signature,
-			// 	miner_acc: _,
-			// 	challenge_info: _,
-			// } = call {
-			// 	Self::check_unsign(seg_digest, signature)
-			// } else if let Call::save_challenge_time {
-			// 	duration: _,
-			// 	seg_digest,
-			// 	signature,
-			// } = call {
-			// 	Self::check_unsign(seg_digest, signature)
-			// } else {
-			// 	InvalidTransaction::Call.into()
-			// }
-		// }
-	// }
+		fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+			if let Call::save_challenge_info {
+				challenge_info: _,
+				key,
+				seg_digest,
+				signature,			
+			} = call {
+				InvalidTransaction::Call.into()
+			} else {
+				InvalidTransaction::Call.into()
+			}
+		}
+	}
 
 	impl<T: Config> Pallet<T> {
-		// fn clear_failure_map(limit: u32 , maybe_cursor: Option<&[u8]>) -> Weight {
-		// 	let result = <FailureNumMap<T>>::clear(limit, maybe_cursor);
-		// 	let mut weight: Weight = 0;
-		// 	match result.maybe_cursor {
-		// 		Some(v) => weight = Self::clear_failure_map(limit, result.maybe_cursor),
-		// 		None => {
-		// 			weight = weight.saturating_add(T::DbWeight::get().writes(result.backend));
-		// 			weight = weight.saturating_add(T::DbWeight::get().reads_writes(result.loops, result.loops));
-		// 		},
-		// 	};
-		// 	return weight;
-		// }
-		//
-		// fn clear_total_proof(limit: u32 , maybe_cursor: Option<&[u8]>) -> Weight {
-		// 	let result = <MinerTotalProof<T>>::clear(limit, maybe_cursor);
-		// 	let mut weight: Weight = 0;
-		// 	match result.maybe_cursor {
-		// 		Some(v) => weight = Self::clear_total_proof(limit, result.maybe_cursor),
-		// 		None => {
-		// 			weight = weight.saturating_add(T::DbWeight::get().writes(result.backend));
-		// 			weight = weight.saturating_add(T::DbWeight::get().reads_writes(result.loops, result.loops));
-		// 		},
-		// 	};
-		// 	return weight;
-		// }
-
 		fn check_unsign(
 			seg_digest: &SegDigest<BlockNumberOf<T>>,
 			signature: &<T::AuthorityId as RuntimeAppPublic>::Signature,
@@ -476,17 +444,6 @@ pub mod pallet {
 					)
 					.propagate(true)
 					.build()
-		}
-
-		//Storage proof method
-		fn storage_prove(acc: AccountOf<T>, prove_list: BoundedVec<ProveInfo<T>, T::ChallengeMaximum>) -> DispatchResult {
-			<UnVerifyProof<T>>::try_mutate(&acc, |o| -> DispatchResult {
-				for v in prove_list.iter() {
-					o.try_push(v.clone()).map_err(|_e| Error::<T>::StorageLimitReached)?;
-				}
-				Ok(())
-			})?;
-			Ok(())
 		}
 
 		//Obtain the consensus of the current block
@@ -549,10 +506,10 @@ pub mod pallet {
 				return Err(OffchainErr::Working);
 			}
 			log::info!("get challenge data...");
-			// let challenge_map = Self::generation_challenge().map_err(|e| {
-			// 	log::error!("generation challenge error:{:?}", e);
-			// 	OffchainErr::GenerateInfoError
-			// })?;
+			let challenge_info = Self::generation_challenge(now).map_err(|e| {
+				log::error!("generation challenge error:{:?}", e);
+				OffchainErr::GenerateInfoError
+			})?;
 			log::info!("get challenge success!");
 			log::info!("submit challenge to chain...");
 			// Self::offchain_call_extrinsic(now, authority_id, challenge_map, validators_index, validators_len)?;
@@ -618,7 +575,7 @@ pub mod pallet {
 		}
 
 		fn generation_challenge(now: BlockNumberOf<T>) -> Result<
-			(NetSnapShot<BlockNumberOf<T>>, Vec<(AccountOf<T>, u128, u128)>),
+			ChallengeInfo<T>,
 			OffchainErr,
 		> {
 			let miner_count = T::MinerControl::get_miner_count();
@@ -629,7 +586,7 @@ pub mod pallet {
 
 			let allminer = T::MinerControl::get_all_miner().map_err(|_| OffchainErr::GenerateInfoError)?;
 
-			let mut miner_list: Vec<(AccountOf<T>, u128, u128)> = Default::default();
+			let mut miner_list: BoundedVec<MinerSnapShot<AccountOf<T>>, T::ChallengeMinerMax> = Default::default();
 			let mut total_idle_space: u128 = 0;
 			let mut total_service_space: u128 = 0;
 			let total_reward: u128 = T::MinerControl::get_reward();
@@ -639,23 +596,31 @@ pub mod pallet {
 
 				total_idle_space = total_idle_space.checked_add(idle_space).ok_or(OffchainErr::Overflow)?;
 				total_service_space = total_service_space.checked_add(service_space).ok_or(OffchainErr::Overflow)?;
-
-				miner_list.push(
-					(miner, idle_space, service_space)
-				);
+				let miner_snapshot = MinerSnapShot::<AccountOf<T>> {
+					miner,
+					idle_space,
+					service_space,
+				};
+				let result = miner_list.try_push(miner_snapshot);
+				if let Err(_e) = result {
+					break;
+				};
 			}
 
 			let random = Self::generate_challenge_random(now.saturated_into());
 
 			let snap_shot = NetSnapShot::<BlockNumberOf<T>>{
 				start: now,
+				life: now,
 				total_reward,
 				total_idle_space,
 				total_service_space,
 				random,
 			};
 
-			Ok( (snap_shot, miner_list) )
+
+
+			Ok( ChallengeInfo::<T>{ net_snap_shot: snap_shot, miner_snapshot_list: miner_list } )
 		}
 
 		fn random_select_miner(need: u32, length: u32) -> Vec<u32> {

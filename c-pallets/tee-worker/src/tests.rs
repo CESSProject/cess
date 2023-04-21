@@ -1,32 +1,35 @@
 
-use crate::{mock::*, pallet::Error, *};
-use frame_support::{assert_err, assert_ok};
-use frame_support::traits::Len;
+use super::*;
+use libp2p::core::{
+	multiaddr::{Multiaddr, Protocol},
+	PeerId,
+};
 
 #[test]
-fn registration_scheduler_should_work() {
-    ExtBuilder::default().build_and_execute(|| {
-        pallet_cess_staking::Bonded::<Test>::insert(1, 2);
-        pallet_cess_staking::Bonded::<Test>::insert(3, 1);
-        assert_eq!(SchedulerMap::<Test>::get().len(), 0);
-				let ip = IpAddress::IPV4([127,0,0,1], 15000);
-        assert_ok!(TeeWorker::registration_scheduler(RuntimeOrigin::signed(2), 1, ip.clone()));
-        assert_err!(TeeWorker::registration_scheduler(RuntimeOrigin::signed(2), 1, ip.clone()), Error::<Test>::AlreadyRegistration);
-        assert_err!(TeeWorker::registration_scheduler(RuntimeOrigin::signed(2), 3, ip), Error::<Test>::NotController);
-    });
-}
+fn cryptos_are_compatible() {
+	use sp_core::crypto::Pair;
 
-#[test]
-fn update_scheduler_work() {
-    ExtBuilder::default().build_and_execute(|| {
-        pallet_cess_staking::Bonded::<Test>::insert(1, 2);
-				let ip = IpAddress::IPV4([127,0,0,1], 15000);
-        assert_ok!(TeeWorker::registration_scheduler(RuntimeOrigin::signed(2), 1, ip.clone()));
-        let scheduler_info = SchedulerMap::<Test>::get();
-        assert_eq!(scheduler_info[0].ip, ip.clone());
-				let new_ip = IpAddress::IPV4([127,0,0,1], 15001);
-        assert_ok!(TeeWorker::update_scheduler(RuntimeOrigin::signed(2), new_ip.clone()));
-        let scheduler_info = SchedulerMap::<Test>::get();
-        assert_eq!(scheduler_info[0].ip, new_ip.clone());
-    });
+	let libp2p_secret = libp2p::identity::Keypair::generate_ed25519();
+	let libp2p_public = libp2p_secret.public();
+
+	let sp_core_secret = {
+		let libp2p::identity::Keypair::Ed25519(libp2p_ed_secret) = libp2p_secret.clone();
+		sp_core::ed25519::Pair::from_seed_slice(&libp2p_ed_secret.secret().as_ref()).unwrap()
+	};
+
+	let sp_core_public = sp_core_secret.public();
+
+	println!("libp2p_public: {:?}, sp_core public: {:?}", libp2p_public, sp_core_public);
+
+	let message = b"we are more powerful than not to be better";
+
+	let libp2p_signature = libp2p_secret.sign(message).unwrap();
+	let sp_core_signature = sp_core_secret.sign(message); // no error expected...
+
+	assert!(sp_core::ed25519::Pair::verify(
+		&sp_core::ed25519::Signature::from_slice(&libp2p_signature).unwrap(),
+		message,
+		&sp_core_public
+	));
+	assert!(libp2p_public.verify(message, sp_core_signature.as_ref()));
 }

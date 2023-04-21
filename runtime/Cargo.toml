@@ -37,6 +37,7 @@ sp-session = { version = "4.0.0-dev", default-features = false, git = "https://g
 sp-transaction-pool = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sp-version = { version = "5.0.0", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sp-io = { version = "7.0.0", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36"}
+cp-enclave-verify = { path = '../primitives/enclave-verify', version = '0.1.0', default-features = false }
 
 # frame dependencies
 frame-executive = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
@@ -205,6 +206,7 @@ std = [
 		"pallet-evm-precompile-sha3fips/std",
     "cp-scheduler-credit/std",
     "pallet-scheduler-credit/std",
+    "cp-enclave-verify/std",
 ]
 runtime-benchmarks = [
     "frame-benchmarking/runtime-benchmarks",

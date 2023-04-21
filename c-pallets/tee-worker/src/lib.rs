@@ -2,17 +2,15 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(test)]
-mod mock;
+
 
 #[cfg(test)]
 mod tests;
 
+mod mock;
+
 mod types;
 pub use types::*;
-
-#[cfg(any(feature = "runtime-benchmarks", test))]
-pub mod testing_utils;
 
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
@@ -24,28 +22,19 @@ use frame_support::{
 };
 pub use pallet::*;
 use scale_info::TypeInfo;
-use sp_runtime::{DispatchError, RuntimeDebug};
-use sp_std::{ convert::TryInto, prelude::* };
+use sp_runtime::{
+	DispatchError, RuntimeDebug,
+};
+use sp_std::{ 
+	convert:: { TryFrom, TryInto },
+	prelude::*,
+};
+
 use cp_scheduler_credit::SchedulerCreditCounter;
 pub use weights::WeightInfo;
 use cp_cess_common::*;
 use frame_system::{ensure_signed, pallet_prelude::*};
 use cp_enclave_verify::*;
-// use sp_application_crypto::{
-// 	RuntimePublic,
-// 	ed25519::*,
-// };
-// use sp_core::{
-// 	ed25519, 
-// 	crypto::Pair,
-// };
-// use sp_io::
-
-// use ed25519_dalek::*;
-// extern crate ed25519_dalek;
-// use sp_io::UseDalekExt;
-// use sp_externalities::ExternalitiesExt;
-
 pub mod weights;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -147,6 +136,7 @@ pub mod pallet {
 		pub fn regist_scheduler(
 			origin: OriginFor<T>,
 			stash_account: AccountOf<T>,
+			node_key: NodePublicKey,
 			peer_id: [u8; 53],
 			podr2_pbk: [u8; 294],
 			sgx_attestation_report: SgxAttestationReport,
@@ -167,7 +157,9 @@ pub mod pallet {
 			).ok_or(Error::<T>::VerifyCertFailed)?;
 
 			let tee_worker_info = TeeWorkerInfo::<T> {
+				controller_account: sender.clone(),
 				peer_id: peer_id,
+				node_key,
 				stash_account: stash_account,
 			};
 
@@ -176,8 +168,6 @@ pub mod pallet {
 			}
 
 			TeeWorkerMap::<T>::insert(&sender, tee_worker_info);
-
-
 
 			Self::deposit_event(Event::<T>::RegistrationTeeWorker { acc: sender });
 
@@ -189,10 +179,14 @@ pub mod pallet {
 		#[pallet::weight(100_000_000)]
 		pub fn test_verify_sig(origin: OriginFor<T>, puk: [u8; 32], sig: [u8; 64], msg: Vec<u8>) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
-			
-			if cp_enclave_verify::crypto::verify_sig(&puk, &sig, &msg) {
-				Err(Error::<T>::VerifyCertFailed)?;
-			}
+
+			let result = sp_io::crypto::ed25519_verify(
+				&NodeSignature::from_raw(sig),
+				b"hello, world!",
+				&NodePublicKey::from_raw(puk),
+			);
+
+			ensure!(result, Error::<T>::VerifyCertFailed);
 
 			Ok(())
 		}
