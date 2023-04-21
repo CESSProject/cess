@@ -169,7 +169,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 100,
+	spec_version: 101,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -968,9 +968,9 @@ parameter_types! {
 	#[derive(Clone, PartialEq, Eq)]
 	pub const ChallengeMinerMax: u32 = 8000;
 	#[derive(Clone, PartialEq, Eq)]
-	pub const RandomLimit: u32 = 10240;
+	pub const VerifyMissionMax: u32 = 500;
 	#[derive(Clone, PartialEq, Eq)]
-	pub const SubmitProofLimit: u32 = 100;
+	pub const SigmaMax: u32 = 2048;
 	#[derive(Clone, PartialEq, Eq)]
 	pub const SubmitValidationLimit: u32 = 50;
 	pub const OneHours: BlockNumber = HOURS;
@@ -987,7 +987,7 @@ impl pallet_audit::Config for Runtime {
 	type WeightInfo = pallet_audit::weights::SubstrateWeight<Runtime>;
 	type AuthorityId = pallet_audit::sr25519::AuthorityId;
 	type StringLimit = StringLimit;
-	type RandomLimit = RandomLimit;
+	type VerifyMissionMax = VerifyMissionMax;
 	type OneDay = OneDay;
 	type OneHours = OneHours;
 	type File = FileBank;
@@ -999,9 +999,9 @@ impl pallet_audit::Config for Runtime {
 	type NextSessionRotation = Babe;
 	type UnsignedPriority = SegUnsignedPriority;
 	type LockTime = LockTime;
-	type SubmitProofLimit = SubmitProofLimit;
 	type SubmitValidationLimit = SubmitValidationLimit;
 	type ChallengeMinerMax = ChallengeMinerMax;
+	type SigmaMax = SigmaMax;
 }
 
 parameter_types! {

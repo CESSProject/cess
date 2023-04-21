@@ -211,6 +211,7 @@ pub trait ScheduleFind<AccountId> {
 	fn get_controller_acc(acc: AccountId) -> AccountId;
 	fn punish_scheduler(acc: AccountId) -> DispatchResult;
 	fn get_first_controller() -> Result<AccountId, DispatchError>;
+	fn get_controller_list() -> Vec<AccountId>;
 }
 
 impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -241,6 +242,15 @@ impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<
 	fn get_first_controller() -> Result<<T as frame_system::Config>::AccountId, DispatchError> {
 		let (controller_acc, _) = TeeWorkerMap::<T>::iter().next().ok_or(Error::<T>::NonTeeWorker)?;
 		return Ok(controller_acc);
+	}
 
+	fn get_controller_list() -> Vec<AccountOf<T>> {
+		let mut acc_list: Vec<AccountOf<T>> = Default::default();
+
+		for (acc, info) in <TeeWorkerMap<T>>::iter() {
+			acc_list.push(acc);
+		}
+
+		acc_list
 	}
 }
