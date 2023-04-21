@@ -8,4 +8,5 @@ decide validators as part of the R2S consensus.
 ### Terminology
 
 ### Interface
+
 #### Trait
