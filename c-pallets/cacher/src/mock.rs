@@ -69,6 +69,7 @@ impl pallet_balances::Config for Test {
 impl pallet_cacher::Config for Test {
 	type Event = Event;
 	type Currency = Balances;
+	type BillsLimit = ConstU32<10>;
 	type WeightInfo = ();
 }
 
