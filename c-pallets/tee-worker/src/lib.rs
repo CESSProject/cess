@@ -247,7 +247,7 @@ impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<
 	fn get_controller_list() -> Vec<AccountOf<T>> {
 		let mut acc_list: Vec<AccountOf<T>> = Default::default();
 
-		for (acc, info) in <TeeWorkerMap<T>>::iter() {
+		for (acc, _) in <TeeWorkerMap<T>>::iter() {
 			acc_list.push(acc);
 		}
 
