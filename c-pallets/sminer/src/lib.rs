@@ -118,6 +118,8 @@ pub mod pallet {
 		type SProposal: Parameter + Dispatchable<RuntimeOrigin = Self::RuntimeOrigin> + From<Call<Self>>;
 		/// The WeightInfo.
 		type WeightInfo: WeightInfo;
+
+		type 
 	}
 
 	#[pallet::event]

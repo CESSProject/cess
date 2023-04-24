@@ -74,7 +74,7 @@ use sp_core::{
 	crypto::KeyTypeId,
 	offchain::OpaqueNetworkState,
 };
-use sp_runtime::app_crypto::RuntimeAppPublic;
+use sp_runtime::{Saturating, app_crypto::RuntimeAppPublic};
 use frame_system::offchain::{CreateSignedTransaction, SubmitTransaction};
 use pallet_file_bank::RandomFileList;
 use pallet_tee_worker::ScheduleFind;
@@ -226,9 +226,11 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		ChallengeProof { miner: AccountOf<T>, file_id: Hash },
+		GenerateChallenge,
 
-		VerifyProof { miner: AccountOf<T>, file_id: Hash },
+		SubmitProof { miner: AccountOf<T> },
+
+		VerifyProof { tee_worker: AccountOf<T>, miner: AccountOf<T> },
 
 		OutstandingChallenges { miner: AccountOf<T>, file_id: Hash },
 	}
@@ -316,12 +318,12 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberOf<T>> for Pallet<T> {
-		//Used to calculate whether it is implied to submit spatiotemporal proof
-		//Cycle every 7.2 hours
-		//When there is an uncommitted space-time certificate, the corresponding miner will be
-		//punished and the corresponding data segment will be removed
-		// fn on_initialize(now: BlockNumberOf<T>) -> Weight {
-		// }
+		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
+			let weight: Weight = Weight::from_ref_time(0);
+			weight
+				.saturating_add(Self::clear_challenge(now))
+				.saturating_add(Self::clear_verify_mission(now))
+		}
 
 		fn offchain_worker(now: T::BlockNumber) {
 			let deadline = Self::verify_duration();
@@ -377,6 +379,8 @@ pub mod pallet {
 						<ChallengeDuration<T>>::put(duration);
 						let _ = ChallengeProposal::<T>::clear(ChallengeProposal::<T>::count(), None);
 					}
+
+					Self::deposit_event(Event::<T>::GenerateChallenge);
 				}
 			} else {
 				if ChallengeProposal::<T>::count() > count {
@@ -438,6 +442,8 @@ pub mod pallet {
 				Ok(())
 			})?;
 
+			Self::deposit_event(Event::<T>::SubmitProof { miner: sender });
+
 			Ok(())
 		}
 
@@ -464,9 +470,11 @@ pub mod pallet {
 				}
 	
 				// TODO! reward or punish.
-	
+					
 				Ok(())
 			})?;
+
+			Self::deposit_event(Event::<T>::VerifyProof { tee_worker: sender, miner, });
 	
 			Ok(())
 		}
@@ -493,6 +501,70 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
+		fn clear_challenge(now: BlockNumberOf<T>) -> Weight {
+			let mut weight: Weight = Weight::from_ref_time(0);
+			let duration = <ChallengeDuration<T>>::get();
+			weight = weight.saturating_add(T::DbWeight::get().reads(1));
+			if now == duration {
+				let snap_shot = match <ChallengeSnapShot<T>>::get() {
+					Some(snap_shot) => snap_shot,
+					None => return weight,
+				};
+				weight = weight.saturating_add(T::DbWeight::get().reads(1));
+				for miner_snapshot in snap_shot.miner_snapshot_list {
+					//todo!
+				}
+
+				<ChallengeSnapShot<T>>::kill();
+				weight = weight.saturating_add(T::DbWeight::get().writes(1));
+			}
+
+			weight
+		}
+
+		fn clear_verify_mission(now: BlockNumberOf<T>) -> Weight {
+			let mut weight: Weight = Weight::from_ref_time(0);
+			let duration = <VerifyDuration<T>>::get();
+			if now == duration {
+				let mut count: u32 = 0;
+
+				let tee_list = T::Scheduler::get_controller_list();
+
+				for (acc, unverify_list) in UnverifyProof::<T>::iter() {
+					count += 1;
+					weight = weight.saturating_add(T::DbWeight::get().reads(1));
+					if unverify_list.len() > 0 {
+						let index = Self::random_number(count) as u32;
+						let mut index: u32 = index % (tee_list.len() as u32);
+						let mut tee_acc = &tee_list[index as usize];
+	
+						if &acc == tee_acc {
+							index += 1;
+							index = index % (tee_list.len() as u32);
+							tee_acc = &tee_list[index as usize];
+						}
+	
+						let result = UnverifyProof::<T>::mutate(tee_acc, |tar_unverify_list| -> DispatchResult {
+							tar_unverify_list.try_append(&mut unverify_list.to_vec()).map_err(|_| Error::<T>::Overflow)?;
+							Ok(())
+						});
+						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+
+						if result.is_err() {
+							let new_block: BlockNumberOf<T> = now.saturating_add(5u32.saturated_into());
+							<VerifyDuration<T>>::put(new_block);
+							weight = weight.saturating_add(T::DbWeight::get().writes(1));
+							return weight;
+						}
+
+						UnverifyProof::<T>::remove(acc);
+					}
+				}
+			}
+
+			weight
+		}
+
 		fn check_unsign(
 			key: T::AuthorityId,
 			seg_digest: &SegDigest<BlockNumberOf<T>>,
