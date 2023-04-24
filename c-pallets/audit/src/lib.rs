@@ -268,6 +268,8 @@ pub mod pallet {
 		SystemError,
 
 		NonExistentMission,
+
+		UnexpectedError,
 	}
 
 
@@ -462,17 +464,31 @@ pub mod pallet {
 			// TODO! Podr2Key verify
 			UnverifyProof::<T>::mutate(&sender, |unverify_list| -> DispatchResult {
 				let last_count = unverify_list.len();
-				unverify_list.retain(|prove| prove.snap_shot.miner != miner);
-				let cur_count = unverify_list.len();
-	
-				if cur_count == last_count {
-					Err(Error::<T>::NonExistentMission)?;
+
+				for (index, miner_info) in unverify_list.iter().enumerate() {
+					if miner_info.snap_shot.miner == miner {
+						let snap_shot = <ChallengeSnapShot<T>>::try_get().map_err(|_| Error::<T>::UnexpectedError)?;
+
+						if idle_result && service_result {
+							T::MinerControl::calculate_miner_reward(
+								&miner,
+								snap_shot.net_snap_shot.total_reward,
+								snap_shot.net_snap_shot.total_idle_space,
+								snap_shot.net_snap_shot.total_service_space,
+								miner_info.snap_shot.idle_space,
+								miner_info.snap_shot.service_space,
+							)?;
+						}
+
+						unverify_list.remove(index);
+
+						return Ok(())
+					}
 				}
-	
-				// TODO! reward or punish.
-					
-				Ok(())
+
+				Err(Error::<T>::NonExistentMission)?
 			})?;
+
 
 			Self::deposit_event(Event::<T>::VerifyProof { tee_worker: sender, miner, });
 	
@@ -515,7 +531,6 @@ pub mod pallet {
 					//todo!
 				}
 
-				<ChallengeSnapShot<T>>::kill();
 				weight = weight.saturating_add(T::DbWeight::get().writes(1));
 			}
 
@@ -560,6 +575,9 @@ pub mod pallet {
 						UnverifyProof::<T>::remove(acc);
 					}
 				}
+
+				//todo! 
+				<ChallengeSnapShot<T>>::kill();
 			}
 
 			weight

@@ -13,6 +13,7 @@ pub struct MinerInfo<AccountId, Balance, BoundedString> {
 	pub(super) beneficiary: AccountId,
 	pub(super) ip: BoundedString,
 	pub(super) collaterals: Balance,
+	pub(super) debt: Balance,
 	//nomal, exit, frozen, e_frozen
 	pub(super) state: BoundedString,
 	pub(super) idle_space: u128,

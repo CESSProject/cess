@@ -21,3 +21,9 @@ pub(super) const ISSUE_MUTI: Perbill = Perbill::from_percent(20);
 pub(super) const EACH_SHARE_MUTI: Perbill = Perbill::from_percent(80);
 
 pub(super) const RELEASE_NUMBER: u8 = 180;
+
+pub(super) const IDLE_PUNI_MUTI: Perbill = Perbill::from_percent(10);
+
+pub(super) const SERVICE_PUNI_MUTI: Perbill = Perbill::from_percent(25);
+
+pub(super) const BASE_LIMIT: u128 = 2_000_000_000_000_000;

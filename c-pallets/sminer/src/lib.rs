@@ -36,6 +36,8 @@ use frame_support::{
 };
 use cp_cess_common::*;
 
+use sp_runtime::traits::Zero;
+
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
@@ -307,6 +309,7 @@ pub mod pallet {
 					beneficiary: beneficiary.clone(),
 					ip: ip,
 					collaterals: staking_val.clone(),
+					debt: BalanceOf::<T>::zero(),
 					state: Self::vec_to_bound::<u8>(STATE_POSITIVE.as_bytes().to_vec())?,
 					idle_space: u128::MIN,
 					service_space: u128::MIN,
@@ -743,7 +746,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub fn calculate_miner_reward(
-		miner: AccountOf<T>,
+		miner: &AccountOf<T>,
 		total_reward: u128,
 		total_idle_space: u128,
 		total_service_space: u128,
@@ -766,7 +769,7 @@ impl<T: Config> Pallet<T> {
 			has_issued: true,
 		};
 		// calculate available reward
-		RewardMap::<T>::try_mutate(&miner, |opt_reward_info| -> DispatchResult {
+		RewardMap::<T>::try_mutate(miner, |opt_reward_info| -> DispatchResult {
 			let reward_info = opt_reward_info.as_mut().ok_or(Error::<T>::Unexpected)?;
 			// traverse the order list
 			for order_temp in reward_info.order_list.iter_mut() {
@@ -801,16 +804,79 @@ impl<T: Config> Pallet<T> {
 		
 		Ok(())
 	}
+	// todo! Exit miners do not challenge
+	pub fn deposit_punish(miner: &AccountOf<T>, punish_amount: BalanceOf<T>) -> DispatchResult {
+		<MinerItems<T>>::try_mutate(miner, |miner_info_opt| -> DispatchResult {
+			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
+			
+			let reward_pot = T::PalletId::get().into_account_truncating();
+
+			if miner_info.collaterals > punish_amount {
+				T::Currency::unreserve(miner, punish_amount);
+				T::Currency::transfer(miner, &reward_pot, punish_amount, AllowDeath)?;
+				miner_info.collaterals = miner_info.collaterals.checked_sub(&punish_amount).ok_or(Error::<T>::Overflow)?;
+			} else {
+				T::Currency::unreserve(miner, miner_info.collaterals);
+				T::Currency::transfer(miner, &reward_pot, miner_info.collaterals, AllowDeath)?;
+				miner_info.collaterals = BalanceOf::<T>::zero();
+				miner_info.debt = punish_amount.checked_sub(&miner_info.collaterals).ok_or(Error::<T>::Overflow)?;
+			}
+
+			let power = Self::calculate_power(miner_info.idle_space, miner_info.service_space);
+			let limit = Self::check_collateral_limit(power)?;
+
+			if miner_info.collaterals < limit {
+				miner_info.state = STATE_FROZEN.as_bytes().to_vec().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
+			}
+
+			Ok(())
+		})?;
+
+		Ok(())
+	}
+
+	pub fn idle_punish(miner: &AccountOf<T>, idle_space: u128, service_space: u128) -> DispatchResult {
+		let power = Self::calculate_power(idle_space, service_space);
+		let limit = Self::check_collateral_limit(power)?;
+
+		let punish_amount = IDLE_MUTI.mul_floor(limit);
+
+		Self::deposit_punish(miner, punish_amount)?;
+
+		Ok(())
+	}
+
+	pub fn service_punish(miner: &AccountOf<T>, idle_space: u128, service_space: u128) -> DispatchResult {
+		let power = Self::calculate_power(idle_space, service_space);
+		let limit = Self::check_collateral_limit(power)?;
+
+		let punish_amount = SERVICE_MUTI.mul_floor(limit);
+
+		Self::deposit_punish(miner, punish_amount)?;
+
+		Ok(())
+	}
+
+	pub fn clear_punish(miner: &AccountOf<T>, level: u8, idle_space: u128, service_space: u128) -> DispatchResult {
+		let power = Self::calculate_power(idle_space, service_space);
+		let limit = Self::check_collateral_limit(power)?;
+
+		let punish_amount = match level {
+			1 => Perbill::from_percent(30).mul_floor(limit),
+			2 => Perbill::from_percent(60).mul_floor(limit),
+			3 => limit,
+			_ => return Err(Error::<T>::Unexpected)?,
+		};
+
+		Self::deposit_punish(miner, punish_amount)?;
+
+		Ok(())
+	}
 
 	fn check_collateral_limit(power: u128) -> Result<BalanceOf<T>, Error<T>> {
-		let mut current_power_num: u128 = 1;
-		current_power_num += power.checked_div(1024 * 1024 * M_BYTE).ok_or(Error::<T>::Overflow)?;
-		//2000TCESS/TB(space)
-		let limit: BalanceOf<T> = (current_power_num
-			.checked_mul(2_000_000_000_000_000u128)
-			.ok_or(Error::<T>::Overflow)?)
-		.try_into()
-		.map_err(|_e| Error::<T>::ConversionError)?;
+		let limit = 1 + power.checked_div(T_BYTE).ok_or(Error::<T>::Overflow)?;
+		let limit = BASE_LIMIT.checked_mul(limit).ok_or(Error::<T>::Overflow)?;
+		let limit: BalanceOf<T> = limit.try_into().map_err(|_| Error::<T>::Overflow)?;
 
 		Ok(limit)
 	}
@@ -857,6 +923,14 @@ pub trait MinerControl<AccountId> {
 	fn get_miner_idle_space(acc: &AccountId) -> Result<u128, DispatchError>;
 	fn get_miner_count() -> u32;
 	fn get_reward() -> u128; 
+	fn calculate_miner_reward(
+		miner: &AccountId, 
+		total_reward: u128,
+		total_idle_space: u128,
+		total_service_space: u128,
+		miner_idle_space: u128,
+		miner_service_space: u128,
+	) -> DispatchResult;
 }
 
 impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -951,5 +1025,23 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 	fn get_reward() -> u128 {
 		<CurrencyReward<T>>::get().saturated_into()
 		
+	}
+
+	fn calculate_miner_reward(
+		miner: &AccountOf<T>, 
+		total_reward: u128,
+		total_idle_space: u128,
+		total_service_space: u128,
+		miner_idle_space: u128,
+		miner_service_space: u128,
+	) -> DispatchResult {
+		Self::calculate_miner_reward(
+			miner, 
+			total_reward, 
+			total_idle_space, 
+			total_service_space, 
+			miner_idle_space, 
+			miner_service_space
+		)
 	}
 }
