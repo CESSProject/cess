@@ -931,6 +931,9 @@ pub trait MinerControl<AccountId> {
 		miner_idle_space: u128,
 		miner_service_space: u128,
 	) -> DispatchResult;
+	fn clear_punish(miner: &AccountId, level: u8, idle_space: u128, service_space: u128) -> DispatchResult;
+	fn idle_punish(miner: &AccountId, idle_space: u128, service_space: u128) -> DispatchResult;
+	fn service_punish(miner: &AccountId, idle_space: u128, service_space: u128) -> DispatchResult;
 }
 
 impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -1043,5 +1046,30 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 			miner_idle_space, 
 			miner_service_space
 		)
+	}
+
+	fn clear_punish(
+		miner: &AccountOf<T>, 
+		level: u8, 
+		idle_space: u128, 
+		service_space: u128
+	) -> DispatchResult {
+		Self::clear_punish(miner, level, idle_space, service_space)
+	}
+
+	fn idle_punish(
+		miner: &AccountOf<T>, 
+		idle_space: u128, 
+		service_space: u128
+	) -> DispatchResult {
+		Self::idle_punish(miner, idle_space, service_space)
+	}
+
+	fn service_punish(
+		miner: &AccountOf<T>, 
+		idle_space: u128, 
+		service_space: u128
+	) -> DispatchResult {
+		Self::service_punish(miner, idle_space, service_space)
 	}
 }

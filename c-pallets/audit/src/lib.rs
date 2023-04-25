@@ -43,6 +43,12 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+mod types;
+use types::*;
+
+mod constants;
+use constants::*;
+
 // pub mod migrations;
 
 pub use pallet::*;
@@ -55,8 +61,7 @@ use sp_runtime::{
 	RuntimeDebug, Permill,
 	offchain::storage::{StorageValueRef, StorageRetrievalError},
 };
-mod types;
-use types::*;
+
 
 use codec::{Decode, Encode};
 use frame_support::{
@@ -305,6 +310,18 @@ pub mod pallet {
 	pub(super) type UnverifyProof<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<ProveInfo<T>, T::VerifyMissionMax>, ValueQuery>;
 
 	#[pallet::storage]
+	#[pallet::getter(fn counted_idle_failed)]
+	pub(super) type CountedIdleFailed<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, u32, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn counted_service_failed)]
+	pub(super) type CountedServiceFailed<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, u32, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn counted_clear)]
+	pub(super) type CountedClear<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, u8, ValueQuery>;
+
+	#[pallet::storage]
 	#[pallet::getter(fn lock)]
 	pub(super) type Lock<T: Config> = StorageValue<_, bool, ValueQuery>;
 
@@ -438,6 +455,8 @@ pub mod pallet {
 				service_prove,
 			};
 
+			<CountedClear<T>>::insert(&sender, u8::MIN);
+
 			UnverifyProof::<T>::mutate(tee_acc, |unverify_list| -> DispatchResult {
 				unverify_list.try_push(prove_info).map_err(|_| Error::<T>::Overflow)?;
 
@@ -478,6 +497,26 @@ pub mod pallet {
 								miner_info.snap_shot.idle_space,
 								miner_info.snap_shot.service_space,
 							)?;
+						}
+
+						if idle_result {
+							<CountedIdleFailed<T>>::insert(&miner, u32::MIN);
+						} else {
+							let count = <CountedIdleFailed<T>>::get(&miner) + 1;
+							if count >= IDLE_FAULT_TOLERANT as u32 {
+								T::MinerControl::idle_punish(&miner, miner_info.snap_shot.idle_space, miner_info.snap_shot.service_space)?;
+							}
+							<CountedIdleFailed<T>>::insert(&miner, count);
+						}
+
+						if service_result {
+							<CountedServiceFailed<T>>::insert(&miner, u32::MIN);
+						} else {
+							let count = <CountedServiceFailed<T>>::get(&miner) + 1;
+							if count >= SERVICE_FAULT_TOLERANT as u32 {
+								T::MinerControl::service_punish(&miner, miner_info.snap_shot.idle_space, miner_info.snap_shot.service_space)?;
+							}
+							<CountedServiceFailed<T>>::insert(&miner, count);
 						}
 
 						unverify_list.remove(index);
@@ -527,8 +566,24 @@ pub mod pallet {
 					None => return weight,
 				};
 				weight = weight.saturating_add(T::DbWeight::get().reads(1));
-				for miner_snapshot in snap_shot.miner_snapshot_list {
-					//todo!
+				for miner_snapshot in snap_shot.miner_snapshot_list.iter() {
+
+					let count = <CountedClear<T>>::get(&miner_snapshot.miner) + 1;
+					weight = weight.saturating_add(T::DbWeight::get().reads(1));
+
+					let _ = T::MinerControl::clear_punish(
+						&miner_snapshot.miner, 
+						count, 
+						miner_snapshot.idle_space, 
+						miner_snapshot.service_space
+					);
+					weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+					//todo! miner exit.
+
+					<CountedClear<T>>::insert(
+						&miner_snapshot.miner, 
+						count,
+					);
 				}
 
 				weight = weight.saturating_add(T::DbWeight::get().writes(1));
@@ -541,15 +596,19 @@ pub mod pallet {
 			let mut weight: Weight = Weight::from_ref_time(0);
 			let duration = <VerifyDuration<T>>::get();
 			if now == duration {
-				let mut count: u32 = 0;
-
+				let mut seed: u32 = 0;
+				// Used to calculate the new validation period.
+				let mut mission_count: u32 = 0;
 				let tee_list = T::Scheduler::get_controller_list();
 
 				for (acc, unverify_list) in UnverifyProof::<T>::iter() {
-					count += 1;
+					seed += 1;
 					weight = weight.saturating_add(T::DbWeight::get().reads(1));
 					if unverify_list.len() > 0 {
-						let index = Self::random_number(count) as u32;
+						// Count the number of verification tasks that need to be performed.
+						mission_count = mission_count.saturating_add(unverify_list.len() as u32);
+
+						let index = Self::random_number(seed) as u32;
 						let mut index: u32 = index % (tee_list.len() as u32);
 						let mut tee_acc = &tee_list[index as usize];
 	
@@ -576,7 +635,10 @@ pub mod pallet {
 					}
 				}
 
-				//todo! 
+				//todo! duration reasonable time
+				let duration: BlockNumberOf<T> = mission_count.saturating_mul(10u32).saturated_into();
+				let new_block: BlockNumberOf<T> = now.saturating_add(duration);
+				<VerifyDuration<T>>::put(new_block);
 				<ChallengeSnapShot<T>>::kill();
 			}
 
