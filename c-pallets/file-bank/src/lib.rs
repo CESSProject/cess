@@ -708,35 +708,6 @@ pub mod pallet {
 
 			Ok(())
 		}
-
-		#[pallet::call_index(7)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_filler(filler_list.len() as u32))]
-		pub fn test_add_idle_space(
-			origin: OriginFor<T>,
-			filler_list: Vec<FillerInfo<T>>,
-		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-
-			for i in filler_list.iter() {
-				if <FillerMap<T>>::contains_key(&sender, i.filler_hash) {
-					Err(Error::<T>::FileExistent)?;
-				}
-				<FillerMap<T>>::insert(&sender, i.filler_hash, i);
-			}
-
-			let idle_space = M_BYTE
-				.checked_mul(8)
-				.ok_or(Error::<T>::Overflow)?
-				.checked_mul(filler_list.len() as u128)
-				.ok_or(Error::<T>::Overflow)?;
-			T::MinerControl::add_miner_idle_space(&sender, idle_space)?;
-			T::StorageHandle::add_total_idle_space(idle_space)?;
-
-			Ok(())
-		}
-
-
 		/// Upload idle files for miners.
 		///
 		/// The dispatch origin of this call must be _Signed_.
@@ -926,22 +897,7 @@ pub mod pallet {
 
 			T::MinerControl::execute_exit(&miner)?;
 
-			let block: u32 = service_space
-				.checked_div(T_BYTE).ok_or(Error::<T>::Overflow)?
-				.checked_add(1).ok_or(Error::<T>::Overflow)?
-				.checked_mul(T::OneDay::get().try_into().map_err(|_| Error::<T>::Overflow)?).ok_or(Error::<T>::Overflow)? as u32;
-				
-
-			let now = <frame_system::Pallet<T>>::block_number();
-			let block = now.checked_add(&block.saturated_into()).ok_or(Error::<T>::Overflow)?;
-
-			let restoral_info = RestoralInfo::<BlockNumberOf<T>>{
-				service_space,
-				restored_space: u128::MIN,
-				cooling_block: block,
-			};
-
-			<RestoralTarget<T>>::insert(&miner, restoral_info);
+			Self::create_restoral_target(&miner, service_space)?;
 
 			Ok(())
 		}
@@ -974,6 +930,8 @@ pub trait RandomFileList<AccountId> {
 	fn delete_miner_all_filler(miner_acc: AccountId) -> Result<Weight, DispatchError>;
 	//Delete file backup
 	fn clear_file(_file_hash: Hash) -> Result<Weight, DispatchError>;
+
+	fn force_miner_exit(miner: &AccountId) -> DispatchResult;
 }
 
 impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -1000,6 +958,10 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 	fn clear_file(_file_hash: Hash) -> Result<Weight, DispatchError> {
 		let weight: Weight = Weight::from_ref_time(0);
 		Ok(weight)
+	}
+
+	fn force_miner_exit(miner: &AccountOf<T>) -> DispatchResult {
+		Self::force_miner_exit(miner)
 	}
 }
 

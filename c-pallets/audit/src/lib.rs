@@ -579,6 +579,10 @@ pub mod pallet {
 					);
 					weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 					//todo! miner exit.
+					let result = T::File::force_miner_exit(&miner_snapshot.miner);
+					if result.is_err() {
+						log::info!("force clear miner: {:?} failed", miner_snapshot.miner);
+					}
 
 					<CountedClear<T>>::insert(
 						&miner_snapshot.miner, 

@@ -850,6 +850,26 @@ impl<T: Config> Pallet<T> {
 
 		Ok(result)
 	}
+
+	// Note: that it is necessary to determine whether the state meets the exit conditions before use.
+	fn force_miner_exit(acc: &AccountOf<T>) -> DispatchResult {
+		if let Ok(reward_info) = <RewardMap<T>>::try_get(acc).map_err(|_| Error::<T>::NotExisted) {
+			let reward = reward_info.total_reward
+				.checked_sub(&reward_info.reward_issued).ok_or(Error::<T>::Overflow)?;
+			<CurrencyReward<T>>::mutate(|v| {
+				*v = *v + reward;
+			});
+		}
+		let mut miner_list = AllMiner::<T>::get();
+		miner_list.retain(|s| s != acc);
+		AllMiner::<T>::put(miner_list);
+
+		<RewardMap<T>>::remove(acc);
+		<MinerItems<T>>::remove(acc);
+
+		Ok(())
+	}
+
 	// Note: that it is necessary to determine whether the state meets the exit conditions before use.
 	fn execute_exit(acc: &AccountOf<T>) -> DispatchResult {
 		// T::Currency::unreserve(acc, miner.collaterals);
@@ -926,6 +946,7 @@ pub trait MinerControl<AccountId> {
 
 	fn execute_exit(acc: &AccountId) -> DispatchResult;
 	fn withdraw(acc: &AccountId) -> DispatchResult;
+	fn force_miner_exit(acc: &AccountId) -> DispatchResult; 
 
 	fn is_positive(miner: &AccountId) -> Result<bool, DispatchError>;
 	fn is_lock(miner: &AccountId) -> Result<bool, DispatchError>;
@@ -1091,6 +1112,10 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 
 	fn execute_exit(acc: &AccountOf<T>) -> DispatchResult {
 		Self::execute_exit(acc)
+	}
+
+	fn force_miner_exit(acc: &AccountOf<T>) -> DispatchResult {
+		Self::force_miner_exit(acc)
 	}
 
 	fn withdraw(acc: &AccountOf<T>) -> DispatchResult {
