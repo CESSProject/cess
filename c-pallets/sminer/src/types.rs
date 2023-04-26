@@ -8,10 +8,9 @@ type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 /// The custom struct for storing info of storage miners.
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct MinerInfo<AccountId, Balance, BoundedString> {
-	pub(super) peer_id: u64,
 	//Income account
 	pub(super) beneficiary: AccountId,
-	pub(super) ip: BoundedString,
+	pub(super) peer_id: BoundedString,
 	pub(super) collaterals: Balance,
 	pub(super) debt: Balance,
 	//nomal, exit, frozen, e_frozen

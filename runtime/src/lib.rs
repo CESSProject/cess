@@ -940,6 +940,7 @@ impl pallet_sminer::Config for Runtime {
 	type OneDayBlock = OneDay;
 	type MaxAward = MaxAward;
 	type LockInPeriod = LockInPeriod;
+	type ChallengeMinerMax = ChallengeMinerMax;
 }
 
 parameter_types! {
@@ -954,7 +955,6 @@ impl pallet_storage_handler::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type WeightInfo = pallet_storage_handler::weights::SubstrateWeight<Runtime>;
-	type MinerControl = Sminer;
 	type OneDay = OneDay;
 	type FilbakPalletId = RewardPalletId;
 	type StateStringMax = StateStringMax;

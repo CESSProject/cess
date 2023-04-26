@@ -49,6 +49,7 @@ use constants::*;
 
 use codec::{Decode, Encode};
 use frame_support::{
+	ensure,
 	dispatch::{DispatchResult, Dispatchable},
 	pallet_prelude::DispatchError,
 	PalletId,
@@ -79,7 +80,6 @@ type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 pub mod pallet {
 	use super::*;
 	use frame_support::{
-		ensure,
 		pallet_prelude::{ValueQuery, *},
 		traits::Get,
 	};
@@ -107,6 +107,8 @@ pub mod pallet {
 		type LockInPeriod: Get<u8>;
 		#[pallet::constant]
 		type MaxAward: Get<u128>;
+		#[pallet::constant]
+		type ChallengeMinerMax: Get<u32>;
 		/// The Scheduler.
 		type SScheduler: ScheduleNamed<Self::BlockNumber, Self::SProposal, Self::SPalletsOrigin>;
 
@@ -157,7 +159,7 @@ pub mod pallet {
 			acc: AccountOf<T>,
 		},
 		//Miner exit event
-		MinerExit {
+		ExitDecl {
 			acc: AccountOf<T>,
 		},
 
@@ -244,11 +246,6 @@ pub mod pallet {
 		MinerInfo<T::AccountId, BalanceOf<T>, BoundedVec<u8, T::ItemLimit>>,
 	>;
 
-	/// The hashmap for index of storage miners, it's unique to whole system.
-	#[pallet::storage]
-	#[pallet::getter(fn peer_index)]
-	pub(super) type PeerIndex<T: Config> = StorageValue<_, u64, ValueQuery>;
-
 	/// Store all miner information
 	#[pallet::storage]
 	#[pallet::getter(fn miner_info)]
@@ -263,6 +260,11 @@ pub mod pallet {
 		AccountOf<T>, 
 		Reward<T>,
 	>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn challenge_miner_list)]
+	pub(super) type ChallengeMinerList<T: Config> = 
+		StorageValue<_, BoundedVec<AccountOf<T>, T::ChallengeMinerMax>, ValueQuery>;
 
 	/// The hashmap for checking registered or not.
 	#[pallet::storage]
@@ -294,29 +296,27 @@ pub mod pallet {
 		pub fn regnstk(
 			origin: OriginFor<T>,
 			beneficiary: AccountOf<T>,
-			ip: BoundedVec<u8, T::ItemLimit>,
+			peer_id: BoundedVec<u8, T::ItemLimit>,
 			staking_val: BalanceOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!(<MinerItems<T>>::contains_key(&sender)), Error::<T>::AlreadyRegistered);
 			T::Currency::reserve(&sender, staking_val.clone())?;
-			let cur_idx = PeerIndex::<T>::get();
-			let peer_id = cur_idx.checked_add(1).ok_or(Error::<T>::Overflow)?;
+
 			<MinerItems<T>>::insert(
 				&sender,
 				MinerInfo::<T::AccountId, BalanceOf<T>, BoundedVec<u8, T::ItemLimit>> {
-					peer_id,
 					beneficiary: beneficiary.clone(),
-					ip: ip,
+					peer_id: peer_id,
 					collaterals: staking_val.clone(),
 					debt: BalanceOf::<T>::zero(),
 					state: Self::vec_to_bound::<u8>(STATE_POSITIVE.as_bytes().to_vec())?,
 					idle_space: u128::MIN,
 					service_space: u128::MIN,
-					lock_space: 0,
+					lock_space: u128::MIN,
 				},
 			);
-			<PeerIndex<T>>::put(peer_id);
+
 			AllMiner::<T>::try_mutate(|all_miner| -> DispatchResult {
 				all_miner
 					.try_push(sender.clone())
@@ -413,18 +413,18 @@ pub mod pallet {
 		#[pallet::call_index(3)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_ip())]
-		pub fn update_ip(origin: OriginFor<T>, ip: BoundedVec<u8, T::ItemLimit>) -> DispatchResult {
+		pub fn update_peer_id(origin: OriginFor<T>, peer_id: BoundedVec<u8, T::ItemLimit>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
 
 			let old = <MinerItems<T>>::try_mutate(&sender, |miner_info_opt| -> Result<Vec<u8>, DispatchError> {
 				let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
-				let old = miner_info.ip.clone();
-				miner_info.ip = ip.clone();
+				let old = miner_info.peer_id.clone();
+				miner_info.peer_id = peer_id.clone();
 				Ok(old.to_vec())
 			})?;
 
-			Self::deposit_event(Event::<T>::UpdataIp { acc: sender, old, new: ip.into() });
+			Self::deposit_event(Event::<T>::UpdataIp { acc: sender, old, new: peer_id.into() });
 			Ok(())
 		}
 
@@ -432,7 +432,7 @@ pub mod pallet {
 		#[pallet::call_index(4)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::exit_miner())]
-		pub fn exit_miner(origin: OriginFor<T>) -> DispatchResult {
+		pub fn exit_decl(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
 
@@ -449,7 +449,7 @@ pub mod pallet {
 			let now_block = <frame_system::Pallet<T>>::block_number();
 			MinerLockIn::<T>::insert(&sender, now_block);
 
-			Self::deposit_event(Event::<T>::MinerExit { acc: sender });
+			Self::deposit_event(Event::<T>::ExitDecl { acc: sender });
 			Ok(())
 		}
 
@@ -814,10 +814,16 @@ impl<T: Config> Pallet<T> {
 			if miner_info.collaterals > punish_amount {
 				T::Currency::unreserve(miner, punish_amount);
 				T::Currency::transfer(miner, &reward_pot, punish_amount, AllowDeath)?;
+				<CurrencyReward<T>>::mutate(|reward| {
+					*reward = *reward + punish_amount;
+				});
 				miner_info.collaterals = miner_info.collaterals.checked_sub(&punish_amount).ok_or(Error::<T>::Overflow)?;
 			} else {
 				T::Currency::unreserve(miner, miner_info.collaterals);
 				T::Currency::transfer(miner, &reward_pot, miner_info.collaterals, AllowDeath)?;
+				<CurrencyReward<T>>::mutate(|reward| {
+					*reward = *reward + miner_info.collaterals;
+				});
 				miner_info.collaterals = BalanceOf::<T>::zero();
 				miner_info.debt = punish_amount.checked_sub(&miner_info.collaterals).ok_or(Error::<T>::Overflow)?;
 			}
@@ -891,6 +897,33 @@ impl<T: Config> Pallet<T> {
 
 		Ok(result)
 	}
+
+	fn execute_exit(acc: &AccountOf<T>) -> DispatchResult {
+		let miner = <MinerItems<T>>::try_get(acc).map_err(|_| Error::<T>::NotExisted)?;
+		ensure!(miner.state == STATE_POSITIVE.as_bytes().to_vec(), Error::<T>::NotpositiveState);
+
+		T::Currency::unreserve(acc, miner.collaterals);
+
+		// Self::sub_total_idle_space(miner.idle_space)?;
+		// Self::sub_total_autonomy_space(miner.autonomy_space)?;
+
+		if let Ok(reward_info) = <RewardMap<T>>::try_get(acc).map_err(|_| Error::<T>::NotExisted) {
+			let reward = reward_info.total_reward
+				.checked_sub(&reward_info.reward_issued).ok_or(Error::<T>::Overflow)?;
+			<CurrencyReward<T>>::mutate(|v| {
+				*v = *v + reward;
+			});
+		}
+
+		let mut miner_list = AllMiner::<T>::get();
+		miner_list.retain(|s| s != acc);
+		AllMiner::<T>::put(miner_list);
+
+		<RewardMap<T>>::remove(acc);
+		<MinerItems<T>>::remove(acc);
+
+		Ok(())
+	}
 }
 
 impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for Pallet<T> {
@@ -913,9 +946,8 @@ pub trait MinerControl<AccountId> {
 	fn add_miner_service_space(acc: &AccountId, power: u128) -> DispatchResult;
 	fn sub_miner_service_space(acc: &AccountId, power: u128) -> DispatchResult;
 	fn get_power(acc: &AccountId) -> Result<(u128, u128), DispatchError>;
-	fn get_miner_id(acc: AccountId) -> Result<u64, DispatchError>;
 	fn miner_is_exist(acc: AccountId) -> bool;
-	fn get_miner_state(acc: AccountId) -> Result<Vec<u8>, DispatchError>;
+	fn get_miner_state(acc: &AccountId) -> Result<Vec<u8>, DispatchError>;
 	fn get_all_miner() -> Result<Vec<AccountId>, DispatchError>;
 	fn lock_space(acc: &AccountId, space: u128) -> DispatchResult;
 	fn unlock_space(acc: &AccountId, space: u128) -> DispatchResult;
@@ -934,6 +966,10 @@ pub trait MinerControl<AccountId> {
 	fn clear_punish(miner: &AccountId, level: u8, idle_space: u128, service_space: u128) -> DispatchResult;
 	fn idle_punish(miner: &AccountId, idle_space: u128, service_space: u128) -> DispatchResult;
 	fn service_punish(miner: &AccountId, idle_space: u128, service_space: u128) -> DispatchResult;
+
+	fn is_positive(miner: &AccountId) -> Result<bool, DispatchError>;
+	fn is_lock(miner: &AccountId) -> Result<bool, DispatchError>;
+	fn update_miner_state(miner: &AccountId, state: &str) -> DispatchResult;
 }
 
 impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -980,13 +1016,8 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 		false
 	}
 
-	fn get_miner_id(acc: AccountOf<T>) -> Result<u64, DispatchError> {
-		let miner = <MinerItems<T>>::try_get(&acc).map_err(|_| Error::<T>::NotMiner)?;
-		Ok(miner.peer_id)
-	}
-
-	fn get_miner_state(acc: AccountOf<T>) -> Result<Vec<u8>, DispatchError> {
-		let miner = <MinerItems<T>>::try_get(&acc).map_err(|_| Error::<T>::NotMiner)?;
+	fn get_miner_state(acc: &AccountOf<T>) -> Result<Vec<u8>, DispatchError> {
+		let miner = <MinerItems<T>>::try_get(acc).map_err(|_| Error::<T>::NotMiner)?;
 		Ok(miner.state.to_vec())
 	}
 
@@ -1071,5 +1102,30 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 		service_space: u128
 	) -> DispatchResult {
 		Self::service_punish(miner, idle_space, service_space)
+	}
+
+	fn is_positive(miner: &AccountOf<T>) -> Result<bool, DispatchError> {
+		let state = Self::get_miner_state(miner)?;
+		Ok(state == STATE_POSITIVE.as_bytes().to_vec())
+	}
+
+	fn is_lock(miner: &AccountOf<T>) -> Result<bool, DispatchError> {
+		let state = Self::get_miner_state(miner)?;
+		Ok(state == STATE_LOCK.as_bytes().to_vec())
+	}
+
+	fn update_miner_state(miner: &AccountOf<T>, state: &str) -> DispatchResult {
+		let state = match state {
+			STATE_POSITIVE | STATE_FROZEN | STATE_EXIT | STATE_LOCK => state.as_bytes().to_vec(),
+			_ => Err(Error::<T>::Overflow)?,
+		};
+
+		<MinerItems<T>>::try_mutate(miner, |miner_opt| -> DispatchResult {
+			let miner_info = miner_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
+
+			miner_info.state = state.try_into().map_err(|_| Error::<T>::BoundedVecError)?;
+
+			Ok(())
+		})
 	}
 }

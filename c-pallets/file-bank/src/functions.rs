@@ -502,4 +502,11 @@ impl<T: Config> Pallet<T> {
         }
         Ok(())
     }
+
+    pub(super) fn clear_filler(miner: &AccountOf<T>, maybe_cursor: Option<&[u8]>) {
+        let result = <FillerMap<T>>::clear_prefix(miner, 100000, maybe_cursor);
+        if let Some(cursor) = result.maybe_cursor {
+            Self::clear_filler(miner, Some(&cursor));
+        }
+    }
 }

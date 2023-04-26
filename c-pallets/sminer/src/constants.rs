@@ -8,6 +8,8 @@ pub(super) const STATE_EXIT_FROZEN: &str = "e_frozen";
 
 pub(super) const STATE_EXIT: &str = "exit";
 
+pub(super) const STATE_LOCK: &str = "lock";
+
 pub(super) const FAUCET_VALUE: u128 = 10000000000000000;
 
 pub(super) const DOUBLE: u8 = 2;

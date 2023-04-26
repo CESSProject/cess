@@ -246,6 +246,8 @@ pub mod pallet {
 		InsufficientAvailableSpace,
 		// The file is in a calculated tag state and cannot be deleted
 		Calculate,
+
+		MinerStateError,
 	}
 
 	
@@ -287,6 +289,11 @@ pub mod pallet {
 	#[pallet::getter(fn invalid_file)]
 	pub(super) type InvalidFile<T: Config> =
 		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<Hash, T::InvalidLimit>, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn miner_lock)]
+	pub(super) type MinerLock<T: Config> = 
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, BlockNumberOf<T>>;
 
 	// Stores the hash of the entire network segment and the sharing of each segment.
 	// Used to determine whether segments can be shared.
@@ -752,10 +759,9 @@ pub mod pallet {
 			if !T::Scheduler::contains_scheduler(sender.clone()) {
 				Err(Error::<T>::ScheduleNonExistent)?;
 			}
-			let miner_state = T::MinerControl::get_miner_state(miner.clone())?;
-			if !(miner_state == "positive".as_bytes().to_vec()) {
-				Err(Error::<T>::NotQualified)?;
-			}
+			let is_positive = T::MinerControl::is_positive(&miner)?;
+			ensure!(is_positive, Error::<T>::NotQualified);
+
 			for i in filler_list.iter() {
 				if <FillerMap<T>>::contains_key(&miner, i.filler_hash.clone()) {
 					Err(Error::<T>::FileExistent)?;
@@ -856,13 +862,47 @@ pub mod pallet {
 				Ok(())
 			})?;
 
-
-
 			Self::deposit_event(Event::<T>::DeleteBucket {
 				operator: sender,
 				owner,
 				bucket_name: name.to_vec(),
 			});
+			Ok(())
+		}
+
+		#[pallet::call_index(13)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn miner_exit_prep(
+			origin: OriginFor<T>,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			let result = T::MinerControl::is_positive(&sender)?;
+
+			ensure!(result, Error::<T>::MinerStateError);
+
+			T::MinerControl::update_miner_state(&sender, "lock")?;
+			Self::clear_filler(&sender, None);
+
+			let now = <frame_system::Pallet<T>>::block_number();
+			let lock_time = T::OneDay::get().checked_add(&now).ok_or(Error::<T>::Overflow)?;
+			<MinerLock<T>>::insert(&sender, lock_time);
+
+			Ok(())
+		}
+
+		#[pallet::call_index(14)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn miner_exit(
+			origin: OriginFor<T>,
+			miner: AccountOf<T>,
+		) -> DispatchResult {
+			let _ = ensure_root(origin);
+
+
+
 			Ok(())
 		}
 	}

@@ -24,7 +24,6 @@ use sp_std::{convert::TryInto, prelude::*, str};
 use codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 use cp_cess_common::*;
-use pallet_sminer::MinerControl;
 
 pub mod weights;
 use weights::WeightInfo;
@@ -57,8 +56,6 @@ pub mod pallet {
 		type Currency: ReservableCurrency<Self::AccountId>;
 
         type WeightInfo: WeightInfo;
-        //It is used to control the computing power and space of miners
-		type MinerControl: MinerControl<Self::AccountId>;
 
         #[pallet::constant]
 		type OneDay: Get<BlockNumberOf<Self>>;
