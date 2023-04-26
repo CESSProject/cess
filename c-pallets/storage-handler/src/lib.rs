@@ -160,17 +160,6 @@ pub mod pallet {
 		}
 	}
 
-    #[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberOf<T>> for Pallet<T> {
-		//Used to calculate whether it is implied to submit spatiotemporal proof
-		//Cycle every 7.2 hours
-		//When there is an uncommitted space-time certificate, the corresponding miner will be
-		// punished and the corresponding data segment will be removed
-		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
-			Self::frozen_task(now)
-		}
-	}
-
     #[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Transaction of user purchasing space.
@@ -456,11 +445,13 @@ impl<T: Config> Pallet<T> {
         Ok(())
     }
 
-    fn frozen_task(now: BlockNumberOf<T>) -> Weight {
+    fn frozen_task() -> (Weight, Vec<AccountOf<T>>) {
+        let now: BlockNumberOf<T> = <frame_system::Pallet<T>>::block_number();
         let number: u128 = now.saturated_into();
         let block_oneday: BlockNumberOf<T> = <T as pallet::Config>::OneDay::get();
         let oneday: u32 = block_oneday.saturated_into();
         let mut weight: Weight = Default::default();
+        let mut clear_acc_list: Vec<AccountOf<T>> = Default::default();
         if number % oneday as u128 == 0 {
             log::info!("Start lease expiration check");
             for (acc, info) in <UserOwnedSpace<T>>::iter() {
@@ -476,6 +467,7 @@ impl<T: Config> Pallet<T> {
                         };
                         weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
                         // TODO！！
+                        clear_acc_list.push(acc);
                     } else {
                         if info.state.to_vec() != SPACE_FROZEN.as_bytes().to_vec() {
                             let result = <UserOwnedSpace<T>>::try_mutate(
@@ -503,12 +495,15 @@ impl<T: Config> Pallet<T> {
             }
             log::info!("End lease expiration check");
         }
-        weight
+        (weight, clear_acc_list)
     }
 
     pub fn lock_user_space(acc: &T::AccountId, needed_space: u128) -> DispatchResult {
         <UserOwnedSpace<T>>::try_mutate(acc, |storage_space_opt| -> DispatchResult {
             let storage_space = storage_space_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
+            if storage_space.state.to_vec() == SPACE_FROZEN.as_bytes().to_vec() {
+                Err(Error::<T>::LeaseFreeze)?;
+            }
             if storage_space.remaining_space < needed_space {
                 Err(Error::<T>::InsufficientStorage)?;
             }
@@ -617,6 +612,7 @@ pub trait StorageHandle<AccountId> {
     fn unlock_user_space(acc: &AccountId, needed_space: u128) -> DispatchResult;
     fn unlock_and_used_user_space(acc: &AccountId, needed_space: u128) -> DispatchResult;
     fn get_user_avail_space(acc: &AccountId) -> Result<u128, DispatchError>;
+    fn frozen_task() -> (Weight, Vec<AccountId>);
 }
 
 impl<T: Config> StorageHandle<T::AccountId> for Pallet<T> {
@@ -667,5 +663,9 @@ impl<T: Config> StorageHandle<T::AccountId> for Pallet<T> {
     fn get_user_avail_space(acc: &T::AccountId) -> Result<u128, DispatchError> {
         let info = <UserOwnedSpace<T>>::try_get(acc).map_err(|_e| Error::<T>::NotPurchasedSpace)?;
         Ok(info.remaining_space)
+    }
+
+    fn frozen_task() -> (Weight, Vec<AccountOf<T>>) {
+        Self::frozen_task()
     }
 }

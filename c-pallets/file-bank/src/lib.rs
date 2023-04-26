@@ -333,6 +333,38 @@ pub mod pallet {
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(PhantomData<T>);
 
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberOf<T>> for Pallet<T> {
+		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
+			let (mut weight, acc_list) = T::StorageHandle::frozen_task();
+
+			for acc in acc_list.iter() {
+				if let Ok(file_info_list) = <UserHoldFileList<T>>::try_get(&acc) {
+					for file_info in file_info_list.iter() {
+						if let Ok(file) = <File<T>>::try_get(&file_info.file_hash) {
+							if file.stat == FileState::Calculate {
+								log::info!("Unexpect file clear: {:?}", file_info.file_hash);
+								continue;
+							}
+
+							if file.owner.len() > 1 {
+								if let Err(e) = Self::remove_file_owner(&file_info.file_hash, &acc, false) {
+									log::error!("remove file failed: {:?}", file_info.file_hash);	
+								}
+							} else {
+								if let Err(e) = Self::remove_file_last_owner(&file_info.file_hash, &acc, false) {
+									log::error!("remove file failed: {:?}", file_info.file_hash);	
+								}
+							}
+						}
+					}
+				}
+			}
+			
+			weight
+		}
+	}
+
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Users need to make a declaration before uploading files.
@@ -699,9 +731,9 @@ pub mod pallet {
 			ensure!(acc_list.contains(&owner), Error::<T>::NotOwner);
 
 			if acc_list.len() > 1 {
-				Self::remove_file_owner(&file_hash, &owner)?;
+				Self::remove_file_owner(&file_hash, &owner, true)?;
 			} else {
-				Self::remove_file_last_owner(&file_hash, &owner)?;
+				Self::remove_file_last_owner(&file_hash, &owner, true)?;
 			}
 
 			Self::deposit_event(Event::<T>::DeleteFile{ operator: sender, owner, file_hash });

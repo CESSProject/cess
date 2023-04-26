@@ -283,13 +283,15 @@ impl<T: Config> Pallet<T> {
     }
 
     // The status of the file must be confirmed before use.
-    pub(super) fn remove_file_owner(file_hash: &Hash, acc: &AccountOf<T>) -> DispatchResult {
+    pub(super) fn remove_file_owner(file_hash: &Hash, acc: &AccountOf<T>, user_clear: bool) -> DispatchResult {
         <File<T>>::try_mutate(file_hash, |file_opt| -> DispatchResult {
             let file = file_opt.as_mut().ok_or(Error::<T>::Overflow)?;
             for (index, user_brief) in file.owner.iter().enumerate() {
                 if acc == &user_brief.user {
                     let file_size = Self::cal_file_size(file.segment_list.len() as u128);
-                    T::StorageHandle::update_user_space(acc, 2, file_size)?;
+                    if user_clear {
+                        T::StorageHandle::update_user_space(acc, 2, file_size)?;
+                    }
                     file.owner.remove(index);
                     break;
                 }
@@ -301,7 +303,7 @@ impl<T: Config> Pallet<T> {
     }
 
     // The status of the file must be confirmed before use.
-    pub(super) fn remove_file_last_owner(file_hash: &Hash, acc: &AccountOf<T>) -> DispatchResult {
+    pub(super) fn remove_file_last_owner(file_hash: &Hash, acc: &AccountOf<T>, user_clear: bool) -> DispatchResult {
         let file = <File<T>>::try_get(file_hash).map_err(|_| Error::<T>::NonExistent)?;
         // Record the total number of fragments that need to be deleted.
         let mut total_fragment_dec = 0;
@@ -342,7 +344,9 @@ impl<T: Config> Pallet<T> {
         }
 
         let file_size = Self::cal_file_size(file.segment_list.len() as u128);
-        T::StorageHandle::update_user_space(acc, 2, file_size)?;
+        if user_clear {
+            T::StorageHandle::update_user_space(acc, 2, file_size)?;
+        }
         T::StorageHandle::sub_total_service_space(total_fragment_dec as u128 * FRAGMENT_SIZE)?;
 
         <File<T>>::remove(file_hash);

@@ -584,7 +584,7 @@ pub mod pallet {
 						if result.is_err() {
 							log::info!("force clear miner: {:?} failed", miner_snapshot.miner);
 						}
-						<CountedClear<T>>::remove(&miner);
+						<CountedClear<T>>::remove(&miner_snapshot.miner);
 					} else {
 						<CountedClear<T>>::insert(
 							&miner_snapshot.miner, 
