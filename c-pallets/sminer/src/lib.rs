@@ -428,65 +428,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		//Miner exit method, Irreversible process.
-		#[pallet::call_index(4)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::exit_miner())]
-		pub fn exit_decl(origin: OriginFor<T>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
-
-			let state = Self::check_state(&sender)?;
-			if state != STATE_POSITIVE.as_bytes().to_vec() {
-				Err(Error::<T>::NotpositiveState)?;
-			}
-			MinerItems::<T>::try_mutate(&sender, |miner_info_opt| -> DispatchResult {
-				let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
-
-				miner_info.state = Self::vec_to_bound(STATE_EXIT.as_bytes().to_vec())?;
-				Ok(())
-			})?;
-			let now_block = <frame_system::Pallet<T>>::block_number();
-			MinerLockIn::<T>::insert(&sender, now_block);
-
-			Self::deposit_event(Event::<T>::ExitDecl { acc: sender });
-			Ok(())
-		}
-
-		//Method for miners to redeem deposit
-		#[pallet::call_index(5)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::withdraw())]
-		pub fn withdraw(origin: OriginFor<T>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
-
-			let state = Self::check_state(&sender)?;
-			if state != STATE_EXIT.as_bytes().to_vec() {
-				Err(Error::<T>::NotExisted)?;
-			}
-			let now_block: u128 = <frame_system::Pallet<T>>::block_number().saturated_into();
-			let lock_in_strat: u128 = MinerLockIn::<T>::try_get(&sender)
-				.map_err(|_e| Error::<T>::LockInNotOver)?
-				.saturated_into();
-			let mut lock_in_period: u128 = T::OneDayBlock::get().saturated_into();
-			let day = T::LockInPeriod::get();
-			lock_in_period = lock_in_period * day as u128;
-			// let mut lock_in_period: u128 = 50;
-			if lock_in_strat + lock_in_period > now_block {
-				Err(Error::<T>::LockInNotOver)?;
-			}
-			let collaterals = MinerItems::<T>::try_get(&sender)
-				.map_err(|_e| Error::<T>::NotMiner)?
-				.collaterals;
-			T::Currency::unreserve(&sender, collaterals);
-
-			MinerLockIn::<T>::remove(&sender);
-
-			Self::deposit_event(Event::<T>::MinerClaim { acc: sender });
-			Ok(())
-		}
-
 		#[pallet::call_index(6)]
 		#[transactional]
 		#[pallet::weight(100_000_000_000)]
@@ -897,16 +838,9 @@ impl<T: Config> Pallet<T> {
 
 		Ok(result)
 	}
-
+	// Note: that it is necessary to determine whether the state meets the exit conditions before use.
 	fn execute_exit(acc: &AccountOf<T>) -> DispatchResult {
-		let miner = <MinerItems<T>>::try_get(acc).map_err(|_| Error::<T>::NotExisted)?;
-		ensure!(miner.state == STATE_POSITIVE.as_bytes().to_vec(), Error::<T>::NotpositiveState);
-
-		T::Currency::unreserve(acc, miner.collaterals);
-
-		// Self::sub_total_idle_space(miner.idle_space)?;
-		// Self::sub_total_autonomy_space(miner.autonomy_space)?;
-
+		// T::Currency::unreserve(acc, miner.collaterals);
 		if let Ok(reward_info) = <RewardMap<T>>::try_get(acc).map_err(|_| Error::<T>::NotExisted) {
 			let reward = reward_info.total_reward
 				.checked_sub(&reward_info.reward_issued).ok_or(Error::<T>::Overflow)?;
@@ -920,6 +854,17 @@ impl<T: Config> Pallet<T> {
 		AllMiner::<T>::put(miner_list);
 
 		<RewardMap<T>>::remove(acc);
+		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
+			let miner_info = miner_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
+			miner_info.state = Self::vec_to_bound::<u8>(STATE_EXIT.as_bytes().to_vec())?;
+
+			Ok(())
+		})
+	}
+	// Note: that it is necessary to determine whether the state meets the exit conditions before use.
+	fn withdraw(acc: &AccountOf<T>) -> DispatchResult {
+		let miner_info = <MinerItems<T>>::try_get(acc).map_err(|_| Error::<T>::NotMiner)?;
+		T::Currency::unreserve(acc, miner_info.collaterals);
 		<MinerItems<T>>::remove(acc);
 
 		Ok(())
@@ -967,6 +912,9 @@ pub trait MinerControl<AccountId> {
 	fn idle_punish(miner: &AccountId, idle_space: u128, service_space: u128) -> DispatchResult;
 	fn service_punish(miner: &AccountId, idle_space: u128, service_space: u128) -> DispatchResult;
 
+	fn execute_exit(acc: &AccountId) -> DispatchResult;
+	fn withdraw(acc: &AccountId) -> DispatchResult;
+
 	fn is_positive(miner: &AccountId) -> Result<bool, DispatchError>;
 	fn is_lock(miner: &AccountId) -> Result<bool, DispatchError>;
 	fn update_miner_state(miner: &AccountId, state: &str) -> DispatchResult;
@@ -994,7 +942,7 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 	}
 
 	fn get_power(
-		acc: &<T as frame_system::Config>::AccountId,
+		acc: &AccountOf<T>,
 	) -> Result<(u128, u128), DispatchError> {
 		if !<MinerItems<T>>::contains_key(acc) {
 			Err(Error::<T>::NotMiner)?;
@@ -1127,5 +1075,13 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 
 			Ok(())
 		})
+	}
+
+	fn execute_exit(acc: &AccountOf<T>) -> DispatchResult {
+		Self::execute_exit(acc)
+	}
+
+	fn withdraw(acc: &AccountOf<T>) -> DispatchResult {
+		Self::withdraw(acc)
 	}
 }

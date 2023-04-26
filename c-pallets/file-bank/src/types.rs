@@ -106,3 +106,10 @@ pub struct UserBrief<T: Config> {
 	pub file_name: BoundedVec<u8, T::NameStrLimit>,
 	pub bucket_name:  BoundedVec<u8, T::NameStrLimit>,
 }
+
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+pub struct RestoralInfo<Block> {
+	pub(super) service_space: u128,
+	pub(super) restored_space: u128,
+	pub(super) cooling_block: Block,
+}

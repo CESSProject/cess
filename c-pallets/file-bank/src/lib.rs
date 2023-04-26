@@ -53,7 +53,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use scale_info::TypeInfo;
-use cp_cess_common::{DataType, Hash as H68, M_BYTE, FRAGMENT_SIZE, SEGMENT_SIZE};
+use cp_cess_common::*;
 use pallet_storage_handler::StorageHandle;
 use cp_scheduler_credit::SchedulerCreditCounter;
 use sp_runtime::{
@@ -74,7 +74,6 @@ use pallet_oss::OssFindAuthor;
 
 pub use weights::WeightInfo;
 
-type Hash = H68;
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 
@@ -323,6 +322,11 @@ pub mod pallet {
 			BoundedVec<BoundedVec<u8, T::NameStrLimit>, T::BucketLimit>,
 			ValueQuery,
 		>;
+	
+	#[pallet::storage]
+	#[pallet::getter(fn restoral_target)]
+	pub(super) type RestoralTarget<T: Config> = 
+		StorageMap< _, Blake2_128Concat, AccountOf<T>, RestoralInfo<BlockNumberOf<T>>>;
 
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
@@ -878,16 +882,27 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
+			let lock_time = <MinerLock<T>>::try_get(&sender).map_err(|_| Error::<T>::MinerStateError)?;
+			let now = <frame_system::Pallet<T>>::block_number();
+			ensure!(now < lock_time, Error::<T>::MinerStateError);
+
 			let result = T::MinerControl::is_positive(&sender)?;
-
 			ensure!(result, Error::<T>::MinerStateError);
-
 			T::MinerControl::update_miner_state(&sender, "lock")?;
-			Self::clear_filler(&sender, None);
 
 			let now = <frame_system::Pallet<T>>::block_number();
 			let lock_time = T::OneDay::get().checked_add(&now).ok_or(Error::<T>::Overflow)?;
 			<MinerLock<T>>::insert(&sender, lock_time);
+
+			let task_id: Vec<u8> = sender.encode();
+			T::FScheduler::schedule_named(
+                task_id,
+                DispatchTime::At(lock_time),
+                Option::None,
+                schedule::HARD_DEADLINE,
+                frame_system::RawOrigin::Root.into(),
+                Call::miner_exit{miner: sender}.into(), 
+        	).map_err(|_| Error::<T>::Unexpected)?;
 
 			Ok(())
 		}
@@ -901,7 +916,48 @@ pub mod pallet {
 		) -> DispatchResult {
 			let _ = ensure_root(origin);
 
+			// judge lock state.
+			let result = T::MinerControl::is_lock(&miner)?;
+			ensure!(result, Error::<T>::MinerStateError);
+			// sub network total idle space.
+			Self::clear_filler(&miner, None);
+			let (idle_space, service_space) = T::MinerControl::get_power(&miner)?;
+			T::StorageHandle::sub_total_idle_space(idle_space)?;
 
+			T::MinerControl::execute_exit(&miner)?;
+
+			let block: u32 = service_space
+				.checked_div(T_BYTE).ok_or(Error::<T>::Overflow)?
+				.checked_add(1).ok_or(Error::<T>::Overflow)?
+				.checked_mul(T::OneDay::get().try_into().map_err(|_| Error::<T>::Overflow)?).ok_or(Error::<T>::Overflow)? as u32;
+				
+
+			let now = <frame_system::Pallet<T>>::block_number();
+			let block = now.checked_add(&block.saturated_into()).ok_or(Error::<T>::Overflow)?;
+
+			let restoral_info = RestoralInfo::<BlockNumberOf<T>>{
+				service_space,
+				restored_space: u128::MIN,
+				cooling_block: block,
+			};
+
+			<RestoralTarget<T>>::insert(&miner, restoral_info);
+
+			Ok(())
+		}
+
+		#[pallet::call_index(15)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn miner_withdaw(origin: OriginFor<T>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			let restoral_info = <RestoralTarget<T>>::try_get(&sender).map_err(|_| Error::<T>::MinerStateError)?;
+			let now = <frame_system::Pallet<T>>::block_number();
+
+			ensure!(now >= restoral_info.cooling_block, Error::<T>::MinerStateError);
+
+			T::MinerControl::withdraw(&sender)?;
 
 			Ok(())
 		}
