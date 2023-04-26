@@ -355,28 +355,40 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
 
-			T::Currency::reserve(&sender, collaterals)?;
 			let mut balance: BalanceOf<T> = 0u32.saturated_into();
 			<MinerItems<T>>::try_mutate(&sender, |miner_info_opt| -> DispatchResult {
 				let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
-				miner_info.collaterals =
-					miner_info.collaterals.checked_add(&collaterals).ok_or(Error::<T>::Overflow)?;
-				balance = miner_info.collaterals;
-				if miner_info.state == STATE_FROZEN.as_bytes().to_vec()
-					|| miner_info.state == STATE_EXIT_FROZEN.as_bytes().to_vec()
-				{
-					let limit = Self::check_collateral_limit(miner_info.idle_space)?;
-					if miner_info.collaterals > limit {
-						if miner_info.state.to_vec() == STATE_FROZEN.as_bytes().to_vec() {
-							miner_info.state =
-								Self::vec_to_bound(STATE_POSITIVE.as_bytes().to_vec())?;
-						} else {
-							miner_info.state = Self::vec_to_bound(STATE_EXIT.as_bytes().to_vec())?;
-						}
+
+				let mut remaining = collaterals;
+				if miner_info.debt > BalanceOf::<T>::zero() {
+					if miner_info.debt > collaterals {
+						miner_info.debt = miner_info.debt.checked_sub(&collaterals).ok_or(Error::<T>::Overflow)?;
+						remaining = BalanceOf::<T>::zero();
+					} else {
+						remaining = remaining.checked_sub(&miner_info.debt).ok_or(Error::<T>::Overflow)?;
+						miner_info.debt = BalanceOf::<T>::zero();
 					}
 				}
+
+				miner_info.collaterals =
+					miner_info.collaterals.checked_add(&remaining).ok_or(Error::<T>::Overflow)?;
+
+				balance = miner_info.collaterals;
+
+				if miner_info.state == STATE_FROZEN.as_bytes().to_vec() {
+					let power = Self::calculate_power(miner_info.idle_space, miner_info.service_space);
+					let limit = Self::check_collateral_limit(power)?;
+					if miner_info.collaterals > limit {
+						miner_info.state = Self::vec_to_bound(STATE_POSITIVE.as_bytes().to_vec())?;
+					}
+				}
+
+				T::Currency::reserve(&sender, remaining)?;
+
 				Ok(())
 			})?;
+
+
 
 			Self::deposit_event(Event::<T>::IncreaseCollateral { acc: sender, balance });
 			Ok(())
