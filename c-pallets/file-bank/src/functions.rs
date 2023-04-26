@@ -219,7 +219,7 @@ impl<T: Config> Pallet<T> {
             
             // Judge whether the idle space of the miners is sufficient.
             let miner = all_miner[index as usize].clone();
-            let result = T::MinerControl::is_positive()?;
+            let result = T::MinerControl::is_positive(&miner)?;
             if !result {
                 continue;
             }

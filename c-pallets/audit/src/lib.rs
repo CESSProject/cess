@@ -825,7 +825,13 @@ pub mod pallet {
 			let mut total_service_space: u128 = u128::MIN;
 			let total_reward: u128 = T::MinerControl::get_reward();
 			for index in index_list {
+				
 				let miner = allminer[index as usize].clone();
+				let state = T::MinerControl::get_miner_state(&miner).map_err(|_| OffchainErr::GenerateInfoError)?;
+				if state == "lock".as_bytes().to_vec() {
+					continue;
+				}
+
 				let (idle_space, service_space) = T::MinerControl::get_power(&miner).map_err(|_| OffchainErr::GenerateInfoError)?;
 
 				total_idle_space = total_idle_space.checked_add(idle_space).ok_or(OffchainErr::Overflow)?;
