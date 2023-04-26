@@ -578,16 +578,19 @@ pub mod pallet {
 						miner_snapshot.service_space
 					);
 					weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-					//todo! miner exit.
-					let result = T::File::force_miner_exit(&miner_snapshot.miner);
-					if result.is_err() {
-						log::info!("force clear miner: {:?} failed", miner_snapshot.miner);
-					}
 
-					<CountedClear<T>>::insert(
-						&miner_snapshot.miner, 
-						count,
-					);
+					if count >= 3 {
+						let result = T::File::force_miner_exit(&miner_snapshot.miner);
+						if result.is_err() {
+							log::info!("force clear miner: {:?} failed", miner_snapshot.miner);
+						}
+						<CountedClear<T>>::remove(&miner);
+					} else {
+						<CountedClear<T>>::insert(
+							&miner_snapshot.miner, 
+							count,
+						);
+					}
 				}
 
 				weight = weight.saturating_add(T::DbWeight::get().writes(1));

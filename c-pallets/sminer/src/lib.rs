@@ -1039,7 +1039,6 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 
 	fn get_reward() -> u128 {
 		<CurrencyReward<T>>::get().saturated_into()
-		
 	}
 
 	fn calculate_miner_reward(
