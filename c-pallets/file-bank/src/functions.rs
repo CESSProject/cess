@@ -454,32 +454,6 @@ impl<T: Config> Pallet<T> {
 
         Ok(())
     }
-
-    pub fn clear_bucket_file(
-        file_hash: &Hash,
-        owner: &AccountOf<T>,
-        bucket_name: &BoundedVec<u8, T::NameStrLimit>,
-    ) -> Result<Weight, DispatchError> {
-        let mut weight: Weight = Weight::from_ref_time(0);
-        ensure!(<Bucket<T>>::contains_key(owner, bucket_name), Error::<T>::NonExistent);
-
-        <Bucket<T>>::try_mutate(owner, bucket_name, |bucket_opt| -> DispatchResult {
-            let bucket = bucket_opt.as_mut().ok_or(Error::<T>::Unexpected)?;
-            ensure!(bucket.object_list.contains(file_hash), Error::<T>::NonExistent);
-            let mut index: usize = 0;
-            for object in bucket.object_list.iter() {
-                if object == file_hash {
-                    break;
-                }
-                index = index.checked_add(1).ok_or(Error::<T>::Overflow)?;
-            }
-            bucket.object_list.remove(index);
-            Ok(())
-        })?;
-        weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-
-        Ok(weight)
-    }
     /// helper: add user hold fileslice.
     ///
     /// Add files held by users.

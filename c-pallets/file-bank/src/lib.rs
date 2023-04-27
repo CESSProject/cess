@@ -343,8 +343,14 @@ pub mod pallet {
 					for file_info in file_info_list.iter() {
 						if let Ok(file) = <File<T>>::try_get(&file_info.file_hash) {
 							weight = weight.saturating_add(T::DbWeight::get().reads(1));
-							if let Ok(temp_weight) = Self::delete_user_file(&file_info.file_hash, &acc, &file) {
-								weight = weight.saturating_add(temp_weight);
+							if file.owner.len() > 1 {
+								if let Ok(()) = Self::remove_file_owner(&file_info.file_hash, &acc, false) {
+									weight = weight.saturating_add(T::DbWeight::get().reads_writes(2, 2));
+								}
+							 } else {
+								if let Ok(temp_weight) = Self::remove_file_last_owner(&file_info.file_hash, &acc, false) {
+									weight = weight.saturating_add(temp_weight);
+								}
 							}
 						}
 					}
@@ -552,8 +558,13 @@ pub mod pallet {
 				file_size,
 			)?;
 			//Clean up the file holding information of the original user
-			let _ = Self::clear_bucket_file(&file_hash, &sender, &owner_bucket_name)?;
-			// TODO! delete
+			let file = <File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::NonExistent)?;
+
+			let _ = Self::delete_user_file(&file_hash, &sender, &file)?;
+
+			Self::bucket_remove_file(&file_hash, &sender, &file)?;
+
+			Self::remove_user_hold_file_list(&file_hash, &sender)?;
 			// let _ = Self::clear_user_file(file_hash.clone(), &sender, true)?;
 
 			Ok(())
