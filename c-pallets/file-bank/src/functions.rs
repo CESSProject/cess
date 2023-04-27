@@ -150,12 +150,12 @@ impl<T: Config> Pallet<T> {
         let survival_block = start.checked_add(600 * (count as u32)).ok_or(Error::<T>::Overflow)?;
 
         T::FScheduler::schedule_named(
-                task_id, // TODO!
+                task_id, 
                 DispatchTime::At(survival_block.saturated_into()),
                 Option::None,
                 schedule::HARD_DEADLINE,
                 frame_system::RawOrigin::Root.into(),
-                Call::deal_reassign_miner{deal_hash: deal_hash, count: count}.into(), // TODO!
+                Call::deal_reassign_miner{deal_hash: deal_hash, count: count}.into(),
         ).map_err(|_| Error::<T>::Unexpected)?;
 
         Ok(())
@@ -163,15 +163,16 @@ impl<T: Config> Pallet<T> {
 
     pub(super) fn start_second_task(task_id: Vec<u8>, deal_hash: Hash, count: u8) -> DispatchResult {
         let start: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
+        // todo! calculate time
         let survival_block = start.checked_add(1 * (count as u32)).ok_or(Error::<T>::Overflow)?;
 
         T::FScheduler::schedule_named(
-                task_id, // TODO!
+                task_id,
                 DispatchTime::At(survival_block.saturated_into()),
                 Option::None,
                 schedule::HARD_DEADLINE,
                 frame_system::RawOrigin::Root.into(),
-                Call::calculate_end{deal_hash: deal_hash}.into(), // TODO!
+                Call::calculate_end{deal_hash: deal_hash}.into(), 
         ).map_err(|_| Error::<T>::Unexpected)?;
 
         Ok(())
@@ -282,6 +283,54 @@ impl<T: Config> Pallet<T> {
         len * (SEGMENT_SIZE * 15 / 10)
     }
 
+    pub(super) fn delete_user_file(file_hash: &Hash, acc: &AccountOf<T>, file: &FileInfo<T>) -> Result<Weight, DispatchError> {
+        let mut weight: Weight = Weight::from_ref_time(0);
+		ensure!(file.stat != FileState::Calculate, Error::<T>::Calculate);
+
+		for user_brief in file.owner.iter() {
+            if &user_brief.user == acc {
+                if file.owner.len() > 1 {
+                    Self::remove_file_owner(&file_hash, &acc, true)?;
+                    weight = weight.saturating_add(T::DbWeight::get().reads_writes(2, 2));
+                 } else {
+                    let temp_weight  = Self::remove_file_last_owner(&file_hash, &acc, true)?;
+                    weight = weight.saturating_add(temp_weight);
+                }
+            }
+		}
+
+        Ok(weight)
+    }
+
+    pub(super) fn bucket_remove_file(
+        file_hash: &Hash, 
+        acc: &AccountOf<T>,
+        file: &FileInfo<T>
+    ) -> DispatchResult {
+        for user_brief in file.owner.iter() {
+            if &user_brief.user == acc {
+                <Bucket<T>>::try_mutate(acc, &user_brief.bucket_name, |bucket_opt| -> DispatchResult {
+                    let bucket = bucket_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
+                    bucket.object_list.retain(|file| file != file_hash);
+                    Ok(())
+                })?
+            }
+		}
+        
+        Ok(())
+    }
+
+    pub(super) fn remove_user_hold_file_list(
+        file_hash: &Hash, 
+        acc: &AccountOf<T>,
+    ) -> DispatchResult {
+        <UserHoldFileList<T>>::try_mutate(acc, |file_list| -> DispatchResult {
+            file_list.retain(|temp_file| &temp_file.file_hash != file_hash);
+            Ok(())
+        })
+    }
+
+
     // The status of the file must be confirmed before use.
     pub(super) fn remove_file_owner(file_hash: &Hash, acc: &AccountOf<T>, user_clear: bool) -> DispatchResult {
         <File<T>>::try_mutate(file_hash, |file_opt| -> DispatchResult {
@@ -303,8 +352,11 @@ impl<T: Config> Pallet<T> {
     }
 
     // The status of the file must be confirmed before use.
-    pub(super) fn remove_file_last_owner(file_hash: &Hash, acc: &AccountOf<T>, user_clear: bool) -> DispatchResult {
-        let file = <File<T>>::try_get(file_hash).map_err(|_| Error::<T>::NonExistent)?;
+    pub(super) fn remove_file_last_owner(file_hash: &Hash, acc: &AccountOf<T>, user_clear: bool) -> Result<Weight, DispatchError> {
+        let mut weight = Weight::from_ref_time(0);
+
+        let file = <File<T>>::try_get(file_hash).map_err(|_| Error::<T>::NonExistent)?; // reads 1
+        weight = weight.saturating_add(T::DbWeight::get().reads(1));
         // Record the total number of fragments that need to be deleted.
         let mut total_fragment_dec = 0;
         // Used to record and store the amount of service space that miners need to reduce, 
@@ -332,26 +384,32 @@ impl<T: Config> Pallet<T> {
                     return Ok(true);
                 }
                 Ok(false)
-            })?;
+            })?; // reads_writes 1, 1
+            weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
             if flag {
                 <SegmentMap<T>>::remove(segment_info.hash);
+                weight = weight.saturating_add(T::DbWeight::get().writes(1));
             }
         }
 
         for (miner, count) in miner_list.iter() {
             T::MinerControl::sub_miner_service_space(miner, FRAGMENT_SIZE * *count as u128)?;
+            weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
         }
 
         let file_size = Self::cal_file_size(file.segment_list.len() as u128);
         if user_clear {
             T::StorageHandle::update_user_space(acc, 2, file_size)?;
+            weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
         }
         T::StorageHandle::sub_total_service_space(total_fragment_dec as u128 * FRAGMENT_SIZE)?;
+        weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
         <File<T>>::remove(file_hash);
+        weight = weight.saturating_add(T::DbWeight::get().writes(1));
 
-        Ok(())
+        Ok(weight)
     }
     /// helper: generate random number.
     ///

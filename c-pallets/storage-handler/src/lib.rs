@@ -450,7 +450,7 @@ impl<T: Config> Pallet<T> {
         let number: u128 = now.saturated_into();
         let block_oneday: BlockNumberOf<T> = <T as pallet::Config>::OneDay::get();
         let oneday: u32 = block_oneday.saturated_into();
-        let mut weight: Weight = Default::default();
+        let mut weight: Weight = Weight::from_ref_time(0);
         let mut clear_acc_list: Vec<AccountOf<T>> = Default::default();
         if number % oneday as u128 == 0 {
             log::info!("Start lease expiration check");
@@ -466,7 +466,6 @@ impl<T: Config> Pallet<T> {
                             Err(e) => log::error!("failed sub purchased space: {:?}", e),
                         };
                         weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-                        // TODO！！
                         clear_acc_list.push(acc);
                     } else {
                         if info.state.to_vec() != SPACE_FROZEN.as_bytes().to_vec() {

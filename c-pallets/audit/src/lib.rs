@@ -403,7 +403,7 @@ pub mod pallet {
 				}
 			} else {
 				if ChallengeProposal::<T>::count() > count {
-					// TODO! clear usage
+					// Proposal Generally Less
 					let _ = ChallengeProposal::<T>::clear(ChallengeProposal::<T>::count(), None);
 				} else {
 					ChallengeProposal::<T>::insert(

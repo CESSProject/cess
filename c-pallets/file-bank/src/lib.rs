@@ -342,22 +342,15 @@ pub mod pallet {
 				if let Ok(file_info_list) = <UserHoldFileList<T>>::try_get(&acc) {
 					for file_info in file_info_list.iter() {
 						if let Ok(file) = <File<T>>::try_get(&file_info.file_hash) {
-							if file.stat == FileState::Calculate {
-								log::info!("Unexpect file clear: {:?}", file_info.file_hash);
-								continue;
-							}
-
-							if file.owner.len() > 1 {
-								if let Err(e) = Self::remove_file_owner(&file_info.file_hash, &acc, false) {
-									log::error!("remove file failed: {:?}", file_info.file_hash);	
-								}
-							} else {
-								if let Err(e) = Self::remove_file_last_owner(&file_info.file_hash, &acc, false) {
-									log::error!("remove file failed: {:?}", file_info.file_hash);	
-								}
+							weight = weight.saturating_add(T::DbWeight::get().reads(1));
+							if let Ok(temp_weight) = Self::delete_user_file(&file_info.file_hash, &acc, &file) {
+								weight = weight.saturating_add(temp_weight);
 							}
 						}
 					}
+					<UserHoldFileList<T>>::remove(&acc);
+					// todo! clear all
+					let _ = <Bucket<T>>::clear_prefix(&acc, 100000, None);
 				}
 			}
 			
@@ -722,19 +715,12 @@ pub mod pallet {
 			ensure!(Self::check_permission(sender.clone(), owner.clone()), Error::<T>::NoPermission);
 
 			let file = <File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::NonExistent)?;
-			ensure!(file.stat != FileState::Calculate, Error::<T>::Calculate);
 
-			let mut acc_list: Vec<AccountOf<T>> = Default::default();
-			for user_brief in file.owner.into_iter() {
-				acc_list.push(user_brief.user);
-			}
-			ensure!(acc_list.contains(&owner), Error::<T>::NotOwner);
+			let _ = Self::delete_user_file(&file_hash, &owner, &file)?;
 
-			if acc_list.len() > 1 {
-				Self::remove_file_owner(&file_hash, &owner, true)?;
-			} else {
-				Self::remove_file_last_owner(&file_hash, &owner, true)?;
-			}
+			Self::bucket_remove_file(&file_hash, &owner, &file)?;
+
+			Self::remove_user_hold_file_list(&file_hash, &owner)?;
 
 			Self::deposit_event(Event::<T>::DeleteFile{ operator: sender, owner, file_hash });
 
