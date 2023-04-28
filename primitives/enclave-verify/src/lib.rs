@@ -12,6 +12,7 @@ use cp_cess_common::*;
 // use sp_runtime_interface::{
 // 	runtime_interface,
 // };
+use rsa::{PublicKey, Pkcs1v15Sign, pkcs8::DecodePublicKey};
 // #[cfg(feature = "std")]
 // sp_externalities::decl_extension! {
 // 	pub struct UseDalekExt;
@@ -112,34 +113,6 @@ pub fn hexstr_to_u8v(s: &str, x: &mut [u8]) {
     }
 }
 
-// #[runtime_interface]
-// pub trait Crypto {
-//     fn verify_sig(puk: &[u8; 32], sig: &[u8; 64], msg: &Vec<u8>) -> bool {
-//         if sp_externalities::with_externalities(|mut e| e.extension::<UseDalekExt>().is_some())
-//                 .unwrap_or_default()
-//         {
-//             use ed25519_dalek::Verifier;
-
-//             let sig = ed25519_dalek::Signature::from(*sig);
-
-//             let public_key = if let Ok(vk) = ed25519_dalek::PublicKey::from_bytes(puk) {
-//                 vk
-//             } else {
-//                 log::info!("导入公钥失败！");
-//                 return false;
-//             };
-
-//             return public_key.verify(msg, &sig).is_ok();
-//         }
-
-//         log::info!("没走if!");
-//         false
-//     }
-// }
-
-// #[cfg(feature = "std")]
-// pub type SubstrateHostFunctions = (crypto::HostFunctions);
-
 pub fn verify_miner_cert(
     ias_sig: &ReportSign,
     ias_cert: &Cert,
@@ -224,4 +197,13 @@ pub fn verify_miner_cert(
     // };
 
     Option::Some(1)
+}
+
+pub fn verify_rsa(key: &[u8], msg: &[u8], sig: &[u8]) -> bool {
+    let pk = rsa::RsaPublicKey::from_public_key_der(key).unwrap();
+
+    match pk.verify(Pkcs1v15Sign::new_raw(), msg, sig) {
+        Ok(()) => return true,
+        Err(_) => return false,
+    };
 }

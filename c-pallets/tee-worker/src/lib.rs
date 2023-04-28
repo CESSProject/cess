@@ -26,7 +26,7 @@ use sp_runtime::{
 	DispatchError, RuntimeDebug,
 };
 use sp_std::{ 
-	convert:: { TryFrom, TryInto },
+	convert::TryInto,
 	prelude::*,
 };
 
@@ -177,7 +177,7 @@ pub mod pallet {
 		#[pallet::call_index(1)]
         #[transactional]
 		#[pallet::weight(100_000_000)]
-		pub fn test_verify_sig(origin: OriginFor<T>, puk: [u8; 32], sig: [u8; 64], msg: Vec<u8>) -> DispatchResult {
+		pub fn test_verify_sig(origin: OriginFor<T>, puk: [u8; 32], sig: [u8; 64], _msg: Vec<u8>) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 
 			let result = sp_io::crypto::ed25519_verify(
@@ -188,6 +188,17 @@ pub mod pallet {
 
 			ensure!(result, Error::<T>::VerifyCertFailed);
 
+			Ok(())
+		}
+
+		#[pallet::call_index(2)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn test_rsa_verify(origin: OriginFor<T>, key: Vec<u8>, sig: Vec<u8>, msg: Vec<u8>) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+			let result = verify_rsa(&key, &msg, &sig);
+
+			ensure!(result, Error::<T>::VerifyCertFailed);
 			Ok(())
 		}
 
@@ -208,7 +219,6 @@ pub mod pallet {
 
 pub trait ScheduleFind<AccountId> {
 	fn contains_scheduler(acc: AccountId) -> bool;
-	fn get_controller_acc(acc: AccountId) -> AccountId;
 	fn punish_scheduler(acc: AccountId) -> DispatchResult;
 	fn get_first_controller() -> Result<AccountId, DispatchError>;
 	fn get_controller_list() -> Vec<AccountId>;
@@ -217,18 +227,6 @@ pub trait ScheduleFind<AccountId> {
 impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<T> {
 	fn contains_scheduler(acc: <T as frame_system::Config>::AccountId) -> bool {
 		TeeWorkerMap::<T>::contains_key(&acc)
-	}
-
-	fn get_controller_acc(
-		acc: <T as frame_system::Config>::AccountId,
-	) -> <T as frame_system::Config>::AccountId {
-		for (controller_user, tee_info) in TeeWorkerMap::<T>::iter() {
-			if tee_info.stash_account == acc {
-				return controller_user;
-			}
-		}
-		//TODO!
-		acc
 	}
 
 	fn punish_scheduler(acc: <T as frame_system::Config>::AccountId) -> DispatchResult {
