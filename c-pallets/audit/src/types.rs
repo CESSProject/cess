@@ -3,8 +3,6 @@ use super::*;
 
 // type AccountOf<T> = <T as frame_system::Config>::AccountId;
 // type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
-pub type BoundedList<T> =
-	BoundedVec<BoundedVec<u8, <T as Config>::StringLimit>, <T as Config>::StringLimit>;
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]

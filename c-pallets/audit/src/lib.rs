@@ -89,7 +89,6 @@ use scale_info::TypeInfo;
 use sp_core::H256;
 use sp_std::{ 
 		convert:: { TryFrom, TryInto },
-		collections::btree_map::BTreeMap, 
 		prelude::*
 	};
 use cp_cess_common::*;
@@ -121,7 +120,6 @@ pub mod sr25519 {
 }
 
 enum OffchainErr {
-	UnexpectedError,
 	Ineligible,
 	GenerateInfoError,
 	NetworkState,
@@ -134,7 +132,6 @@ enum OffchainErr {
 impl sp_std::fmt::Debug for OffchainErr {
 	fn fmt(&self, fmt: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
 		match *self {
-			OffchainErr::UnexpectedError => write!(fmt, "Should not appear, Unexpected error."),
 			OffchainErr::Ineligible => write!(fmt, "The current node does not have the qualification to execute offline working machines"),
 			OffchainErr::GenerateInfoError => write!(fmt, "Failed to generate random file meta information"),
 			OffchainErr::NetworkState => write!(fmt, "Failed to obtain the network status of the offline working machine"),
@@ -426,8 +423,6 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
-			let challenge_info = <ChallengeSnapShot<T>>::get().ok_or(Error::<T>::NoChallenge)?;
-
 			let miner_snapshot = <ChallengeSnapShot<T>>::try_mutate(|challenge_opt| -> Result<MinerSnapShot<AccountOf<T>>, DispatchError> {
 				let challenge_info = challenge_opt.as_mut().ok_or(Error::<T>::NoChallenge)?;
 
@@ -476,13 +471,13 @@ pub mod pallet {
 			miner: AccountOf<T>,
 			idle_result: bool,
 			service_result: bool,
-			tee_signature: NodeSignature,
+			_tee_signature: NodeSignature,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 	
 			// TODO! Podr2Key verify
 			UnverifyProof::<T>::mutate(&sender, |unverify_list| -> DispatchResult {
-				let last_count = unverify_list.len();
+				let _last_count = unverify_list.len();
 
 				for (index, miner_info) in unverify_list.iter().enumerate() {
 					if miner_info.snap_shot.miner == miner {
@@ -687,20 +682,8 @@ pub mod pallet {
 				.build()
 		}
 
-		//Obtain the consensus of the current block
-		fn get_current_scheduler() -> Result<AccountOf<T>, DispatchError> {
-			let digest = <frame_system::Pallet<T>>::digest();
-			let pre_runtime_digests = digest.logs.iter().filter_map(|d| d.as_pre_runtime());
-			let acc = T::FindAuthor::find_author(pre_runtime_digests).map(|a| a);
-			let acc = match acc {
-				Some(acc) => T::Scheduler::get_controller_acc(acc),
-				None => T::Scheduler::get_first_controller()?,
-			};
-			Ok(acc)
-		}
-
 		//Record challenge time
-		fn record_challenge_time(duration: BlockNumberOf<T>) -> DispatchResult {
+		fn _record_challenge_time(duration: BlockNumberOf<T>) -> DispatchResult {
 			let now = <frame_system::Pallet<T>>::block_number();
 			let verify_deadline = now
 				.checked_add(&duration)
@@ -741,7 +724,7 @@ pub mod pallet {
 
 		fn offchain_work_start(now: BlockNumberOf<T>) -> Result<(), OffchainErr> {
 			log::info!("get loacl authority...");
-			let (authority_id, validators_len) = Self::get_authority()?;
+			let (authority_id, _validators_len) = Self::get_authority()?;
 			log::info!("get loacl authority success!");
 			if !Self::check_working(&now, &authority_id) {
 				return Err(OffchainErr::Working);
@@ -969,19 +952,6 @@ pub mod pallet {
 					return random_vec[0..20].try_into().unwrap();
 				}
 			}
-		}
-
-		fn vec_to_bounded(param: Vec<Vec<u8>>) -> Result<BoundedList<T>, DispatchError> {
-			let mut result: BoundedList<T> =
-				Vec::new().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
-
-			for v in param {
-				let string: BoundedVec<u8, T::StringLimit> =
-					v.try_into().map_err(|_| Error::<T>::BoundedVecError)?;
-				result.try_push(string).map_err(|_| Error::<T>::BoundedVecError)?;
-			}
-
-			Ok(result)
 		}
 	}
 }

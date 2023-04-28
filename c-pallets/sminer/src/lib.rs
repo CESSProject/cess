@@ -28,7 +28,7 @@ use frame_support::{
 	transactional,
 	storage::bounded_vec::BoundedVec,
 	traits::{
-		schedule::{Anon as ScheduleAnon, DispatchTime, Named as ScheduleNamed},
+		schedule::{Anon as ScheduleAnon, Named as ScheduleNamed},
 		Currency,
 		ExistenceRequirement::AllowDeath,
 		Get, Imbalance, OnUnbalanced, ReservableCurrency,
@@ -53,13 +53,12 @@ use frame_support::{
 	dispatch::{DispatchResult, Dispatchable},
 	pallet_prelude::DispatchError,
 	PalletId,
-	traits::schedule,
 };
 use frame_system::{self as system};
 pub use pallet::*;
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::{AccountIdConversion, CheckedAdd, CheckedSub, CheckedMul, SaturatedConversion},
+	traits::{AccountIdConversion, CheckedAdd, CheckedSub, SaturatedConversion},
 	RuntimeDebug, Perbill,
 };
 use sp_std::{convert::TryInto, prelude::*};
@@ -83,7 +82,7 @@ pub mod pallet {
 		pallet_prelude::{ValueQuery, *},
 		traits::Get,
 	};
-	use frame_system::{ensure_root, ensure_signed, pallet_prelude::*};
+	use frame_system::{ensure_signed, pallet_prelude::*};
 
 	#[pallet::config]
 	pub trait Config: pallet_timestamp::Config + frame_system::Config {
@@ -757,7 +756,7 @@ impl<T: Config> Pallet<T> {
 		
 		Ok(())
 	}
-	// todo! Exit miners do not challenge
+
 	pub fn deposit_punish(miner: &AccountOf<T>, punish_amount: BalanceOf<T>) -> DispatchResult {
 		<MinerItems<T>>::try_mutate(miner, |miner_info_opt| -> DispatchResult {
 			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
@@ -798,7 +797,7 @@ impl<T: Config> Pallet<T> {
 		let power = Self::calculate_power(idle_space, service_space);
 		let limit = Self::check_collateral_limit(power)?;
 
-		let punish_amount = IDLE_MUTI.mul_floor(limit);
+		let punish_amount = IDLE_PUNI_MUTI.mul_floor(limit);
 
 		Self::deposit_punish(miner, punish_amount)?;
 
@@ -809,7 +808,7 @@ impl<T: Config> Pallet<T> {
 		let power = Self::calculate_power(idle_space, service_space);
 		let limit = Self::check_collateral_limit(power)?;
 
-		let punish_amount = SERVICE_MUTI.mul_floor(limit);
+		let punish_amount = SERVICE_PUNI_MUTI.mul_floor(limit);
 
 		Self::deposit_punish(miner, punish_amount)?;
 

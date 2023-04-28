@@ -170,7 +170,7 @@ pub mod pallet {
 		//file uploaded.
 		TransferReport { acc: AccountOf<T>, failed_list: Vec<Hash> },
 		//File deletion event
-		DeleteFile { operator:AccountOf<T>, owner: AccountOf<T>, file_hash: Hash },
+		DeleteFile { operator:AccountOf<T>, owner: AccountOf<T>, file_hash_list: Vec<Hash> },
 
 		ReplaceFiller { acc: AccountOf<T>, filler_list: Vec<Hash> },
 
@@ -335,10 +335,11 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberOf<T>> for Pallet<T> {
-		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
+		fn on_initialize(_now: BlockNumberOf<T>) -> Weight {
 			let (mut weight, acc_list) = T::StorageHandle::frozen_task();
 
 			for acc in acc_list.iter() {
+				// todo! Delete in blocks, and delete a part of each block
 				if let Ok(file_info_list) = <UserHoldFileList<T>>::try_get(&acc) {
 					for file_info in file_info_list.iter() {
 						if let Ok(file) = <File<T>>::try_get(&file_info.file_hash) {
@@ -499,7 +500,6 @@ pub mod pallet {
 
 			Ok(())
 		}
-		//TODO!
 		// Transfer needs to be restricted, such as target consent
 		/// Document ownership transfer function.
 		///
@@ -520,7 +520,6 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::ownership_transfer())]
 		pub fn ownership_transfer(
 			origin: OriginFor<T>,
-			owner_bucket_name: BoundedVec<u8, T::NameStrLimit>,
 			target_brief: UserBrief<T>,
 			file_hash: Hash,
 		) -> DispatchResult {
@@ -720,20 +719,23 @@ pub mod pallet {
 		#[pallet::call_index(6)]
 		#[transactional]
 		#[pallet::weight(1_000_000_000)]
-		pub fn delete_file(origin: OriginFor<T>, owner: AccountOf<T>, file_hash: Hash) -> DispatchResult {
+		pub fn delete_file(origin: OriginFor<T>, owner: AccountOf<T>, file_hash_list: Vec<Hash>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			// Check if you have operation permissions.
 			ensure!(Self::check_permission(sender.clone(), owner.clone()), Error::<T>::NoPermission);
+			ensure!(file_hash_list.len() < 10, Error::<T>::LengthExceedsLimit);
 
-			let file = <File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::NonExistent)?;
+			for file_hash in file_hash_list.iter() {
+				let file = <File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::NonExistent)?;
 
-			let _ = Self::delete_user_file(&file_hash, &owner, &file)?;
+				let _ = Self::delete_user_file(&file_hash, &owner, &file)?;
+	
+				Self::bucket_remove_file(&file_hash, &owner, &file)?;
+	
+				Self::remove_user_hold_file_list(&file_hash, &owner)?;
+			}
 
-			Self::bucket_remove_file(&file_hash, &owner, &file)?;
-
-			Self::remove_user_hold_file_list(&file_hash, &owner)?;
-
-			Self::deposit_event(Event::<T>::DeleteFile{ operator: sender, owner, file_hash });
+			Self::deposit_event(Event::<T>::DeleteFile{ operator: sender, owner, file_hash_list });
 
 			Ok(())
 		}

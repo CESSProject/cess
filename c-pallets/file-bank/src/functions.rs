@@ -193,7 +193,6 @@ impl<T: Config> Pallet<T> {
         let total = all_miner.len() as u32;
 
         // ensure!(total > miner_count, Error::<T>::NodesInsufficient);
-        // Maximum number of cycles set to prevent dead cycles TODO!
         let max_count = miner_count * 5;
         let mut cur_count = 0;
         let mut total_idle_space = 0;

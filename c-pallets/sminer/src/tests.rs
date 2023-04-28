@@ -649,4 +649,3 @@ fn faucet_should_work() {
 	});
 }
 
-//TODO! Scheduler method to test
