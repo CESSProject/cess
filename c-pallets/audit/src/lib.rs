@@ -727,17 +727,20 @@ pub mod pallet {
 			let (authority_id, _validators_len) = Self::get_authority()?;
 			log::info!("get loacl authority success!");
 			if !Self::check_working(&now, &authority_id) {
+				Self::unlock_offchain(&authority_id);
 				return Err(OffchainErr::Working);
 			}
 			log::info!("get challenge data...");
 			let challenge_info = Self::generation_challenge(now).map_err(|e| {
+				Self::unlock_offchain(&authority_id);
 				log::error!("generation challenge error:{:?}", e);
 				OffchainErr::GenerateInfoError
 			})?;
 			log::info!("get challenge success!");
 			log::info!("submit challenge to chain...");
-			Self::offchain_call_extrinsic(now, authority_id, challenge_info)?;
+			Self::offchain_call_extrinsic(now, authority_id.clone(), challenge_info)?;
 			log::info!("submit challenge to chain!");
+			Self::unlock_offchain(&authority_id);
 
 			Ok(())
 		}
@@ -769,6 +772,13 @@ pub mod pallet {
 			}
 
 			true
+		}
+
+		fn unlock_offchain(authority_id: &T::AuthorityId) {
+			let key = &authority_id.encode();
+			let mut storage = StorageValueRef::persistent(key);
+
+			storage.clear();
 		}
 
 		fn get_authority() -> Result<(T::AuthorityId, usize), OffchainErr> {
