@@ -180,8 +180,8 @@ pub mod pallet {
 		},
 		UpdataIp {
 			acc: AccountOf<T>,
-			old: Vec<u8>,
-			new: Vec<u8>,
+			old: [u8; 52],
+			new: [u8; 52],
 		},
 		StartOfBufferPeriod {
 			when: BlockNumberOf<T>,
@@ -260,11 +260,6 @@ pub mod pallet {
 		Reward<T>,
 	>;
 
-	#[pallet::storage]
-	#[pallet::getter(fn challenge_miner_list)]
-	pub(super) type ChallengeMinerList<T: Config> = 
-		StorageValue<_, BoundedVec<AccountOf<T>, T::ChallengeMinerMax>, ValueQuery>;
-
 	/// The hashmap for checking registered or not.
 	#[pallet::storage]
 	#[pallet::getter(fn faucet_record)]
@@ -295,7 +290,7 @@ pub mod pallet {
 		pub fn regnstk(
 			origin: OriginFor<T>,
 			beneficiary: AccountOf<T>,
-			peer_id: BoundedVec<u8, T::ItemLimit>,
+			peer_id: [u8; 52],
 			staking_val: BalanceOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -424,15 +419,15 @@ pub mod pallet {
 		#[pallet::call_index(3)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_ip())]
-		pub fn update_peer_id(origin: OriginFor<T>, peer_id: BoundedVec<u8, T::ItemLimit>) -> DispatchResult {
+		pub fn update_peer_id(origin: OriginFor<T>, peer_id: [u8; 52]) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
 
-			let old = <MinerItems<T>>::try_mutate(&sender, |miner_info_opt| -> Result<Vec<u8>, DispatchError> {
+			let old = <MinerItems<T>>::try_mutate(&sender, |miner_info_opt| -> Result<[u8; 52], DispatchError> {
 				let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
 				let old = miner_info.peer_id.clone();
 				miner_info.peer_id = peer_id.clone();
-				Ok(old.to_vec())
+				Ok(old)
 			})?;
 
 			Self::deposit_event(Event::<T>::UpdataIp { acc: sender, old, new: peer_id.into() });

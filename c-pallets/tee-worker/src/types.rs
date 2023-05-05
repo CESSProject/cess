@@ -5,7 +5,7 @@ use super::*;
 #[codec(mel_bound())]
 pub struct TeeWorkerInfo<T: pallet::Config> {
     pub controller_account: AccountOf<T>,
-    pub peer_id: [u8; 53],
+    pub peer_id: [u8; 52],
     pub node_key: NodePublicKey,
     pub stash_account: AccountOf<T>,
 }

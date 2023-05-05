@@ -754,7 +754,7 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_filler(filler_list.len() as u32))]
 		pub fn upload_filler(
 			origin: OriginFor<T>,
-			miner: AccountOf<T>,
+			_tee_worker: AccountOf<T>,
 			filler_list: Vec<FillerInfo<T>>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -765,14 +765,14 @@ pub mod pallet {
 			if !T::Scheduler::contains_scheduler(sender.clone()) {
 				Err(Error::<T>::ScheduleNonExistent)?;
 			}
-			let is_positive = T::MinerControl::is_positive(&miner)?;
+			let is_positive = T::MinerControl::is_positive(&sender)?;
 			ensure!(is_positive, Error::<T>::NotQualified);
 
 			for i in filler_list.iter() {
-				if <FillerMap<T>>::contains_key(&miner, i.filler_hash.clone()) {
+				if <FillerMap<T>>::contains_key(&sender, i.filler_hash.clone()) {
 					Err(Error::<T>::FileExistent)?;
 				}
-				<FillerMap<T>>::insert(miner.clone(), i.filler_hash.clone(), i);
+				<FillerMap<T>>::insert(sender.clone(), i.filler_hash.clone(), i);
 			}
 
 			let power = M_BYTE
@@ -780,9 +780,10 @@ pub mod pallet {
 				.ok_or(Error::<T>::Overflow)?
 				.checked_mul(filler_list.len() as u128)
 				.ok_or(Error::<T>::Overflow)?;
-			T::MinerControl::add_miner_idle_space(&miner, power)?;
+			T::MinerControl::add_miner_idle_space(&sender, power)?;
 			T::StorageHandle::add_total_idle_space(power)?;
-			Self::record_uploaded_fillers_size(&sender, &filler_list)?;
+			// TODO
+			// Self::record_uploaded_fillers_size(&sender, &filler_list)?;
 
 			Self::deposit_event(Event::<T>::FillerUpload { acc: sender, file_size: power as u64 });
 			Ok(())

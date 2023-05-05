@@ -137,7 +137,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			stash_account: AccountOf<T>,
 			node_key: NodePublicKey,
-			peer_id: [u8; 53],
+			peer_id: [u8; 52],
 			podr2_pbk: [u8; 294],
 			sgx_attestation_report: SgxAttestationReport,
 		) -> DispatchResult {

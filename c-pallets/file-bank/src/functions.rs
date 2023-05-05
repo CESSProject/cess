@@ -536,7 +536,7 @@ impl<T: Config> Pallet<T> {
         Ok(())
     }
 
-    pub(super) fn record_uploaded_fillers_size(scheduler_id: &T::AccountId, fillers: &Vec<FillerInfo<T>>) -> DispatchResult {
+    pub(super) fn _record_uploaded_fillers_size(scheduler_id: &T::AccountId, fillers: &Vec<FillerInfo<T>>) -> DispatchResult {
         for filler in fillers {
             T::CreditCounter::record_proceed_block_size(scheduler_id, filler.filler_size)?;
         }
