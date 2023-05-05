@@ -607,6 +607,10 @@ pub mod pallet {
 					seed += 1;
 					weight = weight.saturating_add(T::DbWeight::get().reads(1));
 					if unverify_list.len() > 0 {
+						match T::Scheduler::punish_scheduler(acc.clone()) {
+							Ok(()) => log::info!("punish scheduler success"),
+							Err(e) => log::error!("punish scheduler failed: {:?}", e),
+						};
 						// Count the number of verification tasks that need to be performed.
 						mission_count = mission_count.saturating_add(unverify_list.len() as u32);
 
