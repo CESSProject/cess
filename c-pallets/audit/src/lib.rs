@@ -393,6 +393,9 @@ pub mod pallet {
 						let duration = now.checked_add(&proposal.1.net_snap_shot.life).ok_or(Error::<T>::Overflow)?;
 						<ChallengeSnapShot<T>>::put(proposal.1);
 						<ChallengeDuration<T>>::put(duration);
+						let one_hour = T::OneHours::get();
+						let v_duration = duration.checked_add(&one_hour).ok_or(Error::<T>::Overflow)?;
+						<VerifyDuration<T>>::put(v_duration);
 						let _ = ChallengeProposal::<T>::clear(ChallengeProposal::<T>::count(), None);
 					}
 
@@ -818,7 +821,7 @@ pub mod pallet {
 		{
 			let miner_count = T::MinerControl::get_miner_count();
 
-			let need_miner_count = miner_count / 10;
+			let need_miner_count = miner_count / 10 + 1;
 
 			let index_list = Self::random_select_miner(need_miner_count, miner_count);
 
