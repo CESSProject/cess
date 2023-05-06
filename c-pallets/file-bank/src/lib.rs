@@ -887,7 +887,7 @@ pub mod pallet {
 
 			let lock_time = <MinerLock<T>>::try_get(&sender).map_err(|_| Error::<T>::MinerStateError)?;
 			let now = <frame_system::Pallet<T>>::block_number();
-			ensure!(now < lock_time, Error::<T>::MinerStateError);
+			ensure!(now > lock_time, Error::<T>::MinerStateError);
 
 			let result = T::MinerControl::is_positive(&sender)?;
 			ensure!(result, Error::<T>::MinerStateError);

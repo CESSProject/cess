@@ -122,7 +122,6 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn mr_enclave_whitelist)]
 	pub(super) type MrEnclaveWhitelist<T: Config> = StorageValue<_, BoundedVec<[u8; 64], T::MaxWhitelist>, ValueQuery>;
-	
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
