@@ -645,10 +645,14 @@ pub mod pallet {
 				}
 
 				//todo! duration reasonable time
-				let duration: BlockNumberOf<T> = mission_count.saturating_mul(10u32).saturated_into();
-				let new_block: BlockNumberOf<T> = now.saturating_add(duration);
-				<VerifyDuration<T>>::put(new_block);
-				<ChallengeSnapShot<T>>::kill();
+				if mission_count == 0 {
+					<ChallengeSnapShot<T>>::kill();
+				} else {
+					let duration: BlockNumberOf<T> = mission_count.saturating_mul(10u32).saturated_into();
+					let new_block: BlockNumberOf<T> = now.saturating_add(duration);
+					<VerifyDuration<T>>::put(new_block);
+				}
+				
 			}
 
 			weight
