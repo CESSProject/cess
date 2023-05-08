@@ -274,8 +274,6 @@ pub mod pallet {
 		UnexpectedError,
 	}
 
-
-
 	//Relevant time nodes for storage challenges
 	#[pallet::storage]
 	#[pallet::getter(fn challenge_duration)]
@@ -431,6 +429,10 @@ pub mod pallet {
 
 				for (index, miner_snapshot) in challenge_info.miner_snapshot_list.clone().iter().enumerate() {
 					if miner_snapshot.miner == sender {
+						let now = <frame_system::Pallet<T>>::block_number();
+						let duration = <ChallengeDuration<T>>::get();
+						ensure!(now > duration, Error::<T>::NoChallenge);
+						
 						challenge_info.miner_snapshot_list.remove(index);
 						return Ok(miner_snapshot.clone());
 					}

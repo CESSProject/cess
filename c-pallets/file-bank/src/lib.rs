@@ -185,6 +185,8 @@ pub mod pallet {
 		CreateBucket { operator: AccountOf<T>, owner: AccountOf<T>, bucket_name: Vec<u8>},
 		//Successfully delete the bucket event
 		DeleteBucket { operator: AccountOf<T>, owner: AccountOf<T>, bucket_name: Vec<u8>},
+
+		Withdraw { acc: AccountOf<T> },
 	}
 	#[pallet::error]
 	pub enum Error<T> {
@@ -946,6 +948,10 @@ pub mod pallet {
 			ensure!(now >= restoral_info.cooling_block, Error::<T>::MinerStateError);
 
 			T::MinerControl::withdraw(&sender)?;
+
+			Self::deposit_event(Event::<T>::Withdraw {
+				acc: sender,
+			});
 
 			Ok(())
 		}
