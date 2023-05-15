@@ -50,6 +50,8 @@ impl Hash {
 }
 
 pub type Mrenclave = [u8; 32];
+pub type PeerId = [u8; 38];
+pub type Podr2Key = [u8; 270];
 
 pub const M_BYTE: u128 = 1_048_576;
 pub const G_BYTE: u128 = 1_048_576 * 1024;

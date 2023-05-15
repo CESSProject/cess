@@ -339,7 +339,7 @@ pub mod pallet {
 	impl<T: Config> Hooks<BlockNumberOf<T>> for Pallet<T> {
 		fn on_initialize(_now: BlockNumberOf<T>) -> Weight {
 			let (mut weight, acc_list) = T::StorageHandle::frozen_task();
-
+			
 			for acc in acc_list.iter() {
 				// todo! Delete in blocks, and delete a part of each block
 				if let Ok(file_info_list) = <UserHoldFileList<T>>::try_get(&acc) {
@@ -919,7 +919,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			miner: AccountOf<T>,
 		) -> DispatchResult {
-			let _ = ensure_root(origin);
+			let _ = ensure_root(origin)?;
 
 			// judge lock state.
 			let result = T::MinerControl::is_lock(&miner)?;

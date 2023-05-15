@@ -234,7 +234,6 @@ pub mod pallet {
 
 		VerifyProof { tee_worker: AccountOf<T>, miner: AccountOf<T> },
 
-		OutstandingChallenges { miner: AccountOf<T>, file_id: Hash },
 	}
 
 	/// Error for the audit pallet.
@@ -417,7 +416,7 @@ pub mod pallet {
 		#[pallet::call_index(1)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
-		pub fn submit_prove(
+		pub fn submit_proof(
 			origin: OriginFor<T>,
 			idle_prove: BoundedVec<u8, T::SigmaMax>,
 			service_prove: BoundedVec<u8, T::SigmaMax>,

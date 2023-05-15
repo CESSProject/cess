@@ -6,7 +6,7 @@ use frame_support::pallet_prelude::MaxEncodedLen;
 pub struct MinerInfo<AccountId, Balance, BoundedString> {
 	//Income account
 	pub(super) beneficiary: AccountId,
-	pub(super) peer_id: [u8; 52],
+	pub(super) peer_id: PeerId,
 	pub(super) collaterals: Balance,
 	pub(super) debt: Balance,
 	//nomal, exit, frozen, e_frozen

@@ -34,7 +34,9 @@ pub enum FileState {
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct DealInfo<T: Config> {
-	pub(super) stage: u8,
+	// There are two stages in total: 
+	// the first stage and the second stage, represented by 1 or 2, respectively.
+	pub(super) stage: u8, 
 	pub(super) segment_list: BoundedVec<SegmentList<T>, T::SegmentCount>,
 	pub(super) needed_list: BoundedVec<SegmentList<T>, T::SegmentCount>,
 	pub(super) user: UserBrief<T>,

@@ -14,9 +14,7 @@ use frame_system::pallet_prelude::*;
 use frame_support::{
 	pallet_prelude::*, transactional,
 };
-// use cp_cess_common::{
-// 	IpAddress,
-// };
+use cp_cess_common::*;
 
 pub use pallet::*;
 
@@ -48,9 +46,9 @@ pub mod pallet {
 		//Cancel authorization success event
 		CancelAuthorize { acc: AccountOf<T> },
 		//The event of successful Oss registration
-		OssRegister { acc: AccountOf<T>, endpoint: BoundedVec<u8, T::P2PLength> },
+		OssRegister { acc: AccountOf<T>, endpoint: PeerId },
 		//Oss information change success event
-		OssUpdate { acc: AccountOf<T>, new_endpoint: BoundedVec<u8, T::P2PLength> },
+		OssUpdate { acc: AccountOf<T>, new_endpoint: PeerId },
 		//Oss account destruction success event
 		OssDestroy { acc: AccountOf<T> },
 	}
@@ -73,7 +71,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn oss)]
-	pub(super) type Oss<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<u8, T::P2PLength>>;
+	pub(super) type Oss<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, PeerId>;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -116,7 +114,7 @@ pub mod pallet {
 		#[pallet::call_index(2)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::register())]
-		pub fn register(origin: OriginFor<T>, endpoint: BoundedVec<u8, T::P2PLength>) -> DispatchResult {
+		pub fn register(origin: OriginFor<T>, endpoint: PeerId) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!<Oss<T>>::contains_key(&sender), Error::<T>::Registered);
 			<Oss<T>>::insert(&sender, endpoint.clone());
@@ -129,7 +127,7 @@ pub mod pallet {
 		#[pallet::call_index(3)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update())]
-		pub fn update(origin: OriginFor<T>, endpoint: BoundedVec<u8, T::P2PLength>) -> DispatchResult {
+		pub fn update(origin: OriginFor<T>, endpoint: PeerId) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(<Oss<T>>::contains_key(&sender), Error::<T>::UnRegister);
 

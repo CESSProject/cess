@@ -128,20 +128,6 @@ pub mod pallet {
 			acc: AccountOf<T>,
 			staking_val: BalanceOf<T>,
 		},
-		/// An account was redeemed.
-		Redeemed {
-			acc: AccountOf<T>,
-			deposit: BalanceOf<T>,
-		},
-		/// An account was claimed.
-		Claimed {
-			acc: AccountOf<T>,
-			deposit: BalanceOf<T>,
-		},
-		/// Storage space is triggered periodically.
-		TimingStorageSpace(),
-		/// Scheduled Task Execution
-		TimedTask(),
 		/// Users to withdraw faucet money
 		DrawFaucetMoney(),
 		/// User recharges faucet
@@ -155,14 +141,6 @@ pub mod pallet {
 		},
 		//The miners have been frozen
 		AlreadyFrozen {
-			acc: AccountOf<T>,
-		},
-		//Miner exit event
-		ExitDecl {
-			acc: AccountOf<T>,
-		},
-
-		MinerClaim {
 			acc: AccountOf<T>,
 		},
 
@@ -180,16 +158,9 @@ pub mod pallet {
 		},
 		UpdataIp {
 			acc: AccountOf<T>,
-			old: [u8; 52],
-			new: [u8; 52],
+			old: PeerId,
+			new: PeerId,
 		},
-		StartOfBufferPeriod {
-			when: BlockNumberOf<T>,
-		},
-		EndOfBufferPeriod {
-			when: BlockNumberOf<T>,
-		},
-
 		Receive {
 			acc: AccountOf<T>,
 			reward: BalanceOf<T>,
@@ -290,7 +261,7 @@ pub mod pallet {
 		pub fn regnstk(
 			origin: OriginFor<T>,
 			beneficiary: AccountOf<T>,
-			peer_id: [u8; 52],
+			peer_id: PeerId,
 			staking_val: BalanceOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -419,11 +390,11 @@ pub mod pallet {
 		#[pallet::call_index(3)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_ip())]
-		pub fn update_peer_id(origin: OriginFor<T>, peer_id: [u8; 52]) -> DispatchResult {
+		pub fn update_peer_id(origin: OriginFor<T>, peer_id: PeerId) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
 
-			let old = <MinerItems<T>>::try_mutate(&sender, |miner_info_opt| -> Result<[u8; 52], DispatchError> {
+			let old = <MinerItems<T>>::try_mutate(&sender, |miner_info_opt| -> Result<PeerId, DispatchError> {
 				let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
 				let old = miner_info.peer_id.clone();
 				miner_info.peer_id = peer_id.clone();

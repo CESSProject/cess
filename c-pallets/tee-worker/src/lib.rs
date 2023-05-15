@@ -47,7 +47,6 @@ pub mod pallet {
 		Blake2_128Concat,
 	};
 
-
 	#[pallet::config]
 	pub trait Config: frame_system::Config + pallet_cess_staking::Config {
 		/// The overarching event type.
@@ -117,7 +116,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn tee_podr2_pk)]
-	pub(super) type TeePodr2Pk<T: Config> = StorageValue<_, [u8; 294]>;
+	pub(super) type TeePodr2Pk<T: Config> = StorageValue<_, Podr2Key>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn mr_enclave_whitelist)]
@@ -132,12 +131,12 @@ pub mod pallet {
 		#[pallet::call_index(0)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::registration_scheduler())]
-		pub fn regist_scheduler(
+		pub fn register(
 			origin: OriginFor<T>,
 			stash_account: AccountOf<T>,
 			node_key: NodePublicKey,
-			peer_id: [u8; 52],
-			podr2_pbk: [u8; 294],
+			peer_id: PeerId,
+			podr2_pbk: Podr2Key,
 			sgx_attestation_report: SgxAttestationReport,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
