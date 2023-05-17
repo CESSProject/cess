@@ -174,7 +174,8 @@ pub mod pallet {
 		pub fn buy_space(origin: OriginFor<T>, gib_count: u32) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!<UserOwnedSpace<T>>::contains_key(&sender), Error::<T>::PurchasedSpace);
-			let space= G_BYTE.checked_mul(gib_count as u128).ok_or(Error::<T>::Overflow)?;
+            // For TEST
+			let space= M_BYTE.checked_mul(gib_count as u128).ok_or(Error::<T>::Overflow)?;
 			let unit_price = <UnitPrice<T>>::try_get()
 				.map_err(|_e| Error::<T>::BugInvalid)?;
 
