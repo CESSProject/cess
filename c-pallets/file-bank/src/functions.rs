@@ -132,6 +132,7 @@ impl<T: Config> Pallet<T> {
 
         let deal = DealInfo::<T> {
             stage: 1,
+            count: 1,
             segment_list: file_info,
             needed_list: needed_list,
             user: user_brief,
@@ -165,7 +166,7 @@ impl<T: Config> Pallet<T> {
         let start: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
         // todo! calculate time
         let survival_block = start.checked_add(1 * (count as u32)).ok_or(Error::<T>::Overflow)?;
-
+        // For test
         T::FScheduler::schedule_named(
                 task_id,
                 DispatchTime::At(survival_block.saturated_into()),

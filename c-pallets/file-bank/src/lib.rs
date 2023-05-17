@@ -479,6 +479,7 @@ pub mod pallet {
 					let miner_task_list = Self::random_assign_miner(&deal_info.needed_list)?;
 					deal_info.assigned_miner = miner_task_list;
 					deal_info.complete_list = Default::default();
+					deal_info.count = count;
 					Self::start_first_task(deal_hash.0.to_vec(), deal_hash, count + 1)?;
 					// unlock mienr space
 					for miner_task in &deal_info.assigned_miner {
@@ -756,7 +757,7 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_filler(filler_list.len() as u32))]
 		pub fn upload_filler(
 			origin: OriginFor<T>,
-			_tee_worker: AccountOf<T>,
+			tee_worker: AccountOf<T>,
 			filler_list: Vec<FillerInfo<T>>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -764,7 +765,7 @@ pub mod pallet {
 			if filler_list.len() > limit as usize {
 				Err(Error::<T>::LengthExceedsLimit)?;
 			}
-			if !T::Scheduler::contains_scheduler(sender.clone()) {
+			if !T::Scheduler::contains_scheduler(tee_worker.clone()) {
 				Err(Error::<T>::ScheduleNonExistent)?;
 			}
 			let is_positive = T::MinerControl::is_positive(&sender)?;
@@ -777,17 +778,17 @@ pub mod pallet {
 				<FillerMap<T>>::insert(sender.clone(), i.filler_hash.clone(), i);
 			}
 
-			let power = M_BYTE
+			let idle_space = M_BYTE
 				.checked_mul(8)
 				.ok_or(Error::<T>::Overflow)?
 				.checked_mul(filler_list.len() as u128)
 				.ok_or(Error::<T>::Overflow)?;
-			T::MinerControl::add_miner_idle_space(&sender, power)?;
-			T::StorageHandle::add_total_idle_space(power)?;
+			T::MinerControl::add_miner_idle_space(&sender, idle_space)?;
+			T::StorageHandle::add_total_idle_space(idle_space)?;
 			// TODO
 			// Self::record_uploaded_fillers_size(&sender, &filler_list)?;
 
-			Self::deposit_event(Event::<T>::FillerUpload { acc: sender, file_size: power as u64 });
+			Self::deposit_event(Event::<T>::FillerUpload { acc: sender, file_size: idle_space as u64 });
 			Ok(())
 		}
 		/// Clean up invalid idle files
