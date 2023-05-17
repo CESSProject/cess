@@ -81,6 +81,10 @@ pub mod pallet {
 		RegistrationTeeWorker { acc: AccountOf<T> },
 
 		UpdateScheduler { acc: AccountOf<T>, endpoint: IpAddress },
+
+		Exit { acc: AccountOf<T> },
+
+		UpdatePeerId { acc: AccountOf<T> },
 	}
 
 	#[pallet::error]
@@ -172,22 +176,22 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(1)]
-        #[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn test_verify_sig(origin: OriginFor<T>, puk: [u8; 32], sig: [u8; 64], _msg: Vec<u8>) -> DispatchResult {
-			let _ = ensure_signed(origin)?;
+		// #[pallet::call_index(1)]
+        // #[transactional]
+		// #[pallet::weight(100_000_000)]
+		// pub fn test_verify_sig(origin: OriginFor<T>, puk: [u8; 32], sig: [u8; 64], _msg: Vec<u8>) -> DispatchResult {
+		// 	let _ = ensure_signed(origin)?;
 
-			let result = sp_io::crypto::ed25519_verify(
-				&NodeSignature::from_raw(sig),
-				b"hello, world!",
-				&NodePublicKey::from_raw(puk),
-			);
+		// 	let result = sp_io::crypto::ed25519_verify(
+		// 		&NodeSignature::from_raw(sig),
+		// 		b"hello, world!",
+		// 		&NodePublicKey::from_raw(puk),
+		// 	);
 
-			ensure!(result, Error::<T>::VerifyCertFailed);
+		// 	ensure!(result, Error::<T>::VerifyCertFailed);
 
-			Ok(())
-		}
+		// 	Ok(())
+		// }
 
 		#[pallet::call_index(2)]
 		#[transactional]
@@ -212,6 +216,38 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		// #[pallet::call_index(4)]
+        // #[transactional]
+		// #[pallet::weight(100_000_000)]
+		// pub fn exit(origin: OriginFor<T>) -> DispatchResult {
+		// 	let sender = ensure_signed(origin)?;
+
+		// 	TeeWorkerMap::<T>::remove(&sender);
+
+		// 	Self::deposit_event(Event::<T>::Exit { acc: sender });
+
+		// 	Ok(())
+		// }
+
+		// #[pallet::call_index(5)]
+        // #[transactional]
+		// #[pallet::weight(100_000_000)]
+		// pub fn update_peer_id(origin: OriginFor<T>, new_peer_id: PeerId) -> DispatchResult {
+		// 	let sender = ensure_signed(origin)?;
+
+		// 	TeeWorkerMap::<T>::try_mutate(&sender, |info_opt| -> DispatchResult {
+		// 		let info = info_opt.as_mut().ok_or(Error::<T>::NonTeeWorker)?;
+
+		// 		info.peer_id = new_peer_id;
+
+		// 		Ok(())
+		// 	})?;
+
+		// 	Self::deposit_event(Event::<T>::UpdatePeerId { acc: sender });
+
+		// 	Ok(())
+		// }
 	}
 }
 
