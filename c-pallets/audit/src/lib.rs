@@ -315,6 +315,11 @@ pub mod pallet {
 	#[pallet::getter(fn counted_clear)]
 	pub(super) type CountedClear<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, u8, ValueQuery>;
 
+	// For TEST
+	#[pallet::storage]
+	#[pallet::getter(fn controller_button)]
+	pub(super) type ControllerButton<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
+
 	#[pallet::storage]
 	#[pallet::getter(fn lock)]
 	pub(super) type Lock<T: Config> = StorageValue<_, bool, ValueQuery>;
@@ -342,8 +347,9 @@ pub mod pallet {
 			let deadline = Self::verify_duration();
 			if sp_io::offchain::is_validator() {
 				if now > deadline {
-					//Determine whether to trigger a challenge
-					// if Self::trigger_challenge(now) {
+					// For TEST
+					let permission = <ControllerButton<T>>::get();
+					if permission == now {
 						log::info!("offchain worker random challenge start");
 						if let Err(e) = Self::offchain_work_start(now) {
 							match e {
@@ -352,6 +358,10 @@ pub mod pallet {
 							};
 						}
 						log::info!("offchain worker random challenge end");
+					}
+					//Determine whether to trigger a challenge
+					// if Self::trigger_challenge(now) {
+						
 					// }
 				}
 			}
@@ -532,6 +542,51 @@ pub mod pallet {
 	
 			Ok(())
 		}
+
+		#[pallet::call_index(3)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn update_verify_duration(
+			origin: OriginFor<T>,
+			d: BlockNumberOf<T>,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			<VerifyDuration<T>>::put(d);
+
+			Ok(())
+		}
+
+		#[pallet::call_index(4)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn update_challenge_duration(
+			origin: OriginFor<T>,
+			d: BlockNumberOf<T>,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			<ChallengeDuration<T>>::put(d);
+
+			Ok(())
+		}
+
+		#[pallet::call_index(5)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn update_permission(
+			origin: OriginFor<T>,
+			d: BlockNumberOf<T>,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			<ControllerButton<T>>::put(d);
+
+			Ok(())
+		}
+
+		
+		
 	}
 
 	
@@ -826,60 +881,99 @@ pub mod pallet {
 		{
 			let miner_count = T::MinerControl::get_miner_count();
 
-			let need_miner_count = miner_count / 10 + 1;
-
-			let index_list = Self::random_select_miner(need_miner_count, miner_count);
-
-			let allminer = T::MinerControl::get_all_miner().map_err(|_| OffchainErr::GenerateInfoError)?;
-
-			let mut miner_list: BoundedVec<MinerSnapShot<AccountOf<T>>, T::ChallengeMinerMax> = Default::default();
-			let mut total_idle_space: u128 = u128::MIN;
-			let mut total_service_space: u128 = u128::MIN;
-			let total_reward: u128 = T::MinerControl::get_reward();
-			for index in index_list {
-				
-				let miner = allminer[index as usize].clone();
-				let state = T::MinerControl::get_miner_state(&miner).map_err(|_| OffchainErr::GenerateInfoError)?;
-				if state == "lock".as_bytes().to_vec() {
-					continue;
-				}
-
-				let (idle_space, service_space) = T::MinerControl::get_power(&miner).map_err(|_| OffchainErr::GenerateInfoError)?;
-
-				total_idle_space = total_idle_space.checked_add(idle_space).ok_or(OffchainErr::Overflow)?;
-				total_service_space = total_service_space.checked_add(service_space).ok_or(OffchainErr::Overflow)?;
-				let miner_snapshot = MinerSnapShot::<AccountOf<T>> {
-					miner,
-					idle_space,
-					service_space,
-				};
-				let result = miner_list.try_push(miner_snapshot);
-				if let Err(_e) = result {
-					break;
-				};
+			if miner_count == 0 {
+				Err(OffchainErr::GenerateInfoError)?;
 			}
 
-			let random = Self::generate_challenge_random(now.saturated_into());
+			let need_miner_count = miner_count / 10 + 1;
 
+			let mut miner_list: BoundedVec<MinerSnapShot<AccountOf<T>>, T::ChallengeMinerMax> = Default::default();
+
+			let mut valid_index_list: Vec<u32> = Default::default();
+
+			let mut total_idle_space: u128 = u128::MIN;
+			let mut total_service_space: u128 = u128::MIN;
+			// TODO: need to set a maximum number of cycles
+			while (miner_list.len() as u32 != need_miner_count) || (valid_index_list.len() as u32 != miner_count) {
+				let index_list = Self::random_select_miner(need_miner_count, miner_count, &valid_index_list);
+
+				let allminer = T::MinerControl::get_all_miner().map_err(|_| OffchainErr::GenerateInfoError)?;
+
+				for index in index_list {
+					valid_index_list.push(index);
+					let miner = allminer[index as usize].clone();
+					let state = T::MinerControl::get_miner_state(&miner).map_err(|_| OffchainErr::GenerateInfoError)?;
+					if state == "lock".as_bytes().to_vec() {
+						continue;
+					}
+	
+					let (idle_space, service_space) = T::MinerControl::get_power(&miner).map_err(|_| OffchainErr::GenerateInfoError)?;
+
+					if (idle_space == 0) && (service_space == 0) {
+						continue;
+					}
+	
+					total_idle_space = total_idle_space.checked_add(idle_space).ok_or(OffchainErr::Overflow)?;
+					total_service_space = total_service_space.checked_add(service_space).ok_or(OffchainErr::Overflow)?;
+					let miner_snapshot = MinerSnapShot::<AccountOf<T>> {
+						miner,
+						idle_space,
+						service_space,
+					};
+					let result = miner_list.try_push(miner_snapshot);
+					if let Err(_e) = result {
+						break;
+					};
+				}
+			}
+
+			let mut random_index_list: Vec<u32> = Default::default();
+			let need_count = CHUNK_COUNT * 46 / 1000;
+			let mut seed: u32 = u32::MIN;
+			while random_index_list.len() < need_count as usize {
+				seed = seed + 1;
+				let random_index = (Self::random_number(seed) % CHUNK_COUNT as u64) as u32;
+				if !random_index_list.contains(&random_index) {
+					random_index_list.push(random_index);
+				}
+			}
+
+			let mut random_list: Vec<[u8; 20]> = Default::default();
+			let mut seed: u32 = now.saturated_into();
+			while random_list.len() < need_count as usize {
+				seed = seed + 1;
+				let random_number = Self::generate_challenge_random(seed);
+				if !random_list.contains(&random_number) {
+					random_list.push(random_number);
+				}
+			}
+
+			let total_reward: u128 = T::MinerControl::get_reward();
 			let snap_shot = NetSnapShot::<BlockNumberOf<T>>{
 				start: now,
 				life: now,
 				total_reward,
 				total_idle_space,
 				total_service_space,
-				random,
+				random_index_list: random_index_list.try_into().map_err(|_| OffchainErr::GenerateInfoError)?,
+				random_list: random_list.try_into().map_err(|_| OffchainErr::GenerateInfoError)?,
 			};
 
 			Ok( ChallengeInfo::<T>{ net_snap_shot: snap_shot, miner_snapshot_list: miner_list } )
 		}
 
-		fn random_select_miner(need: u32, length: u32) -> Vec<u32> {
+		// Ensure that the length is not 0
+		fn random_select_miner(need: u32, length: u32, valid_index_list: &Vec<u32>) -> Vec<u32> {
 			let mut miner_index_list: Vec<u32> = Default::default();
 			let mut seed: u32 = 20230417;
 			while (miner_index_list.len() as u32) < need {
 				seed += 1;
 				let index = Self::random_number(seed);
 				let index: u32 = (index % length as u64) as u32;
+
+				if valid_index_list.contains(&index) {
+					continue;
+				}
 
 				if !miner_index_list.contains(&index) {
 					miner_index_list.push(index);
