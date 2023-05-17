@@ -18,7 +18,8 @@ pub struct NetSnapShot<Block> {
 	pub(super) total_reward: u128,
 	pub(super) total_idle_space: u128,
 	pub(super) total_service_space: u128,
-	pub(super) random: [u8; 20],
+	pub(super) random_index_list: BoundedVec<u32, ConstU32<1024>>,
+	pub(super) random_list: BoundedVec<[u8; 20], ConstU32<1024>>,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]

@@ -59,9 +59,10 @@ pub const T_BYTE: u128 = 1_048_576 * 1024 * 1024;
 
 pub const SEGMENT_SIZE: u128 = M_BYTE * 16;
 pub const FRAGMENT_SIZE: u128 = M_BYTE * 8;
+pub const CHUNK_COUNT: u32 = 1024;
 
 pub type NodePublicKey = sp_core::ed25519::Public;
-pub type NodeSignature = sp_core::ed25519::Signature;
+pub type NodeSignature = [u8; 64];
 
 pub type ReportSign = BoundedVec<u8, ConstU32<344>>;
 pub type Report =  BoundedVec<u8, ConstU32<1354>>;
