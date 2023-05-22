@@ -89,7 +89,8 @@ use scale_info::TypeInfo;
 use sp_core::H256;
 use sp_std::{ 
 		convert:: { TryFrom, TryInto },
-		prelude::*
+		prelude::*,
+		collections::btree_map::BTreeMap,
 	};
 use cp_cess_common::*;
 pub mod weights;
@@ -440,7 +441,7 @@ pub mod pallet {
 					if miner_snapshot.miner == sender {
 						let now = <frame_system::Pallet<T>>::block_number();
 						let duration = <ChallengeDuration<T>>::get();
-						ensure!(now > duration, Error::<T>::NoChallenge);
+						ensure!(now < duration, Error::<T>::NoChallenge);
 						
 						challenge_info.miner_snapshot_list.remove(index);
 						return Ok(miner_snapshot.clone());
@@ -661,6 +662,7 @@ pub mod pallet {
 				// Used to calculate the new validation period.
 				let mut mission_count: u32 = 0;
 				let tee_list = T::Scheduler::get_controller_list();
+				let mut reassign_list: BTreeMap<AccountOf<T>, BoundedVec<ProveInfo<T>, T::VerifyMissionMax>> = Default::default();
 
 				for (acc, unverify_list) in UnverifyProof::<T>::iter() {
 					seed += 1;
@@ -682,19 +684,22 @@ pub mod pallet {
 							index = index % (tee_list.len() as u32);
 							tee_acc = &tee_list[index as usize];
 						}
-	
-						let result = UnverifyProof::<T>::mutate(tee_acc, |tar_unverify_list| -> DispatchResult {
-							tar_unverify_list.try_append(&mut unverify_list.to_vec()).map_err(|_| Error::<T>::Overflow)?;
-							Ok(())
-						});
-						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
-						if result.is_err() {
-							let new_block: BlockNumberOf<T> = now.saturating_add(5u32.saturated_into());
-							<VerifyDuration<T>>::put(new_block);
-							weight = weight.saturating_add(T::DbWeight::get().writes(1));
-							return weight;
+						if let Some(value) = reassign_list.get_mut(tee_acc) {
+							let result = value.try_append(&mut unverify_list.to_vec());
+
+							if result.is_err() {
+								let new_block: BlockNumberOf<T> = now.saturating_add(5u32.saturated_into());
+								<VerifyDuration<T>>::put(new_block);
+								weight = weight.saturating_add(T::DbWeight::get().writes(1));
+								return weight;
+							}
+						} else {
+							reassign_list.insert(tee_acc.clone(), unverify_list);
 						}
+						
+	
+						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
 						UnverifyProof::<T>::remove(acc);
 					}
@@ -704,6 +709,23 @@ pub mod pallet {
 				if mission_count == 0 {
 					<ChallengeSnapShot<T>>::kill();
 				} else {
+					for (acc, unverify_list) in reassign_list {
+						let result = UnverifyProof::<T>::mutate(acc, |tar_unverify_list| -> DispatchResult {
+							tar_unverify_list.try_append(&mut unverify_list.to_vec()).map_err(|_| Error::<T>::Overflow)?;
+							// tar_unverify_list.try_push(mission)
+							Ok(())
+						});
+
+						if result.is_err() {
+							let new_block: BlockNumberOf<T> = now.saturating_add(5u32.saturated_into());
+							<VerifyDuration<T>>::put(new_block);
+							weight = weight.saturating_add(T::DbWeight::get().writes(1));
+							return weight;
+						}
+
+						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+					}
+
 					let duration: BlockNumberOf<T> = mission_count.saturating_mul(10u32).saturated_into();
 					let new_block: BlockNumberOf<T> = now.saturating_add(duration);
 					<VerifyDuration<T>>::put(new_block);
