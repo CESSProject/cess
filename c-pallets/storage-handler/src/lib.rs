@@ -64,6 +64,9 @@ pub mod pallet {
 		type FilbakPalletId: Get<PalletId>;
 
         #[pallet::constant]
+        type TreasuryPalletId: Get<PalletId>;
+
+        #[pallet::constant]
         type StateStringMax: Get<u32> + Clone + Eq + PartialEq;
         
 		#[pallet::constant]
@@ -308,6 +311,20 @@ pub mod pallet {
 			let _ = ensure_root(origin)?;
 			let default_price: BalanceOf<T> = 30u32.saturated_into();
 			UnitPrice::<T>::put(default_price);
+
+			Ok(())
+		}
+
+        // For TEST
+        #[pallet::call_index(5)]
+        #[transactional]
+		#[pallet::weight(100_000_000)]
+        pub fn add_treasury(origin: OriginFor<T>, #[pallet::compact] amount: BalanceOf<T>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+            let receiver = T::TreasuryPalletId::get().into_account_truncating();
+
+            <T as pallet::Config>::Currency::transfer(&sender, &receiver, amount, AllowDeath)?;
 
 			Ok(())
 		}

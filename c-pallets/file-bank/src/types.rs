@@ -79,10 +79,7 @@ pub struct FragmentInfo<T: Config> {
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct FillerInfo<T: Config> {
-	pub filler_size: u64,
 	pub block_num: u32,
-	pub segment_size: u32,
-	pub scan_size: u32,
 	pub miner_address: AccountOf<T>,
 	pub filler_hash: Hash,
 }
