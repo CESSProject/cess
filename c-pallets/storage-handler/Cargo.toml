@@ -13,6 +13,7 @@ log = { version = "0.4.14", default-features = false }
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }
 scale-info = { default-features = false, features = ['derive'], version = "2.0.1" }
 serde = { version = "1.0.136", optional = true }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 
 # substrate pallet
 frame-support = { version = "4.0.0-dev", git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36", default-features = false }
@@ -20,6 +21,7 @@ frame-system = { version = "4.0.0-dev", git = 'https://github.com/CESSProject/su
 sp-std = { version = "5.0.0", git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36", default-features = false }
 pallet-balances = { version = "4.0.0-dev", git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36", default-features = false }
 sp-runtime = { version = "7.0.0", git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36", default-features = false }
+sp-io = { version = "7.0.0", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.36" }
 
 # local dependencies
 pallet-sminer = { version = "0.5.3", path = '../sminer', default-features = false }

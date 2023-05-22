@@ -17,8 +17,10 @@ use sp_runtime::{
         AccountIdConversion, CheckedAdd, CheckedMul, CheckedDiv, CheckedSub,
 		SaturatedConversion,
 	},
+    offchain::{http, Duration},
 	RuntimeDebug,
 };
+use serde_json;
 use sp_std::{convert::TryInto, prelude::*, str};
 /// for types 
 use codec::{Decode, Encode, MaxEncodedLen};
@@ -162,6 +164,16 @@ pub mod pallet {
 			UnitPrice::<T>::put(self.price);
 		}
 	}
+
+    #[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberOf<T>> for Pallet<T> {
+        fn offchain_worker(now: T::BlockNumber) {
+            let _one_day = T::OneDay::get();
+            // if now % one_day == 0 {
+            let _ = Self::oracle_price();
+            // }
+        }
+    }
 
     #[pallet::call]
 	impl<T: Config> Pallet<T> {
@@ -613,6 +625,55 @@ impl<T: Config> Pallet<T> {
             *purchased_space = purchased_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
             Ok(())
         })
+    }
+
+    fn oracle_price() -> Result<(), http::Error> {
+        let deadline = sp_io::offchain::timestamp().add(Duration::from_millis(2_000));
+
+        let request = http::Request::get("https://min-api.cryptocompare.com/data/pricemultifull?fsyms=FIL&tsyms=USD");
+        let pending = request.deadline(deadline).send().map_err(|_| http::Error::IoError)?;
+        let response = pending.try_wait(deadline).map_err(|_| http::Error::DeadlineReached)??;
+
+        if response.code != 200 {
+            log::warn!("Unexpected status code: {}", response.code);
+            return Err(http::Error::Unknown)
+        }
+
+        let body = response.body().collect::<Vec<u8>>();
+        // Create a str slice from the body.
+        let body_str = sp_std::str::from_utf8(&body).map_err(|_| {
+            log::warn!("No UTF8 body");
+            http::Error::Unknown
+        })?;
+
+        log::info!("{:?}", body_str);
+        let v: serde_json::Value = serde_json::from_str(body_str).map_err(|_| {
+            log::warn!("serdeJson convert failed");
+            http::Error::Unknown
+        })?;
+
+        let v_obj = v["RAW"]["FIL"]["USD"].as_object().unwrap();
+
+        // let v_obj = v_obj.get("FIL").expect("FIL error").as_object().unwrap();
+
+        // let v_obj = v_obj.get("USD").expect("USD error").as_object().unwrap();
+
+        // log::info!
+        if let Some(price) = v_obj.get("PRICE").unwrap().as_f64() {
+            log::info!("price is: {:?}", price);
+
+            let doller_price: u128 = (price * 1000.0) as u128;
+            log::info!("doller_price is: {:?}", doller_price);
+            let one_cess: u128 = 1_000_000_000_000;
+            let storage_price = one_cess
+                .checked_mul(1000u128).unwrap()
+                .checked_div(doller_price).unwrap();
+
+            log::info!("cess storage price: {:?}", storage_price);
+        }
+
+        Ok(())
+
     }
 }
 

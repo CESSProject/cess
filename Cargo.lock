@@ -5449,6 +5449,8 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
+ "serde_json",
+ "sp-io",
  "sp-runtime",
  "sp-std",
 ]

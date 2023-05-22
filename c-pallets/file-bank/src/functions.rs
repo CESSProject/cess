@@ -513,18 +513,6 @@ impl<T: Config> Pallet<T> {
         false
     }
 
-    pub(super) fn _record_uploaded_files_size(scheduler_id: &T::AccountId, file_size: u64) -> DispatchResult {
-        T::CreditCounter::record_proceed_block_size(scheduler_id, file_size)?;
-        Ok(())
-    }
-
-    pub(super) fn _record_uploaded_fillers_size(scheduler_id: &T::AccountId, fillers: &Vec<FillerInfo<T>>) -> DispatchResult {
-        for filler in fillers {
-            T::CreditCounter::record_proceed_block_size(scheduler_id, filler.filler_size)?;
-        }
-        Ok(())
-    }
-
     pub(super) fn clear_filler(miner: &AccountOf<T>, maybe_cursor: Option<&[u8]>) {
         let result = <FillerMap<T>>::clear_prefix(miner, 100000, maybe_cursor);
         if let Some(cursor) = result.maybe_cursor {
