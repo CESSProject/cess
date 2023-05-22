@@ -435,25 +435,6 @@ impl<T: Config> Pallet<T> {
             counter = counter.checked_add(1).ok_or(Error::<T>::Overflow)?;
         }
     }
-    /// helper: delete filler.
-    ///
-    /// delete filler.
-    ///
-    /// Parameters:
-    /// - `miner_acc`: miner AccountId.
-    /// - `filler_hash`: filler hash.
-    /// Result:
-    /// - DispatchResult
-    pub fn delete_filler(miner_acc: AccountOf<T>, filler_hash: Hash) -> DispatchResult {
-        if !<FillerMap<T>>::contains_key(&miner_acc, filler_hash.clone()) {
-            Err(Error::<T>::FileNonExistent)?;
-        }
-        let _value = <FillerMap<T>>::try_get(&miner_acc, filler_hash.clone()) //read 1
-            .map_err(|_e| Error::<T>::FileNonExistent)?;
-        <FillerMap<T>>::remove(miner_acc, filler_hash.clone()); //write 1
-
-        Ok(())
-    }
     /// helper: add user hold fileslice.
     ///
     /// Add files held by users.
