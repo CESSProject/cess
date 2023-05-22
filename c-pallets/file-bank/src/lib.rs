@@ -177,6 +177,8 @@ pub mod pallet {
 		CalculateEnd{ file_hash: Hash },
 		//Filler chain success event
 		FillerUpload { acc: AccountOf<T>, file_size: u64 },
+
+		FillerDelete { acc: AccountOf<T>, filler_hash: Hash },
 		//File recovery
 		RecoverFile { acc: AccountOf<T>, file_hash: [u8; 68] },
 		//The miner cleaned up an invalid file event
@@ -791,6 +793,32 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::FillerUpload { acc: sender, file_size: idle_space as u64 });
 			Ok(())
 		}
+
+		#[pallet::call_index(9)]
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_filler(1))]
+		pub fn delete_filler(
+			origin: OriginFor<T>,
+			filler_hash: Hash,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			let is_positive = T::MinerControl::is_positive(&sender)?;
+			ensure!(is_positive, Error::<T>::NotQualified);
+			ensure!(<FillerMap<T>>::contains_key(&sender, &filler_hash), Error::<T>::NonExistent);
+
+			let idle_space = M_BYTE
+				.checked_mul(8)
+				.ok_or(Error::<T>::Overflow)?;
+			T::MinerControl::sub_miner_idle_space(&sender, idle_space)?;
+			T::StorageHandle::sub_total_idle_space(idle_space)?;
+
+			<FillerMap<T>>::remove(&sender, &filler_hash);
+
+			Self::deposit_event(Event::<T>::FillerDelete { acc: sender, filler_hash: filler_hash });
+
+			Ok(())
+		}
 		/// Clean up invalid idle files
 		///
 		/// When the idle documents are replaced or proved to be invalid,
@@ -798,7 +826,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `file_hash`: Invalid file hash
-		#[pallet::call_index(9)]
+		#[pallet::call_index(10)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::clear_invalid_file())]
 		pub fn clear_invalid_file(origin: OriginFor<T>, file_hash: Hash) -> DispatchResult {
@@ -963,8 +991,6 @@ pub trait RandomFileList<AccountId> {
 	//Get random challenge data
 	fn get_random_challenge_data(
 	) -> Result<Vec<(AccountId, Hash, [u8; 68], Vec<u32>, u64, DataType)>, DispatchError>;
-	//Delete filler file
-	fn delete_filler(miner_acc: AccountId, filler_hash: Hash) -> DispatchResult;
 	//Delete all filler according to miner_acc
 	fn delete_miner_all_filler(miner_acc: AccountId) -> Result<Weight, DispatchError>;
 	//Delete file backup
@@ -979,10 +1005,6 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 		Ok(Default::default())
 	}
 
-	fn delete_filler(miner_acc: AccountOf<T>, filler_hash: Hash) -> DispatchResult {
-		Pallet::<T>::delete_filler(miner_acc, filler_hash)?;
-		Ok(())
-	}
 	fn delete_miner_all_filler(miner_acc: AccountOf<T>) -> Result<Weight, DispatchError> {
 		let mut weight: Weight = Weight::from_ref_time(0);
 		for (_, _value) in FillerMap::<T>::iter_prefix(&miner_acc) {
