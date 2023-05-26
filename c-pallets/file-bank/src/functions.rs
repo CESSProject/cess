@@ -274,8 +274,7 @@ impl<T: Config> Pallet<T> {
         for miner_task in miner_task_list.iter() {
             T::MinerControl::lock_space(&miner_task.miner, miner_task.fragment_list.len() as u128 * FRAGMENT_SIZE)?;
         }
-         
-        
+
         Ok(miner_task_list)
     }
 
@@ -511,18 +510,6 @@ impl<T: Config> Pallet<T> {
             return true;
         }
         false
-    }
-
-    pub(super) fn _record_uploaded_files_size(scheduler_id: &T::AccountId, file_size: u64) -> DispatchResult {
-        T::CreditCounter::record_proceed_block_size(scheduler_id, file_size)?;
-        Ok(())
-    }
-
-    pub(super) fn _record_uploaded_fillers_size(scheduler_id: &T::AccountId, fillers: &Vec<FillerInfo<T>>) -> DispatchResult {
-        for filler in fillers {
-            T::CreditCounter::record_proceed_block_size(scheduler_id, filler.filler_size)?;
-        }
-        Ok(())
     }
 
     pub(super) fn clear_filler(miner: &AccountOf<T>, maybe_cursor: Option<&[u8]>) {
