@@ -8,6 +8,9 @@ pub mod mock;
 mod tests;
 pub mod weights;
 
+mod types;
+use types::*;
+
 use frame_system::pallet_prelude::*;
 use frame_support::{
 	pallet_prelude::*,
@@ -15,39 +18,13 @@ use frame_support::{
 		Currency, LockableCurrency,
 		ExistenceRequirement::KeepAlive,
 	},
+	transactional,
 };
-use cp_cess_common::{
-	IpAddress,
-};
+use cp_cess_common::IpAddress;
 
 pub use pallet::*;
-use sp_runtime::traits::Zero;
 use sp_std::prelude::*;
 pub use weights::WeightInfo;
-
-type AccountOf<T> = <T as frame_system::Config>::AccountId;
-/// The balance type of this pallet.
-pub type BalanceOf<T> =
-	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-
-/// The custom struct for cacher info.
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-pub struct CacherInfo<AccoutId, Balance> {
-	pub acc: AccoutId,
-	pub ip: IpAddress,
-	pub byte_price: Balance,
-}
-
-/// The custom struct for bill info.
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-pub struct Bill<AccoutId, Balance, Hash> {
-	pub id: [u8; 16], 
-	pub to: AccoutId,
-	pub amount: Balance,
-	pub file_hash: Hash,
-	pub slice_hash: Hash,
-	pub expiration_time: u64,
-}
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -60,6 +37,10 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// The currency trait.
 		type Currency: LockableCurrency<Self::AccountId>;
+
+		/// The maximum length of bill list when calling the pay function.
+		#[pallet::constant]
+		type BillsLimit: Get<u32>;
 
 		type WeightInfo: WeightInfo;
 	}
@@ -74,25 +55,23 @@ pub mod pallet {
 		//Cacher account logout success event
 		Logout { acc: AccountOf<T> },
 		//Pay to cacher success event
-		Pay { acc: AccountOf<T>, bills: Vec<Bill<AccountOf<T>, BalanceOf<T>, T::Hash>> },
+		Pay { acc: AccountOf<T>, bills: BoundedVec<Bill<AccountOf<T>, BalanceOf<T>, T::Hash>, T::BillsLimit> },
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
 		//Registered Error
-		Registered,
+		AlreadyRegistered,
 		//Unregistered Error
-		UnRegister,
+		UnRegistered,
 		//Option parse Error
 		OptionParseError,
-		//Insufficient balance Error
-		InsufficientBalance,
 	}
 
 	/// Store all cacher info
 	#[pallet::storage]
 	#[pallet::getter(fn cacher)]
-	pub(super) type Cachers<T: Config> = StorageMap<_, Twox64Concat, AccountOf<T>, CacherInfo<AccountOf<T>, BalanceOf<T>>>;
+	pub(super) type Cachers<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, CacherInfo<AccountOf<T>, BalanceOf<T>>>;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -109,7 +88,7 @@ pub mod pallet {
 		#[pallet::weight(T::WeightInfo::register())]
 		pub fn register(origin: OriginFor<T>, info: CacherInfo<AccountOf<T>, BalanceOf<T>>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			ensure!(!<Cachers<T>>::contains_key(&sender), Error::<T>::Registered);
+			ensure!(!<Cachers<T>>::contains_key(&sender), Error::<T>::AlreadyRegistered);
 			<Cachers<T>>::insert(&sender, info.clone());
 
 			Self::deposit_event(Event::<T>::Register {acc: sender, info});
@@ -125,7 +104,7 @@ pub mod pallet {
 		#[pallet::weight(T::WeightInfo::update())]
 		pub fn update(origin: OriginFor<T>, info: CacherInfo<AccountOf<T>, BalanceOf<T>>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			ensure!(<Cachers<T>>::contains_key(&sender), Error::<T>::UnRegister);
+			ensure!(<Cachers<T>>::contains_key(&sender), Error::<T>::UnRegistered);
 
 			<Cachers<T>>::try_mutate(&sender, |info_opt| -> DispatchResult {
 				let p_info = info_opt.as_mut().ok_or(Error::<T>::OptionParseError)?;
@@ -143,7 +122,7 @@ pub mod pallet {
 		#[pallet::weight(T::WeightInfo::logout())]
 		pub fn logout(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			ensure!(<Cachers<T>>::contains_key(&sender), Error::<T>::UnRegister);
+			ensure!(<Cachers<T>>::contains_key(&sender), Error::<T>::UnRegistered);
 
 			<Cachers<T>>::remove(&sender);
 
@@ -157,16 +136,12 @@ pub mod pallet {
 		/// Parameters:
 		/// - `bills`: list of bill.
 		#[pallet::call_index(3)]
+		#[transactional]
 		#[pallet::weight(T::WeightInfo::pay(bills.len() as u32))]
-		pub fn pay(origin: OriginFor<T>, bills: Vec<Bill<AccountOf<T>, BalanceOf<T>, T::Hash>>) -> DispatchResult {
+		pub fn pay(origin: OriginFor<T>, bills: BoundedVec<Bill<AccountOf<T>, BalanceOf<T>, T::Hash>, T::BillsLimit>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			let mut total_amount: BalanceOf<T> = Zero::zero();
-			for bill in bills.iter() {
-				total_amount += bill.amount;
-			}
-			ensure!(T::Currency::free_balance(&sender) >= total_amount, Error::<T>::InsufficientBalance);
 			
-			for bill in bills.iter() {
+			for bill in bills.clone() {
 				T::Currency::transfer(&sender, &bill.to, bill.amount, KeepAlive)?;
 			}
 			
@@ -176,4 +151,3 @@ pub mod pallet {
 		}
 	}
 }
-
