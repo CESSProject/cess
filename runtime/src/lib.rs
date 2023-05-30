@@ -1029,6 +1029,8 @@ parameter_types! {
 	pub const OwnerLimit: u32 = 50000;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const NameMinLength: u32 = 3;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const RestoralOrderLife: u32 = 250;
 }
 
 impl pallet_file_bank::Config for Runtime {
@@ -1060,6 +1062,7 @@ impl pallet_file_bank::Config for Runtime {
 	type FragmentCount = FragmentCount;
 	type OwnerLimit = OwnerLimit;
 	type NameMinLength = NameMinLength;
+	type RestoralOrderLife = RestoralOrderLife;
 }
 
 parameter_types! {

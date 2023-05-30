@@ -393,7 +393,11 @@ impl<T: Config> Pallet<T> {
         }
 
         for (miner, count) in miner_list.iter() {
-            T::MinerControl::sub_miner_service_space(miner, FRAGMENT_SIZE * *count as u128)?;
+            if <RestoralTarget<T>>::contains_key(miner) {
+                Self::update_restoral_target(miner, FRAGMENT_SIZE * *count as u128)?;
+            } else {
+                T::MinerControl::sub_miner_service_space(miner, FRAGMENT_SIZE * *count as u128)?;
+            }
             weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
         }
 
@@ -560,6 +564,6 @@ impl<T: Config> Pallet<T> {
                 .checked_add(service_space).ok_or(Error::<T>::Overflow)?;
 
             Ok(())
-        })?;
+        })
     }
 }

@@ -945,7 +945,7 @@ pub mod pallet {
 							let restoral_order = RestoralOrderInfo::<T> {
 								count: u32::MIN,
 								miner: sender.clone(),
-								origin_miner: fragment.miner,
+								origin_miner: sender.clone(),
 								file_hash: file_hash,
 								fragment_hash: restoral_fragment.clone(),
 								gen_block: <frame_system::Pallet<T>>::block_number(),
@@ -975,7 +975,8 @@ pub mod pallet {
 			restoral_fragment: Hash,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			ensure!(T::MinerControl::is_positive(&sender), Error::<T>::MinerStateError);
+			let is_positive = T::MinerControl::is_positive(&sender)?;
+			ensure!(is_positive, Error::<T>::MinerStateError);
 
 			let now = <frame_system::Pallet<T>>::block_number();
 			<RestoralOrder<T>>::try_mutate(&restoral_fragment, |order_opt| -> DispatchResult {
@@ -1006,7 +1007,8 @@ pub mod pallet {
 			restoral_fragment: Hash,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			ensure!(T::MinerControl::is_positive(&sender), Error::<T>::MinerStateError);
+			let is_positive = T::MinerControl::is_positive(&sender)?;
+			ensure!(is_positive, Error::<T>::MinerStateError);
 
 			ensure!(
 				!RestoralOrder::<T>::contains_key(&restoral_fragment),
@@ -1014,7 +1016,7 @@ pub mod pallet {
 			);
 
 			ensure!(
-				RestoralTarget::<T>::contains_key(&miner);
+				RestoralTarget::<T>::contains_key(&miner),
 				Error::<T>::NonExistent,
 			);
 
@@ -1027,7 +1029,7 @@ pub mod pallet {
 							let restoral_order = RestoralOrderInfo::<T> {
 								count: u32::MIN,
 								miner: sender.clone(),
-								origin_miner: fragment.miner,
+								origin_miner: fragment.miner.clone(),
 								file_hash: file_hash,
 								fragment_hash: restoral_fragment.clone(),
 								gen_block: <frame_system::Pallet<T>>::block_number(),
@@ -1059,10 +1061,10 @@ pub mod pallet {
 			fragment_hash: Hash,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
+			let is_positive = T::MinerControl::is_positive(&sender)?;
+			ensure!(is_positive, Error::<T>::MinerStateError);
 
-			ensure!(T::MinerControl::is_positive(&sender), Error::<T>::MinerStateError);
-
-			let order = <RestoralOrder<T>>::try_get().map_err(|_| Error::<T>::NonExistent)?;
+			let order = <RestoralOrder<T>>::try_get(&fragment_hash).map_err(|_| Error::<T>::NonExistent)?;
 			ensure!(&order.miner == &sender, Error::<T>::SpecError);
 			let now = <frame_system::Pallet<T>>::block_number();
 			ensure!(now < order.deadline, Error::<T>::Expired);
@@ -1087,6 +1089,7 @@ pub mod pallet {
 
 								fragment.avail = true;
 								fragment.miner = sender;
+								return Ok(());
 							}
 						}
 					}
