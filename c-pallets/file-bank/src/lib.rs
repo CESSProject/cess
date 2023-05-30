@@ -157,6 +157,9 @@ pub mod pallet {
 		#[pallet::constant]
 		type OwnerLimit: Get<u32> + Clone + Eq + PartialEq;
 
+		#[pallet::constant]
+		type RestoralOrderLife: Get<u32> + Clone + Eq + PartialEq;
+
 		type CreditCounter: SchedulerCreditCounter<Self::AccountId>;
 		//Used to confirm whether the origin is authorized
 		type OssFindAuthor: OssFindAuthor<Self::AccountId>;
@@ -189,6 +192,8 @@ pub mod pallet {
 		DeleteBucket { operator: AccountOf<T>, owner: AccountOf<T>, bucket_name: Vec<u8>},
 
 		Withdraw { acc: AccountOf<T> },
+
+		GenerateRestoralOrder { miner: AccountOf<T>, fragment_hash: Hash },
 	}
 	#[pallet::error]
 	pub enum Error<T> {
@@ -251,6 +256,8 @@ pub mod pallet {
 		Calculate,
 
 		MinerStateError,
+
+		Expired,
 	}
 
 	
@@ -330,7 +337,12 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn restoral_target)]
 	pub(super) type RestoralTarget<T: Config> = 
-		StorageMap< _, Blake2_128Concat, AccountOf<T>, RestoralInfo<BlockNumberOf<T>>>;
+		StorageMap< _, Blake2_128Concat, AccountOf<T>, RestoralTargetInfo<BlockNumberOf<T>>>;
+	
+	#[pallet::storage]
+	#[pallet::getter(fn restoral_order)]
+	pub(super) type RestoralOrder<T: Config> = 
+		StorageMap<_, Blake2_128Concat, Hash, RestoralOrderInfo<T>>;
 
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
@@ -908,7 +920,188 @@ pub mod pallet {
 			Ok(())
 		}
 
+		// restoral file
 		#[pallet::call_index(13)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn generate_restoral_order(
+			origin: OriginFor<T>,
+			file_hash: Hash,
+			restoral_fragment: Hash,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			ensure!(
+				!RestoralOrder::<T>::contains_key(&restoral_fragment),
+				Error::<T>::Existed,
+			);
+
+			<File<T>>::try_mutate(&file_hash, |file_opt| -> DispatchResult {
+				let file = file_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
+				for segment in &mut file.segment_list {
+					for fragment in &mut segment.fragment_list {
+						if &fragment.hash == &restoral_fragment {
+							ensure!(&fragment.miner == &sender, Error::<T>::SpecError);
+							let restoral_order = RestoralOrderInfo::<T> {
+								count: u32::MIN,
+								miner: sender.clone(),
+								origin_miner: fragment.miner,
+								file_hash: file_hash,
+								fragment_hash: restoral_fragment.clone(),
+								gen_block: <frame_system::Pallet<T>>::block_number(),
+								deadline: Default::default(),
+							};
+
+							fragment.avail = false;
+	
+							<RestoralOrder<T>>::insert(&restoral_fragment, restoral_order);
+	
+							Self::deposit_event(Event::<T>::GenerateRestoralOrder{ miner: sender, fragment_hash: restoral_fragment});
+	
+							return Ok(())
+						}
+					}
+				}
+	
+				Err(Error::<T>::SpecError)?
+			})
+		}
+
+		#[pallet::call_index(14)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn claim_restoral_exist_order(
+			origin: OriginFor<T>,
+			restoral_fragment: Hash,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			ensure!(T::MinerControl::is_positive(&sender), Error::<T>::MinerStateError);
+
+			let now = <frame_system::Pallet<T>>::block_number();
+			<RestoralOrder<T>>::try_mutate(&restoral_fragment, |order_opt| -> DispatchResult {
+				let order = order_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
+				
+				ensure!(now > order.deadline, Error::<T>::SpecError);
+
+				let life = T::RestoralOrderLife::get();
+				order.count = order.count.checked_add(1).ok_or(Error::<T>::Overflow)?;
+				order.deadline = now.checked_add(&life.saturated_into()).ok_or(Error::<T>::Overflow)?;
+				order.miner = sender;
+
+				Ok(())
+			})?;
+
+			// Self::deposit_event(Event::<T>::GenerateRestoralOrder{ miner: sender, fragment_hash: restoral_fragment});
+
+			Ok(())
+		}
+
+		#[pallet::call_index(15)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn claim_restoral_unexist_order(
+			origin: OriginFor<T>,
+			miner: AccountOf<T>,
+			file_hash: Hash,
+			restoral_fragment: Hash,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			ensure!(T::MinerControl::is_positive(&sender), Error::<T>::MinerStateError);
+
+			ensure!(
+				!RestoralOrder::<T>::contains_key(&restoral_fragment),
+				Error::<T>::Existed,
+			);
+
+			ensure!(
+				RestoralTarget::<T>::contains_key(&miner);
+				Error::<T>::NonExistent,
+			);
+
+			<File<T>>::try_mutate(&file_hash, |file_opt| -> DispatchResult {
+				let file = file_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
+				for segment in &mut file.segment_list {
+					for fragment in &mut segment.fragment_list {
+						if &fragment.hash == &restoral_fragment {
+							ensure!(&fragment.miner == &miner, Error::<T>::SpecError);
+							let restoral_order = RestoralOrderInfo::<T> {
+								count: u32::MIN,
+								miner: sender.clone(),
+								origin_miner: fragment.miner,
+								file_hash: file_hash,
+								fragment_hash: restoral_fragment.clone(),
+								gen_block: <frame_system::Pallet<T>>::block_number(),
+								deadline: Default::default(),
+							};
+
+							fragment.avail = false;
+	
+							<RestoralOrder<T>>::insert(&restoral_fragment, restoral_order);
+	
+							return Ok(())
+						}
+					}
+				}
+	
+				Err(Error::<T>::SpecError)?
+			})?;
+
+			// Self::deposit_event(Event::<T>::GenerateRestoralOrder{ miner: sender, fragment_hash: restoral_fragment});
+
+			Ok(())
+		}
+
+		#[pallet::call_index(16)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn restoral_order_complete(
+			origin: OriginFor<T>,
+			fragment_hash: Hash,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			ensure!(T::MinerControl::is_positive(&sender), Error::<T>::MinerStateError);
+
+			let order = <RestoralOrder<T>>::try_get().map_err(|_| Error::<T>::NonExistent)?;
+			ensure!(&order.miner == &sender, Error::<T>::SpecError);
+			let now = <frame_system::Pallet<T>>::block_number();
+			ensure!(now < order.deadline, Error::<T>::Expired);
+
+			if !<File<T>>::contains_key(&order.file_hash) {
+				<RestoralOrder<T>>::remove(fragment_hash);
+				return Ok(());
+			} else {
+				<File<T>>::try_mutate(&order.file_hash, |file_opt| -> DispatchResult {
+					let file = file_opt.as_mut().ok_or(Error::<T>::BugInvalid)?;
+
+					for segment in &mut file.segment_list {
+						for fragment in &mut segment.fragment_list {
+							if &fragment.hash == &fragment_hash {
+								ensure!(&order.origin_miner == &fragment.miner, Error::<T>::BugInvalid);
+								T::MinerControl::sub_miner_service_space(&fragment.miner, FRAGMENT_SIZE)?;
+								T::MinerControl::add_miner_service_space(&sender, FRAGMENT_SIZE)?;
+
+								if <RestoralTarget<T>>::contains_key(&fragment.miner) {
+									Self::update_restoral_target(&fragment.miner, FRAGMENT_SIZE)?;
+								}
+
+								fragment.avail = true;
+								fragment.miner = sender;
+							}
+						}
+					}
+
+					Ok(())
+				})?;
+			}
+
+			<RestoralOrder<T>>::remove(fragment_hash);
+
+			Ok(())
+		}
+
+
+		#[pallet::call_index(17)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
 		pub fn miner_exit_prep(
@@ -942,7 +1135,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(14)]
+		#[pallet::call_index(18)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
 		pub fn miner_exit(
@@ -966,7 +1159,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(15)]
+		#[pallet::call_index(19)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
 		pub fn miner_withdaw(origin: OriginFor<T>) -> DispatchResult {

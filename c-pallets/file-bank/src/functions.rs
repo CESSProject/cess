@@ -541,7 +541,7 @@ impl<T: Config> Pallet<T> {
         let now = <frame_system::Pallet<T>>::block_number();
         let block = now.checked_add(&block.saturated_into()).ok_or(Error::<T>::Overflow)?;
 
-        let restoral_info = RestoralInfo::<BlockNumberOf<T>>{
+        let restoral_info = RestoralTargetInfo::<BlockNumberOf<T>>{
             service_space,
             restored_space: u128::MIN,
             cooling_block: block,
@@ -550,5 +550,16 @@ impl<T: Config> Pallet<T> {
         <RestoralTarget<T>>::insert(&miner, restoral_info);
 
         Ok(())
+    }
+
+    pub(super) fn update_restoral_target(miner: &AccountOf<T>, service_space: u128) -> DispatchResult {
+        <RestoralTarget<T>>::try_mutate(miner, |info_opt| -> DispatchResult {
+            let info = info_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
+
+            info.restored_space = info.restored_space
+                .checked_add(service_space).ok_or(Error::<T>::Overflow)?;
+
+            Ok(())
+        })?;
     }
 }
