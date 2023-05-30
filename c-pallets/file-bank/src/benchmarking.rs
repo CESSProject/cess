@@ -13,7 +13,7 @@ use frame_support::{
 use pallet_cess_staking::{
 	testing_utils, Config as StakingConfig, Pallet as Staking, RewardDestination,
 };
-use pallet_file_map::{Config as FileMapConfig, Pallet as FileMap};
+use pallet_tee_worker::{Config as TeeWorkerConfig, Pallet as TeeWorker};
 use pallet_sminer::{Config as SminerConfig, Pallet as Sminer};
 use sp_runtime::{
 	traits::{Bounded, One, StaticLookup, TrailingZeroInput, Zero},
@@ -25,7 +25,7 @@ use frame_system::RawOrigin;
 
 pub struct Pallet<T: Config>(FileBank<T>);
 pub trait Config:
-	crate::Config + pallet_cess_staking::Config + pallet_file_map::Config + pallet_sminer::Config
+	crate::Config + pallet_cess_staking::Config + pallet_tee_worker::Config + pallet_sminer::Config
 {
 }
 type SminerBalanceOf<T> = <<T as pallet_sminer::Config>::Currency as Currency<
@@ -115,7 +115,7 @@ pub fn add_scheduler<T: Config>() -> Result<T::AccountId, &'static str> {
 		reward_destination,
 	)?;
 	whitelist_account!(controller);
-	FileMap::<T>::registration_scheduler(RawOrigin::Signed(controller.clone()).into(), stash, IpAddress::IPV4([127,0,0,1], 15001))?;
+	TeeWorker::<T>::registration_scheduler(RawOrigin::Signed(controller.clone()).into(), stash, IpAddress::IPV4([127,0,0,1], 15001))?;
 	Ok(controller)
 }
 
@@ -193,7 +193,7 @@ benchmarks! {
 		Staking::<T>::bond(RawOrigin::Signed(stash.clone()).into(), controller_lookup, amount, reward_destination)?;
 		whitelist_account!(controller);
 
-		FileMap::<T>::registration_scheduler(RawOrigin::Signed(controller.clone()).into(), stash, ip)?;
+		TeeWorker::<T>::registration_scheduler(RawOrigin::Signed(controller.clone()).into(), stash, ip)?;
 
 		let mut filler_list: Vec<FillerInfo<T>> = Vec::new();
 		let miner = add_miner::<T>()?;
@@ -229,7 +229,7 @@ benchmarks! {
 		&user,
 		BalanceOf::<T>::max_value(),
 	);
-		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
+		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account_truncating();
 		let balance: BalanceOf<T> = <T as crate::Config>::Currency::minimum_balance().checked_mul(&2u32.saturated_into()).ok_or("over flow")?;
 		<T as crate::Config>::Currency::make_free_balance_be(
 			&acc,
@@ -245,7 +245,7 @@ benchmarks! {
 	expansion_space {
 		log::info!("start expansion_space");
 		let caller: T::AccountId = whitelisted_caller();
-		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
+		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account_truncating();
 		let balance: BalanceOf<T> = <T as crate::Config>::Currency::minimum_balance().checked_mul(&2u32.saturated_into()).ok_or("over flow")?;
 		<T as crate::Config>::Currency::make_free_balance_be(
 			&acc,
@@ -266,7 +266,7 @@ benchmarks! {
 	renewal_space {
 		log::info!("start renewal_space");
 		let caller: T::AccountId = whitelisted_caller();
-		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
+		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account_truncating();
 		let balance: BalanceOf<T> = <T as crate::Config>::Currency::minimum_balance().checked_mul(&2u32.saturated_into()).ok_or("over flow")?;
 		<T as crate::Config>::Currency::make_free_balance_be(
 			&acc,
@@ -306,7 +306,7 @@ benchmarks! {
 		log::info!("start upload");
 
 		let caller: AccountOf<T> = account("user1", 100, SEED);
-		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
+		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account_truncating();
 		let balance: BalanceOf<T> = <T as crate::Config>::Currency::minimum_balance().checked_mul(&2u32.saturated_into()).ok_or("over flow")?;
 		<T as crate::Config>::Currency::make_free_balance_be(
 			&acc,
@@ -349,7 +349,7 @@ benchmarks! {
 	delete_file {
 		log::info!("start delete_file");
 		let file_hash = Hash([5u8; 64]);
-		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
+		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account_truncating();
 		let balance: BalanceOf<T> = <T as crate::Config>::Currency::minimum_balance().checked_mul(&2u32.saturated_into()).ok_or("over flow")?;
 		<T as crate::Config>::Currency::make_free_balance_be(
 			&acc,
@@ -369,7 +369,7 @@ benchmarks! {
 		if v % 2 == 0 {
 			avai = false;
 		}
-		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
+		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account_truncating();
 		let balance: BalanceOf<T> = <T as crate::Config>::Currency::minimum_balance().checked_mul(&2u32.saturated_into()).ok_or("over flow")?;
 		<T as crate::Config>::Currency::make_free_balance_be(
 			&acc,
@@ -476,7 +476,7 @@ benchmarks! {
 			balance,
 		);
 
-		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account();
+		let acc: AccountOf<T> = T::FilbakPalletId::get().into_account_truncating();
 		let balance: BalanceOf<T> = <T as crate::Config>::Currency::minimum_balance().checked_mul(&2u32.saturated_into()).ok_or("over flow")?;
 		<T as crate::Config>::Currency::make_free_balance_be(
 			&acc,

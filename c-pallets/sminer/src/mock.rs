@@ -32,6 +32,8 @@ use sp_runtime::{
 	Perbill,
 };
 
+use std::convert::{ TryFrom };
+
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 pub type AccountId = u64;
@@ -42,25 +44,26 @@ frame_support::construct_runtime!(
 		NodeBlock = Block,
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
-		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		Sminer: sminer::{Pallet, Call, Storage, Event<T>},
-		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
-		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>},
+		System: frame_system,
+		Balances: pallet_balances,
+		Sminer: sminer,
+		Timestamp: pallet_timestamp,
+		Scheduler: pallet_scheduler,
+		Preimage: pallet_preimage,
 	}
 );
 
 parameter_types! {
 	pub BlockWeights: frame_system::limits::BlockWeights =
-		frame_system::limits::BlockWeights::simple_max(1024);
+		frame_system::limits::BlockWeights::simple_max(Weight::from_ref_time(1024));
 }
 
 impl frame_system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = ();
 	type BlockLength = ();
-	type Origin = Origin;
-	type Call = Call;
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
 	type Index = u64;
 	type BlockNumber = u64;
 	type Hash = H256;
@@ -68,7 +71,7 @@ impl frame_system::Config for Test {
 	type AccountId = AccountId;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = ConstU64<250>;
 	type DbWeight = ();
 	type Version = ();
@@ -89,13 +92,22 @@ parameter_types! {
 impl pallet_balances::Config for Test {
 	type Balance = u128;
 	type DustRemoval = ();
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type WeightInfo = ();
 	type MaxLocks = ();
 	type MaxReserves = ();
 	type ReserveIdentifier = [u8; 8];
+}
+
+impl pallet_preimage::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = ();
+	type Currency = ();
+	type ManagerOrigin = EnsureRoot<u64>;
+	type BaseDeposit = ();
+	type ByteDeposit = ();
 }
 
 parameter_types! {
@@ -114,17 +126,16 @@ parameter_types! {
 }
 
 impl pallet_scheduler::Config for Test {
-	type Event = Event;
-	type Origin = Origin;
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeOrigin = RuntimeOrigin;
 	type PalletsOrigin = OriginCaller;
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 	type MaximumWeight = MaximumSchedulerWeight;
 	type ScheduleOrigin = EnsureRoot<u64>;
 	type OriginPrivilegeCmp = EqualPrivilegeOnly;
 	type MaxScheduledPerBlock = ();
 	type WeightInfo = ();
-	type PreimageProvider = ();
-	type NoPreimagePostponement = ();
+	type Preimages = Preimage;
 }
 
 parameter_types! {
@@ -138,14 +149,14 @@ parameter_types! {
 }
 
 impl Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type PalletId = RewardPalletId;
 	type ItemLimit = ItemLimit;
 	type MultipleFines = MultipleFines;
 	type SScheduler = Scheduler;
 	type SPalletsOrigin = OriginCaller;
-	type SProposal = Call;
+	type SProposal = RuntimeCall;
 	type WeightInfo = ();
 	type DepositBufferPeriod = DepositBufferPeriod;
 	type OneDayBlock = OneDay;
@@ -165,7 +176,7 @@ pub mod consts {
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	use consts::*;
 	let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
-	let jackpot_account: u64 = RewardPalletId::get().into_account();
+	let jackpot_account: u64 = RewardPalletId::get().into_account_truncating();
 	pallet_balances::GenesisConfig::<Test> {
 		balances: vec![
 			ACCOUNT1,

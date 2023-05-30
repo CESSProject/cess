@@ -5,6 +5,10 @@ use frame_support::{
 	RuntimeDebug,
 	dispatch::{Decode, Encode},
 };
+use frame_support::{
+	BoundedVec,
+	pallet_prelude::ConstU32,
+};
 use codec::{MaxEncodedLen};
 use scale_info::TypeInfo;
 
@@ -20,55 +24,12 @@ impl sp_std::fmt::Debug for TryFromSliceError {
 	}
 }
 
-// impl Encode for Hash {
-// 	// fn using_encoded<R, F>(&self, f: F) -> R
-// 	// 	where
-// 	// 		F: FnOnce(&[u8]) -> R
-// 	// {
-// 	// 	f(self.0.as_slice())
-// 	// }
-// 	//
-// 	// fn encode(&self) -> Vec<u8> {
-// 	// 	self.0.encode()
-// 	// }
-// 	fn encode_to<T: Output + ?Sized>(&self, dest: &mut T) {
-// 		for i in self.0.iter() {
-// 			dest.push_byte(*i)
-// 		}
-// 	}
-// }
-
-// impl EncodeLike<Hash> for Hash {}
-
-// impl Decode for Hash {
-// 	fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
-// 		let value: &mut [u8] = Default::default();
-// 		let _ = input.read(value)?;
-// 		let v = Hash::slice_to_array_68(value).map_err(|_| "convert err")?;
-// 		let hash = Hash(v);
-// 		return Ok(hash)
-// 	}
-// }
-
 impl Default for Hash {
 	fn default() -> Hash {
 		let new_hash = Hash([0u8; 64]);
 		return new_hash
 	}
 }
-
-// impl TypeInfo for Hash {
-// 	type Identity = Self;
-//
-// 	fn type_info() -> scale_info::Type {
-// 		scale_info::Type::builder()
-// 			.path(scale_info::Path::new("Vote", module_path!()))
-// 			.composite(
-// 				scale_info::build::Fields::unnamed()
-// 					.field(|f| f.ty::<[u8; 68]>()),
-// 			)
-// 	}
-// }
 
 impl Hash {
 	pub fn slice_to_array_64(slice: &[u8]) -> Result<[u8; 64], TryFromSliceError> {
@@ -88,16 +49,24 @@ impl Hash {
 	}
 }
 
+pub type Mrenclave = [u8; 32];
+pub type PeerId = [u8; 38];
+pub type Podr2Key = [u8; 270];
 
+pub const M_BYTE: u128 = 1_048_576;
+pub const G_BYTE: u128 = 1_048_576 * 1024;
+pub const T_BYTE: u128 = 1_048_576 * 1024 * 1024;
 
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-pub enum PackageType {
-	Package1,
-	Package2,
-	Package3,
-	Package4,
-	Package5,
-}
+pub const SEGMENT_SIZE: u128 = M_BYTE * 16;
+pub const FRAGMENT_SIZE: u128 = M_BYTE * 8;
+pub const CHUNK_COUNT: u32 = 1024;
+
+pub type NodePublicKey = sp_core::ed25519::Public;
+pub type NodeSignature = [u8; 64];
+
+pub type ReportSign = BoundedVec<u8, ConstU32<344>>;
+pub type Report =  BoundedVec<u8, ConstU32<1354>>;
+pub type Cert = BoundedVec<u8, ConstU32<1588>> ;
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub enum DataType {

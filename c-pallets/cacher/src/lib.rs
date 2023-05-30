@@ -34,7 +34,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		/// The overarching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// The currency trait.
 		type Currency: LockableCurrency<Self::AccountId>;
 
@@ -84,6 +84,7 @@ pub mod pallet {
 		///	
 		/// Parameters:
 		/// - `info`: The cacher info related to signer account.
+		#[pallet::call_index(0)]
 		#[pallet::weight(T::WeightInfo::register())]
 		pub fn register(origin: OriginFor<T>, info: CacherInfo<AccountOf<T>, BalanceOf<T>>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -99,6 +100,7 @@ pub mod pallet {
 		///	
 		/// Parameters:
 		/// - `info`: The cacher info related to signer account.
+		#[pallet::call_index(1)]
 		#[pallet::weight(T::WeightInfo::update())]
 		pub fn update(origin: OriginFor<T>, info: CacherInfo<AccountOf<T>, BalanceOf<T>>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -116,6 +118,7 @@ pub mod pallet {
 		}
 
 		/// Cacher exit method, Irreversible process.
+		#[pallet::call_index(2)]
 		#[pallet::weight(T::WeightInfo::logout())]
 		pub fn logout(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -132,6 +135,7 @@ pub mod pallet {
 		///	
 		/// Parameters:
 		/// - `bills`: list of bill.
+		#[pallet::call_index(3)]
 		#[transactional]
 		#[pallet::weight(T::WeightInfo::pay(bills.len() as u32))]
 		pub fn pay(origin: OriginFor<T>, bills: BoundedVec<Bill<AccountOf<T>, BalanceOf<T>, T::Hash>, T::BillsLimit>) -> DispatchResult {
