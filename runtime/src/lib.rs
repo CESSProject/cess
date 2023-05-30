@@ -55,7 +55,7 @@ pub use frame_support::{
 	pallet_prelude::Get,
 	parameter_types,
 	traits::{
-		ConstU128, ConstU16, ConstU32, ConstU8, Currency, EnsureOneOf, EqualPrivilegeOnly,
+		ConstU128, ConstU16, ConstU32, ConstU8, Currency, CurrencyToVote, EnsureOneOf, EqualPrivilegeOnly,
 		Everything, FindAuthor, Imbalance, InstanceFilter, KeyOwnerProofSystem, Nothing,
 		OnUnbalanced, Randomness, StorageInfo, U128CurrencyToVote,
 	},
@@ -353,16 +353,16 @@ parameter_types! {
 
 frame_election_provider_support::generate_solution_type!(
 	#[compact]
-	pub struct NposSolution16::<
+	pub struct NposSolution4::<
 		VoterIndex = u32,
 		TargetIndex = u16,
 		Accuracy = sp_runtime::PerU16,
 		MaxVoters = MaxElectingVoters,
-	>(16)
+	>(4)
 );
 
 parameter_types! {
-	pub MaxNominations: u32 = <NposSolution16 as frame_election_provider_support::NposSolution>::LIMIT as u32;
+	pub MaxNominations: u32 = <NposSolution4 as frame_election_provider_support::NposSolution>::LIMIT as u32;
 	pub MaxElectingVoters: u32 = 10_000;
 }
 
@@ -571,6 +571,7 @@ impl pallet_cess_staking::Config for Runtime {
 	const FIRST_YEAR_VALIDATOR_REWARDS: Balance = 238_500_000 * DOLLARS;
 	const FIRST_YEAR_SMINER_REWARDS: Balance = 477_000_000 * DOLLARS;
 	const REWARD_DECREASE_RATIO: Perbill = Perbill::from_perthousand(841);
+	const REWARD_DECREASE_YEARS: u64 = 30;
 	type SminerRewardPool = Sminer;
 	type MaxNominations = MaxNominations;
 	type Currency = Balances;
@@ -733,6 +734,18 @@ impl Get<Option<(usize, ExtendedBalance)>> for OffchainRandomBalancing {
 	}
 }
 
+/// A candidate whose backed stake is less than `MIN_ELECTABLE_STAKE` will never be elected.
+pub const MIN_ELECTABLE_STAKE: Balance = 3_000_000 * DOLLARS;
+
+// A config for VrfSolver
+pub struct OnChainVrfSloverConfig;
+impl pallet_rrsc::VrfSloverConfig for OnChainVrfSloverConfig {
+	fn min_electable_weight() -> VoteWeight {
+		let total_issuance = <Runtime as pallet_cess_staking::Config>::Currency::total_issuance();
+		<Runtime as pallet_cess_staking::Config>::CurrencyToVote::to_vote(MIN_ELECTABLE_STAKE, total_issuance)
+	}
+}
+
 pub struct OnChainVrf;
 impl onchain::ExecutionConfig for OnChainVrf {
 	type System = Runtime;
@@ -741,6 +754,7 @@ impl onchain::ExecutionConfig for OnChainVrf {
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Runtime>,
 		Runtime,
 		SchedulerCredit,
+		OnChainVrfSloverConfig,
 	>;
 	type DataProvider = <Runtime as pallet_election_provider_multi_phase::Config>::DataProvider;
 }
@@ -770,7 +784,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type SlashHandler = (); // burn slashes
 	type RewardHandler = (); // nothing to do upon rewards
 	type DataProvider = Staking;
-	type Solution = NposSolution16;
+	type Solution = NposSolution4;
 	type Fallback = onchain::BoundedExecution<OnChainVrf>;
 	type GovernanceFallback = onchain::BoundedExecution<OnChainVrf>;
 	type Solver = pallet_rrsc::VrfSolver<
@@ -778,6 +792,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 		SolutionAccuracyOf<Self>,
 		Runtime,
 		SchedulerCredit,
+		OnChainVrfSloverConfig,
 		OffchainRandomBalancing,
 	>;
 	type ForceOrigin = EnsureRootOrHalfCouncil;

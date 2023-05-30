@@ -86,6 +86,9 @@ pub mod pallet {
 		/// The reward decrease ratio per year.
 		const REWARD_DECREASE_RATIO: Perbill;
 
+		/// The reward decrease years. No decrease thereafter.
+		const REWARD_DECREASE_YEARS: u64;
+
 		/// Tokens have been minted for sminers.
 		type SminerRewardPool: OnUnbalanced<NegativeImbalanceOf<Self>>;
 

@@ -401,9 +401,9 @@ impl<T: Config> Pallet<T> {
 			TryInto::<u128>::try_into(T::FIRST_YEAR_VALIDATOR_REWARDS).ok().unwrap();
 		let mut sminer_rewards_this_year =
 			TryInto::<u128>::try_into(T::FIRST_YEAR_SMINER_REWARDS).ok().unwrap();
-		// No longer decrease from the 41st year.
-		if year_num > 30 {
-			year_num = 30;
+		
+		if year_num > T::REWARD_DECREASE_YEARS {
+			year_num = T::REWARD_DECREASE_YEARS;
 		}
 		for _ in 0..year_num {
 			validator_rewards_this_year = T::REWARD_DECREASE_RATIO * validator_rewards_this_year;
