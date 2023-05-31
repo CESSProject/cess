@@ -366,16 +366,16 @@ parameter_types! {
 
 frame_election_provider_support::generate_solution_type!(
 	#[compact]
-	pub struct NposSolution4::<
+	pub struct NposSolution16::<
 		VoterIndex = u32,
 		TargetIndex = u16,
 		Accuracy = sp_runtime::PerU16,
 		MaxVoters = MaxElectingVoters,
-	>(4)
+	>(16)
 );
 
 parameter_types! {
-	pub MaxNominations: u32 = <NposSolution4 as frame_election_provider_support::NposSolution>::LIMIT as u32;
+	pub MaxNominations: u32 = 1;
 	pub MaxElectingVoters: u32 = 10_000;
 }
 
