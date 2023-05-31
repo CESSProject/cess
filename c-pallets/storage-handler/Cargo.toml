@@ -1,0 +1,38 @@
+[package]
+name = "pallet-storage-handler"
+authors = ["CESS LAB"]
+version = "0.5.4"
+edition = "2018"
+license = "Apache-2.0"
+repository = "https://github.com/CESSProject/cess"
+description = "FRAME pallet for sminer management"
+readme = "README.md"
+
+[dependencies]
+log = { version = "0.4.14", default-features = false }
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }
+scale-info = { default-features = false, features = ['derive'], version = "2.0.1" }
+serde = { version = "1.0.136", optional = true }
+
+# substrate pallet
+frame-support = { version = "4.0.0-dev", git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36", default-features = false }
+frame-system = { version = "4.0.0-dev", git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36", default-features = false }
+sp-std = { version = "5.0.0", git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36", default-features = false }
+pallet-balances = { version = "4.0.0-dev", git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36", default-features = false }
+sp-runtime = { version = "7.0.0", git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36", default-features = false }
+
+# local dependencies
+pallet-sminer = { version = "0.5.3", path = '../sminer', default-features = false }
+cp-cess-common = { version = '0.1.0', path = '../../primitives/common', default-features = false }
+
+[features]
+default = ["std"]
+std = [
+    "frame-support/std",
+    "frame-system/std",
+    "sp-std/std",
+    "pallet-balances/std",
+    "sp-runtime/std",
+]
+
+try-runtime = [ "frame-support/try-runtime" ]

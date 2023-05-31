@@ -70,36 +70,36 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: Sminer PeerIndex (r:1 w:1)
 	// Storage: Sminer AllMiner (r:1 w:1)
 	fn regnstk() -> Weight {
-		(62_798_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(4 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+		Weight::from_ref_time(62_798_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(4 as u64))
+			.saturating_add(T::DbWeight::get().writes(4 as u64))
 	}
 	// Storage: Sminer MinerItems (r:1 w:1)
 	fn increase_collateral() -> Weight {
-		(58_597_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(1 as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+		Weight::from_ref_time(58_597_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(1 as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Sminer MinerItems (r:1 w:1)
 	fn update_beneficiary() -> Weight {
-		(41_298_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(1 as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+		Weight::from_ref_time(41_298_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(1 as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Sminer MinerItems (r:1 w:1)
 	fn update_ip() -> Weight {
-		(42_699_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(1 as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+		Weight::from_ref_time(42_699_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(1 as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Sminer MinerItems (r:1 w:1)
 	// Storage: Sminer TotalServiceSpace (r:1 w:1)
 	// Storage: Sminer TotalIdleSpace (r:1 w:1)
 	// Storage: Sminer MinerLockIn (r:0 w:1)
 	fn exit_miner() -> Weight {
-		(66_298_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(3 as Weight))
-			.saturating_add(T::DbWeight::get().writes(4 as Weight))
+		Weight::from_ref_time(66_298_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(3 as u64))
+			.saturating_add(T::DbWeight::get().writes(4 as u64))
 	}
 	// Storage: Sminer MinerItems (r:1 w:1)
 	// Storage: Sminer MinerLockIn (r:1 w:1)
@@ -108,9 +108,9 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: Sminer AllMiner (r:1 w:1)
 	// Storage: Sminer BadMiner (r:0 w:1)
 	fn withdraw() -> Weight {
-		(85_296_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(5 as Weight))
-			.saturating_add(T::DbWeight::get().writes(6 as Weight))
+		Weight::from_ref_time(85_296_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(5 as u64))
+			.saturating_add(T::DbWeight::get().writes(6 as u64))
 	}
 	// Storage: Sminer TotalIdleSpace (r:1 w:0)
 	// Storage: Sminer TotalServiceSpace (r:1 w:0)
@@ -119,55 +119,55 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: Sminer CalculateRewardOrderMap (r:1 w:1)
 	// Storage: Sminer CounterForCalculateRewardOrderMap (r:1 w:1)
 	fn timed_increase_rewards() -> Weight {
-		(68_497_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(7 as Weight))
-			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+		Weight::from_ref_time(68_497_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(7 as u64))
+			.saturating_add(T::DbWeight::get().writes(3 as u64))
 	}
 	// Storage: Sminer CalculateRewardOrderMap (r:2 w:0)
 	// Storage: Sminer MinerItems (r:1 w:1)
 	// Storage: Sminer RewardClaimMap (r:1 w:1)
 	// Storage: Sminer CounterForRewardClaimMap (r:1 w:1)
 	fn timed_task_award_table(v: u32, ) -> Weight {
-		(30_507_000 as Weight)
+		Weight::from_ref_time(30_507_000 as u64)
 			// Standard Error: 122_000
-			.saturating_add((31_887_000 as Weight).saturating_mul(v as Weight))
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().reads((3 as Weight).saturating_mul(v as Weight)))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
-			.saturating_add(T::DbWeight::get().writes((2 as Weight).saturating_mul(v as Weight)))
+			.saturating_add(Weight::from_ref_time(31_887_000 as u64).saturating_mul(v as u64))
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().reads((3 as u64).saturating_mul(v as u64)))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
+			.saturating_add(T::DbWeight::get().writes((2 as u64).saturating_mul(v as u64)))
 	}
 	// Storage: Sminer RewardClaimMap (r:2 w:1)
 	// Storage: Sminer MinerItems (r:1 w:1)
 	// Storage: System Account (r:1 w:1)
 	fn timed_user_receive_award1(v: u32, ) -> Weight {
-		(20_872_000 as Weight)
+		Weight::from_ref_time(20_872_000 as u64)
 			// Standard Error: 129_000
-			.saturating_add((47_205_000 as Weight).saturating_mul(v as Weight))
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().reads((2 as Weight).saturating_mul(v as Weight)))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
-			.saturating_add(T::DbWeight::get().writes((2 as Weight).saturating_mul(v as Weight)))
+			.saturating_add(Weight::from_ref_time(47_205_000 as u64).saturating_mul(v as u64))
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().reads((2 as u64).saturating_mul(v as u64)))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
+			.saturating_add(T::DbWeight::get().writes((2 as u64).saturating_mul(v as u64)))
 	}
 	// Storage: Scheduler Lookup (r:1 w:1)
 	// Storage: Scheduler Agenda (r:1 w:1)
 	fn timing_task_increase_power_rewards() -> Weight {
-		(43_398_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(43_398_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().writes(2 as u64))
 	}
 	// Storage: Scheduler Lookup (r:1 w:1)
 	// Storage: Scheduler Agenda (r:1 w:1)
 	fn timing_task_award_table() -> Weight {
-		(43_099_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(43_099_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().writes(2 as u64))
 	}
 	// Storage: Scheduler Lookup (r:1 w:1)
 	// Storage: Scheduler Agenda (r:1 w:1)
 	fn timing_user_receive_award() -> Weight {
-		(43_399_000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(2 as Weight))
-			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(43_399_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(2 as u64))
+			.saturating_add(T::DbWeight::get().writes(2 as u64))
 	}
 }
 
@@ -178,36 +178,36 @@ impl WeightInfo for () {
 	// Storage: Sminer PeerIndex (r:1 w:1)
 	// Storage: Sminer AllMiner (r:1 w:1)
 	fn regnstk() -> Weight {
-		(62_798_000 as Weight)
-			.saturating_add(RocksDbWeight::get().reads(4 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(4 as Weight))
+		Weight::from_ref_time(62_798_000 as u64)
+			.saturating_add(RocksDbWeight::get().reads(4 as u64))
+			.saturating_add(RocksDbWeight::get().writes(4 as u64))
 	}
 	// Storage: Sminer MinerItems (r:1 w:1)
 	fn increase_collateral() -> Weight {
-		(58_597_000 as Weight)
-			.saturating_add(RocksDbWeight::get().reads(1 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
+		Weight::from_ref_time(58_597_000 as u64)
+			.saturating_add(RocksDbWeight::get().reads(1 as u64))
+			.saturating_add(RocksDbWeight::get().writes(1 as u64))
 	}
 	// Storage: Sminer MinerItems (r:1 w:1)
 	fn update_beneficiary() -> Weight {
-		(41_298_000 as Weight)
-			.saturating_add(RocksDbWeight::get().reads(1 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
+		Weight::from_ref_time(41_298_000 as u64)
+			.saturating_add(RocksDbWeight::get().reads(1 as u64))
+			.saturating_add(RocksDbWeight::get().writes(1 as u64))
 	}
 	// Storage: Sminer MinerItems (r:1 w:1)
 	fn update_ip() -> Weight {
-		(42_699_000 as Weight)
-			.saturating_add(RocksDbWeight::get().reads(1 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
+		Weight::from_ref_time(42_699_000 as u64)
+			.saturating_add(RocksDbWeight::get().reads(1 as u64))
+			.saturating_add(RocksDbWeight::get().writes(1 as u64))
 	}
 	// Storage: Sminer MinerItems (r:1 w:1)
 	// Storage: Sminer TotalServiceSpace (r:1 w:1)
 	// Storage: Sminer TotalIdleSpace (r:1 w:1)
 	// Storage: Sminer MinerLockIn (r:0 w:1)
 	fn exit_miner() -> Weight {
-		(66_298_000 as Weight)
-			.saturating_add(RocksDbWeight::get().reads(3 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(4 as Weight))
+		Weight::from_ref_time(66_298_000 as u64)
+			.saturating_add(RocksDbWeight::get().reads(3 as u64))
+			.saturating_add(RocksDbWeight::get().writes(4 as u64))
 	}
 	// Storage: Sminer MinerItems (r:1 w:1)
 	// Storage: Sminer MinerLockIn (r:1 w:1)
@@ -216,9 +216,9 @@ impl WeightInfo for () {
 	// Storage: Sminer AllMiner (r:1 w:1)
 	// Storage: Sminer BadMiner (r:0 w:1)
 	fn withdraw() -> Weight {
-		(85_296_000 as Weight)
-			.saturating_add(RocksDbWeight::get().reads(5 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(6 as Weight))
+		Weight::from_ref_time(85_296_000 as u64)
+			.saturating_add(RocksDbWeight::get().reads(5 as u64))
+			.saturating_add(RocksDbWeight::get().writes(6 as u64))
 	}
 	// Storage: Sminer TotalIdleSpace (r:1 w:0)
 	// Storage: Sminer TotalServiceSpace (r:1 w:0)
@@ -227,54 +227,54 @@ impl WeightInfo for () {
 	// Storage: Sminer CalculateRewardOrderMap (r:1 w:1)
 	// Storage: Sminer CounterForCalculateRewardOrderMap (r:1 w:1)
 	fn timed_increase_rewards() -> Weight {
-		(68_497_000 as Weight)
-			.saturating_add(RocksDbWeight::get().reads(7 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(3 as Weight))
+		Weight::from_ref_time(68_497_000 as u64)
+			.saturating_add(RocksDbWeight::get().reads(7 as u64))
+			.saturating_add(RocksDbWeight::get().writes(3 as u64))
 	}
 	// Storage: Sminer CalculateRewardOrderMap (r:2 w:0)
 	// Storage: Sminer MinerItems (r:1 w:1)
 	// Storage: Sminer RewardClaimMap (r:1 w:1)
 	// Storage: Sminer CounterForRewardClaimMap (r:1 w:1)
 	fn timed_task_award_table(v: u32, ) -> Weight {
-		(30_507_000 as Weight)
+		Weight::from_ref_time(30_507_000 as u64)
 			// Standard Error: 122_000
-			.saturating_add((31_887_000 as Weight).saturating_mul(v as Weight))
-			.saturating_add(RocksDbWeight::get().reads(2 as Weight))
-			.saturating_add(RocksDbWeight::get().reads((3 as Weight).saturating_mul(v as Weight)))
-			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
-			.saturating_add(RocksDbWeight::get().writes((2 as Weight).saturating_mul(v as Weight)))
+			.saturating_add(Weight::from_ref_time(31_887_000 as u64).saturating_mul(v as u64))
+			.saturating_add(RocksDbWeight::get().reads(2 as u64))
+			.saturating_add(RocksDbWeight::get().reads((3 as u64).saturating_mul(v as u64)))
+			.saturating_add(RocksDbWeight::get().writes(1 as u64))
+			.saturating_add(RocksDbWeight::get().writes((2 as u64).saturating_mul(v as u64)))
 	}
 	// Storage: Sminer RewardClaimMap (r:2 w:1)
 	// Storage: Sminer MinerItems (r:1 w:1)
 	// Storage: System Account (r:1 w:1)
 	fn timed_user_receive_award1(v: u32, ) -> Weight {
-		(20_872_000 as Weight)
+		Weight::from_ref_time(20_872_000 as u64)
 			// Standard Error: 129_000
-			.saturating_add((47_205_000 as Weight).saturating_mul(v as Weight))
-			.saturating_add(RocksDbWeight::get().reads(2 as Weight))
-			.saturating_add(RocksDbWeight::get().reads((2 as Weight).saturating_mul(v as Weight)))
-			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
-			.saturating_add(RocksDbWeight::get().writes((2 as Weight).saturating_mul(v as Weight)))
+			.saturating_add(Weight::from_ref_time(47_205_000 as u64).saturating_mul(v as u64))
+			.saturating_add(RocksDbWeight::get().reads(2 as u64))
+			.saturating_add(RocksDbWeight::get().reads((2 as u64).saturating_mul(v as u64)))
+			.saturating_add(RocksDbWeight::get().writes(1 as u64))
+			.saturating_add(RocksDbWeight::get().writes((2 as u64).saturating_mul(v as u64)))
 	}
 	// Storage: Scheduler Lookup (r:1 w:1)
 	// Storage: Scheduler Agenda (r:1 w:1)
 	fn timing_task_increase_power_rewards() -> Weight {
-		(43_398_000 as Weight)
-			.saturating_add(RocksDbWeight::get().reads(2 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(43_398_000 as u64)
+			.saturating_add(RocksDbWeight::get().reads(2 as u64))
+			.saturating_add(RocksDbWeight::get().writes(2 as u64))
 	}
 	// Storage: Scheduler Lookup (r:1 w:1)
 	// Storage: Scheduler Agenda (r:1 w:1)
 	fn timing_task_award_table() -> Weight {
-		(43_099_000 as Weight)
-			.saturating_add(RocksDbWeight::get().reads(2 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(43_099_000 as u64)
+			.saturating_add(RocksDbWeight::get().reads(2 as u64))
+			.saturating_add(RocksDbWeight::get().writes(2 as u64))
 	}
 	// Storage: Scheduler Lookup (r:1 w:1)
 	// Storage: Scheduler Agenda (r:1 w:1)
 	fn timing_user_receive_award() -> Weight {
-		(43_399_000 as Weight)
-			.saturating_add(RocksDbWeight::get().reads(2 as Weight))
-			.saturating_add(RocksDbWeight::get().writes(2 as Weight))
+		Weight::from_ref_time(43_399_000 as u64)
+			.saturating_add(RocksDbWeight::get().reads(2 as u64))
+			.saturating_add(RocksDbWeight::get().writes(2 as u64))
 	}
 }

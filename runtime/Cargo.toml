@@ -1,394 +1,134 @@
 [package]
-authors = ['CESS LAB']
-edition = '2021'
-license = 'Unlicense'
-name = 'cess-node-runtime'
-repository = 'https://github.com/CESSProject/cess'
-version = '0.5.3'
+authors = ["CESS LAB"]
+edition = "2021"
+license = "Unlicense"
+name = "cess-node-runtime"
+repository = "https://github.com/CESSProject/cess"
+version = "0.5.3"
 
 [package.metadata.docs.rs]
-targets = ['x86_64-unknown-linux-gnu']
+targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-log = { version = "0.4.14", default-features = false }
 
-# Frontier
-fp-rpc = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
-fp-self-contained = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
-pallet-base-fee = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
-pallet-dynamic-fee = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
-pallet-ethereum = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
-pallet-evm = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
-pallet-evm-precompile-modexp = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
-pallet-evm-precompile-sha3fips = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
-pallet-evm-precompile-simple = { git = "https://github.com/CESSProject/frontier", branch = "monthly-2022-04-cess", default-features = false }
+# third-party dependencies
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = [
+	"derive",
+	"max-encoded-len",
+] }
+scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
+# static_assertions
+log = { version = "0.4.17", default-features = false }
+hex-literal = { optional = true, version = "0.3.4" }
+
+# primitives
+sp-authority-discovery = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+cessp-consensus-rrsc = { version = "0.10.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+sp-block-builder = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+sp-inherents = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+# node-premitives
+sp-offchain = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+sp-core = { version = "7.0.0", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+sp-std = { version = "5.0.0", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+sp-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+sp-runtime = { version = "7.0.0", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+sp-staking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+sp-session = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+sp-transaction-pool = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+sp-version = { version = "5.0.0", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+sp-io = { version = "7.0.0", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36"}
+cp-enclave-verify = { path = '../primitives/enclave-verify', version = '0.1.0', default-features = false }
+
+# frame dependencies
+frame-executive = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+frame-benchmarking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", optional = true, branch = "cess-polkadot-v0.9.36" }
+frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+frame-system-benchmarking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", optional = true, branch = "cess-polkadot-v0.9.36" }
+frame-election-provider-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+frame-system-rpc-runtime-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+frame-try-runtime = { version = "0.10.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36", optional = true }
+# pallet-alliance
+pallet-assets = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+pallet-authority-discovery = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+pallet-authorship = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+pallet-rrsc = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+pallet-bags-list = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+pallet-balances = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+pallet-bounties = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+pallet-child-bounties = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+pallet-collective = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+pallet-contracts = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+pallet-contracts-primitives = { version = "7.0.0", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+# pallet-conviction-voting
+# pallet-democracy
+pallet-election-provider-multi-phase = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+# pallet-election-provider-support-benchmarking
+# pallet-elections-phragmen
+# pallet-fast-unstake
+# pallet-nis
+pallet-grandpa = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+pallet-im-online = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+pallet-indices = {  version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+# pallet-identity
+# pallet-lottery
+pallet-membership = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+# pallet-message-queue
+pallet-mmr = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+# pallet-multisig
+# pallet-nomination-pools
+# pallet-nomination-pools-benchmarking
+# pallet-nomination-pools-runtime-api
+pallet-offences = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+# pallet-offences-benchmarking
+pallet-preimage = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+# pallet-proxy
+pallet-randomness-collective-flip = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+# pallet-ranked-collective
+# pallet-recovery
+# pallet-referenda
+# pallet-remark
+# pallet-root-testing
+pallet-session = { version = "4.0.0-dev", default-features = false, features = ["historical"], git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+# pallet-session-benchmarking
+pallet-cess-staking = { default-features = false, path = "../c-pallets/staking", version = "4.0.0-dev" }
+# pallet-staking-reward-curve
+# pallet-state-trie-migration
+pallet-scheduler = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+# pallet-society
+pallet-sudo = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+pallet-timestamp = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+# pallet-tips
+pallet-treasury = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+# pallet-utility
+pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+pallet-transaction-payment-rpc-runtime-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+pallet-asset-tx-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 
 cp-scheduler-credit = { default-features = false, version = "0.1.0", path = "../primitives/scheduler-credit" }
 pallet-scheduler-credit = { default-features = false, version = "0.1.0", path = "../c-pallets/scheduler-credit" }
 
-[build-dependencies.substrate-wasm-builder]
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '5.0.0-dev'
-
-[dependencies.pallet-indices]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.sp-io]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '6.0.0'
-
-[dependencies.codec]
-default-features = false
-features = ['derive', 'max-encoded-len']
-package = 'parity-scale-codec'
-version = '3.0.0'
-
-[dependencies.scale-info]
-default-features = false
-features = ['derive']
-version = '2.0.1'
-
-[dependencies.frame-benchmarking]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-optional = true
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.frame-executive]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.frame-support]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.frame-system]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.frame-system-benchmarking]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-optional = true
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.frame-system-rpc-runtime-api]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.hex-literal]
-optional = true
-version = '0.3.4'
-
-[dependencies.pallet-rrsc]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-balances]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-grandpa]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-randomness-collective-flip]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-sudo]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-timestamp]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-transaction-payment]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-transaction-payment-rpc-runtime-api]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.sp-api]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.sp-block-builder]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.cessp-consensus-rrsc]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '0.10.0-dev'
-
-[dependencies.sp-core]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '6.0.0'
-
-[dependencies.sp-inherents]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.sp-offchain]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.sp-runtime]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '6.0.0'
-
-[dependencies.sp-session]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.sp-std]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0'
-
-[dependencies.sp-transaction-pool]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.sp-version]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '5.0.0'
-
-[dependencies.pallet-im-online]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-session]
-default-features = false
-features = ['historical',]
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-authorship]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.sp-authority-discovery]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-authority-discovery]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-child-bounties]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-preimage]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-offences]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-cess-staking]
-default-features = false
-path = '../c-pallets/staking'
-version = '4.0.0-dev'
-
-[dependencies.frame-election-provider-support]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-election-provider-multi-phase]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-bags-list]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.frame-try-runtime]
-version = "0.10.0-dev"
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-optional = true
-
-[dependencies.pallet-membership]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-collective]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-treasury]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-bounties]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.sp-staking]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-scheduler]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-contracts]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-contracts-primitives]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '6.0.0'
-
-[dependencies.pallet-contracts-rpc-runtime-api]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-mmr]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-assets]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
-[dependencies.pallet-asset-tx-payment]
-default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = 'monthly-2022-04-cess'
-version = '4.0.0-dev'
-
 # local dependencies
-[dependencies.pallet-sminer]
-default-features = false
-path = '../c-pallets/sminer'
-version = '0.5.3'
+pallet-sminer = { default-features = false, path = "../c-pallets/sminer", version = "0.5.3" }
+pallet-audit = { default-features = false, path = "../c-pallets/audit", version = "0.5.3" }
+pallet-file-bank = { default-features = false, path = "../c-pallets/file-bank", version = "0.5.3" }
+pallet-tee-worker = { default-features = false, path = "../c-pallets/tee-worker", version = "0.5.3" }
+pallet-storage-handler = { default-features = false, path = "../c-pallets/storage-handler", version = "0.5.4" }
+pallet-oss = { default-features = false, path = "../c-pallets/oss", version = "0.5.3" }
 
-# local dependencies
-[dependencies.pallet-segment-book]
-default-features = false
-path = '../c-pallets/segment-book'
-version = '0.5.3'
+# Frontier
+fp-rpc = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
+fp-self-contained = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
+pallet-base-fee = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
+pallet-dynamic-fee = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
+pallet-ethereum = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
+pallet-evm = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
+pallet-evm-precompile-modexp = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
+pallet-evm-precompile-sha3fips = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
+pallet-evm-precompile-simple = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
 
-# local dependencies
-[dependencies.pallet-file-bank]
-default-features = false
-path = '../c-pallets/file-bank'
-version = '0.5.3'
-
-# local dependencies
-[dependencies.pallet-file-map]
-default-features = false
-path = '../c-pallets/file-map'
-version = '0.5.3'
-
-[dependencies.pallet-oss]
-default-features = false
-path = '../c-pallets/oss'
-version = '0.5.3'
+[build-dependencies]
+substrate-wasm-builder = { git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36", version = "5.0.0-dev" }
 
 [dependencies.pallet-cacher]
 default-features = false
@@ -396,28 +136,8 @@ path = '../c-pallets/cacher'
 version = '0.5.3'
 
 [features]
-default = ['std']
-runtime-benchmarks = [
-    "frame-benchmarking/runtime-benchmarks",
-    'frame-support/runtime-benchmarks',
-    'frame-system-benchmarking',
-    'frame-system/runtime-benchmarks',
-    'hex-literal',
-    'pallet-balances/runtime-benchmarks',
-    'pallet-timestamp/runtime-benchmarks',
-    'pallet-collective/runtime-benchmarks',
-    'pallet-file-bank/runtime-benchmarks',
-    'pallet-file-map/runtime-benchmarks',
-		'pallet-oss/runtime-benchmarks',
-    'pallet-cacher/runtime-benchmarks',
-    'pallet-cess-staking/runtime-benchmarks',
-    'pallet-segment-book/runtime-benchmarks',
-    'pallet-sminer/runtime-benchmarks',
-    'sp-runtime/runtime-benchmarks',
-    "pallet-contracts/runtime-benchmarks",
-    "pallet-ethereum/runtime-benchmarks",
-		"pallet-evm/runtime-benchmarks",
-]
+default = ["std"]
+with-tracing = ["frame-executive/with-tracing"]
 std = [
     "pallet-authority-discovery/std",
     "pallet-authorship/std",
@@ -432,9 +152,10 @@ std = [
     "pallet-cess-staking/std",
     "pallet-treasury/std",
     "pallet-file-bank/std",
-    "pallet-segment-book/std",
+    "pallet-audit/std",
     "pallet-sminer/std",
-    "pallet-file-map/std",
+    "pallet-tee-worker/std",
+    "pallet-storage-handler/std",
 		"pallet-oss/std",
     "pallet-cacher/std",
     "pallet-preimage/std",
@@ -445,37 +166,36 @@ std = [
     "pallet-indices/std",
     "sp-authority-discovery/std",
     "sp-staking/std",
-    'codec/std',
+    "codec/std",
 	  "frame-try-runtime/std",
     "frame-benchmarking/std",
-    'frame-executive/std',
-    'frame-support/std',
-    'frame-system-rpc-runtime-api/std',
-    'frame-system/std',
-    'pallet-rrsc/std',
-    'pallet-bags-list/std',
-    'pallet-balances/std',
-    'pallet-grandpa/std',
-    'pallet-randomness-collective-flip/std',
-    'pallet-sudo/std',
-    'pallet-timestamp/std',
-    'pallet-transaction-payment-rpc-runtime-api/std',
-    'pallet-transaction-payment/std',
+    "frame-executive/std",
+    "frame-support/std",
+    "frame-system-rpc-runtime-api/std",
+    "frame-system/std",
+    "pallet-rrsc/std",
+    "pallet-bags-list/std",
+    "pallet-balances/std",
+    "pallet-grandpa/std",
+    "pallet-randomness-collective-flip/std",
+    "pallet-sudo/std",
+    "pallet-timestamp/std",
+    "pallet-transaction-payment-rpc-runtime-api/std",
+    "pallet-transaction-payment/std",
     "pallet-contracts/std",
 		"pallet-contracts-primitives/std",
-		"pallet-contracts-rpc-runtime-api/std",
-    'scale-info/std',
-    'sp-api/std',
-    'sp-block-builder/std',
-    'cessp-consensus-rrsc/std',
-    'sp-core/std',
-    'sp-inherents/std',
-    'sp-offchain/std',
-    'sp-runtime/std',
-    'sp-session/std',
-    'sp-std/std',
-    'sp-transaction-pool/std',
-    'sp-version/std',
+    "scale-info/std",
+    "sp-api/std",
+    "sp-block-builder/std",
+    "cessp-consensus-rrsc/std",
+    "sp-core/std",
+    "sp-inherents/std",
+    "sp-offchain/std",
+    "sp-runtime/std",
+    "sp-session/std",
+    "sp-std/std",
+    "sp-transaction-pool/std",
+    "sp-version/std",
     "fp-rpc/std",
 		"fp-self-contained/std",
 		"pallet-base-fee/std",
@@ -486,8 +206,28 @@ std = [
 		"pallet-evm-precompile-sha3fips/std",
     "cp-scheduler-credit/std",
     "pallet-scheduler-credit/std",
+    "cp-enclave-verify/std",
 ]
-
+runtime-benchmarks = [
+    "frame-benchmarking/runtime-benchmarks",
+    "frame-support/runtime-benchmarks",
+    "frame-system-benchmarking",
+    "frame-system/runtime-benchmarks",
+    "hex-literal",
+    "pallet-balances/runtime-benchmarks",
+    "pallet-timestamp/runtime-benchmarks",
+    "pallet-collective/runtime-benchmarks",
+    "pallet-file-bank/runtime-benchmarks",
+    "pallet-tee-worker/runtime-benchmarks",
+		"pallet-oss/runtime-benchmarks",
+    "pallet-cess-staking/runtime-benchmarks",
+    "pallet-audit/runtime-benchmarks",
+    "pallet-sminer/runtime-benchmarks",
+    "sp-runtime/runtime-benchmarks",
+    "pallet-contracts/runtime-benchmarks",
+    "pallet-ethereum/runtime-benchmarks",
+		"pallet-evm/runtime-benchmarks",
+]
 try-runtime = [
 	"frame-executive/try-runtime",
 	"frame-try-runtime",

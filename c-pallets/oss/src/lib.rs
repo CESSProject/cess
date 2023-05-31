@@ -12,11 +12,9 @@ mod tests;
 
 use frame_system::pallet_prelude::*;
 use frame_support::{
-	pallet_prelude::*, transactional
+	pallet_prelude::*, transactional,
 };
-use cp_cess_common::{
-	IpAddress,
-};
+use cp_cess_common::*;
 
 pub use pallet::*;
 
@@ -32,9 +30,12 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config + sp_std::fmt::Debug {
 		/// The overarching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		type WeightInfo: WeightInfo;
+
+		#[pallet::constant]
+		type P2PLength: Get<u32> + Clone;
 	}
 
 	#[pallet::event]
@@ -45,9 +46,9 @@ pub mod pallet {
 		//Cancel authorization success event
 		CancelAuthorize { acc: AccountOf<T> },
 		//The event of successful Oss registration
-		OssRegister { acc: AccountOf<T>, endpoint: IpAddress },
+		OssRegister { acc: AccountOf<T>, endpoint: PeerId },
 		//Oss information change success event
-		OssUpdate { acc: AccountOf<T>, new_endpoint: IpAddress },
+		OssUpdate { acc: AccountOf<T>, new_endpoint: PeerId },
 		//Oss account destruction success event
 		OssDestroy { acc: AccountOf<T> },
 	}
@@ -70,7 +71,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn oss)]
-	pub(super) type Oss<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, IpAddress>;
+	pub(super) type Oss<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, PeerId>;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -78,6 +79,7 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[pallet::call_index(0)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::authorize())]
 		pub fn authorize(origin: OriginFor<T>, operator: AccountOf<T>) -> DispatchResult {
@@ -93,6 +95,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(1)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::cancel_authorize())]
 		pub fn cancel_authorize(origin: OriginFor<T>) -> DispatchResult {
@@ -108,9 +111,10 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(2)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::register())]
-		pub fn register(origin: OriginFor<T>, endpoint: IpAddress) -> DispatchResult {
+		pub fn register(origin: OriginFor<T>, endpoint: PeerId) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!<Oss<T>>::contains_key(&sender), Error::<T>::Registered);
 			<Oss<T>>::insert(&sender, endpoint.clone());
@@ -120,9 +124,10 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(3)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update())]
-		pub fn update(origin: OriginFor<T>, endpoint: IpAddress) -> DispatchResult {
+		pub fn update(origin: OriginFor<T>, endpoint: PeerId) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(<Oss<T>>::contains_key(&sender), Error::<T>::UnRegister);
 
@@ -137,6 +142,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(4)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::destroy())]
 		pub fn destroy(origin: OriginFor<T>) -> DispatchResult {

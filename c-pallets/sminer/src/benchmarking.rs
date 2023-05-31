@@ -163,7 +163,7 @@ benchmarks! {
         	})?;
 				}
 
-        let acc = T::PalletId::get().into_account();
+        let acc = T::PalletId::get().into_account_truncating();
         T::Currency::make_free_balance_be(
             &acc,
             BalanceOf::<T>::max_value(),
