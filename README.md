@@ -95,7 +95,6 @@ CESS supports to obtain incentives by contributing idle storage with [storage mi
 
 ## Run Tests
 
-
 CESS has Rust unit tests, and can be run locally.
 
 ```
@@ -104,7 +103,6 @@ cargo test --release
 ```
 
 ## Module Documentation
-
 
 * [Files Bank](c-pallets/file-bank)
 * [Audit](c-pallets/audit)
