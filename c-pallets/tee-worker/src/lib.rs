@@ -217,18 +217,34 @@ pub mod pallet {
 			Ok(())
 		}
 
-		// #[pallet::call_index(4)]
-        // #[transactional]
-		// #[pallet::weight(100_000_000)]
-		// pub fn exit(origin: OriginFor<T>) -> DispatchResult {
-		// 	let sender = ensure_signed(origin)?;
+		#[pallet::call_index(4)]
+        #[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn exit(origin: OriginFor<T>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
 
-		// 	TeeWorkerMap::<T>::remove(&sender);
+			TeeWorkerMap::<T>::remove(&sender);
 
-		// 	Self::deposit_event(Event::<T>::Exit { acc: sender });
+			if TeeWorkerMap::<T>::count() == 0 {
+				<TeePodr2Pk<T>>::kill();
+			}
 
-		// 	Ok(())
-		// }
+			Self::deposit_event(Event::<T>::Exit { acc: sender });
+
+			Ok(())
+		}
+
+		//For TEST
+		#[pallet::call_index(5)]
+		#[transactional]
+		#[pallet::weight(100_00_000)]
+		pub fn update_pk(origin: OriginFor<T>, podr2_pbk: Podr2Key) -> DispatchResult {
+			let _sender = ensure_signed(origin)?;
+
+			<TeePodr2Pk<T>>::put(podr2_pbk);
+
+			Ok(())
+		}
 
 		// #[pallet::call_index(5)]
         // #[transactional]

@@ -1175,6 +1175,7 @@ dependencies = [
  "frame-support",
  "log",
  "parity-scale-codec",
+ "rand 0.8.5",
  "rsa",
  "scale-info",
  "serde_json",
