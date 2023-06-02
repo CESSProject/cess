@@ -194,7 +194,12 @@ pub mod pallet {
 		Withdraw { acc: AccountOf<T> },
 
 		GenerateRestoralOrder { miner: AccountOf<T>, fragment_hash: Hash },
+
+		ClaimRestoralOrder { miner: AccountOf<T>, order_id: Hash },
+
+		RecoveryCompleted { miner: AccountOf<T>, order_id: Hash },
 	}
+
 	#[pallet::error]
 	pub enum Error<T> {
 		Existed,
@@ -326,13 +331,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn user_bucket_list)]
 	pub(super) type UserBucketList<T: Config> = 
-		StorageMap<
-			_,
-			Blake2_128Concat,
-			AccountOf<T>,
-			BoundedVec<BoundedVec<u8, T::NameStrLimit>, T::BucketLimit>,
-			ValueQuery,
-		>;
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<BoundedVec<u8, T::NameStrLimit>, T::BucketLimit>, ValueQuery>;
 	
 	#[pallet::storage]
 	#[pallet::getter(fn restoral_target)]
@@ -353,11 +352,17 @@ pub mod pallet {
 	impl<T: Config> Hooks<BlockNumberOf<T>> for Pallet<T> {
 		fn on_initialize(_now: BlockNumberOf<T>) -> Weight {
 			let (mut weight, acc_list) = T::StorageHandle::frozen_task();
-			
+			let mut count: u32 = 0; 
 			for acc in acc_list.iter() {
 				// todo! Delete in blocks, and delete a part of each block
-				if let Ok(file_info_list) = <UserHoldFileList<T>>::try_get(&acc) {
-					for file_info in file_info_list.iter() {
+				if let Ok(mut file_info_list) = <UserHoldFileList<T>>::try_get(&acc) {
+					weight = weight.saturating_add(T::DbWeight::get().reads(1));
+					while let Some(file_info) = file_info_list.pop() {
+						count = count + 1;
+						if count == 300 {
+							<UserHoldFileList<T>>::insert(&acc, file_info_list);
+							return weight;
+						}
 						if let Ok(file) = <File<T>>::try_get(&file_info.file_hash) {
 							weight = weight.saturating_add(T::DbWeight::get().reads(1));
 							if file.owner.len() > 1 {
@@ -369,8 +374,13 @@ pub mod pallet {
 									weight = weight.saturating_add(temp_weight);
 								}
 							}
+						} else {
+							log::error!("space lease, delete file bug!");
+							log::error!("acc: {:?}, file_hash: {:?}", &acc, &file_info.file_hash);
 						}
 					}
+					T::StorageHandle::delete_user_space_storage(&acc);
+
 					<UserHoldFileList<T>>::remove(&acc);
 					// todo! clear all
 					let _ = <Bucket<T>>::clear_prefix(&acc, 100000, None);
@@ -862,7 +872,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(Self::check_permission(sender.clone(), owner.clone()), Error::<T>::NoPermission);
-			ensure!(!<Bucket<T>>::contains_key(&sender, &name), Error::<T>::SameBucketName);
+			ensure!(!<Bucket<T>>::contains_key(&owner, &name), Error::<T>::SameBucketName);
 			ensure!(name.len() >= T::NameMinLength::get() as usize, Error::<T>::LessMinLength);
 			let bucket = BucketInfo::<T>{
 				object_list: Default::default(),
@@ -987,12 +997,12 @@ pub mod pallet {
 				let life = T::RestoralOrderLife::get();
 				order.count = order.count.checked_add(1).ok_or(Error::<T>::Overflow)?;
 				order.deadline = now.checked_add(&life.saturated_into()).ok_or(Error::<T>::Overflow)?;
-				order.miner = sender;
+				order.miner = sender.clone();
 
 				Ok(())
 			})?;
 
-			// Self::deposit_event(Event::<T>::GenerateRestoralOrder{ miner: sender, fragment_hash: restoral_fragment});
+			Self::deposit_event(Event::<T>::ClaimRestoralOrder{ miner: sender, order_id: restoral_fragment});
 
 			Ok(())
 		}
@@ -1048,7 +1058,7 @@ pub mod pallet {
 				Err(Error::<T>::SpecError)?
 			})?;
 
-			// Self::deposit_event(Event::<T>::GenerateRestoralOrder{ miner: sender, fragment_hash: restoral_fragment});
+			Self::deposit_event(Event::<T>::ClaimRestoralOrder{ miner: sender, order_id: restoral_fragment});
 
 			Ok(())
 		}
@@ -1088,7 +1098,7 @@ pub mod pallet {
 								}
 
 								fragment.avail = true;
-								fragment.miner = sender;
+								fragment.miner = sender.clone();
 								return Ok(());
 							}
 						}
@@ -1100,6 +1110,8 @@ pub mod pallet {
 
 			<RestoralOrder<T>>::remove(fragment_hash);
 
+			Self::deposit_event(Event::<T>::RecoveryCompleted{ miner: sender, order_id: fragment_hash});
+		
 			Ok(())
 		}
 
@@ -1165,13 +1177,17 @@ pub mod pallet {
 		#[pallet::call_index(19)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
-		pub fn miner_withdaw(origin: OriginFor<T>) -> DispatchResult {
+		pub fn miner_withdraw(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
 			let restoral_info = <RestoralTarget<T>>::try_get(&sender).map_err(|_| Error::<T>::MinerStateError)?;
 			let now = <frame_system::Pallet<T>>::block_number();
 
 			ensure!(now >= restoral_info.cooling_block, Error::<T>::MinerStateError);
+			ensure!(
+				restoral_info.restored_space == restoral_info.service_space,
+				Error::<T>::MinerStateError,
+			);
 
 			T::MinerControl::withdraw(&sender)?;
 
