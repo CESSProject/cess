@@ -496,14 +496,14 @@ fn testnet_genesis(
 
 	let num_endowed_accounts = endowed_accounts.len();
 
-	const ENDOWMENT: Balance = 10_000_000 * DOLLARS;
-	const STASH: Balance = ENDOWMENT / 10;
+	const ENDOWMENT: Balance = 100_000_000 * DOLLARS;
+	const STASH: Balance = 3_000_000 * DOLLARS;
 
 	GenesisConfig {
 		system: SystemConfig { code: wasm_binary_unwrap().to_vec() },
 		balances: BalancesConfig {
-			// Configure endowed accounts with initial balance of 1 << 60.
-			balances: endowed_accounts.iter().cloned().map(|k| (k, 1 << 65)).collect(),
+			// Configure endowed accounts with initial balance of ENDOWMENT.
+			balances: endowed_accounts.iter().cloned().map(|k| (k, ENDOWMENT)).collect(),
 		},
 		storage_handler: StorageHandlerConfig { price: 30 * DOLLARS },
 		indices: IndicesConfig { indices: vec![] },
