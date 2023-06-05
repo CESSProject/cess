@@ -246,6 +246,23 @@ pub mod pallet {
 			Ok(())
 		}
 
+		// #[pallet::call_index(6)]
+		// #[transactional]
+		// #[pallet::weight(100_00_000)]
+		// pub fn bls_verify_test(origin: OriginFor<T>, puk: Vec<u8>, msg: Vec<u8>, sig: Vec<u8>) -> DispatchResult {
+		// 	let _ = ensure_signed(origin)?;
+
+		// 	let result = verify_bls(&puk, &msg, &sig);
+
+		// 	if let Ok(()) = result {
+		// 		log::info!("bls verify result is true");
+		// 	} else {
+		// 		log::info!("bls verify result is false");
+		// 	}
+
+		// 	Ok(())
+		// }
+
 		// #[pallet::call_index(5)]
         // #[transactional]
 		// #[pallet::weight(100_000_000)]

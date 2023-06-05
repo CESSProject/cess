@@ -18,6 +18,11 @@ use rsa::{
     pkcs8::DecodePublicKey,
 };
 
+// use ic_verify_bls_signature::{
+//     Signature as BLSSignature, 
+//     PublicKey as BLSPubilc,
+// };
+
 #[test]
 use rand::RngCore;
 
@@ -222,6 +227,18 @@ pub fn verify_rsa(key: &[u8], msg: &[u8], sig: &[u8]) -> bool {
     };
 }
 
+// pub fn verify_bls(key: &[u8], msg: &[u8], sig: &[u8]) -> Result<(), ()> {
+//     let puk = BLSPubilc::deserialize(key).unwrap();
+
+//     log::info!("bls puk: {:?}", puk);
+
+//     let sig = BLSSignature::deserialize(sig).unwrap();
+
+//     let r = puk.verify(&msg, &sig);
+
+//     r
+// }
+
 // pub fn sig_rsa(key: &[u8], msg: &[u8]) -> &[u8] {
 
 // }
@@ -240,14 +257,4 @@ fn cryptos_rsa() {
     let sig = binding.as_ref();
 	let result = verify_rsa(&doc.as_bytes(), &msg, &sig);
 	println!("result: {:?}", result);
-}
-
-#[test]
-fn first_char_roll() {
-    let mut rng = rand::thread_rng();
-    println!("si ling fa shi: {:?}", rng.next_u32() % 100);
-    println!("de lu yi: {:?}", rng.next_u32() % 100);
-    println!("ye man ren: {:?}", rng.next_u32() % 100);
-    println!("fa shi: {:?}", rng.next_u32() % 100);
-    println!("you xia: {:?}", rng.next_u32() % 100);
 }
