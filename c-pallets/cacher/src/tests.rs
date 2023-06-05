@@ -42,9 +42,13 @@ fn update_works() {
 		};
 		// Wrong accout update fails.
 <<<<<<< HEAD
+<<<<<<< HEAD
 		assert_noop!(Cacher::update(RuntimeOrigin::signed(2), new_info.clone()), Error::<Test>::UnRegister);
 =======
 		assert_noop!(Cacher::update(Origin::signed(2), new_info.clone()), Error::<Test>::UnRegistered);
+>>>>>>> main
+=======
+		assert_noop!(Cacher::update(RuntimeOrigin::signed(2), new_info.clone()), Error::<Test>::UnRegister);
 >>>>>>> main
 		// Update works.
 		assert_ok!(Cacher::update(RuntimeOrigin::signed(1), new_info.clone()));
@@ -66,9 +70,13 @@ fn logout_works() {
 
 		// Wrong accout logout fails.
 <<<<<<< HEAD
+<<<<<<< HEAD
 		assert_noop!(Cacher::logout(RuntimeOrigin::signed(2)), Error::<Test>::UnRegister);
 =======
 		assert_noop!(Cacher::logout(Origin::signed(2)), Error::<Test>::UnRegistered);
+>>>>>>> main
+=======
+		assert_noop!(Cacher::logout(RuntimeOrigin::signed(2)), Error::<Test>::UnRegister);
 >>>>>>> main
 		// Logout works.
 		assert_ok!(Cacher::logout(RuntimeOrigin::signed(1)));
@@ -98,9 +106,13 @@ fn pay_works() {
 
 		// Pay fails.
 <<<<<<< HEAD
+<<<<<<< HEAD
 		assert_noop!(Cacher::pay(RuntimeOrigin::signed(1), bills.clone()), Error::<Test>::InsufficientBalance);
 =======
 		assert_noop!(Cacher::pay(Origin::signed(1), bills.clone()), BalancesError::<Test>::InsufficientBalance);
+>>>>>>> main
+=======
+		assert_noop!(Cacher::pay(RuntimeOrigin::signed(1), bills.clone()), Error::<Test>::InsufficientBalance);
 >>>>>>> main
 
 		<Test as Config>::Currency::make_free_balance_be(&1, BalanceOf::<Test>::max_value());

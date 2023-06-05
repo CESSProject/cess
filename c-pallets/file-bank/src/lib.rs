@@ -331,7 +331,13 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn user_bucket_list)]
 	pub(super) type UserBucketList<T: Config> = 
-		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<BoundedVec<u8, T::NameStrLimit>, T::BucketLimit>, ValueQuery>;
+		StorageMap<
+			_,
+			Blake2_128Concat,
+			AccountOf<T>,
+			BoundedVec<BoundedVec<u8, T::NameStrLimit>, T::BucketLimit>,
+			ValueQuery,
+		>;
 	
 	#[pallet::storage]
 	#[pallet::getter(fn restoral_target)]
@@ -1147,8 +1153,11 @@ pub mod pallet {
                 Call::miner_exit{miner: sender}.into(), 
         	).map_err(|_| Error::<T>::Unexpected)?;
 
-			Ok(())
-		}
+		#[pallet::call_index(15)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn miner_withdaw(origin: OriginFor<T>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
 
 		#[pallet::call_index(18)]
 		#[transactional]

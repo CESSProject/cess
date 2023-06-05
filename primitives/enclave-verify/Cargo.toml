@@ -19,7 +19,6 @@ cp-cess-common = { version = "0.1.0", path = '../common', default-features = fal
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 rsa = { version = "0.8.2", default-features = false }
 
-
 frame-support = {default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'cess-polkadot-v0.9.36', version = '4.0.0-dev'}
 sp-api = { version = "4.0.0-dev", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'cess-polkadot-v0.9.36' }
 sp-core = { version = "7.0.0", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'cess-polkadot-v0.9.36' }
