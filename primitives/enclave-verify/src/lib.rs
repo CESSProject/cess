@@ -18,10 +18,10 @@ use rsa::{
     pkcs8::DecodePublicKey,
 };
 
-// use ic_verify_bls_signature::{
-//     Signature as BLSSignature, 
-//     PublicKey as BLSPubilc,
-// };
+use ic_verify_bls_signature::{
+    Signature as BLSSignature, 
+    PublicKey as BLSPubilc,
+};
 
 #[test]
 use rand::RngCore;
@@ -227,17 +227,17 @@ pub fn verify_rsa(key: &[u8], msg: &[u8], sig: &[u8]) -> bool {
     };
 }
 
-// pub fn verify_bls(key: &[u8], msg: &[u8], sig: &[u8]) -> Result<(), ()> {
-//     let puk = BLSPubilc::deserialize(key).unwrap();
+pub fn verify_bls(key: &[u8], msg: &[u8], sig: &[u8]) -> Result<(), ()> {
+    let puk = BLSPubilc::deserialize(key).unwrap();
 
-//     log::info!("bls puk: {:?}", puk);
+    log::info!("bls puk: {:?}", puk);
 
-//     let sig = BLSSignature::deserialize(sig).unwrap();
+    let sig = BLSSignature::deserialize(sig).unwrap();
 
-//     let r = puk.verify(&msg, &sig);
+    let r = puk.verify(&msg, &sig);
 
-//     r
-// }
+    r
+}
 
 // pub fn sig_rsa(key: &[u8], msg: &[u8]) -> &[u8] {
 

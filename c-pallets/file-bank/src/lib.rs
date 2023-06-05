@@ -1153,11 +1153,10 @@ pub mod pallet {
                 Call::miner_exit{miner: sender}.into(), 
         	).map_err(|_| Error::<T>::Unexpected)?;
 
-		#[pallet::call_index(15)]
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn miner_withdaw(origin: OriginFor<T>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
+			Ok(())
+		}
+
+
 
 		#[pallet::call_index(18)]
 		#[transactional]

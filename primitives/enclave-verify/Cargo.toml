@@ -8,7 +8,7 @@ edition = "2021"
 # bls-signatures = { version = "0.14.0", default-features = false, features = ["pairing"]}
 
 # signature_bls = { version = "0.35.0" , default-features = false}
-# ic-verify-bls-signature = "0.2.0"
+ic-verify-bls-signature = { version = "0.2.0", default-features = false }
 
 log = { version = "0.4.14", default-features = false }
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
