@@ -1447,6 +1447,7 @@ impl pallet_scheduler_credit::Config for Runtime {
 impl pallet_cacher::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
+	type BillsLimit = ConstU32<10>;
 	type WeightInfo = pallet_cacher::weights::SubstrateWeight<Runtime>;
 }
 
