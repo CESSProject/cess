@@ -134,11 +134,8 @@ pub mod pallet {
 		///	
 		/// Parameters:
 		/// - `bills`: list of bill.
-<<<<<<< HEAD
 		#[pallet::call_index(3)]
-=======
 		#[transactional]
->>>>>>> main
 		#[pallet::weight(T::WeightInfo::pay(bills.len() as u32))]
 		pub fn pay(origin: OriginFor<T>, bills: BoundedVec<Bill<AccountOf<T>, BalanceOf<T>, T::Hash>, T::BillsLimit>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
