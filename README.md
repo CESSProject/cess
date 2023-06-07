@@ -32,7 +32,7 @@ cargo build --release
 ## Run The CESS Node
 
 
-After the node has finished compiling, you can follow these steps below to run it. 
+After the node has finished compiling, you can follow following steps to run it. 
 
 ### Generate Keys
 
@@ -111,7 +111,7 @@ cargo test --release
 
 ## Contribute
 
-Please follow the contribution guidelines as outlined in [`docs/CONTRIBUTING.adoc`](docs/CONTRIBUTING.adoc). For all communications and contributions, this project follows the [Contributor Covenant Code of Conduct](docs/CODE_OF_CONDUCT.md).
+Please follow the contribution guidelines as outlined here [`docs/CONTRIBUTING.adoc`](docs/CONTRIBUTING.adoc). For all communications and contributions, this project follows the [Contributor Covenant Code of Conduct](docs/CODE_OF_CONDUCT.md).
 
 ## Cess-bootstrap
 
