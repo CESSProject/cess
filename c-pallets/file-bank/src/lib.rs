@@ -342,7 +342,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn restoral_target)]
 	pub(super) type RestoralTarget<T: Config> = 
-		StorageMap< _, Blake2_128Concat, AccountOf<T>, RestoralTargetInfo<BlockNumberOf<T>>>;
+		StorageMap< _, Blake2_128Concat, AccountOf<T>, RestoralTargetInfo<AccountOf<T>, BlockNumberOf<T>>>;
 	
 	#[pallet::storage]
 	#[pallet::getter(fn restoral_order)]
@@ -986,7 +986,7 @@ pub mod pallet {
 		#[pallet::call_index(14)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
-		pub fn claim_restoral_exist_order(
+		pub fn claim_restoral_order(
 			origin: OriginFor<T>,
 			restoral_fragment: Hash,
 		) -> DispatchResult {
@@ -1016,7 +1016,7 @@ pub mod pallet {
 		#[pallet::call_index(15)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
-		pub fn claim_restoral_unexist_order(
+		pub fn claim_restoral_exist_order(
 			origin: OriginFor<T>,
 			miner: AccountOf<T>,
 			file_hash: Hash,
@@ -1121,7 +1121,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-
+		// The lock in time must be greater than the survival period of the challenge
 		#[pallet::call_index(17)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
