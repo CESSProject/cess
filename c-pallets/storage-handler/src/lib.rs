@@ -35,6 +35,7 @@ pub use pallet::*;
 
 pub const SPACE_NORMAL: &str = "normal";
 pub const SPACE_FROZEN: &str = "frozen";
+pub const SPACE_DEAD: &str = "dead";
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> =
@@ -277,6 +278,11 @@ pub mod pallet {
 			let cur_owned_space = <UserOwnedSpace<T>>::try_get(&sender)
 				.map_err(|_e| Error::<T>::NotPurchasedSpace)?;
 
+            ensure!(
+                cur_owned_space.state.to_vec() != SPACE_DEAD.as_bytes().to_vec(), 
+                Error::<T>::LeaseExpired,
+            );
+
 			let days_unit_price = <UnitPrice<T>>::try_get()
 				.map_err(|_e| Error::<T>::BugInvalid)?
 				.checked_div(&30u32.saturated_into())
@@ -488,52 +494,63 @@ impl<T: Config> Pallet<T> {
     fn frozen_task() -> (Weight, Vec<AccountOf<T>>) {
         let now: BlockNumberOf<T> = <frame_system::Pallet<T>>::block_number();
         let number: u128 = now.saturated_into();
-        let block_oneday: BlockNumberOf<T> = <T as pallet::Config>::OneDay::get();
-        let oneday: u32 = block_oneday.saturated_into();
+    
         let mut weight: Weight = Weight::from_ref_time(0);
         let mut clear_acc_list: Vec<AccountOf<T>> = Default::default();
-        if number % oneday as u128 == 0 {
-            log::info!("Start lease expiration check");
-            for (acc, info) in <UserOwnedSpace<T>>::iter() {
-                weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
-                if now > info.deadline {
-                    let frozen_day: BlockNumberOf<T> = <T as pallet::Config>::FrozenDays::get();
-                    if now > info.deadline + frozen_day {
-                        log::info!("clear user:#{}'s files", number);
-                        let result = Self::sub_purchased_space(info.total_space);
+
+        log::info!("Start lease expiration check");
+        for (acc, info) in <UserOwnedSpace<T>>::iter() {
+            weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
+            if now > info.deadline {
+                let frozen_day: BlockNumberOf<T> = <T as pallet::Config>::FrozenDays::get();
+                if now > info.deadline + frozen_day {
+                    log::info!("clear user:#{}'s files", number);
+                    let result = <UserOwnedSpace<T>>::try_mutate(
+                        &acc,
+                        |s_opt| -> DispatchResult {
+                            let s = s_opt
+                                .as_mut()
+                                .ok_or(Error::<T>::NotPurchasedSpace)?;
+                            s.state = SPACE_DEAD
+                                .as_bytes()
+                                .to_vec()
+                                .try_into()
+                                .map_err(|_e| Error::<T>::BoundedVecError)?;
+                            Ok(())
+                        },
+                    );
+                    match result {
+                        Ok(()) => log::info!("user space dead: #{}", number),
+                        Err(e) => log::error!("space mark dead failed: {:?}", e),
+                    }
+                    weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+                    clear_acc_list.push(acc);
+                } else {
+                    if info.state.to_vec() != SPACE_FROZEN.as_bytes().to_vec() {
+                        let result = <UserOwnedSpace<T>>::try_mutate(
+                            &acc,
+                            |s_opt| -> DispatchResult {
+                                let s = s_opt
+                                    .as_mut()
+                                    .ok_or(Error::<T>::NotPurchasedSpace)?;
+                                s.state = SPACE_FROZEN
+                                    .as_bytes()
+                                    .to_vec()
+                                    .try_into()
+                                    .map_err(|_e| Error::<T>::BoundedVecError)?;
+                                Ok(())
+                            },
+                        );
                         match result {
-                            Ok(()) => log::info!("sub purchased space success"),
-                            Err(e) => log::error!("failed sub purchased space: {:?}", e),
-                        };
-                        weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-                        clear_acc_list.push(acc);
-                    } else {
-                        if info.state.to_vec() != SPACE_FROZEN.as_bytes().to_vec() {
-                            let result = <UserOwnedSpace<T>>::try_mutate(
-                                &acc,
-                                |s_opt| -> DispatchResult {
-                                    let s = s_opt
-                                        .as_mut()
-                                        .ok_or(Error::<T>::NotPurchasedSpace)?;
-                                    s.state = SPACE_FROZEN
-                                        .as_bytes()
-                                        .to_vec()
-                                        .try_into()
-                                        .map_err(|_e| Error::<T>::BoundedVecError)?;
-                                    Ok(())
-                                },
-                            );
-                            match result {
-                                Ok(()) => log::info!("user space frozen: #{}", number),
-                                Err(e) => log::error!("frozen failed: {:?}", e),
-                            }
-                            weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+                            Ok(()) => log::info!("user space frozen: #{}", number),
+                            Err(e) => log::error!("frozen failed: {:?}", e),
                         }
+                        weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
                     }
                 }
             }
-            log::info!("End lease expiration check");
         }
+        log::info!("End lease expiration check");
         (weight, clear_acc_list)
     }
 
