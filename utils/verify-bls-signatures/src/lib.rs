@@ -187,8 +187,8 @@ impl PrivateKey {
         loop {
             let mut buf = [0u8; 32];
             // rng.fill_bytes(&mut buf);
-            // getrandom::getrandom(&mut buf);
-            let buf = b"00000000111111112222222233333333";
+            // note: Handle the `Result` below
+            getrandom::getrandom(&mut buf);
             let s: Option<Scalar> = Scalar::from_bytes(&buf).into();
 
             if let Some(s) = s {

@@ -14,6 +14,9 @@ lazy_static = { version = "1", default-features = false }
 # Check references:
 #  - https://docs.rs/getrandom/latest/getrandom/index.html
 #  - https://rust-random.github.io/book/crates.html
-# getrandom = { version = "0.2.10", default-features = false, features = ["js"] }
+#  - https://github.com/rust-random/getrandom/pull/109 // This one explains why "custom" feature
+#    is added, and we will need to call `register_custom_getrandom` in future.
+#  - https://docs.rs/getrandom/latest/getrandom/index.html#custom-implementations
+getrandom = { version = "0.2.10", default-features = false, features = ["custom"] }
 sha2 = { version = "0.9", default-features = false }
 hex = { version = "0.4", default-features = false }

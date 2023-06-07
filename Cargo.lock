@@ -3194,6 +3194,7 @@ name = "ic-verify-bls-signature"
 version = "0.2.0"
 dependencies = [
  "bls12_381",
+ "getrandom 0.2.10",
  "hex",
  "lazy_static",
  "pairing",
