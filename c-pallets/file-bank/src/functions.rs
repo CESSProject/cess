@@ -545,7 +545,8 @@ impl<T: Config> Pallet<T> {
         let now = <frame_system::Pallet<T>>::block_number();
         let block = now.checked_add(&block.saturated_into()).ok_or(Error::<T>::Overflow)?;
 
-        let restoral_info = RestoralTargetInfo::<BlockNumberOf<T>>{
+        let restoral_info = RestoralTargetInfo::<AccountOf<T>, BlockNumberOf<T>>{
+            miner: miner.clone(),
             service_space,
             restored_space: u128::MIN,
             cooling_block: block,

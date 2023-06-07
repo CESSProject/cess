@@ -108,7 +108,8 @@ pub struct UserBrief<T: Config> {
 }
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-pub struct RestoralTargetInfo<Block> {
+pub struct RestoralTargetInfo<Account, Block> {
+	pub(super) miner: Account,
 	pub(super) service_space: u128,
 	pub(super) restored_space: u128,
 	pub(super) cooling_block: Block,
