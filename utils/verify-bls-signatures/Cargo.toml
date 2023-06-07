@@ -14,6 +14,6 @@ lazy_static = { version = "1", default-features = false }
 # Check references:
 #  - https://docs.rs/getrandom/latest/getrandom/index.html
 #  - https://rust-random.github.io/book/crates.html
-getrandom = { version = "0.2.10", default-features = false, features = ["js"] }
+# getrandom = { version = "0.2.10", default-features = false, features = ["js"] }
 sha2 = { version = "0.9", default-features = false }
 hex = { version = "0.4", default-features = false }
