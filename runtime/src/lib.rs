@@ -60,8 +60,9 @@ pub use frame_support::{
 	parameter_types,
 	dispatch::DispatchClass,
 	traits::{
-		AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU16, ConstU32, ConstU8, Currency, EitherOfDiverse, EqualPrivilegeOnly,
-		Everything, FindAuthor, Imbalance, InstanceFilter, KeyOwnerProofSystem, Nothing,
+		AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU16, ConstU32, ConstU8, Currency,
+		CurrencyToVote, EitherOfDiverse, EqualPrivilegeOnly, Everything, FindAuthor, Imbalance,
+		InstanceFilter, KeyOwnerProofSystem, Nothing,
 		OnUnbalanced, Randomness, StorageInfo, U128CurrencyToVote,
 	},
 	weights::{
@@ -374,7 +375,7 @@ frame_election_provider_support::generate_solution_type!(
 );
 
 parameter_types! {
-	pub MaxNominations: u32 = <NposSolution16 as frame_election_provider_support::NposSolution>::LIMIT as u32;
+	pub MaxNominations: u32 = 1;
 	pub MaxElectingVoters: u32 = 10_000;
 }
 
@@ -585,6 +586,7 @@ impl pallet_cess_staking::Config for Runtime {
 	const FIRST_YEAR_VALIDATOR_REWARDS: Balance = 238_500_000 * DOLLARS;
 	const FIRST_YEAR_SMINER_REWARDS: Balance = 477_000_000 * DOLLARS;
 	const REWARD_DECREASE_RATIO: Perbill = Perbill::from_perthousand(841);
+	const REWARD_DECREASE_YEARS: u64 = 30;
 	type SminerRewardPool = Sminer;
 	type MaxNominations = MaxNominations;
 	type Currency = Balances;
@@ -758,6 +760,18 @@ impl Get<Option<(usize, ExtendedBalance)>> for OffchainRandomBalancing {
 	}
 }
 
+/// A candidate whose backed stake is less than `MIN_ELECTABLE_STAKE` will never be elected.
+pub const MIN_ELECTABLE_STAKE: Balance = 3_000_000 * DOLLARS;
+
+// A config for VrfSolver
+pub struct OnChainVrfSloverConfig;
+impl pallet_rrsc::VrfSloverConfig for OnChainVrfSloverConfig {
+	fn min_electable_weight() -> VoteWeight {
+		let total_issuance = <Runtime as pallet_cess_staking::Config>::Currency::total_issuance();
+		<Runtime as pallet_cess_staking::Config>::CurrencyToVote::to_vote(MIN_ELECTABLE_STAKE, total_issuance)
+	}
+}
+
 pub struct OnChainVrf;
 impl onchain::Config for OnChainVrf {
 	type System = Runtime;
@@ -766,6 +780,7 @@ impl onchain::Config for OnChainVrf {
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Runtime>,
 		Runtime,
 		SchedulerCredit,
+		OnChainVrfSloverConfig,
 	>;
 	type DataProvider = <Runtime as pallet_election_provider_multi_phase::Config>::DataProvider;
 	type WeightInfo = frame_election_provider_support::weights::SubstrateWeight<Runtime>;
@@ -825,6 +840,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 		SolutionAccuracyOf<Self>,
 		Runtime,
 		SchedulerCredit,
+		OnChainVrfSloverConfig,
 		OffchainRandomBalancing,
 	>;
 	type ForceOrigin = EnsureRootOrHalfCouncil;
