@@ -113,7 +113,7 @@ cargo test --release
 
 Please follow the contribution guidelines as outlined in [`docs/CONTRIBUTING.adoc`](docs/CONTRIBUTING.adoc). For all communications and contributions, this project follows the [Contributor Covenant Code of Conduct](docs/CODE_OF_CONDUCT.md).
 
-## cess-bootstrap
+## Cess-bootstrap
 
 Please download the code of the current latest release
 ```
