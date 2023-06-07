@@ -353,8 +353,6 @@ pub mod pallet {
 				Ok(())
 			})?;
 
-
-
 			Self::deposit_event(Event::<T>::IncreaseCollateral { acc: sender, balance });
 			Ok(())
 		}

@@ -178,7 +178,7 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 			ensure!(!<UserOwnedSpace<T>>::contains_key(&sender), Error::<T>::PurchasedSpace);
             // For TEST
-			let space= M_BYTE.checked_mul(gib_count as u128).ok_or(Error::<T>::Overflow)?;
+			let space = G_BYTE.checked_mul(gib_count as u128).ok_or(Error::<T>::Overflow)?;
 			let unit_price = <UnitPrice<T>>::try_get()
 				.map_err(|_e| Error::<T>::BugInvalid)?;
 
@@ -328,6 +328,28 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+        //For TEST
+        #[pallet::call_index(6)]
+        #[transactional]
+        #[pallet::weight(100_000_000)]
+        pub fn update_deadline(
+            origin: OriginFor<T>,
+            acc: AccountOf<T>,
+            deadline: BlockNumberOf<T>,
+        ) -> DispatchResult {
+            let _ = ensure_root(origin)?;
+
+            <UserOwnedSpace<T>>::try_mutate(&acc, |info_opt| -> DispatchResult {
+                let info = info_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
+
+                info.deadline = deadline;
+                
+                Ok(())
+            })?;
+
+            Ok(())
+        }
     }
 }
 

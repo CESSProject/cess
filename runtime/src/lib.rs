@@ -170,7 +170,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 119,
+	spec_version: 100,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -961,8 +961,9 @@ impl pallet_sminer::Config for Runtime {
 }
 
 parameter_types! {
+	//FOR TEST
 	#[derive(Clone, Eq, PartialEq)]
-	pub const FrozenDays: BlockNumber = DAYS * 7;
+	pub const FrozenDays: BlockNumber = 10;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const StateStringMax: u32 = 20;
 
