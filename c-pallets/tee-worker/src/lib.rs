@@ -78,7 +78,7 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		//Scheduling registration method
-		RegistrationTeeWorker { acc: AccountOf<T> },
+		RegistrationTeeWorker { acc: AccountOf<T>, peer_id: PeerId },
 
 		UpdateScheduler { acc: AccountOf<T>, endpoint: IpAddress },
 
@@ -160,7 +160,7 @@ pub mod pallet {
 
 			let tee_worker_info = TeeWorkerInfo::<T> {
 				controller_account: sender.clone(),
-				peer_id: peer_id,
+				peer_id: peer_id.clone(),
 				node_key,
 				stash_account: stash_account,
 			};
@@ -171,7 +171,7 @@ pub mod pallet {
 
 			TeeWorkerMap::<T>::insert(&sender, tee_worker_info);
 
-			Self::deposit_event(Event::<T>::RegistrationTeeWorker { acc: sender });
+			Self::deposit_event(Event::<T>::RegistrationTeeWorker { acc: sender, peer_id: peer_id });
 
 			Ok(())
 		}

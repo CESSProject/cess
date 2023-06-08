@@ -6,6 +6,7 @@ type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 // pub(super) type SegmentList<T> = BoundedVec<(Hash, BoundedVec<Hash, <T as pallet::Config>::FragmentCount>),  <T as pallet::Config>::SegmentCount>;
 // pub(super) type MinerTaskList<T> = BoundedVec<(AccountOf<T>, BoundedVec<Hash,  <T as pallet::Config>::FragmentCount>),  <T as pallet::Config>::FragmentCount>;
 
+
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
@@ -19,7 +20,7 @@ pub struct SegmentList<T: Config> {
 #[codec(mel_bound())]
 pub struct MinerTaskList<T: Config> {
 	pub(super) miner: AccountOf<T>,
-	pub(super) fragment_list:  BoundedVec<Hash,  <T as pallet::Config>::FragmentCount>,
+	pub(super) fragment_list: BoundedVec<Hash,  <T as pallet::Config>::MissionCount>,
 }
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]

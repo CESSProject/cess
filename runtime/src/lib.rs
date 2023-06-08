@@ -170,7 +170,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 100,
+	spec_version: 107,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -1023,6 +1023,9 @@ impl pallet_audit::Config for Runtime {
 	type SigmaMax = SigmaMax;
 }
 
+pub const SEGMENT_COUNT: u32 = 1000;
+pub const FRAGMENT_COUNT: u32 = 3;
+
 parameter_types! {
 	pub const FilbakPalletId: PalletId = PalletId(*b"rewardpt");
 	pub const OneDay: BlockNumber = DAYS;
@@ -1039,15 +1042,17 @@ parameter_types! {
 	#[derive(Clone, Eq, PartialEq)]
 	pub const FileListLimit: u32 = 500000;
 	#[derive(Clone, Eq, PartialEq)]
-	pub const SegmentCount: u32 = 1000;
+	pub const SegmentCount: u32 = SEGMENT_COUNT;
 	#[derive(Clone, Eq, PartialEq)]
-	pub const FragmentCount: u32 = 3;
+	pub const FragmentCount: u32 = FRAGMENT_COUNT;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const OwnerLimit: u32 = 50000;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const NameMinLength: u32 = 3;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const RestoralOrderLife: u32 = 250;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const MissionCount: u32 = SEGMENT_COUNT * FRAGMENT_COUNT;
 }
 
 impl pallet_file_bank::Config for Runtime {
@@ -1080,6 +1085,7 @@ impl pallet_file_bank::Config for Runtime {
 	type OwnerLimit = OwnerLimit;
 	type NameMinLength = NameMinLength;
 	type RestoralOrderLife = RestoralOrderLife;
+	type MissionCount = MissionCount;
 }
 
 parameter_types! {
