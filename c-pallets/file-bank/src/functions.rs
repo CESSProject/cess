@@ -182,7 +182,6 @@ impl<T: Config> Pallet<T> {
     pub(super) fn random_assign_miner(
         needed_list: &BoundedVec<SegmentList<T>, T::SegmentCount>
     ) -> Result<BoundedVec<MinerTaskList<T>, T::StringLimit>, DispatchError> {
-        let mut index_list: Vec<u32> = Default::default();
         let mut miner_task_list: BoundedVec<MinerTaskList<T>, T::StringLimit> = Default::default();
         let mut miner_idle_space_list: Vec<u128> = Default::default();
         // The optimal number of miners required for storage.
@@ -190,42 +189,42 @@ impl<T: Config> Pallet<T> {
         let miner_count: u32 = (SEGMENT_SIZE * 15 / 10 / FRAGMENT_SIZE) as u32;
         let mut seed = <frame_system::Pallet<T>>::block_number().saturated_into();
 
-        let all_miner = T::MinerControl::get_all_miner()?;
-        let total = all_miner.len() as u32;
+        let mut all_miner = T::MinerControl::get_all_miner()?;
+        let mut total = all_miner.len() as u32;
 
         // ensure!(total > miner_count, Error::<T>::NodesInsufficient);
         let max_count = miner_count * 5;
         let mut cur_count = 0;
         let mut total_idle_space = 0;
+
         // start random choose miner
         loop {
             // Get a random subscript.
+            if total == 0 {
+                break;
+            }
+
             let index = Self::generate_random_number(seed)? as u32 % total;
             // seed + 1
             seed = seed.checked_add(1).ok_or(Error::<T>::Overflow)?;
-            // Number of cycles plus 1
-            cur_count += 1;
+
             // When the number of cycles reaches the upper limit, the cycle ends.
             if cur_count == max_count {
                 break;
             }
-            // End the cycle after all storage nodes have been traversed.
-            if total == index_list.len() as u32 {
-                break;
-            }
-            // Continue to the next cycle when the current random result already exists.
-            if index_list.contains(&index) {
-                continue;
-            }
-            
+
+            // Number of cycles plus 1
+            cur_count += 1;
+
             // Judge whether the idle space of the miners is sufficient.
             let miner = all_miner[index as usize].clone();
+            all_miner.remove(index as usize);
+            total = total - 1;
             let result = T::MinerControl::is_positive(&miner)?;
             if !result {
                 continue;
             }
-            // Record current cycle results.
-            index_list.push(index);
+           
             let cur_space: u128 = T::MinerControl::get_miner_idle_space(&miner)?;
             // If sufficient, the miner is selected.
             if cur_space > needed_list.len() as u128 * FRAGMENT_SIZE {
