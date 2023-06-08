@@ -163,6 +163,9 @@ pub mod pallet {
 		type CreditCounter: SchedulerCreditCounter<Self::AccountId>;
 		//Used to confirm whether the origin is authorized
 		type OssFindAuthor: OssFindAuthor<Self::AccountId>;
+
+		#[pallet::constant]
+		type MissionCount: Get<u32> + Clone + Eq + PartialEq;
 	}
 
 	#[pallet::event]
@@ -385,6 +388,7 @@ pub mod pallet {
 							log::error!("acc: {:?}, file_hash: {:?}", &acc, &file_info.file_hash);
 						}
 					}
+
 					T::StorageHandle::delete_user_space_storage(&acc);
 
 					<UserHoldFileList<T>>::remove(&acc);
@@ -506,16 +510,16 @@ pub mod pallet {
 			if count < 5 {
 				<DealMap<T>>::try_mutate(&deal_hash, |opt| -> DispatchResult {
 					let deal_info = opt.as_mut().ok_or(Error::<T>::NonExistent)?;
+					// unlock mienr space
+					for miner_task in &deal_info.assigned_miner {
+						let task_count = miner_task.fragment_list.len() as u128;
+						T::MinerControl::unlock_space(&miner_task.miner, FRAGMENT_SIZE * task_count)?;
+					}
 					let miner_task_list = Self::random_assign_miner(&deal_info.needed_list)?;
 					deal_info.assigned_miner = miner_task_list;
 					deal_info.complete_list = Default::default();
 					deal_info.count = count;
 					Self::start_first_task(deal_hash.0.to_vec(), deal_hash, count + 1)?;
-					// unlock mienr space
-					for miner_task in &deal_info.assigned_miner {
-						let count = miner_task.fragment_list.len() as u128;
-						T::MinerControl::unlock_space(&miner_task.miner, FRAGMENT_SIZE * count)?;
-					}
 					Ok(())
 				})?;
 			} else {
@@ -671,6 +675,8 @@ pub mod pallet {
 								} else {
 									Self::create_bucket_helper(&deal_info.user.user, &deal_info.user.bucket_name, Some(hash))?;
 								}
+
+								Self::add_user_hold_fileslice(&deal_info.user.user, hash, needed_space)?;
 							}
 						} else {
 							failed_list.push(hash);
@@ -1202,6 +1208,85 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::Withdraw {
 				acc: sender,
 			});
+
+			Ok(())
+		}
+		// FOR TEST
+		#[pallet::call_index(20)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn test_add_user_hold_list(
+			origin: OriginFor<T>,
+			acc: AccountOf<T>,
+			file_list: Vec<(Hash, u128)>,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			for (hash, size) in file_list {
+				Self::add_user_hold_fileslice(&acc, hash, size)?;
+			}
+
+			Ok(())
+		}
+		//FOR TEST
+		#[pallet::call_index(21)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn test_delete_deal_map(
+			origin: OriginFor<T>,
+			deal_hash: Hash,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			DealMap::<T>::remove(&deal_hash);
+
+			Ok(())
+		}
+		//FOR TEST
+		#[pallet::call_index(22)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn test_delete_file_map(
+			origin: OriginFor<T>,
+			file_hash: Hash,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			File::<T>::remove(&file_hash);
+
+			Ok(())
+		}
+		// FOR TEST
+		#[pallet::call_index(23)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn test_re_cal_miner_idle(
+			origin: OriginFor<T>,
+			miner: AccountOf<T>,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			let mut count: u128 = 0;
+			for _ in <FillerMap<T>>::iter_prefix(&miner) {
+				count += 1;
+			}
+
+			let true_space = FRAGMENT_SIZE * count;
+			let cur_space = T::MinerControl::get_miner_idle_space(&miner)?;
+
+			if true_space == cur_space {
+				return Ok(())
+			}
+
+			if true_space > cur_space {
+				let fix = true_space - cur_space;
+				T::StorageHandle::add_total_idle_space(fix)?;
+			} else {
+				let fix = cur_space - true_space;
+				T::StorageHandle::sub_total_idle_space(fix)?;
+			}
+
+			T::MinerControl::test_update_miner_idle_space(&miner, true_space)?;
 
 			Ok(())
 		}
