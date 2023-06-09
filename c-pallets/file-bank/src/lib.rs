@@ -668,7 +668,10 @@ pub mod pallet {
 
 								let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
 								T::StorageHandle::unlock_and_used_user_space(&deal_info.user.user, needed_space)?;
-								T::FScheduler::cancel_named(hash.0.to_vec()).map_err(|_| Error::<T>::Unexpected)?;
+								let result = T::FScheduler::cancel_named(hash.0.to_vec()).map_err(|_| Error::<T>::Unexpected);
+								if let Err(_) = result {
+									log::info!("transfer report cancel schedule failed: {:?}", hash.clone());
+								}
 								Self::start_second_task(hash.0.to_vec(), hash, 5)?;
 								if <Bucket<T>>::contains_key(&deal_info.user.user, &deal_info.user.bucket_name) {
 									Self::add_file_to_bucket(&deal_info.user.user, &deal_info.user.bucket_name, &hash)?;
