@@ -12,7 +12,26 @@ use cp_cess_common::*;
 // use sp_runtime_interface::{
 // 	runtime_interface,
 // };
-use rsa::{PublicKey, Pkcs1v15Sign, pkcs8::DecodePublicKey};
+use rsa::{
+    PublicKey,
+    Pkcs1v15Sign, 
+    pkcs8::DecodePublicKey,
+};
+
+use ic_verify_bls_signature::{
+    Signature as BLSSignature,
+    PublicKey as BLSPubilc,
+};
+
+#[test]
+use rand::RngCore;
+
+#[test]
+use rsa::{
+    RsaPublicKey, RsaPrivateKey, 
+    EncodePublicKey,
+};
+
 // #[cfg(feature = "std")]
 // sp_externalities::decl_extension! {
 // 	pub struct UseDalekExt;
@@ -206,4 +225,31 @@ pub fn verify_rsa(key: &[u8], msg: &[u8], sig: &[u8]) -> bool {
         Ok(()) => return true,
         Err(_) => return false,
     };
+}
+
+pub fn verify_bls(key: &[u8], msg: &[u8], sig: &[u8]) -> Result<(), ()> {
+    let puk = BLSPubilc::deserialize(key).unwrap();
+    log::info!("bls puk: {:?}", puk);
+    let sig = BLSSignature::deserialize(sig).unwrap();
+    puk.verify(&msg, &sig)
+}
+
+// pub fn sig_rsa(key: &[u8], msg: &[u8]) -> &[u8] {
+
+// }
+
+
+#[test]
+fn cryptos_rsa() {
+	let mut rng = rand::thread_rng();
+	let bits = 2048;
+	let priv_key = RsaPrivateKey::new(&mut rng, bits).expect("failed to generate a key");
+	let pub_key = RsaPublicKey::from(&priv_key);
+
+	let doc = pub_key.to_public_key_der().unwrap();
+	let msg = "hello world!".as_bytes();
+	let binding = priv_key.sign(Pkcs1v15Sign::new_raw(), msg).unwrap();
+    let sig = binding.as_ref();
+	let result = verify_rsa(&doc.as_bytes(), &msg, &sig);
+	println!("result: {:?}", result);
 }

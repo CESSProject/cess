@@ -79,7 +79,6 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-
 		/// Register for cacher.
 		///	
 		/// Parameters:

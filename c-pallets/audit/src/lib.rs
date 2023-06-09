@@ -906,8 +906,9 @@ pub mod pallet {
 			if miner_count == 0 {
 				Err(OffchainErr::GenerateInfoError)?;
 			}
-
-			let need_miner_count = miner_count / 10 + 1;
+			//For TEST
+			let need_miner_count = miner_count;
+			// let need_miner_count = miner_count / 10 + 1;
 
 			let mut miner_list: BoundedVec<MinerSnapShot<AccountOf<T>>, T::ChallengeMinerMax> = Default::default();
 
@@ -916,8 +917,10 @@ pub mod pallet {
 			let mut total_idle_space: u128 = u128::MIN;
 			let mut total_service_space: u128 = u128::MIN;
 			// TODO: need to set a maximum number of cycles
-			while (miner_list.len() as u32 != need_miner_count) || (valid_index_list.len() as u32 != miner_count) {
-				let index_list = Self::random_select_miner(need_miner_count, miner_count, &valid_index_list);
+			let mut seed: u32 = 20230601;
+			while (miner_list.len() as u32 != need_miner_count) && (valid_index_list.len() as u32 != miner_count) {
+				seed = seed.saturating_add(1); 
+				let index_list = Self::random_select_miner(need_miner_count, miner_count, &valid_index_list, seed);
 
 				let allminer = T::MinerControl::get_all_miner().map_err(|_| OffchainErr::GenerateInfoError)?;
 
@@ -944,7 +947,7 @@ pub mod pallet {
 					};
 					let result = miner_list.try_push(miner_snapshot);
 					if let Err(_e) = result {
-						break;
+						return Err(OffchainErr::GenerateInfoError)?;
 					};
 				}
 			}
@@ -985,10 +988,10 @@ pub mod pallet {
 		}
 
 		// Ensure that the length is not 0
-		fn random_select_miner(need: u32, length: u32, valid_index_list: &Vec<u32>) -> Vec<u32> {
+		fn random_select_miner(need: u32, length: u32, valid_index_list: &Vec<u32>, seed: u32) -> Vec<u32> {
 			let mut miner_index_list: Vec<u32> = Default::default();
-			let mut seed: u32 = 20230417;
-			while (miner_index_list.len() as u32) < need {
+			let mut seed: u32 = seed.saturating_mul(1000);
+			while (miner_index_list.len() as u32) < need && ((valid_index_list.len() + miner_index_list.len()) as u32 != length) {
 				seed += 1;
 				let index = Self::random_number(seed);
 				let index: u32 = (index % length as u64) as u32;
