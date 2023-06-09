@@ -887,18 +887,8 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(Self::check_permission(sender.clone(), owner.clone()), Error::<T>::NoPermission);
-			ensure!(!<Bucket<T>>::contains_key(&owner, &name), Error::<T>::SameBucketName);
-			ensure!(name.len() >= T::NameMinLength::get() as usize, Error::<T>::LessMinLength);
-			let bucket = BucketInfo::<T>{
-				object_list: Default::default(),
-				authority: vec![owner.clone()].try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
-			};
-
-			<Bucket<T>>::insert(&owner, &name, bucket);
-			<UserBucketList<T>>::try_mutate(&owner, |bucket_list| -> DispatchResult{
-				bucket_list.try_push(name.clone()).map_err(|_e| Error::<T>::LengthExceedsLimit)?;
-				Ok(())
-			})?;
+			
+			Self::create_bucket_helper(&owner, &name, None)?;
 
 			Self::deposit_event(Event::<T>::CreateBucket {
 				operator: sender,

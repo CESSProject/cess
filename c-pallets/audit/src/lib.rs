@@ -906,8 +906,9 @@ pub mod pallet {
 			if miner_count == 0 {
 				Err(OffchainErr::GenerateInfoError)?;
 			}
-
-			let need_miner_count = miner_count / 10 + 1;
+			//For TEST
+			let need_miner_count = miner_count;
+			// let need_miner_count = miner_count / 10 + 1;
 
 			let mut miner_list: BoundedVec<MinerSnapShot<AccountOf<T>>, T::ChallengeMinerMax> = Default::default();
 
