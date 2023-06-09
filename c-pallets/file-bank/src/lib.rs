@@ -394,6 +394,7 @@ pub mod pallet {
 					<UserHoldFileList<T>>::remove(&acc);
 					// todo! clear all
 					let _ = <Bucket<T>>::clear_prefix(&acc, 100000, None);
+					<UserBucketList<T>>::remove(&acc);
 				}
 			}
 			
