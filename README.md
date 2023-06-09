@@ -95,7 +95,7 @@ CESS supports to obtain incentives by contributing idle storage with [storage mi
 
 ## Run Tests
 
-CESS has Rust unit tests, and can be run locally.
+CESS has Rust unit tests which can be run locally.
 
 ```
 # Run all the Rust unit tests
