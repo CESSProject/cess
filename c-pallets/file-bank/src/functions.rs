@@ -101,7 +101,12 @@ impl<T: Config> Pallet<T> {
             bucket.object_list.try_push(hash).map_err(|_e| Error::<T>::BoundedVecError)?;
         }
 
-        <Bucket<T>>::insert(user, bucket_name, bucket);
+        <Bucket<T>>::insert(user, bucket_name.clone(), bucket);
+
+        <UserBucketList<T>>::try_mutate(&user, |bucket_list| -> DispatchResult{
+            bucket_list.try_push(bucket_name.clone()).map_err(|_e| Error::<T>::LengthExceedsLimit)?;
+            Ok(())
+        })?;
 
         Ok(())
     }
