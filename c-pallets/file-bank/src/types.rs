@@ -6,6 +6,7 @@ type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 // pub(super) type SegmentList<T> = BoundedVec<(Hash, BoundedVec<Hash, <T as pallet::Config>::FragmentCount>),  <T as pallet::Config>::SegmentCount>;
 // pub(super) type MinerTaskList<T> = BoundedVec<(AccountOf<T>, BoundedVec<Hash,  <T as pallet::Config>::FragmentCount>),  <T as pallet::Config>::FragmentCount>;
 
+
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
@@ -19,7 +20,7 @@ pub struct SegmentList<T: Config> {
 #[codec(mel_bound())]
 pub struct MinerTaskList<T: Config> {
 	pub(super) miner: AccountOf<T>,
-	pub(super) fragment_list:  BoundedVec<Hash,  <T as pallet::Config>::FragmentCount>,
+	pub(super) fragment_list: BoundedVec<Hash,  <T as pallet::Config>::MissionCount>,
 }
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
@@ -45,8 +46,8 @@ pub struct DealInfo<T: Config> {
 	pub(super) share_info: BoundedVec<SegmentInfo<T>, T::SegmentCount>,
 	pub(super) complete_list: BoundedVec<AccountOf<T>, T::FragmentCount>,
 }
-// [s...]
-// s{acc, [Hash...]}
+
+//TODO! BoundedVec type -> BTreeMap
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
@@ -108,8 +109,23 @@ pub struct UserBrief<T: Config> {
 }
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-pub struct RestoralInfo<Block> {
+pub struct RestoralTargetInfo<Account, Block> {
+	pub(super) miner: Account,
 	pub(super) service_space: u128,
 	pub(super) restored_space: u128,
 	pub(super) cooling_block: Block,
 }
+
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+#[codec(mel_bound())]
+pub struct RestoralOrderInfo<T: Config> {
+	pub(super) count: u32,
+	pub(super) miner: AccountOf<T>,
+	pub(super) origin_miner: AccountOf<T>,
+	pub(super) fragment_hash: Hash,
+	pub(super) file_hash: Hash,
+	pub(super) gen_block: BlockNumberOf<T>,
+	pub(super) deadline: BlockNumberOf<T>,
+}
+

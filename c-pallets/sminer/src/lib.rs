@@ -343,7 +343,7 @@ pub mod pallet {
 				if miner_info.state == STATE_FROZEN.as_bytes().to_vec() {
 					let power = Self::calculate_power(miner_info.idle_space, miner_info.service_space);
 					let limit = Self::check_collateral_limit(power)?;
-					if miner_info.collaterals > limit {
+					if miner_info.collaterals >= limit {
 						miner_info.state = Self::vec_to_bound(STATE_POSITIVE.as_bytes().to_vec())?;
 					}
 				}
@@ -352,8 +352,6 @@ pub mod pallet {
 
 				Ok(())
 			})?;
-
-
 
 			Self::deposit_event(Event::<T>::IncreaseCollateral { acc: sender, balance });
 			Ok(())
@@ -548,6 +546,17 @@ pub mod pallet {
 			}
 
 			Self::deposit_event(Event::<T>::DrawFaucetMoney());
+			Ok(())
+		}
+		//FOR TEST
+		#[pallet::call_index(15)]
+		#[transactional]
+		#[pallet::weight(100_000)]
+		pub fn test_unlock_space(origin: OriginFor<T>, miner: AccountOf<T>, space: u128) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			Self::unlock_space(&miner, space)?;
+
 			Ok(())
 		}
 	}
@@ -916,6 +925,7 @@ pub trait MinerControl<AccountId> {
 	fn is_positive(miner: &AccountId) -> Result<bool, DispatchError>;
 	fn is_lock(miner: &AccountId) -> Result<bool, DispatchError>;
 	fn update_miner_state(miner: &AccountId, state: &str) -> DispatchResult;
+	fn test_update_miner_idle_space(acc: &AccountId, space: u128) -> DispatchResult;
 }
 
 impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -1084,5 +1094,17 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 
 	fn withdraw(acc: &AccountOf<T>) -> DispatchResult {
 		Self::withdraw(acc)
+	}
+
+	fn test_update_miner_idle_space(acc: &AccountOf<T>, space: u128) -> DispatchResult {
+		MinerItems::<T>::try_mutate(&acc, |miner_opt| -> DispatchResult {
+			let miner = miner_opt.as_mut().ok_or(Error::<T>::Overflow)?;
+
+			miner.idle_space = space;
+
+			Ok(())
+		})?;
+
+		Ok(())
 	}
 }

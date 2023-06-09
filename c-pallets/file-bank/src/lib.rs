@@ -157,9 +157,15 @@ pub mod pallet {
 		#[pallet::constant]
 		type OwnerLimit: Get<u32> + Clone + Eq + PartialEq;
 
+		#[pallet::constant]
+		type RestoralOrderLife: Get<u32> + Clone + Eq + PartialEq;
+
 		type CreditCounter: SchedulerCreditCounter<Self::AccountId>;
 		//Used to confirm whether the origin is authorized
 		type OssFindAuthor: OssFindAuthor<Self::AccountId>;
+
+		#[pallet::constant]
+		type MissionCount: Get<u32> + Clone + Eq + PartialEq;
 	}
 
 	#[pallet::event]
@@ -189,7 +195,14 @@ pub mod pallet {
 		DeleteBucket { operator: AccountOf<T>, owner: AccountOf<T>, bucket_name: Vec<u8>},
 
 		Withdraw { acc: AccountOf<T> },
+
+		GenerateRestoralOrder { miner: AccountOf<T>, fragment_hash: Hash },
+
+		ClaimRestoralOrder { miner: AccountOf<T>, order_id: Hash },
+
+		RecoveryCompleted { miner: AccountOf<T>, order_id: Hash },
 	}
+
 	#[pallet::error]
 	pub enum Error<T> {
 		Existed,
@@ -251,6 +264,8 @@ pub mod pallet {
 		Calculate,
 
 		MinerStateError,
+
+		Expired,
 	}
 
 	
@@ -330,7 +345,12 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn restoral_target)]
 	pub(super) type RestoralTarget<T: Config> = 
-		StorageMap< _, Blake2_128Concat, AccountOf<T>, RestoralInfo<BlockNumberOf<T>>>;
+		StorageMap< _, Blake2_128Concat, AccountOf<T>, RestoralTargetInfo<AccountOf<T>, BlockNumberOf<T>>>;
+	
+	#[pallet::storage]
+	#[pallet::getter(fn restoral_order)]
+	pub(super) type RestoralOrder<T: Config> = 
+		StorageMap<_, Blake2_128Concat, Hash, RestoralOrderInfo<T>>;
 
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
@@ -341,11 +361,17 @@ pub mod pallet {
 	impl<T: Config> Hooks<BlockNumberOf<T>> for Pallet<T> {
 		fn on_initialize(_now: BlockNumberOf<T>) -> Weight {
 			let (mut weight, acc_list) = T::StorageHandle::frozen_task();
-			
+			let mut count: u32 = 0; 
 			for acc in acc_list.iter() {
 				// todo! Delete in blocks, and delete a part of each block
-				if let Ok(file_info_list) = <UserHoldFileList<T>>::try_get(&acc) {
-					for file_info in file_info_list.iter() {
+				if let Ok(mut file_info_list) = <UserHoldFileList<T>>::try_get(&acc) {
+					weight = weight.saturating_add(T::DbWeight::get().reads(1));
+					while let Some(file_info) = file_info_list.pop() {
+						count = count + 1;
+						if count == 300 {
+							<UserHoldFileList<T>>::insert(&acc, file_info_list);
+							return weight;
+						}
 						if let Ok(file) = <File<T>>::try_get(&file_info.file_hash) {
 							weight = weight.saturating_add(T::DbWeight::get().reads(1));
 							if file.owner.len() > 1 {
@@ -357,11 +383,18 @@ pub mod pallet {
 									weight = weight.saturating_add(temp_weight);
 								}
 							}
+						} else {
+							log::error!("space lease, delete file bug!");
+							log::error!("acc: {:?}, file_hash: {:?}", &acc, &file_info.file_hash);
 						}
 					}
+
+					T::StorageHandle::delete_user_space_storage(&acc);
+
 					<UserHoldFileList<T>>::remove(&acc);
 					// todo! clear all
 					let _ = <Bucket<T>>::clear_prefix(&acc, 100000, None);
+					<UserBucketList<T>>::remove(&acc);
 				}
 			}
 			
@@ -478,16 +511,16 @@ pub mod pallet {
 			if count < 5 {
 				<DealMap<T>>::try_mutate(&deal_hash, |opt| -> DispatchResult {
 					let deal_info = opt.as_mut().ok_or(Error::<T>::NonExistent)?;
+					// unlock mienr space
+					for miner_task in &deal_info.assigned_miner {
+						let task_count = miner_task.fragment_list.len() as u128;
+						T::MinerControl::unlock_space(&miner_task.miner, FRAGMENT_SIZE * task_count)?;
+					}
 					let miner_task_list = Self::random_assign_miner(&deal_info.needed_list)?;
 					deal_info.assigned_miner = miner_task_list;
 					deal_info.complete_list = Default::default();
 					deal_info.count = count;
 					Self::start_first_task(deal_hash.0.to_vec(), deal_hash, count + 1)?;
-					// unlock mienr space
-					for miner_task in &deal_info.assigned_miner {
-						let count = miner_task.fragment_list.len() as u128;
-						T::MinerControl::unlock_space(&miner_task.miner, FRAGMENT_SIZE * count)?;
-					}
 					Ok(())
 				})?;
 			} else {
@@ -636,13 +669,18 @@ pub mod pallet {
 
 								let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
 								T::StorageHandle::unlock_and_used_user_space(&deal_info.user.user, needed_space)?;
-								T::FScheduler::cancel_named(hash.0.to_vec()).map_err(|_| Error::<T>::Unexpected)?;
+								let result = T::FScheduler::cancel_named(hash.0.to_vec()).map_err(|_| Error::<T>::Unexpected);
+								if let Err(_) = result {
+									log::info!("transfer report cancel schedule failed: {:?}", hash.clone());
+								}
 								Self::start_second_task(hash.0.to_vec(), hash, 5)?;
 								if <Bucket<T>>::contains_key(&deal_info.user.user, &deal_info.user.bucket_name) {
 									Self::add_file_to_bucket(&deal_info.user.user, &deal_info.user.bucket_name, &hash)?;
 								} else {
 									Self::create_bucket_helper(&deal_info.user.user, &deal_info.user.bucket_name, Some(hash))?;
 								}
+
+								Self::add_user_hold_fileslice(&deal_info.user.user, hash, needed_space)?;
 							}
 						} else {
 							failed_list.push(hash);
@@ -850,18 +888,8 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(Self::check_permission(sender.clone(), owner.clone()), Error::<T>::NoPermission);
-			ensure!(!<Bucket<T>>::contains_key(&sender, &name), Error::<T>::SameBucketName);
-			ensure!(name.len() >= T::NameMinLength::get() as usize, Error::<T>::LessMinLength);
-			let bucket = BucketInfo::<T>{
-				object_list: Default::default(),
-				authority: vec![owner.clone()].try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
-			};
-
-			<Bucket<T>>::insert(&owner, &name, bucket);
-			<UserBucketList<T>>::try_mutate(&owner, |bucket_list| -> DispatchResult{
-				bucket_list.try_push(name.clone()).map_err(|_e| Error::<T>::LengthExceedsLimit)?;
-				Ok(())
-			})?;
+			
+			Self::create_bucket_helper(&owner, &name, None)?;
 
 			Self::deposit_event(Event::<T>::CreateBucket {
 				operator: sender,
@@ -908,7 +936,193 @@ pub mod pallet {
 			Ok(())
 		}
 
+		// restoral file
 		#[pallet::call_index(13)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn generate_restoral_order(
+			origin: OriginFor<T>,
+			file_hash: Hash,
+			restoral_fragment: Hash,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			ensure!(
+				!RestoralOrder::<T>::contains_key(&restoral_fragment),
+				Error::<T>::Existed,
+			);
+
+			<File<T>>::try_mutate(&file_hash, |file_opt| -> DispatchResult {
+				let file = file_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
+				for segment in &mut file.segment_list {
+					for fragment in &mut segment.fragment_list {
+						if &fragment.hash == &restoral_fragment {
+							ensure!(&fragment.miner == &sender, Error::<T>::SpecError);
+							let restoral_order = RestoralOrderInfo::<T> {
+								count: u32::MIN,
+								miner: sender.clone(),
+								origin_miner: sender.clone(),
+								file_hash: file_hash,
+								fragment_hash: restoral_fragment.clone(),
+								gen_block: <frame_system::Pallet<T>>::block_number(),
+								deadline: Default::default(),
+							};
+
+							fragment.avail = false;
+	
+							<RestoralOrder<T>>::insert(&restoral_fragment, restoral_order);
+	
+							Self::deposit_event(Event::<T>::GenerateRestoralOrder{ miner: sender, fragment_hash: restoral_fragment});
+	
+							return Ok(())
+						}
+					}
+				}
+	
+				Err(Error::<T>::SpecError)?
+			})
+		}
+
+		#[pallet::call_index(14)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn claim_restoral_order(
+			origin: OriginFor<T>,
+			restoral_fragment: Hash,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			let is_positive = T::MinerControl::is_positive(&sender)?;
+			ensure!(is_positive, Error::<T>::MinerStateError);
+
+			let now = <frame_system::Pallet<T>>::block_number();
+			<RestoralOrder<T>>::try_mutate(&restoral_fragment, |order_opt| -> DispatchResult {
+				let order = order_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
+				
+				ensure!(now > order.deadline, Error::<T>::SpecError);
+
+				let life = T::RestoralOrderLife::get();
+				order.count = order.count.checked_add(1).ok_or(Error::<T>::Overflow)?;
+				order.deadline = now.checked_add(&life.saturated_into()).ok_or(Error::<T>::Overflow)?;
+				order.miner = sender.clone();
+
+				Ok(())
+			})?;
+
+			Self::deposit_event(Event::<T>::ClaimRestoralOrder{ miner: sender, order_id: restoral_fragment});
+
+			Ok(())
+		}
+
+		#[pallet::call_index(15)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn claim_restoral_exist_order(
+			origin: OriginFor<T>,
+			miner: AccountOf<T>,
+			file_hash: Hash,
+			restoral_fragment: Hash,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			let is_positive = T::MinerControl::is_positive(&sender)?;
+			ensure!(is_positive, Error::<T>::MinerStateError);
+
+			ensure!(
+				!RestoralOrder::<T>::contains_key(&restoral_fragment),
+				Error::<T>::Existed,
+			);
+
+			ensure!(
+				RestoralTarget::<T>::contains_key(&miner),
+				Error::<T>::NonExistent,
+			);
+
+			<File<T>>::try_mutate(&file_hash, |file_opt| -> DispatchResult {
+				let file = file_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
+				for segment in &mut file.segment_list {
+					for fragment in &mut segment.fragment_list {
+						if &fragment.hash == &restoral_fragment {
+							ensure!(&fragment.miner == &miner, Error::<T>::SpecError);
+							let restoral_order = RestoralOrderInfo::<T> {
+								count: u32::MIN,
+								miner: sender.clone(),
+								origin_miner: fragment.miner.clone(),
+								file_hash: file_hash,
+								fragment_hash: restoral_fragment.clone(),
+								gen_block: <frame_system::Pallet<T>>::block_number(),
+								deadline: Default::default(),
+							};
+
+							fragment.avail = false;
+	
+							<RestoralOrder<T>>::insert(&restoral_fragment, restoral_order);
+	
+							return Ok(())
+						}
+					}
+				}
+	
+				Err(Error::<T>::SpecError)?
+			})?;
+
+			Self::deposit_event(Event::<T>::ClaimRestoralOrder{ miner: sender, order_id: restoral_fragment});
+
+			Ok(())
+		}
+
+		#[pallet::call_index(16)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn restoral_order_complete(
+			origin: OriginFor<T>,
+			fragment_hash: Hash,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			let is_positive = T::MinerControl::is_positive(&sender)?;
+			ensure!(is_positive, Error::<T>::MinerStateError);
+
+			let order = <RestoralOrder<T>>::try_get(&fragment_hash).map_err(|_| Error::<T>::NonExistent)?;
+			ensure!(&order.miner == &sender, Error::<T>::SpecError);
+			let now = <frame_system::Pallet<T>>::block_number();
+			ensure!(now < order.deadline, Error::<T>::Expired);
+
+			if !<File<T>>::contains_key(&order.file_hash) {
+				<RestoralOrder<T>>::remove(fragment_hash);
+				return Ok(());
+			} else {
+				<File<T>>::try_mutate(&order.file_hash, |file_opt| -> DispatchResult {
+					let file = file_opt.as_mut().ok_or(Error::<T>::BugInvalid)?;
+
+					for segment in &mut file.segment_list {
+						for fragment in &mut segment.fragment_list {
+							if &fragment.hash == &fragment_hash {
+								ensure!(&order.origin_miner == &fragment.miner, Error::<T>::BugInvalid);
+								T::MinerControl::sub_miner_service_space(&fragment.miner, FRAGMENT_SIZE)?;
+								T::MinerControl::add_miner_service_space(&sender, FRAGMENT_SIZE)?;
+
+								if <RestoralTarget<T>>::contains_key(&fragment.miner) {
+									Self::update_restoral_target(&fragment.miner, FRAGMENT_SIZE)?;
+								}
+
+								fragment.avail = true;
+								fragment.miner = sender.clone();
+								return Ok(());
+							}
+						}
+					}
+
+					Ok(())
+				})?;
+			}
+
+			<RestoralOrder<T>>::remove(fragment_hash);
+
+			Self::deposit_event(Event::<T>::RecoveryCompleted{ miner: sender, order_id: fragment_hash});
+		
+			Ok(())
+		}
+
+		// The lock in time must be greater than the survival period of the challenge
+		#[pallet::call_index(17)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
 		pub fn miner_exit_prep(
@@ -942,7 +1156,9 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(14)]
+
+
+		#[pallet::call_index(18)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
 		pub fn miner_exit(
@@ -966,22 +1182,105 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(15)]
+		#[pallet::call_index(19)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
-		pub fn miner_withdaw(origin: OriginFor<T>) -> DispatchResult {
+		pub fn miner_withdraw(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
 			let restoral_info = <RestoralTarget<T>>::try_get(&sender).map_err(|_| Error::<T>::MinerStateError)?;
 			let now = <frame_system::Pallet<T>>::block_number();
 
 			ensure!(now >= restoral_info.cooling_block, Error::<T>::MinerStateError);
+			ensure!(
+				restoral_info.restored_space == restoral_info.service_space,
+				Error::<T>::MinerStateError,
+			);
 
 			T::MinerControl::withdraw(&sender)?;
 
 			Self::deposit_event(Event::<T>::Withdraw {
 				acc: sender,
 			});
+
+			Ok(())
+		}
+		// FOR TEST
+		#[pallet::call_index(20)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn test_add_user_hold_list(
+			origin: OriginFor<T>,
+			acc: AccountOf<T>,
+			file_list: Vec<(Hash, u128)>,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			for (hash, size) in file_list {
+				Self::add_user_hold_fileslice(&acc, hash, size)?;
+			}
+
+			Ok(())
+		}
+		//FOR TEST
+		#[pallet::call_index(21)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn test_delete_deal_map(
+			origin: OriginFor<T>,
+			deal_hash: Hash,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			DealMap::<T>::remove(&deal_hash);
+
+			Ok(())
+		}
+		//FOR TEST
+		#[pallet::call_index(22)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn test_delete_file_map(
+			origin: OriginFor<T>,
+			file_hash: Hash,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			File::<T>::remove(&file_hash);
+
+			Ok(())
+		}
+		// FOR TEST
+		#[pallet::call_index(23)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn test_re_cal_miner_idle(
+			origin: OriginFor<T>,
+			miner: AccountOf<T>,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			let mut count: u128 = 0;
+			for _ in <FillerMap<T>>::iter_prefix(&miner) {
+				count += 1;
+			}
+
+			let true_space = FRAGMENT_SIZE * count;
+			let cur_space = T::MinerControl::get_miner_idle_space(&miner)?;
+
+			if true_space == cur_space {
+				return Ok(())
+			}
+
+			if true_space > cur_space {
+				let fix = true_space - cur_space;
+				T::StorageHandle::add_total_idle_space(fix)?;
+			} else {
+				let fix = cur_space - true_space;
+				T::StorageHandle::sub_total_idle_space(fix)?;
+			}
+
+			T::MinerControl::test_update_miner_idle_space(&miner, true_space)?;
 
 			Ok(())
 		}
