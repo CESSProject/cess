@@ -7,7 +7,7 @@
 <a href='https://web3.foundation/'><img width='205' alt='web3f_grants_badge.png' src='https://github.com/heyworld88/gitskills/blob/main/web3f_grants_badge.png'></a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href='https://builders.parity.io/'><img width='240' src='https://user-images.githubusercontent.com/15166250/219302289-c2187f64-b0d8-46cc-a953-74d13267d7db.png'></a>
 
   
-**[cess.cloud](http://cess.cloud/) aims to serve as a new global decentralized data storage network by building the infrastructure of the decentralized cloud data network with [substrate](https://substrate.dev/) while maintaining the data security and reliability and guaranteeing inherent to blockchain technology. Learn more here [white-paper](https://github.com/CESSProject/Whitepaper). ** 
+**[cess.cloud](http://cess.cloud/) aims to serve as a new global decentralized data storage network by building the infrastructure of the decentralized cloud data network with [substrate](https://substrate.dev/) while maintaining the data security  and reliability and guaranteeing inherent to blockchain technology. Learn more here [white-paper](https://github.com/CESSProject/Whitepaper). ** 
 
 ## Getting Started
 
