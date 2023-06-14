@@ -16,7 +16,7 @@ impl<T: Config> Pallet<T> {
     pub fn generate_file(
         file_hash: &Hash,
         deal_info: BoundedVec<SegmentList<T>, T::SegmentCount>,
-        miner_task_list: BoundedVec<MinerTaskList<T>, T::StringLimit>,
+        mut miner_task_list: BoundedVec<MinerTaskList<T>, T::StringLimit>,
         share_info: Vec<SegmentInfo<T>>,
         user_brief: UserBrief<T>,
         stat: FileState,
@@ -38,15 +38,21 @@ impl<T: Config> Pallet<T> {
             };
 
             if flag {
+                for miner_task in &mut miner_task_list {
+                    miner_task.fragment_list.sort();
+                }
+
                 for frag_hash in segment.fragment_list.iter() {
-                    for miner_task in &miner_task_list {
-                        if miner_task.fragment_list.contains(frag_hash) {
+                    for miner_task in &mut miner_task_list {
+                        if let Ok(index) = miner_task.fragment_list.binary_search(&frag_hash) {
                             let frag_info = FragmentInfo::<T> {
                                 hash:  *frag_hash,
                                 avail: true,
                                 miner: miner_task.miner.clone(),
                             };
                             segment_info.fragment_list.try_push(frag_info).map_err(|_e| Error::<T>::BoundedVecError)?;
+                            miner_task.fragment_list.remove(index);
+                            break;
                         }
                     }
                 }
@@ -137,7 +143,7 @@ impl<T: Config> Pallet<T> {
 
         let deal = DealInfo::<T> {
             stage: 1,
-            count: 1,
+            count: 0,
             segment_list: file_info,
             needed_list: needed_list,
             user: user_brief,
