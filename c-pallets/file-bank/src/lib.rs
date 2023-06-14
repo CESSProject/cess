@@ -1016,7 +1016,7 @@ pub mod pallet {
 		#[pallet::call_index(15)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
-		pub fn claim_restoral_exist_order(
+		pub fn claim_restoral_noexist_order(
 			origin: OriginFor<T>,
 			miner: AccountOf<T>,
 			file_hash: Hash,
