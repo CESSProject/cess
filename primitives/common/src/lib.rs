@@ -12,7 +12,7 @@ use frame_support::{
 use codec::{MaxEncodedLen};
 use scale_info::TypeInfo;
 
-#[derive(Copy, Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+#[derive(Copy, Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo, PartialOrd, Ord)]
 pub struct Hash(pub [u8; 64]);
 pub struct TryFromSliceError(());
 

@@ -266,14 +266,14 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!(<MinerItems<T>>::contains_key(&sender)), Error::<T>::AlreadyRegistered);
-			T::Currency::reserve(&sender, staking_val.clone())?;
+			T::Currency::reserve(&sender, staking_val)?;
 
 			<MinerItems<T>>::insert(
 				&sender,
 				MinerInfo::<T::AccountId, BalanceOf<T>, BoundedVec<u8, T::ItemLimit>> {
 					beneficiary: beneficiary.clone(),
 					peer_id: peer_id,
-					collaterals: staking_val.clone(),
+					collaterals: staking_val,
 					debt: BalanceOf::<T>::zero(),
 					state: Self::vec_to_bound::<u8>(STATE_POSITIVE.as_bytes().to_vec())?,
 					idle_space: u128::MIN,
@@ -301,7 +301,7 @@ pub mod pallet {
 
 			Self::deposit_event(Event::<T>::Registered {
 				acc: sender.clone(),
-				staking_val: staking_val.clone(),
+				staking_val: staking_val,
 			});
 			Ok(())
 		}
