@@ -689,7 +689,7 @@ pub mod pallet {
 							let result = value.try_append(&mut unverify_list.to_vec());
 
 							if result.is_err() {
-								let new_block: BlockNumberOf<T> = now.saturating_add(5u32.saturated_into());
+								let new_block: BlockNumberOf<T> = now.saturating_add(800u32.saturated_into());
 								<VerifyDuration<T>>::put(new_block);
 								weight = weight.saturating_add(T::DbWeight::get().writes(1));
 								return weight;

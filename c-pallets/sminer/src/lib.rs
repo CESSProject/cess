@@ -839,7 +839,13 @@ impl<T: Config> Pallet<T> {
 		AllMiner::<T>::put(miner_list);
 
 		<RewardMap<T>>::remove(acc);
-		<MinerItems<T>>::remove(acc);
+
+		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
+			let miner = miner_opt.as_mut().ok_or(Error::<T>::Unexpected)?;
+			miner.state = STATE_EXIT.as_bytes().to_vec().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
+
+			Ok(())
+		})?;
 
 		Ok(())
 	}
@@ -992,9 +998,10 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 
 	fn unlock_space(acc: &AccountOf<T>, space: u128) -> DispatchResult {
 		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
-			let miner = miner_opt.as_mut().ok_or(Error::<T>::NotExisted)?;
-			miner.lock_space = miner.lock_space.checked_sub(space).ok_or(Error::<T>::Overflow)?;
-			miner.idle_space = miner.idle_space.checked_add(space).ok_or(Error::<T>::Overflow)?;
+			if let Ok(miner) = miner_opt.as_mut().ok_or(Error::<T>::NotExisted) {
+				miner.lock_space = miner.lock_space.checked_sub(space).ok_or(Error::<T>::Overflow)?;
+				miner.idle_space = miner.idle_space.checked_add(space).ok_or(Error::<T>::Overflow)?;
+			}
 			Ok(())
 		})
 	}
