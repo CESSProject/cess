@@ -313,12 +313,6 @@ pub mod pallet {
 	pub(super) type MinerLock<T: Config> = 
 		StorageMap<_, Blake2_128Concat, AccountOf<T>, BlockNumberOf<T>>;
 
-	// Stores the hash of the entire network segment and the sharing of each segment.
-	// Used to determine whether segments can be shared.
-	#[pallet::storage]
-	#[pallet::getter(fn segment_map)]
-	pub(super) type SegmentMap<T: Config> = StorageMap<_, Blake2_128Concat, Hash, (SegmentInfo<T>, u32)>;
-
 	#[pallet::storage]
 	#[pallet::getter(fn bucket)]
 	pub(super) type Bucket<T: Config> =
@@ -375,10 +369,15 @@ pub mod pallet {
 						if let Ok(file) = <File<T>>::try_get(&file_info.file_hash) {
 							weight = weight.saturating_add(T::DbWeight::get().reads(1));
 							if file.owner.len() > 1 {
-								if let Ok(()) = Self::remove_file_owner(&file_info.file_hash, &acc, false) {
-									weight = weight.saturating_add(T::DbWeight::get().reads_writes(2, 2));
-								}
+								match Self::remove_file_owner(&file_info.file_hash, &acc, false) {
+									Ok(()) => weight = weight.saturating_add(T::DbWeight::get().reads_writes(2, 2)),
+									Err(e) => log::info!("delete file {:?} failed. error is: {:?}", e, file_info.file_hash),
+								};
 							 } else {
+								match Self::remove_file_last_owner(&file_info.file_hash, &acc, false) {
+									Ok(temp_weight) => weight = weight.saturating_add(temp_weight),
+									Err(e) => log::info!("delete file {:?} failed. error is: {:?}", e, file_info.file_hash),
+								};
 								if let Ok(temp_weight) = Self::remove_file_last_owner(&file_info.file_hash, &acc, false) {
 									weight = weight.saturating_add(temp_weight);
 								}
@@ -457,40 +456,9 @@ pub mod pallet {
 					Ok(())
 				})?;
 			} else {
-				// Check whether the user's storage space is sufficient, 
-				// if sufficient lock user's storage space.
-				// Perform space calculations based on 1.5 times redundancy.
-				let mut needed_list: BoundedVec<SegmentList<T>, T::SegmentCount> = Default::default();
-				let mut share_info: Vec<SegmentInfo<T>> = Default::default();
-				// Check whether there are segments that can be shared.
-				for segment_list in &deal_info {
-					if <SegmentMap<T>>::contains_key(segment_list.hash) {
-						let segment_info = <SegmentMap<T>>::try_get(&segment_list.hash).map_err(|_| Error::<T>::BugInvalid)?.0;
-						share_info.push(segment_info);
-					} else {
-						needed_list.try_push(segment_list.clone()).map_err(|_e| Error::<T>::BoundedVecError)?;
-					}
-				}
-
-				if share_info.len() == deal_info.len() {
-					T::StorageHandle::update_user_space(&user_brief.user, 1, needed_space)?;
-
-					if <Bucket<T>>::contains_key(&user_brief.user, &user_brief.bucket_name) {
-						Self::add_file_to_bucket(&user_brief.user, &user_brief.bucket_name, &file_hash)?;
-					} else {
-						Self::create_bucket_helper(&user_brief.user, &user_brief.bucket_name, Some(file_hash))?;
-					}
-
-					Self::add_user_hold_fileslice(&user_brief.user, file_hash, needed_space)?;
-
-					Self::generate_file(&file_hash, deal_info, Default::default(), share_info, user_brief.clone(), FileState::Active)?;
-
-				} else {
-					T::StorageHandle::lock_user_space(&user_brief.user, needed_space)?;
-					// TODO! Replace the file_hash param
-					Self::generate_deal(file_hash.clone(), needed_list, deal_info, user_brief.clone(), share_info)?;
-				}
-
+				T::StorageHandle::lock_user_space(&user_brief.user, needed_space)?;
+				// TODO! Replace the file_hash param
+				Self::generate_deal(file_hash.clone(), deal_info, user_brief.clone())?;
 			}
 
 			Self::deposit_event(Event::<T>::UploadDeclaration { operator: sender, owner: user_brief.user, deal_hash: file_hash });
@@ -1284,6 +1252,21 @@ pub mod pallet {
 
 			Ok(())
 		}
+		//FOR TEST
+		#[pallet::call_index(24)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn test_force_miner_exit(
+			origin: OriginFor<T>,
+			miner: AccountOf<T>,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			Self::force_miner_exit(&miner)?;
+
+			Ok(())
+		}
+
 	}
 }
 

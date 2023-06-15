@@ -28,6 +28,8 @@ impl<T: Config> Pallet<T> {
                 fragment_list: Default::default(),
             };
 
+            let mut mark_miner: Vec<AccountOf<T>> = Default::default();
+
             let mut flag = true;
             for share_segment_info in &share_info {
                 if segment.hash == share_segment_info.hash {
@@ -35,15 +37,24 @@ impl<T: Config> Pallet<T> {
                     flag = false;
                     break;
                 }
-            };
+            }
 
             if flag {
                 for miner_task in &mut miner_task_list {
                     miner_task.fragment_list.sort();
                 }
 
+                let best_count: u32 = (SEGMENT_SIZE * 15 / 10 / FRAGMENT_SIZE) as u32;
+                let cur_count: u32 = miner_task_list.len() as u32;
+                let flag = best_count == cur_count;
+
                 for frag_hash in segment.fragment_list.iter() {
                     for miner_task in &mut miner_task_list {
+                        if flag {
+                            if mark_miner.contains(&miner_task.miner) {
+                                continue;
+                            }
+                        }
                         if let Ok(index) = miner_task.fragment_list.binary_search(&frag_hash) {
                             let frag_info = FragmentInfo::<T> {
                                 hash:  *frag_hash,
@@ -52,6 +63,7 @@ impl<T: Config> Pallet<T> {
                             };
                             segment_info.fragment_list.try_push(frag_info).map_err(|_e| Error::<T>::BoundedVecError)?;
                             miner_task.fragment_list.remove(index);
+                            mark_miner.push(miner_task.miner.clone());
                             break;
                         }
                     }
@@ -59,20 +71,6 @@ impl<T: Config> Pallet<T> {
             }
             
             segment_info_list.try_push(segment_info).map_err(|_e| Error::<T>::BoundedVecError)?;
-        }
-
-        for segment_info in &segment_info_list {
-            if <SegmentMap<T>>::contains_key(segment_info.hash) {
-                <SegmentMap<T>>::try_mutate(segment_info.hash, |segment_opt| -> DispatchResult {
-                    let segment_tuple = segment_opt.as_mut().ok_or(Error::<T>::BugInvalid)?;
-                    segment_tuple.1 = segment_tuple.1.checked_add(1).ok_or(Error::<T>::Overflow)?;
-                    Ok(())
-                })?;
-            } else {
-                <SegmentMap<T>>::insert(segment_info.hash, (segment_info, 0));
-                T::StorageHandle::add_total_service_space(Self::cal_file_size(1))?;
-                T::StorageHandle::sub_total_idle_space(Self::cal_file_size(1))?;
-            }
         }
 
         let cur_block = <frame_system::Pallet<T>>::block_number();
@@ -132,23 +130,21 @@ impl<T: Config> Pallet<T> {
 
     pub(super) fn generate_deal(
         file_hash: Hash, 
-        needed_list: BoundedVec<SegmentList<T>, T::SegmentCount>, 
         file_info: BoundedVec<SegmentList<T>, T::SegmentCount>, 
         user_brief: UserBrief<T>,
-        share_info: Vec<SegmentInfo<T>>,
     ) -> DispatchResult {
-        let miner_task_list = Self::random_assign_miner(&needed_list)?;
+        let miner_task_list = Self::random_assign_miner(&file_info)?;
 
         Self::start_first_task(file_hash.0.to_vec(), file_hash, 1)?;
 
         let deal = DealInfo::<T> {
             stage: 1,
             count: 0,
-            segment_list: file_info,
-            needed_list: needed_list,
+            segment_list: file_info.clone(),
+            needed_list: file_info,
             user: user_brief,
             assigned_miner: miner_task_list,
-            share_info: share_info.try_into().map_err(|_| Error::<T>::BoundedVecError)?,
+            share_info: Default::default(),
             complete_list: Default::default(),
         };
 
@@ -373,33 +369,17 @@ impl<T: Config> Pallet<T> {
         let mut miner_list: BTreeMap<AccountOf<T>, u32> = Default::default();
         // Traverse every segment
         for segment_info in file.segment_list.iter() {
-            let flag = <SegmentMap<T>>::try_mutate(segment_info.hash, |segment_opt| -> Result<bool, DispatchError> {
-                let (segment_info, count) = segment_opt.as_mut().ok_or(Error::<T>::BugInvalid)?;
-                // Determine whether the segment is shared
-                if *count >= 1 {
-                    *count = count.checked_sub(1).ok_or(Error::<T>::Overflow)?;
-                } else {
-                    for fragment_info in segment_info.fragment_list.iter() {
+            for fragment_info in segment_info.fragment_list.iter() {
+                // The total number of fragments in a file should never exceed u32
+                    total_fragment_dec += 1;
+                    if miner_list.contains_key(&fragment_info.miner) {
+                        let temp_count = miner_list.get_mut(&fragment_info.miner).ok_or(Error::<T>::BugInvalid)?;
                         // The total number of fragments in a file should never exceed u32
-                        total_fragment_dec += 1;
-                        if miner_list.contains_key(&fragment_info.miner) {
-                            let temp_count = miner_list.get_mut(&fragment_info.miner).ok_or(Error::<T>::BugInvalid)?;
-                            // The total number of fragments in a file should never exceed u32
-                            *temp_count += 1;
-                        } else {
-                            miner_list.insert(fragment_info.miner.clone(), 1);
-                        }
+                        *temp_count += 1;
+                    } else {
+                         miner_list.insert(fragment_info.miner.clone(), 1);
                     }
-                    return Ok(true);
                 }
-                Ok(false)
-            })?; // reads_writes 1, 1
-            weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-
-            if flag {
-                <SegmentMap<T>>::remove(segment_info.hash);
-                weight = weight.saturating_add(T::DbWeight::get().writes(1));
-            }
         }
 
         for (miner, count) in miner_list.iter() {
