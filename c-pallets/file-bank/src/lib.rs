@@ -388,7 +388,10 @@ pub mod pallet {
 						}
 					}
 
-					T::StorageHandle::delete_user_space_storage(&acc);
+					match T::StorageHandle::delete_user_space_storage(&acc) {
+						Ok(temp_weight) => weight = weight.saturating_add(temp_weight),
+						Err(e) => log::info!("delete user sapce error: {:?}, \n failed user: {:?}", e, acc),
+					}
 
 					<UserHoldFileList<T>>::remove(&acc);
 					// todo! clear all
@@ -637,6 +640,8 @@ pub mod pallet {
 
 								let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
 								T::StorageHandle::unlock_and_used_user_space(&deal_info.user.user, needed_space)?;
+								T::StorageHandle::sub_total_idle_space(needed_space)?;
+								T::StorageHandle::add_total_service_space(needed_space)?;
 								let result = T::FScheduler::cancel_named(hash.0.to_vec()).map_err(|_| Error::<T>::Unexpected);
 								if let Err(_) = result {
 									log::info!("transfer report cancel schedule failed: {:?}", hash.clone());
@@ -702,7 +707,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
-			ensure!(filler.len() < 30, Error::<T>::LengthExceedsLimit);
+			ensure!(filler.len() <= 30, Error::<T>::LengthExceedsLimit);
 			let pending_count = <PendingReplacements<T>>::get(&sender);
 			ensure!(filler.len() as u32 <= pending_count, Error::<T>::LengthExceedsLimit);
 
@@ -738,11 +743,8 @@ pub mod pallet {
 
 			for file_hash in file_hash_list.iter() {
 				let file = <File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::NonExistent)?;
-
 				let _ = Self::delete_user_file(&file_hash, &owner, &file)?;
-	
 				Self::bucket_remove_file(&file_hash, &owner, &file)?;
-	
 				Self::remove_user_hold_file_list(&file_hash, &owner)?;
 			}
 
@@ -881,7 +883,14 @@ pub mod pallet {
 			ensure!(<Bucket<T>>::contains_key(&owner, &name), Error::<T>::NonExistent);
 			let bucket = <Bucket<T>>::try_get(&owner, &name).map_err(|_| Error::<T>::Unexpected)?;
 			for file_hash in bucket.object_list.iter() {
-				let _file = <File<T>>::try_get(file_hash).map_err(|_| Error::<T>::Unexpected)?;
+				let file = <File<T>>::try_get(file_hash).map_err(|_| Error::<T>::Unexpected)?;
+				if file.owner.len() > 1 {
+					Self::remove_file_owner(file_hash, &owner, true)?;
+				 } else {
+					Self::remove_file_last_owner(file_hash, &owner, true)?;
+				}
+
+				Self::remove_user_hold_file_list(file_hash, &owner)?;
 			}
 			<Bucket<T>>::remove(&owner, &name);
 			<UserBucketList<T>>::try_mutate(&owner, |bucket_list| -> DispatchResult {
@@ -1263,6 +1272,36 @@ pub mod pallet {
 			let _ = ensure_root(origin)?;
 
 			Self::force_miner_exit(&miner)?;
+
+			Ok(())
+		}
+
+		//FOR TEST
+		#[pallet::call_index(25)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn test_add_total_service_space(
+			origin: OriginFor<T>,
+			space: u128,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			T::StorageHandle::add_total_service_space(space)?;
+
+			Ok(())
+		}
+
+		//FOR TEST
+		#[pallet::call_index(26)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn test_sub_total_idle_space(
+			origin: OriginFor<T>,
+			space: u128,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			T::StorageHandle::sub_total_idle_space(space)?;
 
 			Ok(())
 		}
