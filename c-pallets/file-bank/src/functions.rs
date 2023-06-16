@@ -391,9 +391,8 @@ impl<T: Config> Pallet<T> {
             weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
         }
 
-        let file_size = Self::cal_file_size(file.segment_list.len() as u128);
         if user_clear {
-            T::StorageHandle::update_user_space(acc, 2, file_size)?;
+            T::StorageHandle::update_user_space(acc, 2, total_fragment_dec as u128 * FRAGMENT_SIZE)?;
             weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
         }
         T::StorageHandle::sub_total_service_space(total_fragment_dec as u128 * FRAGMENT_SIZE)?;

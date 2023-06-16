@@ -842,7 +842,7 @@ impl<T: Config> Pallet<T> {
 
 		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
 			let miner = miner_opt.as_mut().ok_or(Error::<T>::Unexpected)?;
-			miner.state = STATE_EXIT.as_bytes().to_vec().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
+			miner.state = STATE_OFFLINE.as_bytes().to_vec().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
 
 			Ok(())
 		})?;
