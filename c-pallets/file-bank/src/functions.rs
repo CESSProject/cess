@@ -95,6 +95,7 @@ impl<T: Config> Pallet<T> {
         // TODO! len() & ?
         ensure!(bucket_name.len() >= 3, Error::<T>::LessMinLength);
         ensure!(!<Bucket<T>>::contains_key(user, bucket_name), Error::<T>::Existed);
+        ensure!(Self::check_bucket_name_spec((*bucket_name).to_vec()), Error::<T>::SpecError);
 
         let mut bucket = BucketInfo::<T> {
             object_list: Default::default(),
@@ -555,5 +556,40 @@ impl<T: Config> Pallet<T> {
 
             Ok(())
         })
+    }
+
+    pub(super) fn check_bucket_name_spec(name: Vec<u8>) -> bool {
+        let mut point_flag: bool = false;
+        let mut count = 0;
+        for elem in &name {
+            if !BUCKET_ALLOW_CHAR.contains(elem) {
+                return false;
+            }
+
+            if elem == &BUCKET_ALLOW_CHAR[64] {
+                count += 1;
+                if point_flag {
+                    return false;
+                }
+                point_flag = true;
+            } else {
+                point_flag = false
+            }
+        }
+
+        if count == 3 {
+            let arr_iter = name.split(|num| num == &BUCKET_ALLOW_CHAR[64]);
+            for arr in arr_iter {
+                for elem in arr {
+                    if !BUCKET_ALLOW_CHAR.contains(elem) {
+                        return true;
+                    }
+                }
+            }
+
+            return false
+        }
+
+        true
     }
 }
