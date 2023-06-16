@@ -669,7 +669,7 @@ pub trait StorageHandle<AccountId> {
     fn unlock_and_used_user_space(acc: &AccountId, needed_space: u128) -> DispatchResult;
     fn get_user_avail_space(acc: &AccountId) -> Result<u128, DispatchError>;
     fn frozen_task() -> (Weight, Vec<AccountId>);
-    fn delete_user_space_storage(acc: &AccountId);
+    fn delete_user_space_storage(acc: &AccountId) -> Result<Weight, DispatchError>;
 }
 
 impl<T: Config> StorageHandle<T::AccountId> for Pallet<T> {
@@ -726,7 +726,18 @@ impl<T: Config> StorageHandle<T::AccountId> for Pallet<T> {
         Self::frozen_task()
     }
 
-    fn delete_user_space_storage(acc: &T::AccountId) {
+    fn delete_user_space_storage(acc: &T::AccountId) -> Result<Weight, DispatchError> {
+        let mut weight: Weight = Weight::from_ref_time(0);
+
+        let space_info = <UserOwnedSpace<T>>::try_get(acc).map_err(|_| Error::<T>::NotPurchasedSpace)?;
+        weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
+
+        Self::sub_purchased_space(space_info.total_space)?;
+        weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+
         <UserOwnedSpace<T>>::remove(acc);
+        weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
+
+        Ok(weight)
     }
 }
