@@ -121,4 +121,4 @@ cd cess
 #Under the /cess root directory
 cargo build --release
 ```
-Go to the /cess/target/release directory to obtain the cess node file。。
+Go to the /cess/target/release directory to obtain the cess node file。。。
