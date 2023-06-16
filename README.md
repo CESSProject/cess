@@ -7,18 +7,18 @@
 <a href='https://web3.foundation/'><img width='205' alt='web3f_grants_badge.png' src='https://github.com/heyworld88/gitskills/blob/main/web3f_grants_badge.png'></a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<a href='https://builders.parity.io/'><img width='240' src='https://user-images.githubusercontent.com/15166250/219302289-c2187f64-b0d8-46cc-a953-74d13267d7db.png'></a>
 
   
-**[cess.cloud](http://cess.cloud/) aims to serve as a new global decentralized data storage network by building with the infrastructure of decentralized cloud data network of the [substrate](https://substrate.dev/) while maintaining the data security and reliability guarantees inherent to blockchain technology. Learn more at [white-paper](https://github.com/CESSProject/Whitepaper).** 
+**[cess.cloud](http://cess.cloud/) aims to serve as a new global decentralized data storage network by building the infrastructure of the decentralized cloud data network with [substrate](https://substrate.dev/) while maintaining the data security  and reliability and guaranteeing inherent to blockchain technology. Learn more here [white-paper](https://github.com/CESSProject/Whitepaper). ** 
 
 ## Getting Started
 
 
 ### Install Guide
 
-Follow [Setup](docs/setup.md) to guide you install the CESS development.
+Follow [Setup](docs/setup.md) to guide you to install the CESS development.
 
 ### Build Node
 
-The `cargo run` command will perform an initial build. Use the following command to build the node without launching it:
+The `cargo run` command will perform an initial build. Use the following command to build the node without launching it :
 
 ```
 # Fetch the code
@@ -32,7 +32,7 @@ cargo build --release
 ## Run The CESS Node
 
 
-After the node has finished compiling, you can follow these steps below to run it. 
+After the node has finished compiling, you can follow following steps to run it . 
 
 ### Generate Keys
 
@@ -95,7 +95,7 @@ CESS supports to obtain incentives by contributing idle storage with [storage mi
 
 ## Run Tests
 
-CESS has Rust unit tests, and can be run locally.
+CESS has Rust unit tests which can be run locally.
 
 ```
 # Run all the Rust unit tests
@@ -111,7 +111,7 @@ cargo test --release
 
 ## Contribute
 
-Please follow the contribution guidelines as outlined in [`docs/CONTRIBUTING.adoc`](docs/CONTRIBUTING.adoc). For all communications and contributions, this project follows the [Contributor Covenant Code of Conduct](docs/CODE_OF_CONDUCT.md).
+Please follow the contribution guidelines as outlined here [`docs/CONTRIBUTING.adoc`](docs/CONTRIBUTING.adoc). For all communications and contributions, this project follows the [Contributor Covenant Code of Conduct](docs/CODE_OF_CONDUCT.md).
 
 ## Cess-bootstrap
 
@@ -121,4 +121,4 @@ cd cess
 #Under the /cess root directory
 cargo build --release
 ```
-Go to the /cess/target/release directory to obtain the cess node file.
+Go to the /cess/target/release directory to obtain the cess node file

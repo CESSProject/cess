@@ -78,7 +78,7 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		//Scheduling registration method
-		RegistrationTeeWorker { acc: AccountOf<T> },
+		RegistrationTeeWorker { acc: AccountOf<T>, peer_id: PeerId },
 
 		UpdateScheduler { acc: AccountOf<T>, endpoint: IpAddress },
 
@@ -160,7 +160,7 @@ pub mod pallet {
 
 			let tee_worker_info = TeeWorkerInfo::<T> {
 				controller_account: sender.clone(),
-				peer_id: peer_id,
+				peer_id: peer_id.clone(),
 				node_key,
 				stash_account: stash_account,
 			};
@@ -171,7 +171,7 @@ pub mod pallet {
 
 			TeeWorkerMap::<T>::insert(&sender, tee_worker_info);
 
-			Self::deposit_event(Event::<T>::RegistrationTeeWorker { acc: sender });
+			Self::deposit_event(Event::<T>::RegistrationTeeWorker { acc: sender, peer_id: peer_id });
 
 			Ok(())
 		}
@@ -217,15 +217,48 @@ pub mod pallet {
 			Ok(())
 		}
 
-		// #[pallet::call_index(4)]
-        // #[transactional]
-		// #[pallet::weight(100_000_000)]
-		// pub fn exit(origin: OriginFor<T>) -> DispatchResult {
-		// 	let sender = ensure_signed(origin)?;
+		#[pallet::call_index(4)]
+        #[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn exit(origin: OriginFor<T>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
 
-		// 	TeeWorkerMap::<T>::remove(&sender);
+			TeeWorkerMap::<T>::remove(&sender);
 
-		// 	Self::deposit_event(Event::<T>::Exit { acc: sender });
+			if TeeWorkerMap::<T>::count() == 0 {
+				<TeePodr2Pk<T>>::kill();
+			}
+
+			Self::deposit_event(Event::<T>::Exit { acc: sender });
+
+			Ok(())
+		}
+
+		//For TEST
+		#[pallet::call_index(5)]
+		#[transactional]
+		#[pallet::weight(100_00_000)]
+		pub fn update_pk(origin: OriginFor<T>, podr2_pbk: Podr2Key) -> DispatchResult {
+			let _sender = ensure_signed(origin)?;
+
+			<TeePodr2Pk<T>>::put(podr2_pbk);
+
+			Ok(())
+		}
+
+		// #[pallet::call_index(6)]
+		// #[transactional]
+		// #[pallet::weight(100_00_000)]
+		// pub fn bls_verify_test(origin: OriginFor<T>, puk: Vec<u8>, msg: Vec<u8>, sig: Vec<u8>) -> DispatchResult {
+		// 	let _ = ensure_signed(origin)?;
+
+		// 	let result = verify_bls(&puk, &msg, &sig);
+
+		// 	if let Ok(()) = result {
+		// 		log::info!("bls verify result is true");
+		// 	} else {
+		// 		log::info!("bls verify result is false");
+		// 	}
 
 		// 	Ok(())
 		// }

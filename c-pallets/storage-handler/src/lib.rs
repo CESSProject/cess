@@ -35,6 +35,7 @@ pub use pallet::*;
 
 pub const SPACE_NORMAL: &str = "normal";
 pub const SPACE_FROZEN: &str = "frozen";
+pub const SPACE_DEAD: &str = "dead";
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> =
@@ -178,7 +179,7 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 			ensure!(!<UserOwnedSpace<T>>::contains_key(&sender), Error::<T>::PurchasedSpace);
             // For TEST
-			let space= M_BYTE.checked_mul(gib_count as u128).ok_or(Error::<T>::Overflow)?;
+			let space = G_BYTE.checked_mul(gib_count as u128).ok_or(Error::<T>::Overflow)?;
 			let unit_price = <UnitPrice<T>>::try_get()
 				.map_err(|_e| Error::<T>::BugInvalid)?;
 
@@ -277,6 +278,11 @@ pub mod pallet {
 			let cur_owned_space = <UserOwnedSpace<T>>::try_get(&sender)
 				.map_err(|_e| Error::<T>::NotPurchasedSpace)?;
 
+            ensure!(
+                cur_owned_space.state.to_vec() != SPACE_DEAD.as_bytes().to_vec(), 
+                Error::<T>::LeaseExpired,
+            );
+
 			let days_unit_price = <UnitPrice<T>>::try_get()
 				.map_err(|_e| Error::<T>::BugInvalid)?
 				.checked_div(&30u32.saturated_into())
@@ -328,6 +334,28 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+        //For TEST
+        #[pallet::call_index(6)]
+        #[transactional]
+        #[pallet::weight(100_000_000)]
+        pub fn update_deadline(
+            origin: OriginFor<T>,
+            acc: AccountOf<T>,
+            deadline: BlockNumberOf<T>,
+        ) -> DispatchResult {
+            let _ = ensure_root(origin)?;
+
+            <UserOwnedSpace<T>>::try_mutate(&acc, |info_opt| -> DispatchResult {
+                let info = info_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
+
+                info.deadline = deadline;
+                
+                Ok(())
+            })?;
+
+            Ok(())
+        }
     }
 }
 
@@ -466,52 +494,63 @@ impl<T: Config> Pallet<T> {
     fn frozen_task() -> (Weight, Vec<AccountOf<T>>) {
         let now: BlockNumberOf<T> = <frame_system::Pallet<T>>::block_number();
         let number: u128 = now.saturated_into();
-        let block_oneday: BlockNumberOf<T> = <T as pallet::Config>::OneDay::get();
-        let oneday: u32 = block_oneday.saturated_into();
+    
         let mut weight: Weight = Weight::from_ref_time(0);
         let mut clear_acc_list: Vec<AccountOf<T>> = Default::default();
-        if number % oneday as u128 == 0 {
-            log::info!("Start lease expiration check");
-            for (acc, info) in <UserOwnedSpace<T>>::iter() {
-                weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
-                if now > info.deadline {
-                    let frozen_day: BlockNumberOf<T> = <T as pallet::Config>::FrozenDays::get();
-                    if now > info.deadline + frozen_day {
-                        log::info!("clear user:#{}'s files", number);
-                        let result = Self::sub_purchased_space(info.total_space);
+
+        log::info!("Start lease expiration check");
+        for (acc, info) in <UserOwnedSpace<T>>::iter() {
+            weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
+            if now > info.deadline {
+                let frozen_day: BlockNumberOf<T> = <T as pallet::Config>::FrozenDays::get();
+                if now > info.deadline + frozen_day {
+                    log::info!("clear user:#{}'s files", number);
+                    let result = <UserOwnedSpace<T>>::try_mutate(
+                        &acc,
+                        |s_opt| -> DispatchResult {
+                            let s = s_opt
+                                .as_mut()
+                                .ok_or(Error::<T>::NotPurchasedSpace)?;
+                            s.state = SPACE_DEAD
+                                .as_bytes()
+                                .to_vec()
+                                .try_into()
+                                .map_err(|_e| Error::<T>::BoundedVecError)?;
+                            Ok(())
+                        },
+                    );
+                    match result {
+                        Ok(()) => log::info!("user space dead: #{}", number),
+                        Err(e) => log::error!("space mark dead failed: {:?}", e),
+                    }
+                    weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+                    clear_acc_list.push(acc);
+                } else {
+                    if info.state.to_vec() != SPACE_FROZEN.as_bytes().to_vec() {
+                        let result = <UserOwnedSpace<T>>::try_mutate(
+                            &acc,
+                            |s_opt| -> DispatchResult {
+                                let s = s_opt
+                                    .as_mut()
+                                    .ok_or(Error::<T>::NotPurchasedSpace)?;
+                                s.state = SPACE_FROZEN
+                                    .as_bytes()
+                                    .to_vec()
+                                    .try_into()
+                                    .map_err(|_e| Error::<T>::BoundedVecError)?;
+                                Ok(())
+                            },
+                        );
                         match result {
-                            Ok(()) => log::info!("sub purchased space success"),
-                            Err(e) => log::error!("failed sub purchased space: {:?}", e),
-                        };
-                        weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-                        clear_acc_list.push(acc);
-                    } else {
-                        if info.state.to_vec() != SPACE_FROZEN.as_bytes().to_vec() {
-                            let result = <UserOwnedSpace<T>>::try_mutate(
-                                &acc,
-                                |s_opt| -> DispatchResult {
-                                    let s = s_opt
-                                        .as_mut()
-                                        .ok_or(Error::<T>::NotPurchasedSpace)?;
-                                    s.state = SPACE_FROZEN
-                                        .as_bytes()
-                                        .to_vec()
-                                        .try_into()
-                                        .map_err(|_e| Error::<T>::BoundedVecError)?;
-                                    Ok(())
-                                },
-                            );
-                            match result {
-                                Ok(()) => log::info!("user space frozen: #{}", number),
-                                Err(e) => log::error!("frozen failed: {:?}", e),
-                            }
-                            weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+                            Ok(()) => log::info!("user space frozen: #{}", number),
+                            Err(e) => log::error!("frozen failed: {:?}", e),
                         }
+                        weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
                     }
                 }
             }
-            log::info!("End lease expiration check");
         }
+        log::info!("End lease expiration check");
         (weight, clear_acc_list)
     }
 
@@ -630,6 +669,7 @@ pub trait StorageHandle<AccountId> {
     fn unlock_and_used_user_space(acc: &AccountId, needed_space: u128) -> DispatchResult;
     fn get_user_avail_space(acc: &AccountId) -> Result<u128, DispatchError>;
     fn frozen_task() -> (Weight, Vec<AccountId>);
+    fn delete_user_space_storage(acc: &AccountId);
 }
 
 impl<T: Config> StorageHandle<T::AccountId> for Pallet<T> {
@@ -684,5 +724,9 @@ impl<T: Config> StorageHandle<T::AccountId> for Pallet<T> {
 
     fn frozen_task() -> (Weight, Vec<AccountOf<T>>) {
         Self::frozen_task()
+    }
+
+    fn delete_user_space_storage(acc: &T::AccountId) {
+        <UserOwnedSpace<T>>::remove(acc);
     }
 }
