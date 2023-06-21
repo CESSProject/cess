@@ -186,10 +186,6 @@ pub mod pallet {
 		FillerUpload { acc: AccountOf<T>, file_size: u64 },
 
 		FillerDelete { acc: AccountOf<T>, filler_hash: Hash },
-		//File recovery
-		RecoverFile { acc: AccountOf<T>, file_hash: [u8; 68] },
-		//The miner cleaned up an invalid file event
-		ClearInvalidFile { acc: AccountOf<T>, file_hash: Hash },
 		//Event to successfully create a bucket
 		CreateBucket { operator: AccountOf<T>, owner: AccountOf<T>, bucket_name: Vec<u8>},
 		//Successfully delete the bucket event
@@ -202,6 +198,10 @@ pub mod pallet {
 		ClaimRestoralOrder { miner: AccountOf<T>, order_id: Hash },
 
 		RecoveryCompleted { miner: AccountOf<T>, order_id: Hash },
+
+		StorageCompleted { file_hash: Hash },
+
+		MinerExitPrep { miner: AccountOf<T> },
 	}
 
 	#[pallet::error]
@@ -428,6 +428,7 @@ pub mod pallet {
 			file_hash: Hash,
 			deal_info: BoundedVec<SegmentList<T>, T::SegmentCount>,
 			user_brief: UserBrief<T>,
+			file_size: u128,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			// Check if you have operation permissions.
@@ -462,7 +463,7 @@ pub mod pallet {
 			} else {
 				T::StorageHandle::lock_user_space(&user_brief.user, needed_space)?;
 				// TODO! Replace the file_hash param
-				Self::generate_deal(file_hash.clone(), deal_info, user_brief.clone())?;
+				Self::generate_deal(file_hash.clone(), deal_info, user_brief.clone(), file_size)?;
 			}
 
 			Self::deposit_event(Event::<T>::UploadDeclaration { operator: sender, owner: user_brief.user, deal_hash: file_hash });
@@ -625,6 +626,7 @@ pub mod pallet {
 									deal_info.share_info.to_vec(),
 									deal_info.user.clone(),
 									FileState::Calculate,
+									deal_info.file_size,
 								)?;
 
 								for miner_task in deal_info.assigned_miner.iter() {
@@ -654,7 +656,9 @@ pub mod pallet {
 									Self::create_bucket_helper(&deal_info.user.user, &deal_info.user.bucket_name, Some(hash))?;
 								}
 
-								Self::add_user_hold_fileslice(&deal_info.user.user, hash, needed_space)?;
+								Self::add_user_hold_fileslice(&deal_info.user.user, hash.clone(), needed_space)?;
+
+								Self::deposit_event(Event::<T>::StorageCompleted{ file_hash: hash });
 							}
 						} else {
 							failed_list.push(hash);
@@ -828,25 +832,6 @@ pub mod pallet {
 
 			Ok(())
 		}
-		/// Clean up invalid idle files
-		///
-		/// When the idle documents are replaced or proved to be invalid,
-		/// they will become invalid documents and need to be cleared by the miners
-		///
-		/// Parameters:
-		/// - `file_hash`: Invalid file hash
-		#[pallet::call_index(10)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::clear_invalid_file())]
-		pub fn clear_invalid_file(origin: OriginFor<T>, file_hash: Hash) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			<InvalidFile<T>>::try_mutate(&sender, |o| -> DispatchResult {
-				o.retain(|x| *x != file_hash);
-				Ok(())
-			})?;
-			Self::deposit_event(Event::<T>::ClearInvalidFile { acc: sender, file_hash });
-			Ok(())
-		}
 
 		#[pallet::call_index(11)]
 		#[transactional]
@@ -934,24 +919,25 @@ pub mod pallet {
 				for segment in &mut file.segment_list {
 					for fragment in &mut segment.fragment_list {
 						if &fragment.hash == &restoral_fragment {
-							ensure!(&fragment.miner == &sender, Error::<T>::SpecError);
-							let restoral_order = RestoralOrderInfo::<T> {
-								count: u32::MIN,
-								miner: sender.clone(),
-								origin_miner: sender.clone(),
-								file_hash: file_hash,
-								fragment_hash: restoral_fragment.clone(),
-								gen_block: <frame_system::Pallet<T>>::block_number(),
-								deadline: Default::default(),
-							};
+							if &fragment.miner == &sender {
+								let restoral_order = RestoralOrderInfo::<T> {
+									count: u32::MIN,
+									miner: sender.clone(),
+									origin_miner: sender.clone(),
+									file_hash: file_hash,
+									fragment_hash: restoral_fragment.clone(),
+									gen_block: <frame_system::Pallet<T>>::block_number(),
+									deadline: Default::default(),
+								};
 
-							fragment.avail = false;
-	
-							<RestoralOrder<T>>::insert(&restoral_fragment, restoral_order);
-	
-							Self::deposit_event(Event::<T>::GenerateRestoralOrder{ miner: sender, fragment_hash: restoral_fragment});
-	
-							return Ok(())
+								fragment.avail = false;
+		
+								<RestoralOrder<T>>::insert(&restoral_fragment, restoral_order);
+		
+								Self::deposit_event(Event::<T>::GenerateRestoralOrder{ miner: sender, fragment_hash: restoral_fragment});
+		
+								return Ok(())
+							}
 						}
 					}
 				}
@@ -1018,22 +1004,26 @@ pub mod pallet {
 				for segment in &mut file.segment_list {
 					for fragment in &mut segment.fragment_list {
 						if &fragment.hash == &restoral_fragment {
-							ensure!(&fragment.miner == &miner, Error::<T>::SpecError);
-							let restoral_order = RestoralOrderInfo::<T> {
-								count: u32::MIN,
-								miner: sender.clone(),
-								origin_miner: fragment.miner.clone(),
-								file_hash: file_hash,
-								fragment_hash: restoral_fragment.clone(),
-								gen_block: <frame_system::Pallet<T>>::block_number(),
-								deadline: Default::default(),
-							};
-
-							fragment.avail = false;
+							if fragment.miner == miner {
+								let now = <frame_system::Pallet<T>>::block_number();
+								let life = T::RestoralOrderLife::get();
+								let deadline = now.checked_add(&life.saturated_into()).ok_or(Error::<T>::Overflow)?;
+								let restoral_order = RestoralOrderInfo::<T> {
+									count: u32::MIN,
+									miner: sender.clone(),
+									origin_miner: fragment.miner.clone(),
+									file_hash: file_hash,
+									fragment_hash: restoral_fragment.clone(),
+									gen_block: <frame_system::Pallet<T>>::block_number(),
+									deadline,
+								};
 	
-							<RestoralOrder<T>>::insert(&restoral_fragment, restoral_order);
-	
-							return Ok(())
+								fragment.avail = false;
+		
+								<RestoralOrder<T>>::insert(&restoral_fragment, restoral_order);
+		
+								return Ok(())
+							}
 						}
 					}
 				}
@@ -1059,6 +1049,7 @@ pub mod pallet {
 
 			let order = <RestoralOrder<T>>::try_get(&fragment_hash).map_err(|_| Error::<T>::NonExistent)?;
 			ensure!(&order.miner == &sender, Error::<T>::SpecError);
+
 			let now = <frame_system::Pallet<T>>::block_number();
 			ensure!(now < order.deadline, Error::<T>::Expired);
 
@@ -1072,17 +1063,18 @@ pub mod pallet {
 					for segment in &mut file.segment_list {
 						for fragment in &mut segment.fragment_list {
 							if &fragment.hash == &fragment_hash {
-								ensure!(&order.origin_miner == &fragment.miner, Error::<T>::BugInvalid);
-								T::MinerControl::sub_miner_service_space(&fragment.miner, FRAGMENT_SIZE)?;
-								T::MinerControl::add_miner_service_space(&sender, FRAGMENT_SIZE)?;
+								if &fragment.miner == &order.origin_miner {
+									T::MinerControl::sub_miner_service_space(&fragment.miner, FRAGMENT_SIZE)?;
+									T::MinerControl::add_miner_service_space(&sender, FRAGMENT_SIZE)?;
 
-								if <RestoralTarget<T>>::contains_key(&fragment.miner) {
-									Self::update_restoral_target(&fragment.miner, FRAGMENT_SIZE)?;
+									if <RestoralTarget<T>>::contains_key(&fragment.miner) {
+										Self::update_restoral_target(&fragment.miner, FRAGMENT_SIZE)?;
+									}
+
+									fragment.avail = true;
+									fragment.miner = sender.clone();
+									return Ok(());
 								}
-
-								fragment.avail = true;
-								fragment.miner = sender.clone();
-								return Ok(());
 							}
 						}
 					}
@@ -1116,8 +1108,11 @@ pub mod pallet {
 			ensure!(result, Error::<T>::MinerStateError);
 			T::MinerControl::update_miner_state(&sender, "lock")?;
 
-			let now = <frame_system::Pallet<T>>::block_number();
-			let lock_time = T::OneDay::get().checked_add(&now).ok_or(Error::<T>::Overflow)?;
+			
+			//FOR TEST
+			// let now = <frame_system::Pallet<T>>::block_number();
+			// let lock_time = T::OneDay::get().checked_add(&now).ok_or(Error::<T>::Overflow)?;
+			let lock_time: BlockNumberOf<T> = 10u32.saturated_into();
 			<MinerLock<T>>::insert(&sender, lock_time);
 
 			let task_id: Vec<u8> = sender.encode();
@@ -1127,8 +1122,10 @@ pub mod pallet {
                 Option::None,
                 schedule::HARD_DEADLINE,
                 frame_system::RawOrigin::Root.into(),
-                Call::miner_exit{miner: sender}.into(), 
+                Call::miner_exit{miner: sender.clone()}.into(), 
         	).map_err(|_| Error::<T>::Unexpected)?;
+
+			Self::deposit_event(Event::<T>::MinerExitPrep{ miner: sender });
 
 			Ok(())
 		}
@@ -1168,11 +1165,9 @@ pub mod pallet {
 			let restoral_info = <RestoralTarget<T>>::try_get(&sender).map_err(|_| Error::<T>::MinerStateError)?;
 			let now = <frame_system::Pallet<T>>::block_number();
 
-			ensure!(now >= restoral_info.cooling_block, Error::<T>::MinerStateError);
-			ensure!(
-				restoral_info.restored_space == restoral_info.service_space,
-				Error::<T>::MinerStateError,
-			);
+			if now < restoral_info.cooling_block && restoral_info.restored_space != restoral_info.service_space {
+				Err(Error::<T>::MinerStateError)?;
+			}
 
 			T::MinerControl::withdraw(&sender)?;
 
