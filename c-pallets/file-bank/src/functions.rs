@@ -20,6 +20,7 @@ impl<T: Config> Pallet<T> {
         share_info: Vec<SegmentInfo<T>>,
         user_brief: UserBrief<T>,
         stat: FileState,
+        file_size: u128,
     ) -> DispatchResult {
         let mut segment_info_list: BoundedVec<SegmentInfo<T>, T::SegmentCount> = Default::default();
         for segment in deal_info.iter() {
@@ -76,10 +77,11 @@ impl<T: Config> Pallet<T> {
         let cur_block = <frame_system::Pallet<T>>::block_number();
 
         let file_info = FileInfo::<T> {
-            completion: cur_block,
-            stat: stat,
             segment_list: segment_info_list,
             owner: vec![user_brief].try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
+            file_size,
+            completion: cur_block,
+            stat: stat,
         };
 
         <File<T>>::insert(file_hash, file_info);
@@ -133,6 +135,7 @@ impl<T: Config> Pallet<T> {
         file_hash: Hash, 
         file_info: BoundedVec<SegmentList<T>, T::SegmentCount>, 
         user_brief: UserBrief<T>,
+        file_size: u128,
     ) -> DispatchResult {
         let miner_task_list = Self::random_assign_miner(&file_info)?;
 
@@ -141,6 +144,7 @@ impl<T: Config> Pallet<T> {
         let deal = DealInfo::<T> {
             stage: 1,
             count: 0,
+            file_size,
             segment_list: file_info.clone(),
             needed_list: file_info,
             user: user_brief,
