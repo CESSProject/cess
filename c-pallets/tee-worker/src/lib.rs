@@ -80,8 +80,6 @@ pub mod pallet {
 		//Scheduling registration method
 		RegistrationTeeWorker { acc: AccountOf<T>, peer_id: PeerId },
 
-		UpdateScheduler { acc: AccountOf<T>, endpoint: IpAddress },
-
 		Exit { acc: AccountOf<T> },
 
 		UpdatePeerId { acc: AccountOf<T> },
