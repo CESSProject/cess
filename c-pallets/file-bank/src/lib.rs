@@ -42,6 +42,9 @@ pub use types::*;
 
 mod functions;
 
+mod constants;
+use constants::*;
+
 use codec::{Decode, Encode};
 use frame_support::{
 	// bounded_vec, 
@@ -347,6 +350,11 @@ pub mod pallet {
 	pub(super) type RestoralOrder<T: Config> = 
 		StorageMap<_, Blake2_128Concat, Hash, RestoralOrderInfo<T>>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn clear_user_list)]
+	pub(super) type ClearUserList<T: Config> = 
+		StorageValue<_, BoundedVec<AccountOf<T>, ConstU32<5000>>, ValueQuery>;
+
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -354,9 +362,21 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberOf<T>> for Pallet<T> {
-		fn on_initialize(_now: BlockNumberOf<T>) -> Weight {
-			let (mut weight, acc_list) = T::StorageHandle::frozen_task();
-			let mut count: u32 = 0; 
+		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
+			let days = T::OneDay::get();
+			let mut weight: Weight = Weight::from_ref_time(0);
+			if now % days == 0u32.saturated_into() {
+				let (temp_weight, acc_list) = T::StorageHandle::frozen_task();
+				weight = weight.saturating_add(temp_weight);
+				let temp_acc_list: BoundedVec<AccountOf<T>, ConstU32<5000>> = 
+					acc_list.try_into().unwrap_or_default();
+				ClearUserList::<T>::put(temp_acc_list);
+				weight = weight.saturating_add(T::DbWeight::get().writes(1));
+			}
+			
+			let mut count: u32 = 0;
+			let acc_list = ClearUserList::<T>::get();
+			weight = weight.saturating_add(T::DbWeight::get().reads(1));
 			for acc in acc_list.iter() {
 				// todo! Delete in blocks, and delete a part of each block
 				if let Ok(mut file_info_list) = <UserHoldFileList<T>>::try_get(&acc) {
@@ -393,6 +413,10 @@ pub mod pallet {
 						Ok(temp_weight) => weight = weight.saturating_add(temp_weight),
 						Err(e) => log::info!("delete user sapce error: {:?}, \n failed user: {:?}", e, acc),
 					}
+
+					ClearUserList::<T>::mutate(|target_list| {
+						target_list.retain(|temp_acc| temp_acc != acc);
+					});
 
 					<UserHoldFileList<T>>::remove(&acc);
 					// todo! clear all
@@ -478,6 +502,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			deal_hash: Hash,
 			count: u8,
+			life: u32,
 		) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
@@ -493,7 +518,7 @@ pub mod pallet {
 					deal_info.assigned_miner = miner_task_list;
 					deal_info.complete_list = Default::default();
 					deal_info.count = count;
-					Self::start_first_task(deal_hash.0.to_vec(), deal_hash, count + 1)?;
+					Self::start_first_task(deal_hash.0.to_vec(), deal_hash, count + 1, life)?;
 					Ok(())
 				})?;
 			} else {
@@ -629,8 +654,12 @@ pub mod pallet {
 									deal_info.file_size,
 								)?;
 
+								let mut max_task_count = 0;
 								for miner_task in deal_info.assigned_miner.iter() {
 									let count = miner_task.fragment_list.len() as u32;
+									if count > max_task_count {
+										max_task_count = count;
+									}
 									// Miners need to report the replaced documents themselves. 
 									// If a challenge is triggered before the report is completed temporarily, 
 									// these documents to be replaced also need to be verified
@@ -649,7 +678,12 @@ pub mod pallet {
 								if let Err(_) = result {
 									log::info!("transfer report cancel schedule failed: {:?}", hash.clone());
 								}
-								Self::start_second_task(hash.0.to_vec(), hash, 5)?;
+
+								let max_needed_cal_space = (max_task_count as u128) * FRAGMENT_SIZE;
+								let mut life: u32 = (max_needed_cal_space / TRANSFER_RATE + 1) as u32;
+								life = life + (max_needed_cal_space / CALCULATE_RATE + 1) as u32;
+
+								Self::start_second_task(hash.0.to_vec(), hash, life)?;
 								if <Bucket<T>>::contains_key(&deal_info.user.user, &deal_info.user.bucket_name) {
 									Self::add_file_to_bucket(&deal_info.user.user, &deal_info.user.bucket_name, &hash)?;
 								} else {
@@ -1108,11 +1142,10 @@ pub mod pallet {
 			ensure!(result, Error::<T>::MinerStateError);
 			T::MinerControl::update_miner_state(&sender, "lock")?;
 
-			
-			//FOR TEST
-			// let now = <frame_system::Pallet<T>>::block_number();
-			// let lock_time = T::OneDay::get().checked_add(&now).ok_or(Error::<T>::Overflow)?;
-			let lock_time: BlockNumberOf<T> = 10u32.saturated_into();
+			let now = <frame_system::Pallet<T>>::block_number();
+			// TODO! Develop a lock-in period based on the maximum duration of the current challenge
+			let lock_time = T::OneDay::get().checked_add(&now).ok_or(Error::<T>::Overflow)?;
+
 			<MinerLock<T>>::insert(&sender, lock_time);
 
 			let task_id: Vec<u8> = sender.encode();
@@ -1177,130 +1210,6 @@ pub mod pallet {
 
 			Ok(())
 		}
-		// FOR TEST
-		#[pallet::call_index(20)]
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn test_add_user_hold_list(
-			origin: OriginFor<T>,
-			acc: AccountOf<T>,
-			file_list: Vec<(Hash, u128)>,
-		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			for (hash, size) in file_list {
-				Self::add_user_hold_fileslice(&acc, hash, size)?;
-			}
-
-			Ok(())
-		}
-		//FOR TEST
-		#[pallet::call_index(21)]
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn test_delete_deal_map(
-			origin: OriginFor<T>,
-			deal_hash: Hash,
-		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			DealMap::<T>::remove(&deal_hash);
-
-			Ok(())
-		}
-		//FOR TEST
-		#[pallet::call_index(22)]
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn test_delete_file_map(
-			origin: OriginFor<T>,
-			file_hash: Hash,
-		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			File::<T>::remove(&file_hash);
-
-			Ok(())
-		}
-		// FOR TEST
-		#[pallet::call_index(23)]
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn test_re_cal_miner_idle(
-			origin: OriginFor<T>,
-			miner: AccountOf<T>,
-		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			let mut count: u128 = 0;
-			for _ in <FillerMap<T>>::iter_prefix(&miner) {
-				count += 1;
-			}
-
-			let true_space = FRAGMENT_SIZE * count;
-			let cur_space = T::MinerControl::get_miner_idle_space(&miner)?;
-
-			if true_space == cur_space {
-				return Ok(())
-			}
-
-			if true_space > cur_space {
-				let fix = true_space - cur_space;
-				T::StorageHandle::add_total_idle_space(fix)?;
-			} else {
-				let fix = cur_space - true_space;
-				T::StorageHandle::sub_total_idle_space(fix)?;
-			}
-
-			T::MinerControl::test_update_miner_idle_space(&miner, true_space)?;
-
-			Ok(())
-		}
-		//FOR TEST
-		#[pallet::call_index(24)]
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn test_force_miner_exit(
-			origin: OriginFor<T>,
-			miner: AccountOf<T>,
-		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			Self::force_miner_exit(&miner)?;
-
-			Ok(())
-		}
-
-		//FOR TEST
-		#[pallet::call_index(25)]
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn test_add_total_service_space(
-			origin: OriginFor<T>,
-			space: u128,
-		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			T::StorageHandle::add_total_service_space(space)?;
-
-			Ok(())
-		}
-
-		//FOR TEST
-		#[pallet::call_index(26)]
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn test_sub_total_idle_space(
-			origin: OriginFor<T>,
-			space: u128,
-		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			T::StorageHandle::sub_total_idle_space(space)?;
-
-			Ok(())
-		}
-
 	}
 }
 

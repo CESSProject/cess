@@ -8,7 +8,7 @@ use frame_support::{
     Blake2_128Concat, PalletId, weights::Weight, ensure, transactional,
     storage::bounded_vec::BoundedVec,
     traits::{
-        StorageVersion, Currency, ReservableCurrency, ExistenceRequirement::AllowDeath,
+        StorageVersion, Currency, ReservableCurrency, ExistenceRequirement::KeepAlive,
     },
     pallet_prelude::*,
 };
@@ -178,7 +178,7 @@ pub mod pallet {
 		pub fn buy_space(origin: OriginFor<T>, gib_count: u32) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!<UserOwnedSpace<T>>::contains_key(&sender), Error::<T>::PurchasedSpace);
-            // For TEST
+
 			let space = G_BYTE.checked_mul(gib_count as u128).ok_or(Error::<T>::Overflow)?;
 			let unit_price = <UnitPrice<T>>::try_get()
 				.map_err(|_e| Error::<T>::BugInvalid)?;
@@ -193,7 +193,7 @@ pub mod pallet {
 				Error::<T>::InsufficientBalance
 			);
 			let acc = T::FilbakPalletId::get().into_account_truncating();
-			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), AllowDeath)?;
+			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), KeepAlive)?;
 
 			Self::deposit_event(Event::<T>::BuySpace { acc: sender, storage_capacity: space, spend: price });
 			Ok(())
@@ -258,7 +258,7 @@ pub mod pallet {
 
 			Self::expension_puchased_package(sender.clone(), space)?;
 
-			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), AllowDeath)?;
+			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), KeepAlive)?;
 
 			Self::deposit_event(Event::<T>::ExpansionSpace {
 				acc: sender,
@@ -300,7 +300,7 @@ pub mod pallet {
 				Error::<T>::InsufficientBalance
 			);
 			let acc = T::FilbakPalletId::get().into_account_truncating();
-			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), AllowDeath)?;
+			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), KeepAlive)?;
 			Self::update_puchased_package(sender.clone(), days)?;
 			Self::deposit_event(Event::<T>::RenewalSpace {
 				acc: sender,
@@ -317,20 +317,6 @@ pub mod pallet {
 			let _ = ensure_root(origin)?;
 			let default_price: BalanceOf<T> = 30u32.saturated_into();
 			UnitPrice::<T>::put(default_price);
-
-			Ok(())
-		}
-
-        // For TEST
-        #[pallet::call_index(5)]
-        #[transactional]
-		#[pallet::weight(100_000_000)]
-        pub fn add_treasury(origin: OriginFor<T>, #[pallet::compact] amount: BalanceOf<T>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-
-            let receiver = T::TreasuryPalletId::get().into_account_truncating();
-
-            <T as pallet::Config>::Currency::transfer(&sender, &receiver, amount, AllowDeath)?;
 
 			Ok(())
 		}

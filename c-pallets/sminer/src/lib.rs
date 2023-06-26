@@ -30,7 +30,7 @@ use frame_support::{
 	traits::{
 		schedule::{Anon as ScheduleAnon, Named as ScheduleNamed},
 		Currency,
-		ExistenceRequirement::AllowDeath,
+		ExistenceRequirement::KeepAlive,
 		Get, Imbalance, OnUnbalanced, ReservableCurrency,
 	},
 };
@@ -422,7 +422,7 @@ pub mod pallet {
 					ensure!(reward.currently_available_reward != 0u32.saturated_into(), Error::<T>::NoReward);
 
 					let reward_pot = T::PalletId::get().into_account_truncating();
-					<T as pallet::Config>::Currency::transfer(&reward_pot, &sender, reward.currently_available_reward.clone(), AllowDeath)?;
+					<T as pallet::Config>::Currency::transfer(&reward_pot, &sender, reward.currently_available_reward.clone(), KeepAlive)?;
 
 					reward.reward_issued = reward.reward_issued
 						.checked_add(&reward.currently_available_reward).ok_or(Error::<T>::Overflow)?;
@@ -461,7 +461,7 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 
 			let reward_pot = T::PalletId::get().into_account_truncating();
-			<T as pallet::Config>::Currency::transfer(&sender, &reward_pot, award, AllowDeath)?;
+			<T as pallet::Config>::Currency::transfer(&sender, &reward_pot, award, KeepAlive)?;
 
 			Self::deposit_event(Event::<T>::FaucetTopUpMoney { acc: sender.clone() });
 			Ok(())
@@ -494,7 +494,7 @@ pub mod pallet {
 					&reward_pot,
 					&to,
 					FAUCET_VALUE.try_into().map_err(|_e| Error::<T>::ConversionError)?,
-					AllowDeath,
+					KeepAlive,
 				)?;
 				<FaucetRecordMap<T>>::insert(
 					&to,
@@ -537,7 +537,7 @@ pub mod pallet {
 					&reward_pot,
 					&to,
 					FAUCET_VALUE.try_into().map_err(|_e| Error::<T>::ConversionError)?,
-					AllowDeath,
+					KeepAlive,
 				)?;
 				<FaucetRecordMap<T>>::insert(
 					&to,
@@ -546,17 +546,6 @@ pub mod pallet {
 			}
 
 			Self::deposit_event(Event::<T>::DrawFaucetMoney());
-			Ok(())
-		}
-		//FOR TEST
-		#[pallet::call_index(15)]
-		#[transactional]
-		#[pallet::weight(100_000)]
-		pub fn test_unlock_space(origin: OriginFor<T>, miner: AccountOf<T>, space: u128) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			Self::unlock_space(&miner, space)?;
-
 			Ok(())
 		}
 	}
@@ -740,14 +729,14 @@ impl<T: Config> Pallet<T> {
 
 			if miner_info.collaterals > punish_amount {
 				T::Currency::unreserve(miner, punish_amount);
-				T::Currency::transfer(miner, &reward_pot, punish_amount, AllowDeath)?;
+				T::Currency::transfer(miner, &reward_pot, punish_amount, KeepAlive)?;
 				<CurrencyReward<T>>::mutate(|reward| {
 					*reward = *reward + punish_amount;
 				});
 				miner_info.collaterals = miner_info.collaterals.checked_sub(&punish_amount).ok_or(Error::<T>::Overflow)?;
 			} else {
 				T::Currency::unreserve(miner, miner_info.collaterals);
-				T::Currency::transfer(miner, &reward_pot, miner_info.collaterals, AllowDeath)?;
+				T::Currency::transfer(miner, &reward_pot, miner_info.collaterals, KeepAlive)?;
 				<CurrencyReward<T>>::mutate(|reward| {
 					*reward = *reward + miner_info.collaterals;
 				});

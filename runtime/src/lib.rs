@@ -961,12 +961,10 @@ impl pallet_sminer::Config for Runtime {
 }
 
 parameter_types! {
-	//FOR TEST
 	#[derive(Clone, Eq, PartialEq)]
-	pub const FrozenDays: BlockNumber = 10;
+	pub const FrozenDays: BlockNumber = 7 * DAYS;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const StateStringMax: u32 = 20;
-
 }
 
 impl pallet_storage_handler::Config for Runtime {

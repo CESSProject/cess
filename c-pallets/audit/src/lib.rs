@@ -316,11 +316,6 @@ pub mod pallet {
 	#[pallet::getter(fn counted_clear)]
 	pub(super) type CountedClear<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, u8, ValueQuery>;
 
-	// For TEST
-	#[pallet::storage]
-	#[pallet::getter(fn controller_button)]
-	pub(super) type ControllerButton<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
-
 	#[pallet::storage]
 	#[pallet::getter(fn lock)]
 	pub(super) type Lock<T: Config> = StorageValue<_, bool, ValueQuery>;
@@ -348,9 +343,8 @@ pub mod pallet {
 			let deadline = Self::verify_duration();
 			if sp_io::offchain::is_validator() {
 				if now > deadline {
-					// For TEST
-					let permission = <ControllerButton<T>>::get();
-					if permission == now {
+					//Determine whether to trigger a challenge
+					if Self::trigger_challenge(now) {
 						log::info!("offchain worker random challenge start");
 						if let Err(e) = Self::offchain_work_start(now) {
 							match e {
@@ -360,10 +354,6 @@ pub mod pallet {
 						}
 						log::info!("offchain worker random challenge end");
 					}
-					//Determine whether to trigger a challenge
-					// if Self::trigger_challenge(now) {
-						
-					// }
 				}
 			}
 		}
@@ -570,24 +560,7 @@ pub mod pallet {
 			<ChallengeDuration<T>>::put(d);
 
 			Ok(())
-		}
-
-		#[pallet::call_index(5)]
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn update_permission(
-			origin: OriginFor<T>,
-			d: BlockNumberOf<T>,
-		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			<ControllerButton<T>>::put(d);
-
-			Ok(())
-		}
-
-		
-		
+		}	
 	}
 
 	
@@ -791,13 +764,13 @@ pub mod pallet {
 		}
 
 		//Trigger: whether to trigger the challenge
-		fn _trigger_challenge(now: BlockNumberOf<T>) -> bool {
+		fn trigger_challenge(now: BlockNumberOf<T>) -> bool {
 			const START_FINAL_PERIOD: Permill = Permill::from_percent(80);
 
 			let time_point = Self::random_number(20220509);
 			//The chance to trigger a challenge is once a day
 			let probability: u32 = T::OneDay::get().saturated_into();
-			let range = LIMIT / probability as u64;
+			let range = LIMIT / probability as u64 * 10;
 			if (time_point > 2190502) && (time_point < (range + 2190502)) {
 				if let (Some(progress), _) =
 				T::NextSessionRotation::estimate_current_session_progress(now) {
@@ -906,9 +879,8 @@ pub mod pallet {
 			if miner_count == 0 {
 				Err(OffchainErr::GenerateInfoError)?;
 			}
-			//For TEST
-			let need_miner_count = miner_count;
-			// let need_miner_count = miner_count / 10 + 1;
+
+			let need_miner_count = miner_count / 10 + 1;
 
 			let mut miner_list: BoundedVec<MinerSnapShot<AccountOf<T>>, T::ChallengeMinerMax> = Default::default();
 

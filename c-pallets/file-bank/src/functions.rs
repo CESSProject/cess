@@ -139,7 +139,11 @@ impl<T: Config> Pallet<T> {
     ) -> DispatchResult {
         let miner_task_list = Self::random_assign_miner(&file_info)?;
 
-        Self::start_first_task(file_hash.0.to_vec(), file_hash, 1)?;
+        let space = Self::cal_file_size(file_info.len() as u128);
+
+        let life = space / TRANSFER_RATE + 1;
+
+        Self::start_first_task(file_hash.0.to_vec(), file_hash, 1, life as u32)?;
 
         let deal = DealInfo::<T> {
             stage: 1,
@@ -158,9 +162,11 @@ impl<T: Config> Pallet<T> {
         Ok(())
     }
 
-    pub(super) fn start_first_task(task_id: Vec<u8>, deal_hash: Hash, count: u8) -> DispatchResult {
+    pub(super) fn start_first_task(task_id: Vec<u8>, deal_hash: Hash, count: u8, life: u32) -> DispatchResult {
         let start: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
-        let survival_block = start.checked_add(600 * (count as u32)).ok_or(Error::<T>::Overflow)?;
+        let survival_block = start
+            .checked_add(50 * (count as u32)).ok_or(Error::<T>::Overflow)?
+            .checked_add(life).ok_or(Error::<T>::Overflow)?;
 
         T::FScheduler::schedule_named(
                 task_id, 
@@ -168,17 +174,18 @@ impl<T: Config> Pallet<T> {
                 Option::None,
                 schedule::HARD_DEADLINE,
                 frame_system::RawOrigin::Root.into(),
-                Call::deal_reassign_miner{deal_hash: deal_hash, count: count}.into(),
+                Call::deal_reassign_miner{deal_hash: deal_hash, count: count, life: life}.into(),
         ).map_err(|_| Error::<T>::Unexpected)?;
 
         Ok(())
     }
-
-    pub(super) fn start_second_task(task_id: Vec<u8>, deal_hash: Hash, count: u8) -> DispatchResult {
+    
+    pub(super) fn start_second_task(task_id: Vec<u8>, deal_hash: Hash, life: u32) -> DispatchResult {
         let start: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
         // todo! calculate time
-        let survival_block = start.checked_add(1 * (count as u32)).ok_or(Error::<T>::Overflow)?;
-        // For test
+        let survival_block = start
+            .checked_add(life).ok_or(Error::<T>::Overflow)?;
+
         T::FScheduler::schedule_named(
                 task_id,
                 DispatchTime::At(survival_block.saturated_into()),
