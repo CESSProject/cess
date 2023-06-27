@@ -16,10 +16,11 @@ impl<T: Config> Pallet<T> {
     pub fn generate_file(
         file_hash: &Hash,
         deal_info: BoundedVec<SegmentList<T>, T::SegmentCount>,
-        miner_task_list: BoundedVec<MinerTaskList<T>, T::StringLimit>,
+        mut miner_task_list: BoundedVec<MinerTaskList<T>, T::StringLimit>,
         share_info: Vec<SegmentInfo<T>>,
         user_brief: UserBrief<T>,
         stat: FileState,
+        file_size: u128,
     ) -> DispatchResult {
         let mut segment_info_list: BoundedVec<SegmentInfo<T>, T::SegmentCount> = Default::default();
         for segment in deal_info.iter() {
@@ -28,6 +29,8 @@ impl<T: Config> Pallet<T> {
                 fragment_list: Default::default(),
             };
 
+            let mut mark_miner: Vec<AccountOf<T>> = Default::default();
+
             let mut flag = true;
             for share_segment_info in &share_info {
                 if segment.hash == share_segment_info.hash {
@@ -35,18 +38,34 @@ impl<T: Config> Pallet<T> {
                     flag = false;
                     break;
                 }
-            };
+            }
 
             if flag {
+                for miner_task in &mut miner_task_list {
+                    miner_task.fragment_list.sort();
+                }
+
+                let best_count: u32 = (SEGMENT_SIZE * 15 / 10 / FRAGMENT_SIZE) as u32;
+                let cur_count: u32 = miner_task_list.len() as u32;
+                let flag = best_count == cur_count;
+
                 for frag_hash in segment.fragment_list.iter() {
-                    for miner_task in &miner_task_list {
-                        if miner_task.fragment_list.contains(frag_hash) {
+                    for miner_task in &mut miner_task_list {
+                        if flag {
+                            if mark_miner.contains(&miner_task.miner) {
+                                continue;
+                            }
+                        }
+                        if let Ok(index) = miner_task.fragment_list.binary_search(&frag_hash) {
                             let frag_info = FragmentInfo::<T> {
                                 hash:  *frag_hash,
                                 avail: true,
                                 miner: miner_task.miner.clone(),
                             };
                             segment_info.fragment_list.try_push(frag_info).map_err(|_e| Error::<T>::BoundedVecError)?;
+                            miner_task.fragment_list.remove(index);
+                            mark_miner.push(miner_task.miner.clone());
+                            break;
                         }
                     }
                 }
@@ -55,27 +74,14 @@ impl<T: Config> Pallet<T> {
             segment_info_list.try_push(segment_info).map_err(|_e| Error::<T>::BoundedVecError)?;
         }
 
-        for segment_info in &segment_info_list {
-            if <SegmentMap<T>>::contains_key(segment_info.hash) {
-                <SegmentMap<T>>::try_mutate(segment_info.hash, |segment_opt| -> DispatchResult {
-                    let segment_tuple = segment_opt.as_mut().ok_or(Error::<T>::BugInvalid)?;
-                    segment_tuple.1 = segment_tuple.1.checked_add(1).ok_or(Error::<T>::Overflow)?;
-                    Ok(())
-                })?;
-            } else {
-                <SegmentMap<T>>::insert(segment_info.hash, (segment_info, 0));
-                T::StorageHandle::add_total_service_space(Self::cal_file_size(1))?;
-                T::StorageHandle::sub_total_idle_space(Self::cal_file_size(1))?;
-            }
-        }
-
         let cur_block = <frame_system::Pallet<T>>::block_number();
 
         let file_info = FileInfo::<T> {
-            completion: cur_block,
-            stat: stat,
             segment_list: segment_info_list,
             owner: vec![user_brief].try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
+            file_size,
+            completion: cur_block,
+            stat: stat,
         };
 
         <File<T>>::insert(file_hash, file_info);
@@ -91,6 +97,7 @@ impl<T: Config> Pallet<T> {
         // TODO! len() & ?
         ensure!(bucket_name.len() >= 3, Error::<T>::LessMinLength);
         ensure!(!<Bucket<T>>::contains_key(user, bucket_name), Error::<T>::Existed);
+        ensure!(Self::check_bucket_name_spec((*bucket_name).to_vec()), Error::<T>::SpecError);
 
         let mut bucket = BucketInfo::<T> {
             object_list: Default::default(),
@@ -126,23 +133,27 @@ impl<T: Config> Pallet<T> {
 
     pub(super) fn generate_deal(
         file_hash: Hash, 
-        needed_list: BoundedVec<SegmentList<T>, T::SegmentCount>, 
         file_info: BoundedVec<SegmentList<T>, T::SegmentCount>, 
         user_brief: UserBrief<T>,
-        share_info: Vec<SegmentInfo<T>>,
+        file_size: u128,
     ) -> DispatchResult {
-        let miner_task_list = Self::random_assign_miner(&needed_list)?;
+        let miner_task_list = Self::random_assign_miner(&file_info)?;
 
-        Self::start_first_task(file_hash.0.to_vec(), file_hash, 1)?;
+        let space = Self::cal_file_size(file_info.len() as u128);
+
+        let life = space / TRANSFER_RATE + 1;
+
+        Self::start_first_task(file_hash.0.to_vec(), file_hash, 1, life as u32)?;
 
         let deal = DealInfo::<T> {
             stage: 1,
-            count: 1,
-            segment_list: file_info,
-            needed_list: needed_list,
+            count: 0,
+            file_size,
+            segment_list: file_info.clone(),
+            needed_list: file_info,
             user: user_brief,
             assigned_miner: miner_task_list,
-            share_info: share_info.try_into().map_err(|_| Error::<T>::BoundedVecError)?,
+            share_info: Default::default(),
             complete_list: Default::default(),
         };
 
@@ -151,9 +162,11 @@ impl<T: Config> Pallet<T> {
         Ok(())
     }
 
-    pub(super) fn start_first_task(task_id: Vec<u8>, deal_hash: Hash, count: u8) -> DispatchResult {
+    pub(super) fn start_first_task(task_id: Vec<u8>, deal_hash: Hash, count: u8, life: u32) -> DispatchResult {
         let start: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
-        let survival_block = start.checked_add(600 * (count as u32)).ok_or(Error::<T>::Overflow)?;
+        let survival_block = start
+            .checked_add(50 * (count as u32)).ok_or(Error::<T>::Overflow)?
+            .checked_add(life).ok_or(Error::<T>::Overflow)?;
 
         T::FScheduler::schedule_named(
                 task_id, 
@@ -161,17 +174,18 @@ impl<T: Config> Pallet<T> {
                 Option::None,
                 schedule::HARD_DEADLINE,
                 frame_system::RawOrigin::Root.into(),
-                Call::deal_reassign_miner{deal_hash: deal_hash, count: count}.into(),
+                Call::deal_reassign_miner{deal_hash: deal_hash, count: count, life: life}.into(),
         ).map_err(|_| Error::<T>::Unexpected)?;
 
         Ok(())
     }
-
-    pub(super) fn start_second_task(task_id: Vec<u8>, deal_hash: Hash, count: u8) -> DispatchResult {
+    
+    pub(super) fn start_second_task(task_id: Vec<u8>, deal_hash: Hash, life: u32) -> DispatchResult {
         let start: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
         // todo! calculate time
-        let survival_block = start.checked_add(1 * (count as u32)).ok_or(Error::<T>::Overflow)?;
-        // For test
+        let survival_block = start
+            .checked_add(life).ok_or(Error::<T>::Overflow)?;
+
         T::FScheduler::schedule_named(
                 task_id,
                 DispatchTime::At(survival_block.saturated_into()),
@@ -367,33 +381,17 @@ impl<T: Config> Pallet<T> {
         let mut miner_list: BTreeMap<AccountOf<T>, u32> = Default::default();
         // Traverse every segment
         for segment_info in file.segment_list.iter() {
-            let flag = <SegmentMap<T>>::try_mutate(segment_info.hash, |segment_opt| -> Result<bool, DispatchError> {
-                let (segment_info, count) = segment_opt.as_mut().ok_or(Error::<T>::BugInvalid)?;
-                // Determine whether the segment is shared
-                if *count >= 1 {
-                    *count = count.checked_sub(1).ok_or(Error::<T>::Overflow)?;
-                } else {
-                    for fragment_info in segment_info.fragment_list.iter() {
+            for fragment_info in segment_info.fragment_list.iter() {
+                // The total number of fragments in a file should never exceed u32
+                    total_fragment_dec += 1;
+                    if miner_list.contains_key(&fragment_info.miner) {
+                        let temp_count = miner_list.get_mut(&fragment_info.miner).ok_or(Error::<T>::BugInvalid)?;
                         // The total number of fragments in a file should never exceed u32
-                        total_fragment_dec += 1;
-                        if miner_list.contains_key(&fragment_info.miner) {
-                            let temp_count = miner_list.get_mut(&fragment_info.miner).ok_or(Error::<T>::BugInvalid)?;
-                            // The total number of fragments in a file should never exceed u32
-                            *temp_count += 1;
-                        } else {
-                            miner_list.insert(fragment_info.miner.clone(), 1);
-                        }
+                        *temp_count += 1;
+                    } else {
+                         miner_list.insert(fragment_info.miner.clone(), 1);
                     }
-                    return Ok(true);
                 }
-                Ok(false)
-            })?; // reads_writes 1, 1
-            weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-
-            if flag {
-                <SegmentMap<T>>::remove(segment_info.hash);
-                weight = weight.saturating_add(T::DbWeight::get().writes(1));
-            }
         }
 
         for (miner, count) in miner_list.iter() {
@@ -405,9 +403,8 @@ impl<T: Config> Pallet<T> {
             weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
         }
 
-        let file_size = Self::cal_file_size(file.segment_list.len() as u128);
         if user_clear {
-            T::StorageHandle::update_user_space(acc, 2, file_size)?;
+            T::StorageHandle::update_user_space(acc, 2, total_fragment_dec as u128 * FRAGMENT_SIZE)?;
             weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
         }
         T::StorageHandle::sub_total_service_space(total_fragment_dec as u128 * FRAGMENT_SIZE)?;
@@ -570,5 +567,40 @@ impl<T: Config> Pallet<T> {
 
             Ok(())
         })
+    }
+
+    pub(super) fn check_bucket_name_spec(name: Vec<u8>) -> bool {
+        let mut point_flag: bool = false;
+        let mut count = 0;
+        for elem in &name {
+            if !BUCKET_ALLOW_CHAR.contains(elem) {
+                return false;
+            }
+
+            if elem == &BUCKET_ALLOW_CHAR[64] {
+                count += 1;
+                if point_flag {
+                    return false;
+                }
+                point_flag = true;
+            } else {
+                point_flag = false
+            }
+        }
+
+        if count == 3 {
+            let arr_iter = name.split(|num| num == &BUCKET_ALLOW_CHAR[64]);
+            for arr in arr_iter {
+                for elem in arr {
+                    if !BUCKET_ALLOW_CHAR.contains(elem) {
+                        return true;
+                    }
+                }
+            }
+
+            return false
+        }
+
+        true
     }
 }

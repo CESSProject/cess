@@ -39,6 +39,7 @@ pub struct DealInfo<T: Config> {
 	// the first stage and the second stage, represented by 1 or 2, respectively.
 	pub(super) stage: u8, 
 	pub(super) count: u8,
+	pub(super) file_size: u128,
 	pub(super) segment_list: BoundedVec<SegmentList<T>, T::SegmentCount>,
 	pub(super) needed_list: BoundedVec<SegmentList<T>, T::SegmentCount>,
 	pub(super) user: UserBrief<T>,
@@ -52,10 +53,11 @@ pub struct DealInfo<T: Config> {
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct FileInfo<T: Config> {
-	pub(super) completion: BlockNumberOf<T>,
-	pub(super) stat: FileState,
 	pub(super) segment_list: BoundedVec<SegmentInfo<T>, T::SegmentCount>,
 	pub(super) owner: BoundedVec<UserBrief<T>, T::OwnerLimit>,
+	pub(super) file_size: u128,
+	pub(super) completion: BlockNumberOf<T>,
+	pub(super) stat: FileState,
 }
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]

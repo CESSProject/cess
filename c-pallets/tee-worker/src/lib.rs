@@ -80,8 +80,6 @@ pub mod pallet {
 		//Scheduling registration method
 		RegistrationTeeWorker { acc: AccountOf<T>, peer_id: PeerId },
 
-		UpdateScheduler { acc: AccountOf<T>, endpoint: IpAddress },
-
 		Exit { acc: AccountOf<T> },
 
 		UpdatePeerId { acc: AccountOf<T> },
@@ -193,16 +191,16 @@ pub mod pallet {
 		// 	Ok(())
 		// }
 
-		#[pallet::call_index(2)]
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn test_rsa_verify(origin: OriginFor<T>, key: Vec<u8>, sig: Vec<u8>, msg: Vec<u8>) -> DispatchResult {
-			let _ = ensure_signed(origin)?;
-			let result = verify_rsa(&key, &msg, &sig);
+		// #[pallet::call_index(2)]
+		// #[transactional]
+		// #[pallet::weight(100_000_000)]
+		// pub fn test_rsa_verify(origin: OriginFor<T>, key: Vec<u8>, sig: Vec<u8>, msg: Vec<u8>) -> DispatchResult {
+		// 	let _ = ensure_signed(origin)?;
+		// 	let result = verify_rsa(&key, &msg, &sig);
 
-			ensure!(result, Error::<T>::VerifyCertFailed);
-			Ok(())
-		}
+		// 	ensure!(result, Error::<T>::VerifyCertFailed);
+		// 	Ok(())
+		// }
 
         #[pallet::call_index(3)]
         #[transactional]
@@ -230,18 +228,6 @@ pub mod pallet {
 			}
 
 			Self::deposit_event(Event::<T>::Exit { acc: sender });
-
-			Ok(())
-		}
-
-		//For TEST
-		#[pallet::call_index(5)]
-		#[transactional]
-		#[pallet::weight(100_00_000)]
-		pub fn update_pk(origin: OriginFor<T>, podr2_pbk: Podr2Key) -> DispatchResult {
-			let _sender = ensure_signed(origin)?;
-
-			<TeePodr2Pk<T>>::put(podr2_pbk);
 
 			Ok(())
 		}

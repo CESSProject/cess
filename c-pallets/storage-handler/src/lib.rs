@@ -8,7 +8,7 @@ use frame_support::{
     Blake2_128Concat, PalletId, weights::Weight, ensure, transactional,
     storage::bounded_vec::BoundedVec,
     traits::{
-        StorageVersion, Currency, ReservableCurrency, ExistenceRequirement::AllowDeath,
+        StorageVersion, Currency, ReservableCurrency, ExistenceRequirement::KeepAlive,
     },
     pallet_prelude::*,
 };
@@ -178,7 +178,7 @@ pub mod pallet {
 		pub fn buy_space(origin: OriginFor<T>, gib_count: u32) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!<UserOwnedSpace<T>>::contains_key(&sender), Error::<T>::PurchasedSpace);
-            // For TEST
+
 			let space = G_BYTE.checked_mul(gib_count as u128).ok_or(Error::<T>::Overflow)?;
 			let unit_price = <UnitPrice<T>>::try_get()
 				.map_err(|_e| Error::<T>::BugInvalid)?;
@@ -193,7 +193,7 @@ pub mod pallet {
 				Error::<T>::InsufficientBalance
 			);
 			let acc = T::FilbakPalletId::get().into_account_truncating();
-			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), AllowDeath)?;
+			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), KeepAlive)?;
 
 			Self::deposit_event(Event::<T>::BuySpace { acc: sender, storage_capacity: space, spend: price });
 			Ok(())
@@ -258,7 +258,7 @@ pub mod pallet {
 
 			Self::expension_puchased_package(sender.clone(), space)?;
 
-			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), AllowDeath)?;
+			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), KeepAlive)?;
 
 			Self::deposit_event(Event::<T>::ExpansionSpace {
 				acc: sender,
@@ -300,7 +300,7 @@ pub mod pallet {
 				Error::<T>::InsufficientBalance
 			);
 			let acc = T::FilbakPalletId::get().into_account_truncating();
-			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), AllowDeath)?;
+			<T as pallet::Config>::Currency::transfer(&sender, &acc, price.clone(), KeepAlive)?;
 			Self::update_puchased_package(sender.clone(), days)?;
 			Self::deposit_event(Event::<T>::RenewalSpace {
 				acc: sender,
@@ -320,42 +320,6 @@ pub mod pallet {
 
 			Ok(())
 		}
-
-        // For TEST
-        #[pallet::call_index(5)]
-        #[transactional]
-		#[pallet::weight(100_000_000)]
-        pub fn add_treasury(origin: OriginFor<T>, #[pallet::compact] amount: BalanceOf<T>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-
-            let receiver = T::TreasuryPalletId::get().into_account_truncating();
-
-            <T as pallet::Config>::Currency::transfer(&sender, &receiver, amount, AllowDeath)?;
-
-			Ok(())
-		}
-
-        //For TEST
-        #[pallet::call_index(6)]
-        #[transactional]
-        #[pallet::weight(100_000_000)]
-        pub fn update_deadline(
-            origin: OriginFor<T>,
-            acc: AccountOf<T>,
-            deadline: BlockNumberOf<T>,
-        ) -> DispatchResult {
-            let _ = ensure_root(origin)?;
-
-            <UserOwnedSpace<T>>::try_mutate(&acc, |info_opt| -> DispatchResult {
-                let info = info_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
-
-                info.deadline = deadline;
-                
-                Ok(())
-            })?;
-
-            Ok(())
-        }
     }
 }
 
@@ -669,7 +633,7 @@ pub trait StorageHandle<AccountId> {
     fn unlock_and_used_user_space(acc: &AccountId, needed_space: u128) -> DispatchResult;
     fn get_user_avail_space(acc: &AccountId) -> Result<u128, DispatchError>;
     fn frozen_task() -> (Weight, Vec<AccountId>);
-    fn delete_user_space_storage(acc: &AccountId);
+    fn delete_user_space_storage(acc: &AccountId) -> Result<Weight, DispatchError>;
 }
 
 impl<T: Config> StorageHandle<T::AccountId> for Pallet<T> {
@@ -726,7 +690,18 @@ impl<T: Config> StorageHandle<T::AccountId> for Pallet<T> {
         Self::frozen_task()
     }
 
-    fn delete_user_space_storage(acc: &T::AccountId) {
+    fn delete_user_space_storage(acc: &T::AccountId) -> Result<Weight, DispatchError> {
+        let mut weight: Weight = Weight::from_ref_time(0);
+
+        let space_info = <UserOwnedSpace<T>>::try_get(acc).map_err(|_| Error::<T>::NotPurchasedSpace)?;
+        weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
+
+        Self::sub_purchased_space(space_info.total_space)?;
+        weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+
         <UserOwnedSpace<T>>::remove(acc);
+        weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
+
+        Ok(weight)
     }
 }

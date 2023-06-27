@@ -316,11 +316,6 @@ pub mod pallet {
 	#[pallet::getter(fn counted_clear)]
 	pub(super) type CountedClear<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, u8, ValueQuery>;
 
-	// For TEST
-	#[pallet::storage]
-	#[pallet::getter(fn controller_button)]
-	pub(super) type ControllerButton<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
-
 	#[pallet::storage]
 	#[pallet::getter(fn lock)]
 	pub(super) type Lock<T: Config> = StorageValue<_, bool, ValueQuery>;
@@ -348,9 +343,8 @@ pub mod pallet {
 			let deadline = Self::verify_duration();
 			if sp_io::offchain::is_validator() {
 				if now > deadline {
-					// For TEST
-					let permission = <ControllerButton<T>>::get();
-					if permission == now {
+					//Determine whether to trigger a challenge
+					if Self::trigger_challenge(now) {
 						log::info!("offchain worker random challenge start");
 						if let Err(e) = Self::offchain_work_start(now) {
 							match e {
@@ -360,10 +354,6 @@ pub mod pallet {
 						}
 						log::info!("offchain worker random challenge end");
 					}
-					//Determine whether to trigger a challenge
-					// if Self::trigger_challenge(now) {
-						
-					// }
 				}
 			}
 		}
@@ -399,10 +389,11 @@ pub mod pallet {
 					let now = <frame_system::Pallet<T>>::block_number();
 					if now > cur_blcok {
 						let duration = now.checked_add(&proposal.1.net_snap_shot.life).ok_or(Error::<T>::Overflow)?;
-						<ChallengeSnapShot<T>>::put(proposal.1);
 						<ChallengeDuration<T>>::put(duration);
 						let one_hour = T::OneHours::get();
-						let v_duration = duration.checked_add(&one_hour).ok_or(Error::<T>::Overflow)?;
+						let v_duration = duration
+							.checked_add(&proposal.1.net_snap_shot.life).ok_or(Error::<T>::Overflow)?
+							.checked_add(&one_hour).ok_or(Error::<T>::Overflow)?;
 						<VerifyDuration<T>>::put(v_duration);
 						let _ = ChallengeProposal::<T>::clear(ChallengeProposal::<T>::count(), None);
 					}
@@ -538,56 +529,10 @@ pub mod pallet {
 				Err(Error::<T>::NonExistentMission)?
 			})?;
 
-
 			Self::deposit_event(Event::<T>::VerifyProof { tee_worker: sender, miner, });
 	
 			Ok(())
 		}
-
-		#[pallet::call_index(3)]
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn update_verify_duration(
-			origin: OriginFor<T>,
-			d: BlockNumberOf<T>,
-		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			<VerifyDuration<T>>::put(d);
-
-			Ok(())
-		}
-
-		#[pallet::call_index(4)]
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn update_challenge_duration(
-			origin: OriginFor<T>,
-			d: BlockNumberOf<T>,
-		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			<ChallengeDuration<T>>::put(d);
-
-			Ok(())
-		}
-
-		#[pallet::call_index(5)]
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn update_permission(
-			origin: OriginFor<T>,
-			d: BlockNumberOf<T>,
-		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			<ControllerButton<T>>::put(d);
-
-			Ok(())
-		}
-
-		
-		
 	}
 
 	
@@ -689,7 +634,7 @@ pub mod pallet {
 							let result = value.try_append(&mut unverify_list.to_vec());
 
 							if result.is_err() {
-								let new_block: BlockNumberOf<T> = now.saturating_add(5u32.saturated_into());
+								let new_block: BlockNumberOf<T> = now.saturating_add(800u32.saturated_into());
 								<VerifyDuration<T>>::put(new_block);
 								weight = weight.saturating_add(T::DbWeight::get().writes(1));
 								return weight;
@@ -791,13 +736,13 @@ pub mod pallet {
 		}
 
 		//Trigger: whether to trigger the challenge
-		fn _trigger_challenge(now: BlockNumberOf<T>) -> bool {
+		fn trigger_challenge(now: BlockNumberOf<T>) -> bool {
 			const START_FINAL_PERIOD: Permill = Permill::from_percent(80);
 
 			let time_point = Self::random_number(20220509);
 			//The chance to trigger a challenge is once a day
 			let probability: u32 = T::OneDay::get().saturated_into();
-			let range = LIMIT / probability as u64;
+			let range = LIMIT / probability as u64 * 10;
 			if (time_point > 2190502) && (time_point < (range + 2190502)) {
 				if let (Some(progress), _) =
 				T::NextSessionRotation::estimate_current_session_progress(now) {
@@ -906,9 +851,8 @@ pub mod pallet {
 			if miner_count == 0 {
 				Err(OffchainErr::GenerateInfoError)?;
 			}
-			//For TEST
-			let need_miner_count = miner_count;
-			// let need_miner_count = miner_count / 10 + 1;
+
+			let need_miner_count = miner_count / 10 + 1;
 
 			let mut miner_list: BoundedVec<MinerSnapShot<AccountOf<T>>, T::ChallengeMinerMax> = Default::default();
 
@@ -916,6 +860,7 @@ pub mod pallet {
 
 			let mut total_idle_space: u128 = u128::MIN;
 			let mut total_service_space: u128 = u128::MIN;
+			let mut max_space: u128 = 0;
 			// TODO: need to set a maximum number of cycles
 			let mut seed: u32 = 20230601;
 			while (miner_list.len() as u32 != need_miner_count) && (valid_index_list.len() as u32 != miner_count) {
@@ -936,6 +881,11 @@ pub mod pallet {
 
 					if (idle_space == 0) && (service_space == 0) {
 						continue;
+					}
+
+					let miner_total_space = idle_space + service_space;
+					if miner_total_space > max_space {
+						max_space = miner_total_space;
 					}
 	
 					total_idle_space = total_idle_space.checked_add(idle_space).ok_or(OffchainErr::Overflow)?;
@@ -973,10 +923,12 @@ pub mod pallet {
 				}
 			}
 
+			let life: BlockNumberOf<T> = ((max_space / 8_947_849 + 12) as u32).saturated_into();
+
 			let total_reward: u128 = T::MinerControl::get_reward();
 			let snap_shot = NetSnapShot::<BlockNumberOf<T>>{
 				start: now,
-				life: now,
+				life: life,
 				total_reward,
 				total_idle_space,
 				total_service_space,

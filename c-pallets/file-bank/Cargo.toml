@@ -25,6 +25,7 @@ pallet-oss = { path = '../oss', version = '0.5.3', default-features = false }
 
 # substrate pallet
 pallet-scheduler = { version = '4.0.0-dev', git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36", default-features = false }
+# sc-network = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 
 [dependencies.frame-benchmarking]
 default-features = false
