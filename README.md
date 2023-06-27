@@ -115,7 +115,7 @@ Please follow the contribution guidelines as outlined here [`docs/CONTRIBUTING.a
 
 ## Cess-bootstrap
 
-Please download the code of the current latest release
+Please download the code of the current latest release...
 ```
 cd cess
 #Under the /cess root directory
