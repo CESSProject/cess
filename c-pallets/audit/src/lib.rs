@@ -320,11 +320,6 @@ pub mod pallet {
 	#[pallet::getter(fn lock)]
 	pub(super) type Lock<T: Config> = StorageValue<_, bool, ValueQuery>;
 
-	#[pallet::storage]
-	#[pallet::getter(fn test_option)]
-	pub(super) type TestOption<T: Config> = 
-		StorageValue<_, Option<T::AccountId>>;
-
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
 	#[pallet::generate_store(pub(super) trait Store)]
