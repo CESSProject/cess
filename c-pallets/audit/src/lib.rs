@@ -82,7 +82,7 @@ use sp_core::{
 use sp_runtime::{Saturating, app_crypto::RuntimeAppPublic};
 use frame_system::offchain::{CreateSignedTransaction, SubmitTransaction};
 use pallet_file_bank::RandomFileList;
-use pallet_tee_worker::ScheduleFind;
+use pallet_tee_worker::TeeWorkerHandler;
 use pallet_sminer::MinerControl;
 use pallet_storage_handler::StorageHandle;
 use scale_info::TypeInfo;
@@ -198,7 +198,7 @@ pub mod pallet {
 		//Random files used to obtain this batch of challenges
 		type File: RandomFileList<Self::AccountId>;
 		//Judge whether it is the trait of the consensus node
-		type Scheduler: ScheduleFind<Self::AccountId>;
+		type Scheduler: TeeWorkerHandler<Self::AccountId>;
 		//It is used to increase or decrease the miners' computing power, space, and execute
 		// punishment
 		type MinerControl: MinerControl<Self::AccountId>;

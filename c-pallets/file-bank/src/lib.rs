@@ -73,7 +73,7 @@ use sp_std::{
 	collections::btree_map::BTreeMap
 };
 use pallet_sminer::MinerControl;
-use pallet_tee_worker::ScheduleFind;
+use pallet_tee_worker::TeeWorkerHandler;
 use pallet_oss::OssFindAuthor;
 
 pub use weights::WeightInfo;
@@ -113,7 +113,7 @@ pub mod pallet {
 		//Find the consensus of the current block
 		type FindAuthor: FindAuthor<Self::AccountId>;
 		//Used to find out whether the schedule exists
-		type Scheduler: ScheduleFind<Self::AccountId>;
+		type Scheduler: TeeWorkerHandler<Self::AccountId>;
 		//It is used to control the computing power and space of miners
 		type MinerControl: MinerControl<Self::AccountId>;
 		//Interface that can generate random seeds

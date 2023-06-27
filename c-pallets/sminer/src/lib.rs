@@ -63,6 +63,8 @@ use sp_runtime::{
 };
 use sp_std::{convert::TryInto, prelude::*};
 use sp_core::ConstU32;
+use cp_enclave_verify::verify_rsa;
+use pallet_tee_worker::TeeWorkerHandler;
 
 pub mod weights;
 pub use weights::WeightInfo;
@@ -90,6 +92,8 @@ pub mod pallet {
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		/// The currency trait.
 		type Currency: ReservableCurrency<Self::AccountId>;
+
+		type TeeWorkerHandler: TeeWorkerHandler<Self::AccountId>;
 		/// The treasury's pallet id, used for deriving its sovereign account ID.
 		#[pallet::constant]
 		type PalletId: Get<PalletId>;
@@ -199,6 +203,8 @@ pub mod pallet {
 		Unexpected,
 
 		NoReward,
+
+		VerifyTeeSigFailed,
 	}
 
 	#[pallet::storage]
@@ -241,6 +247,10 @@ pub mod pallet {
 	#[pallet::getter(fn currency_reward)]
 	pub(super) type CurrencyReward<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn miner_public_key)]
+	pub(super) type MinerPublicKey<T: Config> = StorageMap<_, Blake2_128Concat, Podr2Key, AccountOf<T>>;
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
@@ -263,10 +273,17 @@ pub mod pallet {
 			beneficiary: AccountOf<T>,
 			peer_id: PeerId,
 			staking_val: BalanceOf<T>,
+			puk: Podr2Key,
+			tee_sig: Vec<u8>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!(<MinerItems<T>>::contains_key(&sender)), Error::<T>::AlreadyRegistered);
 			T::Currency::reserve(&sender, staking_val)?;
+
+			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
+			ensure!(verify_rsa(&tee_puk, &puk, &tee_sig), Error::<T>::VerifyTeeSigFailed);
+
+			MinerPublicKey::<T>::insert(&puk, sender.clone());
 
 			<MinerItems<T>>::insert(
 				&sender,
@@ -279,6 +296,10 @@ pub mod pallet {
 					idle_space: u128::MIN,
 					service_space: u128::MIN,
 					lock_space: u128::MIN,
+					puk,
+					accumulator: [0u8; 256],
+					front: u64::MIN,
+					rear: u64::MIN,
 				},
 			);
 
@@ -300,9 +321,10 @@ pub mod pallet {
 			);
 
 			Self::deposit_event(Event::<T>::Registered {
-				acc: sender.clone(),
+				acc: sender,
 				staking_val: staking_val,
 			});
+			
 			Ok(())
 		}
 
@@ -832,7 +854,7 @@ impl<T: Config> Pallet<T> {
 		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
 			let miner = miner_opt.as_mut().ok_or(Error::<T>::Unexpected)?;
 			miner.state = STATE_OFFLINE.as_bytes().to_vec().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
-
+			MinerPublicKey::<T>::remove(miner.puk);
 			Ok(())
 		})?;
 
@@ -866,6 +888,7 @@ impl<T: Config> Pallet<T> {
 	fn withdraw(acc: &AccountOf<T>) -> DispatchResult {
 		let miner_info = <MinerItems<T>>::try_get(acc).map_err(|_| Error::<T>::NotMiner)?;
 		T::Currency::unreserve(acc, miner_info.collaterals);
+		MinerPublicKey::<T>::remove(miner_info.puk);
 		<MinerItems<T>>::remove(acc);
 
 		Ok(())

@@ -5463,6 +5463,7 @@ name = "pallet-sminer"
 version = "0.5.3"
 dependencies = [
  "cp-cess-common",
+ "cp-enclave-verify",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -5470,6 +5471,7 @@ dependencies = [
  "pallet-balances",
  "pallet-preimage",
  "pallet-scheduler",
+ "pallet-tee-worker",
  "pallet-timestamp",
  "parity-scale-codec",
  "rand_chacha 0.2.2",
@@ -5540,7 +5542,6 @@ dependencies = [
  "pallet-cess-staking",
  "pallet-scheduler-credit",
  "pallet-session",
- "pallet-sminer",
  "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",

@@ -105,6 +105,8 @@ pub mod pallet {
 		NonTeeWorker,
 
 		VerifyCertFailed,
+
+		TeePodr2PkNotInitialized,
 	}
 
 	#[pallet::storage]
@@ -270,14 +272,15 @@ pub mod pallet {
 	}
 }
 
-pub trait ScheduleFind<AccountId> {
+pub trait TeeWorkerHandler<AccountId> {
 	fn contains_scheduler(acc: AccountId) -> bool;
 	fn punish_scheduler(acc: AccountId) -> DispatchResult;
 	fn get_first_controller() -> Result<AccountId, DispatchError>;
 	fn get_controller_list() -> Vec<AccountId>;
+	fn get_tee_publickey() -> Result<Podr2Key, DispatchError>;
 }
 
-impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<T> {
+impl<T: Config> TeeWorkerHandler<<T as frame_system::Config>::AccountId> for Pallet<T> {
 	fn contains_scheduler(acc: <T as frame_system::Config>::AccountId) -> bool {
 		TeeWorkerMap::<T>::contains_key(&acc)
 	}
@@ -303,5 +306,11 @@ impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<
 		}
 
 		acc_list
+	}
+
+	fn get_tee_publickey() -> Result<Podr2Key, DispatchError> {
+		let pk = TeePodr2Pk::<T>::try_get().map_err(|_| Error::<T>::TeePodr2PkNotInitialized)?;
+
+		Ok(pk)
 	}
 }

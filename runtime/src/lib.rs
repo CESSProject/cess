@@ -958,6 +958,7 @@ impl pallet_sminer::Config for Runtime {
 	type MaxAward = MaxAward;
 	type LockInPeriod = LockInPeriod;
 	type ChallengeMinerMax = ChallengeMinerMax;
+	type TeeWorkerHandler = TeeWorker;
 }
 
 parameter_types! {

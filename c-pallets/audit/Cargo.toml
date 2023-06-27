@@ -86,6 +86,18 @@ default-features = false
 path = '../sminer'
 version = '0.5.3'
 
+# local dependencies
+[dependencies.pallet-tee-worker]
+default-features = false
+path = '../tee-worker'
+version = '0.5.3'
+
+# local dependencies
+[dependencies.pallet-storage-handler]
+default-features = false
+path = '../storage-handler'
+version = '0.5.4'
+
 [dev-dependencies.frame-support-test]
 default-features = false
 git = 'https://github.com/CESSProject/substrate.git'
@@ -103,17 +115,6 @@ version = '4.0.0-dev'
 git = 'https://github.com/CESSProject/substrate.git'
 branch = "cess-polkadot-v0.9.36"
 version = '4.0.0-dev'
-
-# local dependencies
-[dependencies.pallet-tee-worker]
-default-features = false
-path = '../tee-worker'
-version = '0.5.3'
-
-[dependencies.pallet-storage-handler]
-default-features = false
-path = '../storage-handler'
-version = '0.5.4'
 
 [dev-dependencies]
 pallet-cess-staking = { path = '../staking', version = '4.0.0-dev', default-features = false}

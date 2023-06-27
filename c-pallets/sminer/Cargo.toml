@@ -18,6 +18,10 @@ scale-info = { default-features = false, features = ['derive'], version = "2.0.1
 rand_chacha = { version = "0.2", default-features = false, optional = true }
 cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
 pallet-preimage = { version = "4.0.0-dev", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36" }
+cp-enclave-verify = { path = '../../primitives/enclave-verify', version = '0.1.0', default-features = false }
+
+#local crate
+pallet-tee-worker = { default-features = false, path = '../tee-worker', version = '0.5.3' }
 
 [dependencies.frame-benchmarking]
 default-features = false

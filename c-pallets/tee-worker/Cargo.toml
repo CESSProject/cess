@@ -57,12 +57,6 @@ git = 'https://github.com/CESSProject/substrate.git'
 branch = "cess-polkadot-v0.9.36"
 version = '7.0.0'
 
-# local dependencies
-[dependencies.pallet-sminer]
-default-features = false
-path = '../sminer'
-version = '0.5.3'
-
 [dependencies.pallet-cess-staking]
 default-features = false
 path = '../staking'

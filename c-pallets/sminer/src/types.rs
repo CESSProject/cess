@@ -14,6 +14,10 @@ pub struct MinerInfo<AccountId, Balance, BoundedString> {
 	pub(super) idle_space: u128,
 	pub(super) service_space: u128,
 	pub(super) lock_space: u128,
+	pub(super) puk: Podr2Key,
+	pub(super) accumulator: Accumulator,
+	pub(super) front: u64,
+	pub(super) rear: u64,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
