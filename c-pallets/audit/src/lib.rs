@@ -389,10 +389,11 @@ pub mod pallet {
 					let now = <frame_system::Pallet<T>>::block_number();
 					if now > cur_blcok {
 						let duration = now.checked_add(&proposal.1.net_snap_shot.life).ok_or(Error::<T>::Overflow)?;
-						<ChallengeSnapShot<T>>::put(proposal.1);
 						<ChallengeDuration<T>>::put(duration);
 						let one_hour = T::OneHours::get();
-						let v_duration = duration.checked_add(&one_hour).ok_or(Error::<T>::Overflow)?;
+						let v_duration = duration
+							.checked_add(&proposal.1.net_snap_shot.life).ok_or(Error::<T>::Overflow)?
+							.checked_add(&one_hour).ok_or(Error::<T>::Overflow)?;
 						<VerifyDuration<T>>::put(v_duration);
 						let _ = ChallengeProposal::<T>::clear(ChallengeProposal::<T>::count(), None);
 					}
@@ -528,39 +529,10 @@ pub mod pallet {
 				Err(Error::<T>::NonExistentMission)?
 			})?;
 
-
 			Self::deposit_event(Event::<T>::VerifyProof { tee_worker: sender, miner, });
 	
 			Ok(())
 		}
-
-		#[pallet::call_index(3)]
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn update_verify_duration(
-			origin: OriginFor<T>,
-			d: BlockNumberOf<T>,
-		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			<VerifyDuration<T>>::put(d);
-
-			Ok(())
-		}
-
-		#[pallet::call_index(4)]
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn update_challenge_duration(
-			origin: OriginFor<T>,
-			d: BlockNumberOf<T>,
-		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			<ChallengeDuration<T>>::put(d);
-
-			Ok(())
-		}	
 	}
 
 	
@@ -888,6 +860,7 @@ pub mod pallet {
 
 			let mut total_idle_space: u128 = u128::MIN;
 			let mut total_service_space: u128 = u128::MIN;
+			let mut max_space: u128 = 0;
 			// TODO: need to set a maximum number of cycles
 			let mut seed: u32 = 20230601;
 			while (miner_list.len() as u32 != need_miner_count) && (valid_index_list.len() as u32 != miner_count) {
@@ -908,6 +881,11 @@ pub mod pallet {
 
 					if (idle_space == 0) && (service_space == 0) {
 						continue;
+					}
+
+					let miner_total_space = idle_space + service_space;
+					if miner_total_space > max_space {
+						max_space = miner_total_space;
 					}
 	
 					total_idle_space = total_idle_space.checked_add(idle_space).ok_or(OffchainErr::Overflow)?;
@@ -945,10 +923,12 @@ pub mod pallet {
 				}
 			}
 
+			let life: BlockNumberOf<T> = ((max_space / 8_947_849 + 12) as u32).saturated_into();
+
 			let total_reward: u128 = T::MinerControl::get_reward();
 			let snap_shot = NetSnapShot::<BlockNumberOf<T>>{
 				start: now,
-				life: now,
+				life: life,
 				total_reward,
 				total_idle_space,
 				total_service_space,
