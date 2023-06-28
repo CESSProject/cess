@@ -517,16 +517,7 @@ impl<T: Config> Pallet<T> {
         false
     }
 
-    pub(super) fn clear_filler(miner: &AccountOf<T>, maybe_cursor: Option<&[u8]>) {
-        let result = <FillerMap<T>>::clear_prefix(miner, 100000, maybe_cursor);
-        if let Some(cursor) = result.maybe_cursor {
-            Self::clear_filler(miner, Some(&cursor));
-        }
-    }
-
     pub(super) fn force_miner_exit(miner: &AccountOf<T>) -> DispatchResult {
-        Self::clear_filler(&miner, None);
-
         let (idle_space, service_space) = T::MinerControl::get_power(&miner)?;
         T::StorageHandle::sub_total_idle_space(idle_space)?;
 

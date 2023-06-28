@@ -1068,7 +1068,7 @@ impl pallet_file_bank::Config for Runtime {
 	type MinerControl = Sminer;
 	type StorageHandle = StorageHandler;
 	type MyRandomness = pallet_rrsc::ParentBlockRandomness<Runtime>;
-	type Scheduler = TeeWorker;
+	type TeeWorkerHandler = TeeWorker;
 	type StringLimit = StringLimit;
 	type OneDay = OneDay;
 	type CreditCounter = SchedulerCredit;

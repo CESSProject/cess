@@ -15,7 +15,7 @@ use cp_cess_common::*;
 use rsa::{
     PublicKey,
     Pkcs1v15Sign, 
-    pkcs8::DecodePublicKey,
+    pkcs1::DecodeRsaPublicKey,
 };
 
 use ic_verify_bls_signature::{
@@ -219,7 +219,7 @@ pub fn verify_miner_cert(
 }
 
 pub fn verify_rsa(key: &[u8], msg: &[u8], sig: &[u8]) -> bool {
-    let pk = rsa::RsaPublicKey::from_public_key_der(key).unwrap();
+    let pk = rsa::RsaPublicKey::from_pkcs1_der(key).unwrap();
 
     match pk.verify(Pkcs1v15Sign::new_raw(), msg, sig) {
         Ok(()) => return true,

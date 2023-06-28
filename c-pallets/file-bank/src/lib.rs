@@ -66,6 +66,7 @@ use sp_runtime::{
 	},
 	RuntimeDebug, SaturatedConversion,
 };
+
 use sp_std::{
 	convert::TryInto, 
 	prelude::*, 
@@ -75,6 +76,7 @@ use sp_std::{
 use pallet_sminer::MinerControl;
 use pallet_tee_worker::TeeWorkerHandler;
 use pallet_oss::OssFindAuthor;
+use cp_enclave_verify::verify_rsa;
 
 pub use weights::WeightInfo;
 
@@ -113,7 +115,7 @@ pub mod pallet {
 		//Find the consensus of the current block
 		type FindAuthor: FindAuthor<Self::AccountId>;
 		//Used to find out whether the schedule exists
-		type Scheduler: TeeWorkerHandler<Self::AccountId>;
+		type TeeWorkerHandler: TeeWorkerHandler<Self::AccountId>;
 		//It is used to control the computing power and space of miners
 		type MinerControl: MinerControl<Self::AccountId>;
 		//Interface that can generate random seeds
@@ -270,6 +272,8 @@ pub mod pallet {
 		MinerStateError,
 
 		Expired,
+
+		VerifyTeeSigFailed,
 	}
 
 	
@@ -290,17 +294,6 @@ pub mod pallet {
 		T::AccountId,
 		BoundedVec<UserFileSliceInfo, T::StringLimit>,
 		ValueQuery,
-	>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn filler_map)]
-	pub(super) type FillerMap<T: Config> = StorageDoubleMap<
-		_,
-		Blake2_128Concat,
-		AccountOf<T>,
-		Blake2_128Concat,
-		Hash,
-		FillerInfo<T>,
 	>;
 
 	#[pallet::storage]
@@ -746,28 +739,6 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
-			ensure!(filler.len() <= 30, Error::<T>::LengthExceedsLimit);
-			let pending_count = <PendingReplacements<T>>::get(&sender);
-			ensure!(filler.len() as u32 <= pending_count, Error::<T>::LengthExceedsLimit);
-
-			let mut count: u32 = 0;
-			for filler_hash in filler.iter() {
-				if <FillerMap<T>>::contains_key(&sender, filler_hash) {
-					count += 1;
-					<FillerMap<T>>::remove(&sender, filler_hash);
-				} else {
-					log::info!("filler nonexist!");
-				}
-			}
-
-			<PendingReplacements<T>>::mutate(&sender, |pending_count| -> DispatchResult {
-				let pending_count_temp = pending_count.checked_sub(count).ok_or(Error::<T>::Overflow)?;
-				*pending_count = pending_count_temp;
-				Ok(())
-			})?;
-
-			Self::deposit_event(Event::<T>::ReplaceFiller{ acc: sender, filler_list: filler });
-
 			Ok(())
 		}
 
@@ -803,66 +774,29 @@ pub mod pallet {
 		/// - `filler_list`: Meta information list of idle files.
 		#[pallet::call_index(8)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_filler(filler_list.len() as u32))]
+		#[pallet::weight(100_000_000)]
 		pub fn upload_filler(
 			origin: OriginFor<T>,
-			tee_worker: AccountOf<T>,
-			filler_list: Vec<FillerInfo<T>>,
-		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			let limit = T::UploadFillerLimit::get();
-			if filler_list.len() > limit as usize {
-				Err(Error::<T>::LengthExceedsLimit)?;
-			}
-			if !T::Scheduler::contains_scheduler(tee_worker.clone()) {
-				Err(Error::<T>::ScheduleNonExistent)?;
-			}
-			let is_positive = T::MinerControl::is_positive(&sender)?;
-			ensure!(is_positive, Error::<T>::NotQualified);
-
-			for i in filler_list.iter() {
-				if <FillerMap<T>>::contains_key(&sender, i.filler_hash.clone()) {
-					Err(Error::<T>::FileExistent)?;
-				}
-				<FillerMap<T>>::insert(sender.clone(), i.filler_hash.clone(), i);
-			}
-
-			let idle_space = M_BYTE
-				.checked_mul(8)
-				.ok_or(Error::<T>::Overflow)?
-				.checked_mul(filler_list.len() as u128)
-				.ok_or(Error::<T>::Overflow)?;
-			T::MinerControl::add_miner_idle_space(&sender, idle_space)?;
-			T::StorageHandle::add_total_idle_space(idle_space)?;
-			// TODO
-			// Self::record_uploaded_fillers_size(&sender, &filler_list)?;
-
-			Self::deposit_event(Event::<T>::FillerUpload { acc: sender, file_size: idle_space as u64 });
-			Ok(())
-		}
-
-		#[pallet::call_index(9)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_filler(1))]
-		pub fn delete_filler(
-			origin: OriginFor<T>,
-			filler_hash: Hash,
+			idle_sig_info: IdleSigInfo<T>,
+			tee_sig: TeeRsaSignature,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
-			let is_positive = T::MinerControl::is_positive(&sender)?;
-			ensure!(is_positive, Error::<T>::NotQualified);
-			ensure!(<FillerMap<T>>::contains_key(&sender, &filler_hash), Error::<T>::NonExistent);
+			let original = idle_sig_info.encode();
+			let original = sp_io::hashing::sha2_256(&original);
+			// FOR TEST
+			log::info!("sha2_256 original: {:?}", original);
 
-			let idle_space = M_BYTE
-				.checked_mul(8)
-				.ok_or(Error::<T>::Overflow)?;
-			T::MinerControl::sub_miner_idle_space(&sender, idle_space)?;
-			T::StorageHandle::sub_total_idle_space(idle_space)?;
+			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
 
-			<FillerMap<T>>::remove(&sender, &filler_hash);
+			ensure!(verify_rsa(&tee_puk, &original, &tee_sig), Error::<T>::VerifyTeeSigFailed);
 
-			Self::deposit_event(Event::<T>::FillerDelete { acc: sender, filler_hash: filler_hash });
+			T::MinerControl::add_miner_idle_space(
+				&sender, 
+				idle_sig_info.accumulator, 
+				idle_sig_info.last_operation_block.saturated_into(),
+				idle_sig_info.count,
+			)?;
 
 			Ok(())
 		}
@@ -1101,6 +1035,9 @@ pub mod pallet {
 									T::MinerControl::sub_miner_service_space(&fragment.miner, FRAGMENT_SIZE)?;
 									T::MinerControl::add_miner_service_space(&sender, FRAGMENT_SIZE)?;
 
+									// TODO!
+									T::MinerControl::sub_miner_idle_space(&sender, FRAGMENT_SIZE)?;
+
 									if <RestoralTarget<T>>::contains_key(&fragment.miner) {
 										Self::update_restoral_target(&fragment.miner, FRAGMENT_SIZE)?;
 									}
@@ -1178,7 +1115,7 @@ pub mod pallet {
 			let result = T::MinerControl::is_lock(&miner)?;
 			ensure!(result, Error::<T>::MinerStateError);
 			// sub network total idle space.
-			Self::clear_filler(&miner, None);
+
 			let (idle_space, service_space) = T::MinerControl::get_power(&miner)?;
 			T::StorageHandle::sub_total_idle_space(idle_space)?;
 
@@ -1217,8 +1154,6 @@ pub trait RandomFileList<AccountId> {
 	//Get random challenge data
 	fn get_random_challenge_data(
 	) -> Result<Vec<(AccountId, Hash, [u8; 68], Vec<u32>, u64, DataType)>, DispatchError>;
-	//Delete all filler according to miner_acc
-	fn delete_miner_all_filler(miner_acc: AccountId) -> Result<Weight, DispatchError>;
 	//Delete file backup
 	fn clear_file(_file_hash: Hash) -> Result<Weight, DispatchError>;
 
@@ -1229,17 +1164,6 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 	fn get_random_challenge_data(
 	) -> Result<Vec<(AccountOf<T>, Hash, [u8; 68], Vec<u32>, u64, DataType)>, DispatchError> {
 		Ok(Default::default())
-	}
-
-	fn delete_miner_all_filler(miner_acc: AccountOf<T>) -> Result<Weight, DispatchError> {
-		let mut weight: Weight = Weight::from_ref_time(0);
-		for (_, _value) in FillerMap::<T>::iter_prefix(&miner_acc) {
-			weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
-		}
-		#[allow(deprecated)]
-		let _ = FillerMap::<T>::remove_prefix(&miner_acc, Option::None);
-		weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
-		Ok(weight)
 	}
 
 	fn clear_file(_file_hash: Hash) -> Result<Weight, DispatchError> {

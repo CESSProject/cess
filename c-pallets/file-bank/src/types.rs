@@ -34,6 +34,16 @@ pub enum FileState {
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
+pub struct IdleSigInfo<T: Config> {
+	pub(super) miner: AccountOf<T>,
+	pub(super) count: u64,
+	pub(super) accumulator: Accumulator,
+	pub(super) last_operation_block: BlockNumberOf<T>,
+}
+
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+#[codec(mel_bound())]
 pub struct DealInfo<T: Config> {
 	// There are two stages in total: 
 	// the first stage and the second stage, represented by 1 or 2, respectively.
@@ -75,16 +85,6 @@ pub struct FragmentInfo<T: Config> {
 	pub(super) hash: Hash,
 	pub(super) avail: bool,
 	pub(super) miner: AccountOf<T>,
-}
-
-//Fill in file structure information
-#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-#[codec(mel_bound())]
-pub struct FillerInfo<T: Config> {
-	pub block_num: u32,
-	pub miner_address: AccountOf<T>,
-	pub filler_hash: Hash,
 }
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
