@@ -664,14 +664,16 @@ pub mod pallet {
 								}	
 
 								let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
+
 								T::StorageHandle::unlock_and_used_user_space(&deal_info.user.user, needed_space)?;
 								T::StorageHandle::sub_total_idle_space(needed_space)?;
 								T::StorageHandle::add_total_service_space(needed_space)?;
+
 								let result = T::FScheduler::cancel_named(hash.0.to_vec()).map_err(|_| Error::<T>::Unexpected);
 								if let Err(_) = result {
 									log::info!("transfer report cancel schedule failed: {:?}", hash.clone());
 								}
-
+								// Calculate the maximum time required for storage nodes to tag files
 								let max_needed_cal_space = (max_task_count as u128) * FRAGMENT_SIZE;
 								let mut life: u32 = (max_needed_cal_space / TRANSFER_RATE + 1) as u32;
 								life = life + (max_needed_cal_space / CALCULATE_RATE + 1) as u32;
@@ -735,9 +737,35 @@ pub mod pallet {
 		#[pallet::weight(1_000_000_000)]
 		pub fn replace_file_report(
 			origin: OriginFor<T>,
-			filler: Vec<Hash>,
+			idle_sig_info: IdleSigInfo<T>,
+			tee_sig: TeeRsaSignature,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
+
+			let original = idle_sig_info.encode();
+			let original = sp_io::hashing::sha2_256(&original);
+			// FOR TEST
+			log::info!("sha2_256 original: {:?}", original);
+
+			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
+
+			ensure!(verify_rsa(&tee_puk, &original, &tee_sig), Error::<T>::VerifyTeeSigFailed);
+
+			let count = T::MinerControl::delete_idle_update_accu(
+				&sender, 
+				idle_sig_info.accumulator,
+				idle_sig_info.last_operation_block.saturated_into(),
+				idle_sig_info.count,
+			)?;
+
+			<PendingReplacements<T>>::try_mutate(&sender, |pending_count| -> DispatchResult {
+				ensure!(*pending_count > count as u32, Error::<T>::LengthExceedsLimit);
+
+				let temp_count = pending_count.checked_sub(count as u32).ok_or(Error::<T>::Overflow)?;
+				*pending_count = temp_count;
+
+				Ok(())
+			})?;
 
 			Ok(())
 		}
@@ -775,7 +803,7 @@ pub mod pallet {
 		#[pallet::call_index(8)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
-		pub fn upload_filler(
+		pub fn cert_idle_space(
 			origin: OriginFor<T>,
 			idle_sig_info: IdleSigInfo<T>,
 			tee_sig: TeeRsaSignature,
@@ -791,12 +819,14 @@ pub mod pallet {
 
 			ensure!(verify_rsa(&tee_puk, &original, &tee_sig), Error::<T>::VerifyTeeSigFailed);
 
-			T::MinerControl::add_miner_idle_space(
+			let idle_space = T::MinerControl::add_miner_idle_space(
 				&sender, 
 				idle_sig_info.accumulator, 
 				idle_sig_info.last_operation_block.saturated_into(),
 				idle_sig_info.count,
 			)?;
+
+			T::StorageHandle::add_total_idle_space(idle_space)?;
 
 			Ok(())
 		}
@@ -1036,7 +1066,12 @@ pub mod pallet {
 									T::MinerControl::add_miner_service_space(&sender, FRAGMENT_SIZE)?;
 
 									// TODO!
-									T::MinerControl::sub_miner_idle_space(&sender, FRAGMENT_SIZE)?;
+									T::MinerControl::delete_idle_update_space(&sender, FRAGMENT_SIZE)?;
+									<PendingReplacements<T>>::try_mutate(&sender, |pending_count| -> DispatchResult {
+										let pending_count_temp = pending_count.checked_add(1).ok_or(Error::<T>::Overflow)?;
+										*pending_count = pending_count_temp;
+										Ok(())
+									})?;
 
 									if <RestoralTarget<T>>::contains_key(&fragment.miner) {
 										Self::update_restoral_target(&fragment.miner, FRAGMENT_SIZE)?;

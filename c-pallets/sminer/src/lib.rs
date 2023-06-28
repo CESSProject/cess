@@ -584,8 +584,8 @@ impl<T: Config> Pallet<T> {
 	/// Parameters:
 	/// - `peerid`: peerid.
 	/// - `increment`: computing power.
-	pub fn add_miner_idle_space(acc: &AccountOf<T>, accumulator: Accumulator, last_operation_block: u32, front: u64) -> DispatchResult {
-		MinerItems::<T>::try_mutate(acc, |miner_info_opt| -> DispatchResult {
+	pub fn add_miner_idle_space(acc: &AccountOf<T>, accumulator: Accumulator, last_operation_block: u32, rear: u64) -> Result<u128, DispatchError> {
+		MinerItems::<T>::try_mutate(acc, |miner_info_opt| -> Result<u128, DispatchError> {
 			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
 
 			let last_operation_block: BlockNumberOf<T> = last_operation_block.saturated_into();
@@ -594,45 +594,47 @@ impl<T: Config> Pallet<T> {
 			// check state 
 			ensure!(miner_info.state.to_vec() == STATE_POSITIVE.as_bytes().to_vec(), Error::<T>::NotpositiveState);
 
-			ensure!(miner_info.front < front, Error::<T>::CountError);
+			ensure!(miner_info.rear < rear, Error::<T>::CountError);
 
 			miner_info.last_operation_block = last_operation_block;
 
-			let count = front.checked_sub(miner_info.front).ok_or(Error::<T>::Overflow)?;
+			let count = rear.checked_sub(miner_info.rear).ok_or(Error::<T>::Overflow)?;
 			let idle_space = FRAGMENT_SIZE.checked_mul(count as u128).ok_or(Error::<T>::Overflow)?;
 
-			miner_info.front = front;
+			miner_info.rear = rear;
 
 			miner_info.accumulator = accumulator;
 
 			miner_info.idle_space =
-				miner_info.idle_space.checked_add(count).ok_or(Error::<T>::Overflow)?;
+				miner_info.idle_space.checked_add(idle_space).ok_or(Error::<T>::Overflow)?;
 
-			Ok(())
+			Ok(idle_space)
 		})
 	}
 
-	pub fn delete_idle_update_accu(acc: &AccountId, accumulator: Accumulator, last_operation_block: u32, rear: u64) -> DispatchResult {
-		MinerItems::<T>::try_mutate(acc, |miner_info_opt| -> DispatchResult {
+	pub fn delete_idle_update_accu(acc: &AccountOf<T>, accumulator: Accumulator, last_operation_block: u32, front: u64) -> Result<u64, DispatchError> {
+		MinerItems::<T>::try_mutate(acc, |miner_info_opt| -> Result<u64, DispatchError> {
 			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
 
 			let last_operation_block: BlockNumberOf<T> = last_operation_block.saturated_into();
 
 			ensure!(miner_info.last_operation_block < last_operation_block, Error::<T>::LowerOperationBlock);
 
-			ensure!(miner_info.rear < rear, Error::<T>::CountError);
+			ensure!(miner_info.front < front, Error::<T>::CountError);
+
+			let count = front - miner_info.front;
 
 			miner_info.last_operation_block = last_operation_block;
 
-			miner_info.rear = rear;
+			miner_info.front = front;
 
 			miner_info.accumulator = accumulator;
 
-			Ok(())
+			Ok(count)
 		})
 	}
 
-	fn delete_idle_update_space(acc: &AccountId, idle_space: u128) -> DispatchResult {
+	fn delete_idle_update_space(acc: &AccountOf<T>, idle_space: u128) -> DispatchResult {
 		MinerItems::<T>::try_mutate(acc, |miner_info_opt| -> DispatchResult {
 			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
 
@@ -953,9 +955,9 @@ impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for Pallet<T> {
 }
 
 pub trait MinerControl<AccountId> {
-	fn add_miner_idle_space(acc: &AccountId, accumulator: Accumulator, last_operation_block: u32, front: u64) -> DispatchResult;
+	fn add_miner_idle_space(acc: &AccountId, accumulator: Accumulator, last_operation_block: u32, rear: u64) -> Result<u128, DispatchError>;
 	// fn sub_miner_idle_space(acc: &AccountId, accumulator: Accumulator, rear: u64) -> DispatchResult;
-	fn delete_idle_update_accu(acc: &AccountId, accumulator: Accumulator, last_operation_block: u32, rear: u64) -> DispatchResult;
+	fn delete_idle_update_accu(acc: &AccountId, accumulator: Accumulator, last_operation_block: u32, front: u64) -> Result<u64, DispatchError>;
 	fn delete_idle_update_space(acc: &AccountId, idle_space: u128) -> DispatchResult;
 	fn add_miner_service_space(acc: &AccountId, power: u128) -> DispatchResult;
 	fn sub_miner_service_space(acc: &AccountId, power: u128) -> DispatchResult;
@@ -991,16 +993,17 @@ pub trait MinerControl<AccountId> {
 }
 
 impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<T> {
-	fn add_miner_idle_space(acc: &<T as frame_system::Config>::AccountId, accumulator: Accumulator,  last_operation_block: u32, front: u64) -> DispatchResult {
-		Pallet::<T>::add_miner_idle_space(acc, accumulator, last_operation_block, front)?;
-		Ok(())
+	fn add_miner_idle_space(acc: &<T as frame_system::Config>::AccountId, accumulator: Accumulator,  last_operation_block: u32, rear: u64) -> Result<u128, DispatchError> {
+		let idle_space = Pallet::<T>::add_miner_idle_space(acc, accumulator, last_operation_block, rear)?;
+		Ok(idle_space)
 	}
 
-	fn delete_idle_update_accu(acc: &AccountId, accumulator: Accumulator, last_operation_block: u32, rear: u64) -> DispatchResult {
-		Self::delete_idle_update_accu(acc, accumulator, last_operation_block, rear)
+	fn delete_idle_update_accu(acc: &AccountOf<T>, accumulator: Accumulator, last_operation_block: u32, front: u64) -> Result<u64, DispatchError> {
+		let count = Self::delete_idle_update_accu(acc, accumulator, last_operation_block, front)?;
+		Ok(count)
 	}
 
-	fn delete_idle_update_space(acc: &AccountId, idle_space: u128) -> DispatchResult {
+	fn delete_idle_update_space(acc: &AccountOf<T>, idle_space: u128) -> DispatchResult {
 		Self::delete_idle_update_space(acc, idle_space)
 	}
 
