@@ -255,9 +255,34 @@ pub mod pallet {
 	#[pallet::getter(fn miner_public_key)]
 	pub(super) type MinerPublicKey<T: Config> = StorageMap<_, Blake2_128Concat, Podr2Key, AccountOf<T>>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn expenders)]
+	pub(super) type Expenders<T: Config> = StorageValue<_, (u64, u64, u64)>;
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
+
+	#[pallet::genesis_config]
+	pub struct GenesisConfig{
+		pub expenders: (u64, u64, u64),
+	}
+
+	#[cfg(feature = "std")]
+	impl Default for GenesisConfig {
+		fn default() -> Self {
+			Self {
+				expenders: (7, 4*1024*1024, 64),
+			}
+		}
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> GenesisBuild<T> for GenesisConfig {
+		fn build(&self) {
+			Expenders::<T>::put(self.expenders);
+		}
+	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
@@ -990,6 +1015,7 @@ pub trait MinerControl<AccountId> {
 	fn is_positive(miner: &AccountId) -> Result<bool, DispatchError>;
 	fn is_lock(miner: &AccountId) -> Result<bool, DispatchError>;
 	fn update_miner_state(miner: &AccountId, state: &str) -> DispatchResult;
+	fn get_expenders() -> Result<(u64, u64, u64), DispatchError>;
 }
 
 impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -1163,5 +1189,11 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 
 	fn withdraw(acc: &AccountOf<T>) -> DispatchResult {
 		Self::withdraw(acc)
+	}
+
+	fn get_expenders() -> Result<(u64, u64, u64), DispatchError> {
+		let expenders = Expenders::<T>::try_get().map_err(|_| Error::<T>::Unexpected)?;
+
+		Ok(expenders)
 	}
 }

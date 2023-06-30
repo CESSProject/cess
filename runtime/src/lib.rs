@@ -1009,7 +1009,7 @@ impl pallet_audit::Config for Runtime {
 	type OneDay = OneDay;
 	type OneHours = OneHours;
 	type File = FileBank;
-	type Scheduler = TeeWorker;
+	type TeeWorkerHandler = TeeWorker;
 	type MinerControl = Sminer;
 	type StorageHandle = StorageHandler;
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
@@ -1575,7 +1575,7 @@ pub type SignedExtra = (
 pub type UncheckedExtrinsic =
 	fp_self_contained::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
 /// Extrinsic type that has already been checked.
-pub type CheckedExtrinsic = fp_self_contained::CheckedExtrinsic<AccountId, RuntimeCall, SignedExtra, H160>;
+pub type CheckedExtrinsic = fp_self_contained::CheckedExtrinsic<AccountId, RuntimeCall, SignedExtra, H160>; 
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
 // Executive: handles dispatch to the various modules.
