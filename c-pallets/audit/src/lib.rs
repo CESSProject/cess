@@ -350,7 +350,7 @@ pub mod pallet {
 			let weight: Weight = Weight::from_ref_time(0);
 			weight
 				.saturating_add(Self::clear_challenge(now))
-				// .saturating_add(Self::clear_verify_mission(now))
+				.saturating_add(Self::clear_verify_mission(now))
 		}
 
 		fn offchain_worker(now: T::BlockNumber) {
@@ -756,16 +756,12 @@ pub mod pallet {
 				let mut mission_count: u32 = 0;
 				let mut max_count = 0;
 				let tee_list = T::TeeWorkerHandler::get_controller_list();
-				let mut reassign_list: BTreeMap<AccountOf<T>, BoundedVec<ProveInfo<T>, T::VerifyMissionMax>> = Default::default();
+				let mut reassign_list: BTreeMap<AccountOf<T>, BoundedVec<IdleProveInfo<T>, T::VerifyMissionMax>> = Default::default();
 
 				for (acc, unverify_list) in UnverifyIdleProof::<T>::iter() {
 					seed += 1;
 					weight = weight.saturating_add(T::DbWeight::get().reads(1));
 					if unverify_list.len() > 0 {
-						match T::TeeWorkerHandler::punish_scheduler(acc.clone()) {
-							Ok(()) => log::info!("punish scheduler success"),
-							Err(e) => log::error!("punish scheduler failed: {:?}", e),
-						};
 						// Count the number of verification tasks that need to be performed.
 						mission_count = mission_count.saturating_add(unverify_list.len() as u32);
 
@@ -783,7 +779,7 @@ pub mod pallet {
 							let result = value.try_append(&mut unverify_list.to_vec());
 
 							if result.is_err() {
-								let new_block: BlockNumberOf<T> = now.saturating_add(800u32.saturated_into());
+								let new_block: BlockNumberOf<T> = now.saturating_add(10u32.saturated_into());
 								<VerifyDuration<T>>::put(new_block);
 								weight = weight.saturating_add(T::DbWeight::get().writes(1));
 								return weight;
@@ -819,14 +815,13 @@ pub mod pallet {
 					}
 				}
 
+				let mut mission_count: u32 = 0;
+				let mut reassign_list: BTreeMap<AccountOf<T>, BoundedVec<ServiceProveInfo<T>, T::VerifyMissionMax>> = Default::default();
+
 				for (acc, unverify_list) in UnverifyServiceProof::<T>::iter() {
 					seed += 1;
 					weight = weight.saturating_add(T::DbWeight::get().reads(1));
 					if unverify_list.len() > 0 {
-						match T::TeeWorkerHandler::punish_scheduler(acc.clone()) {
-							Ok(()) => log::info!("punish scheduler success"),
-							Err(e) => log::error!("punish scheduler failed: {:?}", e),
-						};
 						// Count the number of verification tasks that need to be performed.
 						mission_count = mission_count.saturating_add(unverify_list.len() as u32);
 
@@ -844,7 +839,7 @@ pub mod pallet {
 							let result = value.try_append(&mut unverify_list.to_vec());
 
 							if result.is_err() {
-								let new_block: BlockNumberOf<T> = now.saturating_add(800u32.saturated_into());
+								let new_block: BlockNumberOf<T> = now.saturating_add(10u32.saturated_into());
 								<VerifyDuration<T>>::put(new_block);
 								weight = weight.saturating_add(T::DbWeight::get().writes(1));
 								return weight;
@@ -860,12 +855,10 @@ pub mod pallet {
 					}
 				}
 
-				//todo! duration reasonable time
-				if max_count == 0 {
-					<ChallengeSnapShot<T>>::kill();
-				} else {
+				if mission_count != 0 {
+					max_count = mission_count;
 					for (acc, unverify_list) in reassign_list {
-						let result = UnverifyIdleProof::<T>::mutate(acc, |tar_unverify_list| -> DispatchResult {
+						let result = UnverifyServiceProof::<T>::mutate(acc, |tar_unverify_list| -> DispatchResult {
 							tar_unverify_list.try_append(&mut unverify_list.to_vec()).map_err(|_| Error::<T>::Overflow)?;
 							// tar_unverify_list.try_push(mission)
 							Ok(())
@@ -880,12 +873,11 @@ pub mod pallet {
 
 						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 					}
-
-					let duration: BlockNumberOf<T> = mission_count.saturating_mul(10u32).saturated_into();
-					let new_block: BlockNumberOf<T> = now.saturating_add(duration);
-					<VerifyDuration<T>>::put(new_block);
 				}
-				
+
+				if max_count == 0 {
+					<ChallengeSnapShot<T>>::kill();
+				}
 			}
 
 			weight
