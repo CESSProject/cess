@@ -176,7 +176,7 @@ fn cess_main_genesis() -> GenesisConfig {
 		),
 	];
 
-	// generated with secret: subkey inspect "$secret"/fir
+	// generated with secret: subkey inspect "$secret"/fir.
 	let root_key: AccountId = array_bytes::hex_n_into_unchecked(
 		// cXffK7BmstE5rXcK8pxKLufkffp9iASMntxUm6ctpR6xS3icV
 		"1e3e1c69dfbd27d398e92da4844a9abdc2786ac01588d87a2e1f5ec06ea2a936"
