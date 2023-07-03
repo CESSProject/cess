@@ -226,7 +226,7 @@ pub const fn deposit(items: u32, bytes: u32) -> Balance {
 /// `SLOT_DURATION` instead (like the Timestamp pallet for calculating the
 /// minimum period).
 ///
-/// If using Babe with secondary slots (default) then all of the slots will
+/// If using Babe with secondary slots (default), then all of the slots will
 /// always be assigned, in which case `MILLISECS_PER_BLOCK` and
 /// `SLOT_DURATION` should have the same value.
 ///
