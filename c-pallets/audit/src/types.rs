@@ -1,4 +1,3 @@
-use cp_cess_common::Hash;
 use super::*;
 
 // type AccountOf<T> = <T as frame_system::Config>::AccountId;

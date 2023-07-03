@@ -253,7 +253,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn miner_public_key)]
-	pub(super) type MinerPublicKey<T: Config> = StorageMap<_, Blake2_128Concat, Podr2Key, AccountOf<T>>;
+	pub(super) type MinerPublicKey<T: Config> = StorageMap<_, Blake2_128Concat, [u8; 32], AccountOf<T>>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn expenders)]
@@ -302,17 +302,19 @@ pub mod pallet {
 			beneficiary: AccountOf<T>,
 			peer_id: PeerId,
 			staking_val: BalanceOf<T>,
-			puk: Podr2Key,
+			pois_key: PoISKey,
 			tee_sig: TeeRsaSignature,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!(<MinerItems<T>>::contains_key(&sender)), Error::<T>::AlreadyRegistered);
 			T::Currency::reserve(&sender, staking_val)?;
 
+			let encoding = pois_key.encode();
+			let original_text = sp_io::hashing::sha2_256(&encoding);
 			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
-			ensure!(verify_rsa(&tee_puk, &puk, &tee_sig), Error::<T>::VerifyTeeSigFailed);
+			ensure!(verify_rsa(&tee_puk, &original_text, &tee_sig), Error::<T>::VerifyTeeSigFailed);
 
-			MinerPublicKey::<T>::insert(&puk, sender.clone());
+			MinerPublicKey::<T>::insert(&original_text, sender.clone());
 
 			<MinerItems<T>>::insert(
 				&sender,
@@ -325,7 +327,7 @@ pub mod pallet {
 					idle_space: u128::MIN,
 					service_space: u128::MIN,
 					lock_space: u128::MIN,
-					puk,
+					pois_key,
 					accumulator: [0u8; 256],
 					last_operation_block: u32::MIN.saturated_into(),
 					front: u64::MIN,
@@ -924,7 +926,9 @@ impl<T: Config> Pallet<T> {
 		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
 			let miner = miner_opt.as_mut().ok_or(Error::<T>::Unexpected)?;
 			miner.state = STATE_OFFLINE.as_bytes().to_vec().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
-			MinerPublicKey::<T>::remove(miner.puk);
+			let encoding = miner.pois_key.encode();
+			let hashing = sp_io::hashing::sha2_256(&encoding);
+			MinerPublicKey::<T>::remove(hashing);
 			Ok(())
 		})?;
 
@@ -958,7 +962,9 @@ impl<T: Config> Pallet<T> {
 	fn withdraw(acc: &AccountOf<T>) -> DispatchResult {
 		let miner_info = <MinerItems<T>>::try_get(acc).map_err(|_| Error::<T>::NotMiner)?;
 		T::Currency::unreserve(acc, miner_info.collaterals);
-		MinerPublicKey::<T>::remove(miner_info.puk);
+		let encoding = miner_info.pois_key.encode();
+		let hashing = sp_io::hashing::sha2_256(&encoding);
+		MinerPublicKey::<T>::remove(hashing);
 		<MinerItems<T>>::remove(acc);
 
 		Ok(())

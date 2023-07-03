@@ -16,7 +16,7 @@ pub struct MinerInfo<T: Config> {
 	pub(super) idle_space: u128,
 	pub(super) service_space: u128,
 	pub(super) lock_space: u128,
-	pub(super) puk: Podr2Key,
+	pub(super) pois_key: PoISKey,
 	pub(super) accumulator: Accumulator,
 	pub(super) last_operation_block: BlockNumberOf<T>,
 	pub(super) front: u64,
@@ -43,6 +43,12 @@ pub struct RewardOrder<Balance> {
 	pub(super) each_share: Balance,
 	pub(super) award_count: u8,
 	pub(super) has_issued: bool,
+}
+
+#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+pub struct PoISKey {
+	g: [u8; 256],
+	n: [u8; 256],
 }
 
 /// The custom struct for storing info of storage FaucetRecord.
