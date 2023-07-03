@@ -365,14 +365,14 @@ pub mod pallet {
 		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
 			let days = T::OneDay::get();
 			let mut weight: Weight = Weight::from_ref_time(0);
-			if now % days == 0u32.saturated_into() {
+			// if now % days == 0u32.saturated_into() {
 				let (temp_weight, acc_list) = T::StorageHandle::frozen_task();
 				weight = weight.saturating_add(temp_weight);
 				let temp_acc_list: BoundedVec<AccountOf<T>, ConstU32<5000>> = 
 					acc_list.try_into().unwrap_or_default();
 				ClearUserList::<T>::put(temp_acc_list);
 				weight = weight.saturating_add(T::DbWeight::get().writes(1));
-			}
+			// }
 			
 			let mut count: u32 = 0;
 			let acc_list = ClearUserList::<T>::get();
