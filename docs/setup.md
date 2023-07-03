@@ -66,7 +66,7 @@ brew install openssl
 ```
 ### Windows 
 
-> **Note:** Native development of Substrate is _not_ very well supported! It is _highly_ recommend to
+> **Note:** Native development of Substrate is _not_ very well supported! It is _highly_ recommended to
 > use [Windows Subsystem Linux](https://docs.microsoft.com/en-us/windows/wsl/install-win10) (WSL)
 > and follow the instructions for [Ubuntu/Debian](#ubuntudebian).
 
