@@ -583,7 +583,7 @@ pub fn new_full_base(
 	Ok(NewFullBase { task_manager, client, network, transaction_pool, rpc_handlers })
 }
 
-/// Builds a new service for a full client.
+/// build a new service for a full client.
 pub fn new_full(
 	config: Configuration,
 	disable_hardware_benchmarks: bool,
