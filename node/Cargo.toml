@@ -6,7 +6,7 @@ edition = '2018'
 license = 'Unlicense'
 name = 'cess-node'
 repository = 'https://github.com/CESSProject/cess'
-version = '0.5.3'
+version = '0.6.0'
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -95,7 +95,7 @@ sp-block-builder = { version = "4.0.0-dev", git = "https://github.com/CESSProjec
 sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 substrate-frame-rpc-system = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sc-rpc-spec-v2 = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-pallet-audit = { version = "0.5.3", default-features = false, path = "../c-pallets/audit" }
+pallet-audit = { version = "0.6.0", default-features = false, path = "../c-pallets/audit" }
 sc-finality-grandpa-rpc = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 cessc-consensus-rrsc-rpc = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sc-consensus-epochs = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }

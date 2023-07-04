@@ -1,7 +1,7 @@
 [package]
 name = "pallet-file-bank"
 authors = ["CESS LAB"]
-version = "0.5.3"
+version = "0.6.0"
 edition = "2018"
 license = "Apache-2.0"
 repository = "https://github.com/CESSProject/cess"
@@ -22,7 +22,7 @@ rand_chacha = { version = "0.2", default-features = false, optional = true }
 cp-scheduler-credit = { path = '../../primitives/scheduler-credit', version = '0.1.0', default-features = false }
 cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
 cp-enclave-verify = { path = '../../primitives/enclave-verify', version = '0.1.0', default-features = false }
-pallet-oss = { path = '../oss', version = '0.5.3', default-features = false }
+pallet-oss = { path = '../oss', version = '0.6.0', default-features = false }
 
 # substrate pallet
 pallet-scheduler = { version = '4.0.0-dev', git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36", default-features = false }
@@ -81,17 +81,17 @@ version = '7.0.0'
 [dependencies.pallet-sminer]
 default-features = false
 path = '../sminer'
-version = '0.5.3'
+version = '0.6.0'
 
 [dependencies.pallet-tee-worker]
 default-features = false
 path = '../tee-worker'
-version = '0.5.3'
+version = '0.6.0'
 
 [dependencies.pallet-storage-handler]
 default-features = false
 path = '../storage-handler'
-version = '0.5.4'
+version = '0.6.0'
 
 # dev dependencies
 [dev-dependencies]

@@ -398,7 +398,12 @@ impl<T: Config> Pallet<T> {
             if <RestoralTarget<T>>::contains_key(miner) {
                 Self::update_restoral_target(miner, FRAGMENT_SIZE * *count as u128)?;
             } else {
-                T::MinerControl::sub_miner_service_space(miner, FRAGMENT_SIZE * *count as u128)?;
+                if file.stat == FileState::Active {
+                    T::MinerControl::sub_miner_service_space(miner, FRAGMENT_SIZE * *count as u128)?;
+                }
+                if file.stat == FileState::Calculate {
+                    T::MinerControl::unlock_space(miner, FRAGMENT_SIZE * *count as u128)?;
+                }
             }
             weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
         }
