@@ -21,7 +21,7 @@ pallet-preimage = { version = "4.0.0-dev", default-features = false, git = 'http
 cp-enclave-verify = { path = '../../primitives/enclave-verify', version = '0.1.0', default-features = false }
 
 #local crate
-pallet-tee-worker = { default-features = false, path = '../tee-worker', version = '0.5.3' }
+pallet-tee-worker = { default-features = false, path = '../tee-worker', version = '0.6.0' }
 
 [dependencies.frame-benchmarking]
 default-features = false

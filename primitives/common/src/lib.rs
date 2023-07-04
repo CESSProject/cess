@@ -32,6 +32,41 @@ impl Default for Hash {
 }
 
 impl Hash {
+	pub fn binary(&self) -> Result<[u8; 256], HashError> {
+		let mut elem: [u8; 256] = [0u8; 256];
+		let mut index: usize = 0;
+		for value in self.0.iter() {
+			let binary = match value {
+				b'0' => [0, 0, 0, 0],
+				b'1' => [0, 0, 0, 1],
+				b'2' => [0, 0, 1, 0],
+				b'3' => [0, 0, 1, 1],
+				b'4' => [0, 1, 0, 0],
+				b'5' => [0, 1, 0, 1],
+				b'6' => [0, 1, 1, 0],
+				b'7' => [0, 1, 1, 1],
+				b'8' => [1, 0, 0, 0],
+				b'9' => [1, 0, 0, 1],
+				b'a' => [1, 0, 1, 0],
+				b'b' => [1, 0, 1, 1],
+				b'c' => [1, 1, 0, 0],
+				b'd' => [1, 1, 0, 1],
+				b'e' => [1, 1, 1, 0],
+				b'f' => [1, 1, 1, 1],
+				_ 	 => return Err(HashError::BinaryError),
+			};
+
+			elem[index * 4] = binary[0];
+			elem[index * 4 + 1] = binary[1];
+			elem[index * 4 + 2] = binary[2];
+			elem[index * 4 + 3] = binary[3];
+
+			index = index + 1;
+		}
+		Ok(elem)
+
+	}
+	
 	pub fn slice_to_array_64(slice: &[u8]) -> Result<[u8; 64], TryFromSliceError> {
 		// log::info!("slice len: {:?}", slice.len());
 		if slice.len() == 64 {

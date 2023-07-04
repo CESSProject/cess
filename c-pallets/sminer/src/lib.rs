@@ -209,7 +209,7 @@ pub mod pallet {
 		CountError,
 
 		LowerOperationBlock,
-		
+
 		StateError,
 	}
 
@@ -1027,10 +1027,7 @@ pub trait MinerControl<AccountId> {
 	fn is_positive(miner: &AccountId) -> Result<bool, DispatchError>;
 	fn is_lock(miner: &AccountId) -> Result<bool, DispatchError>;
 	fn update_miner_state(miner: &AccountId, state: &str) -> DispatchResult;
-<<<<<<< HEAD
 	fn get_expenders() -> Result<(u64, u64, u64), DispatchError>;
-=======
->>>>>>> main
 }
 
 impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -1205,13 +1202,10 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 	fn withdraw(acc: &AccountOf<T>) -> DispatchResult {
 		Self::withdraw(acc)
 	}
-<<<<<<< HEAD
 
 	fn get_expenders() -> Result<(u64, u64, u64), DispatchError> {
 		let expenders = Expenders::<T>::try_get().map_err(|_| Error::<T>::Unexpected)?;
 
 		Ok(expenders)
 	}
-=======
->>>>>>> main
 }
