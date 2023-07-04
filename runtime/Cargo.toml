@@ -4,7 +4,7 @@ edition = "2021"
 license = "Unlicense"
 name = "cess-node-runtime"
 repository = "https://github.com/CESSProject/cess"
-version = "0.5.3"
+version = "0.6.0"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -109,12 +109,12 @@ cp-scheduler-credit = { default-features = false, version = "0.1.0", path = "../
 pallet-scheduler-credit = { default-features = false, version = "0.1.0", path = "../c-pallets/scheduler-credit" }
 
 # local dependencies
-pallet-sminer = { default-features = false, path = "../c-pallets/sminer", version = "0.5.3" }
-pallet-audit = { default-features = false, path = "../c-pallets/audit", version = "0.5.3" }
-pallet-file-bank = { default-features = false, path = "../c-pallets/file-bank", version = "0.5.3" }
-pallet-tee-worker = { default-features = false, path = "../c-pallets/tee-worker", version = "0.5.3" }
-pallet-storage-handler = { default-features = false, path = "../c-pallets/storage-handler", version = "0.5.4" }
-pallet-oss = { default-features = false, path = "../c-pallets/oss", version = "0.5.3" }
+pallet-sminer = { default-features = false, path = "../c-pallets/sminer", version = "0.6.0" }
+pallet-audit = { default-features = false, path = "../c-pallets/audit", version = "0.6.0" }
+pallet-file-bank = { default-features = false, path = "../c-pallets/file-bank", version = "0.6.0" }
+pallet-tee-worker = { default-features = false, path = "../c-pallets/tee-worker", version = "0.6.0" }
+pallet-storage-handler = { default-features = false, path = "../c-pallets/storage-handler", version = "0.6.0" }
+pallet-oss = { default-features = false, path = "../c-pallets/oss", version = "0.6.0" }
 
 # Frontier
 fp-rpc = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
@@ -133,7 +133,7 @@ substrate-wasm-builder = { git = "https://github.com/CESSProject/substrate.git",
 [dependencies.pallet-cacher]
 default-features = false
 path = '../c-pallets/cacher'
-version = '0.5.3'
+version = '0.6.0'
 
 [features]
 default = ["std"]

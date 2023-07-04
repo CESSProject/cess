@@ -391,7 +391,7 @@ pub mod pallet {
 							weight = weight.saturating_add(T::DbWeight::get().reads(1));
 							if file.owner.len() > 1 {
 								match Self::remove_file_owner(&file_info.file_hash, &acc, false) {
-									Ok(()) => weight = weight.saturating_add(T::DbWeight::get().reads_writes(2, 2)),
+									Ok(()) => weight = weight.saturating_add(T::DbWeight::get(). reads_writes(2, 2)),
 									Err(e) => log::info!("delete file {:?} failed. error is: {:?}", e, file_info.file_hash),
 								};
 							 } else {

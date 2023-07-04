@@ -694,7 +694,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node"
-version = "0.5.3"
+version = "0.6.0"
 dependencies = [
  "array-bytes",
  "cess-node-runtime",
@@ -772,7 +772,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node-runtime"
-version = "0.5.3"
+version = "0.6.0"
 dependencies = [
  "cessp-consensus-rrsc",
  "cp-enclave-verify",
@@ -4782,7 +4782,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-audit"
-version = "0.5.3"
+version = "0.6.0"
 dependencies = [
  "cp-cess-common",
  "cp-scheduler-credit",
@@ -4916,7 +4916,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-cacher"
-version = "0.5.4"
+version = "0.6.0"
 dependencies = [
  "cp-cess-common",
  "frame-benchmarking",
@@ -5182,7 +5182,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-file-bank"
-version = "0.5.3"
+version = "0.6.0"
 dependencies = [
  "cp-cess-common",
  "cp-scheduler-credit",
@@ -5331,7 +5331,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-oss"
-version = "0.5.3"
+version = "0.6.0"
 dependencies = [
  "cp-cess-common",
  "frame-benchmarking",
@@ -5460,7 +5460,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-sminer"
-version = "0.5.3"
+version = "0.6.0"
 dependencies = [
  "cp-cess-common",
  "frame-benchmarking",
@@ -5494,7 +5494,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-storage-handler"
-version = "0.5.4"
+version = "0.6.0"
 dependencies = [
  "cp-cess-common",
  "frame-support",
@@ -5525,7 +5525,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-tee-worker"
-version = "0.5.3"
+version = "0.6.0"
 dependencies = [
  "cp-cess-common",
  "cp-enclave-verify",

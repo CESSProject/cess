@@ -199,6 +199,8 @@ pub mod pallet {
 		Unexpected,
 
 		NoReward,
+
+		StateError,
 	}
 
 	#[pallet::storage]
@@ -323,6 +325,10 @@ pub mod pallet {
 			let mut balance: BalanceOf<T> = 0u32.saturated_into();
 			<MinerItems<T>>::try_mutate(&sender, |miner_info_opt| -> DispatchResult {
 				let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
+
+				ensure!(miner_info.state.to_vec() != STATE_OFFLINE.as_bytes().to_vec(), Error::<T>::StateError);
+				ensure!(miner_info.state.to_vec() != STATE_LOCK.as_bytes().to_vec(), Error::<T>::StateError);
+				ensure!(miner_info.state.to_vec() != STATE_EXIT.as_bytes().to_vec(), Error::<T>::StateError);
 
 				let mut remaining = collaterals;
 				if miner_info.debt > BalanceOf::<T>::zero() {
@@ -920,7 +926,6 @@ pub trait MinerControl<AccountId> {
 	fn is_positive(miner: &AccountId) -> Result<bool, DispatchError>;
 	fn is_lock(miner: &AccountId) -> Result<bool, DispatchError>;
 	fn update_miner_state(miner: &AccountId, state: &str) -> DispatchResult;
-	fn test_update_miner_idle_space(acc: &AccountId, space: u128) -> DispatchResult;
 }
 
 impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -1090,17 +1095,5 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 
 	fn withdraw(acc: &AccountOf<T>) -> DispatchResult {
 		Self::withdraw(acc)
-	}
-
-	fn test_update_miner_idle_space(acc: &AccountOf<T>, space: u128) -> DispatchResult {
-		MinerItems::<T>::try_mutate(&acc, |miner_opt| -> DispatchResult {
-			let miner = miner_opt.as_mut().ok_or(Error::<T>::Overflow)?;
-
-			miner.idle_space = space;
-
-			Ok(())
-		})?;
-
-		Ok(())
 	}
 }
