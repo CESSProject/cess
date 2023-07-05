@@ -378,31 +378,38 @@ impl<T: Config> Pallet<T> {
         let mut total_fragment_dec = 0;
         // Used to record and store the amount of service space that miners need to reduce, 
         // and read changes once through counting
-        let mut miner_list: BTreeMap<AccountOf<T>, u32> = Default::default();
+        let mut miner_list: BTreeMap<AccountOf<T>, Vec<Hash>> = Default::default();
         // Traverse every segment
         for segment_info in file.segment_list.iter() {
             for fragment_info in segment_info.fragment_list.iter() {
                 // The total number of fragments in a file should never exceed u32
-                    total_fragment_dec += 1;
-                    if miner_list.contains_key(&fragment_info.miner) {
-                        let temp_count = miner_list.get_mut(&fragment_info.miner).ok_or(Error::<T>::BugInvalid)?;
-                        // The total number of fragments in a file should never exceed u32
-                        *temp_count += 1;
-                    } else {
-                         miner_list.insert(fragment_info.miner.clone(), 1);
-                    }
+                total_fragment_dec += 1;
+                if miner_list.contains_key(&fragment_info.miner) {
+                    let temp_list = miner_list.get_mut(&fragment_info.miner).ok_or(Error::<T>::BugInvalid)?;
+                    // The total number of fragments in a file should never exceed u32
+                    temp_list.push(fragment_info.hash);
+                } else {
+                    miner_list.insert(fragment_info.miner.clone(), vec![fragment_info.hash]);
                 }
+            }
         }
 
-        for (miner, count) in miner_list.iter() {
+        for (miner, hash_list) in miner_list.iter() {
+            let count = hash_list.len() as u128;
             if <RestoralTarget<T>>::contains_key(miner) {
-                Self::update_restoral_target(miner, FRAGMENT_SIZE * *count as u128)?;
+                Self::update_restoral_target(miner, FRAGMENT_SIZE * count)?;
             } else {
+                let mut binary_list: Vec<Box<[u8; 256]>> = Default::default(); 
+                for fragment_hash in hash_list {
+					let binary_temp = fragment_hash.binary().map_err(|_| Error::<T>::BugInvalid)?;
+					binary_list.push(binary_temp);
+                }
                 if file.stat == FileState::Active {
-                    T::MinerControl::sub_miner_service_space(miner, FRAGMENT_SIZE * *count as u128)?;
+                    T::MinerControl::sub_miner_service_space(miner, FRAGMENT_SIZE * count)?;
+                    T::MinerControl::delete_service_bloom(miner, binary_list)?;
                 }
                 if file.stat == FileState::Calculate {
-                    T::MinerControl::unlock_space(miner, FRAGMENT_SIZE * *count as u128)?;
+                    T::MinerControl::unlock_space(miner, FRAGMENT_SIZE * count)?;
                 }
             }
             weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));

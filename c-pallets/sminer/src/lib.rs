@@ -66,6 +66,8 @@ use sp_core::ConstU32;
 use cp_enclave_verify::verify_rsa;
 use pallet_tee_worker::TeeWorkerHandler;
 
+use cp_bloom_filter::BloomFilter;
+
 pub mod weights;
 pub use weights::WeightInfo;
 
@@ -100,16 +102,22 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type ItemLimit: Get<u32>;
+
 		#[pallet::constant]
 		type MultipleFines: Get<u8>;
+
 		#[pallet::constant]
 		type DepositBufferPeriod: Get<u32>;
+
 		#[pallet::constant]
 		type OneDayBlock: Get<BlockNumberOf<Self>>;
+
 		#[pallet::constant]
 		type LockInPeriod: Get<u8>;
+
 		#[pallet::constant]
 		type MaxAward: Get<u128>;
+
 		#[pallet::constant]
 		type ChallengeMinerMax: Get<u32>;
 		/// The Scheduler.
@@ -211,6 +219,8 @@ pub mod pallet {
 		LowerOperationBlock,
 
 		StateError,
+
+		BloomElemPushError,
 	}
 
 	#[pallet::storage]
@@ -334,6 +344,7 @@ pub mod pallet {
 					last_operation_block: u32::MIN.saturated_into(),
 					front: u64::MIN,
 					rear: u64::MIN,
+					service_bloom_filter: Default::default(),
 				},
 			);
 
@@ -895,6 +906,30 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
+	pub fn insert_service_bloom(acc: &AccountOf<T>, hash_list: Vec<Box<[u8; 256]>>) -> DispatchResult {
+		<MinerItems<T>>::try_mutate(&acc, |opt_m_info| -> DispatchResult{
+			let m_info = opt_m_info.as_mut().ok_or(Error::<T>::NotMiner)?;
+			for elem in hash_list {
+				m_info.service_bloom_filter.insert(*elem).map_err(|_| Error::<T>::BloomElemPushError)?;
+			}
+			Ok(())
+		})?;
+
+		Ok(())
+	}
+
+	pub fn delete_service_bloom(acc: &AccountOf<T>, hash_list: Vec<Box<[u8; 256]>>) -> DispatchResult {
+		<MinerItems<T>>::try_mutate(&acc, |opt_m_info| -> DispatchResult{
+			let m_info = opt_m_info.as_mut().ok_or(Error::<T>::NotMiner)?;
+			for elem in hash_list {
+				m_info.service_bloom_filter.delete(*elem).map_err(|_| Error::<T>::BloomElemPushError)?;
+			}
+			Ok(())
+		})?;
+
+		Ok(())
+	}
+
 	fn check_collateral_limit(power: u128) -> Result<BalanceOf<T>, Error<T>> {
 		let limit = 1 + power.checked_div(T_BYTE).ok_or(Error::<T>::Overflow)?;
 		let limit = BASE_LIMIT.checked_mul(limit).ok_or(Error::<T>::Overflow)?;
@@ -998,13 +1033,18 @@ pub trait MinerControl<AccountId> {
 	fn delete_idle_update_space(acc: &AccountId, idle_space: u128) -> DispatchResult;
 	fn add_miner_service_space(acc: &AccountId, power: u128) -> DispatchResult;
 	fn sub_miner_service_space(acc: &AccountId, power: u128) -> DispatchResult;
+
 	fn get_power(acc: &AccountId) -> Result<(u128, u128), DispatchError>;
 	fn miner_is_exist(acc: AccountId) -> bool;
 	fn get_miner_state(acc: &AccountId) -> Result<Vec<u8>, DispatchError>;
 	fn get_all_miner() -> Result<Vec<AccountId>, DispatchError>;
+	// Associated functions related to uploading files.
+	fn insert_service_bloom(acc: &AccountId, hash_list: Vec<Box<[u8; 256]>>) -> DispatchResult;
+	fn delete_service_bloom(acc: &AccountId, hash_list: Vec<Box<[u8; 256]>>) -> DispatchResult;
 	fn lock_space(acc: &AccountId, space: u128) -> DispatchResult;
 	fn unlock_space(acc: &AccountId, space: u128) -> DispatchResult;
 	fn unlock_space_to_service(acc: &AccountId, space: u128) -> DispatchResult;
+
 	fn get_miner_idle_space(acc: &AccountId) -> Result<u128, DispatchError>;
 	fn get_miner_count() -> u32;
 	fn get_reward() -> u128; 
@@ -1016,6 +1056,7 @@ pub trait MinerControl<AccountId> {
 		miner_idle_space: u128,
 		miner_service_space: u128,
 	) -> DispatchResult;
+
 	fn clear_punish(miner: &AccountId, level: u8, idle_space: u128, service_space: u128) -> DispatchResult;
 	fn idle_punish(miner: &AccountId, idle_space: u128, service_space: u128) -> DispatchResult;
 	fn service_punish(miner: &AccountId, idle_space: u128, service_space: u128) -> DispatchResult;
@@ -1085,6 +1126,14 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 
 	fn get_all_miner() -> Result<Vec<AccountOf<T>>, DispatchError> {
 		Ok(AllMiner::<T>::get().to_vec())
+	}
+
+	fn insert_service_bloom(acc: &AccountOf<T>, hash_list: Vec<Box<[u8; 256]>>) -> DispatchResult {
+		Self::insert_service_bloom(acc, hash_list)
+	}
+
+	fn delete_service_bloom(acc: &AccountOf<T>, hash_list: Vec<Box<[u8; 256]>>) -> DispatchResult {
+		Self::delete_service_bloom(acc, hash_list)
 	}
 
 	fn lock_space(acc: &AccountOf<T>, space: u128) -> DispatchResult {

@@ -21,6 +21,7 @@ pub struct MinerInfo<T: Config> {
 	pub(super) last_operation_block: BlockNumberOf<T>,
 	pub(super) front: u64,
 	pub(super) rear: u64,
+	pub(super) service_bloom_filter: BloomFilter,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]

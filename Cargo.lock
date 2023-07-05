@@ -1184,6 +1184,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "cp-bloom-filter"
+version = "0.1.0"
+dependencies = [
+ "cp-cess-common",
+ "frame-support",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-std",
+]
+
+[[package]]
 name = "cp-cess-common"
 version = "0.1.0"
 dependencies = [
@@ -5464,6 +5476,7 @@ dependencies = [
 name = "pallet-sminer"
 version = "0.6.0"
 dependencies = [
+ "cp-bloom-filter",
  "cp-cess-common",
  "cp-enclave-verify",
  "frame-benchmarking",

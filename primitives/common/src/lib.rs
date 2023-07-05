@@ -11,10 +11,16 @@ use frame_support::{
 };
 use codec::{MaxEncodedLen};
 use scale_info::TypeInfo;
+use sp_std::prelude::Box;
 
 #[derive(Copy, Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo, PartialOrd, Ord)]
 pub struct Hash(pub [u8; 64]);
 pub struct TryFromSliceError(());
+
+pub enum HashError {
+	TryFromSliceError,
+	BinaryError,
+}
 
 impl sp_std::fmt::Debug for TryFromSliceError {
 	fn fmt(&self, fmt: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
@@ -32,8 +38,8 @@ impl Default for Hash {
 }
 
 impl Hash {
-	pub fn binary(&self) -> Result<[u8; 256], HashError> {
-		let mut elem: [u8; 256] = [0u8; 256];
+	pub fn binary(&self) -> Result<Box<[u8; 256]>, HashError> {
+		let mut elem: Box<[u8; 256]> = Box::new([0u8; 256]);
 		let mut index: usize = 0;
 		for value in self.0.iter() {
 			let binary = match value {
@@ -64,7 +70,6 @@ impl Hash {
 			index = index + 1;
 		}
 		Ok(elem)
-
 	}
 	
 	pub fn slice_to_array_64(slice: &[u8]) -> Result<[u8; 64], TryFromSliceError> {

@@ -715,8 +715,14 @@ pub mod pallet {
 			let deal_info = <DealMap<T>>::try_get(&deal_hash).map_err(|_| Error::<T>::NonExistent)?;
 			for miner_task in deal_info.assigned_miner {
 				let count = miner_task.fragment_list.len() as u32;
+				let mut hash_list: Vec<Box<[u8; 256]>> = Default::default(); 
+				for fragment_hash in miner_task.fragment_list {
+					let hash_temp = fragment_hash.binary().map_err(|_| Error::<T>::BugInvalid)?;
+					hash_list.push(hash_temp);
+				}
 				// Accumulate the number of fragments stored by each miner
 				T::MinerControl::unlock_space_to_service(&miner_task.miner, FRAGMENT_SIZE * count as u128)?;
+				T::MinerControl::insert_service_bloom(&miner_task.miner, hash_list)?;
 			}
 
 			<File<T>>::try_mutate(&deal_hash, |file_opt| -> DispatchResult {
@@ -1062,6 +1068,9 @@ pub mod pallet {
 						for fragment in &mut segment.fragment_list {
 							if &fragment.hash == &fragment_hash {
 								if &fragment.miner == &order.origin_miner {
+									let binary = fragment.hash.binary().map_err(|_| Error::<T>::BugInvalid)?;
+									T::MinerControl::delete_service_bloom(&fragment.miner, vec![binary.clone()])?;
+									T::MinerControl::insert_service_bloom(&sender, vec![binary])?;
 									T::MinerControl::sub_miner_service_space(&fragment.miner, FRAGMENT_SIZE)?;
 									T::MinerControl::add_miner_service_space(&sender, FRAGMENT_SIZE)?;
 
