@@ -341,18 +341,21 @@ pub mod pallet {
 
 		fn offchain_worker(now: T::BlockNumber) {
 			let deadline = Self::verify_duration();
+			let lock = <Lock<T>>::get();
 			if sp_io::offchain::is_validator() {
-				if now > deadline {
-					//Determine whether to trigger a challenge
-					if Self::trigger_challenge(now) {
-						log::info!("offchain worker random challenge start");
-						if let Err(e) = Self::offchain_work_start(now) {
-							match e {
-								OffchainErr::Working => log::info!("offchain working, Unable to perform a new round of work."),
-								_ => log::info!("offchain worker generation challenge failed:{:?}", e),
-							};
+				if lock {
+					if now > deadline {
+						//Determine whether to trigger a challenge
+						if Self::trigger_challenge(now) {
+							log::info!("offchain worker random challenge start");
+							if let Err(e) = Self::offchain_work_start(now) {
+								match e {
+									OffchainErr::Working => log::info!("offchain working, Unable to perform a new round of work."),
+									_ => log::info!("offchain worker generation challenge failed:{:?}", e),
+								};
+							}
+							log::info!("offchain worker random challenge end");
 						}
-						log::info!("offchain worker random challenge end");
 					}
 				}
 			}
@@ -395,6 +398,7 @@ pub mod pallet {
 							.checked_add(&proposal.1.net_snap_shot.life).ok_or(Error::<T>::Overflow)?
 							.checked_add(&one_hour).ok_or(Error::<T>::Overflow)?;
 						<VerifyDuration<T>>::put(v_duration);
+						<ChallengeSnapShot<T>>::put(proposal.1);
 						let _ = ChallengeProposal::<T>::clear(ChallengeProposal::<T>::count(), None);
 					}
 
@@ -533,6 +537,20 @@ pub mod pallet {
 	
 			Ok(())
 		}
+
+		#[pallet::call_index(3)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn lock_(origin: OriginFor<T>) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			let lock = <Lock<T>>::get();
+
+			<Lock<T>>::put(!lock);
+
+			Ok(())
+		}
+
 	}
 
 	#[pallet::validate_unsigned]
