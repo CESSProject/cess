@@ -1,8 +1,5 @@
 #! /usr/bin/env bash
 
-BUILD_DIR="`pwd`"
-DIST_FILE="target/release/cess-node"
-
 usage() {
     echo "Usage:"
 	echo "    $0 -h                      Display this help message."
@@ -44,8 +41,11 @@ while getopts ":hmrpc:" opt; do
     esac
 done
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-source $DIR/utils.sh
+SH_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+BUILD_DIR=$(dirname $SH_DIR)
+DIST_FILE="$BUILD_DIR/target/release/cess-node"
+
+source $SH_DIR/utils.sh
 
 log_info "Using cache dir: $CACHEDIR"
 if [ ! -d $CACHEDIR ]; then
@@ -54,7 +54,7 @@ if [ ! -d $CACHEDIR ]; then
 fi
 
 if [ -z $CACHEDIR ]; then
-  CACHEDIR="${BUILD_DIR}/docker/.cache"
+  CACHEDIR="$SH_DIR/.cache"
   log_info "Using default cache dir: $CACHEDIR"
   log_info "Using a custom location for cache directory is recommended"
   mkdir -p $CACHEDIR
@@ -62,8 +62,8 @@ fi
 
 function build_bin {
   echo_c 33 "Using build dir: $BUILD_DIR"
-
-  local build_img="docker.io/paritytech/ci-linux:production"
+  
+  local build_img="cesslab/ci-linux:latest"
   log_success "Preparing docker build image, running docker pull ${build_img}"
   docker pull ${build_img}
   if [ $? -ne 0 ]; then
@@ -73,8 +73,8 @@ function build_bin {
 
   if [ $MIRROR -eq "1" ]; then
       echo "Config mirror..."
-      mkdir -p .cargo
-      cp ./docker/Cargo.config .cargo/config
+      mkdir -p $BUILD_DIR/.cargo
+      cp $SH_DIR/Cargo.config $BUILD_DIR/.cargo/config
   fi
 
   RUN_OPTS="-v $BUILD_DIR:/opt/cess -v $CACHEDIR:/opt/cache"
