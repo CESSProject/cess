@@ -96,6 +96,7 @@ use cp_enclave_verify::verify_rsa;
 use cp_cess_common::*;
 pub mod weights;
 pub use weights::WeightInfo;
+use cp_bloom_filter::BloomFilter;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
@@ -279,6 +280,8 @@ pub mod pallet {
 		Expired,
 
 		VerifyTeeSigFailed,
+
+		BloomFilterError,
 	}
 
 	//Relevant time nodes for storage challenges
@@ -557,7 +560,7 @@ pub mod pallet {
 					if &miner_info.snap_shot.miner == &miner {
 						let snap_shot = <ChallengeSnapShot<T>>::try_get().map_err(|_| Error::<T>::UnexpectedError)?;
 
-						let verify_idle_result = VerifyResultInfo::<T>{
+						let verify_idle_result = VerifyIdleResultInfo::<T>{
 							miner: miner.clone(),
 							miner_prove: miner_info.idle_prove.clone(),
 							result: idle_result,
@@ -619,6 +622,7 @@ pub mod pallet {
 			miner: AccountOf<T>,
 			service_result: bool,
 			signature: TeeRsaSignature,
+			service_bloom_filter: BloomFilter,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
@@ -627,16 +631,22 @@ pub mod pallet {
 					if &miner_info.snap_shot.miner == &miner {
 						let snap_shot = <ChallengeSnapShot<T>>::try_get().map_err(|_| Error::<T>::UnexpectedError)?;
 
-						let verify_service_result = VerifyResultInfo::<T>{
+						let verify_service_result = VerifyServiceResultInfo::<T>{
 							miner: miner.clone(),
 							miner_prove: miner_info.service_prove.clone(),
 							result: service_result,
+							service_bloom_filter: service_bloom_filter,
 						};
 
 						let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
 						let encoding = verify_service_result.encode();
 						let hashing = sp_io::hashing::sha2_256(&encoding);
 						ensure!(verify_rsa(&tee_puk, &hashing, &signature), Error::<T>::VerifyTeeSigFailed);
+
+						ensure!(
+							service_bloom_filter == miner_info.snap_shot.service_bloom_filter,
+							Error::<T>::BloomFilterError,
+						); 
 
 						// Determine whether both proofs have been verified.
 						if let Ok((idle_result_opt, _)) = <VerifyResult<T>>::try_get(&miner).map_err(|_| Error::<T>::UnexpectedError) {
@@ -785,8 +795,7 @@ pub mod pallet {
 						} else {
 							reassign_list.insert(tee_acc.clone(), unverify_list);
 						}
-						
-	
+
 						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
 						UnverifyIdleProof::<T>::remove(acc);
@@ -826,7 +835,7 @@ pub mod pallet {
 						let index = Self::random_number(seed) as u32;
 						let mut index: u32 = index % (tee_list.len() as u32);
 						let mut tee_acc = &tee_list[index as usize];
-	
+
 						if &acc == tee_acc {
 							index += 1;
 							index = index % (tee_list.len() as u32);
@@ -845,8 +854,7 @@ pub mod pallet {
 						} else {
 							reassign_list.insert(tee_acc.clone(), unverify_list);
 						}
-						
-	
+
 						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
 						UnverifyServiceProof::<T>::remove(acc);
@@ -1077,7 +1085,7 @@ pub mod pallet {
 						continue;
 					}
 	
-					let (idle_space, service_space) = T::MinerControl::get_power(&miner).map_err(|_| OffchainErr::GenerateInfoError)?;
+					let (idle_space, service_space, service_bloom_filter) = T::MinerControl::get_miner_snapshot(&miner).map_err(|_| OffchainErr::GenerateInfoError)?;
 
 					if (idle_space == 0) && (service_space == 0) {
 						continue;
@@ -1112,6 +1120,7 @@ pub mod pallet {
 						service_space,
 						idle_submitted: false,
 						service_submitted: false,
+						service_bloom_filter,
 					};
 
 					if let Err(_e) = miner_list.try_push(miner_snapshot) {

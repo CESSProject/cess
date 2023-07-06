@@ -1069,6 +1069,7 @@ pub trait MinerControl<AccountId> {
 	fn is_lock(miner: &AccountId) -> Result<bool, DispatchError>;
 	fn update_miner_state(miner: &AccountId, state: &str) -> DispatchResult;
 	fn get_expenders() -> Result<(u64, u64, u64), DispatchError>;
+	fn get_miner_snapshot(miner: &AccountId) -> Result<(u128, u128, BloomFilter), DispatchError>;
 }
 
 impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -1256,5 +1257,14 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 		let expenders = Expenders::<T>::try_get().map_err(|_| Error::<T>::Unexpected)?;
 
 		Ok(expenders)
+	}
+
+	fn get_miner_snapshot(miner: &AccountOf<T>) -> Result<(u128, u128, BloomFilter), DispatchError> {
+		if !<MinerItems<T>>::contains_key(miner) {
+			Err(Error::<T>::NotMiner)?;
+		}
+		//There is a judgment on whether the primary key exists above
+		let miner_info = <MinerItems<T>>::try_get(miner).map_err(|_| Error::<T>::NotMiner)?;
+		Ok((miner_info.idle_space, miner_info.service_space, miner_info.service_bloom_filter))
 	}
 }

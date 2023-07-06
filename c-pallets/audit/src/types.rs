@@ -31,6 +31,7 @@ pub struct MinerSnapShot<AccountId, Block> {
 	pub(super) service_space: u128,
 	pub(super) idle_submitted: bool,
 	pub(super) service_submitted: bool,
+	pub(super) service_bloom_filter: BloomFilter,
 }
 
 // Structure for storing miner certificates
@@ -53,10 +54,20 @@ pub struct ServiceProveInfo<T: pallet::Config> {
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
-pub struct VerifyResultInfo<T: pallet::Config> {
+pub struct VerifyIdleResultInfo<T: pallet::Config> {
 	pub(super) miner: AccountOf<T>,
 	pub(super) miner_prove: BoundedVec<u8, T::SigmaMax>,
 	pub(super) result: bool,
+}
+
+#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+#[codec(mel_bound())]
+pub struct VerifyServiceResultInfo<T: pallet::Config> {
+	pub(super) miner: AccountOf<T>,
+	pub(super) miner_prove: BoundedVec<u8, T::SigmaMax>,
+	pub(super) result: bool,
+	pub(super) service_bloom_filter: BloomFilter,
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]

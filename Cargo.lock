@@ -4796,6 +4796,7 @@ dependencies = [
 name = "pallet-audit"
 version = "0.6.0"
 dependencies = [
+ "cp-bloom-filter",
  "cp-cess-common",
  "cp-enclave-verify",
  "cp-scheduler-credit",
