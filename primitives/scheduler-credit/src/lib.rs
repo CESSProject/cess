@@ -1,5 +1,5 @@
 /*!
-# Some scheduler credit primitives
+# Some scheduler credit primitives.
 */
 #![cfg_attr(not(feature = "std"), no_std)]
 use frame_support::dispatch::DispatchResult;
