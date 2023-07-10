@@ -741,7 +741,7 @@ pub mod pallet {
 		#[pallet::call_index(5)]
 		#[transactional]
 		#[pallet::weight(1_000_000_000)]
-		pub fn replace_file_report(
+		pub fn replace_idle_space(
 			origin: OriginFor<T>,
 			idle_sig_info: IdleSigInfo<T>,
 			tee_sig: TeeRsaSignature,
