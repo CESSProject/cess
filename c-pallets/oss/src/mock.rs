@@ -124,23 +124,3 @@ impl ExtBuilder {
 		self.build().execute_with(test);
 	}
 }
-
-// pub fn new_test_ext() -> sp_io::TestExternalities {
-// 	let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
-// 	pallet_balances::GenesisConfig::<Test> {
-// 		balances: vec![
-// 			(account1(), 18_000_000_000_000_000_000),
-// 			(account2(), 1_000_000_000_000),
-// 			(miner1(), 1_000_000_000_000),
-// 			(stash1(), 1_000_000_000_000),
-// 			(controller1(), 1_000_000_000_000),
-// 		],
-// 	}
-// 		.assimilate_storage(&mut t)
-// 		.unwrap();
-// 	let mut ext = sp_io::TestExternalities::new(t);
-// 	ext.execute_with(|| {
-// 		System::set_block_number(1); //must set block_number, otherwise the deposit_event() don't work
-// 	});
-// 	ext
-// }
