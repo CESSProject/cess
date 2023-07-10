@@ -15,7 +15,7 @@ impl OnUnbalanced<NegativeImbalance> for Author {
 	}
 }
 
-/// A `HandleCredit` implementation that naively transfers the fees to the block author.
+/// A `HandleCredit` implementation that naively transfers the fees to the block author .
 /// Will drop and burn the assets in case the transfer fails.
 pub struct CreditToBlockAuthor;
 impl HandleCredit<AccountId, Assets> for CreditToBlockAuthor {
