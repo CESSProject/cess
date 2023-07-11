@@ -428,7 +428,7 @@ pub mod pallet {
 					ensure!(reward.currently_available_reward != 0u32.saturated_into(), Error::<T>::NoReward);
 
 					let reward_pot = T::PalletId::get().into_account_truncating();
-					<T as pallet::Config>::Currency::transfer(&reward_pot, &sender, reward.currently_available_reward.clone(), KeepAlive)?;
+					<T as pallet::Config>::Currency::transfer(&reward_pot, &miner.beneficiary, reward.currently_available_reward.clone(), KeepAlive)?;
 
 					reward.reward_issued = reward.reward_issued
 						.checked_add(&reward.currently_available_reward).ok_or(Error::<T>::Overflow)?;
