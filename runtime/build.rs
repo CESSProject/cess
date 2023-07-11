@@ -1,5 +1,5 @@
 use substrate_wasm_builder::WasmBuilder;
-
+// add.
 fn main() {
 	WasmBuilder::new()
 		.with_current_project()
