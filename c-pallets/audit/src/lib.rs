@@ -868,7 +868,9 @@ pub mod pallet {
 				Err(OffchainErr::GenerateInfoError)?;
 			}
 
-			let need_miner_count = miner_count / 10 + 1;
+			// TEMP
+			let need_miner_count = miner_count;
+			// let need_miner_count = miner_count / 10 + 1;
 
 			let mut miner_list: BoundedVec<MinerSnapShot<AccountOf<T>>, T::ChallengeMinerMax> = Default::default();
 
@@ -877,13 +879,12 @@ pub mod pallet {
 			let mut total_idle_space: u128 = u128::MIN;
 			let mut total_service_space: u128 = u128::MIN;
 			let mut max_space: u128 = 0;
+			let allminer = T::MinerControl::get_all_miner().map_err(|_| OffchainErr::GenerateInfoError)?;
 			// TODO: need to set a maximum number of cycles
 			let mut seed: u32 = 20230601;
-			while (miner_list.len() as u32 != need_miner_count) && (valid_index_list.len() as u32 != miner_count) {
+			while ((miner_list.len() as u32) < need_miner_count) && (valid_index_list.len() as u32 != miner_count) {
 				seed = seed.saturating_add(1); 
 				let index_list = Self::random_select_miner(need_miner_count, miner_count, &valid_index_list, seed);
-
-				let allminer = T::MinerControl::get_all_miner().map_err(|_| OffchainErr::GenerateInfoError)?;
 
 				for index in index_list {
 					valid_index_list.push(index);
@@ -911,10 +912,14 @@ pub mod pallet {
 						idle_space,
 						service_space,
 					};
-					let result = miner_list.try_push(miner_snapshot);
-					if let Err(_e) = result {
+
+					if let Err(_e) = miner_list.try_push(miner_snapshot) {
 						return Err(OffchainErr::GenerateInfoError)?;
 					};
+
+					if (miner_list.len() as u32) >= need_miner_count {
+						break;
+					}
 				}
 			}
 
@@ -941,7 +946,7 @@ pub mod pallet {
 
 			let life: BlockNumberOf<T> = ((max_space / 8_947_849 + 12) as u32).saturated_into();
 
-			let total_reward: u128 = T::MinerControl::get_reward();
+			let total_reward: u128 = T::MinerControl::get_reward() / 6;
 			let snap_shot = NetSnapShot::<BlockNumberOf<T>>{
 				start: now,
 				life: life,
