@@ -1,4 +1,4 @@
-BLS signature utility crate
+BLS signature utility crate 
 =============================
 
 This is a simple Rust crate which can be used to create and verify BLS signatures
