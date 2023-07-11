@@ -165,7 +165,9 @@ impl<T: Config> Pallet<T> {
     pub(super) fn start_first_task(task_id: Vec<u8>, deal_hash: Hash, count: u8, life: u32) -> DispatchResult {
         let start: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
         let survival_block = start
-            .checked_add(50 * (count as u32)).ok_or(Error::<T>::Overflow)?
+            // temp
+            // .checked_add(50 * (count as u32)).ok_or(Error::<T>::Overflow)?
+            .checked_add(30).ok_or(Error::<T>::Overflow)?
             .checked_add(life).ok_or(Error::<T>::Overflow)?;
 
         T::FScheduler::schedule_named(
