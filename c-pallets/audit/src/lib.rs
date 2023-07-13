@@ -224,6 +224,9 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type LockTime: Get<BlockNumberOf<Self>>;
+
+		#[pallet::constant]
+		type ReassignCeiling: Get<u8> + Clone + Eq + PartialEq;
 	}
 
 	#[pallet::event]
@@ -319,6 +322,10 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn lock)]
 	pub(super) type Lock<T: Config> = StorageValue<_, bool, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn verify_reassign_count)]
+	pub(super) type VerifyReassignCount<T: Config> = StorageValue<_, u8, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn test_option)]
@@ -437,7 +444,7 @@ pub mod pallet {
 						let now = <frame_system::Pallet<T>>::block_number();
 						let duration = <ChallengeDuration<T>>::get();
 						ensure!(now < duration, Error::<T>::NoChallenge);
-						
+
 						challenge_info.miner_snapshot_list.remove(index);
 						return Ok(miner_snapshot.clone());
 					}
@@ -625,14 +632,27 @@ pub mod pallet {
 				let tee_list = T::Scheduler::get_controller_list();
 				let mut reassign_list: BTreeMap<AccountOf<T>, BoundedVec<ProveInfo<T>, T::VerifyMissionMax>> = Default::default();
 
+				let reassign_count = <VerifyReassignCount<T>>::get();
+				let ceiling = T::ReassignCeiling::get();
+				if reassign_count > ceiling {
+					for (acc, unverify_list) in UnverifyProof::<T>::iter() {
+						weight = weight.saturating_add(T::DbWeight::get().reads(1));
+						if unverify_list.len() > 0 {
+							UnverifyProof::<T>::remove(acc);
+							weight = weight.saturating_add(T::DbWeight::get().writes(1));
+						}
+					}
+					<ChallengeSnapShot<T>>::kill();
+					weight = weight.saturating_add(T::DbWeight::get().writes(1));
+					<VerifyReassignCount<T>>::put(0);
+					weight = weight.saturating_add(T::DbWeight::get().writes(1));
+					return weight;
+				}
+
 				for (acc, unverify_list) in UnverifyProof::<T>::iter() {
 					seed += 1;
 					weight = weight.saturating_add(T::DbWeight::get().reads(1));
 					if unverify_list.len() > 0 {
-						match T::Scheduler::punish_scheduler(acc.clone()) {
-							Ok(()) => log::info!("punish scheduler success"),
-							Err(e) => log::error!("punish scheduler failed: {:?}", e),
-						};
 						// Count the number of verification tasks that need to be performed.
 						mission_count = mission_count.saturating_add(unverify_list.len() as u32);
 
@@ -669,6 +689,9 @@ pub mod pallet {
 				//todo! duration reasonable time
 				if mission_count == 0 {
 					<ChallengeSnapShot<T>>::kill();
+					weight = weight.saturating_add(T::DbWeight::get().writes(1));
+					<VerifyReassignCount<T>>::put(0);
+					weight = weight.saturating_add(T::DbWeight::get().writes(1));
 				} else {
 					for (acc, unverify_list) in reassign_list {
 						let result = UnverifyProof::<T>::mutate(acc, |tar_unverify_list| -> DispatchResult {

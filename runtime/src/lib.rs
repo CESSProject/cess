@@ -993,6 +993,8 @@ parameter_types! {
 	pub const OneHours: BlockNumber = HOURS;
 	pub const SegUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
 	pub const LockTime: BlockNumber = HOURS / 60;
+	#[derive(Clone, PartialEq, Eq)]
+	pub const ReassignCeiling: u8 = 5;
 }
 
 impl pallet_audit::Config for Runtime {
@@ -1019,6 +1021,7 @@ impl pallet_audit::Config for Runtime {
 	type SubmitValidationLimit = SubmitValidationLimit;
 	type ChallengeMinerMax = ChallengeMinerMax;
 	type SigmaMax = SigmaMax;
+	type ReassignCeiling = ReassignCeiling;
 }
 
 pub const SEGMENT_COUNT: u32 = 1000;
