@@ -862,8 +862,9 @@ pub mod pallet {
 		fn generation_challenge(now: BlockNumberOf<T>) 
 			-> Result<ChallengeInfo<T>, OffchainErr> 
 		{
-			let miner_count = T::MinerControl::get_miner_count();
-
+			// let miner_count = T::MinerControl::get_miner_count();
+			let allminer = T::MinerControl::get_all_miner().map_err(|_| OffchainErr::GenerateInfoError)?;
+			let miner_count = allminer.len() as u32;
 			if miner_count == 0 {
 				Err(OffchainErr::GenerateInfoError)?;
 			}
@@ -879,7 +880,7 @@ pub mod pallet {
 			let mut total_idle_space: u128 = u128::MIN;
 			let mut total_service_space: u128 = u128::MIN;
 			let mut max_space: u128 = 0;
-			let allminer = T::MinerControl::get_all_miner().map_err(|_| OffchainErr::GenerateInfoError)?;
+
 			// TODO: need to set a maximum number of cycles
 			let mut seed: u32 = 20230601;
 			while ((miner_list.len() as u32) < need_miner_count) && (valid_index_list.len() as u32 != miner_count) {
@@ -890,10 +891,10 @@ pub mod pallet {
 					valid_index_list.push(index);
 					let miner = allminer[index as usize].clone();
 					let state = T::MinerControl::get_miner_state(&miner).map_err(|_| OffchainErr::GenerateInfoError)?;
-					if state == "lock".as_bytes().to_vec() {
+					if state == "lock".as_bytes().to_vec() || state == "offline".as_bytes().to_vec() || state == "exit".as_bytes().to_vec() {
 						continue;
 					}
-	
+
 					let (idle_space, service_space) = T::MinerControl::get_power(&miner).map_err(|_| OffchainErr::GenerateInfoError)?;
 
 					if (idle_space == 0) && (service_space == 0) {
@@ -904,7 +905,7 @@ pub mod pallet {
 					if miner_total_space > max_space {
 						max_space = miner_total_space;
 					}
-	
+
 					total_idle_space = total_idle_space.checked_add(idle_space).ok_or(OffchainErr::Overflow)?;
 					total_service_space = total_service_space.checked_add(service_space).ok_or(OffchainErr::Overflow)?;
 					let miner_snapshot = MinerSnapShot::<AccountOf<T>> {
@@ -963,7 +964,7 @@ pub mod pallet {
 		// Ensure that the length is not 0
 		fn random_select_miner(need: u32, length: u32, valid_index_list: &Vec<u32>, seed: u32) -> Vec<u32> {
 			let mut miner_index_list: Vec<u32> = Default::default();
-			let mut seed: u32 = seed.saturating_mul(1000);
+			let mut seed: u32 = seed.saturating_mul(5000);
 			while (miner_index_list.len() as u32) < need && ((valid_index_list.len() + miner_index_list.len()) as u32 != length) {
 				seed += 1;
 				let index = Self::random_number(seed);
