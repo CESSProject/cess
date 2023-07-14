@@ -38,8 +38,8 @@ use cp_cess_common::*;
 
 use sp_runtime::traits::Zero;
 
-#[cfg(feature = "runtime-benchmarks")]
-mod benchmarking;
+// #[cfg(feature = "runtime-benchmarks")]
+// mod benchmarking;
 
 mod types;
 use types::*;

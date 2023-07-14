@@ -32,8 +32,10 @@ use frame_support::traits::{
 // use sc_network::Multiaddr;
 
 pub use pallet::*;
-#[cfg(feature = "runtime-benchmarks")]
-pub mod benchmarking;
+
+// #[cfg(feature = "runtime-benchmarks")]
+// pub mod benchmarking;
+
 pub mod weights;
 // pub mod migrations;
 

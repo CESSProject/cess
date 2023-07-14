@@ -74,8 +74,8 @@ pub type NodePublicKey = sp_core::ed25519::Public;
 pub type NodeSignature = [u8; 64];
 
 pub type ReportSign = BoundedVec<u8, ConstU32<344>>;
-pub type Report =  BoundedVec<u8, ConstU32<1354>>;
-pub type Cert = BoundedVec<u8, ConstU32<1588>> ;
+pub type Report = BoundedVec<u8, ConstU32<1354>>;
+pub type Cert = BoundedVec<u8, ConstU32<1588>>;
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub enum DataType {

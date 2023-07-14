@@ -53,8 +53,8 @@ use constants::*;
 
 pub use pallet::*;
 
-#[cfg(feature = "runtime-benchmarks")]
-pub mod benchmarking;
+// #[cfg(feature = "runtime-benchmarks")]
+// pub mod benchmarking;
 
 use sp_runtime::{
 	traits::{CheckedAdd, SaturatedConversion},
