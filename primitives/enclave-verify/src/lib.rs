@@ -238,7 +238,14 @@ pub fn verify_bls(key: &[u8], msg: &[u8], sig: &[u8]) -> Result<(), ()> {
 
 // }
 
+#[derive(PartialEq, Eq, Encode, Decode, Clone)]
+pub struct PoISKey {
+	g: [u8; 256],
+	n: [u8; 256],
+}
 
+
+use codec::{Decode, Encode};
 #[test]
 fn cryptos_rsa() {
 	// let mut rng = rand::thread_rng();
@@ -249,18 +256,27 @@ fn cryptos_rsa() {
 
 	let pub_key = RsaPublicKey::from(&priv_key);
 
+    let pois_key = PoISKey {
+        g: [2u8; 256],
+        n: [3u8; 256],
+    };
+
+    let encoding = pois_key.encode();
+    let original_text = sp_io::hashing::sha2_256(&encoding);
+
 	let priv_key_der = priv_key.to_pkcs1_der().unwrap();
-    println!("priv_key_der: {:?}", priv_key_der.as_bytes());
-    println!();
+    // println!("priv_key_der: {:?}", priv_key_der.as_bytes());
+    // println!();
 
 	let doc = pub_key.to_pkcs1_der().unwrap();
-    println!("pub_key: {:?}, length: {}", doc.as_bytes(), doc.as_bytes().len());
+    // println!("pub_key: {:?}, length: {}", doc.as_bytes(), doc.as_bytes().len());
 
     let pk = rsa::RsaPublicKey::from_pkcs1_der(doc.as_bytes()).unwrap();
 
 	let msg = "hello world!".as_bytes();
-	let binding = priv_key.sign(Pkcs1v15Sign::new_raw(), msg).unwrap();
+	let binding = priv_key.sign(Pkcs1v15Sign::new_raw(), &original_text).unwrap();
     let sig = binding.as_ref();
+    println!("sig is: {:?}, sig is length: {:?}", sig, sig.len());
 
     let result = pk.verify(Pkcs1v15Sign::new_raw(), &msg, &sig);
 

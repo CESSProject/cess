@@ -107,6 +107,8 @@ pub mod pallet {
 		VerifyCertFailed,
 
 		TeePodr2PkNotInitialized,
+		
+		Existed,
 	}
 
 	#[pallet::storage]
@@ -210,6 +212,7 @@ pub mod pallet {
         pub fn update_whitelist(origin: OriginFor<T>, mr_enclave: [u8; 64]) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 			<MrEnclaveWhitelist<T>>::mutate(|list| -> DispatchResult {
+				ensure!(list.contains(&mr_enclave), Error::<T>::Existed);
                 list.try_push(mr_enclave).unwrap();
                 Ok(())
             })?;

@@ -48,8 +48,8 @@ pub struct RewardOrder<Balance> {
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct PoISKey {
-	g: [u8; 256],
-	n: [u8; 256],
+	pub g: [u8; 256],
+	pub n: [u8; 256],
 }
 
 /// The custom struct for storing info of storage FaucetRecord.

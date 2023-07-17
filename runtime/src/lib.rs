@@ -1605,7 +1605,7 @@ mod benches {
 		[pallet_balances, Balances]
 		[pallet_timestamp, Timestamp]
 		[pallet_contracts, Contracts]
-		// [pallet_sminer, Sminer]
+		[pallet_sminer, SminerBench::<Runtime>]
 		// [pallet_oss, Oss]
 		[pallet_cacher, Cacher]
 		// [pallet_file_bank, FileBank]
@@ -2108,7 +2108,7 @@ impl_runtime_apis! {
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use pallet_tee_worker::benchmarking::Pallet as TeeWorkerBench;
 			use pallet_evm::Pallet as PalletEvmBench;
-			// use pallet_sminer::benchmarking::Pallet as SminerBench;
+			use pallet_sminer::benchmarking::Pallet as SminerBench;
 			use baseline::Pallet as BaselineBench;
 
 			let mut list = Vec::<BenchmarkList>::new();
@@ -2127,11 +2127,11 @@ impl_runtime_apis! {
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use pallet_tee_worker::benchmarking::Pallet as TeeWorkerBench;
 
-			// use pallet_sminer::benchmarking::::Pallet as SminerBench;
+			use pallet_sminer::benchmarking::Pallet as SminerBench;
 			use baseline::Pallet as BaselineBench;
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl pallet_tee_worker::benchmarking::Config for Runtime{}
-
+			impl pallet_sminer::benchmarking::Config for Runtime{}
 			// impl pallet_file_bank::benchmarking::Config for Runtime{}
 			impl baseline::Config for Runtime {}
 

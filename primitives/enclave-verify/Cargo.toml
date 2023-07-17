@@ -29,10 +29,11 @@ sp-core = { version = "7.0.0", default-features = false, git = 'https://github.c
 webpki = { package = "webpki", path = '../../utils/webpki', default-features = false }
 base64 = { default-features = false, features = ["alloc"], version = "0.12.2" }
 sp-application-crypto = { version = '7.0.0', branch = 'cess-polkadot-v0.9.36', git = 'https://github.com/CESSProject/substrate.git', default-features = false }
-# sp-io = { version = "7.0.0", default-features = false, branch = 'cess-polkadot-v0.9.36', git = 'https://github.com/CESSProject/substrate.git' }
+# 
 
 [dev-dependencies]
 rand = "0.8.5"
+sp-io = { version = "7.0.0", default-features = false, branch = 'cess-polkadot-v0.9.36', git = 'https://github.com/CESSProject/substrate.git' }
 
 [features]
 default = ["std"]
