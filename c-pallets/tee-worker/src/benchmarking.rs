@@ -1,16 +1,11 @@
 use super::*;
-use crate::{Pallet as TeeWorker, *};
+use crate::{Pallet as TeeWorker};
 use codec::{alloc::string::ToString, Decode};
 pub use frame_benchmarking::{
 	account, benchmarks, impl_benchmark_test_suite, whitelist_account, whitelisted_caller,
 };
 use frame_support::{
-	dispatch::UnfilteredDispatchable,
-	pallet_prelude::*,
-	traits::{Currency, CurrencyToVote, Get, Imbalance},
-};
-use pallet_cess_staking::{
-	testing_utils, Config as StakingConfig, Pallet as Staking, RewardDestination,
+	traits::{Currency, CurrencyToVote, Imbalance},
 };
 use frame_system::RawOrigin;
 
@@ -33,13 +28,43 @@ pub fn get_report() -> SgxAttestationReport {
     }
 }
 
+pub fn tee_register<T: Config>() -> Result<(T::AccountId, T::AccountId), &'static str> {
+    let (stash, controller) = pallet_cess_staking::testing_utils::create_stash_controller::<T>(USER_SEED, 100, Default::default())?;
+    let sgx_att_report = get_report();
+    TeeWorker::<T>::register(
+        RawOrigin::Signed(controller.clone()).into(),
+        stash.clone(),
+        NODE_PUBLIC_KEY,
+        [0u8; 38], 
+        PODR2_PBK, 
+        sgx_att_report
+    ).map_err(|_| "tee worker register error")?;
+    Ok((stash, controller))
+}
+
 benchmarks! {
     register {
-        let caller: T::AccountId = whitelisted_caller();
         let (stash, controller) = pallet_cess_staking::testing_utils::create_stash_controller::<T>(USER_SEED, 100, Default::default())?;
         let sgx_att_report = get_report();
     }: _(RawOrigin::Signed(controller.clone()), stash.clone(), NODE_PUBLIC_KEY, [0u8; 38], PODR2_PBK, sgx_att_report)
     verify {
         assert!(TeeWorkerMap::<T>::contains_key(&controller))
     }
+
+    update_whitelist {
+        let _ = tee_register::<T>()?;
+        let mr_enclave = [5u8; 64];
+    }: _(RawOrigin::Root, mr_enclave.clone())
+    verify {
+        let mr_enclave_list = <MrEnclaveWhitelist<T>>::get();
+        assert!(mr_enclave_list.contains(&mr_enclave))
+    }
+
+    exit {
+        let (_, controller) = tee_register::<T>()?;
+    }: _(RawOrigin::Signed(controller.clone()))
+    verify {
+        assert!(!TeeWorkerMap::<T>::contains_key(&controller))
+    }
 }
+
