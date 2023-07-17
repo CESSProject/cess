@@ -1071,7 +1071,7 @@ pub mod pallet {
 			let mut max_life: u32 = 0;
 			// TODO: need to set a maximum number of cycles
 			let mut seed: u32 = 20230601;
-			while (miner_list.len() as u32 < need_miner_count) && (valid_index_list.len() as u32 != miner_count) {
+			while ((miner_list.len() as u32) < need_miner_count) && (valid_index_list.len() as u32 != miner_count) {
 				seed = seed.saturating_add(1); 
 				let index_list = Self::random_select_miner(need_miner_count, miner_count, &valid_index_list, seed);
 

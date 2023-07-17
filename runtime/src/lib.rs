@@ -49,6 +49,7 @@ use sp_runtime::{
 	RuntimeAppPublic,
 };
 use sp_std::{marker::PhantomData, prelude::*};
+pub use frame_system::Call as SystemCall;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
@@ -885,6 +886,9 @@ impl pallet_timestamp::Config for Runtime {
 	type WeightInfo = pallet_timestamp::weights::SubstrateWeight<Runtime>;
 }
 
+/// Existential deposit.
+pub const EXISTENTIAL_DEPOSIT: u128 = 10_000_000 * 1000 * 100;
+
 parameter_types! {
 	pub const ExistentialDeposit: Balance = 1 * DOLLARS;
 	// For weight estimation, we assume that the most locks on an individual account will be 50.
@@ -1601,12 +1605,12 @@ mod benches {
 		[pallet_balances, Balances]
 		[pallet_timestamp, Timestamp]
 		[pallet_contracts, Contracts]
-		[pallet_sminer, Sminer]
-		[pallet_oss, Oss]
+		// [pallet_sminer, Sminer]
+		// [pallet_oss, Oss]
 		[pallet_cacher, Cacher]
-		[pallet_file_bank, FileBankBench::<Runtime>]
+		// [pallet_file_bank, FileBank]
 		[pallet_tee_worker, TeeWorkerBench::<Runtime>]
-		[pallet_audit, SegmentBookBench::<Runtime>]
+		// [pallet_audit, Audit]
 		[pallet_collective::<Instance1>, Council]
 		[pallet_collective::<Instance2>, TechnicalCommittee]
 		[pallet_evm, PalletEvmBench::<Runtime>]
@@ -2102,9 +2106,8 @@ impl_runtime_apis! {
 			use frame_benchmarking::{baseline, Benchmarking, BenchmarkList};
 			use frame_support::traits::StorageInfoTrait;
 			use frame_system_benchmarking::Pallet as SystemBench;
-			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
 			use pallet_tee_worker::benchmarking::Pallet as TeeWorkerBench;
-			use pallet_audit::benchmarking::Pallet as SegmentBookBench;
+			use pallet_evm::Pallet as PalletEvmBench;
 			// use pallet_sminer::benchmarking::Pallet as SminerBench;
 			use baseline::Pallet as BaselineBench;
 
@@ -2122,38 +2125,22 @@ impl_runtime_apis! {
 			use frame_benchmarking::{baseline, Benchmarking, BenchmarkBatch,  TrackedStorageKey};
 			use pallet_evm::Pallet as PalletEvmBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
-			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
 			use pallet_tee_worker::benchmarking::Pallet as TeeWorkerBench;
-			use pallet_audit::benchmarking::Pallet as SegmentBookBench;
 
 			// use pallet_sminer::benchmarking::::Pallet as SminerBench;
 			use baseline::Pallet as BaselineBench;
 			impl frame_system_benchmarking::Config for Runtime {}
-			impl pallet_file_bank::benchmarking::Config for Runtime{}
 			impl pallet_tee_worker::benchmarking::Config for Runtime{}
-			impl pallet_audit::benchmarking::Config for Runtime{}
 
 			// impl pallet_file_bank::benchmarking::Config for Runtime{}
 			impl baseline::Config for Runtime {}
 
-			let whitelist: Vec<TrackedStorageKey> = vec![
-				// Block Number
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef702a5c1b19ab7a04f536c519aca4983ac").to_vec().into(),
-				// Total Issuance
-				hex_literal::hex!("c2261276cc9d1f8598ea4b6a74b15c2f57c875e4cff74148e4628f264b974c80").to_vec().into(),
-				// Execution Phase
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef7ff553b5a9862a516939d82b3d3d8661a").to_vec().into(),
-				// Event Count
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef70a98fdbe9ce6c55837576c60c7af3850").to_vec().into(),
-				// System Events
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7").to_vec().into(),
-				// System BlockWeight
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef734abf5cb34d6244378cddbf18e849d96").to_vec().into(),
-			];
+			use frame_support::traits::WhitelistedStorageKeys;
+			let whitelist: Vec<TrackedStorageKey> = AllPalletsWithSystem::whitelisted_storage_keys();
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
-			add_benchmarks!(params, batches, pallet_evm);
+			add_benchmarks!(params, batches);
 
 			Ok(batches)
 		}
