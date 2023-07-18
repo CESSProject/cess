@@ -1022,6 +1022,7 @@ impl pallet_audit::Config for Runtime {
 }
 
 pub const SEGMENT_COUNT: u32 = 1000;
+// TODO!
 pub const FRAGMENT_COUNT: u32 = 3;
 
 parameter_types! {

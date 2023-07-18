@@ -507,31 +507,31 @@ pub mod pallet {
 			let _ = ensure_root(origin)?;
 
 			if count < 20 {
-				<DealMap<T>>::try_mutate(&deal_hash, |opt| -> DispatchResult {
+				if let Err(_) = <DealMap<T>>::try_mutate(&deal_hash, |opt| -> DispatchResult {
 					let deal_info = opt.as_mut().ok_or(Error::<T>::NonExistent)?;
 					// unlock mienr space
-					for miner_task in &deal_info.assigned_miner {
-						let task_count = miner_task.fragment_list.len() as u128;
-						T::MinerControl::unlock_space(&miner_task.miner, FRAGMENT_SIZE * task_count)?;
+					let mut needed_list: BoundedVec<MinerTaskList<T>, T::StringLimit> = Default::default();
+					let mut selected_miner: BoundedVec<AccountOf<T>, T::StringLimit> = Default::default();
+					for miner_task in &deal_info.assigned_miner.clone() {
+						if !deal_info.complete_list.contains(&miner_task.miner) {
+							deal_info.assigned_miner.retain(|temp_info| temp_info.miner != miner_task.miner);
+							let task_count = miner_task.fragment_list.len() as u128;
+							T::MinerControl::unlock_space(&miner_task.miner, FRAGMENT_SIZE * task_count)?;
+							needed_list.try_push(miner_task.clone()).map_err(|_| Error::<T>::Overflow)?;
+						}
+						selected_miner.try_push(miner_task.miner.clone()).map_err(|_| Error::<T>::Overflow)?;
 					}
-					let miner_task_list = Self::random_assign_miner(&deal_info.needed_list)?;
-					deal_info.assigned_miner = miner_task_list;
-					deal_info.complete_list = Default::default();
+
+					let mut miner_task_list = Self::reassign_miner(needed_list, selected_miner)?.to_vec();
+					deal_info.assigned_miner.try_append(&mut miner_task_list).map_err(|_| Error::<T>::Overflow)?;
 					deal_info.count = count;
 					Self::start_first_task(deal_hash.0.to_vec(), deal_hash, count + 1, life)?;
 					Ok(())
-				})?;
-			} else {
-				let deal_info = <DealMap<T>>::try_get(&deal_hash).map_err(|_| Error::<T>::NonExistent)?;
-				let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
-				T::StorageHandle::unlock_user_space(&deal_info.user.user, needed_space)?;
-				// unlock mienr space
-				for miner_task in deal_info.assigned_miner {
-					let count = miner_task.fragment_list.len() as u128;
-					T::MinerControl::unlock_space(&miner_task.miner, FRAGMENT_SIZE * count)?;
+				}) {
+					Self::remove_deal(&deal_hash)?;
 				}
-				
-				<DealMap<T>>::remove(&deal_hash);
+			} else {
+				Self::remove_deal(&deal_hash)?;
 			}
 
 			Ok(())
