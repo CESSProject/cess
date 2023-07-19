@@ -1,36 +1,36 @@
-// use super::*;
-// use crate::{Pallet as FileBank, *};
-// use cp_cess_common::{Hash, IpAddress};
-// use codec::{alloc::string::ToString, Decode};
-// pub use frame_benchmarking::{
-// 	account, benchmarks, impl_benchmark_test_suite, whitelist_account, whitelisted_caller,
-// };
-// use frame_support::{
-// 	dispatch::UnfilteredDispatchable,
-// 	pallet_prelude::*,
-// 	traits::{Currency, CurrencyToVote, Get, Imbalance},
-// };
-// use pallet_cess_staking::{
-// 	testing_utils, Config as StakingConfig, Pallet as Staking, RewardDestination,
-// };
-// use pallet_tee_worker::{Config as TeeWorkerConfig, Pallet as TeeWorker};
-// use pallet_sminer::{Config as SminerConfig, Pallet as Sminer};
-// use sp_runtime::{
-// 	traits::{Bounded, One, StaticLookup, TrailingZeroInput, Zero},
-// 	Perbill, Percent,
-// };
-// use sp_std::prelude::*;
+use super::*;
+use crate::{Pallet as FileBank, *};
+use cp_cess_common::{Hash, IpAddress};
+use codec::{alloc::string::ToString, Decode};
+pub use frame_benchmarking::{
+	account, benchmarks, impl_benchmark_test_suite, whitelist_account, whitelisted_caller,
+};
+use frame_support::{
+	dispatch::UnfilteredDispatchable,
+	pallet_prelude::*,
+	traits::{Currency, CurrencyToVote, Get, Imbalance},
+};
+use pallet_cess_staking::{
+	testing_utils, Config as StakingConfig, Pallet as Staking, RewardDestination,
+};
+use pallet_tee_worker::{Config as TeeWorkerConfig, Pallet as TeeWorker};
+use pallet_sminer::{Config as SminerConfig, Pallet as Sminer};
+use sp_runtime::{
+	traits::{Bounded, One, StaticLookup, TrailingZeroInput, Zero},
+	Perbill, Percent,
+};
+use sp_std::prelude::*;
 
-// use frame_system::RawOrigin;
+use frame_system::RawOrigin;
 
-// pub struct Pallet<T: Config>(FileBank<T>);
-// pub trait Config:
-// 	crate::Config + pallet_cess_staking::Config + pallet_tee_worker::Config + pallet_sminer::Config
-// {
-// }
-// type SminerBalanceOf<T> = <<T as pallet_sminer::Config>::Currency as Currency<
-// 	<T as frame_system::Config>::AccountId,
-// >>::Balance;
+pub struct Pallet<T: Config>(FileBank<T>);
+pub trait Config:
+	crate::Config + pallet_sminer::benchmarking::Config
+{
+}
+type SminerBalanceOf<T> = <<T as pallet_sminer::Config>::Currency as Currency<
+	<T as frame_system::Config>::AccountId,
+>>::Balance;
 
 // const SEED: u32 = 2190502;
 // const MAX_SPANS: u32 = 100;
@@ -178,44 +178,28 @@
 // 	Ok((caller.clone(), miner.clone(), controller.clone()))
 // }
 
-// benchmarks! {
-// 	upload_filler {
-// 		let v in 0 .. 10;
-// 		log::info!("start upload filler");
-// 		let controller = testing_utils::create_funded_user::<T>("controller", SEED, 100);
-// 		let stash = testing_utils::create_funded_user::<T>("stash", SEED, 100);
-// 		let controller_lookup: <T::Lookup as StaticLookup>::Source
-// 			= T::Lookup::unlookup(controller.clone());
-// 		let reward_destination = RewardDestination::Staked;
-// 		let amount = <T as pallet_cess_staking::Config>::Currency::minimum_balance() * 10u32.into();
-// 		let ip = IpAddress::IPV4([127,0,0,1], 15001);
-// 		whitelist_account!(stash);
-// 		Staking::<T>::bond(RawOrigin::Signed(stash.clone()).into(), controller_lookup, amount, reward_destination)?;
-// 		whitelist_account!(controller);
+benchmarks! {
+	cert_idle_space {
+		let miner = pallet_sminer::benchmarking::add_miner::<T>("miner1")?;
 
-// 		TeeWorker::<T>::registration_scheduler(RawOrigin::Signed(controller.clone()).into(), stash, ip)?;
+		let idle_sig_info = IdleSigInfo::<T> {
+			miner: miner.clone(),
+			count: 1000,
+			accumulator: [0u8; 256],
+			last_operation_block: 10u32.into(),
+		};
 
-// 		let mut filler_list: Vec<FillerInfo<T>> = Vec::new();
-// 		let miner = add_miner::<T>()?;
-// 		for i in 0 .. v {
-// 			let new_filler = FillerInfo::<T> {
-// 				filler_size: 1024 * 1024 * 8,
-// 				index: 1,
-// 				block_num: 8,
-// 				segment_size: 1024 * 1024,
-// 				scan_size: 16,
-// 				miner_address: miner.clone(),
-// 				filler_hash: Hash([i as u8; 64]),
-// 			};
-// 			filler_list.push(new_filler);
-// 		}
-// 	}: _(RawOrigin::Signed(controller), miner.clone(), filler_list)
-// 	verify {
-// 		for i in 0 .. v {
-// 			let filler_id = Hash([i as u8; 64]);
-// 			assert!(FillerMap::<T>::contains_key(&miner, &filler_id));
-// 		}
-// 	}
+		let original = idle_sig_info.encode();
+		let original = sp_io::hashing::sha2_256(&original);
+
+		let tee_sig = [9, 145, 113, 138, 73, 244, 229, 35, 53, 150, 162, 241, 244, 34, 219, 176, 175, 110, 9, 247, 250, 148, 225, 98, 185, 68, 202, 4, 222, 105, 9, 108, 12, 175, 31, 141, 8, 253, 0, 75, 201, 246, 209, 160, 177, 186, 135, 2, 66, 247, 84, 16, 220, 169, 210, 116, 90, 192, 127, 120, 195, 91, 8, 44, 205, 55, 149, 22, 72, 56, 149, 182, 94, 143, 115, 20, 5, 156, 191, 63, 189, 206, 86, 254, 181, 167, 245, 7, 72, 160, 156, 86, 46, 78, 96, 122, 127, 65, 153, 108, 169, 119, 186, 228, 48, 100, 194, 192, 153, 158, 120, 214, 97, 52, 193, 21, 245, 189, 56, 179, 226, 36, 226, 109, 2, 174, 127, 50, 110, 155, 10, 164, 25, 103, 115, 0, 214, 149, 144, 152, 188, 194, 117, 253, 115, 255, 170, 25, 245, 86, 136, 25, 121, 33, 232, 10, 4, 194, 139, 167, 103, 220, 55, 183, 206, 108, 168, 109, 91, 91, 3, 188, 166, 231, 127, 213, 27, 13, 146, 43, 237, 88, 178, 48, 241, 214, 8, 123, 38, 228, 73, 190, 29, 232, 32, 109, 189, 127, 242, 137, 105, 154, 73, 238, 90, 205, 169, 20, 118, 6, 234, 178, 192, 91, 232, 182, 207, 207, 180, 175, 127, 216, 246, 218, 179, 144, 17, 230, 93, 65, 212, 1, 204, 146, 83, 195, 61, 68, 16, 140, 23, 243, 107, 95, 170, 82, 88, 120, 204, 97, 219, 189, 186, 202, 222, 214];
+
+	}: _(RawOrigin::Signed(miner.clone()), idle_sig_info, tee_sig)
+	verify {
+		let (idle, service) = T::MinerControl::get_power(&miner)?;
+		assert_eq!(idle, 1000 * 8 * 1024 * 1024);
+	}
+}
 
 // 	buy_space {
 // 		log::info!("start buy_space");

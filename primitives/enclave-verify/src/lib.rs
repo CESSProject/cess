@@ -262,7 +262,7 @@ fn cryptos_rsa() {
     };
 
     let encoding = pois_key.encode();
-    let original_text = sp_io::hashing::sha2_256(&encoding);
+    let original_text = [141, 234, 45, 137, 42, 229, 4, 215, 180, 109, 128, 255, 194, 207, 240, 106, 73, 126, 254, 6, 228, 56, 160, 36, 156, 249, 101, 3, 244, 173, 241, 220];
 
 	let priv_key_der = priv_key.to_pkcs1_der().unwrap();
     // println!("priv_key_der: {:?}", priv_key_der.as_bytes());
@@ -275,7 +275,7 @@ fn cryptos_rsa() {
 
 	let msg = "hello world!".as_bytes();
 	let binding = priv_key.sign(Pkcs1v15Sign::new_raw(), &original_text).unwrap();
-    let sig = binding.as_ref();
+    let sig: &[u8] = binding.as_ref();
     println!("sig is: {:?}, sig is length: {:?}", sig, sig.len());
 
     let result = pk.verify(Pkcs1v15Sign::new_raw(), &msg, &sig);

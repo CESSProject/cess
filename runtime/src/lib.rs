@@ -1608,7 +1608,7 @@ mod benches {
 		[pallet_sminer, SminerBench::<Runtime>]
 		// [pallet_oss, Oss]
 		[pallet_cacher, Cacher]
-		// [pallet_file_bank, FileBank]
+		[pallet_file_bank, FileBankBench::<Runtime>]
 		[pallet_tee_worker, TeeWorkerBench::<Runtime>]
 		// [pallet_audit, Audit]
 		[pallet_collective::<Instance1>, Council]
@@ -2107,6 +2107,7 @@ impl_runtime_apis! {
 			use frame_support::traits::StorageInfoTrait;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use pallet_tee_worker::benchmarking::Pallet as TeeWorkerBench;
+			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
 			use pallet_evm::Pallet as PalletEvmBench;
 			use pallet_sminer::benchmarking::Pallet as SminerBench;
 			use baseline::Pallet as BaselineBench;
@@ -2126,12 +2127,13 @@ impl_runtime_apis! {
 			use pallet_evm::Pallet as PalletEvmBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use pallet_tee_worker::benchmarking::Pallet as TeeWorkerBench;
-
+			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
 			use pallet_sminer::benchmarking::Pallet as SminerBench;
 			use baseline::Pallet as BaselineBench;
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl pallet_tee_worker::benchmarking::Config for Runtime{}
 			impl pallet_sminer::benchmarking::Config for Runtime{}
+			impl pallet_file_bank::benchmarking::Config for Runtime{}
 			// impl pallet_file_bank::benchmarking::Config for Runtime{}
 			impl baseline::Config for Runtime {}
 
