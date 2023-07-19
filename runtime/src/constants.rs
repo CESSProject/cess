@@ -24,7 +24,7 @@ pub mod time {
 	/// of `c` configured for BABE (where `1 - c` represents the probability of
 	/// a slot being empty).
 	/// This value is only used indirectly to define the unit constants below
-	/// that are expressed in blocks. The rest of the code should use
+	/// that are expressed in blocks. The rest of the code should use 
 	/// `SLOT_DURATION` instead (like the Timestamp pallet for calculating the
 	/// minimum period).
 	///
