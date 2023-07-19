@@ -26,7 +26,7 @@ git clone https://github.com/CESSProject/cess.git
 cd cess
 
 # Build the node (The first build will be long (~30min))
-cargo build --release
+cargo build --release 
 ```
 
 ## Run The CESS Node
