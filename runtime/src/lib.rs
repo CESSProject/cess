@@ -53,7 +53,7 @@ use sp_std::{marker::PhantomData, prelude::*};
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
-// A few exports that help ease life for downstream crates .
+// A few exports that help ease life for downstream crates.
 pub use frame_support::{
 	construct_runtime,
 	pallet_prelude::Get,
