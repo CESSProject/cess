@@ -366,7 +366,7 @@ pub mod pallet {
 				ClearUserList::<T>::put(temp_acc_list);
 				weight = weight.saturating_add(T::DbWeight::get().writes(1));
 			}
-			
+
 			let mut count: u32 = 0;
 			let acc_list = ClearUserList::<T>::get();
 			weight = weight.saturating_add(T::DbWeight::get().reads(1));
@@ -459,7 +459,7 @@ pub mod pallet {
 			ensure!(user_brief.bucket_name.len() as u32 >= minimum, Error::<T>::SpecError);
 
 			let needed_space = deal_info.len() as u128 * (SEGMENT_SIZE * 15 / 10);
-			ensure!(T::StorageHandle::get_user_avail_space(&user_brief.user)? > needed_space, Error::<T>::InsufficientAvailableSpace);		
+			ensure!(T::StorageHandle::get_user_avail_space(&user_brief.user)? > needed_space, Error::<T>::InsufficientAvailableSpace);
 
 			if <File<T>>::contains_key(&file_hash) {
 				T::StorageHandle::update_user_space(&user_brief.user, 1, needed_space)?;
@@ -523,7 +523,7 @@ pub mod pallet {
 					let count = miner_task.fragment_list.len() as u128;
 					T::MinerControl::unlock_space(&miner_task.miner, FRAGMENT_SIZE * count)?;
 				}
-				
+
 				<DealMap<T>>::remove(&deal_hash);
 			}
 

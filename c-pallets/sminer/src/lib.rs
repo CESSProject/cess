@@ -345,6 +345,7 @@ pub mod pallet {
 					front: u64::MIN,
 					rear: u64::MIN,
 					service_bloom_filter: Default::default(),
+					tee_signature: tee_sig,
 				},
 			);
 

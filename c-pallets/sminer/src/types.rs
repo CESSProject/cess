@@ -22,6 +22,7 @@ pub struct MinerInfo<T: Config> {
 	pub(super) front: u64,
 	pub(super) rear: u64,
 	pub(super) service_bloom_filter: BloomFilter,
+    pub(super) tee_signature: TeeRsaSignature,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
