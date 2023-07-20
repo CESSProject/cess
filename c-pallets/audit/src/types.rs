@@ -32,6 +32,7 @@ pub struct MinerSnapShot<AccountId, Block> {
 	pub(super) idle_submitted: bool,
 	pub(super) service_submitted: bool,
 	pub(super) service_bloom_filter: BloomFilter,
+	pub(super) accumulator: Accumulator,
 }
 
 // Structure for storing miner certificates

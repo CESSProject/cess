@@ -1042,7 +1042,7 @@ pub mod pallet {
 					Ok(index) => local_keys.get(index),
 					Err(_e) => continue,
 				};
-	
+
 				if let Some(authority_id) = authority_id {
 					return Ok((authority_id.clone(), validators.len()));
 				}
@@ -1084,8 +1084,8 @@ pub mod pallet {
 					if state == "lock".as_bytes().to_vec() {
 						continue;
 					}
-	
-					let (idle_space, service_space, service_bloom_filter) = T::MinerControl::get_miner_snapshot(&miner).map_err(|_| OffchainErr::GenerateInfoError)?;
+
+					let (idle_space, service_space, service_bloom_filter, accumulator) = T::MinerControl::get_miner_snapshot(&miner).map_err(|_| OffchainErr::GenerateInfoError)?;
 
 					if (idle_space == 0) && (service_space == 0) {
 						continue;
@@ -1121,6 +1121,7 @@ pub mod pallet {
 						idle_submitted: false,
 						service_submitted: false,
 						service_bloom_filter,
+						accumulator,
 					};
 
 					if let Err(_e) = miner_list.try_push(miner_snapshot) {
