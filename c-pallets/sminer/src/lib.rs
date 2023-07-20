@@ -41,8 +41,8 @@ use sp_runtime::traits::Zero;
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 
-mod types;
-use types::*;
+pub mod types;
+pub use types::*;
 
 mod constants;
 use constants::*;

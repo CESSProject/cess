@@ -1,4 +1,5 @@
 use super::*;
+use pallet_sminer::PoISKey;
 // Substrate type
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
@@ -39,6 +40,7 @@ pub struct IdleSigInfo<T: Config> {
 	pub(super) count: u64,
 	pub(super) accumulator: Accumulator,
 	pub(super) last_operation_block: BlockNumberOf<T>,
+	pub(super) pois_key: PoISKey,
 }
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
