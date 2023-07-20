@@ -259,7 +259,7 @@ impl<T: Config> Pallet<T> {
                 if idle < needed_size {
                     continue;
                 }
-                T::MinerControl::lock_space(&miner_task.miner, miner_task.fragment_list.len() as u128 * FRAGMENT_SIZE)?;
+                T::MinerControl::lock_space(&miner, miner_task.fragment_list.len() as u128 * FRAGMENT_SIZE)?;
 
                 break miner;
             };
