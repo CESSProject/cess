@@ -769,17 +769,12 @@ pub mod pallet {
 			)?;
 
 			<PendingReplacements<T>>::try_mutate(&sender, |pending_space| -> DispatchResult {
-				if pending_space % IDLE_SEG_SIZE == 0 {
+				if *pending_space % IDLE_SEG_SIZE == 0 {
 					Err(Error::<T>::InsufficientReplaceable)?;
 				}
-				let replace_space = IDLE_SEG_SIZE.checked_mul(count).ok_or(Error::<T>::Overflow)?;
+				let replace_space = IDLE_SEG_SIZE.checked_mul(count.into()).ok_or(Error::<T>::Overflow)?;
 				let pending_space_temp = pending_space.checked_add(replace_space).ok_or(Error::<T>::Overflow)?;
 				*pending_space = pending_space_temp;
-
-				ensure!(*pending_count > count as u32, Error::<T>::LengthExceedsLimit);
-
-				let temp_count = pending_count.checked_sub(count as u32).ok_or(Error::<T>::Overflow)?;
-				*pending_count = temp_count;
 
 				Ok(())
 			})?;

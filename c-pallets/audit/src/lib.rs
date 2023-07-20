@@ -226,6 +226,9 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type LockTime: Get<BlockNumberOf<Self>>;
+
+		#[pallet::constant]
+		type ReassignCeiling: Get<u8> + Clone + Eq + PartialEq;
 	}
 
 	#[pallet::event]
@@ -341,6 +344,10 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn lock)]
 	pub(super) type Lock<T: Config> = StorageValue<_, bool, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn verify_reassign_count)]
+	pub(super) type VerifyReassignCount<T: Config> = StorageValue<_, u8, ValueQuery>;
 
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
@@ -759,6 +766,33 @@ pub mod pallet {
 			let mut weight: Weight = Weight::from_ref_time(0);
 			let duration = <VerifyDuration<T>>::get();
 			if now == duration {
+				let mut reassign_count = <VerifyReassignCount<T>>::get();
+				let ceiling = T::ReassignCeiling::get();
+				if reassign_count > ceiling {
+					for (acc, unverify_list) in UnverifyIdleProof::<T>::iter() {
+						weight = weight.saturating_add(T::DbWeight::get().reads(1));
+						if unverify_list.len() > 0 {
+							UnverifyIdleProof::<T>::remove(acc);
+							weight = weight.saturating_add(T::DbWeight::get().writes(1));
+						}
+					}
+					for (acc, unverify_list) in UnverifyServiceProof::<T>::iter() {
+						weight = weight.saturating_add(T::DbWeight::get().reads(1));
+						if unverify_list.len() > 0 {
+							UnverifyServiceProof::<T>::remove(acc);
+							weight = weight.saturating_add(T::DbWeight::get().writes(1));
+						}
+					}
+					<ChallengeSnapShot<T>>::kill();
+					weight = weight.saturating_add(T::DbWeight::get().writes(1));
+					<VerifyReassignCount<T>>::put(0);
+					weight = weight.saturating_add(T::DbWeight::get().writes(1));
+					return weight;
+				} else {
+					reassign_count = reassign_count + 1;
+					<VerifyReassignCount<T>>::put(reassign_count);
+				}
+
 				let mut seed: u32 = 0;
 				// Used to calculate the new validation period.
 				let mut mission_count: u32 = 0;
@@ -883,6 +917,9 @@ pub mod pallet {
 
 				if max_count == 0 {
 					<ChallengeSnapShot<T>>::kill();
+					weight = weight.saturating_add(T::DbWeight::get().writes(1));
+					<VerifyReassignCount<T>>::put(0);
+					weight = weight.saturating_add(T::DbWeight::get().writes(1));
 				}
 			}
 

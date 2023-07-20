@@ -178,41 +178,13 @@ pub mod pallet {
 			Ok(())
 		}
 
-		// #[pallet::call_index(1)]
-        // #[transactional]
-		// #[pallet::weight(100_000_000)]
-		// pub fn test_verify_sig(origin: OriginFor<T>, puk: [u8; 32], sig: [u8; 64], _msg: Vec<u8>) -> DispatchResult {
-		// 	let _ = ensure_signed(origin)?;
-
-		// 	let result = sp_io::crypto::ed25519_verify(
-		// 		&NodeSignature::from_raw(sig),
-		// 		b"hello, world!",
-		// 		&NodePublicKey::from_raw(puk),
-		// 	);
-
-		// 	ensure!(result, Error::<T>::VerifyCertFailed);
-
-		// 	Ok(())
-		// }
-
-		// #[pallet::call_index(2)]
-		// #[transactional]
-		// #[pallet::weight(100_000_000)]
-		// pub fn test_rsa_verify(origin: OriginFor<T>, key: Vec<u8>, sig: Vec<u8>, msg: Vec<u8>) -> DispatchResult {
-		// 	let _ = ensure_signed(origin)?;
-		// 	let result = verify_rsa(&key, &msg, &sig);
-
-		// 	ensure!(result, Error::<T>::VerifyCertFailed);
-		// 	Ok(())
-		// }
-
-        #[pallet::call_index(3)]
+        #[pallet::call_index(1)]
         #[transactional]
 		#[pallet::weight(100_000_000)]
         pub fn update_whitelist(origin: OriginFor<T>, mr_enclave: [u8; 64]) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 			<MrEnclaveWhitelist<T>>::mutate(|list| -> DispatchResult {
-				ensure!(list.contains(&mr_enclave), Error::<T>::Existed);
+				ensure!(!list.contains(&mr_enclave), Error::<T>::Existed);
                 list.try_push(mr_enclave).unwrap();
                 Ok(())
             })?;
@@ -220,7 +192,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(4)]
+		#[pallet::call_index(2)]
         #[transactional]
 		#[pallet::weight(100_000_000)]
 		pub fn exit(origin: OriginFor<T>) -> DispatchResult {
@@ -236,42 +208,6 @@ pub mod pallet {
 
 			Ok(())
 		}
-
-		// #[pallet::call_index(6)]
-		// #[transactional]
-		// #[pallet::weight(100_00_000)]
-		// pub fn bls_verify_test(origin: OriginFor<T>, puk: Vec<u8>, msg: Vec<u8>, sig: Vec<u8>) -> DispatchResult {
-		// 	let _ = ensure_signed(origin)?;
-
-		// 	let result = verify_bls(&puk, &msg, &sig);
-
-		// 	if let Ok(()) = result {
-		// 		log::info!("bls verify result is true");
-		// 	} else {
-		// 		log::info!("bls verify result is false");
-		// 	}
-
-		// 	Ok(())
-		// }
-
-		// #[pallet::call_index(5)]
-        // #[transactional]
-		// #[pallet::weight(100_000_000)]
-		// pub fn update_peer_id(origin: OriginFor<T>, new_peer_id: PeerId) -> DispatchResult {
-		// 	let sender = ensure_signed(origin)?;
-
-		// 	TeeWorkerMap::<T>::try_mutate(&sender, |info_opt| -> DispatchResult {
-		// 		let info = info_opt.as_mut().ok_or(Error::<T>::NonTeeWorker)?;
-
-		// 		info.peer_id = new_peer_id;
-
-		// 		Ok(())
-		// 	})?;
-
-		// 	Self::deposit_event(Event::<T>::UpdatePeerId { acc: sender });
-
-		// 	Ok(())
-		// }
 	}
 }
 
