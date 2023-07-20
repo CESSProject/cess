@@ -743,7 +743,7 @@ pub mod pallet {
 		#[pallet::weight(1_000_000_000)]
 		pub fn replace_idle_space(
 			origin: OriginFor<T>,
-			idle_sig_info: IdleSigInfo<T>,
+			idle_sig_info: SpaceProofInfo<AccountOf<T>, BlockNumberOf<T>>,
 			tee_sig: TeeRsaSignature,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -761,7 +761,8 @@ pub mod pallet {
 				&sender, 
 				idle_sig_info.accumulator,
 				idle_sig_info.last_operation_block.saturated_into(),
-				idle_sig_info.count,
+				idle_sig_info.front,
+				tee_sig,
 			)?;
 
 			<PendingReplacements<T>>::try_mutate(&sender, |pending_count| -> DispatchResult {
@@ -811,7 +812,7 @@ pub mod pallet {
 		#[pallet::weight(100_000_000)]
 		pub fn cert_idle_space(
 			origin: OriginFor<T>,
-			idle_sig_info: IdleSigInfo<T>,
+			idle_sig_info: SpaceProofInfo<AccountOf<T>, BlockNumberOf<T>>,
 			tee_sig: TeeRsaSignature,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -829,7 +830,8 @@ pub mod pallet {
 				&sender, 
 				idle_sig_info.accumulator, 
 				idle_sig_info.last_operation_block.saturated_into(),
-				idle_sig_info.count,
+				idle_sig_info.rear,
+				tee_sig,
 			)?;
 
 			T::StorageHandle::add_total_idle_space(idle_space)?;

@@ -321,7 +321,16 @@ pub mod pallet {
 			ensure!(!(<MinerItems<T>>::contains_key(&sender)), Error::<T>::AlreadyRegistered);
 			T::Currency::reserve(&sender, staking_val)?;
 
-			let encoding = pois_key.encode();
+			let space_proof_info = SpaceProofInfo::<AccountOf<T>, BlockNumberOf<T>> {
+				last_operation_block: u32::MIN.saturated_into(),
+				miner: sender.clone(),
+				front: u64::MIN,
+				rear: u64::MIN,
+				pois_key: pois_key.clone(),
+				accumulator: pois_key.g,
+			};
+
+			let encoding = space_proof_info.encode();
 			let original_text = sp_io::hashing::sha2_256(&encoding);
 			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
 			ensure!(verify_rsa(&tee_puk, &original_text, &tee_sig), Error::<T>::VerifyTeeSigFailed);
@@ -339,11 +348,7 @@ pub mod pallet {
 					idle_space: u128::MIN,
 					service_space: u128::MIN,
 					lock_space: u128::MIN,
-					pois_key,
-					accumulator: [0u8; 256],
-					last_operation_block: u32::MIN.saturated_into(),
-					front: u64::MIN,
-					rear: u64::MIN,
+					space_proof_info,			
 					service_bloom_filter: Default::default(),
 					tee_signature: tee_sig,
 				},
@@ -629,51 +634,67 @@ impl<T: Config> Pallet<T> {
 	/// Parameters:
 	/// - `peerid`: peerid.
 	/// - `increment`: computing power.
-	pub fn add_miner_idle_space(acc: &AccountOf<T>, accumulator: Accumulator, last_operation_block: u32, rear: u64) -> Result<u128, DispatchError> {
+	pub fn add_miner_idle_space(
+		acc: &AccountOf<T>, 
+		accumulator: Accumulator, 
+		last_operation_block: u32, 
+		rear: u64, 
+		tee_sig: TeeRsaSignature,
+	) -> Result<u128, DispatchError> {
 		MinerItems::<T>::try_mutate(acc, |miner_info_opt| -> Result<u128, DispatchError> {
 			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
 
 			let last_operation_block: BlockNumberOf<T> = last_operation_block.saturated_into();
 
-			ensure!(miner_info.last_operation_block < last_operation_block, Error::<T>::LowerOperationBlock);
+			ensure!(miner_info.space_proof_info.last_operation_block < last_operation_block, Error::<T>::LowerOperationBlock);
 			// check state 
 			ensure!(miner_info.state.to_vec() == STATE_POSITIVE.as_bytes().to_vec(), Error::<T>::NotpositiveState);
 
-			ensure!(miner_info.rear < rear, Error::<T>::CountError);
+			ensure!(miner_info.space_proof_info.rear < rear, Error::<T>::CountError);
 
-			miner_info.last_operation_block = last_operation_block;
+			miner_info.space_proof_info.last_operation_block = last_operation_block;
 
-			let count = rear.checked_sub(miner_info.rear).ok_or(Error::<T>::Overflow)?;
+			let count = rear.checked_sub(miner_info.space_proof_info.rear).ok_or(Error::<T>::Overflow)?;
 			let idle_space = FRAGMENT_SIZE.checked_mul(count as u128).ok_or(Error::<T>::Overflow)?;
 
-			miner_info.rear = rear;
+			miner_info.space_proof_info.rear = rear;
 
-			miner_info.accumulator = accumulator;
+			miner_info.space_proof_info.accumulator = accumulator;
 
 			miner_info.idle_space =
 				miner_info.idle_space.checked_add(idle_space).ok_or(Error::<T>::Overflow)?;
+
+			miner_info.tee_signature = tee_sig;
 
 			Ok(idle_space)
 		})
 	}
 
-	pub fn delete_idle_update_accu(acc: &AccountOf<T>, accumulator: Accumulator, last_operation_block: u32, front: u64) -> Result<u64, DispatchError> {
+	pub fn delete_idle_update_accu(
+		acc: &AccountOf<T>, 
+		accumulator: Accumulator, 
+		last_operation_block: u32, 
+		front: u64, 
+		tee_sig: TeeRsaSignature,
+	) -> Result<u64, DispatchError> {
 		MinerItems::<T>::try_mutate(acc, |miner_info_opt| -> Result<u64, DispatchError> {
 			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
 
 			let last_operation_block: BlockNumberOf<T> = last_operation_block.saturated_into();
 
-			ensure!(miner_info.last_operation_block < last_operation_block, Error::<T>::LowerOperationBlock);
+			ensure!(miner_info.space_proof_info.last_operation_block < last_operation_block, Error::<T>::LowerOperationBlock);
 
-			ensure!(miner_info.front < front, Error::<T>::CountError);
+			ensure!(miner_info.space_proof_info.front < front, Error::<T>::CountError);
 
-			let count = front - miner_info.front;
+			let count = front - miner_info.space_proof_info.front;
 
-			miner_info.last_operation_block = last_operation_block;
+			miner_info.space_proof_info.last_operation_block = last_operation_block;
 
-			miner_info.front = front;
+			miner_info.space_proof_info.front = front;
 
-			miner_info.accumulator = accumulator;
+			miner_info.space_proof_info.accumulator = accumulator;
+
+			miner_info.tee_signature = tee_sig;
 
 			Ok(count)
 		})
@@ -968,7 +989,7 @@ impl<T: Config> Pallet<T> {
 		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
 			let miner = miner_opt.as_mut().ok_or(Error::<T>::Unexpected)?;
 			miner.state = STATE_OFFLINE.as_bytes().to_vec().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
-			let encoding = miner.pois_key.encode();
+			let encoding = miner.space_proof_info.pois_key.encode();
 			let hashing = sp_io::hashing::sha2_256(&encoding);
 			MinerPublicKey::<T>::remove(hashing);
 			Ok(())
@@ -1004,7 +1025,7 @@ impl<T: Config> Pallet<T> {
 	fn withdraw(acc: &AccountOf<T>) -> DispatchResult {
 		let miner_info = <MinerItems<T>>::try_get(acc).map_err(|_| Error::<T>::NotMiner)?;
 		T::Currency::unreserve(acc, miner_info.collaterals);
-		let encoding = miner_info.pois_key.encode();
+		let encoding = miner_info.space_proof_info.pois_key.encode();
 		let hashing = sp_io::hashing::sha2_256(&encoding);
 		MinerPublicKey::<T>::remove(hashing);
 		<MinerItems<T>>::remove(acc);
@@ -1028,9 +1049,9 @@ impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for Pallet<T> {
 }
 
 pub trait MinerControl<AccountId> {
-	fn add_miner_idle_space(acc: &AccountId, accumulator: Accumulator, last_operation_block: u32, rear: u64) -> Result<u128, DispatchError>;
+	fn add_miner_idle_space(acc: &AccountId, accumulator: Accumulator, last_operation_block: u32, rear: u64, tee_sig: TeeRsaSignature) -> Result<u128, DispatchError>;
 	// fn sub_miner_idle_space(acc: &AccountId, accumulator: Accumulator, rear: u64) -> DispatchResult;
-	fn delete_idle_update_accu(acc: &AccountId, accumulator: Accumulator, last_operation_block: u32, front: u64) -> Result<u64, DispatchError>;
+	fn delete_idle_update_accu(acc: &AccountId, accumulator: Accumulator, last_operation_block: u32, front: u64, tee_sig: TeeRsaSignature) -> Result<u64, DispatchError>;
 	fn delete_idle_update_space(acc: &AccountId, idle_space: u128) -> DispatchResult;
 	fn add_miner_service_space(acc: &AccountId, power: u128) -> DispatchResult;
 	fn sub_miner_service_space(acc: &AccountId, power: u128) -> DispatchResult;
@@ -1074,13 +1095,38 @@ pub trait MinerControl<AccountId> {
 }
 
 impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<T> {
-	fn add_miner_idle_space(acc: &<T as frame_system::Config>::AccountId, accumulator: Accumulator,  last_operation_block: u32, rear: u64) -> Result<u128, DispatchError> {
-		let idle_space = Pallet::<T>::add_miner_idle_space(acc, accumulator, last_operation_block, rear)?;
+	fn add_miner_idle_space(
+		acc: &<T as frame_system::Config>::AccountId, 
+		accumulator: Accumulator,  
+		last_operation_block: u32, 
+		rear: u64, 
+		tee_sig: TeeRsaSignature
+	) -> Result<u128, DispatchError> {
+		let idle_space = Pallet::<T>::add_miner_idle_space(
+			acc, 
+			accumulator, 
+			last_operation_block, 
+			rear, 
+			tee_sig
+		)?;
 		Ok(idle_space)
 	}
 
-	fn delete_idle_update_accu(acc: &AccountOf<T>, accumulator: Accumulator, last_operation_block: u32, front: u64) -> Result<u64, DispatchError> {
-		let count = Self::delete_idle_update_accu(acc, accumulator, last_operation_block, front)?;
+	fn delete_idle_update_accu(
+		acc: &AccountOf<T>, 
+		accumulator: Accumulator, 
+		last_operation_block: u32, 
+		front: u64, 
+		tee_sig: TeeRsaSignature
+	) -> Result<u64, DispatchError> {
+		let count = Self::delete_idle_update_accu(
+			acc, 
+			accumulator, 
+			last_operation_block, 
+			front, 
+			tee_sig
+		)?;
+
 		Ok(count)
 	}
 
@@ -1266,6 +1312,6 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 		}
 		//There is a judgment on whether the primary key exists above
 		let miner_info = <MinerItems<T>>::try_get(miner).map_err(|_| Error::<T>::NotMiner)?;
-		Ok((miner_info.idle_space, miner_info.service_space, miner_info.service_bloom_filter, miner_info.accumulator))
+		Ok((miner_info.idle_space, miner_info.service_space, miner_info.service_bloom_filter, miner_info.space_proof_info.accumulator))
 	}
 }

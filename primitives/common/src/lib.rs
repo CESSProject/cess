@@ -17,6 +17,22 @@ use sp_std::prelude::Box;
 pub struct Hash(pub [u8; 64]);
 pub struct TryFromSliceError(());
 
+#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+pub struct PoISKey {
+	pub g: [u8; 256],
+	pub n: [u8; 256],
+}
+
+#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+pub struct SpaceProofInfo<AccountId, Block> {
+	pub last_operation_block: Block,
+	pub miner: AccountId,
+	pub front: u64,
+	pub rear: u64,
+	pub pois_key: PoISKey,
+	pub accumulator: Accumulator,
+}
+
 pub enum HashError {
 	TryFromSliceError,
 	BinaryError,

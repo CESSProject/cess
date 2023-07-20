@@ -776,7 +776,7 @@ pub mod pallet {
 						let index = Self::random_number(seed) as u32;
 						let mut index: u32 = index % (tee_list.len() as u32);
 						let mut tee_acc = &tee_list[index as usize];
-	
+
 						if &acc == tee_acc {
 							index += 1;
 							index = index % (tee_list.len() as u32);

@@ -1,5 +1,4 @@
 use super::*;
-use pallet_sminer::PoISKey;
 // Substrate type
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
