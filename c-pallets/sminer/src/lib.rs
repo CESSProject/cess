@@ -655,7 +655,7 @@ impl<T: Config> Pallet<T> {
 			miner_info.space_proof_info.last_operation_block = last_operation_block;
 
 			let count = rear.checked_sub(miner_info.space_proof_info.rear).ok_or(Error::<T>::Overflow)?;
-			let idle_space = FRAGMENT_SIZE.checked_mul(count as u128).ok_or(Error::<T>::Overflow)?;
+			let idle_space = IDLE_SEG_SIZE.checked_mul(count as u128).ok_or(Error::<T>::Overflow)?;
 
 			miner_info.space_proof_info.rear = rear;
 

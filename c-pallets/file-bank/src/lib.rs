@@ -274,6 +274,8 @@ pub mod pallet {
 		Expired,
 
 		VerifyTeeSigFailed,
+
+		InsufficientReplaceable,
 	}
 
 	
@@ -298,7 +300,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn pending_replacements)]
-	pub(super) type PendingReplacements<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, u32, ValueQuery>;
+	pub(super) type PendingReplacements<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, u128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn invalid_file)]
@@ -649,16 +651,17 @@ pub mod pallet {
 
 								let mut max_task_count = 0;
 								for miner_task in deal_info.assigned_miner.iter() {
-									let count = miner_task.fragment_list.len() as u32;
+									let count = miner_task.fragment_list.len() as u128;
 									if count > max_task_count {
 										max_task_count = count;
 									}
 									// Miners need to report the replaced documents themselves. 
 									// If a challenge is triggered before the report is completed temporarily, 
 									// these documents to be replaced also need to be verified
-									<PendingReplacements<T>>::try_mutate(miner_task.miner.clone(), |pending_count| -> DispatchResult {
-										let pending_count_temp = pending_count.checked_add(count).ok_or(Error::<T>::Overflow)?;
-										*pending_count = pending_count_temp;
+									<PendingReplacements<T>>::try_mutate(miner_task.miner.clone(), |pending_space| -> DispatchResult {
+										let replace_space = FRAGMENT_SIZE.checked_mul(count).ok_or(Error::<T>::Overflow)?;
+										let pending_space_temp = pending_space.checked_add(replace_space).ok_or(Error::<T>::Overflow)?;
+										*pending_space = pending_space_temp;
 										Ok(())
 									})?;
 								}	
@@ -765,7 +768,14 @@ pub mod pallet {
 				tee_sig,
 			)?;
 
-			<PendingReplacements<T>>::try_mutate(&sender, |pending_count| -> DispatchResult {
+			<PendingReplacements<T>>::try_mutate(&sender, |pending_space| -> DispatchResult {
+				if pending_space % IDLE_SEG_SIZE == 0 {
+					Err(Error::<T>::InsufficientReplaceable)?;
+				}
+				let replace_space = IDLE_SEG_SIZE.checked_mul(count).ok_or(Error::<T>::Overflow)?;
+				let pending_space_temp = pending_space.checked_add(replace_space).ok_or(Error::<T>::Overflow)?;
+				*pending_space = pending_space_temp;
+
 				ensure!(*pending_count > count as u32, Error::<T>::LengthExceedsLimit);
 
 				let temp_count = pending_count.checked_sub(count as u32).ok_or(Error::<T>::Overflow)?;
@@ -1078,9 +1088,9 @@ pub mod pallet {
 
 									// TODO!
 									T::MinerControl::delete_idle_update_space(&sender, FRAGMENT_SIZE)?;
-									<PendingReplacements<T>>::try_mutate(&sender, |pending_count| -> DispatchResult {
-										let pending_count_temp = pending_count.checked_add(1).ok_or(Error::<T>::Overflow)?;
-										*pending_count = pending_count_temp;
+									<PendingReplacements<T>>::try_mutate(&sender, |pending_space| -> DispatchResult {
+										let pending_space_temp = pending_space.checked_add(FRAGMENT_SIZE).ok_or(Error::<T>::Overflow)?;
+										*pending_space = pending_space_temp;
 										Ok(())
 									})?;
 
