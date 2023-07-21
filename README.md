@@ -13,7 +13,7 @@
 
 ### Install Guide
 
-Follow [Setup](docs/setup.md) to guide you install the CESS development.
+Follow [Setup](docs/setup.md) to guide you install the CESS development. 
 
 ### Build Node
 
