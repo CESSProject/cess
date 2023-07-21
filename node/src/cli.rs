@@ -1,7 +1,7 @@
 /// An overarching CLI command definition.
 #[derive(Debug, clap::Parser)]
 pub struct Cli {
-	/// Possible subcommand with parameters.
+	/// Possible subcommand with parameters .
 	#[command(subcommand)]
 	pub subcommand: Option<Subcommand>,
 
