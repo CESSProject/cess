@@ -11,7 +11,7 @@ pub struct Cli {
 
 	/// Disable automatic hardware benchmarks.
 	///
-	/// By default these benchmarks are automatically ran at startup and measure
+	/// By default these benchmarks are automatically ran at startup and measure 
 	/// the CPU speed, the memory bandwidth and the disk speed.
 	///
 	/// The results are then printed out in the logs, and also sent as part of
