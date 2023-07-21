@@ -64,7 +64,7 @@ Open [Polkadot-JS Apps for C-ALPHA](https://polkadot.js.org/apps/?rpc=wss%3A%2F%
 
 ![Image](https://raw.githubusercontent.com/Cumulus2021/W3F-illustration/main/docs/account%20guide/img10.png)
 
-**Be sure to back up mnemonics**, check "I hava saved my mnemonic seed safely" and click "next step".
+**Be sure to back up mnemonics**, check "I have saved my mnemonic seed safely" and click "next step".
 
 ![Image](https://raw.githubusercontent.com/Cumulus2021/W3F-illustration/main/docs/account%20guide/img11.png)
 

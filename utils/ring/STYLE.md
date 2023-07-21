@@ -71,7 +71,7 @@ fn good_example(x: u32, y: u32) -> Result<u32, ()> {
 
 ## Arrays and Slices
 
-When creating a slice from the start of a indexable value, use `x[..n]`, not
+When creating a slice from the start of an indexable value, use `x[..n]`, not
 `x[0..n]`. Similarly, use `x[n..]`, not `x[n..x.len()]` for creating a slice
 from a specific point to the end of the value.
 
