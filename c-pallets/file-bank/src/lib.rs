@@ -354,6 +354,11 @@ pub mod pallet {
 	#[pallet::getter(fn clear_user_list)]
 	pub(super) type ClearUserList<T: Config> = 
 		StorageValue<_, BoundedVec<AccountOf<T>, ConstU32<5000>>, ValueQuery>;
+	
+	#[pallet::storage]
+	#[pallet::getter(fn task_failed_count)]
+	pub(super) type TaskFailedCount<T: Config> = 
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, u8, ValueQuery>;
 
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
@@ -517,6 +522,7 @@ pub mod pallet {
 							deal_info.assigned_miner.retain(|temp_info| temp_info.miner != miner_task.miner);
 							let task_count = miner_task.fragment_list.len() as u128;
 							T::MinerControl::unlock_space(&miner_task.miner, FRAGMENT_SIZE * task_count)?;
+							Self::add_task_failed_count(&miner_task.miner)?;
 							needed_list.try_push(miner_task.clone()).map_err(|_| Error::<T>::Overflow)?;
 						}
 						selected_miner.try_push(miner_task.miner.clone()).map_err(|_| Error::<T>::Overflow)?;
@@ -668,6 +674,8 @@ pub mod pallet {
 										*pending_count = pending_count_temp;
 										Ok(())
 									})?;
+
+									Self::zero_task_failed_count(&miner_task.miner)?;
 								}	
 
 								let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
@@ -975,7 +983,7 @@ pub mod pallet {
 						}
 					}
 				}
-	
+
 				Err(Error::<T>::SpecError)?
 			})
 		}
@@ -1207,6 +1215,30 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::Withdraw {
 				acc: sender,
 			});
+
+			Ok(())
+		}
+
+		#[pallet::call_index(20)]
+		#[transactional]
+		#[pallet::weight(10_000_000_000)]
+		pub fn root_clear_failed_count(origin: OriginFor<T>) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			for (miner, _) in <TaskFailedCount<T>>::iter() {
+				<TaskFailedCount<T>>::remove(&miner);
+			}
+
+			Ok(())
+		}
+
+		#[pallet::call_index(21)]
+		#[transactional]
+		#[pallet::weight(10_000_000_000)]
+		pub fn miner_clear_failed_count(origin: OriginFor<T>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			<TaskFailedCount<T>>::remove(&sender);
 
 			Ok(())
 		}

@@ -167,7 +167,7 @@ impl<T: Config> Pallet<T> {
         let survival_block = start
             // temp
             // .checked_add(50 * (count as u32)).ok_or(Error::<T>::Overflow)?
-            .checked_add(30).ok_or(Error::<T>::Overflow)?
+            .checked_add(50).ok_or(Error::<T>::Overflow)?
             .checked_add(life).ok_or(Error::<T>::Overflow)?;
 
         T::FScheduler::schedule_named(
@@ -249,6 +249,10 @@ impl<T: Config> Pallet<T> {
                     continue;
                 }
 
+                if Self::miner_failed_exceeds_limit(&miner) {
+                    continue;
+                }
+
                 let result = T::MinerControl::is_positive(&miner)?;
                 if !result {
                     continue;
@@ -311,6 +315,11 @@ impl<T: Config> Pallet<T> {
             let miner = all_miner[index as usize].clone();
             all_miner.remove(index as usize);
             total = total - 1;
+
+            if Self::miner_failed_exceeds_limit(&miner) {
+                continue;
+            }
+            
             let result = T::MinerControl::is_positive(&miner)?;
             if !result {
                 continue;
@@ -679,5 +688,25 @@ impl<T: Config> Pallet<T> {
         }
 
         true
+    }
+
+    pub(super) fn add_task_failed_count(miner: &AccountOf<T>) -> DispatchResult {
+        TaskFailedCount::<T>::try_mutate(miner, |count| -> DispatchResult {
+            *count = count.checked_add(1).ok_or(Error::<T>::Overflow)?;
+            Ok(())
+        })
+    }
+
+    pub(super) fn zero_task_failed_count(miner: &AccountOf<T>) -> DispatchResult {
+        TaskFailedCount::<T>::try_mutate(miner, |count| -> DispatchResult {
+            *count = 0;
+            Ok(())
+        })
+    }
+
+    pub(super) fn miner_failed_exceeds_limit(miner: &AccountOf<T>) -> bool {
+        let count = TaskFailedCount::<T>::get(miner);
+
+        count > 5
     }
 }
