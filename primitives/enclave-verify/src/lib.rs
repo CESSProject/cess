@@ -262,7 +262,7 @@ fn cryptos_rsa() {
     };
 
     let encoding = pois_key.encode();
-    let original_text = [141, 234, 45, 137, 42, 229, 4, 215, 180, 109, 128, 255, 194, 207, 240, 106, 73, 126, 254, 6, 228, 56, 160, 36, 156, 249, 101, 3, 244, 173, 241, 220];
+    let original_text = [251, 192, 70, 229, 16, 172, 155, 212, 16, 102, 196, 165, 184, 119, 60, 218, 117, 80, 144, 211, 39, 57, 146, 156, 77, 35, 97, 213, 160, 8, 149, 210];
 
 	let priv_key_der = priv_key.to_pkcs1_der().unwrap();
     // println!("priv_key_der: {:?}", priv_key_der.as_bytes());

@@ -6,4 +6,4 @@ pub(super) const IDLE_FAULT_TOLERANT: u8 = 2;
 
 pub(super) const SERVICE_FAULT_TOLERANT: u8 = 2;
 
-pub(super) type SpaceChallengeParam = [u64; 22]; 
+pub(super) type SpaceChallengeParam = [u64; 8];
