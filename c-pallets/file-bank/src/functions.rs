@@ -692,7 +692,7 @@ impl<T: Config> Pallet<T> {
 
     pub(super) fn add_task_failed_count(miner: &AccountOf<T>) -> DispatchResult {
         TaskFailedCount::<T>::try_mutate(miner, |count| -> DispatchResult {
-            *count = count.checked_add(1).ok_or(Error::<T>::Overflow)?;
+            *count = count.checked_add(1).unwrap_or(255);
             Ok(())
         })
     }
