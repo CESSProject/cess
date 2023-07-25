@@ -37,9 +37,12 @@ type SminerBalanceOf<T> = <<T as pallet_sminer::Config>::Currency as Currency<
 // pub fn add_idle_space(name: T::AccountId) -> Result<(), &'static str> {
 	
 // }
+
 // pub fn create_new_bucket<T: Config>(caller: T::AccountId, name: Vec<u8>) -> Result<(), &'static str> {
 // 	let name = name.try_into().map_err(|_| "create bucket convert error")?;
 // 	FileBank::<T>::create_bucket(RawOrigin::Signed(caller.clone()).into(), caller, name)?;
+
+
 
 // 	Ok(())
 // }
@@ -182,6 +185,7 @@ type SminerBalanceOf<T> = <<T as pallet_sminer::Config>::Currency as Currency<
 
 benchmarks! {
 	cert_idle_space {
+		let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
 		let miner = pallet_sminer::benchmarking::add_miner::<T>("miner1")?;
 
 		let pois_key = PoISKey {

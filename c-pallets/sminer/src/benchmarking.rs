@@ -22,14 +22,21 @@ pub trait Config:
 // const MAX_SPANS: u32 = 100;
 
 pub fn add_miner<T: Config>(name: &'static str) -> Result<T::AccountId, &'static str> {
-    let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
+    // let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
 
     let caller = account(name, 100, SEED);
     let peer_id: PeerId = [5u8; 38];
+    let staking_val: BalanceOf<T> = 2000u32.saturated_into();
     <T as crate::Config>::Currency::make_free_balance_be(
         &caller,
         BalanceOf::<T>::max_value(),
     );
+
+    if <MinerItems<T>>::contains_key(&caller) {
+        Err("create miner failed, existed")?;
+    }
+
+	<T as crate::Config>::Currency::reserve(&caller, staking_val)?;
 
     let pois_key = PoISKey {
         g: [2u8; 256],
@@ -45,16 +52,44 @@ pub fn add_miner<T: Config>(name: &'static str) -> Result<T::AccountId, &'static
         accumulator: pois_key.g,
     };
 
-    let sig: TeeRsaSignature = [36, 8, 36, 142, 71, 88, 69, 251, 61, 33, 93, 146, 158, 182, 54, 55, 119, 253, 106, 235, 229, 232, 38, 37, 106, 190, 185, 148, 185, 140, 167, 113, 201, 143, 221, 239, 250, 34, 9, 51, 113, 82, 99, 16, 214, 90, 246, 143, 104, 131, 246, 60, 157, 170, 241, 72, 165, 170, 115, 46, 47, 142, 215, 145, 34, 252, 212, 32, 230, 1, 46, 197, 13, 57, 104, 230, 55, 147, 185, 170, 94, 84, 127, 142, 247, 150, 204, 205, 123, 189, 100, 207, 154, 176, 232, 111, 11, 149, 75, 128, 170, 115, 114, 0, 111, 36, 6, 40, 39, 176, 52, 102, 219, 120, 173, 143, 172, 106, 109, 124, 225, 217, 52, 164, 84, 57, 86, 251, 31, 133, 84, 29, 205, 113, 245, 216, 203, 221, 200, 195, 26, 7, 241, 53, 71, 232, 229, 215, 227, 47, 99, 145, 19, 149, 220, 23, 47, 212, 214, 89, 223, 104, 6, 64, 117, 243, 186, 213, 137, 62, 98, 166, 142, 234, 20, 32, 190, 207, 221, 115, 97, 238, 248, 107, 88, 109, 35, 184, 57, 134, 51, 59, 0, 96, 27, 100, 163, 50, 12, 195, 77, 230, 178, 244, 160, 189, 187, 183, 90, 244, 220, 121, 66, 176, 149, 253, 26, 40, 60, 116, 112, 253, 14, 9, 40, 216, 73, 48, 155, 46, 2, 23, 59, 173, 189, 186, 16, 45, 94, 3, 34, 194, 245, 215, 245, 118, 21, 224, 105, 100, 64, 195, 46, 122, 176, 50];
+    let encoding = space_proof_info.encode();
+	let original_text = sp_io::hashing::sha2_256(&encoding);
+    MinerPublicKey::<T>::insert(&original_text, caller.clone());
 
-    Sminer::<T>::regnstk(
-        RawOrigin::Signed(caller.clone()).into(), 
-        caller.clone(), 
-        peer_id, 
-        2_000u32.into(), 
-        pois_key, 
-        sig,
-    ).map_err(|_| "create miner failed")?;
+    <MinerItems<T>>::insert(
+        &caller,
+        MinerInfo::<T> {
+            beneficiary: caller.clone(),
+            peer_id: peer_id,
+            collaterals: staking_val,
+            debt: BalanceOf::<T>::zero(),
+            state: STATE_POSITIVE.as_bytes().to_vec().try_into().unwrap(),
+            idle_space: u128::MIN,
+            service_space: u128::MIN,
+            lock_space: u128::MIN,
+            space_proof_info,			
+            service_bloom_filter: Default::default(),
+            tee_signature: [8u8; 256],
+        },
+    );
+
+    AllMiner::<T>::try_mutate(|all_miner| -> DispatchResult {
+        all_miner
+            .try_push(caller.clone())
+            .map_err(|_e| Error::<T>::StorageLimitReached)?;
+        Ok(())
+    })?;
+
+    RewardMap::<T>::insert(
+        &caller,
+        Reward::<T>{
+            total_reward: 0u32.saturated_into(),
+            reward_issued: 0u32.saturated_into(),
+            currently_available_reward: 0u32.saturated_into(),
+            order_list: Default::default()
+        },
+    );
+
     Ok(caller)
 }
 
@@ -88,6 +123,7 @@ benchmarks! {
     }
 
     increase_collateral {
+        let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
         let miner = add_miner::<T>("user1")?;
     }: _(RawOrigin::Signed(miner.clone()), 2_000u32.into())
     verify {
@@ -96,6 +132,7 @@ benchmarks! {
     }
 
     update_beneficiary {
+        let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
         let miner = add_miner::<T>("user1")?;
         let caller: AccountOf<T> = account("user2", 100, SEED);
     }: _(RawOrigin::Signed(miner.clone()), caller.clone())
@@ -105,6 +142,7 @@ benchmarks! {
     }
 
     update_peer_id {
+        let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
         let miner = add_miner::<T>("user1")?;
         let peer_id = [9u8; 38];
     }: _(RawOrigin::Signed(miner.clone()), peer_id.clone())
@@ -114,6 +152,7 @@ benchmarks! {
     }
 
     faucet_top_up {
+        let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
         let caller: T::AccountId = whitelisted_caller();
         let existential_deposit = <T as crate::Config>::Currency::minimum_balance();
         <T as crate::Config>::Currency::make_free_balance_be(
