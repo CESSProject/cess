@@ -324,7 +324,7 @@ impl<T: Config> Pallet<T> {
             if !result {
                 continue;
             }
-           
+
             let cur_space: u128 = T::MinerControl::get_miner_idle_space(&miner)?;
             // If sufficient, the miner is selected.
             if cur_space > needed_list.len() as u128 * FRAGMENT_SIZE {
@@ -707,6 +707,6 @@ impl<T: Config> Pallet<T> {
     pub(super) fn miner_failed_exceeds_limit(miner: &AccountOf<T>) -> bool {
         let count = TaskFailedCount::<T>::get(miner);
 
-        count > 5
+        count >= 5
     }
 }
