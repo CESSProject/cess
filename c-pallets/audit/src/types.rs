@@ -32,7 +32,8 @@ pub struct MinerSnapShot<AccountId, Block> {
 	pub(super) idle_submitted: bool,
 	pub(super) service_submitted: bool,
 	pub(super) service_bloom_filter: BloomFilter,
-	pub(super) accumulator: Accumulator,
+	pub(super) space_proof_info: SpaceProofInfo<AccountId, Block>,
+	pub(super) tee_signature: TeeRsaSignature,
 }
 
 // Structure for storing miner certificates

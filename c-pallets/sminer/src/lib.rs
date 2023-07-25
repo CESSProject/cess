@@ -1048,7 +1048,7 @@ impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for Pallet<T> {
 	}
 }
 
-pub trait MinerControl<AccountId> {
+pub trait MinerControl<AccountId, BlockNumber> {
 	fn add_miner_idle_space(acc: &AccountId, accumulator: Accumulator, last_operation_block: u32, rear: u64, tee_sig: TeeRsaSignature) -> Result<u128, DispatchError>;
 	// fn sub_miner_idle_space(acc: &AccountId, accumulator: Accumulator, rear: u64) -> DispatchResult;
 	fn delete_idle_update_accu(acc: &AccountId, accumulator: Accumulator, last_operation_block: u32, front: u64, tee_sig: TeeRsaSignature) -> Result<u64, DispatchError>;
@@ -1091,10 +1091,10 @@ pub trait MinerControl<AccountId> {
 	fn is_lock(miner: &AccountId) -> Result<bool, DispatchError>;
 	fn update_miner_state(miner: &AccountId, state: &str) -> DispatchResult;
 	fn get_expenders() -> Result<(u64, u64, u64), DispatchError>;
-	fn get_miner_snapshot(miner: &AccountId) -> Result<(u128, u128, BloomFilter, Accumulator), DispatchError>;
+	fn get_miner_snapshot(miner: &AccountId) -> Result<(u128, u128, BloomFilter, SpaceProofInfo<AccountId, BlockNumber>, TeeRsaSignature), DispatchError>;
 }
 
-impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<T> {
+impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumberOf<T>> for Pallet<T> {
 	fn add_miner_idle_space(
 		acc: &<T as frame_system::Config>::AccountId, 
 		accumulator: Accumulator,  
@@ -1306,12 +1306,12 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId> for Pallet<
 		Ok(expenders)
 	}
 
-	fn get_miner_snapshot(miner: &AccountOf<T>) -> Result<(u128, u128, BloomFilter, Accumulator), DispatchError> {
+	fn get_miner_snapshot(miner: &AccountOf<T>) -> Result<(u128, u128, BloomFilter, SpaceProofInfo<AccountOf<T>, BlockNumberOf<T>>, TeeRsaSignature), DispatchError> {
 		if !<MinerItems<T>>::contains_key(miner) {
 			Err(Error::<T>::NotMiner)?;
 		}
 		//There is a judgment on whether the primary key exists above
 		let miner_info = <MinerItems<T>>::try_get(miner).map_err(|_| Error::<T>::NotMiner)?;
-		Ok((miner_info.idle_space, miner_info.service_space, miner_info.service_bloom_filter, miner_info.space_proof_info.accumulator))
+		Ok((miner_info.idle_space, miner_info.service_space, miner_info.service_bloom_filter, miner_info.space_proof_info, miner_info.tee_signature))
 	}
 }

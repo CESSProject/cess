@@ -203,7 +203,7 @@ pub mod pallet {
 		type TeeWorkerHandler: TeeWorkerHandler<Self::AccountId>;
 		//It is used to increase or decrease the miners' computing power, space, and execute
 		// punishment
-		type MinerControl: MinerControl<Self::AccountId>;
+		type MinerControl: MinerControl<Self::AccountId, Self::BlockNumber>;
 
 		type StorageHandle: StorageHandle<Self::AccountId>;
 		//Configuration to be used for offchain worker
@@ -1122,7 +1122,7 @@ pub mod pallet {
 						continue;
 					}
 
-					let (idle_space, service_space, service_bloom_filter, accumulator) = T::MinerControl::get_miner_snapshot(&miner).map_err(|_| OffchainErr::GenerateInfoError)?;
+					let (idle_space, service_space, service_bloom_filter, space_proof_info, tee_signature) = T::MinerControl::get_miner_snapshot(&miner).map_err(|_| OffchainErr::GenerateInfoError)?;
 
 					if (idle_space == 0) && (service_space == 0) {
 						continue;
@@ -1158,7 +1158,8 @@ pub mod pallet {
 						idle_submitted: false,
 						service_submitted: false,
 						service_bloom_filter,
-						accumulator,
+						space_proof_info,
+						tee_signature,
 					};
 
 					if let Err(_e) = miner_list.try_push(miner_snapshot) {
