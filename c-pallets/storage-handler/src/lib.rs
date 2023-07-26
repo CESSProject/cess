@@ -28,6 +28,9 @@ use cp_cess_common::*;
 pub mod weights;
 use weights::WeightInfo;
 
+#[cfg(feature = "runtime-benchmarks")]
+pub mod benchmarking;
+
 mod types;
 use types::*;
 
