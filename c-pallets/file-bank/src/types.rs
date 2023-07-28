@@ -101,7 +101,7 @@ pub struct BucketInfo<T: Config> {
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
-#[codec(mel_bound())]
+#[codec(mel_bound())] 
 pub struct UserBrief<T: Config> {
 	pub user: AccountOf<T>,
 	pub file_name: BoundedVec<u8, T::NameStrLimit>,
