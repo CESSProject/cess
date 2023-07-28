@@ -11,7 +11,7 @@ The job of this segment Book pallet is to process the proof of miner's service f
 The miners need to complete the challenge within a limited time and submit the certificates of
 the corresponding documents.
 
-* **deadline:** 		Expiration time of challenge, stored in challengeduration.
+* **deadline:** 	Expiration time of challenge, stored in challengeduration.
 * **mu:**				Miner generated challenge related information.
 * **sigma:**			Miner generated challenge related information.
 
