@@ -29,4 +29,4 @@ the corresponding documents.
 When the verification result of the miner's certificate is false,or the miner fails to complete the challenge on time, the miner will be punished in both cases. Decide whether to reduce power or space according to the file type of punishment.
 
 ## Storage Mining
-CESS supports to obtain incentives by contributing idle storage with [storage mining tool](https://github.com/CESSProject/storage-mining-tool), and click [here](https://github.com/CESSProject/cess/tree/v0.1.1/docs/designs-of-storage-mining.md) to learn more.
+CESS supports to obtain incentives by contributing idle storage with [storage mining tool](https://github.com/CESSProject/storage-mining-tool), click [here](https://github.com/CESSProject/cess/tree/v0.1.1/docs/designs-of-storage-mining.md) to learn more.
