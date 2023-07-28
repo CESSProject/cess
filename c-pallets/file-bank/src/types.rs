@@ -2,7 +2,7 @@ use super::*;
 // Substrate type
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
-// Cess type
+// Cess types
 // pub(super) type SegmentList<T> = BoundedVec<(Hash, BoundedVec<Hash, <T as pallet::Config>::FragmentCount>),  <T as pallet::Config>::SegmentCount>;
 // pub(super) type MinerTaskList<T> = BoundedVec<(AccountOf<T>, BoundedVec<Hash,  <T as pallet::Config>::FragmentCount>),  <T as pallet::Config>::FragmentCount>;
 
