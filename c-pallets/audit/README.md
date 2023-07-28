@@ -12,7 +12,7 @@ The miners need to complete the challenge within a limited time and submit the c
 the corresponding documents.
 
 * **deadline:** 	Expiration time of challenge, stored in challengeduration.
-* **mu:**				Miner generated challenge related information.
+* **mu:**			Miner generated challenge related information.
 * **sigma:**			Miner generated challenge related information.
 
 ### Interface
