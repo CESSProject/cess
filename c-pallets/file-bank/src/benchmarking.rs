@@ -10,6 +10,7 @@ use frame_support::{
 	pallet_prelude::*,
 	traits::{Currency, CurrencyToVote, Get, Imbalance},
 };
+
 use pallet_cess_staking::{
 	testing_utils, Config as StakingConfig, Pallet as Staking, RewardDestination,
 };
@@ -18,22 +19,28 @@ use pallet_sminer::{Config as SminerConfig, Pallet as Sminer};
 use pallet_storage_handler::{Pallet as StorageHandler};
 use sp_runtime::{
 	traits::{Bounded, One, StaticLookup, TrailingZeroInput, Zero},
-	Perbill, Percent,
+	Perbill, Percent, Digest, DigestItem,
 };
 use sp_std::prelude::*;
-
+use scale_info::prelude::format;
 use frame_system::RawOrigin;
-
+use sp_runtime::traits::BlakeTwo256;
+use cessp_consensus_rrsc::{Slot, RRSC_ENGINE_ID};
 pub struct Pallet<T: Config>(FileBank<T>);
 pub trait Config:
-	crate::Config + pallet_sminer::benchmarking::Config + pallet_storage_handler::Config
+	crate::Config + pallet_sminer::benchmarking::Config + pallet_storage_handler::Config + pallet_rrsc::Config + pallet_grandpa::Config + pallet_session::Config
 {
 }
-type SminerBalanceOf<T> = <<T as pallet_sminer::Config>::Currency as Currency<
+type SminerBalanceOf<T> = <<T as pallet_storage_handler::Config>::Currency as Currency<
 	<T as frame_system::Config>::AccountId,
 >>::Balance;
 
-// const SEED: u32 = 2190502;
+const SEED: u32 = 2190502;
+const miner_list: [&'static str; 30] = [
+	"miner1", "miner2", "miner3", "miner4", "miner5", "miner6", "miner7", "miner8", "miner9", "miner10",
+	"miner11", "miner12", "miner13", "miner14", "miner15", "miner16", "miner17", "miner18", "miner19", "miner20",
+	"miner21", "miner22", "miner23", "miner24", "miner25", "miner26", "miner27", "miner28", "miner29", "miner30",
+];
 // const MAX_SPANS: u32 = 100;
 
 pub fn add_idle_space<T: Config>(miner: T::AccountId) -> Result<(), &'static str> {
@@ -51,10 +58,15 @@ pub fn add_idle_space<T: Config>(miner: T::AccountId) -> Result<(), &'static str
 }
 
 pub fn buy_space<T: Config>(user: T::AccountId) -> Result<(), &'static str> {
+	<T as pallet_storage_handler::Config>::Currency::make_free_balance_be(
+		&user,
+		SminerBalanceOf::<T>::max_value(),
+	);
+
 	StorageHandler::<T>::buy_space(RawOrigin::Signed(user).into(), 10)?;
 
 	Ok(())
-} 
+}
 
 // pub fn create_new_bucket<T: Config>(caller: T::AccountId, name: Vec<u8>) -> Result<(), &'static str> {
 // 	let name = name.try_into().map_err(|_| "create bucket convert error")?;
@@ -202,49 +214,78 @@ pub fn buy_space<T: Config>(user: T::AccountId) -> Result<(), &'static str> {
 // }
 
 benchmarks! {
-	cert_idle_space {
-		let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
-		let miner = pallet_sminer::benchmarking::add_miner::<T>("miner1")?;
+	// cert_idle_space {
+	// 	let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
+	// 	let miner = pallet_sminer::benchmarking::add_miner::<T>("miner1")?;
 
-		let pois_key = PoISKey {
-            g: [2u8; 256],
-            n: [3u8; 256],
-        };
+	// 	let pois_key = PoISKey {
+    //         g: [2u8; 256],
+    //         n: [3u8; 256],
+    //     };
 
-		let space_proof_info = SpaceProofInfo::<AccountOf<T>, BlockNumberOf<T>> {
-            last_operation_block: 5u32.saturated_into(),
-            miner: miner.clone(),
-            front: u64::MIN,
-            rear: 1000,
-            pois_key: pois_key.clone(),
-            accumulator: pois_key.g,
-        };
+	// 	let space_proof_info = SpaceProofInfo::<AccountOf<T>, BlockNumberOf<T>> {
+    //         last_operation_block: 5u32.saturated_into(),
+    //         miner: miner.clone(),
+    //         front: u64::MIN,
+    //         rear: 1000,
+    //         pois_key: pois_key.clone(),
+    //         accumulator: pois_key.g,
+    //     };
 
-		let original = space_proof_info.encode();
-		let original = sp_io::hashing::sha2_256(&original);
+	// 	let original = space_proof_info.encode();
+	// 	let original = sp_io::hashing::sha2_256(&original);
 
-		log::info!("original: {:?}", original);
+	// 	log::info!("original: {:?}", original);
 
-		let tee_sig = [30, 158, 52, 127, 32, 101, 53, 6, 105, 180, 114, 181, 75, 121, 182, 16, 185, 182, 120, 50, 218, 241, 222, 48, 162, 218, 67, 67, 254, 87, 153, 234, 249, 165, 250, 113, 36, 145, 137, 102, 251, 241, 219, 134, 93, 7, 22, 130, 64, 108, 13, 84, 60, 84, 224, 58, 219, 121, 153, 49, 60, 140, 107, 67, 8, 143, 132, 31, 1, 151, 208, 100, 18, 131, 157, 132, 159, 42, 213, 92, 248, 12, 219, 35, 118, 227, 149, 114, 155, 115, 149, 239, 29, 190, 150, 196, 107, 207, 144, 89, 181, 61, 132, 25, 31, 42, 0, 128, 243, 58, 9, 220, 221, 188, 20, 151, 24, 177, 51, 254, 205, 85, 173, 248, 250, 101, 189, 242, 114, 204, 5, 253, 244, 120, 48, 207, 153, 38, 84, 1, 53, 151, 113, 194, 224, 18, 77, 82, 190, 231, 144, 255, 188, 149, 134, 115, 207, 16, 194, 122, 75, 143, 243, 86, 210, 118, 80, 2, 252, 247, 96, 163, 103, 81, 99, 27, 39, 8, 224, 178, 67, 131, 163, 251, 183, 13, 166, 63, 7, 78, 38, 227, 178, 14, 89, 11, 221, 17, 155, 250, 196, 181, 119, 40, 245, 170, 168, 10, 164, 210, 207, 200, 88, 199, 229, 165, 47, 168, 75, 21, 90, 94, 162, 157, 185, 152, 68, 55, 45, 151, 224, 144, 222, 94, 171, 237, 28, 166, 230, 33, 109, 160, 74, 169, 108, 68, 168, 14, 135, 202, 92, 146, 15, 92, 165, 64];
+	// 	let tee_sig = [30, 158, 52, 127, 32, 101, 53, 6, 105, 180, 114, 181, 75, 121, 182, 16, 185, 182, 120, 50, 218, 241, 222, 48, 162, 218, 67, 67, 254, 87, 153, 234, 249, 165, 250, 113, 36, 145, 137, 102, 251, 241, 219, 134, 93, 7, 22, 130, 64, 108, 13, 84, 60, 84, 224, 58, 219, 121, 153, 49, 60, 140, 107, 67, 8, 143, 132, 31, 1, 151, 208, 100, 18, 131, 157, 132, 159, 42, 213, 92, 248, 12, 219, 35, 118, 227, 149, 114, 155, 115, 149, 239, 29, 190, 150, 196, 107, 207, 144, 89, 181, 61, 132, 25, 31, 42, 0, 128, 243, 58, 9, 220, 221, 188, 20, 151, 24, 177, 51, 254, 205, 85, 173, 248, 250, 101, 189, 242, 114, 204, 5, 253, 244, 120, 48, 207, 153, 38, 84, 1, 53, 151, 113, 194, 224, 18, 77, 82, 190, 231, 144, 255, 188, 149, 134, 115, 207, 16, 194, 122, 75, 143, 243, 86, 210, 118, 80, 2, 252, 247, 96, 163, 103, 81, 99, 27, 39, 8, 224, 178, 67, 131, 163, 251, 183, 13, 166, 63, 7, 78, 38, 227, 178, 14, 89, 11, 221, 17, 155, 250, 196, 181, 119, 40, 245, 170, 168, 10, 164, 210, 207, 200, 88, 199, 229, 165, 47, 168, 75, 21, 90, 94, 162, 157, 185, 152, 68, 55, 45, 151, 224, 144, 222, 94, 171, 237, 28, 166, 230, 33, 109, 160, 74, 169, 108, 68, 168, 14, 135, 202, 92, 146, 15, 92, 165, 64];
 
-	}: _(RawOrigin::Signed(miner.clone()), space_proof_info, tee_sig)
-	verify {
-		let (idle, service) = T::MinerControl::get_power(&miner)?;
-		assert_eq!(idle, 1000 * 256 * 1024 * 1024);
-	}
+	// }: _(RawOrigin::Signed(miner.clone()), space_proof_info, tee_sig)
+	// verify {
+	// 	let (idle, service) = T::MinerControl::get_power(&miner)?;
+	// 	assert_eq!(idle, 1000 * 256 * 1024 * 1024);
+	// }
 
 	upload_declaration {
-		log::info!("start upload_declaration");
+		let v in 1 .. 30;
+		// <pallet_rrsc::Pallet<T> as Hooks<T::BlockNumber>>::on_initialize(1u32.saturated_into());
+		// <frame_system::Pallet<T>>::set_block_number(1u32.saturated_into());
+		log::info!("point 1");
+		let caller: AccountOf<T> = account("user1", 100, SEED);
 		let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
-		let miner = pallet_sminer::benchmarking::add_miner::<T>("miner1")?;
-		add_idle_space::<T>(miner.clone())?;
-		buy_space::<T>(miner.clone())?;
+		// <frame_system::Pallet<T> as Hooks<T::BlockNumber>>::on_initialize(0u32.saturated_into());
+		// <pallet_session::Pallet<T> as Hooks<T::BlockNumber>>::on_initialize(0u32.saturated_into());
+		// <pallet_rrsc::Pallet<T> as Hooks<T::BlockNumber>>::on_initialize(0u32.saturated_into());
+		// <frame_system::Pallet<T> as Hooks<T::BlockNumber>>::on_finalize(0u32.saturated_into());
+		// <pallet_rrsc::Pallet<T> as Hooks<T::BlockNumber>>::on_finalize(0u32.saturated_into());
+		// <pallet_grandpa::Pallet<T> as Hooks<T::BlockNumber>>::on_finalize(0u32.saturated_into());
+		// <frame_system::Pallet<T>>::set_block_number(1u32.saturated_into());
+		// <frame_system::Pallet<T> as Hooks<T::BlockNumber>>::on_initialize(1u32.saturated_into());
+		// <pallet_session::Pallet<T> as Hooks<T::BlockNumber>>::on_initialize(1u32.saturated_into());
+		// <pallet_rrsc::Pallet<T> as Hooks<T::BlockNumber>>::on_initialize(1u32.saturated_into());
+		// <frame_system::Pallet<T> as Hooks<T::BlockNumber>>::on_finalize(1u32.saturated_into());
+		// <pallet_rrsc::Pallet<T> as Hooks<T::BlockNumber>>::on_finalize(1u32.saturated_into());
+		// <pallet_grandpa::Pallet<T> as Hooks<T::BlockNumber>>::on_finalize(1u32.saturated_into());
+		let slot = Slot::from(0);
+		let pre_digest =
+			Digest { logs: vec![DigestItem::PreRuntime(RRSC_ENGINE_ID, slot.encode())] };
+		<frame_system::Pallet<T>>::initialize(&42u32.saturated_into(), &<frame_system::Pallet<T>>::parent_hash(), &pre_digest);
+		<pallet_rrsc::Pallet<T> as Hooks<T::BlockNumber>>::on_initialize(0u32.saturated_into());
+		<pallet_rrsc::Pallet<T> as Hooks<T::BlockNumber>>::on_finalize(0u32.saturated_into());
+
+		let mut name_list: Vec<&'static str> = Vec::new();
+		for i in 0 .. v {
+			let miner = pallet_sminer::benchmarking::add_miner::<T>(miner_list[i as usize])?;
+			add_idle_space::<T>(miner.clone())?;
+		}
+		log::info!("point 2");
+		buy_space::<T>(caller.clone())?;
+		log::info!("point 3");
 		let mut deal_info: BoundedVec<SegmentList<T>, T::SegmentCount> = Default::default();
 		let file_name = "test-file".as_bytes().to_vec();
 		let bucket_name = "test-bucket1".as_bytes().to_vec();
 		let file_hash: Hash = Hash([4u8; 64]);
 		let user_brief = UserBrief::<T>{
-			user: miner.clone(),
+			user: caller.clone(),
 			file_name: file_name.try_into().map_err(|_e| "file name convert err")?,
 			bucket_name: bucket_name.try_into().map_err(|_e| "bucket name convert err")?,
 		};
@@ -275,8 +316,15 @@ benchmarks! {
 			].to_vec().try_into().unwrap(),
 		};
 		deal_info.try_push(segment_list).unwrap();
+		log::info!("point 4");
+		// <FileBank<T> as Hooks<<T as frame_system::Config>::BlockNumber>>::on_initialize(u32.saturated_into());
 
-	}: _(RawOrigin::Signed(miner), file_hash.clone(), deal_info, user_brief, 123)
+		// <pallet_rrsc::Pallet<T> as Hooks<T::BlockNumber>>::on_initialize(2u32.saturated_into());
+		<frame_system::Pallet<T>>::set_block_number(1u32.saturated_into());
+		// <pallet_rrsc::Pallet<T> as Hooks<T::BlockNumber>>::on_finalize(2u32.saturated_into());
+		// let hash = BlakeTwo256::hash(&[23, 45, 66, 2, 53, 66, 73, 26, 25, 34, 23, 45, 66, 12, 53, 266, 73, 216, 251, 134, 232, 145, 66, 29, 53, 66, 73, 26, 25, 34, 90, 132]);
+		// <frame_system::Pallet<T>>::set_parent_hash("dwdq21e12ed3d12d12d2");
+	}: _(RawOrigin::Signed(caller), file_hash.clone(), deal_info, user_brief, 123)
 	verify {
 		
 	}

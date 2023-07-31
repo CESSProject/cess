@@ -218,6 +218,7 @@ impl<T: Config> Pallet<T> {
 
         // start random choose miner
         loop {
+            log::info!("test, total count = {:?}, max_count = {:?}, cur_count = {:?}", total, max_count, cur_count);
             // Get a random subscript.
             if total == 0 {
                 break;
@@ -437,17 +438,21 @@ impl<T: Config> Pallet<T> {
     /// - `u32`: random number.
     pub fn generate_random_number(seed: u32) -> Result<u32, DispatchError> {
         let mut counter = 0;
-        loop {
+        loop {           
             let (random_seed, _) =
                 T::MyRandomness::random(&(T::FilbakPalletId::get(), seed + counter).encode());
             let random_seed = match random_seed {
                 Some(v) => v,
-                None => Default::default(),
+                None => {
+                    log::info!("Is None");
+                    Default::default()
+                },
             };
             let random_number = <u32>::decode(&mut random_seed.as_ref()).unwrap_or(0);
             if random_number != 0 {
                 return Ok(random_number)
             }
+            log::info!("random number: {}", random_number);
             counter = counter.checked_add(1).ok_or(Error::<T>::Overflow)?;
         }
     }

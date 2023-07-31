@@ -5201,6 +5201,7 @@ dependencies = [
 name = "pallet-file-bank"
 version = "0.6.0"
 dependencies = [
+ "cessp-consensus-rrsc",
  "cp-cess-common",
  "cp-enclave-verify",
  "cp-scheduler-credit",
@@ -5213,8 +5214,10 @@ dependencies = [
  "pallet-bags-list",
  "pallet-balances",
  "pallet-cess-staking",
+ "pallet-grandpa",
  "pallet-oss",
  "pallet-preimage",
+ "pallet-rrsc",
  "pallet-scheduler",
  "pallet-scheduler-credit",
  "pallet-session",
