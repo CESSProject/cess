@@ -32,7 +32,7 @@ pub struct MinerSnapShot<AccountId, Block> {
 	pub(super) idle_submitted: bool,
 	pub(super) service_submitted: bool,
 	pub(super) service_bloom_filter: BloomFilter,
-	pub(super) space_proof_info: SpaceProofInfo<AccountId, Block>,
+	pub(super) space_proof_info: SpaceProofInfo<AccountId>,
 	pub(super) tee_signature: TeeRsaSignature,
 }
 
@@ -59,7 +59,12 @@ pub struct ServiceProveInfo<T: pallet::Config> {
 pub struct VerifyIdleResultInfo<T: pallet::Config> {
 	pub(super) miner: AccountOf<T>,
 	pub(super) miner_prove: BoundedVec<u8, T::SigmaMax>,
+	pub(super) front: u64,
+	pub(super) rear: u64,
+	pub(super) accumulator: Accumulator,
+	pub(super) space_challenge_param: SpaceChallengeParam,
 	pub(super) result: bool,
+	pub(super) tee_acc: AccountOf<T>,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]

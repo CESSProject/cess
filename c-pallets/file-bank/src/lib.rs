@@ -187,10 +187,10 @@ pub mod pallet {
 		ReplaceFiller { acc: AccountOf<T>, filler_list: Vec<Hash> },
 
 		CalculateEnd{ file_hash: Hash },
-		//Filler chain success event
-		FillerUpload { acc: AccountOf<T>, file_size: u64 },
 
-		FillerDelete { acc: AccountOf<T>, filler_hash: Hash },
+		IdleSpaceCert { acc: AccountOf<T>, space: u128 },
+
+		ReplaceIdleSpace { acc: AccountOf<T>, space: u128 },
 		//Event to successfully create a bucket
 		CreateBucket { operator: AccountOf<T>, owner: AccountOf<T>, bucket_name: Vec<u8>},
 		//Successfully delete the bucket event
@@ -746,7 +746,7 @@ pub mod pallet {
 		#[pallet::weight(1_000_000_000)]
 		pub fn replace_idle_space(
 			origin: OriginFor<T>,
-			idle_sig_info: SpaceProofInfo<AccountOf<T>, BlockNumberOf<T>>,
+			idle_sig_info: SpaceProofInfo<AccountOf<T>>,
 			tee_sig: TeeRsaSignature,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -763,7 +763,6 @@ pub mod pallet {
 			let count = T::MinerControl::delete_idle_update_accu(
 				&sender, 
 				idle_sig_info.accumulator,
-				idle_sig_info.last_operation_block.saturated_into(),
 				idle_sig_info.front,
 				tee_sig,
 			)?;
@@ -773,11 +772,15 @@ pub mod pallet {
 					Err(Error::<T>::InsufficientReplaceable)?;
 				}
 				let replace_space = IDLE_SEG_SIZE.checked_mul(count.into()).ok_or(Error::<T>::Overflow)?;
-				let pending_space_temp = pending_space.checked_add(replace_space).ok_or(Error::<T>::Overflow)?;
+				let pending_space_temp = pending_space.checked_sub(replace_space).ok_or(Error::<T>::Overflow)?;
 				*pending_space = pending_space_temp;
+
+				Self::deposit_event(Event::<T>::ReplaceIdleSpace { acc: sender.clone(), space: replace_space });
 
 				Ok(())
 			})?;
+
+			
 
 			Ok(())
 		}
@@ -817,7 +820,7 @@ pub mod pallet {
 		#[pallet::weight(100_000_000)]
 		pub fn cert_idle_space(
 			origin: OriginFor<T>,
-			idle_sig_info: SpaceProofInfo<AccountOf<T>, BlockNumberOf<T>>,
+			idle_sig_info: SpaceProofInfo<AccountOf<T>>,
 			tee_sig: TeeRsaSignature,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -834,12 +837,13 @@ pub mod pallet {
 			let idle_space = T::MinerControl::add_miner_idle_space(
 				&sender, 
 				idle_sig_info.accumulator, 
-				idle_sig_info.last_operation_block.saturated_into(),
 				idle_sig_info.rear,
 				tee_sig,
 			)?;
 
 			T::StorageHandle::add_total_idle_space(idle_space)?;
+
+			Self::deposit_event(Event::<T>::IdleSpaceCert{ acc: sender, space: idle_space });
 
 			Ok(())
 		}

@@ -24,8 +24,7 @@ pub struct PoISKey {
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-pub struct SpaceProofInfo<AccountId, Block> {
-	pub last_operation_block: Block,
+pub struct SpaceProofInfo<AccountId> {
 	pub miner: AccountId,
 	pub front: u64,
 	pub rear: u64,
@@ -114,7 +113,7 @@ pub const M_BYTE: u128 = 1_048_576;
 pub const G_BYTE: u128 = 1_048_576 * 1024;
 pub const T_BYTE: u128 = 1_048_576 * 1024 * 1024;
 
-pub const IDLE_SEG_SIZE: u128 = M_BYTE * 256;
+pub const IDLE_SEG_SIZE: u128 = M_BYTE * 64;
 pub const SEGMENT_SIZE: u128 = M_BYTE * 16;
 pub const FRAGMENT_SIZE: u128 = M_BYTE * 8;
 pub const CHUNK_COUNT: u32 = 1024;

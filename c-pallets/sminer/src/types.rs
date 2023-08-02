@@ -16,7 +16,7 @@ pub struct MinerInfo<T: Config> {
 	pub(super) idle_space: u128,
 	pub(super) service_space: u128,
 	pub(super) lock_space: u128,
-	pub(super) space_proof_info: SpaceProofInfo<AccountOf<T>, BlockNumberOf<T>>,
+	pub(super) space_proof_info: SpaceProofInfo<AccountOf<T>>,
 	pub(super) service_bloom_filter: BloomFilter,
     pub(super) tee_signature: TeeRsaSignature,
 }

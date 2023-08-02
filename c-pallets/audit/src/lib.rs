@@ -240,6 +240,10 @@ pub mod pallet {
 
 		SubmitServiceProof { miner: AccountOf<T> },
 
+		SubmitIdleVerifyResult { tee: AccountOf<T>, miner: AccountOf<T>, result: bool },
+
+		SubmitServiceVerifyResult { tee: AccountOf<T>, miner: AccountOf<T>, result: bool },
+
 		VerifyProof { tee_worker: AccountOf<T>, miner: AccountOf<T> },
 
 	}
@@ -556,21 +560,30 @@ pub mod pallet {
 		#[pallet::weight(100_000_000)]
 		pub fn submit_verify_idle_result(
 			origin: OriginFor<T>,
-			miner: AccountOf<T>,
+			total_prove_hash: BoundedVec<u8, T::SigmaMax>,
+			front: u64,
+			rear: u64,
+			accumulator: Accumulator,
 			idle_result: bool,
 			signature: TeeRsaSignature,
+			tee_acc: AccountOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
-			<UnverifyIdleProof<T>>::try_mutate(&sender, |unverify_list| -> DispatchResult {
+			<UnverifyIdleProof<T>>::try_mutate(&tee_acc, |unverify_list| -> DispatchResult {
 				for (index, miner_info) in unverify_list.iter().enumerate() {
-					if &miner_info.snap_shot.miner == &miner {
+					if &miner_info.snap_shot.miner == &sender {
 						let snap_shot = <ChallengeSnapShot<T>>::try_get().map_err(|_| Error::<T>::UnexpectedError)?;
 
 						let verify_idle_result = VerifyIdleResultInfo::<T>{
-							miner: miner.clone(),
-							miner_prove: miner_info.idle_prove.clone(),
+							miner: sender.clone(),
+							miner_prove: total_prove_hash.clone(),
+							front: miner_info.snap_shot.space_proof_info.front,
+							rear: miner_info.snap_shot.space_proof_info.rear,
+							accumulator: miner_info.snap_shot.space_proof_info.accumulator,
+							space_challenge_param: snap_shot.net_snap_shot.space_challenge_param,
 							result: idle_result,
+							tee_acc: tee_acc.clone(),
 						};
 
 						let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
@@ -578,11 +591,13 @@ pub mod pallet {
 						let hashing = sp_io::hashing::sha2_256(&encoding);
 						ensure!(verify_rsa(&tee_puk, &hashing, &signature), Error::<T>::VerifyTeeSigFailed);
 
-						if let Ok((_, service_result_opt)) = <VerifyResult<T>>::try_get(&miner).map_err(|_| Error::<T>::UnexpectedError) {
+						let idle_result = Self::check_idle_verify_param(idle_result, front, rear, &total_prove_hash, &accumulator, &miner_info);
+
+						if let Ok((_, service_result_opt)) = <VerifyResult<T>>::try_get(&sender).map_err(|_| Error::<T>::UnexpectedError) {
 							let service_result = service_result_opt.ok_or(Error::<T>::UnexpectedError)?;
 							if idle_result && service_result {
 								T::MinerControl::calculate_miner_reward(
-									&miner,
+									&sender,
 									snap_shot.net_snap_shot.total_reward,
 									snap_shot.net_snap_shot.total_idle_space,
 									snap_shot.net_snap_shot.total_service_space,
@@ -591,25 +606,27 @@ pub mod pallet {
 								)?;
 							}
 
-							<VerifyResult<T>>::remove(&miner);
+							<VerifyResult<T>>::remove(&sender);
 						} else {
 							<VerifyResult<T>>::insert(
-								&miner,
+								&sender,
 								(Option::Some(idle_result), Option::<bool>::None),
 							);
 						}
 
 						if idle_result {
-							<CountedIdleFailed<T>>::insert(&miner, u32::MIN);
+							<CountedIdleFailed<T>>::insert(&sender, u32::MIN);
 						} else {
-							let count = <CountedIdleFailed<T>>::get(&miner) + 1;
+							let count = <CountedIdleFailed<T>>::get(&sender) + 1;
 							if count >= IDLE_FAULT_TOLERANT as u32 {
-								T::MinerControl::idle_punish(&miner, miner_info.snap_shot.idle_space, miner_info.snap_shot.service_space)?;
+								T::MinerControl::idle_punish(&sender, miner_info.snap_shot.idle_space, miner_info.snap_shot.service_space)?;
 							}
-							<CountedIdleFailed<T>>::insert(&miner, count);
+							<CountedIdleFailed<T>>::insert(&sender, count);
 						}
 
 						unverify_list.remove(index);
+
+						Self::deposit_event(Event::<T>::SubmitIdleVerifyResult { tee: tee_acc.clone(), miner: sender, result: idle_result });
 
 						return Ok(())
 					}
@@ -618,7 +635,7 @@ pub mod pallet {
 				Err(Error::<T>::NonExistentMission)?
 			})?;
 
-			Ok(())
+			Err(Error::<T>::NonExistentMission)?
 		}
 
 		#[pallet::call_index(4)]
@@ -689,6 +706,8 @@ pub mod pallet {
 
 						unverify_list.remove(index);
 
+						Self::deposit_event(Event::<T>::SubmitServiceVerifyResult { tee: sender.clone(), miner: miner, result: service_result });
+
 						return Ok(())
 					}
 				}
@@ -696,7 +715,7 @@ pub mod pallet {
 				Err(Error::<T>::NonExistentMission)?
 			})?;
 
-			Ok(())
+			Err(Error::<T>::NonExistentMission)?
 		}
 	}
 
@@ -1334,6 +1353,34 @@ pub mod pallet {
 					return random_vec[0..20].try_into().unwrap();
 				}
 			}
+		}
+
+		fn check_idle_verify_param(
+			mut idle_result: bool, 
+			front: u64, 
+			rear: u64, 
+			total_prove_hash: &BoundedVec<u8, T::SigmaMax>,
+			accumulator: &Accumulator, 
+			miner_info: &IdleProveInfo<T>,
+		) -> bool {
+
+			if accumulator != &miner_info.snap_shot.space_proof_info.accumulator {
+				idle_result = false
+			}
+
+			if rear != miner_info.snap_shot.space_proof_info.rear {
+				idle_result = false
+			}
+
+			if front != miner_info.snap_shot.space_proof_info.front {
+				idle_result = false
+			}
+
+			if total_prove_hash != &miner_info.idle_prove {
+				idle_result = false
+			}
+
+			idle_result
 		}
 	}
 }

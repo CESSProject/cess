@@ -43,8 +43,7 @@ pub fn add_miner<T: Config>(name: &'static str) -> Result<T::AccountId, &'static
         n: [3u8; 256],
     };
 
-    let space_proof_info = SpaceProofInfo::<AccountOf<T>, BlockNumberOf<T>> {
-        last_operation_block: u32::MIN.saturated_into(),
+    let space_proof_info = SpaceProofInfo::<AccountOf<T>> {
         miner: caller.clone(),
         front: u64::MIN,
         rear: u64::MIN,
@@ -107,8 +106,7 @@ benchmarks! {
             n: [3u8; 256],
         };
 
-        let space_proof_info = SpaceProofInfo::<AccountOf<T>, BlockNumberOf<T>> {
-            last_operation_block: u32::MIN.saturated_into(),
+        let space_proof_info = SpaceProofInfo::<AccountOf<T>> {
             miner: caller.clone(),
             front: u64::MIN,
             rear: u64::MIN,

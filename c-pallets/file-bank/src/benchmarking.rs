@@ -252,12 +252,19 @@ benchmarks! {
 		log::info!("point 1");
 		let caller: AccountOf<T> = account("user1", 100, SEED);
 		let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
-		// <frame_system::Pallet<T> as Hooks<T::BlockNumber>>::on_initialize(0u32.saturated_into());
-		// <pallet_session::Pallet<T> as Hooks<T::BlockNumber>>::on_initialize(0u32.saturated_into());
+		let slot = Slot::from(0);
+		let pre_digest =
+			Digest { logs: vec![DigestItem::PreRuntime(RRSC_ENGINE_ID, slot.encode())] };
+		<frame_system::Pallet<T>>::initialize(&42u32.saturated_into(), &<frame_system::Pallet<T>>::parent_hash(), &pre_digest);
+		<pallet_rrsc::Pallet<T> as Hooks<T::BlockNumber>>::on_initialize(0u32.saturated_into());
+		<pallet_rrsc::Pallet<T> as Hooks<T::BlockNumber>>::on_finalize(0u32.saturated_into());
+		
+		<frame_system::Pallet<T> as Hooks<T::BlockNumber>>::on_initialize(0u32.saturated_into());
+		<pallet_session::Pallet<T> as Hooks<T::BlockNumber>>::on_initialize(0u32.saturated_into());
 		// <pallet_rrsc::Pallet<T> as Hooks<T::BlockNumber>>::on_initialize(0u32.saturated_into());
 		// <frame_system::Pallet<T> as Hooks<T::BlockNumber>>::on_finalize(0u32.saturated_into());
 		// <pallet_rrsc::Pallet<T> as Hooks<T::BlockNumber>>::on_finalize(0u32.saturated_into());
-		// <pallet_grandpa::Pallet<T> as Hooks<T::BlockNumber>>::on_finalize(0u32.saturated_into());
+		<pallet_grandpa::Pallet<T> as Hooks<T::BlockNumber>>::on_finalize(0u32.saturated_into());
 		// <frame_system::Pallet<T>>::set_block_number(1u32.saturated_into());
 		// <frame_system::Pallet<T> as Hooks<T::BlockNumber>>::on_initialize(1u32.saturated_into());
 		// <pallet_session::Pallet<T> as Hooks<T::BlockNumber>>::on_initialize(1u32.saturated_into());
@@ -265,12 +272,7 @@ benchmarks! {
 		// <frame_system::Pallet<T> as Hooks<T::BlockNumber>>::on_finalize(1u32.saturated_into());
 		// <pallet_rrsc::Pallet<T> as Hooks<T::BlockNumber>>::on_finalize(1u32.saturated_into());
 		// <pallet_grandpa::Pallet<T> as Hooks<T::BlockNumber>>::on_finalize(1u32.saturated_into());
-		let slot = Slot::from(0);
-		let pre_digest =
-			Digest { logs: vec![DigestItem::PreRuntime(RRSC_ENGINE_ID, slot.encode())] };
-		<frame_system::Pallet<T>>::initialize(&42u32.saturated_into(), &<frame_system::Pallet<T>>::parent_hash(), &pre_digest);
-		<pallet_rrsc::Pallet<T> as Hooks<T::BlockNumber>>::on_initialize(0u32.saturated_into());
-		<pallet_rrsc::Pallet<T> as Hooks<T::BlockNumber>>::on_finalize(0u32.saturated_into());
+
 
 		let mut name_list: Vec<&'static str> = Vec::new();
 		for i in 0 .. v {
