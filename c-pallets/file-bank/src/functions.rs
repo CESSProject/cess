@@ -16,7 +16,7 @@ impl<T: Config> Pallet<T> {
     pub fn generate_file(
         file_hash: &Hash,
         deal_info: BoundedVec<SegmentList<T>, T::SegmentCount>,
-        mut miner_task_list: BoundedVec<MinerTaskList<T>, T::StringLimit>,
+        mut miner_task_list: BoundedVec<MinerTaskList<T>, ConstU32<ASSIGN_MINER_IDEAL_QUANTITY>>,
         share_info: Vec<SegmentInfo<T>>,
         user_brief: UserBrief<T>,
         stat: FileState,
@@ -200,8 +200,8 @@ impl<T: Config> Pallet<T> {
 
     pub(super) fn random_assign_miner(
         needed_list: &BoundedVec<SegmentList<T>, T::SegmentCount>
-    ) -> Result<BoundedVec<MinerTaskList<T>, T::StringLimit>, DispatchError> {
-        let mut miner_task_list: BoundedVec<MinerTaskList<T>, T::StringLimit> = Default::default();
+    ) -> Result<BoundedVec<MinerTaskList<T>, ConstU32<ASSIGN_MINER_IDEAL_QUANTITY>>, DispatchError> {
+        let mut miner_task_list: BoundedVec<MinerTaskList<T>, ConstU32<ASSIGN_MINER_IDEAL_QUANTITY>> = Default::default();
         let mut miner_idle_space_list: Vec<u128> = Default::default();
         // The optimal number of miners required for storage.
         // segment_size * 1.5 / fragment_size.

@@ -42,7 +42,7 @@ pub struct MinerSnapShot<AccountId, Block> {
 #[codec(mel_bound())]
 pub struct IdleProveInfo<T: pallet::Config> {
 	pub(super) snap_shot: MinerSnapShot<AccountOf<T>, BlockNumberOf<T>>,
-	pub(super) idle_prove: BoundedVec<u8, T::SigmaMax>,
+	pub(super) idle_prove: BoundedVec<u8, T::IdleTotalHashLength>,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
@@ -58,7 +58,7 @@ pub struct ServiceProveInfo<T: pallet::Config> {
 #[codec(mel_bound())]
 pub struct VerifyIdleResultInfo<T: pallet::Config> {
 	pub(super) miner: AccountOf<T>,
-	pub(super) miner_prove: BoundedVec<u8, T::SigmaMax>,
+	pub(super) miner_prove: BoundedVec<u8, T::IdleTotalHashLength>,
 	pub(super) front: u64,
 	pub(super) rear: u64,
 	pub(super) accumulator: Accumulator,

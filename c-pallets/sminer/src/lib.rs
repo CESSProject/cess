@@ -284,7 +284,8 @@ pub mod pallet {
 	impl Default for GenesisConfig {
 		fn default() -> Self {
 			Self {
-				expenders: (7, 4*1024*1024, 64),
+				// FOR TESTING
+				expenders: (8, 16*1024, 64),
 			}
 		}
 	}
@@ -330,7 +331,9 @@ pub mod pallet {
 			};
 
 			let encoding = space_proof_info.encode();
+			log::info!("original text: {:?}", encoding);
 			let original_text = sp_io::hashing::sha2_256(&encoding);
+			log::info!("original text: {:?}", original_text);
 			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
 			ensure!(verify_rsa(&tee_puk, &original_text, &tee_sig), Error::<T>::VerifyTeeSigFailed);
 
@@ -622,6 +625,23 @@ pub mod pallet {
 			}
 
 			Self::deposit_event(Event::<T>::DrawFaucetMoney());
+			Ok(())
+		}
+
+		// FOR TESTING
+		#[pallet::call_index(15)]
+		#[transactional]
+		#[pallet::weight(100_000)]
+		pub fn update_expender(
+			origin: OriginFor<T>, 
+			k: u64, 
+			n: u64, 
+			d: u64,
+		) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+
+			Expenders::<T>::put((k, n, d));
+
 			Ok(())
 		}
 	}

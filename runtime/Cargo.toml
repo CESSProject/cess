@@ -20,6 +20,7 @@ scale-info = { version = "2.1.1", default-features = false, features = ["derive"
 # static_assertions
 log = { version = "0.4.17", default-features = false }
 hex-literal = { optional = true, version = "0.3.4" }
+cp-cess-common = { path = '../primitives/common', version = '0.1.0', default-features = false }
 
 # primitives
 sp-authority-discovery = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }

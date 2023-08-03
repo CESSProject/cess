@@ -393,8 +393,6 @@ parameter_types! {
 	#[derive(Clone, PartialEq, Eq)]
 	pub const SubmitProofLimit: u32 = 100;
 	#[derive(Clone, PartialEq, Eq)]
-	pub const SubmitValidationLimit: u32 = 50;
-	#[derive(Clone, PartialEq, Eq)]
 	pub const ChallengeMaximum: u32 = 8000;
 }
 
@@ -417,7 +415,6 @@ impl Config for Test {
 		type NextSessionRotation = ();
 		type UnsignedPriority = SegUnsignedPriority;
 		type LockTime = LockTime;
-		type SubmitValidationLimit = SubmitValidationLimit;
 		type SubmitProofLimit = SubmitProofLimit;
 		type ChallengeMaximum = ChallengeMaximum;
 }

@@ -112,10 +112,13 @@ pub type TeeRsaSignature = [u8; 256];
 pub const M_BYTE: u128 = 1_048_576;
 pub const G_BYTE: u128 = 1_048_576 * 1024;
 pub const T_BYTE: u128 = 1_048_576 * 1024 * 1024;
-
-pub const IDLE_SEG_SIZE: u128 = M_BYTE * 64;
+// FOR TESTING
+pub const IDLE_SEG_SIZE: u128 = M_BYTE * 1;
 pub const SEGMENT_SIZE: u128 = M_BYTE * 16;
 pub const FRAGMENT_SIZE: u128 = M_BYTE * 8;
+// The number of fragments contained in a segment
+pub const FRAGMENT_COUNT: u32 = (SEGMENT_SIZE * 15 / 10 / FRAGMENT_SIZE) as u32;
+pub const ASSIGN_MINER_IDEAL_QUANTITY: u32 = FRAGMENT_COUNT;
 pub const CHUNK_COUNT: u32 = 1024;
 
 pub const BUCKET_ALLOW_CHAR: [u8; 65] = [

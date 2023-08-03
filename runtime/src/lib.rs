@@ -48,6 +48,7 @@ use sp_runtime::{
 	ApplyExtrinsicResult, FixedPointNumber, MultiSignature, Perbill, Percent, Permill, Perquintill,
 	RuntimeAppPublic,
 };
+use cp_cess_common::{FRAGMENT_COUNT};
 use sp_std::{marker::PhantomData, prelude::*};
 pub use frame_system::Call as SystemCall;
 #[cfg(feature = "std")]
@@ -171,7 +172,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 103,
+	spec_version: 105,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -988,13 +989,15 @@ parameter_types! {
 	#[derive(Clone, PartialEq, Eq)]
 	pub const StringLimit: u32 = 60240;
 	#[derive(Clone, PartialEq, Eq)]
+	pub const SessionKeyMax: u32 = 1000;
+	#[derive(Clone, PartialEq, Eq)]
 	pub const ChallengeMinerMax: u32 = 8000;
 	#[derive(Clone, PartialEq, Eq)]
 	pub const VerifyMissionMax: u32 = 500;
 	#[derive(Clone, PartialEq, Eq)]
 	pub const SigmaMax: u32 = 2048;
 	#[derive(Clone, PartialEq, Eq)]
-	pub const SubmitValidationLimit: u32 = 50;
+	pub const IdleTotalHashLength: u32 = 256;
 	pub const OneHours: BlockNumber = HOURS;
 	pub const SegUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
 	pub const LockTime: BlockNumber = HOURS / 60;
@@ -1010,7 +1013,7 @@ impl pallet_audit::Config for Runtime {
 	type MyRandomness = pallet_rrsc::ParentBlockRandomness<Runtime>;
 	type WeightInfo = pallet_audit::weights::SubstrateWeight<Runtime>;
 	type AuthorityId = pallet_audit::sr25519::AuthorityId;
-	type StringLimit = StringLimit;
+	type SessionKeyMax = SessionKeyMax;
 	type VerifyMissionMax = VerifyMissionMax;
 	type OneDay = OneDay;
 	type OneHours = OneHours;
@@ -1023,24 +1026,18 @@ impl pallet_audit::Config for Runtime {
 	type NextSessionRotation = Babe;
 	type UnsignedPriority = SegUnsignedPriority;
 	type LockTime = LockTime;
-	type SubmitValidationLimit = SubmitValidationLimit;
 	type ChallengeMinerMax = ChallengeMinerMax;
 	type SigmaMax = SigmaMax;
+	type IdleTotalHashLength = IdleTotalHashLength;
 	type ReassignCeiling = ReassignCeiling;
 }
 
 pub const SEGMENT_COUNT: u32 = 1000;
-pub const FRAGMENT_COUNT: u32 = 3;
+// pub const FRAGMENT_COUNT: u32 = 3;
 
 parameter_types! {
 	pub const FilbakPalletId: PalletId = PalletId(*b"rewardpt");
 	pub const OneDay: BlockNumber = DAYS;
-	#[derive(Clone, Eq, PartialEq)]
-	pub const UploadFillerLimit: u8 = 10;
-	#[derive(Clone, Eq, PartialEq)]
-	pub const InvalidLimit: u32 = 100000;
-	#[derive(Clone, Eq, PartialEq)]
-	pub const RecoverLimit: u32 = 8000;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const BucketLimit: u32 = 1000;
 	#[derive(Clone, Eq, PartialEq)]
@@ -1053,6 +1050,8 @@ parameter_types! {
 	pub const FragmentCount: u32 = FRAGMENT_COUNT;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const OwnerLimit: u32 = 50000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const UserFileLimit: u32 = 100000;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const NameMinLength: u32 = 3;
 	#[derive(Clone, Eq, PartialEq)]
@@ -1076,12 +1075,9 @@ impl pallet_file_bank::Config for Runtime {
 	type StorageHandle = StorageHandler;
 	type MyRandomness = pallet_rrsc::ParentBlockRandomness<Runtime>;
 	type TeeWorkerHandler = TeeWorker;
-	type StringLimit = StringLimit;
+	type UserFileLimit = UserFileLimit;
 	type OneDay = OneDay;
 	type CreditCounter = SchedulerCredit;
-	type UploadFillerLimit = UploadFillerLimit;
-	type InvalidLimit = InvalidLimit;
-	type RecoverLimit = RecoverLimit;
 	type OssFindAuthor = Oss;
 	type BucketLimit = BucketLimit;
 	type NameStrLimit = NameStrLimit;
@@ -1102,10 +1098,6 @@ parameter_types! {
 	pub const ParamsLimit: u32 = 359;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const MaxWhitelist: u32 = 200;
-	// #[derive(Clone, Eq, PartialEq)]
-	// pub const ReportLength: u32 = 1354;
-	// #[derive(Clone, Eq, PartialEq)]
-	// pub const CertLength: u32 = 1588;
 }
 
 impl pallet_tee_worker::Config for Runtime {

@@ -43,7 +43,7 @@ pub struct DealInfo<T: Config> {
 	pub(super) segment_list: BoundedVec<SegmentList<T>, T::SegmentCount>,
 	pub(super) needed_list: BoundedVec<SegmentList<T>, T::SegmentCount>,
 	pub(super) user: UserBrief<T>,
-	pub(super) assigned_miner: BoundedVec<MinerTaskList<T>, T::StringLimit>,
+	pub(super) assigned_miner: BoundedVec<MinerTaskList<T>, ConstU32<ASSIGN_MINER_IDEAL_QUANTITY>>,
 	pub(super) share_info: BoundedVec<SegmentInfo<T>, T::SegmentCount>,
 	pub(super) complete_list: BoundedVec<AccountOf<T>, T::FragmentCount>,
 }
@@ -88,7 +88,7 @@ pub struct UserFileSliceInfo {
 #[codec(mel_bound())]
 pub struct BucketInfo<T: Config> {
 	pub(super) object_list: BoundedVec<Hash, T::FileListLimit>,
-	pub(super) authority: BoundedVec<AccountOf<T>, T::StringLimit>,
+	pub(super) authority: BoundedVec<AccountOf<T>, ConstU32<1032>>,
 }
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]

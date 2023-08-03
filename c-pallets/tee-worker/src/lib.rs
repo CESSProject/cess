@@ -213,7 +213,7 @@ pub mod pallet {
         #[transactional]
 		#[pallet::weight(100_000_000)]
 		pub fn update_podr2_pk(origin: OriginFor<T>, podr2_pbk: Podr2Key) -> DispatchResult {
-			let sender = ensure_root(origin)?;
+			let _sender = ensure_root(origin)?;
 
 			<TeePodr2Pk<T>>::put(podr2_pbk);
 

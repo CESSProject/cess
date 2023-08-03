@@ -777,6 +777,7 @@ name = "cess-node-runtime"
 version = "0.6.0"
 dependencies = [
  "cessp-consensus-rrsc",
+ "cp-cess-common",
  "cp-enclave-verify",
  "cp-scheduler-credit",
  "fp-rpc",

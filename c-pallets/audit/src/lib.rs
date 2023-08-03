@@ -153,9 +153,6 @@ pub mod pallet {
 	use frame_support::{traits::Get};
 	use frame_system::{ensure_signed, pallet_prelude::*};
 
-	pub type BoundedString<T> = BoundedVec<u8, <T as Config>::StringLimit>;
-	pub type BoundedList<T> =
-		BoundedVec<BoundedVec<u8, <T as Config>::StringLimit>, <T as Config>::StringLimit>;
 	///18446744073709551615
 	pub const LIMIT: u64 = u64::MAX;
 
@@ -174,7 +171,7 @@ pub mod pallet {
 		type MyPalletId: Get<PalletId>;
 
 		#[pallet::constant]
-		type StringLimit: Get<u32> + Clone + Eq + PartialEq;
+		type SessionKeyMax: Get<u32> + Clone + Eq + PartialEq;
 
 		#[pallet::constant]
 		type ChallengeMinerMax: Get<u32> + Clone + Eq + PartialEq;
@@ -186,11 +183,11 @@ pub mod pallet {
 		type SigmaMax: Get<u32> + Clone + Eq + PartialEq;
 
 		#[pallet::constant]
-		type SubmitValidationLimit: Get<u32> + Clone + Eq + PartialEq;
-		//one day block
+		type IdleTotalHashLength: Get<u32> + Clone + Eq + PartialEq;
+		// one day block
 		#[pallet::constant]
 		type OneDay: Get<BlockNumberOf<Self>>;
-		//one hours block
+		// one hours block
 		#[pallet::constant]
 		type OneHours: Get<BlockNumberOf<Self>>;
 		// randomness for seeds.
@@ -307,7 +304,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn keys)]
-	pub(super) type Keys<T: Config> = StorageValue<_, WeakBoundedVec<T::AuthorityId, T::StringLimit>, ValueQuery>;
+	pub(super) type Keys<T: Config> = StorageValue<_, WeakBoundedVec<T::AuthorityId, T::SessionKeyMax>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn challenge_proposal)]
@@ -448,7 +445,7 @@ pub mod pallet {
 		#[pallet::weight(100_000_000)]
 		pub fn submit_idle_proof(
 			origin: OriginFor<T>,
-			idle_prove: BoundedVec<u8, T::SigmaMax>,
+			idle_prove: BoundedVec<u8, T::IdleTotalHashLength>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
@@ -560,7 +557,7 @@ pub mod pallet {
 		#[pallet::weight(100_000_000)]
 		pub fn submit_verify_idle_result(
 			origin: OriginFor<T>,
-			total_prove_hash: BoundedVec<u8, T::SigmaMax>,
+			total_prove_hash: BoundedVec<u8, T::IdleTotalHashLength>,
 			front: u64,
 			rear: u64,
 			accumulator: Accumulator,
@@ -1317,7 +1314,7 @@ pub mod pallet {
 		pub fn initialize_keys(keys: &[T::AuthorityId]) {
 			if !keys.is_empty() {
 				assert!(Keys::<T>::get().is_empty(), "Keys are already initialized!");
-				let bounded_keys = <BoundedSlice<'_, _, T::StringLimit>>::try_from(keys)
+				let bounded_keys = <BoundedSlice<'_, _, T::SessionKeyMax>>::try_from(keys)
 					.expect("More than the maximum number of keys provided");
 				Keys::<T>::put(bounded_keys);
 			}
@@ -1359,7 +1356,7 @@ pub mod pallet {
 			mut idle_result: bool, 
 			front: u64, 
 			rear: u64, 
-			total_prove_hash: &BoundedVec<u8, T::SigmaMax>,
+			total_prove_hash: &BoundedVec<u8, T::IdleTotalHashLength>,
 			accumulator: &Accumulator, 
 			miner_info: &IdleProveInfo<T>,
 		) -> bool {
@@ -1410,7 +1407,7 @@ impl<T: Config> OneSessionHandler<T::AccountId> for Pallet<T> {
 
 		// Remember who the authorities are for the new session.
 		let keys = validators.map(|x| x.1).collect::<Vec<_>>();
-		let bounded_keys = WeakBoundedVec::<_, T::StringLimit>::force_from(
+		let bounded_keys = WeakBoundedVec::<_, T::SessionKeyMax>::force_from(
 			keys,
 			Some(
 				"Warning: The session has more keys than expected. \

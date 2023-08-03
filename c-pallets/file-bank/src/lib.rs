@@ -127,19 +127,11 @@ pub mod pallet {
 		type FilbakPalletId: Get<PalletId>;
 
 		#[pallet::constant]
-		type StringLimit: Get<u32> + Clone + Eq + PartialEq;
+		type UserFileLimit: Get<u32> + Clone + Eq + PartialEq;
 
 		#[pallet::constant]
 		type OneDay: Get<BlockNumberOf<Self>>;
 
-		#[pallet::constant]
-		type UploadFillerLimit: Get<u8> + Clone + Eq + PartialEq;
-
-		#[pallet::constant]
-		type RecoverLimit: Get<u32> + Clone + Eq + PartialEq;
-
-		#[pallet::constant]
-		type InvalidLimit: Get<u32> + Clone + Eq + PartialEq;
 		// User defined name length limit
 		#[pallet::constant]
 		type NameStrLimit: Get<u32> + Clone + Eq + PartialEq;
@@ -294,18 +286,13 @@ pub mod pallet {
 		_,
 		Blake2_128Concat,
 		T::AccountId,
-		BoundedVec<UserFileSliceInfo, T::StringLimit>,
+		BoundedVec<UserFileSliceInfo, T::UserFileLimit>,
 		ValueQuery,
 	>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn pending_replacements)]
 	pub(super) type PendingReplacements<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, u128, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn invalid_file)]
-	pub(super) type InvalidFile<T: Config> =
-		StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<Hash, T::InvalidLimit>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn miner_lock)]
