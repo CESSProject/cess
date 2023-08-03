@@ -940,8 +940,7 @@ impl pallet_sudo::Config for Runtime {
  */
 parameter_types! {
 	pub const RewardPalletId: PalletId = PalletId(*b"rewardpt");
-	pub const MultipleFines: u8 = 7;
-	pub const DepositBufferPeriod: u32 = 3;
+	pub const FaucetId: PalletId = PalletId(*b"facuetid");
 	pub const MaxAward: u128 = 1_306_849_000_000_000_000;
 	pub const LockInPeriod: u8 = 2;
 }
@@ -951,14 +950,13 @@ impl pallet_sminer::Config for Runtime {
 	// The ubiquitous event type.
 	type RuntimeEvent = RuntimeEvent;
 	type PalletId = RewardPalletId;
+	type FaucetId = FaucetId;
 	type SScheduler = Scheduler;
 	type AScheduler = Scheduler;
 	type SPalletsOrigin = OriginCaller;
 	type SProposal = RuntimeCall;
 	type WeightInfo = pallet_sminer::weights::SubstrateWeight<Runtime>;
 	type ItemLimit = ConstU32<10_000>;
-	type MultipleFines = MultipleFines;
-	type DepositBufferPeriod = DepositBufferPeriod;
 	type OneDayBlock = OneDay;
 	type MaxAward = MaxAward;
 	type LockInPeriod = LockInPeriod;

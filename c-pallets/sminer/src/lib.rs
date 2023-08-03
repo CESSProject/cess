@@ -17,15 +17,8 @@
 //! * `claim` - Claim the rewards from storage miner's earnings.
 
 #![cfg_attr(not(feature = "std"), no_std)]
-
-#[cfg(test)]
-mod mock;
-
-#[cfg(test)]
-mod tests;
-
 use frame_support::{
-	transactional,
+	transactional, ensure,
 	storage::bounded_vec::BoundedVec,
 	traits::{
 		schedule::{Anon as ScheduleAnon, Named as ScheduleNamed},
@@ -33,29 +26,14 @@ use frame_support::{
 		ExistenceRequirement::KeepAlive,
 		Get, Imbalance, OnUnbalanced, ReservableCurrency,
 	},
-};
-use cp_cess_common::*;
-
-use sp_runtime::traits::Zero;
-
-#[cfg(feature = "runtime-benchmarks")]
-pub mod benchmarking;
-
-pub mod types;
-pub use types::*;
-
-mod constants;
-use constants::*;
-
-use codec::{Decode, Encode};
-use frame_support::{
-	ensure,
 	dispatch::{DispatchResult, Dispatchable},
 	pallet_prelude::DispatchError,
 	PalletId,
 };
+use cp_cess_common::*;
+use sp_runtime::traits::Zero;
+use codec::{Decode, Encode};
 use frame_system::{self as system};
-pub use pallet::*;
 use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{AccountIdConversion, CheckedAdd, CheckedSub, SaturatedConversion},
@@ -65,8 +43,27 @@ use sp_std::{convert::TryInto, prelude::*};
 use sp_core::ConstU32;
 use cp_enclave_verify::verify_rsa;
 use pallet_tee_worker::TeeWorkerHandler;
-
 use cp_bloom_filter::BloomFilter;
+
+pub use pallet::*;
+
+#[cfg(feature = "runtime-benchmarks")]
+pub mod benchmarking;
+
+#[cfg(test)]
+mod mock;
+
+#[cfg(test)]
+mod tests;
+
+pub mod types;
+pub use types::*;
+
+mod constants;
+use constants::*;
+
+mod functions;
+mod helper;
 
 pub mod weights;
 pub use weights::WeightInfo;
@@ -99,15 +96,12 @@ pub mod pallet {
 		/// The treasury's pallet id, used for deriving its sovereign account ID.
 		#[pallet::constant]
 		type PalletId: Get<PalletId>;
+		/// The treasury's pallet id, used for deriving its sovereign account ID.
+		#[pallet::constant]
+		type FaucetId: Get<PalletId>;
 
 		#[pallet::constant]
 		type ItemLimit: Get<u32>;
-
-		#[pallet::constant]
-		type MultipleFines: Get<u8>;
-
-		#[pallet::constant]
-		type DepositBufferPeriod: Get<u32>;
 
 		#[pallet::constant]
 		type OneDayBlock: Get<BlockNumberOf<Self>>;
@@ -331,8 +325,10 @@ pub mod pallet {
 			};
 
 			let encoding = space_proof_info.encode();
+			// FOR TESTING
 			log::info!("original text: {:?}", encoding);
 			let original_text = sp_io::hashing::sha2_256(&encoding);
+			// FOR TESTING
 			log::info!("original text: {:?}", original_text);
 			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
 			ensure!(verify_rsa(&tee_puk, &original_text, &tee_sig), Error::<T>::VerifyTeeSigFailed);
@@ -346,7 +342,7 @@ pub mod pallet {
 					peer_id: peer_id,
 					collaterals: staking_val,
 					debt: BalanceOf::<T>::zero(),
-					state: Self::vec_to_bound::<u8>(STATE_POSITIVE.as_bytes().to_vec())?,
+					state: Self::str_to_bound(STATE_POSITIVE)?,
 					idle_space: u128::MIN,
 					service_space: u128::MIN,
 					lock_space: u128::MIN,
@@ -423,7 +419,7 @@ pub mod pallet {
 					let power = Self::calculate_power(miner_info.idle_space, miner_info.service_space);
 					let limit = Self::check_collateral_limit(power)?;
 					if miner_info.collaterals >= limit {
-						miner_info.state = Self::vec_to_bound(STATE_POSITIVE.as_bytes().to_vec())?;
+						miner_info.state = Self::str_to_bound(STATE_POSITIVE)?;
 					}
 				}
 
@@ -539,7 +535,7 @@ pub mod pallet {
 		pub fn faucet_top_up(origin: OriginFor<T>, award: BalanceOf<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
-			let reward_pot = T::PalletId::get().into_account_truncating();
+			let reward_pot = T::FaucetId::get().into_account_truncating();
 			<T as pallet::Config>::Currency::transfer(&sender, &reward_pot, award, KeepAlive)?;
 
 			Self::deposit_event(Event::<T>::FaucetTopUpMoney { acc: sender.clone() });
@@ -567,7 +563,7 @@ pub mod pallet {
 				);
 
 				let now = <frame_system::Pallet<T>>::block_number();
-				let reward_pot = T::PalletId::get().into_account_truncating();
+				let reward_pot = T::FaucetId::get().into_account_truncating();
 
 				<T as pallet::Config>::Currency::transfer(
 					&reward_pot,
@@ -611,7 +607,7 @@ pub mod pallet {
 				}
 				ensure!(flag, Error::<T>::LessThan24Hours);
 
-				let reward_pot = T::PalletId::get().into_account_truncating();
+				let reward_pot = T::FaucetId::get().into_account_truncating();
 				<T as pallet::Config>::Currency::transfer(
 					&reward_pot,
 					&to,
@@ -644,399 +640,6 @@ pub mod pallet {
 
 			Ok(())
 		}
-	}
-}
-
-impl<T: Config> Pallet<T> {
-	/// Add computing power to corresponding miners.
-	///
-	/// Parameters:
-	/// - `peerid`: peerid.
-	/// - `increment`: computing power.
-	pub fn add_miner_idle_space(
-		acc: &AccountOf<T>, 
-		accumulator: Accumulator, 
-		rear: u64, 
-		tee_sig: TeeRsaSignature,
-	) -> Result<u128, DispatchError> {
-		MinerItems::<T>::try_mutate(acc, |miner_info_opt| -> Result<u128, DispatchError> {
-			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
-
-			// check state 
-			ensure!(miner_info.state.to_vec() == STATE_POSITIVE.as_bytes().to_vec(), Error::<T>::NotpositiveState);
-
-			ensure!(miner_info.space_proof_info.rear < rear, Error::<T>::CountError);
-
-			let count = rear.checked_sub(miner_info.space_proof_info.rear).ok_or(Error::<T>::Overflow)?;
-			let idle_space = IDLE_SEG_SIZE.checked_mul(count as u128).ok_or(Error::<T>::Overflow)?;
-
-			miner_info.space_proof_info.rear = rear;
-
-			miner_info.space_proof_info.accumulator = accumulator;
-
-			miner_info.idle_space =
-				miner_info.idle_space.checked_add(idle_space).ok_or(Error::<T>::Overflow)?;
-
-			miner_info.tee_signature = tee_sig;
-
-			Ok(idle_space)
-		})
-	}
-
-	pub fn delete_idle_update_accu(
-		acc: &AccountOf<T>, 
-		accumulator: Accumulator, 
-		front: u64, 
-		tee_sig: TeeRsaSignature,
-	) -> Result<u64, DispatchError> {
-		MinerItems::<T>::try_mutate(acc, |miner_info_opt| -> Result<u64, DispatchError> {
-			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
-
-			ensure!(miner_info.space_proof_info.front < front, Error::<T>::CountError);
-
-			let count = front - miner_info.space_proof_info.front;
-
-			miner_info.space_proof_info.front = front;
-
-			miner_info.space_proof_info.accumulator = accumulator;
-
-			miner_info.tee_signature = tee_sig;
-
-			Ok(count)
-		})
-	}
-
-	fn delete_idle_update_space(acc: &AccountOf<T>, idle_space: u128) -> DispatchResult {
-		MinerItems::<T>::try_mutate(acc, |miner_info_opt| -> DispatchResult {
-			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
-
-			miner_info.idle_space = miner_info.idle_space.checked_sub(idle_space).ok_or(Error::<T>::Overflow)?;
-
-			Ok(())
-		})
-	}
-	/// Sub computing power to corresponding miners.
-	///
-	/// Parameters:
-	/// - `peerid`: peerid.
-	/// - `increment`: computing power.
-	pub fn sub_miner_idle_space(acc: &AccountOf<T>, increment: u128) -> DispatchResult {
-		//check exist
-		if !<MinerItems<T>>::contains_key(acc) {
-			return Ok(());
-		}
-
-		let state = Self::check_state(acc)?; //read 1
-		if state == STATE_EXIT.as_bytes().to_vec() {
-			return Ok(());
-		}
-		MinerItems::<T>::try_mutate(acc, |miner_info_opt| -> DispatchResult {
-			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
-			miner_info.idle_space =
-				miner_info.idle_space.checked_sub(increment).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?; //read 1 write 1
-
-		Ok(())
-	}
-
-	/// Add space calculation power to corresponding miners.
-	///
-	/// Parameters:
-	/// - `peerid`: peerid.
-	/// - `increment`: computing power.
-	pub fn add_miner_service_space(acc: &AccountOf<T>, increment: u128) -> DispatchResult {
-		//check exist
-		if !<MinerItems<T>>::contains_key(acc) {
-			return Ok(());
-		}
-
-		let state = Self::check_state(acc)?;
-		if state == STATE_EXIT.as_bytes().to_vec() {
-			return Ok(());
-		}
-		MinerItems::<T>::try_mutate(acc, |miner_info_opt| -> DispatchResult {
-			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
-			miner_info.service_space =
-				miner_info.service_space.checked_add(increment).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
-
-		Ok(())
-	}
-
-	/// Sub space calculation power to corresponding miners.
-	///
-	/// Parameters:
-	/// - `peerid`: peerid.
-	/// - `increment`: computing power.
-	pub fn sub_miner_service_space(acc: &AccountOf<T>, increment: u128) -> DispatchResult {
-		//check exist
-		if !<MinerItems<T>>::contains_key(acc) {
-			return Ok(());
-		}
-
-		let state = Self::check_state(acc)?;
-		if state == STATE_EXIT.as_bytes().to_vec() {
-			return Ok(());
-		}
-		MinerItems::<T>::try_mutate(acc, |miner_info_opt| -> DispatchResult {
-			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
-			miner_info.service_space =
-				miner_info.service_space.checked_sub(increment).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
-
-		Ok(())
-	}
-
-	pub fn calculate_power(idle_space: u128, service_space: u128) -> u128 {
-		let service_power = SERVICE_MUTI.mul_floor(service_space);
-
-        let idle_power = IDLE_MUTI.mul_floor(idle_space);
-
-		let power: u128 = idle_power + service_power;
-
-		power
-	}
-
-	pub fn calculate_miner_reward(
-		miner: &AccountOf<T>,
-		total_reward: u128,
-		total_idle_space: u128,
-		total_service_space: u128,
-		miner_idle_space: u128,
-		miner_service_space: u128,
-	) -> DispatchResult {
-		let total_power = Self::calculate_power(total_idle_space, total_service_space);
-		let miner_power = Self::calculate_power(miner_idle_space, miner_service_space);
-
-		let miner_prop = Perbill::from_rational(miner_power, total_power);
-		let this_round_reward = miner_prop.mul_floor(total_reward);
-		let each_share = EACH_SHARE_MUTI.mul_floor(this_round_reward);
-		let each_share = each_share.checked_div(RELEASE_NUMBER.into()).ok_or(Error::<T>::Overflow)?;
-		let issued: BalanceOf<T> = ISSUE_MUTI.mul_floor(this_round_reward).try_into().map_err(|_| Error::<T>::Overflow)?;
-
-		let order = RewardOrder::<BalanceOf<T>>{
-			order_reward: this_round_reward.try_into().map_err(|_| Error::<T>::Overflow)?,
-			each_share: each_share.try_into().map_err(|_| Error::<T>::Overflow)?,
-			award_count: 1,
-			has_issued: true,
-		};
-		// calculate available reward
-		RewardMap::<T>::try_mutate(miner, |opt_reward_info| -> DispatchResult {
-			let reward_info = opt_reward_info.as_mut().ok_or(Error::<T>::Unexpected)?;
-			// traverse the order list
-			for order_temp in reward_info.order_list.iter_mut() {
-				// skip if the order has been issued for 180 times
-				if order_temp.award_count == RELEASE_NUMBER {
-					continue;
-				}
-				reward_info.currently_available_reward = reward_info.currently_available_reward
-					.checked_add(&order_temp.each_share).ok_or(Error::<T>::Overflow)?;
-
-				order_temp.award_count += 1;
-			}
-
-			if reward_info.order_list.len() == RELEASE_NUMBER as usize {
-				reward_info.order_list.remove(0);
-			}
-
-			reward_info.currently_available_reward = reward_info.currently_available_reward
-				.checked_add(&issued).ok_or(Error::<T>::Overflow)?
-				.checked_add(&order.each_share).ok_or(Error::<T>::Overflow)?;
-			reward_info.total_reward = reward_info.total_reward
-				.checked_add(&order.order_reward).ok_or(Error::<T>::Overflow)?;
-			reward_info.order_list.try_push(order.clone()).map_err(|_| Error::<T>::BoundedVecError)?;
-
-			Ok(())
-		})?;
-
-		<CurrencyReward<T>>::mutate(|v| -> DispatchResult {
-			*v = v.checked_sub(&order.order_reward).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
-		
-		Ok(())
-	}
-
-	pub fn deposit_punish(miner: &AccountOf<T>, punish_amount: BalanceOf<T>) -> DispatchResult {
-		<MinerItems<T>>::try_mutate(miner, |miner_info_opt| -> DispatchResult {
-			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
-			
-			let reward_pot = T::PalletId::get().into_account_truncating();
-
-			if miner_info.collaterals > punish_amount {
-				T::Currency::unreserve(miner, punish_amount);
-				T::Currency::transfer(miner, &reward_pot, punish_amount, KeepAlive)?;
-				<CurrencyReward<T>>::mutate(|reward| {
-					*reward = *reward + punish_amount;
-				});
-				miner_info.collaterals = miner_info.collaterals.checked_sub(&punish_amount).ok_or(Error::<T>::Overflow)?;
-			} else {
-				T::Currency::unreserve(miner, miner_info.collaterals);
-				T::Currency::transfer(miner, &reward_pot, miner_info.collaterals, KeepAlive)?;
-				<CurrencyReward<T>>::mutate(|reward| {
-					*reward = *reward + miner_info.collaterals;
-				});
-				miner_info.collaterals = BalanceOf::<T>::zero();
-				miner_info.debt = punish_amount.checked_sub(&miner_info.collaterals).ok_or(Error::<T>::Overflow)?;
-			}
-
-			let power = Self::calculate_power(miner_info.idle_space, miner_info.service_space);
-			let limit = Self::check_collateral_limit(power)?;
-
-			if miner_info.collaterals < limit {
-				miner_info.state = STATE_FROZEN.as_bytes().to_vec().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
-			}
-
-			Ok(())
-		})?;
-
-		Ok(())
-	}
-
-	pub fn idle_punish(miner: &AccountOf<T>, idle_space: u128, service_space: u128) -> DispatchResult {
-		let power = Self::calculate_power(idle_space, service_space);
-		let limit = Self::check_collateral_limit(power)?;
-
-		let punish_amount = IDLE_PUNI_MUTI.mul_floor(limit);
-
-		Self::deposit_punish(miner, punish_amount)?;
-
-		Ok(())
-	}
-
-	pub fn service_punish(miner: &AccountOf<T>, idle_space: u128, service_space: u128) -> DispatchResult {
-		let power = Self::calculate_power(idle_space, service_space);
-		let limit = Self::check_collateral_limit(power)?;
-
-		let punish_amount = SERVICE_PUNI_MUTI.mul_floor(limit);
-
-		Self::deposit_punish(miner, punish_amount)?;
-
-		Ok(())
-	}
-
-	pub fn clear_punish(miner: &AccountOf<T>, level: u8, idle_space: u128, service_space: u128) -> DispatchResult {
-		let power = Self::calculate_power(idle_space, service_space);
-		let limit = Self::check_collateral_limit(power)?;
-
-		let punish_amount = match level {
-			1 => Perbill::from_percent(30).mul_floor(limit),
-			2 => Perbill::from_percent(60).mul_floor(limit),
-			3 => limit,
-			_ => return Err(Error::<T>::Unexpected)?,
-		};
-
-		Self::deposit_punish(miner, punish_amount)?;
-
-		Ok(())
-	}
-
-	pub fn insert_service_bloom(acc: &AccountOf<T>, hash_list: Vec<Box<[u8; 256]>>) -> DispatchResult {
-		<MinerItems<T>>::try_mutate(&acc, |opt_m_info| -> DispatchResult{
-			let m_info = opt_m_info.as_mut().ok_or(Error::<T>::NotMiner)?;
-			for elem in hash_list {
-				m_info.service_bloom_filter.insert(*elem).map_err(|_| Error::<T>::BloomElemPushError)?;
-			}
-			Ok(())
-		})?;
-
-		Ok(())
-	}
-
-	pub fn delete_service_bloom(acc: &AccountOf<T>, hash_list: Vec<Box<[u8; 256]>>) -> DispatchResult {
-		<MinerItems<T>>::try_mutate(&acc, |opt_m_info| -> DispatchResult{
-			let m_info = opt_m_info.as_mut().ok_or(Error::<T>::NotMiner)?;
-			for elem in hash_list {
-				m_info.service_bloom_filter.delete(*elem).map_err(|_| Error::<T>::BloomElemPushError)?;
-			}
-			Ok(())
-		})?;
-
-		Ok(())
-	}
-
-	fn check_collateral_limit(power: u128) -> Result<BalanceOf<T>, Error<T>> {
-		let limit = 1 + power.checked_div(T_BYTE).ok_or(Error::<T>::Overflow)?;
-		let limit = BASE_LIMIT.checked_mul(limit).ok_or(Error::<T>::Overflow)?;
-		let limit: BalanceOf<T> = limit.try_into().map_err(|_| Error::<T>::Overflow)?;
-
-		Ok(limit)
-	}
-
-	fn check_state(acc: &AccountOf<T>) -> Result<Vec<u8>, Error<T>> {
-		Ok(<MinerItems<T>>::try_get(acc).map_err(|_e| Error::<T>::NotMiner)?.state.to_vec())
-	}
-
-	fn vec_to_bound<P>(param: Vec<P>) -> Result<BoundedVec<P, T::ItemLimit>, DispatchError> {
-		let result: BoundedVec<P, T::ItemLimit> =
-			param.try_into().map_err(|_e| Error::<T>::StorageLimitReached)?;
-
-		Ok(result)
-	}
-
-	// Note: that it is necessary to determine whether the state meets the exit conditions before use.
-	fn force_miner_exit(acc: &AccountOf<T>) -> DispatchResult {
-		if let Ok(reward_info) = <RewardMap<T>>::try_get(acc).map_err(|_| Error::<T>::NotExisted) {
-			let reward = reward_info.total_reward
-				.checked_sub(&reward_info.reward_issued).ok_or(Error::<T>::Overflow)?;
-			<CurrencyReward<T>>::mutate(|v| {
-				*v = *v + reward;
-			});
-		}
-		let mut miner_list = AllMiner::<T>::get();
-		miner_list.retain(|s| s != acc);
-		AllMiner::<T>::put(miner_list);
-
-		<RewardMap<T>>::remove(acc);
-
-		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
-			let miner = miner_opt.as_mut().ok_or(Error::<T>::Unexpected)?;
-			miner.state = STATE_OFFLINE.as_bytes().to_vec().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
-			let encoding = miner.space_proof_info.pois_key.encode();
-			let hashing = sp_io::hashing::sha2_256(&encoding);
-			MinerPublicKey::<T>::remove(hashing);
-			Ok(())
-		})?;
-
-		Ok(())
-	}
-
-	// Note: that it is necessary to determine whether the state meets the exit conditions before use.
-	fn execute_exit(acc: &AccountOf<T>) -> DispatchResult {
-		// T::Currency::unreserve(acc, miner.collaterals);
-		if let Ok(reward_info) = <RewardMap<T>>::try_get(acc).map_err(|_| Error::<T>::NotExisted) {
-			let reward = reward_info.total_reward
-				.checked_sub(&reward_info.reward_issued).ok_or(Error::<T>::Overflow)?;
-			<CurrencyReward<T>>::mutate(|v| {
-				*v = *v + reward;
-			});
-		}
-
-		let mut miner_list = AllMiner::<T>::get();
-		miner_list.retain(|s| s != acc);
-		AllMiner::<T>::put(miner_list);
-
-		<RewardMap<T>>::remove(acc);
-		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
-			let miner_info = miner_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
-			miner_info.state = Self::vec_to_bound::<u8>(STATE_EXIT.as_bytes().to_vec())?;
-
-			Ok(())
-		})
-	}
-	// Note: that it is necessary to determine whether the state meets the exit conditions before use.
-	fn withdraw(acc: &AccountOf<T>) -> DispatchResult {
-		let miner_info = <MinerItems<T>>::try_get(acc).map_err(|_| Error::<T>::NotMiner)?;
-		T::Currency::unreserve(acc, miner_info.collaterals);
-		let encoding = miner_info.space_proof_info.pois_key.encode();
-		let hashing = sp_io::hashing::sha2_256(&encoding);
-		MinerPublicKey::<T>::remove(hashing);
-		<MinerItems<T>>::remove(acc);
-
-		Ok(())
 	}
 }
 
