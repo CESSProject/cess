@@ -517,6 +517,8 @@ pub mod pallet {
 					// unlock mienr space
 					let mut needed_list: BoundedVec<MinerTaskList<T>, T::StringLimit> = Default::default();
 					let mut selected_miner: BoundedVec<AccountOf<T>, T::StringLimit> = Default::default();
+					let mut miner_task_list = Self::reassign_miner(needed_list, selected_miner)?.to_vec();
+
 					for miner_task in &deal_info.assigned_miner.clone() {
 						if !deal_info.complete_list.contains(&miner_task.miner) {
 							deal_info.assigned_miner.retain(|temp_info| temp_info.miner != miner_task.miner);
@@ -528,7 +530,6 @@ pub mod pallet {
 						selected_miner.try_push(miner_task.miner.clone()).map_err(|_| Error::<T>::Overflow)?;
 					}
 
-					let mut miner_task_list = Self::reassign_miner(needed_list, selected_miner)?.to_vec();
 					deal_info.assigned_miner.try_append(&mut miner_task_list).map_err(|_| Error::<T>::Overflow)?;
 					deal_info.count = count;
 					Self::start_first_task(deal_hash.0.to_vec(), deal_hash, count + 1, life)?;

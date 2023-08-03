@@ -223,7 +223,7 @@ impl<T: Config> Pallet<T> {
         let mut total = all_miner.len() as u32;
         let mut seed = <frame_system::Pallet<T>>::block_number().saturated_into();
         // Used to calculate the upper limit of the number of random selections
-        let random_count_limit = task_list.len() as u32 / 10 + 10;
+        let random_count_limit = (task_list.len() - selected_miner.len()) as u32 * 3 + 10;
         let mut new_task_list: BoundedVec<MinerTaskList<T>, T::StringLimit> = Default::default();
         for miner_task in &task_list {
              // Used to count the number of random selections.
