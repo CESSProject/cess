@@ -87,7 +87,7 @@ pub struct UserFileSliceInfo {
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct BucketInfo<T: Config> {
-	pub(super) object_list: BoundedVec<Hash, T::FileListLimit>,
+	pub(super) object_list: BoundedVec<Hash, T::UserFileLimit>,
 	pub(super) authority: BoundedVec<AccountOf<T>, ConstU32<1032>>,
 }
 

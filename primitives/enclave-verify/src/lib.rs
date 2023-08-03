@@ -15,7 +15,7 @@ use cp_cess_common::*;
 use rsa::{
     PublicKey,
     Pkcs1v15Sign, 
-    pkcs1::{EncodeRsaPublicKey, DecodeRsaPublicKey},
+    pkcs1::DecodeRsaPublicKey,
 };
 
 use ic_verify_bls_signature::{

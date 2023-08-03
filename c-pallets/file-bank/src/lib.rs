@@ -135,10 +135,6 @@ pub mod pallet {
 		// User defined name length limit
 		#[pallet::constant]
 		type NameStrLimit: Get<u32> + Clone + Eq + PartialEq;
-		// In order to enable users to store unlimited number of files,
-		// a large number is set as the boundary of BoundedVec.
-		#[pallet::constant]
-		type FileListLimit: Get<u32> + Clone + Eq + PartialEq;
 		// Maximum number of containers that users can create.
 		#[pallet::constant]
 		type BucketLimit: Get<u32> + Clone + Eq + PartialEq;

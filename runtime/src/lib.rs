@@ -956,7 +956,7 @@ impl pallet_sminer::Config for Runtime {
 	type SPalletsOrigin = OriginCaller;
 	type SProposal = RuntimeCall;
 	type WeightInfo = pallet_sminer::weights::SubstrateWeight<Runtime>;
-	type ItemLimit = ConstU32<10_000>;
+	type ItemLimit = ConstU32<200000>;
 	type OneDayBlock = OneDay;
 	type MaxAward = MaxAward;
 	type LockInPeriod = LockInPeriod;
@@ -1041,15 +1041,13 @@ parameter_types! {
 	#[derive(Clone, Eq, PartialEq)]
 	pub const NameStrLimit: u32 = 63;
 	#[derive(Clone, Eq, PartialEq)]
-	pub const FileListLimit: u32 = 500000;
-	#[derive(Clone, Eq, PartialEq)]
 	pub const SegmentCount: u32 = SEGMENT_COUNT;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const FragmentCount: u32 = FRAGMENT_COUNT;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const OwnerLimit: u32 = 50000;
 	#[derive(Clone, Eq, PartialEq)]
-	pub const UserFileLimit: u32 = 100000;
+	pub const UserFileLimit: u32 = 500000;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const NameMinLength: u32 = 3;
 	#[derive(Clone, Eq, PartialEq)]
@@ -1079,7 +1077,6 @@ impl pallet_file_bank::Config for Runtime {
 	type OssFindAuthor = Oss;
 	type BucketLimit = BucketLimit;
 	type NameStrLimit = NameStrLimit;
-	type FileListLimit = FileListLimit;
 	type SegmentCount = SegmentCount;
 	type FragmentCount = FragmentCount;
 	type OwnerLimit = OwnerLimit;

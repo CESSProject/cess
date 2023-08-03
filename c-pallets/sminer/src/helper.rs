@@ -198,7 +198,6 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-    
 	pub(super) fn clear_punish(miner: &AccountOf<T>, level: u8, idle_space: u128, service_space: u128) -> DispatchResult {
 		let power = Self::calculate_power(idle_space, service_space);
 		let limit = Self::check_collateral_limit(power)?;
@@ -285,7 +284,7 @@ impl<T: Config> Pallet<T> {
 
 		Ok(())
 	}
-    
+
 	// Note: that it is necessary to determine whether the state meets the exit conditions before use.
 	pub(super) fn withdraw(acc: &AccountOf<T>) -> DispatchResult {
 		let miner_info = <MinerItems<T>>::try_get(acc).map_err(|_| Error::<T>::NotMiner)?;
