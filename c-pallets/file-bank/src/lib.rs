@@ -450,10 +450,10 @@ pub mod pallet {
 				T::StorageHandle::update_user_space(&user_brief.user, 1, needed_space)?;
 
 				if <Bucket<T>>::contains_key(&user_brief.user, &user_brief.bucket_name) {
-						Self::add_file_to_bucket(&user_brief.user, &user_brief.bucket_name, &file_hash)?;
-					} else {
-						Self::create_bucket_helper(&user_brief.user, &user_brief.bucket_name, Some(file_hash))?;
-					}
+					Self::add_file_to_bucket(&user_brief.user, &user_brief.bucket_name, &file_hash)?;
+				} else {
+					Self::create_bucket_helper(&user_brief.user, &user_brief.bucket_name, Some(file_hash))?;
+				}
 
 				Self::add_user_hold_fileslice(&user_brief.user, file_hash, needed_space)?;
 
@@ -472,7 +472,7 @@ pub mod pallet {
 
 			Ok(())
 		}
-		
+
 		#[pallet::call_index(1)]
 		#[transactional]
 		#[pallet::weight(1_000_000_000)]
@@ -514,7 +514,7 @@ pub mod pallet {
 
 			Ok(())
 		}
-		// Transfer needs to be restricted, such as target consent
+		/// Transfer needs to be restricted, such as target consent
 		/// Document ownership transfer function.
 		///
 		/// You can replace Alice, the holder of the file, with Bob. At the same time,
@@ -1137,8 +1137,6 @@ pub mod pallet {
 
 			Ok(())
 		}
-
-
 
 		#[pallet::call_index(18)]
 		#[transactional]

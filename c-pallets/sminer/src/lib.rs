@@ -21,19 +21,17 @@ use frame_support::{
 	transactional, ensure,
 	storage::bounded_vec::BoundedVec,
 	traits::{
-		schedule::{Anon as ScheduleAnon, Named as ScheduleNamed},
 		Currency,
 		ExistenceRequirement::KeepAlive,
 		Get, Imbalance, OnUnbalanced, ReservableCurrency,
 	},
-	dispatch::{DispatchResult, Dispatchable},
+	dispatch::{DispatchResult},
 	pallet_prelude::DispatchError,
 	PalletId,
 };
 use cp_cess_common::*;
 use sp_runtime::traits::Zero;
 use codec::{Decode, Encode};
-use frame_system::{self as system};
 use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{AccountIdConversion, CheckedAdd, CheckedSub, SaturatedConversion},
@@ -105,23 +103,6 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type OneDayBlock: Get<BlockNumberOf<Self>>;
-
-		#[pallet::constant]
-		type LockInPeriod: Get<u8>;
-
-		#[pallet::constant]
-		type MaxAward: Get<u128>;
-
-		#[pallet::constant]
-		type ChallengeMinerMax: Get<u32>;
-		/// The Scheduler.
-		type SScheduler: ScheduleNamed<Self::BlockNumber, Self::SProposal, Self::SPalletsOrigin>;
-
-		type AScheduler: ScheduleAnon<Self::BlockNumber, Self::SProposal, Self::SPalletsOrigin>;
-		/// Overarching type of all pallets origins.
-		type SPalletsOrigin: From<system::RawOrigin<Self::AccountId>>;
-		/// The SProposal.
-		type SProposal: Parameter + Dispatchable<RuntimeOrigin = Self::RuntimeOrigin> + From<Call<Self>>;
 		/// The WeightInfo.
 		type WeightInfo: WeightInfo;
 	}

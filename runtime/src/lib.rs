@@ -941,8 +941,6 @@ impl pallet_sudo::Config for Runtime {
 parameter_types! {
 	pub const RewardPalletId: PalletId = PalletId(*b"rewardpt");
 	pub const FaucetId: PalletId = PalletId(*b"facuetid");
-	pub const MaxAward: u128 = 1_306_849_000_000_000_000;
-	pub const LockInPeriod: u8 = 2;
 }
 
 impl pallet_sminer::Config for Runtime {
@@ -951,16 +949,9 @@ impl pallet_sminer::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type PalletId = RewardPalletId;
 	type FaucetId = FaucetId;
-	type SScheduler = Scheduler;
-	type AScheduler = Scheduler;
-	type SPalletsOrigin = OriginCaller;
-	type SProposal = RuntimeCall;
 	type WeightInfo = pallet_sminer::weights::SubstrateWeight<Runtime>;
 	type ItemLimit = ConstU32<200000>;
 	type OneDayBlock = OneDay;
-	type MaxAward = MaxAward;
-	type LockInPeriod = LockInPeriod;
-	type ChallengeMinerMax = ChallengeMinerMax;
 	type TeeWorkerHandler = TeeWorker;
 }
 
@@ -1089,8 +1080,6 @@ parameter_types! {
 	pub const TeeWorkerPalletId: PalletId = PalletId(*b"filmpdpt");
 	#[derive(Clone, PartialEq, Eq)]
 	pub const SchedulerMaximum: u32 = 10000;
-	#[derive(Clone, PartialEq, Eq)]
-	pub const ParamsLimit: u32 = 359;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const MaxWhitelist: u32 = 200;
 }
@@ -1100,11 +1089,9 @@ impl pallet_tee_worker::Config for Runtime {
 	// The ubiquitous event type.
 	type RuntimeEvent = RuntimeEvent;
 	type TeeWorkerPalletId = TeeWorkerPalletId;
-	type StringLimit = StringLimit;
 	type SchedulerMaximum = SchedulerMaximum;
 	type WeightInfo = pallet_tee_worker::weights::SubstrateWeight<Runtime>;
 	type CreditCounter = SchedulerCredit;
-	type ParamsLimit = ParamsLimit;
 	type MaxWhitelist = MaxWhitelist;
 	// type AuthorityId = pallet_tee_worker::ed25519::AuthorityId;
 }

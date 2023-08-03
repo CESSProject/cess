@@ -1,5 +1,4 @@
 //! # Tee Worker Module
-
 #![cfg_attr(not(feature = "std"), no_std)]
 
 
@@ -56,12 +55,6 @@ pub mod pallet {
 		/// pallet address.
 		#[pallet::constant]
 		type TeeWorkerPalletId: Get<PalletId>;
-
-		#[pallet::constant]
-		type StringLimit: Get<u32> + PartialEq + Eq + Clone;
-
-		#[pallet::constant]
-		type ParamsLimit: Get<u32> + PartialEq + Eq + Clone;
 
 		#[pallet::constant]
 		type SchedulerMaximum: Get<u32> + PartialEq + Eq + Clone;
