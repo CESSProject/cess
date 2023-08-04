@@ -165,7 +165,9 @@ impl<T: Config> Pallet<T> {
     pub(super) fn start_first_task(task_id: Vec<u8>, deal_hash: Hash, count: u8, life: u32) -> DispatchResult {
         let start: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
         let survival_block = start
-            .checked_add(50 * (count as u32)).ok_or(Error::<T>::Overflow)?
+            // temp
+            // .checked_add(50 * (count as u32)).ok_or(Error::<T>::Overflow)?
+            .checked_add(50).ok_or(Error::<T>::Overflow)?
             .checked_add(life).ok_or(Error::<T>::Overflow)?;
 
         T::FScheduler::schedule_named(
@@ -196,6 +198,80 @@ impl<T: Config> Pallet<T> {
         ).map_err(|_| Error::<T>::Unexpected)?;
 
         Ok(())
+    }
+
+    pub(super) fn remove_deal(deal_hash: &Hash) -> DispatchResult {
+        let deal_info = <DealMap<T>>::try_get(deal_hash).map_err(|_| Error::<T>::NonExistent)?;
+		let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
+		T::StorageHandle::unlock_user_space(&deal_info.user.user, needed_space)?;
+		// unlock mienr space
+		for miner_task in deal_info.assigned_miner {
+			let count = miner_task.fragment_list.len() as u128;
+			T::MinerControl::unlock_space(&miner_task.miner, FRAGMENT_SIZE * count)?;
+		}
+
+		<DealMap<T>>::remove(deal_hash);
+
+        Ok(())
+    }
+
+    pub(super) fn reassign_miner(
+        task_list: BoundedVec<MinerTaskList<T>, T::StringLimit>, 
+        selected_miner: BoundedVec<AccountOf<T>, T::StringLimit>,
+    ) -> Result<BoundedVec<MinerTaskList<T>, T::StringLimit>, DispatchError> {
+        let mut all_miner = T::MinerControl::get_all_miner()?;
+        let mut total = all_miner.len() as u32;
+        let mut seed = <frame_system::Pallet<T>>::block_number().saturated_into();
+        // Used to calculate the upper limit of the number of random selections
+        let random_count_limit = (task_list.len() - selected_miner.len()) as u32 * 3 + 10;
+        let mut new_task_list: BoundedVec<MinerTaskList<T>, T::StringLimit> = Default::default();
+        for miner_task in &task_list {
+             // Used to count the number of random selections.
+            let mut cur_count = 0;
+            let miner = loop {
+                if random_count_limit == cur_count {
+                    Err(Error::<T>::NotQualified)?;
+                }
+
+                if total == 0 {
+                    Err(Error::<T>::NotQualified)?;
+                }
+
+                let index = Self::generate_random_number(seed)? as u32 % total;
+                seed = seed.checked_add(1).ok_or(Error::<T>::Overflow)?;
+
+                let miner = all_miner[index as usize].clone();
+                all_miner.remove(index as usize);
+                cur_count += 1;
+                total = total - 1;
+
+                if selected_miner.contains(&miner) {
+                    continue;
+                }
+
+                if Self::miner_failed_exceeds_limit(&miner) {
+                    continue;
+                }
+
+                let result = T::MinerControl::is_positive(&miner)?;
+                if !result {
+                    continue;
+                }
+
+                let (idle, _) = T::MinerControl::get_power(&miner)?;
+                let needed_size = miner_task.fragment_list.len() as u128 * FRAGMENT_SIZE;
+                if idle < needed_size {
+                    continue;
+                }
+                T::MinerControl::lock_space(&miner, miner_task.fragment_list.len() as u128 * FRAGMENT_SIZE)?;
+
+                break miner;
+            };
+
+            new_task_list.try_push(MinerTaskList::<T>{miner: miner, fragment_list: miner_task.fragment_list.clone()}).map_err(|_| Error::<T>::BugInvalid)?;
+        }
+
+        return Ok(new_task_list)
     }
 
     pub(super) fn random_assign_miner(
@@ -240,11 +316,16 @@ impl<T: Config> Pallet<T> {
             let miner = all_miner[index as usize].clone();
             all_miner.remove(index as usize);
             total = total - 1;
+
+            if Self::miner_failed_exceeds_limit(&miner) {
+                continue;
+            }
+            
             let result = T::MinerControl::is_positive(&miner)?;
             if !result {
                 continue;
             }
-           
+
             let cur_space: u128 = T::MinerControl::get_miner_idle_space(&miner)?;
             // If sufficient, the miner is selected.
             if cur_space > needed_list.len() as u128 * FRAGMENT_SIZE {
@@ -599,5 +680,25 @@ impl<T: Config> Pallet<T> {
         }
 
         true
+    }
+
+    pub(super) fn add_task_failed_count(miner: &AccountOf<T>) -> DispatchResult {
+        TaskFailedCount::<T>::try_mutate(miner, |count| -> DispatchResult {
+            *count = count.checked_add(1).unwrap_or(255);
+            Ok(())
+        })
+    }
+
+    pub(super) fn zero_task_failed_count(miner: &AccountOf<T>) -> DispatchResult {
+        TaskFailedCount::<T>::try_mutate(miner, |count| -> DispatchResult {
+            *count = 0;
+            Ok(())
+        })
+    }
+
+    pub(super) fn miner_failed_exceeds_limit(miner: &AccountOf<T>) -> bool {
+        let count = TaskFailedCount::<T>::get(miner);
+
+        count >= 5
     }
 }

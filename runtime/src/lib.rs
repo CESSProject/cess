@@ -1584,8 +1584,6 @@ mod benches {
 	define_benchmarks!(
 		[frame_benchmarking, BaselineBench::<Runtime>]
 		[frame_system, SystemBench::<Runtime>]
-		[pallet_balances, Balances]
-		[pallet_timestamp, Timestamp]
 		[pallet_contracts, Contracts]
 		[pallet_sminer, SminerBench::<Runtime>]
 		// [pallet_oss, Oss]
@@ -2112,6 +2110,7 @@ impl_runtime_apis! {
 			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
 			use pallet_sminer::benchmarking::Pallet as SminerBench;
 			use baseline::Pallet as BaselineBench;
+			use frame_support::traits::WhitelistedStorageKeys;
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl pallet_tee_worker::benchmarking::Config for Runtime{}
 			impl pallet_sminer::benchmarking::Config for Runtime{}
