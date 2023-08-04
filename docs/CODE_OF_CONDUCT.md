@@ -27,7 +27,7 @@ Examples of unacceptable behavior by participants include:
 We recognise that this software is merely a tool for users to create and maintain their blockchain of preference. We see that blockchains are naturally community platforms with users being the ultimate decision makers. We assert that good software will maximise user agency by facilitating user-expression on the network. As such:
 
 * This project will strive to give users as much choice as is both reasonable and possible over what protocol they adhere to; but
-* use of the project's technical forums, commenting systems, pull requests and issue trackers as a means to express individual protocol preferences is forbidden.
+* use of the project's technical forums, commenting systems, pull requests and issue trackers as means to express individual protocol preferences is forbidden.
 
 ## Our Responsibilities
 
