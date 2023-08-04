@@ -1,5 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std)]
-// use frame_support::ensure ;
+// use frame_support::ensure;
 use sp_std::vec::Vec;
 // use sp_application_crypto::{
 // 	ecdsa::{Signature, Public},
