@@ -1,6 +1,6 @@
 # File Map Module
 
-Store scheduling related information
+Store scheduling related information.
 
 ### Terminology
 
