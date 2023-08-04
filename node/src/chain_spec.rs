@@ -43,7 +43,7 @@ pub struct Extensions {
 	pub light_sync_state: cessc_sync_state_rpc::LightSyncStateExtension,
 }
 
-/// Specialized `ChainSpec`.
+/// Specialize `ChainSpec`.
 pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig, Extensions>;
 
 type AccountPublic = <Signature as Verify>::Signer;
