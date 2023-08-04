@@ -19,15 +19,15 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 use frame_support::{
 	transactional, ensure,
-	storage::bounded_vec::BoundedVec,
+	storage::bounded_vec::BoundedVec, PalletId,
 	traits::{
 		Currency,
 		ExistenceRequirement::KeepAlive,
 		Get, Imbalance, OnUnbalanced, ReservableCurrency,
+		schedule::{self, Anon as ScheduleAnon, DispatchTime, Named as ScheduleNamed}, 
 	},
-	dispatch::{DispatchResult},
+	dispatch::{Dispatchable, DispatchResult},
 	pallet_prelude::DispatchError,
-	PalletId,
 };
 use cp_cess_common::*;
 use sp_runtime::traits::Zero;
@@ -42,6 +42,7 @@ use sp_core::ConstU32;
 use cp_enclave_verify::verify_rsa;
 use pallet_tee_worker::TeeWorkerHandler;
 use cp_bloom_filter::BloomFilter;
+use pallet_storage_handler::StorageHandle;
 
 pub use pallet::*;
 
@@ -105,6 +106,16 @@ pub mod pallet {
 		type OneDayBlock: Get<BlockNumberOf<Self>>;
 		/// The WeightInfo.
 		type WeightInfo: WeightInfo;
+
+		type FScheduler: ScheduleNamed<Self::BlockNumber, Self::SProposal, Self::SPalletsOrigin>;
+
+		type AScheduler: ScheduleAnon<Self::BlockNumber, Self::SProposal, Self::SPalletsOrigin>;
+		/// Overarching type of all pallets origins.
+		type SPalletsOrigin: From<frame_system::RawOrigin<Self::AccountId>>;
+		/// The SProposal.
+		type SProposal: Parameter + Dispatchable<RuntimeOrigin = Self::RuntimeOrigin> + From<Call<Self>>;
+
+		type StorageHandle: StorageHandle<Self::AccountId>;
 	}
 
 	#[pallet::event]
@@ -151,7 +162,13 @@ pub mod pallet {
 		Receive {
 			acc: AccountOf<T>,
 			reward: BalanceOf<T>,
-		}
+		},
+		MinerExitPrep{ 
+			miner: AccountOf<T>,
+		},
+		Withdraw { 
+			acc: AccountOf<T> 
+		},
 	}
 
 	/// Error for the sminer pallet.
@@ -245,6 +262,16 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn expenders)]
 	pub(super) type Expenders<T: Config> = StorageValue<_, (u64, u64, u64)>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn miner_lock)]
+	pub(super) type MinerLock<T: Config> = 
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, BlockNumberOf<T>>;
+	
+	#[pallet::storage]
+	#[pallet::getter(fn restoral_target)]
+	pub(super) type RestoralTarget<T: Config> = 
+		StorageMap< _, Blake2_128Concat, AccountOf<T>, RestoralTargetInfo<AccountOf<T>, BlockNumberOf<T>>>;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -497,6 +524,94 @@ pub mod pallet {
 			Ok(())
 		}
 
+		// The lock in time must be greater than the survival period of the challenge
+		#[pallet::call_index(7)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn miner_exit_prep(
+			origin: OriginFor<T>,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			if let Ok(lock_time) = <MinerLock<T>>::try_get(&sender) {
+				let now = <frame_system::Pallet<T>>::block_number();
+				ensure!(now > lock_time, Error::<T>::StateError);
+			}
+
+			<MinerItems<T>>::try_mutate(&sender, |miner_opt| -> DispatchResult {
+				let miner = miner_opt.as_mut().ok_or(Error::<T>::NotExisted)?;
+				ensure!(miner.state == STATE_POSITIVE.as_bytes().to_vec(), Error::<T>::StateError);
+
+				miner.state = Self::str_to_bound(STATE_LOCK)?;
+
+				Ok(())
+			})?;
+
+			let now = <frame_system::Pallet<T>>::block_number();
+			// TODO! Develop a lock-in period based on the maximum duration of the current challenge
+			let lock_time = T::OneDayBlock::get().checked_add(&now).ok_or(Error::<T>::Overflow)?;
+
+			<MinerLock<T>>::insert(&sender, lock_time);
+
+			let task_id: Vec<u8> = sender.encode();
+			T::FScheduler::schedule_named(
+                task_id,
+                DispatchTime::At(lock_time),
+                Option::None,
+                schedule::HARD_DEADLINE,
+                frame_system::RawOrigin::Root.into(),
+                Call::miner_exit{miner: sender.clone()}.into(), 
+        	).map_err(|_| Error::<T>::Unexpected)?;
+
+			Self::deposit_event(Event::<T>::MinerExitPrep{ miner: sender });
+
+			Ok(())
+		}
+
+		#[pallet::call_index(8)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn miner_exit(
+			origin: OriginFor<T>,
+			miner: AccountOf<T>,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			// judge lock state.
+			let miner_info = <MinerItems<T>>::try_get(&miner).map_err(|_| Error::<T>::NotExisted)?;	
+			ensure!(miner_info.state.to_vec() == STATE_LOCK.as_bytes().to_vec(), Error::<T>::StateError);
+			// sub network total idle space.
+
+			T::StorageHandle::sub_total_idle_space(miner_info.idle_space)?;
+
+			Self::execute_exit(&miner)?;
+
+			Self::create_restoral_target(&miner, miner_info.service_space)?;
+
+			Ok(())
+		}
+
+		#[pallet::call_index(9)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn miner_withdraw(origin: OriginFor<T>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			let restoral_info = <RestoralTarget<T>>::try_get(&sender).map_err(|_| Error::<T>::StateError)?;
+			let now = <frame_system::Pallet<T>>::block_number();
+
+			if now < restoral_info.cooling_block && restoral_info.restored_space != restoral_info.service_space {
+				Err(Error::<T>::StateError)?;
+			}
+
+			Self::withdraw(&sender)?;
+
+			Self::deposit_event(Event::<T>::Withdraw {
+				acc: sender,
+			});
+
+			Ok(())
+		}
 		/// Punish offline miners.
 		///
 		/// The dispatch origin of this call must be _root_.
@@ -673,9 +788,10 @@ pub trait MinerControl<AccountId, BlockNumber> {
 	fn idle_punish(miner: &AccountId, idle_space: u128, service_space: u128) -> DispatchResult;
 	fn service_punish(miner: &AccountId, idle_space: u128, service_space: u128) -> DispatchResult;
 
-	fn execute_exit(acc: &AccountId) -> DispatchResult;
-	fn withdraw(acc: &AccountId) -> DispatchResult;
-	fn force_miner_exit(acc: &AccountId) -> DispatchResult; 
+	fn force_miner_exit(acc: &AccountId) -> DispatchResult;
+
+	fn update_restoral_target(miner: &AccountId, service_space: u128) -> DispatchResult;
+	fn restoral_target_is_exist(miner: &AccountId) -> bool;
 
 	fn is_positive(miner: &AccountId) -> Result<bool, DispatchError>;
 	fn is_lock(miner: &AccountId) -> Result<bool, DispatchError>;
@@ -874,16 +990,8 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 		})
 	}
 
-	fn execute_exit(acc: &AccountOf<T>) -> DispatchResult {
-		Self::execute_exit(acc)
-	}
-
 	fn force_miner_exit(acc: &AccountOf<T>) -> DispatchResult {
 		Self::force_miner_exit(acc)
-	}
-
-	fn withdraw(acc: &AccountOf<T>) -> DispatchResult {
-		Self::withdraw(acc)
 	}
 
 	fn get_expenders() -> Result<(u64, u64, u64), DispatchError> {
@@ -899,5 +1007,13 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 		//There is a judgment on whether the primary key exists above
 		let miner_info = <MinerItems<T>>::try_get(miner).map_err(|_| Error::<T>::NotMiner)?;
 		Ok((miner_info.idle_space, miner_info.service_space, miner_info.service_bloom_filter, miner_info.space_proof_info, miner_info.tee_signature))
+	}
+
+	fn update_restoral_target(miner: &AccountOf<T>, service_space: u128) -> DispatchResult {
+		Self::update_restoral_target(miner, service_space)
+	}
+
+	fn restoral_target_is_exist(miner: &AccountOf<T>) -> bool {
+		RestoralTarget::<T>::contains_key(miner)
 	}
 }

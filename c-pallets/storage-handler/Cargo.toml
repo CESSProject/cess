@@ -22,7 +22,6 @@ pallet-balances = { version = "4.0.0-dev", git = 'https://github.com/CESSProject
 sp-runtime = { version = "7.0.0", git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36", default-features = false }
 
 # local dependencies
-pallet-sminer = { version = "0.6.0", path = '../sminer', default-features = false }
 cp-cess-common = { version = '0.1.0', path = '../../primitives/common', default-features = false }
 
 [features]

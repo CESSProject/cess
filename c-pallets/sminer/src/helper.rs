@@ -235,29 +235,6 @@ impl<T: Config> Pallet<T> {
 
 		Ok(())
 	}
-	// Note: that it is necessary to determine whether the state meets the exit conditions before use.
-	pub(super) fn execute_exit(acc: &AccountOf<T>) -> DispatchResult {
-		// T::Currency::unreserve(acc, miner.collaterals);
-		if let Ok(reward_info) = <RewardMap<T>>::try_get(acc).map_err(|_| Error::<T>::NotExisted) {
-			let reward = reward_info.total_reward
-				.checked_sub(&reward_info.reward_issued).ok_or(Error::<T>::Overflow)?;
-			<CurrencyReward<T>>::mutate(|v| {
-				*v = *v + reward;
-			});
-		}
-
-		let mut miner_list = AllMiner::<T>::get();
-		miner_list.retain(|s| s != acc);
-		AllMiner::<T>::put(miner_list);
-
-		<RewardMap<T>>::remove(acc);
-		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
-			let miner_info = miner_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
-			miner_info.state = Self::str_to_bound(STATE_EXIT)?;
-
-			Ok(())
-		})
-	}
     // Note: that it is necessary to determine whether the state meets the exit conditions before use.
 	pub(super) fn force_miner_exit(acc: &AccountOf<T>) -> DispatchResult {
 		if let Ok(reward_info) = <RewardMap<T>>::try_get(acc).map_err(|_| Error::<T>::NotExisted) {
@@ -285,15 +262,14 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	// Note: that it is necessary to determine whether the state meets the exit conditions before use.
-	pub(super) fn withdraw(acc: &AccountOf<T>) -> DispatchResult {
-		let miner_info = <MinerItems<T>>::try_get(acc).map_err(|_| Error::<T>::NotMiner)?;
-		T::Currency::unreserve(acc, miner_info.collaterals);
-		let encoding = miner_info.space_proof_info.pois_key.encode();
-		let hashing = sp_io::hashing::sha2_256(&encoding);
-		MinerPublicKey::<T>::remove(hashing);
-		<MinerItems<T>>::remove(acc);
+    pub(super) fn update_restoral_target(miner: &AccountOf<T>, service_space: u128) -> DispatchResult {
+        <RestoralTarget<T>>::try_mutate(miner, |info_opt| -> DispatchResult {
+            let info = info_opt.as_mut().ok_or(Error::<T>::NotExisted)?;
 
-		Ok(())
-	}
+            info.restored_space = info.restored_space
+                .checked_add(service_space).ok_or(Error::<T>::Overflow)?;
+
+            Ok(())
+        })
+    }
 }

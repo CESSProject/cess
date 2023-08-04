@@ -48,3 +48,11 @@ pub struct RewardOrder<Balance> {
 pub struct FaucetRecord<BlockNumber> {
 	pub(super) last_claim_time: BlockNumber,
 }
+
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+pub struct RestoralTargetInfo<Account, Block> {
+	pub(super) miner: Account,
+	pub(super) service_space: u128,
+	pub(super) restored_space: u128,
+	pub(super) cooling_block: Block,
+}

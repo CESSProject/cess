@@ -398,7 +398,7 @@ impl<T: Config> Pallet<T> {
         for (miner, hash_list) in miner_list.iter() {
             let count = hash_list.len() as u128;
             if <RestoralTarget<T>>::contains_key(miner) {
-                Self::update_restoral_target(miner, FRAGMENT_SIZE * count)?;
+                T::MinerControl::update_restoral_target(miner, FRAGMENT_SIZE * count)?;
             } else {
                 let mut binary_list: Vec<Box<[u8; 256]>> = Default::default(); 
                 for fragment_hash in hash_list {
@@ -564,17 +564,6 @@ impl<T: Config> Pallet<T> {
         <RestoralTarget<T>>::insert(&miner, restoral_info);
 
         Ok(())
-    }
-
-    pub(super) fn update_restoral_target(miner: &AccountOf<T>, service_space: u128) -> DispatchResult {
-        <RestoralTarget<T>>::try_mutate(miner, |info_opt| -> DispatchResult {
-            let info = info_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
-
-            info.restored_space = info.restored_space
-                .checked_add(service_space).ok_or(Error::<T>::Overflow)?;
-
-            Ok(())
-        })
     }
 
     pub(super) fn check_bucket_name_spec(name: Vec<u8>) -> bool {

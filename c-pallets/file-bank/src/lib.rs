@@ -184,8 +184,6 @@ pub mod pallet {
 		//Successfully delete the bucket event
 		DeleteBucket { operator: AccountOf<T>, owner: AccountOf<T>, bucket_name: Vec<u8>},
 
-		Withdraw { acc: AccountOf<T> },
-
 		GenerateRestoralOrder { miner: AccountOf<T>, fragment_hash: Hash },
 
 		ClaimRestoralOrder { miner: AccountOf<T>, order_id: Hash },
@@ -193,8 +191,6 @@ pub mod pallet {
 		RecoveryCompleted { miner: AccountOf<T>, order_id: Hash },
 
 		StorageCompleted { file_hash: Hash },
-
-		MinerExitPrep { miner: AccountOf<T> },
 	}
 
 	#[pallet::error]
@@ -317,7 +313,7 @@ pub mod pallet {
 			BoundedVec<BoundedVec<u8, T::NameStrLimit>, T::BucketLimit>,
 			ValueQuery,
 		>;
-	
+
 	#[pallet::storage]
 	#[pallet::getter(fn restoral_target)]
 	pub(super) type RestoralTarget<T: Config> = 
@@ -993,7 +989,7 @@ pub mod pallet {
 			);
 
 			ensure!(
-				RestoralTarget::<T>::contains_key(&miner),
+				T::MinerControl::restoral_target_is_exist(&miner),
 				Error::<T>::NonExistent,
 			);
 
@@ -1076,8 +1072,8 @@ pub mod pallet {
 										Ok(())
 									})?;
 
-									if <RestoralTarget<T>>::contains_key(&fragment.miner) {
-										Self::update_restoral_target(&fragment.miner, FRAGMENT_SIZE)?;
+									if T::MinerControl::restoral_target_is_exist(&fragment.miner) {
+										T::MinerControl::update_restoral_target(&fragment.miner, FRAGMENT_SIZE)?;
 									}
 
 									fragment.avail = true;
@@ -1096,91 +1092,6 @@ pub mod pallet {
 
 			Self::deposit_event(Event::<T>::RecoveryCompleted{ miner: sender, order_id: fragment_hash});
 		
-			Ok(())
-		}
-
-		// The lock in time must be greater than the survival period of the challenge
-		#[pallet::call_index(17)]
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn miner_exit_prep(
-			origin: OriginFor<T>,
-		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-
-			if let Ok(lock_time) = <MinerLock<T>>::try_get(&sender) {
-				let now = <frame_system::Pallet<T>>::block_number();
-				ensure!(now > lock_time, Error::<T>::MinerStateError);
-			}
-
-			let result = T::MinerControl::is_positive(&sender)?;
-			ensure!(result, Error::<T>::MinerStateError);
-			T::MinerControl::update_miner_state(&sender, "lock")?;
-
-			let now = <frame_system::Pallet<T>>::block_number();
-			// TODO! Develop a lock-in period based on the maximum duration of the current challenge
-			let lock_time = T::OneDay::get().checked_add(&now).ok_or(Error::<T>::Overflow)?;
-
-			<MinerLock<T>>::insert(&sender, lock_time);
-
-			let task_id: Vec<u8> = sender.encode();
-			T::FScheduler::schedule_named(
-                task_id,
-                DispatchTime::At(lock_time),
-                Option::None,
-                schedule::HARD_DEADLINE,
-                frame_system::RawOrigin::Root.into(),
-                Call::miner_exit{miner: sender.clone()}.into(), 
-        	).map_err(|_| Error::<T>::Unexpected)?;
-
-			Self::deposit_event(Event::<T>::MinerExitPrep{ miner: sender });
-
-			Ok(())
-		}
-
-		#[pallet::call_index(18)]
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn miner_exit(
-			origin: OriginFor<T>,
-			miner: AccountOf<T>,
-		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			// judge lock state.
-			let result = T::MinerControl::is_lock(&miner)?;
-			ensure!(result, Error::<T>::MinerStateError);
-			// sub network total idle space.
-
-			let (idle_space, service_space) = T::MinerControl::get_power(&miner)?;
-			T::StorageHandle::sub_total_idle_space(idle_space)?;
-
-			T::MinerControl::execute_exit(&miner)?;
-
-			Self::create_restoral_target(&miner, service_space)?;
-
-			Ok(())
-		}
-
-		#[pallet::call_index(19)]
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn miner_withdraw(origin: OriginFor<T>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-
-			let restoral_info = <RestoralTarget<T>>::try_get(&sender).map_err(|_| Error::<T>::MinerStateError)?;
-			let now = <frame_system::Pallet<T>>::block_number();
-
-			if now < restoral_info.cooling_block && restoral_info.restored_space != restoral_info.service_space {
-				Err(Error::<T>::MinerStateError)?;
-			}
-
-			T::MinerControl::withdraw(&sender)?;
-
-			Self::deposit_event(Event::<T>::Withdraw {
-				acc: sender,
-			});
-
 			Ok(())
 		}
 	}

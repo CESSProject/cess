@@ -506,7 +506,8 @@ fn testnet_genesis(
 			balances: endowed_accounts.iter().cloned().map(|k| (k, ENDOWMENT)).collect(),
 		},
 		storage_handler: StorageHandlerConfig { price: 30 * DOLLARS },
-		sminer: SminerConfig { expenders: (7, 4*1024*1024, 64) },
+		// FOR TESTING
+		sminer: SminerConfig { expenders: (8, 16*1024, 64) },
 		indices: IndicesConfig { indices: vec![] },
 		session: SessionConfig {
 			keys: initial_authorities

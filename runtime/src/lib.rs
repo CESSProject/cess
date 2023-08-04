@@ -953,6 +953,11 @@ impl pallet_sminer::Config for Runtime {
 	type ItemLimit = ConstU32<200000>;
 	type OneDayBlock = OneDay;
 	type TeeWorkerHandler = TeeWorker;
+	type FScheduler = Scheduler;
+	type AScheduler = Scheduler;
+	type SPalletsOrigin = OriginCaller;
+	type SProposal = RuntimeCall;
+	type StorageHandle = StorageHandler;
 }
 
 parameter_types! {
