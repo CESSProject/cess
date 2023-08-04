@@ -1,5 +1,4 @@
 //! This file is part of CESS.
-//!
 //! Tests for the module.
 
 use super::*;
