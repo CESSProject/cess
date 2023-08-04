@@ -29,7 +29,7 @@ pub struct MinerSnapShot<AccountId> {
 	pub(super) service_space: u128,
 }
 
-// Structure for storing miner certificates
+// Structure for storage miner certificates
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
