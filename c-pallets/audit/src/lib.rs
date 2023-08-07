@@ -343,12 +343,13 @@ pub mod pallet {
 	pub(super) type VerifyResult<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, (Option<bool>, Option<bool>)>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn lock)]
-	pub(super) type Lock<T: Config> = StorageValue<_, bool, ValueQuery>;
-
-	#[pallet::storage]
 	#[pallet::getter(fn verify_reassign_count)]
 	pub(super) type VerifyReassignCount<T: Config> = StorageValue<_, u8, ValueQuery>;
+
+	// FOR TESTING
+	#[pallet::storage]
+	#[pallet::getter(fn lock)]
+	pub(super) type Lock<T: Config> = StorageValue<_, bool, ValueQuery>;
 
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
@@ -371,7 +372,7 @@ pub mod pallet {
 				if lock {
 					if now > deadline {
 						//Determine whether to trigger a challenge
-						if Self::trigger_challenge(now) {
+						// if Self::trigger_challenge(now) {
 							log::info!("offchain worker random challenge start");
 							if let Err(e) = Self::offchain_work_start(now) {
 								match e {
@@ -380,7 +381,7 @@ pub mod pallet {
 								};
 							}
 							log::info!("offchain worker random challenge end");
-						}
+						// }
 					}
 				}
 			}
@@ -644,22 +645,27 @@ pub mod pallet {
 		#[pallet::weight(100_000_000)]
 		pub fn submit_verify_service_result(
 			origin: OriginFor<T>,
-			miner: AccountOf<T>,
 			service_result: bool,
 			signature: TeeRsaSignature,
 			service_bloom_filter: BloomFilter,
+			tee_acc: AccountOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
-			<UnverifyServiceProof<T>>::try_mutate(&sender, |unverify_list| -> DispatchResult {
+			<UnverifyServiceProof<T>>::try_mutate(&tee_acc, |unverify_list| -> DispatchResult {
 				for (index, miner_info) in unverify_list.iter().enumerate() {
-					if &miner_info.snap_shot.miner == &miner {
+					if &miner_info.snap_shot.miner == &sender {
 						let snap_shot = <ChallengeSnapShot<T>>::try_get().map_err(|_| Error::<T>::UnexpectedError)?;
 
 						let verify_service_result = VerifyServiceResultInfo::<T>{
-							miner: miner.clone(),
+							miner: sender.clone(),
+							tee_acc: tee_acc.clone(),
 							miner_prove: miner_info.service_prove.clone(),
 							result: service_result,
+							chal: QElement { 
+								random_index_list: snap_shot.net_snap_shot.random_index_list,
+								random_list: snap_shot.net_snap_shot.random_list,
+							},
 							service_bloom_filter: service_bloom_filter,
 						};
 
@@ -674,12 +680,12 @@ pub mod pallet {
 						); 
 
 						// Determine whether both proofs have been verified.
-						if let Ok((idle_result_opt, _)) = <VerifyResult<T>>::try_get(&miner).map_err(|_| Error::<T>::UnexpectedError) {
+						if let Ok((idle_result_opt, _)) = <VerifyResult<T>>::try_get(&sender).map_err(|_| Error::<T>::UnexpectedError) {
 							let idle_result = idle_result_opt.ok_or(Error::<T>::UnexpectedError)?;
 							// Determine whether to distribute rewards to miners.
 							if idle_result && service_result {
 								T::MinerControl::calculate_miner_reward(
-									&miner,
+									&sender,
 									snap_shot.net_snap_shot.total_reward,
 									snap_shot.net_snap_shot.total_idle_space,
 									snap_shot.net_snap_shot.total_service_space,
@@ -687,27 +693,27 @@ pub mod pallet {
 									miner_info.snap_shot.service_space,
 								)?;
 							}
-							<VerifyResult<T>>::remove(&miner);
+							<VerifyResult<T>>::remove(&sender);
 						} else {
 							<VerifyResult<T>>::insert(
-								&miner,
+								&sender,
 								(Option::<bool>::None, Some(service_result)),
 							);
 						}
 
 						if service_result {
-							<CountedIdleFailed<T>>::insert(&miner, u32::MIN);
+							<CountedIdleFailed<T>>::insert(&sender, u32::MIN);
 						} else {
-							let count = <CountedServiceFailed<T>>::get(&miner) + 1;
+							let count = <CountedServiceFailed<T>>::get(&sender) + 1;
 							if count >= SERVICE_FAULT_TOLERANT as u32 {
-								T::MinerControl::service_punish(&miner, miner_info.snap_shot.idle_space, miner_info.snap_shot.service_space)?;
+								T::MinerControl::service_punish(&sender, miner_info.snap_shot.idle_space, miner_info.snap_shot.service_space)?;
 							}
-							<CountedServiceFailed<T>>::insert(&miner, count);
+							<CountedServiceFailed<T>>::insert(&sender, count);
 						}
 
 						unverify_list.remove(index);
 
-						Self::deposit_event(Event::<T>::SubmitServiceVerifyResult { tee: sender.clone(), miner: miner, result: service_result });
+						Self::deposit_event(Event::<T>::SubmitServiceVerifyResult { tee: tee_acc.clone(), miner: sender, result: service_result });
 
 						return Ok(())
 					}
@@ -719,19 +725,17 @@ pub mod pallet {
 			Err(Error::<T>::NonExistentMission)?
 		}
 
-		#[pallet::call_index(3)]
+		#[pallet::call_index(5)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
-		pub fn lock_(origin: OriginFor<T>) -> DispatchResult {
+		pub fn update_lock(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
-			let lock = <Lock<T>>::get();
-
-			<Lock<T>>::put(!lock);
+			Lock::<T>::mutate(|lock| *lock = !*lock );
 
 			Ok(())
-		}
 
+		}
 	}
 
 	#[pallet::validate_unsigned]
@@ -1165,7 +1169,7 @@ pub mod pallet {
 
 					let idle_life: u32 = (idle_space
 						.checked_div(IDLE_PROVE_RATE).ok_or(OffchainErr::Overflow)?
-						.checked_add(10).ok_or(OffchainErr::Overflow)?
+						.checked_add(50).ok_or(OffchainErr::Overflow)?
 					) as u32;
 
 					if idle_life > max_life {
@@ -1174,7 +1178,7 @@ pub mod pallet {
 
 					let service_life: u32 = (service_space
 						.checked_div(SERVICE_PROVE_RATE).ok_or(OffchainErr::Overflow)?
-						.checked_add(10).ok_or(OffchainErr::Overflow)?
+						.checked_add(50).ok_or(OffchainErr::Overflow)?
 					) as u32;
 
 					if service_life > max_life {

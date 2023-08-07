@@ -72,8 +72,10 @@ pub struct VerifyIdleResultInfo<T: pallet::Config> {
 #[codec(mel_bound())]
 pub struct VerifyServiceResultInfo<T: pallet::Config> {
 	pub(super) miner: AccountOf<T>,
+	pub(super) tee_acc: AccountOf<T>,
 	pub(super) miner_prove: BoundedVec<u8, T::SigmaMax>,
 	pub(super) result: bool,
+	pub(super) chal: QElement,
 	pub(super) service_bloom_filter: BloomFilter,
 }
 
@@ -82,4 +84,10 @@ pub struct SegDigest<BlockNumber> {
 	pub(super) validators_len: u32,
 	pub(super) block_num: BlockNumber,
 	pub(super) network_state: OpaqueNetworkState,
+}
+
+#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+pub struct QElement {
+	pub(super) random_index_list: BoundedVec<u32, ConstU32<1024>>,
+	pub(super) random_list: BoundedVec<[u8; 20], ConstU32<1024>>,
 }

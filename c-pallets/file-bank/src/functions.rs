@@ -216,15 +216,15 @@ impl<T: Config> Pallet<T> {
     }
 
     pub(super) fn reassign_miner(
-        task_list: BoundedVec<MinerTaskList<T>, T::StringLimit>, 
-        selected_miner: BoundedVec<AccountOf<T>, T::StringLimit>,
-    ) -> Result<BoundedVec<MinerTaskList<T>, T::StringLimit>, DispatchError> {
+        task_list: BoundedVec<MinerTaskList<T>, T::FragmentCount>, 
+        selected_miner: BoundedVec<AccountOf<T>, T::FragmentCount>,
+    ) -> Result<BoundedVec<MinerTaskList<T>, T::FragmentCount>, DispatchError> {
         let mut all_miner = T::MinerControl::get_all_miner()?;
         let mut total = all_miner.len() as u32;
         let mut seed = <frame_system::Pallet<T>>::block_number().saturated_into();
         // Used to calculate the upper limit of the number of random selections
         let random_count_limit = (task_list.len() - selected_miner.len()) as u32 * 3 + 10;
-        let mut new_task_list: BoundedVec<MinerTaskList<T>, T::StringLimit> = Default::default();
+        let mut new_task_list: BoundedVec<MinerTaskList<T>, T::FragmentCount> = Default::default();
         for miner_task in &task_list {
              // Used to count the number of random selections.
             let mut cur_count = 0;
