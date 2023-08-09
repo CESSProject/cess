@@ -361,7 +361,7 @@ pub mod pallet {
 				if let Ok(mut file_info_list) = <UserHoldFileList<T>>::try_get(&acc) {
 					weight = weight.saturating_add(T::DbWeight::get().reads(1));
 					while let Some(file_info) = file_info_list.pop() {
-						count = count + 1;
+						count = count.checked_add(1).unwrap_or(300);
 						if count == 300 {
 							<UserHoldFileList<T>>::insert(&acc, file_info_list);
 							return weight;
@@ -444,7 +444,10 @@ pub mod pallet {
 			ensure!(user_brief.file_name.len() as u32 >= minimum, Error::<T>::SpecError);
 			ensure!(user_brief.bucket_name.len() as u32 >= minimum, Error::<T>::SpecError);
 
-			let needed_space = deal_info.len() as u128 * (SEGMENT_SIZE * 15 / 10);
+			let needed_space = SEGMENT_SIZE
+				.checked_mul(15).ok_or(Error::<T>::Overflow)?
+				.checked_div(10).ok_or(Error::<T>::Overflow)?
+				.checked_mul(deal_info.len() as u128).ok_or(Error::<T>::Overflow)?;
 			ensure!(T::StorageHandle::get_user_avail_space(&user_brief.user)? > needed_space, Error::<T>::InsufficientAvailableSpace);
 
 			if <File<T>>::contains_key(&file_hash) {
@@ -505,13 +508,15 @@ pub mod pallet {
 						if !deal_info.complete_list.contains(&miner_task.miner) {
 							deal_info.assigned_miner.retain(|temp_info| temp_info.miner != miner_task.miner);
 							let task_count = miner_task.fragment_list.len() as u128;
-							T::MinerControl::unlock_space(&miner_task.miner, FRAGMENT_SIZE * task_count)?;
+							let unlock_space = FRAGMENT_SIZE.checked_mul(task_count).ok_or(Error::<T>::Overflow)?;
+							T::MinerControl::unlock_space(&miner_task.miner, unlock_space)?;
 							Self::add_task_failed_count(&miner_task.miner)?;
 						}
 					}
 
 					deal_info.assigned_miner.try_append(&mut miner_task_list).map_err(|_| Error::<T>::Overflow)?;
 					deal_info.count = count;
+					// count <= 20
 					Self::start_first_task(deal_hash.0.to_vec(), deal_hash, count + 1, life)?;
 					Ok(())
 				}) {
@@ -671,9 +676,11 @@ pub mod pallet {
 									log::info!("transfer report cancel schedule failed: {:?}", hash.clone());
 								}
 								// Calculate the maximum time required for storage nodes to tag files
-								let max_needed_cal_space = (max_task_count as u128) * FRAGMENT_SIZE;
-								let mut life: u32 = (max_needed_cal_space / TRANSFER_RATE + 1) as u32;
-								life = life + (max_needed_cal_space / CALCULATE_RATE + 1) as u32;
+								let max_needed_cal_space = (max_task_count as u32).checked_mul(FRAGMENT_SIZE as u32).ok_or(Error::<T>::Overflow)?;
+								let mut life: u32 = (max_needed_cal_space / TRANSFER_RATE as u32).checked_add(1).ok_or(Error::<T>::Overflow)?;
+								life = (max_needed_cal_space / CALCULATE_RATE as u32)
+									.checked_add(1).ok_or(Error::<T>::Overflow)?
+									.checked_add(life).ok_or(Error::<T>::Overflow)?;
 
 								Self::start_second_task(hash.0.to_vec(), hash, life)?;
 								if <Bucket<T>>::contains_key(&deal_info.user.user, &deal_info.user.bucket_name) {
@@ -718,7 +725,8 @@ pub mod pallet {
 					hash_list.push(hash_temp);
 				}
 				// Accumulate the number of fragments stored by each miner
-				T::MinerControl::unlock_space_to_service(&miner_task.miner, FRAGMENT_SIZE * count as u128)?;
+				let unlock_space = FRAGMENT_SIZE.checked_mul(count as u128).ok_or(Error::<T>::Overflow)?;
+				T::MinerControl::unlock_space_to_service(&miner_task.miner, unlock_space)?;
 				T::MinerControl::insert_service_bloom(&miner_task.miner, hash_list)?;
 			}
 

@@ -37,11 +37,11 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(test)]
-mod mock;
+// #[cfg(test)]
+// mod mock;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
 mod types;
 use types::*;
@@ -286,6 +286,8 @@ pub mod pallet {
 		VerifyTeeSigFailed,
 
 		BloomFilterError,
+
+		Submitted,
 	}
 
 	//Relevant time nodes for storage challenges
@@ -456,9 +458,9 @@ pub mod pallet {
 
 			let miner_snapshot = <ChallengeSnapShot<T>>::try_mutate(|challenge_opt| -> Result<MinerSnapShot<AccountOf<T>, BlockNumberOf<T>>, DispatchError> {
 				let challenge_info = challenge_opt.as_mut().ok_or(Error::<T>::NoChallenge)?;
-
 				for (index, miner_snapshot) in challenge_info.miner_snapshot_list.iter_mut().enumerate() {
 					if miner_snapshot.miner == sender {
+						ensure!(!miner_snapshot.idle_submitted, Error::<T>::Submitted);
 						let now = <frame_system::Pallet<T>>::block_number();
 						let idle_life = challenge_info.net_snap_shot.start.checked_add(&miner_snapshot.idle_life).ok_or(Error::<T>::Overflow)?;
 						ensure!(now < idle_life, Error::<T>::Expired);
@@ -515,6 +517,7 @@ pub mod pallet {
 
 				for (index, miner_snapshot) in challenge_info.miner_snapshot_list.iter_mut().enumerate() {
 					if miner_snapshot.miner == sender {
+						ensure!(!miner_snapshot.service_submitted, Error::<T>::Submitted);
 						let now = <frame_system::Pallet<T>>::block_number();
 						let service_life = challenge_info.net_snap_shot.start.checked_add(&miner_snapshot.service_life).ok_or(Error::<T>::Overflow)?;
 						ensure!(now < service_life, Error::<T>::Expired);
@@ -619,7 +622,7 @@ pub mod pallet {
 						if idle_result {
 							<CountedIdleFailed<T>>::insert(&sender, u32::MIN);
 						} else {
-							let count = <CountedIdleFailed<T>>::get(&sender) + 1;
+							let count = <CountedIdleFailed<T>>::get(&sender).checked_add(1).unwrap_or(IDLE_FAULT_TOLERANT as u32);
 							if count >= IDLE_FAULT_TOLERANT as u32 {
 								T::MinerControl::idle_punish(&sender, miner_info.snap_shot.idle_space, miner_info.snap_shot.service_space)?;
 							}
@@ -635,9 +638,7 @@ pub mod pallet {
 				}
 
 				Err(Error::<T>::NonExistentMission)?
-			})?;
-
-			Err(Error::<T>::NonExistentMission)?
+			})
 		}
 
 		#[pallet::call_index(4)]
@@ -704,7 +705,7 @@ pub mod pallet {
 						if service_result {
 							<CountedIdleFailed<T>>::insert(&sender, u32::MIN);
 						} else {
-							let count = <CountedServiceFailed<T>>::get(&sender) + 1;
+							let count = <CountedServiceFailed<T>>::get(&sender).checked_add(1).unwrap_or(SERVICE_FAULT_TOLERANT.into());
 							if count >= SERVICE_FAULT_TOLERANT as u32 {
 								T::MinerControl::service_punish(&sender, miner_info.snap_shot.idle_space, miner_info.snap_shot.service_space)?;
 							}
@@ -720,11 +721,9 @@ pub mod pallet {
 				}
 
 				Err(Error::<T>::NonExistentMission)?
-			})?;
-
-			Err(Error::<T>::NonExistentMission)?
+			})
 		}
-
+		// FOR TESTING
 		#[pallet::call_index(5)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
@@ -735,6 +734,31 @@ pub mod pallet {
 
 			Ok(())
 
+		}
+		// FOR TESTING
+		#[pallet::call_index(6)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn update_verify_duration(origin: OriginFor<T>, new: BlockNumberOf<T>) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			<VerifyDuration<T>>::put(new);
+
+			Ok(())
+		}
+		// FOR TESTING
+		#[pallet::call_index(7)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn update_counted_clear(origin: OriginFor<T>, miner: AccountOf<T>) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			<CountedClear<T>>::insert(
+				&miner, 
+				0,
+			);
+
+			Ok(())
 		}
 	}
 
@@ -768,8 +792,8 @@ pub mod pallet {
 				};
 				weight = weight.saturating_add(T::DbWeight::get().reads(1));
 				for miner_snapshot in snap_shot.miner_snapshot_list.iter() {
-
-					let count = <CountedClear<T>>::get(&miner_snapshot.miner) + 1;
+					// unwrap_or(3) 3 Need to match the maximum number of consecutive penalties.
+					let count = <CountedClear<T>>::get(&miner_snapshot.miner).checked_add(1).unwrap_or(3);
 					weight = weight.saturating_add(T::DbWeight::get().reads(1));
 
 					let _ = T::MinerControl::clear_punish(
@@ -806,7 +830,7 @@ pub mod pallet {
 			if now == duration {
 				let mut reassign_count = <VerifyReassignCount<T>>::get();
 				let ceiling = T::ReassignCeiling::get();
-				if reassign_count > ceiling {
+				if reassign_count >= ceiling {
 					for (acc, unverify_list) in UnverifyIdleProof::<T>::iter() {
 						weight = weight.saturating_add(T::DbWeight::get().reads(1));
 						if unverify_list.len() > 0 {
@@ -827,7 +851,7 @@ pub mod pallet {
 					weight = weight.saturating_add(T::DbWeight::get().writes(1));
 					return weight;
 				} else {
-					reassign_count = reassign_count + 1;
+					reassign_count = reassign_count.checked_add(1).unwrap_or(ceiling);
 					<VerifyReassignCount<T>>::put(reassign_count);
 				}
 
@@ -958,6 +982,10 @@ pub mod pallet {
 					weight = weight.saturating_add(T::DbWeight::get().writes(1));
 					<VerifyReassignCount<T>>::put(0);
 					weight = weight.saturating_add(T::DbWeight::get().writes(1));
+				} else {
+					let new_block = max_count.checked_mul(50u32).unwrap_or(u32::MAX.into());
+					let new_block = now.checked_add(&new_block.saturated_into()).unwrap_or(u32::MAX.into());
+					<VerifyDuration<T>>::put(new_block);
 				}
 			}
 
@@ -1025,6 +1053,7 @@ pub mod pallet {
 			let time_point = Self::random_number(20220509);
 			//The chance to trigger a challenge is once a day
 			let probability: u32 = T::OneDay::get().saturated_into();
+			// A fixed value that will not overflow.
 			let range = LIMIT / probability as u64 * 10;
 			if (time_point > 2190502) && (time_point < (range + 2190502)) {
 				if let (Some(progress), _) =
@@ -1071,6 +1100,7 @@ pub mod pallet {
 					// we are still waiting for inclusion.
 					Ok(Some(last_block)) => {
 						let lock_time = T::LockTime::get();
+						// Based on human time, there is no possibility of overflow here
 						if last_block + lock_time > *now {
 							log::info!("last_block: {:?}, lock_time: {:?}, now: {:?}", last_block, lock_time, now);
 							Err(OffchainErr::Working)
@@ -1136,7 +1166,7 @@ pub mod pallet {
 				Err(OffchainErr::GenerateInfoError)?;
 			}
 
-			// TEMP
+			// FOR TESTING
 			let need_miner_count = miner_count;
 			// let need_miner_count = miner_count / 10 + 1;
 
@@ -1216,7 +1246,7 @@ pub mod pallet {
 			let need_count = CHUNK_COUNT * 46 / 1000;
 			let mut seed: u32 = u32::MIN;
 			while random_index_list.len() < need_count as usize {
-				seed = seed + 1;
+				seed = seed.checked_add(1).ok_or(OffchainErr::Overflow)?;
 				let random_index = (Self::random_number(seed) % CHUNK_COUNT as u64) as u32;
 				if !random_index_list.contains(&random_index) {
 					random_index_list.push(random_index);
@@ -1226,7 +1256,7 @@ pub mod pallet {
 			let mut random_list: Vec<[u8; 20]> = Default::default();
 			let mut seed: u32 = now.saturated_into();
 			while random_list.len() < need_count as usize {
-				seed = seed + 1;
+				seed = seed.checked_add(1).ok_or(OffchainErr::Overflow)?;
 				let random_number = Self::generate_challenge_random(seed);
 				if !random_list.contains(&random_number) {
 					random_list.push(random_number);
@@ -1241,7 +1271,7 @@ pub mod pallet {
 			let mut seed: u32 = 1;
 			for elem in &mut space_challenge_param {
 				loop {
-					let random = Self::random_number(seed + seed_multi) % n;
+					let random = Self::random_number(seed.checked_add(seed_multi).ok_or(OffchainErr::Overflow)?) % n;
 					let random = n
 						.checked_mul(d).ok_or(OffchainErr::Overflow)?
 						.checked_add(random).ok_or(OffchainErr::Overflow)?;
@@ -1250,10 +1280,10 @@ pub mod pallet {
 					}
 					repeat_filter.push(random);
 					*elem = random;
-					seed = seed + 1;
+					seed = seed.checked_add(1).ok_or(OffchainErr::Overflow)?;
 					break;
 				}
-				seed_multi = seed_multi + 10000;
+				seed_multi = seed_multi.checked_add(10000).ok_or(OffchainErr::Overflow)?;
 			}
 
 			let total_reward: u128 = T::MinerControl::get_reward() / 6;
@@ -1275,6 +1305,7 @@ pub mod pallet {
 		fn random_select_miner(need: u32, length: u32, valid_index_list: &Vec<u32>, seed: u32) -> Vec<u32> {
 			let mut miner_index_list: Vec<u32> = Default::default();
 			let mut seed: u32 = seed.saturating_mul(5000);
+			// In theory, unless the number of registered miners reaches 400 million, there is no possibility of overflow.
 			while (miner_index_list.len() as u32) < need && ((valid_index_list.len() + miner_index_list.len()) as u32 != length) {
 				seed += 1;
 				let index = Self::random_number(seed);

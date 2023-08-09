@@ -33,6 +33,7 @@ sp-application-crypto = { version = '7.0.0', branch = 'cess-polkadot-v0.9.36', g
 
 [dev-dependencies]
 rand = "0.8.5"
+hex = "0.4.3"
 sp-io = { version = "7.0.0", default-features = false, branch = 'cess-polkadot-v0.9.36', git = 'https://github.com/CESSProject/substrate.git' }
 
 [features]

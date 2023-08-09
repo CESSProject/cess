@@ -212,6 +212,30 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		// FOR TESTING
+		#[pallet::call_index(4)]
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::registration_scheduler())]
+		pub fn force_register(
+			origin: OriginFor<T>,
+			stash_account: AccountOf<T>,
+			node_key: NodePublicKey,
+			peer_id: PeerId,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			let tee_worker_info = TeeWorkerInfo::<T> {
+				controller_account: sender.clone(),
+				peer_id: peer_id.clone(),
+				node_key,
+				stash_account: stash_account,
+			};
+
+			TeeWorkerMap::<T>::insert(&sender, tee_worker_info);
+			
+			Ok(())
+		}
 	}
 }
 

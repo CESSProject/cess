@@ -1217,6 +1217,7 @@ dependencies = [
  "base64 0.12.3",
  "cp-cess-common",
  "frame-support",
+ "hex",
  "ic-verify-bls-signature",
  "log",
  "parity-scale-codec",

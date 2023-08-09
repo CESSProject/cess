@@ -746,6 +746,7 @@ impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for Pallet<T> {
 		// Must resolve into existing but better to be safe.
 		let _ = T::Currency::resolve_creating(&T::PalletId::get().into_account_truncating(), amount);
 		<CurrencyReward<T>>::mutate(|v| {
+			// The total issuance amount will not exceed u128::Max, so there is no overflow risk
 			*v = *v + numeric_amount;
 		});
 

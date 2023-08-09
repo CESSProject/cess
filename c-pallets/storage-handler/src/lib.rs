@@ -606,10 +606,11 @@ impl<T: Config> Pallet<T> {
     fn add_purchased_space(size: u128) -> DispatchResult {
         <PurchasedSpace<T>>::try_mutate(|purchased_space| -> DispatchResult {
             let total_space = <TotalIdleSpace<T>>::get().checked_add(<TotalServiceSpace<T>>::get()).ok_or(Error::<T>::Overflow)?;
-            if *purchased_space + size > total_space {
+            let new_space = purchased_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+            if new_space > total_space {
                 Err(<Error<T>>::InsufficientAvailableSpace)?;
             }
-            *purchased_space = purchased_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+            *purchased_space = new_space;
             Ok(())
         })
     }
