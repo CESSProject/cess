@@ -805,7 +805,7 @@ pub mod pallet {
 					weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 
 					if count >= 3 {
-						let result = T::File::force_miner_exit(&miner_snapshot.miner);
+						let result = T::MinerControl::force_miner_exit(&miner_snapshot.miner);
 						if result.is_err() {
 							log::info!("force clear miner: {:?} failed", miner_snapshot.miner);
 						}

@@ -478,7 +478,7 @@ impl<T: Config> Pallet<T> {
 
         for (miner, hash_list) in miner_list.iter() {
             let count = hash_list.len() as u128;
-            if <RestoralTarget<T>>::contains_key(miner) {
+            if T::MinerControl::restoral_target_is_exist(miner) {
                 T::MinerControl::update_restoral_target(miner, FRAGMENT_SIZE * count)?;
             } else {
                 let mut binary_list: Vec<Box<[u8; 256]>> = Default::default(); 
@@ -613,38 +613,6 @@ impl<T: Config> Pallet<T> {
             return true;
         }
         false
-    }
-
-    pub(super) fn force_miner_exit(miner: &AccountOf<T>) -> DispatchResult {
-        let (idle_space, service_space) = T::MinerControl::get_power(&miner)?;
-        T::StorageHandle::sub_total_idle_space(idle_space)?;
-
-        T::MinerControl::force_miner_exit(miner)?;
-
-        Self::create_restoral_target(miner, service_space)?;
-        
-        Ok(())
-    }
-
-    pub(super) fn create_restoral_target(miner: &AccountOf<T>, service_space: u128) -> DispatchResult {
-        let block: u32 = service_space
-            .checked_div(T_BYTE).ok_or(Error::<T>::Overflow)?
-            .checked_add(1).ok_or(Error::<T>::Overflow)?
-            .checked_mul(T::OneDay::get().try_into().map_err(|_| Error::<T>::Overflow)?).ok_or(Error::<T>::Overflow)? as u32;
-
-        let now = <frame_system::Pallet<T>>::block_number();
-        let block = now.checked_add(&block.saturated_into()).ok_or(Error::<T>::Overflow)?;
-
-        let restoral_info = RestoralTargetInfo::<AccountOf<T>, BlockNumberOf<T>>{
-            miner: miner.clone(),
-            service_space,
-            restored_space: u128::MIN,
-            cooling_block: block,
-        };
-
-        <RestoralTarget<T>>::insert(&miner, restoral_info);
-
-        Ok(())
     }
 
     pub(super) fn check_bucket_name_spec(name: Vec<u8>) -> bool {

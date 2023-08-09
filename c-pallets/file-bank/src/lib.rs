@@ -313,11 +313,6 @@ pub mod pallet {
 			BoundedVec<BoundedVec<u8, T::NameStrLimit>, T::BucketLimit>,
 			ValueQuery,
 		>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn restoral_target)]
-	pub(super) type RestoralTarget<T: Config> = 
-		StorageMap< _, Blake2_128Concat, AccountOf<T>, RestoralTargetInfo<AccountOf<T>, BlockNumberOf<T>>>;
 	
 	#[pallet::storage]
 	#[pallet::getter(fn restoral_order)]
@@ -1150,8 +1145,6 @@ pub trait RandomFileList<AccountId> {
 	) -> Result<Vec<(AccountId, Hash, [u8; 68], Vec<u32>, u64, DataType)>, DispatchError>;
 	//Delete file backup
 	fn clear_file(_file_hash: Hash) -> Result<Weight, DispatchError>;
-
-	fn force_miner_exit(miner: &AccountId) -> DispatchResult;
 }
 
 impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Pallet<T> {
@@ -1163,10 +1156,6 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 	fn clear_file(_file_hash: Hash) -> Result<Weight, DispatchError> {
 		let weight: Weight = Weight::from_ref_time(0);
 		Ok(weight)
-	}
-
-	fn force_miner_exit(miner: &AccountOf<T>) -> DispatchResult {
-		Self::force_miner_exit(miner)
 	}
 }
 

@@ -252,6 +252,8 @@ impl<T: Config> Pallet<T> {
 
 		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
 			let miner = miner_opt.as_mut().ok_or(Error::<T>::Unexpected)?;
+			T::StorageHandle::sub_total_idle_space(miner.idle_space)?;
+			Self::create_restoral_target(acc, miner.service_space)?;
 			miner.state = Self::str_to_bound(STATE_OFFLINE)?;
 			let encoding = miner.space_proof_info.pois_key.encode();
 			let hashing = sp_io::hashing::sha2_256(&encoding);
