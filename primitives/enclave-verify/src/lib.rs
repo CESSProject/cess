@@ -18,7 +18,6 @@ use rsa::{
     pkcs1::DecodeRsaPublicKey,
 };
 use sp_core::bounded::BoundedVec;
-use scale_info::TypeInfo;
 use ic_verify_bls_signature::{
     Signature as BLSSignature,
     PublicKey as BLSPubilc,

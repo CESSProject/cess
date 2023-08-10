@@ -422,8 +422,11 @@ pub mod pallet {
 						let duration = now.checked_add(&proposal.1.net_snap_shot.life).ok_or(Error::<T>::Overflow)?;
 						<ChallengeDuration<T>>::put(duration);
 						let one_hour = T::OneHours::get();
-						let v_duration = duration
-							.checked_add(&proposal.1.net_snap_shot.life).ok_or(Error::<T>::Overflow)?
+						let duration: u32 = (proposal.1.net_snap_shot.total_idle_space
+							.checked_add(proposal.1.net_snap_shot.total_service_space).ok_or(Error::<T>::Overflow)?
+							.checked_div(IDLE_VERIFY_RATE).ok_or(Error::<T>::Overflow)?) as u32;
+						let v_duration = now
+							.checked_add(&duration.saturated_into()).ok_or(Error::<T>::Overflow)?
 							.checked_add(&one_hour).ok_or(Error::<T>::Overflow)?;
 						<VerifyDuration<T>>::put(v_duration);
 						<ChallengeSnapShot<T>>::put(proposal.1);

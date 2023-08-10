@@ -765,7 +765,7 @@ pub mod pallet {
 			)?;
 
 			<PendingReplacements<T>>::try_mutate(&sender, |pending_space| -> DispatchResult {
-				if *pending_space % IDLE_SEG_SIZE == 0 {
+				if *pending_space / IDLE_SEG_SIZE == 0 {
 					Err(Error::<T>::InsufficientReplaceable)?;
 				}
 				let replace_space = IDLE_SEG_SIZE.checked_mul(count.into()).ok_or(Error::<T>::Overflow)?;
