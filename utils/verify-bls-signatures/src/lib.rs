@@ -30,7 +30,7 @@ fn hash_to_g1(msg: &[u8]) -> G1Affine {
     .to_affine()
 }
 
-/// A BLS12-381 public key usable for signature verification
+/// A BLS12-381 public key usable for signature verification.
 #[derive(Clone, Eq, PartialEq)]
 pub struct PublicKey {
     pk: G2Affine,
