@@ -25,7 +25,7 @@ The `cargo run` command will perform an initial build. Use the following command
 git clone https://github.com/CESSProject/cess.git
 cd cess
 
-# Build the node (The first build will be long (~30min))
+# Build the node (The first build will be long (~30min)) 
 cargo build --release 
 ```
 
