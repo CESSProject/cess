@@ -58,7 +58,7 @@ fn session_keys(
 	SessionKeys { grandpa, rrsc, im_online, authority_discovery, audit }
 }
 
-/// Generate an account ID from seed.
+/// Generate an account ID from the seed.
 pub fn get_account_id_from_seed<TPublic: Public>(seed: &str) -> AccountId
 where
 	AccountPublic: From<<TPublic::Pair as Pair>::Public>,
