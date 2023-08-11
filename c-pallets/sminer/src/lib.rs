@@ -287,7 +287,7 @@ pub mod pallet {
 		fn default() -> Self {
 			Self {
 				// FOR TESTING
-				expenders: (8, 16*1024, 64),
+				expenders: (8, 1024*1024, 64),
 			}
 		}
 	}
