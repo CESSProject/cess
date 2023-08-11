@@ -1,7 +1,7 @@
 [package]
 name = "pallet-audit"
 authors = ["CESS LAB"]
-version = "0.6.0"
+version = "0.7.0"
 edition = "2018"
 license = "Apache-2.0"
 repository = "https://github.com/CESSProject/cess"
@@ -80,25 +80,25 @@ version = '7.0.0'
 [dependencies.pallet-file-bank]
 default-features = false
 path = '../file-bank'
-version = '0.6.0'
+version = '0.7.0'
 
 # local dependencies
 [dependencies.pallet-sminer]
 default-features = false
 path = '../sminer'
-version = '0.6.0'
+version = '0.7.0'
 
 # local dependencies
 [dependencies.pallet-tee-worker]
 default-features = false
 path = '../tee-worker'
-version = '0.6.0'
+version = '0.7.0'
 
 # local dependencies
 [dependencies.pallet-storage-handler]
 default-features = false
 path = '../storage-handler'
-version = '0.6.0'
+version = '0.7.0'
 
 [dev-dependencies.frame-support-test]
 default-features = false
@@ -130,7 +130,7 @@ pallet-bags-list = { version = "4.0.0-dev", git = "https://github.com/CESSProjec
 pallet-scheduler-credit = { version = "0.1.0", default-features = false, path = '../scheduler-credit'}
 cp-scheduler-credit = { path = '../../primitives/scheduler-credit', version = '0.1.0', default-features = false }
 cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
-pallet-oss = { path = '../oss', version = '0.6.0', default-features = false }
+pallet-oss = { path = '../oss', version = '0.7.0', default-features = false }
 
 [features]
 default = ["std"]
