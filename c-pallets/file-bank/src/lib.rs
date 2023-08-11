@@ -658,7 +658,7 @@ pub mod pallet {
 									})?;
 
 									Self::zero_task_failed_count(&miner_task.miner)?;
-								}	
+								}
 
 								let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
 
@@ -672,9 +672,9 @@ pub mod pallet {
 								}
 								// Calculate the maximum time required for storage nodes to tag files
 								let max_needed_cal_space = (max_task_count as u32).checked_mul(FRAGMENT_SIZE as u32).ok_or(Error::<T>::Overflow)?;
-								let mut life: u32 = (max_needed_cal_space / TRANSFER_RATE as u32).checked_add(1).ok_or(Error::<T>::Overflow)?;
+								let mut life: u32 = (max_needed_cal_space / TRANSFER_RATE as u32).checked_add(11).ok_or(Error::<T>::Overflow)?;
 								life = (max_needed_cal_space / CALCULATE_RATE as u32)
-									.checked_add(1).ok_or(Error::<T>::Overflow)?
+									.checked_add(10).ok_or(Error::<T>::Overflow)?
 									.checked_add(life).ok_or(Error::<T>::Overflow)?;
 
 								Self::start_second_task(hash.0.to_vec(), hash, life)?;
@@ -698,7 +698,7 @@ pub mod pallet {
 			}
 
 			Self::deposit_event(Event::<T>::TransferReport{acc: sender, failed_list});
-			
+
 			Ok(())
 		}
 
