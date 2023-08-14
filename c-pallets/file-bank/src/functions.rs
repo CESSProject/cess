@@ -223,7 +223,7 @@ impl<T: Config> Pallet<T> {
         let mut total = all_miner.len() as u32;
         let mut seed = <frame_system::Pallet<T>>::block_number().saturated_into();
         // Used to calculate the upper limit of the number of random selections
-        let random_count_limit = (task_list.len() - selected_miner.len()) as u32 * 3 + 10;
+        let random_count_limit = (task_list.len() - selected_miner.len()) as u32 * 10 + 10;
         let mut new_task_list: BoundedVec<MinerTaskList<T>, T::FragmentCount> = Default::default();
         for miner_task in &task_list {
              // Used to count the number of random selections.
@@ -294,6 +294,7 @@ impl<T: Config> Pallet<T> {
 
         // start random choose miner
         loop {
+            // FOR TESTING
             log::info!("test, total count = {:?}, max_count = {:?}, cur_count = {:?}", total, max_count, cur_count);
             // Get a random subscript.
             if total == 0 {
@@ -320,9 +321,10 @@ impl<T: Config> Pallet<T> {
             if Self::miner_failed_exceeds_limit(&miner) {
                 continue;
             }
-            
+
             let result = T::MinerControl::is_positive(&miner)?;
             if !result {
+                log::info!("Isn't positive");
                 continue;
             }
 
@@ -343,7 +345,7 @@ impl<T: Config> Pallet<T> {
                 break;
             }
         }
-        
+
         ensure!(miner_task_list.len() != 0, Error::<T>::BugInvalid);
         ensure!(total_idle_space > SEGMENT_SIZE * 15 / 10, Error::<T>::NodesInsufficient);
 
@@ -526,6 +528,10 @@ impl<T: Config> Pallet<T> {
                 Some(v) => v,
                 None => {
                     log::info!("Is None");
+
+                    #[cfg(feature = "runtime-benchmarks")]
+                    return Ok(seed);
+
                     Default::default()
                 },
             };

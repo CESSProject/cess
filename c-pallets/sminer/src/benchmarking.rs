@@ -92,6 +92,18 @@ pub fn add_miner<T: Config>(name: &'static str) -> Result<T::AccountId, &'static
     Ok(caller)
 }
 
+pub fn freeze_miner<T: Config>(acc: AccountOf<T>) -> Result<(), &'static str> {
+    <MinerItems<T>>::try_mutate(&acc, |miner_opt| -> Result<(), &'static str> {
+        let miner = miner_opt.as_mut().expect("Not Miner");
+
+        miner.state = STATE_FROZEN.as_bytes().to_vec().try_into().unwrap();
+
+        Ok(())
+    })?;
+
+    Ok(())
+}
+
 benchmarks! {
     regnstk {
         let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
