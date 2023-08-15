@@ -354,6 +354,11 @@ pub mod pallet {
 	#[pallet::getter(fn clear_user_list)]
 	pub(super) type ClearUserList<T: Config> = 
 		StorageValue<_, BoundedVec<AccountOf<T>, ConstU32<5000>>, ValueQuery>;
+	
+	#[pallet::storage]
+	#[pallet::getter(fn task_failed_count)]
+	pub(super) type TaskFailedCount<T: Config> = 
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, u8, ValueQuery>;
 
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
@@ -506,32 +511,42 @@ pub mod pallet {
 		) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
-			if count < 5 {
-				<DealMap<T>>::try_mutate(&deal_hash, |opt| -> DispatchResult {
+			if count < 20 {
+				if let Err(_) = <DealMap<T>>::try_mutate(&deal_hash, |opt| -> DispatchResult {
 					let deal_info = opt.as_mut().ok_or(Error::<T>::NonExistent)?;
 					// unlock mienr space
-					for miner_task in &deal_info.assigned_miner {
-						let task_count = miner_task.fragment_list.len() as u128;
-						T::MinerControl::unlock_space(&miner_task.miner, FRAGMENT_SIZE * task_count)?;
+					let mut needed_list: BoundedVec<MinerTaskList<T>, T::StringLimit> = Default::default();
+					let mut selected_miner: BoundedVec<AccountOf<T>, T::StringLimit> = Default::default();
+
+					for miner_task in &deal_info.assigned_miner.clone() {
+						if !deal_info.complete_list.contains(&miner_task.miner) {
+							needed_list.try_push(miner_task.clone()).map_err(|_| Error::<T>::Overflow)?;
+						}
+						selected_miner.try_push(miner_task.miner.clone()).map_err(|_| Error::<T>::Overflow)?;
 					}
-					let miner_task_list = Self::random_assign_miner(&deal_info.needed_list)?;
-					deal_info.assigned_miner = miner_task_list;
-					deal_info.complete_list = Default::default();
+
+					let mut miner_task_list = Self::reassign_miner(needed_list.clone(), selected_miner.clone())?.to_vec();
+
+					for miner_task in &deal_info.assigned_miner.clone() {
+						if !deal_info.complete_list.contains(&miner_task.miner) {
+							deal_info.assigned_miner.retain(|temp_info| temp_info.miner != miner_task.miner);
+							let task_count = miner_task.fragment_list.len() as u128;
+							let unlock_space = FRAGMENT_SIZE.checked_mul(task_count).ok_or(Error::<T>::Overflow)?;
+							T::MinerControl::unlock_space(&miner_task.miner, unlock_space)?;
+							Self::add_task_failed_count(&miner_task.miner)?;
+						}
+					}
+
+					deal_info.assigned_miner.try_append(&mut miner_task_list).map_err(|_| Error::<T>::Overflow)?;
 					deal_info.count = count;
+					// count <= 20
 					Self::start_first_task(deal_hash.0.to_vec(), deal_hash, count + 1, life)?;
 					Ok(())
-				})?;
-			} else {
-				let deal_info = <DealMap<T>>::try_get(&deal_hash).map_err(|_| Error::<T>::NonExistent)?;
-				let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
-				T::StorageHandle::unlock_user_space(&deal_info.user.user, needed_space)?;
-				// unlock mienr space
-				for miner_task in deal_info.assigned_miner {
-					let count = miner_task.fragment_list.len() as u128;
-					T::MinerControl::unlock_space(&miner_task.miner, FRAGMENT_SIZE * count)?;
+				}) {
+					Self::remove_deal(&deal_hash)?;
 				}
-				
-				<DealMap<T>>::remove(&deal_hash);
+			} else {
+				Self::remove_deal(&deal_hash)?;
 			}
 
 			Ok(())
@@ -668,6 +683,8 @@ pub mod pallet {
 										*pending_count = pending_count_temp;
 										Ok(())
 									})?;
+
+									Self::zero_task_failed_count(&miner_task.miner)?;
 								}	
 
 								let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
@@ -975,7 +992,7 @@ pub mod pallet {
 						}
 					}
 				}
-	
+
 				Err(Error::<T>::SpecError)?
 			})
 		}
@@ -1207,6 +1224,30 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::Withdraw {
 				acc: sender,
 			});
+
+			Ok(())
+		}
+
+		#[pallet::call_index(20)]
+		#[transactional]
+		#[pallet::weight(10_000_000_000)]
+		pub fn root_clear_failed_count(origin: OriginFor<T>) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			for (miner, _) in <TaskFailedCount<T>>::iter() {
+				<TaskFailedCount<T>>::remove(&miner);
+			}
+
+			Ok(())
+		}
+
+		#[pallet::call_index(21)]
+		#[transactional]
+		#[pallet::weight(10_000_000_000)]
+		pub fn miner_clear_failed_count(origin: OriginFor<T>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			<TaskFailedCount<T>>::remove(&sender);
 
 			Ok(())
 		}

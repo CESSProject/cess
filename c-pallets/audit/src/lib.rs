@@ -341,18 +341,21 @@ pub mod pallet {
 
 		fn offchain_worker(now: T::BlockNumber) {
 			let deadline = Self::verify_duration();
+			let lock = <Lock<T>>::get();
 			if sp_io::offchain::is_validator() {
-				if now > deadline {
-					//Determine whether to trigger a challenge
-					if Self::trigger_challenge(now) {
-						log::info!("offchain worker random challenge start");
-						if let Err(e) = Self::offchain_work_start(now) {
-							match e {
-								OffchainErr::Working => log::info!("offchain working, Unable to perform a new round of work."),
-								_ => log::info!("offchain worker generation challenge failed:{:?}", e),
-							};
+				if lock {
+					if now > deadline {
+						//Determine whether to trigger a challenge
+						if Self::trigger_challenge(now) {
+							log::info!("offchain worker random challenge start");
+							if let Err(e) = Self::offchain_work_start(now) {
+								match e {
+									OffchainErr::Working => log::info!("offchain working, Unable to perform a new round of work."),
+									_ => log::info!("offchain worker generation challenge failed:{:?}", e),
+								};
+							}
+							log::info!("offchain worker random challenge end");
 						}
-						log::info!("offchain worker random challenge end");
 					}
 				}
 			}
@@ -395,6 +398,7 @@ pub mod pallet {
 							.checked_add(&proposal.1.net_snap_shot.life).ok_or(Error::<T>::Overflow)?
 							.checked_add(&one_hour).ok_or(Error::<T>::Overflow)?;
 						<VerifyDuration<T>>::put(v_duration);
+						<ChallengeSnapShot<T>>::put(proposal.1);
 						let _ = ChallengeProposal::<T>::clear(ChallengeProposal::<T>::count(), None);
 					}
 
@@ -533,6 +537,20 @@ pub mod pallet {
 	
 			Ok(())
 		}
+
+		#[pallet::call_index(3)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn lock_(origin: OriginFor<T>) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			let lock = <Lock<T>>::get();
+
+			<Lock<T>>::put(!lock);
+
+			Ok(())
+		}
+
 	}
 
 	#[pallet::validate_unsigned]
@@ -844,13 +862,16 @@ pub mod pallet {
 		fn generation_challenge(now: BlockNumberOf<T>) 
 			-> Result<ChallengeInfo<T>, OffchainErr> 
 		{
-			let miner_count = T::MinerControl::get_miner_count();
-
+			// let miner_count = T::MinerControl::get_miner_count();
+			let allminer = T::MinerControl::get_all_miner().map_err(|_| OffchainErr::GenerateInfoError)?;
+			let miner_count = allminer.len() as u32;
 			if miner_count == 0 {
 				Err(OffchainErr::GenerateInfoError)?;
 			}
 
-			let need_miner_count = miner_count / 10 + 1;
+			// TEMP
+			let need_miner_count = miner_count;
+			// let need_miner_count = miner_count / 10 + 1;
 
 			let mut miner_list: BoundedVec<MinerSnapShot<AccountOf<T>>, T::ChallengeMinerMax> = Default::default();
 
@@ -859,22 +880,21 @@ pub mod pallet {
 			let mut total_idle_space: u128 = u128::MIN;
 			let mut total_service_space: u128 = u128::MIN;
 			let mut max_space: u128 = 0;
+
 			// TODO: need to set a maximum number of cycles
 			let mut seed: u32 = 20230601;
-			while (miner_list.len() as u32 != need_miner_count) && (valid_index_list.len() as u32 != miner_count) {
+			while ((miner_list.len() as u32) < need_miner_count) && (valid_index_list.len() as u32 != miner_count) {
 				seed = seed.saturating_add(1); 
 				let index_list = Self::random_select_miner(need_miner_count, miner_count, &valid_index_list, seed);
-
-				let allminer = T::MinerControl::get_all_miner().map_err(|_| OffchainErr::GenerateInfoError)?;
 
 				for index in index_list {
 					valid_index_list.push(index);
 					let miner = allminer[index as usize].clone();
 					let state = T::MinerControl::get_miner_state(&miner).map_err(|_| OffchainErr::GenerateInfoError)?;
-					if state == "lock".as_bytes().to_vec() {
+					if state == "lock".as_bytes().to_vec() || state == "offline".as_bytes().to_vec() || state == "exit".as_bytes().to_vec() {
 						continue;
 					}
-	
+
 					let (idle_space, service_space) = T::MinerControl::get_power(&miner).map_err(|_| OffchainErr::GenerateInfoError)?;
 
 					if (idle_space == 0) && (service_space == 0) {
@@ -885,7 +905,7 @@ pub mod pallet {
 					if miner_total_space > max_space {
 						max_space = miner_total_space;
 					}
-	
+
 					total_idle_space = total_idle_space.checked_add(idle_space).ok_or(OffchainErr::Overflow)?;
 					total_service_space = total_service_space.checked_add(service_space).ok_or(OffchainErr::Overflow)?;
 					let miner_snapshot = MinerSnapShot::<AccountOf<T>> {
@@ -893,10 +913,14 @@ pub mod pallet {
 						idle_space,
 						service_space,
 					};
-					let result = miner_list.try_push(miner_snapshot);
-					if let Err(_e) = result {
+
+					if let Err(_e) = miner_list.try_push(miner_snapshot) {
 						return Err(OffchainErr::GenerateInfoError)?;
 					};
+
+					if (miner_list.len() as u32) >= need_miner_count {
+						break;
+					}
 				}
 			}
 
@@ -923,7 +947,7 @@ pub mod pallet {
 
 			let life: BlockNumberOf<T> = ((max_space / 8_947_849 + 12) as u32).saturated_into();
 
-			let total_reward: u128 = T::MinerControl::get_reward();
+			let total_reward: u128 = T::MinerControl::get_reward() / 6;
 			let snap_shot = NetSnapShot::<BlockNumberOf<T>>{
 				start: now,
 				life: life,
@@ -940,7 +964,7 @@ pub mod pallet {
 		// Ensure that the length is not 0
 		fn random_select_miner(need: u32, length: u32, valid_index_list: &Vec<u32>, seed: u32) -> Vec<u32> {
 			let mut miner_index_list: Vec<u32> = Default::default();
-			let mut seed: u32 = seed.saturating_mul(1000);
+			let mut seed: u32 = seed.saturating_mul(5000);
 			while (miner_index_list.len() as u32) < need && ((valid_index_list.len() + miner_index_list.len()) as u32 != length) {
 				seed += 1;
 				let index = Self::random_number(seed);
