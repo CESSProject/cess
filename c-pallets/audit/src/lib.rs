@@ -763,6 +763,20 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		#[pallet::call_index(3)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn lock_(origin: OriginFor<T>) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			let lock = <Lock<T>>::get();
+
+			<Lock<T>>::put(!lock);
+
+			Ok(())
+		}
+
 	}
 
 	#[pallet::validate_unsigned]
@@ -1180,6 +1194,8 @@ pub mod pallet {
 			let mut total_idle_space: u128 = u128::MIN;
 			let mut total_service_space: u128 = u128::MIN;
 			let mut max_life: u32 = 0;
+			let mut max_space: u128 = 0;
+
 			// TODO: need to set a maximum number of cycles
 			let mut seed: u32 = 20230601;
 			while ((miner_list.len() as u32) < need_miner_count) && (valid_index_list.len() as u32 != miner_count) {

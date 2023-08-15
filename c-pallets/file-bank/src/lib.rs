@@ -1138,6 +1138,30 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		#[pallet::call_index(20)]
+		#[transactional]
+		#[pallet::weight(10_000_000_000)]
+		pub fn root_clear_failed_count(origin: OriginFor<T>) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			for (miner, _) in <TaskFailedCount<T>>::iter() {
+				<TaskFailedCount<T>>::remove(&miner);
+			}
+
+			Ok(())
+		}
+
+		#[pallet::call_index(21)]
+		#[transactional]
+		#[pallet::weight(10_000_000_000)]
+		pub fn miner_clear_failed_count(origin: OriginFor<T>) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			<TaskFailedCount<T>>::remove(&sender);
+
+			Ok(())
+		}
 	}
 }
 

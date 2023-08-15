@@ -2,7 +2,7 @@
 name = "pallet-file-bank"
 authors = ["CESS LAB"]
 version = "0.7.0"
-edition = "2018"
+edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/CESSProject/cess"
 description = "FRAME pallet for file-bank management"
