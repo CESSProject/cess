@@ -763,20 +763,6 @@ pub mod pallet {
 
 			Ok(())
 		}
-
-		#[pallet::call_index(3)]
-		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn lock_(origin: OriginFor<T>) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			let lock = <Lock<T>>::get();
-
-			<Lock<T>>::put(!lock);
-
-			Ok(())
-		}
-
 	}
 
 	#[pallet::validate_unsigned]
