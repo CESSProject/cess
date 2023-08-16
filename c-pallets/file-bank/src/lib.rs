@@ -484,7 +484,7 @@ pub mod pallet {
 			let _ = ensure_root(origin)?;
 
 			if count < 20 {
-				if let Err(_) = <DealMap<T>>::try_mutate(&deal_hash, |opt| -> DispatchResult {
+				if let Err(e) = <DealMap<T>>::try_mutate(&deal_hash, |opt| -> DispatchResult {
 					log::info!("point 1");
 					let deal_info = opt.as_mut().ok_or(Error::<T>::NonExistent)?;
 					// unlock mienr space
@@ -516,7 +516,7 @@ pub mod pallet {
 					Self::start_first_task(deal_hash.0.to_vec(), deal_hash, count + 1, life)?;
 					Ok(())
 				}) {
-					log::info!("point Err");
+					log::info!("point Err: {:?}", e);
 					Self::remove_deal(&deal_hash)?;
 				}
 			} else {

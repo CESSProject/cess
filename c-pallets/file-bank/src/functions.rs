@@ -223,12 +223,15 @@ impl<T: Config> Pallet<T> {
         let mut total = all_miner.len() as u32;
         let mut seed = <frame_system::Pallet<T>>::block_number().saturated_into();
         // Used to calculate the upper limit of the number of random selections
-        let random_count_limit = (task_list.len() - selected_miner.len()) as u32 * 10 + 10;
+        let random_count_limit = task_list.len() as u32 * 10 + 10;
         let mut new_task_list: BoundedVec<MinerTaskList<T>, T::FragmentCount> = Default::default();
         for miner_task in &task_list {
              // Used to count the number of random selections.
             let mut cur_count = 0;
             let miner = loop {
+                // FOR TESTING
+                log::info!("benchmark, total count = {:?}, max_count = {:?}, cur_count = {:?}", total, random_count_limit, cur_count);
+
                 if random_count_limit == cur_count {
                     Err(Error::<T>::NotQualified)?;
                 }
@@ -237,7 +240,7 @@ impl<T: Config> Pallet<T> {
                     Err(Error::<T>::NotQualified)?;
                 }
 
-                let index = Self::generate_random_number(seed)? as u32 % total;
+                let index = Self::generate_random_number(seed)? as usize % all_miner.len();
                 seed = seed.checked_add(1).ok_or(Error::<T>::Overflow)?;
 
                 let miner = all_miner[index as usize].clone();
