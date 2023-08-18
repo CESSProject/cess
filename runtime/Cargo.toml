@@ -87,7 +87,7 @@ pallet-randomness-collective-flip = { version = "4.0.0-dev", default-features = 
 # pallet-ranked-collective
 # pallet-recovery
 # pallet-referenda
-# pallet-remark
+# pallet-remark 
 # pallet-root-testing
 pallet-session = { version = "4.0.0-dev", default-features = false, features = ["historical"], git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 # pallet-session-benchmarking
