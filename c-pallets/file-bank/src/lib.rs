@@ -753,7 +753,7 @@ pub mod pallet {
 			let original = idle_sig_info.encode();
 			let original = sp_io::hashing::sha2_256(&original);
 			// FOR TEST
-			log::info!("sha2_256 original: {:?}", original);
+			// log::info!("sha2_256 original: {:?}", original);
 
 			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
 
@@ -771,6 +771,7 @@ pub mod pallet {
 					Err(Error::<T>::InsufficientReplaceable)?;
 				}
 				let replace_space = IDLE_SEG_SIZE.checked_mul(count.into()).ok_or(Error::<T>::Overflow)?;
+				log::info!("pending_space: {:?}, replace_space: {:?}, count: {:?}", pending_space, replace_space, count);
 				let pending_space_temp = pending_space.checked_sub(replace_space).ok_or(Error::<T>::Overflow)?;
 				*pending_space = pending_space_temp;
 
@@ -945,11 +946,11 @@ pub mod pallet {
 								};
 
 								fragment.avail = false;
-		
+
 								<RestoralOrder<T>>::insert(&restoral_fragment, restoral_order);
-		
+
 								Self::deposit_event(Event::<T>::GenerateRestoralOrder{ miner: sender, fragment_hash: restoral_fragment});
-		
+
 								return Ok(())
 							}
 						}
@@ -1031,11 +1032,11 @@ pub mod pallet {
 									gen_block: <frame_system::Pallet<T>>::block_number(),
 									deadline,
 								};
-	
+
 								fragment.avail = false;
-		
+
 								<RestoralOrder<T>>::insert(&restoral_fragment, restoral_order);
-		
+
 								return Ok(())
 							}
 						}

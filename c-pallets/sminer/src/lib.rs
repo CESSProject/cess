@@ -215,11 +215,6 @@ pub mod pallet {
 		BloomElemPushError,
 	}
 
-	#[pallet::storage]
-	#[pallet::getter(fn miner_lock_in)]
-	pub(super) type MinerLockIn<T: Config> =
-		StorageMap<_, Blake2_128Concat, T::AccountId, BlockNumberOf<T>>;
-
 	/// The hashmap for info of storage miners.
 	#[pallet::storage]
 	#[pallet::getter(fn miner_items)]
@@ -541,6 +536,9 @@ pub mod pallet {
 			<MinerItems<T>>::try_mutate(&sender, |miner_opt| -> DispatchResult {
 				let miner = miner_opt.as_mut().ok_or(Error::<T>::NotExisted)?;
 				ensure!(miner.state == STATE_POSITIVE.as_bytes().to_vec(), Error::<T>::StateError);
+				if miner.lock_space != 0 {
+					Err(Error::<T>::StateError)?;
+				}
 
 				miner.state = Self::str_to_bound(STATE_LOCK)?;
 

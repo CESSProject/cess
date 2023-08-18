@@ -230,7 +230,7 @@ impl<T: Config> Pallet<T> {
             let mut cur_count = 0;
             let miner = loop {
                 // FOR TESTING
-                log::info!("benchmark, total count = {:?}, max_count = {:?}, cur_count = {:?}", total, random_count_limit, cur_count);
+                // log::info!("benchmark, total count = {:?}, max_count = {:?}, cur_count = {:?}", total, random_count_limit, cur_count);
 
                 if random_count_limit == cur_count {
                     Err(Error::<T>::NotQualified)?;
@@ -297,8 +297,6 @@ impl<T: Config> Pallet<T> {
 
         // start random choose miner
         loop {
-            // FOR TESTING
-            log::info!("test, total count = {:?}, max_count = {:?}, cur_count = {:?}", total, max_count, cur_count);
             // Get a random subscript.
             if total == 0 {
                 break;
@@ -529,7 +527,7 @@ impl<T: Config> Pallet<T> {
             let random_seed = match random_seed {
                 Some(v) => v,
                 None => {
-                    log::info!("Is None");
+                    // log::info!("Is None");
 
                     #[cfg(feature = "runtime-benchmarks")]
                     return Ok(seed);

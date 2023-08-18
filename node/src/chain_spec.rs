@@ -507,7 +507,7 @@ fn testnet_genesis(
 		},
 		storage_handler: StorageHandlerConfig { price: 30 * DOLLARS },
 		// FOR TESTING
-		sminer: SminerConfig { expenders: (8, 1024*16, 64) },
+		sminer: SminerConfig { expenders: (8, 1024*1024, 64) },
 		indices: IndicesConfig { indices: vec![] },
 		session: SessionConfig {
 			keys: initial_authorities

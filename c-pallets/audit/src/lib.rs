@@ -852,6 +852,10 @@ pub mod pallet {
 					weight = weight.saturating_add(T::DbWeight::get().writes(1));
 					<VerifyReassignCount<T>>::put(0);
 					weight = weight.saturating_add(T::DbWeight::get().writes(1));
+					for (miner, _) in VerifyResult::<T>::iter() {
+						<VerifyResult<T>>::remove(miner);
+						weight = weight.saturating_add(T::DbWeight::get().writes(1));
+					}
 					return weight;
 				} else {
 					reassign_count = reassign_count.checked_add(1).unwrap_or(ceiling);

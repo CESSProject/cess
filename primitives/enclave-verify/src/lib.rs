@@ -256,7 +256,7 @@ fn cryptos_rsa() {
 
 	let pub_key = RsaPublicKey::from(&priv_key);
 
-    let original_text = [5, 224, 231, 219, 139, 125, 66, 253, 162, 225, 144, 13, 242, 222, 33, 165, 218, 218, 166, 112, 180, 234, 74, 209, 169, 5, 140, 225, 84, 128, 69, 103];
+    let original_text = [222, 201, 105, 133, 69, 187, 238, 44, 118, 21, 214, 187, 215, 163, 51, 204, 51, 181, 37, 205, 211, 139, 32, 225, 147, 212, 106, 77, 202, 251, 95, 144];
 
 	let priv_key_der = priv_key.to_pkcs1_der().unwrap();
     // println!("priv_key_der: {:?}", priv_key_der.as_bytes());

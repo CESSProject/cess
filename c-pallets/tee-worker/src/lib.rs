@@ -148,8 +148,8 @@ pub mod pallet {
 			ensure!(!TeeWorkerMap::<T>::contains_key(&sender), Error::<T>::AlreadyRegistration);
 
 			let _ = verify_miner_cert(
-				&sgx_attestation_report.sign, 
-				&sgx_attestation_report.cert_der, 
+				&sgx_attestation_report.sign,
+				&sgx_attestation_report.cert_der,
 				&sgx_attestation_report.report_json_raw,
 			).ok_or(Error::<T>::VerifyCertFailed)?;
 
