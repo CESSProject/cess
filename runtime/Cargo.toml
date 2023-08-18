@@ -65,7 +65,7 @@ pallet-contracts-primitives = { version = "7.0.0", default-features = false, git
 pallet-election-provider-multi-phase = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 # pallet-election-provider-support-benchmarking
 # pallet-elections-phragmen
-# pallet-fast-unstake
+# pallet-fast-unstake 
 # pallet-nis
 pallet-grandpa = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 pallet-im-online = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
