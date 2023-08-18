@@ -15,7 +15,7 @@ Substrate development is easiest on Unix-based operating systems like macOS or L
 in the Substrate [Tutorials](https://substrate.dev/tutorials) and [Recipes](https://substrate.dev/recipes/)
 use Unix-style terminals to demonstrate how to interact with Substrate from the command line.
 
-### macOS
+### MacOS
 
 Open the Terminal application and execute the following commands:
 
