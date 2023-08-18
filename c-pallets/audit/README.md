@@ -9,7 +9,7 @@ The job of this segment Book pallet is to process the proof of miner's service f
 
 * **random_challenge:** The random time trigger initiates a challenge to the random documents.
 The miners need to complete the challenge within a limited time and submit the certificates of
-the corresponding documents.
+the corresponding documents .
 
 * **deadline:** 	Expiration time of challenge, stored in challengeduration.
 * **mu:**			Miner generated challenge related information.
