@@ -42,7 +42,7 @@ The account is created successfully as shown below.
 
 ### Backup CESS account
 
-Click the setting option on the right side of the account and click "export accout" to export the backup file.
+Click the "setting option" on the right side of the account and click "export accout" to export the backup file.
 
 ![Image](https://raw.githubusercontent.com/Cumulus2021/W3F-illustration/main/docs/account%20guide/img7.png)
 
