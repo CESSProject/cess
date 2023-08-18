@@ -104,6 +104,13 @@ pub fn freeze_miner<T: Config>(acc: AccountOf<T>) -> Result<(), &'static str> {
     Ok(())
 }
 
+pub fn bench_miner_exit<T: Config>(miner: AccountOf<T>) -> Result<(), &'static str> {
+    Sminer::<T>::miner_exit_prep(RawOrigin::Signed(miner.clone()).into()).map_err(|_| "miner exit prep failed")?;
+    Sminer::<T>::miner_exit(RawOrigin::Root.into(), miner.clone()).map_err(|_| "miner exit failed")?;
+
+    Ok(())
+}
+
 benchmarks! {
     regnstk {
         let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
@@ -126,7 +133,11 @@ benchmarks! {
             accumulator: pois_key.g,
         };
 
-        let sig: TeeRsaSignature = [174, 153, 189, 101, 87, 124, 131, 98, 21, 63, 176, 60, 107, 132, 223, 121, 123, 246, 47, 248, 53, 146, 91, 55, 65, 241, 172, 104, 85, 226, 237, 223, 22, 135, 254, 63, 229, 61, 124, 6, 150, 100, 222, 231, 115, 27, 172, 148, 36, 208, 213, 124, 253, 71, 207, 68, 34, 77, 68, 101, 131, 182, 222, 185, 130, 227, 54, 34, 81, 56, 231, 95, 19, 70, 140, 150, 36, 155, 135, 208, 245, 141, 155, 129, 157, 41, 20, 234, 241, 105, 2, 238, 1, 154, 145, 149, 132, 201, 146, 47, 132, 154, 96, 167, 225, 19, 117, 224, 158, 195, 206, 34, 81, 75, 247, 181, 71, 6, 26, 27, 30, 229, 198, 133, 248, 154, 141, 105, 13, 55, 205, 183, 78, 124, 121, 77, 121, 188, 41, 255, 86, 254, 180, 41, 24, 89, 41, 91, 233, 135, 60, 242, 174, 109, 46, 242, 186, 116, 88, 187, 250, 173, 194, 7, 52, 116, 233, 43, 121, 132, 12, 146, 164, 93, 46, 32, 103, 148, 242, 228, 42, 167, 197, 242, 83, 26, 43, 110, 40, 86, 1, 153, 151, 19, 192, 18, 249, 208, 17, 220, 15, 158, 253, 123, 153, 13, 56, 226, 95, 234, 189, 126, 126, 101, 151, 12, 149, 15, 175, 172, 6, 228, 253, 68, 226, 30, 20, 33, 66, 235, 103, 190, 91, 71, 217, 104, 68, 68, 9, 42, 95, 1, 253, 66, 6, 41, 105, 35, 102, 94, 254, 48, 238, 15, 136, 86];
+        let encoding = space_proof_info.encode();
+        let hashing = sp_io::hashing::sha2_256(&encoding);
+        log::info!("register hashing: {:?}", hashing);
+
+        let sig: TeeRsaSignature = [27, 227, 6, 81, 243, 202, 129, 247, 142, 47, 147, 80, 173, 149, 139, 98, 89, 161, 88, 135, 198, 87, 212, 162, 210, 161, 33, 2, 239, 67, 206, 191, 180, 207, 235, 88, 16, 164, 232, 152, 182, 57, 3, 196, 1, 139, 194, 146, 241, 51, 102, 165, 50, 11, 240, 234, 75, 211, 130, 105, 42, 204, 17, 108, 254, 137, 58, 70, 2, 46, 93, 109, 216, 145, 120, 151, 29, 214, 182, 132, 96, 144, 63, 127, 124, 182, 255, 231, 211, 40, 220, 202, 53, 207, 214, 183, 214, 226, 242, 170, 27, 169, 218, 24, 171, 199, 192, 240, 15, 155, 46, 64, 205, 101, 212, 62, 212, 92, 65, 170, 174, 76, 50, 119, 125, 239, 134, 23, 11, 126, 41, 7, 29, 39, 216, 122, 103, 167, 97, 29, 196, 196, 181, 122, 202, 252, 98, 169, 151, 29, 188, 21, 55, 15, 238, 211, 250, 195, 51, 205, 82, 205, 110, 159, 126, 215, 107, 159, 9, 201, 110, 224, 156, 125, 250, 187, 144, 23, 22, 129, 217, 98, 91, 122, 8, 45, 251, 19, 152, 161, 94, 140, 17, 250, 63, 34, 85, 113, 205, 179, 55, 79, 39, 147, 200, 187, 125, 25, 153, 187, 184, 194, 216, 217, 130, 160, 99, 164, 118, 53, 146, 215, 239, 53, 81, 128, 35, 161, 73, 241, 250, 101, 212, 89, 224, 15, 220, 35, 191, 61, 114, 172, 238, 244, 184, 116, 185, 40, 249, 8, 99, 24, 98, 48, 126, 133];
     }: _(RawOrigin::Signed(caller.clone()), caller.clone(), peer_id, 2_000u32.into(), pois_key, sig)
     verify {
         assert!(<MinerItems<T>>::contains_key(&caller))
@@ -172,10 +183,37 @@ benchmarks! {
          let fa: BalanceOf<T> =  existential_deposit.checked_mul(&10u32.saturated_into()).ok_or("over flow")?;
      }: _(RawOrigin::Signed(caller), fa)
      verify {
-        let pallet_acc = <T as crate::Config>::PalletId::get().into_account_truncating();
+        let pallet_acc = <T as crate::Config>::FaucetId::get().into_account_truncating();
         let free = <T as crate::Config>::Currency::free_balance(&pallet_acc);
         assert_eq!(free, fa)
      }
+
+    miner_exit_prep {
+        let miner: AccountOf<T> = add_miner::<T>("miner1")?;
+    }: _(RawOrigin::Signed(miner.clone()))
+    verify {
+        let miner_info = <MinerItems<T>>::try_get(&miner).unwrap();
+        assert_eq!(miner_info.state.to_vec(), STATE_LOCK.as_bytes().to_vec())
+    }
+
+    miner_exit {
+        let miner: AccountOf<T> = add_miner::<T>("miner1")?;
+        Sminer::<T>::miner_exit_prep(RawOrigin::Signed(miner.clone()).into())?;
+        
+    }: _(RawOrigin::Root, miner.clone())
+    verify {
+        let miner_info = <MinerItems<T>>::try_get(&miner).unwrap();
+        assert_eq!(miner_info.state.to_vec(), STATE_EXIT.as_bytes().to_vec())
+    }
+
+    miner_withdraw {
+        let miner: AccountOf<T> = add_miner::<T>("miner1")?;
+        Sminer::<T>::miner_exit_prep(RawOrigin::Signed(miner.clone()).into())?;
+        Sminer::<T>::miner_exit(RawOrigin::Root.into(), miner.clone())?;
+    }: _(RawOrigin::Signed(miner.clone()))
+    verify {
+        assert!(!<MinerItems<T>>::contains_key(&miner));
+    }
 }
 
 // }
