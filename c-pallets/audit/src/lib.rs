@@ -1001,6 +1001,10 @@ pub mod pallet {
 					weight = weight.saturating_add(T::DbWeight::get().writes(1));
 					<VerifyReassignCount<T>>::put(0);
 					weight = weight.saturating_add(T::DbWeight::get().writes(1));
+					for (miner, _) in VerifyResult::<T>::iter() {
+						<VerifyResult<T>>::remove(miner);
+						weight = weight.saturating_add(T::DbWeight::get().writes(1));
+					}
 				} else {
 					let new_block = max_count.checked_mul(50u32).unwrap_or(u32::MAX.into());
 					let new_block = now.checked_add(&new_block.saturated_into()).unwrap_or(u32::MAX.into());
