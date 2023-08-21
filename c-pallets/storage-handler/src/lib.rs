@@ -323,6 +323,21 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+        #[pallet::call_index(5)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+        pub fn update_user_life(origin: OriginFor<T>, user: AccountOf<T>, deadline: BlockNumberOf<T>) -> DispatchResult {
+            let _ = ensure_root(origin)?;
+
+            <UserOwnedSpace<T>>::try_mutate(&user, |space_opt| -> DispatchResult {
+                let space_info = space_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
+
+                space_info.deadline = deadline;
+
+                Ok(())
+            })
+        }
     }
 }
 

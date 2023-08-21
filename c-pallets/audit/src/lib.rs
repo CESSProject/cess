@@ -421,11 +421,12 @@ pub mod pallet {
 					if now > cur_blcok {
 						let duration = now.checked_add(&proposal.1.net_snap_shot.life).ok_or(Error::<T>::Overflow)?;
 						<ChallengeDuration<T>>::put(duration);
+						let idle_duration = duration;
 						let one_hour = T::OneHours::get();
 						let duration: u32 = (proposal.1.net_snap_shot.total_idle_space
 							.checked_add(proposal.1.net_snap_shot.total_service_space).ok_or(Error::<T>::Overflow)?
 							.checked_div(IDLE_VERIFY_RATE).ok_or(Error::<T>::Overflow)?) as u32;
-						let v_duration = now
+						let v_duration = idle_duration
 							.checked_add(&duration.saturated_into()).ok_or(Error::<T>::Overflow)?
 							.checked_add(&one_hour).ok_or(Error::<T>::Overflow)?;
 						<VerifyDuration<T>>::put(v_duration);
@@ -760,6 +761,17 @@ pub mod pallet {
 				&miner, 
 				0,
 			);
+
+			Ok(())
+		}
+		// FOR TESTING
+		#[pallet::call_index(8)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn update_challenge_duration(origin: OriginFor<T>, new: BlockNumberOf<T>) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			<ChallengeDuration<T>>::put(new);
 
 			Ok(())
 		}
