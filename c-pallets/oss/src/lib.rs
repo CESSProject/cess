@@ -68,6 +68,8 @@ pub mod pallet {
 		OptionParseError,
 
 		BoundedVecError,
+
+		Existed,
 	}
 
 	#[pallet::storage]
@@ -91,6 +93,7 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 
 			AuthorityList::<T>::try_mutate(&sender, |authority_list| -> DispatchResult {
+				ensure!(!authority_list.contains(&operator), Error::<T>::Existed);
 				authority_list.try_push(operator.clone()).map_err(|_| Error::<T>::BoundedVecError)?;
 
 				Ok(())
