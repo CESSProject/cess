@@ -19,6 +19,7 @@ cp-scheduler-credit = { path = '../../primitives/scheduler-credit', version = '0
 cp-enclave-verify = { path = '../../primitives/enclave-verify', version = '0.1.0', default-features = false }
 
 sp-application-crypto = { version = '7.0.0', branch = 'cess-polkadot-v0.9.36', git = 'https://github.com/CESSProject/substrate.git', default-features = false }
+sp-io = { version = "7.0.0", default-features = false, branch = 'cess-polkadot-v0.9.36', git = 'https://github.com/CESSProject/substrate.git' }
 
 [dependencies.frame-benchmarking]
 default-features = false

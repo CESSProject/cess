@@ -146,11 +146,15 @@ pub mod pallet {
 				Err(Error::<T>::NotController)?;
 			}
 			ensure!(!TeeWorkerMap::<T>::contains_key(&sender), Error::<T>::AlreadyRegistration);
-
+			let mut identity = Vec::new();
+			identity.append(&mut peer_id.to_vec());
+			identity.append(&mut podr2_pbk.to_vec());
+			let identity_hashing = sp_io::hashing::sha2_256(&identity);
 			let _ = verify_miner_cert(
 				&sgx_attestation_report.sign,
 				&sgx_attestation_report.cert_der,
 				&sgx_attestation_report.report_json_raw,
+				&identity_hashing,
 			).ok_or(Error::<T>::VerifyCertFailed)?;
 
 			let tee_worker_info = TeeWorkerInfo::<T> {

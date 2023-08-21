@@ -18,6 +18,7 @@ cp-cess-common = { version = "0.1.0", path = '../common', default-features = fal
 # ed25519-dalek = { version = "1.0.1", default-features = false, optional = true }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 rsa = { version = "0.8.2", default-features = false }
+hex = { version='0.4.3', default-features=false, features = ['alloc'] }
 
 frame-support = {default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'cess-polkadot-v0.9.36', version = '4.0.0-dev'}
 sp-api = { version = "4.0.0-dev", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'cess-polkadot-v0.9.36' }
@@ -33,7 +34,6 @@ sp-application-crypto = { version = '7.0.0', branch = 'cess-polkadot-v0.9.36', g
 
 [dev-dependencies]
 rand = "0.8.5"
-hex = "0.4.3"
 sp-io = { version = "7.0.0", default-features = false, branch = 'cess-polkadot-v0.9.36', git = 'https://github.com/CESSProject/substrate.git' }
 
 [features]
