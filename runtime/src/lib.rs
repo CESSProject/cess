@@ -172,7 +172,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 102,
+	spec_version: 104,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -1007,6 +1007,7 @@ impl pallet_audit::Config for Runtime {
 	type MyRandomness = pallet_rrsc::ParentBlockRandomness<Runtime>;
 	type WeightInfo = pallet_audit::weights::SubstrateWeight<Runtime>;
 	type AuthorityId = pallet_audit::sr25519::AuthorityId;
+	type CreditCounter = SchedulerCredit;
 	type SessionKeyMax = SessionKeyMax;
 	type VerifyMissionMax = VerifyMissionMax;
 	type OneDay = OneDay;

@@ -97,6 +97,7 @@ use cp_cess_common::*;
 pub mod weights;
 pub use weights::WeightInfo;
 use cp_bloom_filter::BloomFilter;
+use cp_scheduler_credit::SchedulerCreditCounter;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
@@ -226,6 +227,8 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type ReassignCeiling: Get<u8> + Clone + Eq + PartialEq;
+
+		type CreditCounter: SchedulerCreditCounter<Self::AccountId>;
 	}
 
 	#[pallet::event]
@@ -633,6 +636,9 @@ pub mod pallet {
 							<CountedIdleFailed<T>>::insert(&sender, count);
 						}
 
+						let count = miner_info.snap_shot.space_proof_info.rear
+							.checked_sub(miner_info.snap_shot.space_proof_info.front).ok_or(Error::<T>::Overflow)?;
+						T::CreditCounter::record_proceed_block_size(&tee_acc, count)?;
 						unverify_list.remove(index);
 
 						Self::deposit_event(Event::<T>::SubmitIdleVerifyResult { tee: tee_acc.clone(), miner: sender, result: idle_result });
@@ -716,6 +722,10 @@ pub mod pallet {
 							<CountedServiceFailed<T>>::insert(&sender, count);
 						}
 
+						let count = miner_info.snap_shot.service_space
+							.checked_div(IDLE_SEG_SIZE).ok_or(Error::<T>::Overflow)?
+							.checked_add(1).ok_or(Error::<T>::Overflow)?;
+						T::CreditCounter::record_proceed_block_size(&tee_acc, count as u64)?;
 						unverify_list.remove(index);
 
 						Self::deposit_event(Event::<T>::SubmitServiceVerifyResult { tee: tee_acc.clone(), miner: sender, result: service_result });
