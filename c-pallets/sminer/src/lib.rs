@@ -407,8 +407,16 @@ pub mod pallet {
 					if miner_info.debt > collaterals {
 						miner_info.debt = miner_info.debt.checked_sub(&collaterals).ok_or(Error::<T>::Overflow)?;
 						remaining = BalanceOf::<T>::zero();
+						<CurrencyReward<T>>::mutate(|reward| -> DispatchResult {
+							*reward = reward.checked_add(&collaterals).ok_or(Error::<T>::Overflow)?;
+							Ok(())
+						})?;
 					} else {
 						remaining = remaining.checked_sub(&miner_info.debt).ok_or(Error::<T>::Overflow)?;
+						<CurrencyReward<T>>::mutate(|reward| -> DispatchResult {
+							*reward = reward.checked_add(&miner_info.debt).ok_or(Error::<T>::Overflow)?;
+							Ok(())
+						});
 						miner_info.debt = BalanceOf::<T>::zero();
 					}
 				}

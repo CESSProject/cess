@@ -975,7 +975,7 @@ pub mod pallet {
 			let now = <frame_system::Pallet<T>>::block_number();
 			<RestoralOrder<T>>::try_mutate(&restoral_fragment, |order_opt| -> DispatchResult {
 				let order = order_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
-				
+
 				ensure!(now > order.deadline, Error::<T>::SpecError);
 
 				let life = T::RestoralOrderLife::get();
