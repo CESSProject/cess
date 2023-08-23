@@ -113,6 +113,7 @@ std = [
 	"frame-benchmarking/std",
 	"cp-cess-common/std",
 ]
+
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"pallet-cess-staking/runtime-benchmarks",
