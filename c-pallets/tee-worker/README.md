@@ -6,7 +6,6 @@ Store scheduling related information.
 
 * **Ip:** Scheduled IP address.
 
-
 ## Interface
 ### Trait
 #### ScheduleFind
