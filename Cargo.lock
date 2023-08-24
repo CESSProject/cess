@@ -694,7 +694,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "array-bytes",
  "cess-node-runtime",
@@ -715,7 +715,7 @@ dependencies = [
  "fp-storage",
  "frame-benchmarking",
  "frame-benchmarking-cli",
- "frame-system-rpc-runtime-api",
+ "frame-system",
  "futures",
  "jsonrpsee",
  "log",
@@ -723,6 +723,7 @@ dependencies = [
  "pallet-audit",
  "pallet-contracts",
  "pallet-im-online",
+ "pallet-transaction-payment",
  "pallet-transaction-payment-rpc",
  "parity-scale-codec",
  "rand 0.8.5",
@@ -759,6 +760,7 @@ dependencies = [
  "sp-consensus",
  "sp-core",
  "sp-finality-grandpa",
+ "sp-inherents",
  "sp-keyring",
  "sp-keystore",
  "sp-runtime",
@@ -772,9 +774,10 @@ dependencies = [
 
 [[package]]
 name = "cess-node-runtime"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "cessp-consensus-rrsc",
+ "cp-cess-common",
  "cp-enclave-verify",
  "cp-scheduler-credit",
  "fp-rpc",
@@ -1184,6 +1187,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "cp-bloom-filter"
+version = "0.1.0"
+dependencies = [
+ "cp-cess-common",
+ "frame-support",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-std",
+]
+
+[[package]]
 name = "cp-cess-common"
 version = "0.1.0"
 dependencies = [
@@ -1202,6 +1217,7 @@ dependencies = [
  "base64 0.12.3",
  "cp-cess-common",
  "frame-support",
+ "hex",
  "ic-verify-bls-signature",
  "log",
  "parity-scale-codec",
@@ -1212,6 +1228,7 @@ dependencies = [
  "sp-api",
  "sp-application-crypto",
  "sp-core",
+ "sp-io",
  "sp-std",
  "webpki 0.21.0",
 ]
@@ -4782,9 +4799,11 @@ dependencies = [
 
 [[package]]
 name = "pallet-audit"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
+ "cp-bloom-filter",
  "cp-cess-common",
+ "cp-enclave-verify",
  "cp-scheduler-credit",
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -4916,7 +4935,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-cacher"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "cp-cess-common",
  "frame-benchmarking",
@@ -5182,9 +5201,11 @@ dependencies = [
 
 [[package]]
 name = "pallet-file-bank"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
+ "cessp-consensus-rrsc",
  "cp-cess-common",
+ "cp-enclave-verify",
  "cp-scheduler-credit",
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -5195,8 +5216,10 @@ dependencies = [
  "pallet-bags-list",
  "pallet-balances",
  "pallet-cess-staking",
+ "pallet-grandpa",
  "pallet-oss",
  "pallet-preimage",
+ "pallet-rrsc",
  "pallet-scheduler",
  "pallet-scheduler-credit",
  "pallet-session",
@@ -5331,7 +5354,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-oss"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "cp-cess-common",
  "frame-benchmarking",
@@ -5460,16 +5483,21 @@ dependencies = [
 
 [[package]]
 name = "pallet-sminer"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
+ "cp-bloom-filter",
  "cp-cess-common",
+ "cp-enclave-verify",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
  "log",
  "pallet-balances",
+ "pallet-cess-staking",
  "pallet-preimage",
  "pallet-scheduler",
+ "pallet-storage-handler",
+ "pallet-tee-worker",
  "pallet-timestamp",
  "parity-scale-codec",
  "rand_chacha 0.2.2",
@@ -5494,14 +5522,14 @@ dependencies = [
 
 [[package]]
 name = "pallet-storage-handler"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "cp-cess-common",
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "log",
  "pallet-balances",
- "pallet-sminer",
  "parity-scale-codec",
  "scale-info",
  "serde",
@@ -5525,7 +5553,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-tee-worker"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "cp-cess-common",
  "cp-enclave-verify",
@@ -5540,7 +5568,6 @@ dependencies = [
  "pallet-cess-staking",
  "pallet-scheduler-credit",
  "pallet-session",
- "pallet-sminer",
  "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",
@@ -5548,6 +5575,7 @@ dependencies = [
  "serde_json",
  "sp-application-crypto",
  "sp-core",
+ "sp-io",
  "sp-npos-elections",
  "sp-runtime",
  "sp-staking",

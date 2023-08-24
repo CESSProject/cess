@@ -6,7 +6,7 @@ edition = '2021'
 license = 'Unlicense'
 name = 'cess-node'
 repository = 'https://github.com/CESSProject/cess'
-version = '0.6.0'
+version = '0.7.0'
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -34,7 +34,7 @@ sp-core = { version = "7.0.0", git = "https://github.com/CESSProject/substrate.g
 sp-runtime = { version = "7.0.0", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sp-timestamp = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sp-authorship = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-# sp-inherents
+sp-inherents = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sp-keyring = { version = "7.0.0", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sp-keystore = { version = "0.13.0", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sp-consensus = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
@@ -64,9 +64,9 @@ cessc-sync-state-rpc = { version = "0.10.0-dev", git = "https://github.com/CESSP
 sc-sysinfo = { version = "6.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 
 # frame dependencies
-# frame-system
-frame-system-rpc-runtime-api = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-# pallet-transaction-payment
+frame-system = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+# frame-system-rpc-runtime-api = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 # pallet-assets
 # pallet-asset-tx-payment
 pallet-im-online = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
@@ -95,7 +95,7 @@ sp-block-builder = { version = "4.0.0-dev", git = "https://github.com/CESSProjec
 sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 substrate-frame-rpc-system = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sc-rpc-spec-v2 = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-pallet-audit = { version = "0.6.0", default-features = false, path = "../c-pallets/audit" }
+pallet-audit = { version = "0.7.0", default-features = false, path = "../c-pallets/audit" }
 sc-finality-grandpa-rpc = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 cessc-consensus-rrsc-rpc = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sc-consensus-epochs = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
@@ -119,7 +119,11 @@ substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/CE
 
 [features]
 default = ["cli"]
-runtime-benchmarks = ['cess-node-runtime/runtime-benchmarks']
+runtime-benchmarks = [
+	'cess-node-runtime/runtime-benchmarks',
+	"frame-benchmarking/runtime-benchmarks",
+	"frame-benchmarking-cli/runtime-benchmarks",
+]
 try-runtime = ["cess-node-runtime/try-runtime", "try-runtime-cli"]
 
 cli = [

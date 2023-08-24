@@ -16,7 +16,7 @@ impl<T: Config> Pallet<T> {
     pub fn generate_file(
         file_hash: &Hash,
         deal_info: BoundedVec<SegmentList<T>, T::SegmentCount>,
-        mut miner_task_list: BoundedVec<MinerTaskList<T>, T::StringLimit>,
+        mut miner_task_list: BoundedVec<MinerTaskList<T>, ConstU32<ASSIGN_MINER_IDEAL_QUANTITY>>,
         share_info: Vec<SegmentInfo<T>>,
         user_brief: UserBrief<T>,
         stat: FileState,
@@ -216,19 +216,22 @@ impl<T: Config> Pallet<T> {
     }
 
     pub(super) fn reassign_miner(
-        task_list: BoundedVec<MinerTaskList<T>, T::StringLimit>, 
-        selected_miner: BoundedVec<AccountOf<T>, T::StringLimit>,
-    ) -> Result<BoundedVec<MinerTaskList<T>, T::StringLimit>, DispatchError> {
+        task_list: BoundedVec<MinerTaskList<T>, T::FragmentCount>, 
+        selected_miner: BoundedVec<AccountOf<T>, T::FragmentCount>,
+    ) -> Result<BoundedVec<MinerTaskList<T>, T::FragmentCount>, DispatchError> {
         let mut all_miner = T::MinerControl::get_all_miner()?;
         let mut total = all_miner.len() as u32;
         let mut seed = <frame_system::Pallet<T>>::block_number().saturated_into();
         // Used to calculate the upper limit of the number of random selections
-        let random_count_limit = (task_list.len() - selected_miner.len()) as u32 * 3 + 10;
-        let mut new_task_list: BoundedVec<MinerTaskList<T>, T::StringLimit> = Default::default();
+        let random_count_limit = task_list.len() as u32 * 10 + 10;
+        let mut new_task_list: BoundedVec<MinerTaskList<T>, T::FragmentCount> = Default::default();
         for miner_task in &task_list {
              // Used to count the number of random selections.
             let mut cur_count = 0;
             let miner = loop {
+                // FOR TESTING
+                // log::info!("benchmark, total count = {:?}, max_count = {:?}, cur_count = {:?}", total, random_count_limit, cur_count);
+
                 if random_count_limit == cur_count {
                     Err(Error::<T>::NotQualified)?;
                 }
@@ -237,7 +240,7 @@ impl<T: Config> Pallet<T> {
                     Err(Error::<T>::NotQualified)?;
                 }
 
-                let index = Self::generate_random_number(seed)? as u32 % total;
+                let index = Self::generate_random_number(seed)? as usize % all_miner.len();
                 seed = seed.checked_add(1).ok_or(Error::<T>::Overflow)?;
 
                 let miner = all_miner[index as usize].clone();
@@ -276,8 +279,8 @@ impl<T: Config> Pallet<T> {
 
     pub(super) fn random_assign_miner(
         needed_list: &BoundedVec<SegmentList<T>, T::SegmentCount>
-    ) -> Result<BoundedVec<MinerTaskList<T>, T::StringLimit>, DispatchError> {
-        let mut miner_task_list: BoundedVec<MinerTaskList<T>, T::StringLimit> = Default::default();
+    ) -> Result<BoundedVec<MinerTaskList<T>, ConstU32<ASSIGN_MINER_IDEAL_QUANTITY>>, DispatchError> {
+        let mut miner_task_list: BoundedVec<MinerTaskList<T>, ConstU32<ASSIGN_MINER_IDEAL_QUANTITY>> = Default::default();
         let mut miner_idle_space_list: Vec<u128> = Default::default();
         // The optimal number of miners required for storage.
         // segment_size * 1.5 / fragment_size.
@@ -319,9 +322,9 @@ impl<T: Config> Pallet<T> {
             if Self::miner_failed_exceeds_limit(&miner) {
                 continue;
             }
-            
             let result = T::MinerControl::is_positive(&miner)?;
             if !result {
+                log::info!("Isn't positive");
                 continue;
             }
 
@@ -342,7 +345,7 @@ impl<T: Config> Pallet<T> {
                 break;
             }
         }
-        
+
         ensure!(miner_task_list.len() != 0, Error::<T>::BugInvalid);
         ensure!(total_idle_space > SEGMENT_SIZE * 15 / 10, Error::<T>::NodesInsufficient);
 
@@ -459,31 +462,38 @@ impl<T: Config> Pallet<T> {
         let mut total_fragment_dec = 0;
         // Used to record and store the amount of service space that miners need to reduce, 
         // and read changes once through counting
-        let mut miner_list: BTreeMap<AccountOf<T>, u32> = Default::default();
+        let mut miner_list: BTreeMap<AccountOf<T>, Vec<Hash>> = Default::default();
         // Traverse every segment
         for segment_info in file.segment_list.iter() {
             for fragment_info in segment_info.fragment_list.iter() {
                 // The total number of fragments in a file should never exceed u32
-                    total_fragment_dec += 1;
-                    if miner_list.contains_key(&fragment_info.miner) {
-                        let temp_count = miner_list.get_mut(&fragment_info.miner).ok_or(Error::<T>::BugInvalid)?;
-                        // The total number of fragments in a file should never exceed u32
-                        *temp_count += 1;
-                    } else {
-                         miner_list.insert(fragment_info.miner.clone(), 1);
-                    }
+                total_fragment_dec += 1;
+                if miner_list.contains_key(&fragment_info.miner) {
+                    let temp_list = miner_list.get_mut(&fragment_info.miner).ok_or(Error::<T>::BugInvalid)?;
+                    // The total number of fragments in a file should never exceed u32
+                    temp_list.push(fragment_info.hash);
+                } else {
+                    miner_list.insert(fragment_info.miner.clone(), vec![fragment_info.hash]);
                 }
+            }
         }
 
-        for (miner, count) in miner_list.iter() {
-            if <RestoralTarget<T>>::contains_key(miner) {
-                Self::update_restoral_target(miner, FRAGMENT_SIZE * *count as u128)?;
+        for (miner, hash_list) in miner_list.iter() {
+            let count = hash_list.len() as u128;
+            if T::MinerControl::restoral_target_is_exist(miner) {
+                T::MinerControl::update_restoral_target(miner, FRAGMENT_SIZE * count)?;
             } else {
+                let mut binary_list: Vec<Box<[u8; 256]>> = Default::default(); 
+                for fragment_hash in hash_list {
+					let binary_temp = fragment_hash.binary().map_err(|_| Error::<T>::BugInvalid)?;
+					binary_list.push(binary_temp);
+                }
                 if file.stat == FileState::Active {
-                    T::MinerControl::sub_miner_service_space(miner, FRAGMENT_SIZE * *count as u128)?;
+                    T::MinerControl::sub_miner_service_space(miner, FRAGMENT_SIZE * count)?;
+                    T::MinerControl::delete_service_bloom(miner, binary_list)?;
                 }
                 if file.stat == FileState::Calculate {
-                    T::MinerControl::unlock_space(miner, FRAGMENT_SIZE * *count as u128)?;
+                    T::MinerControl::unlock_space(miner, FRAGMENT_SIZE * count)?;
                 }
             }
             weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
@@ -511,17 +521,25 @@ impl<T: Config> Pallet<T> {
     /// - `u32`: random number.
     pub fn generate_random_number(seed: u32) -> Result<u32, DispatchError> {
         let mut counter = 0;
-        loop {
+        loop {           
             let (random_seed, _) =
                 T::MyRandomness::random(&(T::FilbakPalletId::get(), seed + counter).encode());
             let random_seed = match random_seed {
                 Some(v) => v,
-                None => Default::default(),
+                None => {
+                    // log::info!("Is None");
+
+                    #[cfg(feature = "runtime-benchmarks")]
+                    return Ok(seed);
+
+                    Default::default()
+                },
             };
             let random_number = <u32>::decode(&mut random_seed.as_ref()).unwrap_or(0);
             if random_number != 0 {
                 return Ok(random_number)
             }
+            log::info!("random number: {}", random_number);
             counter = counter.checked_add(1).ok_or(Error::<T>::Overflow)?;
         }
     }
@@ -601,58 +619,6 @@ impl<T: Config> Pallet<T> {
             return true;
         }
         false
-    }
-
-    pub(super) fn clear_filler(miner: &AccountOf<T>, maybe_cursor: Option<&[u8]>) {
-        let result = <FillerMap<T>>::clear_prefix(miner, 100000, maybe_cursor);
-        if let Some(cursor) = result.maybe_cursor {
-            Self::clear_filler(miner, Some(&cursor));
-        }
-    }
-
-    pub(super) fn force_miner_exit(miner: &AccountOf<T>) -> DispatchResult {
-        Self::clear_filler(&miner, None);
-
-        let (idle_space, service_space) = T::MinerControl::get_power(&miner)?;
-        T::StorageHandle::sub_total_idle_space(idle_space)?;
-
-        T::MinerControl::force_miner_exit(miner)?;
-
-        Self::create_restoral_target(miner, service_space)?;
-        
-        Ok(())
-    }
-
-    pub(super) fn create_restoral_target(miner: &AccountOf<T>, service_space: u128) -> DispatchResult {
-        let block: u32 = service_space
-            .checked_div(T_BYTE).ok_or(Error::<T>::Overflow)?
-            .checked_add(1).ok_or(Error::<T>::Overflow)?
-            .checked_mul(T::OneDay::get().try_into().map_err(|_| Error::<T>::Overflow)?).ok_or(Error::<T>::Overflow)? as u32;
-
-        let now = <frame_system::Pallet<T>>::block_number();
-        let block = now.checked_add(&block.saturated_into()).ok_or(Error::<T>::Overflow)?;
-
-        let restoral_info = RestoralTargetInfo::<AccountOf<T>, BlockNumberOf<T>>{
-            miner: miner.clone(),
-            service_space,
-            restored_space: u128::MIN,
-            cooling_block: block,
-        };
-
-        <RestoralTarget<T>>::insert(&miner, restoral_info);
-
-        Ok(())
-    }
-
-    pub(super) fn update_restoral_target(miner: &AccountOf<T>, service_space: u128) -> DispatchResult {
-        <RestoralTarget<T>>::try_mutate(miner, |info_opt| -> DispatchResult {
-            let info = info_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
-
-            info.restored_space = info.restored_space
-                .checked_add(service_space).ok_or(Error::<T>::Overflow)?;
-
-            Ok(())
-        })
     }
 
     pub(super) fn check_bucket_name_spec(name: Vec<u8>) -> bool {

@@ -62,6 +62,10 @@ pub enum Subcommand {
 	/// Remove the whole chain.
 	PurgeChain(sc_cli::PurgeChainCmd),
 
+	/// Sub-commands concerned with benchmarking.
+	#[command(subcommand)]
+	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
+
 	/// Revert the chain to a previous state.
 	Revert(sc_cli::RevertCmd),
 

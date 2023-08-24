@@ -9,7 +9,7 @@ Store scheduling related information
 
 ## Interface
 ### Trait
-#### ScheduleFind
+#### TeeWorkerHandler
 
 A series of methods for finding consensus scheduling.
  * `contains_scheduler` - Judge whether the controller account exists.

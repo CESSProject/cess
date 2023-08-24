@@ -48,7 +48,9 @@ use sp_runtime::{
 	ApplyExtrinsicResult, FixedPointNumber, MultiSignature, Perbill, Percent, Permill, Perquintill,
 	RuntimeAppPublic,
 };
+use cp_cess_common::{FRAGMENT_COUNT};
 use sp_std::{marker::PhantomData, prelude::*};
+pub use frame_system::Call as SystemCall;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
@@ -170,7 +172,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 109,
+	spec_version: 105,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -885,6 +887,9 @@ impl pallet_timestamp::Config for Runtime {
 	type WeightInfo = pallet_timestamp::weights::SubstrateWeight<Runtime>;
 }
 
+/// Existential deposit.
+pub const EXISTENTIAL_DEPOSIT: u128 = 10_000_000 * 1000 * 100;
+
 parameter_types! {
 	pub const ExistentialDeposit: Balance = 1 * DOLLARS;
 	// For weight estimation, we assume that the most locks on an individual account will be 50.
@@ -935,10 +940,7 @@ impl pallet_sudo::Config for Runtime {
  */
 parameter_types! {
 	pub const RewardPalletId: PalletId = PalletId(*b"rewardpt");
-	pub const MultipleFines: u8 = 7;
-	pub const DepositBufferPeriod: u32 = 3;
-	pub const MaxAward: u128 = 1_306_849_000_000_000_000;
-	pub const LockInPeriod: u8 = 2;
+	pub const FaucetId: PalletId = PalletId(*b"facuetid");
 }
 
 impl pallet_sminer::Config for Runtime {
@@ -946,18 +948,16 @@ impl pallet_sminer::Config for Runtime {
 	// The ubiquitous event type.
 	type RuntimeEvent = RuntimeEvent;
 	type PalletId = RewardPalletId;
-	type SScheduler = Scheduler;
+	type FaucetId = FaucetId;
+	type WeightInfo = pallet_sminer::weights::SubstrateWeight<Runtime>;
+	type ItemLimit = ConstU32<200000>;
+	type OneDayBlock = OneDay;
+	type TeeWorkerHandler = TeeWorker;
+	type FScheduler = Scheduler;
 	type AScheduler = Scheduler;
 	type SPalletsOrigin = OriginCaller;
 	type SProposal = RuntimeCall;
-	type WeightInfo = pallet_sminer::weights::SubstrateWeight<Runtime>;
-	type ItemLimit = ConstU32<10_000>;
-	type MultipleFines = MultipleFines;
-	type DepositBufferPeriod = DepositBufferPeriod;
-	type OneDayBlock = OneDay;
-	type MaxAward = MaxAward;
-	type LockInPeriod = LockInPeriod;
-	type ChallengeMinerMax = ChallengeMinerMax;
+	type StorageHandle = StorageHandler;
 }
 
 parameter_types! {
@@ -983,16 +983,20 @@ parameter_types! {
 	#[derive(Clone, PartialEq, Eq)]
 	pub const StringLimit: u32 = 60240;
 	#[derive(Clone, PartialEq, Eq)]
+	pub const SessionKeyMax: u32 = 1000;
+	#[derive(Clone, PartialEq, Eq)]
 	pub const ChallengeMinerMax: u32 = 8000;
 	#[derive(Clone, PartialEq, Eq)]
 	pub const VerifyMissionMax: u32 = 500;
 	#[derive(Clone, PartialEq, Eq)]
 	pub const SigmaMax: u32 = 2048;
 	#[derive(Clone, PartialEq, Eq)]
-	pub const SubmitValidationLimit: u32 = 50;
+	pub const IdleTotalHashLength: u32 = 256;
 	pub const OneHours: BlockNumber = HOURS;
 	pub const SegUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
 	pub const LockTime: BlockNumber = HOURS / 60;
+	#[derive(Clone, PartialEq, Eq)]
+	pub const ReassignCeiling: u8 = 1;
 }
 
 impl pallet_audit::Config for Runtime {
@@ -1003,12 +1007,13 @@ impl pallet_audit::Config for Runtime {
 	type MyRandomness = pallet_rrsc::ParentBlockRandomness<Runtime>;
 	type WeightInfo = pallet_audit::weights::SubstrateWeight<Runtime>;
 	type AuthorityId = pallet_audit::sr25519::AuthorityId;
-	type StringLimit = StringLimit;
+	type CreditCounter = SchedulerCredit;
+	type SessionKeyMax = SessionKeyMax;
 	type VerifyMissionMax = VerifyMissionMax;
 	type OneDay = OneDay;
 	type OneHours = OneHours;
 	type File = FileBank;
-	type Scheduler = TeeWorker;
+	type TeeWorkerHandler = TeeWorker;
 	type MinerControl = Sminer;
 	type StorageHandle = StorageHandler;
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
@@ -1016,36 +1021,30 @@ impl pallet_audit::Config for Runtime {
 	type NextSessionRotation = Babe;
 	type UnsignedPriority = SegUnsignedPriority;
 	type LockTime = LockTime;
-	type SubmitValidationLimit = SubmitValidationLimit;
 	type ChallengeMinerMax = ChallengeMinerMax;
 	type SigmaMax = SigmaMax;
+	type IdleTotalHashLength = IdleTotalHashLength;
+	type ReassignCeiling = ReassignCeiling;
 }
 
 pub const SEGMENT_COUNT: u32 = 1000;
-// TODO!
-pub const FRAGMENT_COUNT: u32 = 3;
+// pub const FRAGMENT_COUNT: u32 = 3;
 
 parameter_types! {
 	pub const FilbakPalletId: PalletId = PalletId(*b"rewardpt");
 	pub const OneDay: BlockNumber = DAYS;
 	#[derive(Clone, Eq, PartialEq)]
-	pub const UploadFillerLimit: u8 = 10;
-	#[derive(Clone, Eq, PartialEq)]
-	pub const InvalidLimit: u32 = 100000;
-	#[derive(Clone, Eq, PartialEq)]
-	pub const RecoverLimit: u32 = 8000;
-	#[derive(Clone, Eq, PartialEq)]
 	pub const BucketLimit: u32 = 1000;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const NameStrLimit: u32 = 63;
-	#[derive(Clone, Eq, PartialEq)]
-	pub const FileListLimit: u32 = 500000;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const SegmentCount: u32 = SEGMENT_COUNT;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const FragmentCount: u32 = FRAGMENT_COUNT;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const OwnerLimit: u32 = 50000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const UserFileLimit: u32 = 500000;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const NameMinLength: u32 = 3;
 	#[derive(Clone, Eq, PartialEq)]
@@ -1068,17 +1067,13 @@ impl pallet_file_bank::Config for Runtime {
 	type MinerControl = Sminer;
 	type StorageHandle = StorageHandler;
 	type MyRandomness = pallet_rrsc::ParentBlockRandomness<Runtime>;
-	type Scheduler = TeeWorker;
-	type StringLimit = StringLimit;
+	type TeeWorkerHandler = TeeWorker;
+	type UserFileLimit = UserFileLimit;
 	type OneDay = OneDay;
 	type CreditCounter = SchedulerCredit;
-	type UploadFillerLimit = UploadFillerLimit;
-	type InvalidLimit = InvalidLimit;
-	type RecoverLimit = RecoverLimit;
 	type OssFindAuthor = Oss;
 	type BucketLimit = BucketLimit;
 	type NameStrLimit = NameStrLimit;
-	type FileListLimit = FileListLimit;
 	type SegmentCount = SegmentCount;
 	type FragmentCount = FragmentCount;
 	type OwnerLimit = OwnerLimit;
@@ -1091,14 +1086,8 @@ parameter_types! {
 	pub const TeeWorkerPalletId: PalletId = PalletId(*b"filmpdpt");
 	#[derive(Clone, PartialEq, Eq)]
 	pub const SchedulerMaximum: u32 = 10000;
-	#[derive(Clone, PartialEq, Eq)]
-	pub const ParamsLimit: u32 = 359;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const MaxWhitelist: u32 = 200;
-	// #[derive(Clone, Eq, PartialEq)]
-	// pub const ReportLength: u32 = 1354;
-	// #[derive(Clone, Eq, PartialEq)]
-	// pub const CertLength: u32 = 1588;
 }
 
 impl pallet_tee_worker::Config for Runtime {
@@ -1106,11 +1095,9 @@ impl pallet_tee_worker::Config for Runtime {
 	// The ubiquitous event type.
 	type RuntimeEvent = RuntimeEvent;
 	type TeeWorkerPalletId = TeeWorkerPalletId;
-	type StringLimit = StringLimit;
 	type SchedulerMaximum = SchedulerMaximum;
 	type WeightInfo = pallet_tee_worker::weights::SubstrateWeight<Runtime>;
 	type CreditCounter = SchedulerCredit;
-	type ParamsLimit = ParamsLimit;
 	type MaxWhitelist = MaxWhitelist;
 	// type AuthorityId = pallet_tee_worker::ed25519::AuthorityId;
 }
@@ -1118,12 +1105,15 @@ impl pallet_tee_worker::Config for Runtime {
 parameter_types! {
 	#[derive(Clone, Eq, PartialEq)]
 	pub const P2PLength: u32 = 200;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const AuthorLimit: u32 = 20;
 }
 
 impl pallet_oss::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = pallet_oss::weights::SubstrateWeight<Runtime>;
 	type P2PLength = P2PLength;
+	type AuthorLimit = AuthorLimit;
 }
 
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
@@ -1575,7 +1565,7 @@ pub type SignedExtra = (
 pub type UncheckedExtrinsic =
 	fp_self_contained::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
 /// Extrinsic type that has already been checked.
-pub type CheckedExtrinsic = fp_self_contained::CheckedExtrinsic<AccountId, RuntimeCall, SignedExtra, H160>;
+pub type CheckedExtrinsic = fp_self_contained::CheckedExtrinsic<AccountId, RuntimeCall, SignedExtra, H160>; 
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
 // Executive: handles dispatch to the various modules.
@@ -1599,7 +1589,15 @@ mod benches {
 		[frame_benchmarking, BaselineBench::<Runtime>]
 		[frame_system, SystemBench::<Runtime>]
 		[pallet_contracts, Contracts]
+		[pallet_sminer, SminerBench::<Runtime>]
+		// [pallet_oss, Oss]
+		[pallet_cacher, Cacher]
+		[pallet_storage_handler, StorageHandler]
+		[pallet_file_bank, FileBankBench::<Runtime>]
 		[pallet_tee_worker, TeeWorkerBench::<Runtime>]
+		// [pallet_audit, Audit]
+		[pallet_collective::<Instance1>, Council]
+		[pallet_collective::<Instance2>, TechnicalCommittee]
 		[pallet_evm, PalletEvmBench::<Runtime>]
 	);
 }
@@ -2093,9 +2091,10 @@ impl_runtime_apis! {
 			use frame_benchmarking::{baseline, Benchmarking, BenchmarkList};
 			use frame_support::traits::StorageInfoTrait;
 			use frame_system_benchmarking::Pallet as SystemBench;
-			use pallet_evm::Pallet as PalletEvmBench;
 			use pallet_tee_worker::benchmarking::Pallet as TeeWorkerBench;
-			// use pallet_sminer::benchmarking::Pallet as SminerBench;
+			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
+			use pallet_evm::Pallet as PalletEvmBench;
+			use pallet_sminer::benchmarking::Pallet as SminerBench;
 			use baseline::Pallet as BaselineBench;
 
 			let mut list = Vec::<BenchmarkList>::new();
@@ -2113,17 +2112,18 @@ impl_runtime_apis! {
 			use pallet_evm::Pallet as PalletEvmBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use pallet_tee_worker::benchmarking::Pallet as TeeWorkerBench;
-
-			// use pallet_sminer::benchmarking::::Pallet as SminerBench;
+			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
+			use pallet_sminer::benchmarking::Pallet as SminerBench;
 			use baseline::Pallet as BaselineBench;
 			use frame_support::traits::WhitelistedStorageKeys;
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl pallet_tee_worker::benchmarking::Config for Runtime{}
-
+			impl pallet_sminer::benchmarking::Config for Runtime{}
+			impl pallet_file_bank::benchmarking::Config for Runtime{}
 			// impl pallet_file_bank::benchmarking::Config for Runtime{}
 			impl baseline::Config for Runtime {}
 
-			let mut whitelist: Vec<TrackedStorageKey> = AllPalletsWithSystem::whitelisted_storage_keys();
+			let whitelist: Vec<TrackedStorageKey> = AllPalletsWithSystem::whitelisted_storage_keys();
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);

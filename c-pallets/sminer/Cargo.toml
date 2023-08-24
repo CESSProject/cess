@@ -1,7 +1,7 @@
 [package]
 name = "pallet-sminer"
 authors = ["CESS LAB"]
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/CESSProject/cess"
@@ -18,6 +18,13 @@ scale-info = { default-features = false, features = ['derive'], version = "2.0.1
 rand_chacha = { version = "0.2", default-features = false, optional = true }
 cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
 pallet-preimage = { version = "4.0.0-dev", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36" }
+cp-enclave-verify = { path = '../../primitives/enclave-verify', version = '0.1.0', default-features = false }
+cp-bloom-filter = { path = '../../primitives/bloom-filter', version = '0.1.0', default-features = false }
+pallet-cess-staking = { path = '../staking', version = '4.0.0-dev', default-features = false }
+
+#local crate
+pallet-tee-worker = { default-features = false, path = '../tee-worker', version = '0.7.0' }
+pallet-storage-handler = { default-features = false, path = '../storage-handler', version = '0.7.0' }
 
 [dependencies.frame-benchmarking]
 default-features = false
@@ -106,6 +113,8 @@ std = [
 	"frame-benchmarking/std",
 	"cp-cess-common/std",
 ]
+
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
+	"pallet-cess-staking/runtime-benchmarks",
 ]

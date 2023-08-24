@@ -5,6 +5,7 @@ use super::*;
 use frame_benchmarking::{account, benchmarks};
 use frame_system::RawOrigin;
 use sp_runtime::traits::{Bounded, Hash};
+use scale_info::prelude::{string::String, format};
 
 #[allow(unused)]
 use crate::Pallet as Cacher;

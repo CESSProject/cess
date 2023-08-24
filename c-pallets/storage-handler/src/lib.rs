@@ -28,6 +28,9 @@ use cp_cess_common::*;
 pub mod weights;
 use weights::WeightInfo;
 
+#[cfg(feature = "runtime-benchmarks")]
+pub mod benchmarking;
+
 mod types;
 use types::*;
 
@@ -320,6 +323,21 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+        #[pallet::call_index(5)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+        pub fn update_user_life(origin: OriginFor<T>, user: AccountOf<T>, deadline: BlockNumberOf<T>) -> DispatchResult {
+            let _ = ensure_root(origin)?;
+
+            <UserOwnedSpace<T>>::try_mutate(&user, |space_opt| -> DispatchResult {
+                let space_info = space_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
+
+                space_info.deadline = deadline;
+
+                Ok(())
+            })
+        }
     }
 }
 
@@ -603,10 +621,11 @@ impl<T: Config> Pallet<T> {
     fn add_purchased_space(size: u128) -> DispatchResult {
         <PurchasedSpace<T>>::try_mutate(|purchased_space| -> DispatchResult {
             let total_space = <TotalIdleSpace<T>>::get().checked_add(<TotalServiceSpace<T>>::get()).ok_or(Error::<T>::Overflow)?;
-            if *purchased_space + size > total_space {
+            let new_space = purchased_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+            if new_space > total_space {
                 Err(<Error<T>>::InsufficientAvailableSpace)?;
             }
-            *purchased_space = purchased_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+            *purchased_space = new_space;
             Ok(())
         })
     }

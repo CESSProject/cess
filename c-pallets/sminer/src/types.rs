@@ -3,17 +3,22 @@ use frame_support::pallet_prelude::MaxEncodedLen;
 
 /// The custom struct for storing info of storage miners.
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-pub struct MinerInfo<AccountId, Balance, BoundedString> {
+#[scale_info(skip_type_params(T))]
+#[codec(mel_bound())]
+pub struct MinerInfo<T: Config> {
 	//Income account
-	pub(super) beneficiary: AccountId,
+	pub(super) beneficiary: AccountOf<T>,
 	pub(super) peer_id: PeerId,
-	pub(super) collaterals: Balance,
-	pub(super) debt: Balance,
+	pub(super) collaterals: BalanceOf<T>,
+	pub(super) debt: BalanceOf<T>,
 	//nomal, exit, frozen, e_frozen
-	pub(super) state: BoundedString,
+	pub(super) state: BoundedVec<u8, T::ItemLimit>,
 	pub(super) idle_space: u128,
 	pub(super) service_space: u128,
 	pub(super) lock_space: u128,
+	pub(super) space_proof_info: SpaceProofInfo<AccountOf<T>>,
+	pub(super) service_bloom_filter: BloomFilter,
+    pub(super) tee_signature: TeeRsaSignature,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
@@ -42,4 +47,12 @@ pub struct RewardOrder<Balance> {
 #[derive(PartialEq, Eq, Encode, Default, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct FaucetRecord<BlockNumber> {
 	pub(super) last_claim_time: BlockNumber,
+}
+
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+pub struct RestoralTargetInfo<Account, Block> {
+	pub(super) miner: Account,
+	pub(super) service_space: u128,
+	pub(super) restored_space: u128,
+	pub(super) cooling_block: Block,
 }

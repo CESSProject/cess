@@ -412,11 +412,7 @@ impl pallet_preimage::Config for Test {
 parameter_types! {
 	pub const FilbakPalletId: PalletId = PalletId(*b"filebank");
 	#[derive(Clone, Eq, PartialEq)]
-	pub const UploadFillerLimit: u8 = 10;
-	#[derive(Clone, Eq, PartialEq)]
 	pub const InvalidLimit: u32 = 100000;
-	#[derive(Clone, Eq, PartialEq)]
-	pub const RecoverLimit: u32 = 8000;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const BucketLimit: u32 = 1000;
 	#[derive(Clone, Eq, PartialEq)]
@@ -447,9 +443,7 @@ impl Config for Test {
 	type BucketLimit = BucketLimit;
 	type OssFindAuthor = Oss;
 	type FrozenDays = FrozenDays;
-	type RecoverLimit = RecoverLimit;
 	type InvalidLimit = InvalidLimit;
-	type UploadFillerLimit = UploadFillerLimit;
 	type MinLength = MinLength;
 }
 

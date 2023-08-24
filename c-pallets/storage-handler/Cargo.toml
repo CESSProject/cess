@@ -1,7 +1,7 @@
 [package]
 name = "pallet-storage-handler"
 authors = ["CESS LAB"]
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/CESSProject/cess"
@@ -20,19 +20,26 @@ frame-system = { version = "4.0.0-dev", git = 'https://github.com/CESSProject/su
 sp-std = { version = "5.0.0", git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36", default-features = false }
 pallet-balances = { version = "4.0.0-dev", git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36", default-features = false }
 sp-runtime = { version = "7.0.0", git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36", default-features = false }
+frame-benchmarking = { version = '4.0.0-dev', git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36", default-features = false }
 
 # local dependencies
-pallet-sminer = { version = "0.6.0", path = '../sminer', default-features = false }
 cp-cess-common = { version = '0.1.0', path = '../../primitives/common', default-features = false }
 
 [features]
 default = ["std"]
 std = [
+    "codec/std",
+    "scale-info/std",
+	"serde",
     "frame-support/std",
     "frame-system/std",
     "sp-std/std",
-    "pallet-balances/std",
     "sp-runtime/std",
+    "frame-benchmarking/std",
 ]
 
 try-runtime = [ "frame-support/try-runtime" ]
+
+runtime-benchmarks = [
+	"frame-benchmarking/runtime-benchmarks",
+]

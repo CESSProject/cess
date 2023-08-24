@@ -36,6 +36,9 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type P2PLength: Get<u32> + Clone;
+
+		#[pallet::constant]
+		type AuthorLimit: Get<u32> + Clone;
 	}
 
 	#[pallet::event]
@@ -44,7 +47,7 @@ pub mod pallet {
 		//Successful Authorization Events
 		Authorize { acc: AccountOf<T>, operator: AccountOf<T> },
 		//Cancel authorization success event
-		CancelAuthorize { acc: AccountOf<T> },
+		CancelAuthorize { acc: AccountOf<T>, oss: AccountOf<T> },
 		//The event of successful Oss registration
 		OssRegister { acc: AccountOf<T>, endpoint: PeerId },
 		//Oss information change success event
@@ -63,11 +66,15 @@ pub mod pallet {
 		UnRegister,
 		//Option parse Error
 		OptionParseError,
+
+		BoundedVecError,
+
+		Existed,
 	}
 
 	#[pallet::storage]
 	#[pallet::getter(fn authority_list)]
-	pub(super) type AuthorityList<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, AccountOf<T>>;
+	pub(super) type AuthorityList<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<AccountOf<T>, T::AuthorLimit>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn oss)]
@@ -85,7 +92,12 @@ pub mod pallet {
 		pub fn authorize(origin: OriginFor<T>, operator: AccountOf<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
-			AuthorityList::<T>::insert(&sender, &operator);
+			AuthorityList::<T>::try_mutate(&sender, |authority_list| -> DispatchResult {
+				ensure!(!authority_list.contains(&operator), Error::<T>::Existed);
+				authority_list.try_push(operator.clone()).map_err(|_| Error::<T>::BoundedVecError)?;
+
+				Ok(())
+			})?;
 
 			Self::deposit_event(Event::<T>::Authorize {
 				acc: sender,
@@ -98,14 +110,19 @@ pub mod pallet {
 		#[pallet::call_index(1)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::cancel_authorize())]
-		pub fn cancel_authorize(origin: OriginFor<T>) -> DispatchResult {
+		pub fn cancel_authorize(origin: OriginFor<T>, oss: AccountOf<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(<AuthorityList<T>>::contains_key(&sender), Error::<T>::NoAuthorization);
 
-			<AuthorityList<T>>::remove(&sender);
+			AuthorityList::<T>::try_mutate(&sender, |authority_list| -> DispatchResult {
+				authority_list.retain(|authority| authority != &oss); 
+
+				Ok(())
+			})?;
 
 			Self::deposit_event(Event::<T>::CancelAuthorize {
 				acc: sender,
+				oss,
 			});
 
 			Ok(())
@@ -164,9 +181,7 @@ pub trait OssFindAuthor<AccountId> {
 
 impl<T: Config> OssFindAuthor<AccountOf<T>> for Pallet<T> {
 	fn is_authorized(owner: AccountOf<T>, operator: AccountOf<T>) -> bool {
-		if let Some(acc) = <AuthorityList<T>>::get(&owner) {
-			return acc == operator;
-		}
-		false
+		let acc_list = <AuthorityList<T>>::get(&owner);
+		acc_list.contains(&operator)
 	}
 }

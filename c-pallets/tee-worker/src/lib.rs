@@ -1,5 +1,4 @@
 //! # Tee Worker Module
-
 #![cfg_attr(not(feature = "std"), no_std)]
 
 
@@ -58,12 +57,6 @@ pub mod pallet {
 		type TeeWorkerPalletId: Get<PalletId>;
 
 		#[pallet::constant]
-		type StringLimit: Get<u32> + PartialEq + Eq + Clone;
-
-		#[pallet::constant]
-		type ParamsLimit: Get<u32> + PartialEq + Eq + Clone;
-
-		#[pallet::constant]
 		type SchedulerMaximum: Get<u32> + PartialEq + Eq + Clone;
 		//the weights
 		type WeightInfo: WeightInfo;
@@ -105,6 +98,10 @@ pub mod pallet {
 		NonTeeWorker,
 
 		VerifyCertFailed,
+
+		TeePodr2PkNotInitialized,
+		
+		Existed,
 	}
 
 	#[pallet::storage]
@@ -149,11 +146,15 @@ pub mod pallet {
 				Err(Error::<T>::NotController)?;
 			}
 			ensure!(!TeeWorkerMap::<T>::contains_key(&sender), Error::<T>::AlreadyRegistration);
-
+			let mut identity = Vec::new();
+			identity.append(&mut peer_id.to_vec());
+			identity.append(&mut podr2_pbk.to_vec());
+			let identity_hashing = sp_io::hashing::sha2_256(&identity);
 			let _ = verify_miner_cert(
-				&sgx_attestation_report.sign, 
-				&sgx_attestation_report.cert_der, 
+				&sgx_attestation_report.sign,
+				&sgx_attestation_report.cert_der,
 				&sgx_attestation_report.report_json_raw,
+				&identity_hashing,
 			).ok_or(Error::<T>::VerifyCertFailed)?;
 
 			let tee_worker_info = TeeWorkerInfo::<T> {
@@ -174,40 +175,13 @@ pub mod pallet {
 			Ok(())
 		}
 
-		// #[pallet::call_index(1)]
-        // #[transactional]
-		// #[pallet::weight(100_000_000)]
-		// pub fn test_verify_sig(origin: OriginFor<T>, puk: [u8; 32], sig: [u8; 64], _msg: Vec<u8>) -> DispatchResult {
-		// 	let _ = ensure_signed(origin)?;
-
-		// 	let result = sp_io::crypto::ed25519_verify(
-		// 		&NodeSignature::from_raw(sig),
-		// 		b"hello, world!",
-		// 		&NodePublicKey::from_raw(puk),
-		// 	);
-
-		// 	ensure!(result, Error::<T>::VerifyCertFailed);
-
-		// 	Ok(())
-		// }
-
-		// #[pallet::call_index(2)]
-		// #[transactional]
-		// #[pallet::weight(100_000_000)]
-		// pub fn test_rsa_verify(origin: OriginFor<T>, key: Vec<u8>, sig: Vec<u8>, msg: Vec<u8>) -> DispatchResult {
-		// 	let _ = ensure_signed(origin)?;
-		// 	let result = verify_rsa(&key, &msg, &sig);
-
-		// 	ensure!(result, Error::<T>::VerifyCertFailed);
-		// 	Ok(())
-		// }
-
-        #[pallet::call_index(3)]
+        #[pallet::call_index(1)]
         #[transactional]
 		#[pallet::weight(100_000_000)]
         pub fn update_whitelist(origin: OriginFor<T>, mr_enclave: [u8; 64]) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 			<MrEnclaveWhitelist<T>>::mutate(|list| -> DispatchResult {
+				ensure!(!list.contains(&mr_enclave), Error::<T>::Existed);
                 list.try_push(mr_enclave).unwrap();
                 Ok(())
             })?;
@@ -215,7 +189,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(4)]
+		#[pallet::call_index(2)]
         #[transactional]
 		#[pallet::weight(100_000_000)]
 		pub fn exit(origin: OriginFor<T>) -> DispatchResult {
@@ -231,53 +205,53 @@ pub mod pallet {
 
 			Ok(())
 		}
+		// FOR TESTING
+		#[pallet::call_index(3)]
+        #[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn update_podr2_pk(origin: OriginFor<T>, podr2_pbk: Podr2Key) -> DispatchResult {
+			let _sender = ensure_root(origin)?;
 
-		// #[pallet::call_index(6)]
-		// #[transactional]
-		// #[pallet::weight(100_00_000)]
-		// pub fn bls_verify_test(origin: OriginFor<T>, puk: Vec<u8>, msg: Vec<u8>, sig: Vec<u8>) -> DispatchResult {
-		// 	let _ = ensure_signed(origin)?;
+			<TeePodr2Pk<T>>::put(podr2_pbk);
 
-		// 	let result = verify_bls(&puk, &msg, &sig);
+			Ok(())
+		}
 
-		// 	if let Ok(()) = result {
-		// 		log::info!("bls verify result is true");
-		// 	} else {
-		// 		log::info!("bls verify result is false");
-		// 	}
+		// FOR TESTING
+		#[pallet::call_index(4)]
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::registration_scheduler())]
+		pub fn force_register(
+			origin: OriginFor<T>,
+			stash_account: AccountOf<T>,
+			node_key: NodePublicKey,
+			peer_id: PeerId,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
 
-		// 	Ok(())
-		// }
+			let tee_worker_info = TeeWorkerInfo::<T> {
+				controller_account: sender.clone(),
+				peer_id: peer_id.clone(),
+				node_key,
+				stash_account: stash_account,
+			};
 
-		// #[pallet::call_index(5)]
-        // #[transactional]
-		// #[pallet::weight(100_000_000)]
-		// pub fn update_peer_id(origin: OriginFor<T>, new_peer_id: PeerId) -> DispatchResult {
-		// 	let sender = ensure_signed(origin)?;
-
-		// 	TeeWorkerMap::<T>::try_mutate(&sender, |info_opt| -> DispatchResult {
-		// 		let info = info_opt.as_mut().ok_or(Error::<T>::NonTeeWorker)?;
-
-		// 		info.peer_id = new_peer_id;
-
-		// 		Ok(())
-		// 	})?;
-
-		// 	Self::deposit_event(Event::<T>::UpdatePeerId { acc: sender });
-
-		// 	Ok(())
-		// }
+			TeeWorkerMap::<T>::insert(&sender, tee_worker_info);
+			
+			Ok(())
+		}
 	}
 }
 
-pub trait ScheduleFind<AccountId> {
+pub trait TeeWorkerHandler<AccountId> {
 	fn contains_scheduler(acc: AccountId) -> bool;
 	fn punish_scheduler(acc: AccountId) -> DispatchResult;
 	fn get_first_controller() -> Result<AccountId, DispatchError>;
 	fn get_controller_list() -> Vec<AccountId>;
+	fn get_tee_publickey() -> Result<Podr2Key, DispatchError>;
 }
 
-impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<T> {
+impl<T: Config> TeeWorkerHandler<<T as frame_system::Config>::AccountId> for Pallet<T> {
 	fn contains_scheduler(acc: <T as frame_system::Config>::AccountId) -> bool {
 		TeeWorkerMap::<T>::contains_key(&acc)
 	}
@@ -303,5 +277,11 @@ impl<T: Config> ScheduleFind<<T as frame_system::Config>::AccountId> for Pallet<
 		}
 
 		acc_list
+	}
+
+	fn get_tee_publickey() -> Result<Podr2Key, DispatchError> {
+		let pk = TeePodr2Pk::<T>::try_get().map_err(|_| Error::<T>::TeePodr2PkNotInitialized)?;
+
+		Ok(pk)
 	}
 }
