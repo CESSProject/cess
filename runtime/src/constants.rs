@@ -1,5 +1,5 @@
 pub mod currency {
-	/// Balance of an account.
+	/// Balance of account.
 	pub type Balance = u128;
 
 	pub const MILLICENTS: Balance = 1_000_000_000;
