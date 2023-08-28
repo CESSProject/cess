@@ -1115,7 +1115,7 @@ pub mod pallet {
 		
 			Ok(())
 		}
-		
+
 		#[pallet::call_index(20)]
 		#[transactional]
 		#[pallet::weight(10_000_000_000)]

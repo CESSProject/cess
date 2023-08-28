@@ -478,7 +478,7 @@ pub mod pallet {
 							<CountedClear<T>>::insert(&sender, u8::MIN);
 							challenge_info.miner_snapshot_list.remove(index);
 						}
-						
+
 						return Ok(temp_miner_snap);
 					}
 				}
@@ -501,7 +501,6 @@ pub mod pallet {
 
 			UnverifyIdleProof::<T>::mutate(tee_acc, |unverify_list| -> DispatchResult {
 				unverify_list.try_push(prove_info).map_err(|_| Error::<T>::Overflow)?;
-
 				Ok(())
 			})?;
 
