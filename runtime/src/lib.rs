@@ -172,7 +172,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 105,
+	spec_version: 106,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -1593,8 +1593,10 @@ mod benches {
 		// [pallet_oss, Oss]
 		[pallet_cacher, Cacher]
 		[pallet_storage_handler, StorageHandler]
+		[pallet_audit, AuditBench::<Runtime>]
 		[pallet_file_bank, FileBankBench::<Runtime>]
 		[pallet_tee_worker, TeeWorkerBench::<Runtime>]
+		[pallet_oss, Oss]
 		// [pallet_audit, Audit]
 		[pallet_collective::<Instance1>, Council]
 		[pallet_collective::<Instance2>, TechnicalCommittee]
@@ -2095,6 +2097,7 @@ impl_runtime_apis! {
 			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
 			use pallet_evm::Pallet as PalletEvmBench;
 			use pallet_sminer::benchmarking::Pallet as SminerBench;
+			use pallet_audit::benchmarking::Pallet as AuditBench;
 			use baseline::Pallet as BaselineBench;
 
 			let mut list = Vec::<BenchmarkList>::new();
@@ -2115,11 +2118,13 @@ impl_runtime_apis! {
 			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
 			use pallet_sminer::benchmarking::Pallet as SminerBench;
 			use baseline::Pallet as BaselineBench;
+			use pallet_audit::benchmarking::Pallet as AuditBench;
 			use frame_support::traits::WhitelistedStorageKeys;
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl pallet_tee_worker::benchmarking::Config for Runtime{}
 			impl pallet_sminer::benchmarking::Config for Runtime{}
 			impl pallet_file_bank::benchmarking::Config for Runtime{}
+			impl pallet_audit::benchmarking::Config for Runtime{}
 			// impl pallet_file_bank::benchmarking::Config for Runtime{}
 			impl baseline::Config for Runtime {}
 
