@@ -1596,6 +1596,7 @@ mod benches {
 		[pallet_audit, AuditBench::<Runtime>]
 		[pallet_file_bank, FileBankBench::<Runtime>]
 		[pallet_tee_worker, TeeWorkerBench::<Runtime>]
+		[pallet_oss, Oss]
 		// [pallet_audit, Audit]
 		[pallet_collective::<Instance1>, Council]
 		[pallet_collective::<Instance2>, TechnicalCommittee]

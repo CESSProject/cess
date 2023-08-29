@@ -21,6 +21,23 @@ pub trait Config:
 }
 // const MAX_SPANS: u32 = 100;
 
+pub fn increase_reward<T: Config>(b_reward: u128) -> Result<(), &'static str> {
+    let acc = T::FaucetId::get().into_account_truncating();
+
+    <T as crate::Config>::Currency::make_free_balance_be(
+        &acc,
+        BalanceOf::<T>::max_value(),
+    );
+
+    let b_reward: BalanceOf<T> = b_reward.try_into().map_err(|_| "convert error")?;
+
+    <CurrencyReward<T>>::mutate(|reward| {
+        *reward = *reward + b_reward;
+    });
+
+    Ok(())
+}
+
 pub fn add_miner<T: Config>(name: &'static str) -> Result<T::AccountId, &'static str> {
     // let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
 
