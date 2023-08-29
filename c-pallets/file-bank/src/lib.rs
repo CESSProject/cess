@@ -485,7 +485,6 @@ pub mod pallet {
 
 			if count < 20 {
 				if let Err(e) = <DealMap<T>>::try_mutate(&deal_hash, |opt| -> DispatchResult {
-					log::info!("point 1");
 					let deal_info = opt.as_mut().ok_or(Error::<T>::NonExistent)?;
 					// unlock mienr space
 					let mut needed_list: BoundedVec<MinerTaskList<T>, T::FragmentCount> = Default::default();
@@ -496,9 +495,7 @@ pub mod pallet {
 						}
 						selected_miner.try_push(miner_task.miner.clone()).map_err(|_| Error::<T>::Overflow)?;
 					}
-					log::info!("point 2");
 					let mut miner_task_list = Self::reassign_miner(needed_list.clone(), selected_miner.clone())?.to_vec();
-					log::info!("point 3");
 					for miner_task in &deal_info.assigned_miner.clone() {
 						if !deal_info.complete_list.contains(&miner_task.miner) {
 							deal_info.assigned_miner.retain(|temp_info| temp_info.miner != miner_task.miner);
@@ -508,15 +505,13 @@ pub mod pallet {
 							Self::add_task_failed_count(&miner_task.miner)?;
 						}
 					}
-					log::info!("point 4");
+
 					deal_info.assigned_miner.try_append(&mut miner_task_list).map_err(|_| Error::<T>::Overflow)?;
 					deal_info.count = count;
 					// count <= 20
-					log::info!("point 5");
 					Self::start_first_task(deal_hash.0.to_vec(), deal_hash, count + 1, life)?;
 					Ok(())
 				}) {
-					log::info!("point Err: {:?}", e);
 					Self::remove_deal(&deal_hash)?;
 				}
 			} else {

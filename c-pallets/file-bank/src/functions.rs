@@ -229,9 +229,6 @@ impl<T: Config> Pallet<T> {
              // Used to count the number of random selections.
             let mut cur_count = 0;
             let miner = loop {
-                // FOR TESTING
-                // log::info!("benchmark, total count = {:?}, max_count = {:?}, cur_count = {:?}", total, random_count_limit, cur_count);
-
                 if random_count_limit == cur_count {
                     Err(Error::<T>::NotQualified)?;
                 }
@@ -527,8 +524,6 @@ impl<T: Config> Pallet<T> {
             let random_seed = match random_seed {
                 Some(v) => v,
                 None => {
-                    // log::info!("Is None");
-
                     #[cfg(feature = "runtime-benchmarks")]
                     return Ok(seed);
 
@@ -539,7 +534,6 @@ impl<T: Config> Pallet<T> {
             if random_number != 0 {
                 return Ok(random_number)
             }
-            log::info!("random number: {}", random_number);
             counter = counter.checked_add(1).ok_or(Error::<T>::Overflow)?;
         }
     }
