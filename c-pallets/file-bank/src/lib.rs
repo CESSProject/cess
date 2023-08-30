@@ -339,6 +339,7 @@ pub mod pallet {
 		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
 			let days = T::OneDay::get();
 			let mut weight: Weight = Weight::from_ref_time(0);
+			// FOR TESTING
 			if now % days == 0u32.saturated_into() {
 				let (temp_weight, acc_list) = T::StorageHandle::frozen_task();
 				weight = weight.saturating_add(temp_weight);
@@ -420,7 +421,7 @@ pub mod pallet {
 		/// - `file_name`: User defined file name.
 		#[pallet::call_index(0)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_declaration())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_declaration(deal_info.len() as u32))]
 		pub fn upload_declaration(
 			origin: OriginFor<T>,
 			file_hash: Hash,
@@ -474,7 +475,7 @@ pub mod pallet {
 
 		#[pallet::call_index(1)]
 		#[transactional]
-		#[pallet::weight(1_000_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::deal_reassign_miner(Self::get_segment_length(&deal_hash)))]
 		pub fn deal_reassign_miner(
 			origin: OriginFor<T>,
 			deal_hash: Hash,
@@ -601,7 +602,7 @@ pub mod pallet {
 		/// - `slice_info`: List of file slice information.
 		#[pallet::call_index(3)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload(2))]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::transfer_report(Self::get_segment_length(&deal_hash)))]
 		pub fn transfer_report(
 			origin: OriginFor<T>,
 			deal_hash: Vec<Hash>,
@@ -812,7 +813,7 @@ pub mod pallet {
 		/// - `filler_list`: Meta information list of idle files.
 		#[pallet::call_index(8)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::cert_idle_space())]
 		pub fn cert_idle_space(
 			origin: OriginFor<T>,
 			idle_sig_info: SpaceProofInfo<AccountOf<T>>,
