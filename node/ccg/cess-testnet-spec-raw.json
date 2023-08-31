@@ -2,7 +2,7 @@
   "name": "cess-testnet",
   "id": "cess-testnet",
   "chainType": "Live",
-  "bootNodes": ["/ip4/43.159.53.30/tcp/30333/p2p/12D3KooWE2W5haGRh2YHW1FcnypyP7UJX33zSHwbnS9MmvomzcN1"],
+  "bootNodes": ["/ip4/43.159.53.30/tcp/30333/p2p/12D3KooWEFwTdQETW9Y3bikXDGkyv9saGPe1VWq89hMDVw9g9ztd"],
   "telemetryEndpoints": [
     [
       "/dns/telemetry.polkadot.io/tcp/443/x-parity-wss/%2Fsubmit%2F",
