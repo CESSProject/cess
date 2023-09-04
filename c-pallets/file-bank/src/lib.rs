@@ -485,7 +485,7 @@ pub mod pallet {
 			deal_hash: Hash,
 			count: u8,
 			life: u32,
-		) -> DispatchResultWithPostInfo {
+		) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 			let segment_length = Self::get_segment_length_from_deal(&deal_hash);
 			if count < 20 {
@@ -518,14 +518,12 @@ pub mod pallet {
 					Ok(())
 				}) {
 					Self::remove_deal(&deal_hash)?;
-					return Ok(Some(<T as Config>::WeightInfo::deal_reassign_miner_exceed_limit(segment_length)).into());
 				}
 			} else {
 				Self::remove_deal(&deal_hash)?;
-				return Ok(Some(<T as Config>::WeightInfo::deal_reassign_miner_exceed_limit(segment_length)).into());
 			}
 
-			Ok(Some(0).into())
+			Ok(())
 		}
 		/// Transfer needs to be restricted, such as target consent
 		/// Document ownership transfer function.
@@ -612,11 +610,11 @@ pub mod pallet {
 		pub fn transfer_report(
 			origin: OriginFor<T>,
 			deal_hash: Hash,
-		) -> DispatchResultWithPostInfo {
+		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
 			ensure!(<DealMap<T>>::contains_key(&deal_hash), Error::<T>::NonExistent);
-			let is_last = <DealMap<T>>::try_mutate(&deal_hash, |deal_info_opt| -> Result<bool, DispatchError> {
+			<DealMap<T>>::try_mutate(&deal_hash, |deal_info_opt| -> DispatchResult {
 				// can use unwrap because there was a judgment above
 				let deal_info = deal_info_opt.as_mut().unwrap();
 				let mut task_miner_list: Vec<AccountOf<T>> = Default::default();
@@ -678,19 +676,14 @@ pub mod pallet {
 						}
 						Self::add_user_hold_fileslice(&deal_info.user.user, deal_hash.clone(), needed_space)?;
 						Self::deposit_event(Event::<T>::StorageCompleted{ file_hash: deal_hash });
-						return Ok(true);
 					}
 				}
-				Ok(false)
+				Ok(())
 			})?;
 
 			Self::deposit_event(Event::<T>::TransferReport{acc: sender, deal_hash: deal_hash});
 
-			if is_last {
-				return Ok(Some(<T as pallet::Config>::WeightInfo::transfer_report_last(Pallet::<T>::get_segment_length_from_deal(&deal_hash))).into())
-			}
-
-			Ok(None)
+			Ok(())
 		}
 
 		#[pallet::call_index(4)]

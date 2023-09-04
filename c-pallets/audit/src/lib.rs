@@ -56,6 +56,8 @@ pub use pallet::*;
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 
+pub mod weights;
+
 use sp_runtime::{
 	traits::{CheckedAdd, SaturatedConversion},
 	RuntimeDebug, Permill,
@@ -94,7 +96,6 @@ use sp_std::{
 	};
 use cp_enclave_verify::verify_rsa;
 use cp_cess_common::*;
-pub mod weights;
 pub use weights::WeightInfo;
 use cp_bloom_filter::BloomFilter;
 use cp_scheduler_credit::SchedulerCreditCounter;
@@ -458,7 +459,7 @@ pub mod pallet {
 
 		#[pallet::call_index(1)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_idle_proof())]
 		pub fn submit_idle_proof(
 			origin: OriginFor<T>,
 			idle_prove: BoundedVec<u8, T::IdleTotalHashLength>,
@@ -513,7 +514,7 @@ pub mod pallet {
 
 		#[pallet::call_index(2)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_service_proof())]
 		pub fn submit_service_proof(
 			origin: OriginFor<T>,
 			service_prove: BoundedVec<u8, T::SigmaMax>,
@@ -570,7 +571,7 @@ pub mod pallet {
 
 		#[pallet::call_index(3)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_verify_idle_result())]
 		pub fn submit_verify_idle_result(
 			origin: OriginFor<T>,
 			total_prove_hash: BoundedVec<u8, T::IdleTotalHashLength>,
@@ -654,7 +655,7 @@ pub mod pallet {
 
 		#[pallet::call_index(4)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_verify_service_result())]
 		pub fn submit_verify_service_result(
 			origin: OriginFor<T>,
 			service_result: bool,

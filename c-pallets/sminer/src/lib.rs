@@ -469,7 +469,7 @@ pub mod pallet {
 		/// - `ip`: The registered IP of storage miner.
 		#[pallet::call_index(3)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_ip())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_peer_id())]
 		pub fn update_peer_id(origin: OriginFor<T>, peer_id: PeerId) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
@@ -526,7 +526,7 @@ pub mod pallet {
 		// The lock in time must be greater than the survival period of the challenge
 		#[pallet::call_index(7)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::miner_exit_prep())]
 		pub fn miner_exit_prep(
 			origin: OriginFor<T>,
 		) -> DispatchResult {
@@ -572,7 +572,7 @@ pub mod pallet {
 
 		#[pallet::call_index(8)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::miner_exit())]
 		pub fn miner_exit(
 			origin: OriginFor<T>,
 			miner: AccountOf<T>,
@@ -595,7 +595,7 @@ pub mod pallet {
 
 		#[pallet::call_index(9)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::miner_withdraw())]
 		pub fn miner_withdraw(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
@@ -629,7 +629,7 @@ pub mod pallet {
 		/// - `acc`: Top-up amount .
 		#[pallet::call_index(13)]
 		#[transactional]
-		#[pallet::weight(100_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::faucet_top_up())]
 		pub fn faucet_top_up(origin: OriginFor<T>, award: BalanceOf<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
@@ -648,7 +648,7 @@ pub mod pallet {
 		/// - `acc`: Withdraw money account.
 		#[pallet::call_index(14)]
 		#[transactional]
-		#[pallet::weight(100_000)]
+		#[pallet::weight(35_000_000)]
 		pub fn faucet(origin: OriginFor<T>, to: AccountOf<T>) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 
