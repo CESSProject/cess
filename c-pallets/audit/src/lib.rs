@@ -291,6 +291,8 @@ pub mod pallet {
 		BloomFilterError,
 
 		Submitted,
+
+		Challenging,
 	}
 
 	//Relevant time nodes for storage challenges
@@ -415,12 +417,13 @@ pub mod pallet {
 			let limit = count
 				.checked_mul(2).ok_or(Error::<T>::Overflow)?
 				.checked_div(3).ok_or(Error::<T>::Overflow)?;
-
+			let now = <frame_system::Pallet<T>>::block_number();
+			
 			if ChallengeProposal::<T>::contains_key(&hash) {
 				let proposal = ChallengeProposal::<T>::get(&hash).unwrap();
 				if proposal.0 + 1 >= limit {
 					let cur_blcok = <ChallengeDuration<T>>::get();
-					let now = <frame_system::Pallet<T>>::block_number();
+					
 					if now > cur_blcok {
 						let duration = now.checked_add(&proposal.1.net_snap_shot.life).ok_or(Error::<T>::Overflow)?;
 						<ChallengeDuration<T>>::put(duration);
@@ -435,9 +438,8 @@ pub mod pallet {
 						<VerifyDuration<T>>::put(v_duration);
 						<ChallengeSnapShot<T>>::put(proposal.1);
 						let _ = ChallengeProposal::<T>::clear(ChallengeProposal::<T>::count(), None);
+						Self::deposit_event(Event::<T>::GenerateChallenge);
 					}
-
-					Self::deposit_event(Event::<T>::GenerateChallenge);
 				}
 			} else {
 				if ChallengeProposal::<T>::count() > count {
