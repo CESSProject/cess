@@ -224,19 +224,20 @@ pub mod pallet {
 		pub fn force_register(
 			origin: OriginFor<T>,
 			stash_account: AccountOf<T>,
+			controller_account: AccountOf<T>,
 			node_key: NodePublicKey,
 			peer_id: PeerId,
 		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
+			let _ = ensure_root(origin)?;
 
 			let tee_worker_info = TeeWorkerInfo::<T> {
-				controller_account: sender.clone(),
+				controller_account: controller_account.clone(),
 				peer_id: peer_id.clone(),
 				node_key,
 				stash_account: stash_account,
 			};
 
-			TeeWorkerMap::<T>::insert(&sender, tee_worker_info);
+			TeeWorkerMap::<T>::insert(&controller_account, tee_worker_info);
 			
 			Ok(())
 		}

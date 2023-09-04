@@ -112,7 +112,6 @@ pub type TeeRsaSignature = [u8; 256];
 pub const M_BYTE: u128 = 1_048_576;
 pub const G_BYTE: u128 = 1_048_576 * 1024;
 pub const T_BYTE: u128 = 1_048_576 * 1024 * 1024;
-// FOR TESTING
 pub const IDLE_SEG_SIZE: u128 = M_BYTE * 64;
 pub const SEGMENT_SIZE: u128 = M_BYTE * 16;
 pub const FRAGMENT_SIZE: u128 = M_BYTE * 8;

@@ -328,11 +328,7 @@ pub mod pallet {
 			};
 
 			let encoding = space_proof_info.encode();
-			// FOR TESTING
-			log::info!("original text: {:?}", encoding);
 			let original_text = sp_io::hashing::sha2_256(&encoding);
-			// FOR TESTING
-			log::info!("original text: {:?}", original_text);
 			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
 			ensure!(verify_rsa(&tee_puk, &original_text, &tee_sig), Error::<T>::VerifyTeeSigFailed);
 
@@ -736,7 +732,7 @@ pub mod pallet {
 			n: u64, 
 			d: u64,
 		) -> DispatchResult {
-			let _ = ensure_signed(origin)?;
+			let _ = ensure_root(origin)?;
 
 			Expenders::<T>::put((k, n, d));
 

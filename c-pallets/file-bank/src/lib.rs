@@ -736,8 +736,6 @@ pub mod pallet {
 
 			let original = idle_sig_info.encode();
 			let original = sp_io::hashing::sha2_256(&original);
-			// FOR TEST
-			// log::info!("sha2_256 original: {:?}", original);
 
 			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
 
@@ -811,8 +809,6 @@ pub mod pallet {
 
 			let original = idle_sig_info.encode();
 			let original = sp_io::hashing::sha2_256(&original);
-			// FOR TEST
-			log::info!("sha2_256 original: {:?}", original);
 
 			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
 
