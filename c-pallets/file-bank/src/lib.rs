@@ -474,7 +474,7 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(1)]
-		#[transactional]
+		// #[transactional]
 		#[pallet::weight(
 			{
 				let v = Pallet::<T>::get_segment_length_from_deal(&deal_hash);
@@ -487,7 +487,7 @@ pub mod pallet {
 			life: u32,
 		) -> DispatchResultWithPostInfo {
 			let _ = ensure_root(origin)?;
-
+			let segment_length = Self::get_segment_length_from_deal(&deal_hash);
 			if count < 20 {
 				if let Err(e) = <DealMap<T>>::try_mutate(&deal_hash, |opt| -> DispatchResult {
 					let deal_info = opt.as_mut().ok_or(Error::<T>::NonExistent)?;
@@ -518,13 +518,14 @@ pub mod pallet {
 					Ok(())
 				}) {
 					Self::remove_deal(&deal_hash)?;
-					return Ok(Some(<T as Pallet::Config>::WeightInfo::deal_reassign_miner_exceed_limit(v)));
+					return Ok(Some(<T as Config>::WeightInfo::deal_reassign_miner_exceed_limit(segment_length)).into());
 				}
 			} else {
 				Self::remove_deal(&deal_hash)?;
+				return Ok(Some(<T as Config>::WeightInfo::deal_reassign_miner_exceed_limit(segment_length)).into());
 			}
 
-			Ok(())
+			Ok(Some(0).into())
 		}
 		/// Transfer needs to be restricted, such as target consent
 		/// Document ownership transfer function.
@@ -606,17 +607,16 @@ pub mod pallet {
 		/// - `file_size`: File size calculated by consensus.
 		/// - `slice_info`: List of file slice information.
 		#[pallet::call_index(3)]
-		#[transactional]
+		// #[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::transfer_report(Pallet::<T>::get_segment_length_from_deal(&deal_hash)))]
-		// #[pallet::weight(35_000_000_000)]
 		pub fn transfer_report(
 			origin: OriginFor<T>,
 			deal_hash: Hash,
-		) -> DispatchResult {
+		) -> DispatchResultWithPostInfo {
 			let sender = ensure_signed(origin)?;
 
 			ensure!(<DealMap<T>>::contains_key(&deal_hash), Error::<T>::NonExistent);
-			<DealMap<T>>::try_mutate(&deal_hash, |deal_info_opt| -> DispatchResult {
+			let is_last = <DealMap<T>>::try_mutate(&deal_hash, |deal_info_opt| -> Result<bool, DispatchError> {
 				// can use unwrap because there was a judgment above
 				let deal_info = deal_info_opt.as_mut().unwrap();
 				let mut task_miner_list: Vec<AccountOf<T>> = Default::default();
@@ -678,14 +678,19 @@ pub mod pallet {
 						}
 						Self::add_user_hold_fileslice(&deal_info.user.user, deal_hash.clone(), needed_space)?;
 						Self::deposit_event(Event::<T>::StorageCompleted{ file_hash: deal_hash });
+						return Ok(true);
 					}
 				}
-				Ok(())
+				Ok(false)
 			})?;
 
 			Self::deposit_event(Event::<T>::TransferReport{acc: sender, deal_hash: deal_hash});
 
-			Ok(())
+			if is_last {
+				return Ok(Some(<T as pallet::Config>::WeightInfo::transfer_report_last(Pallet::<T>::get_segment_length_from_deal(&deal_hash))).into())
+			}
+
+			Ok(None)
 		}
 
 		#[pallet::call_index(4)]
