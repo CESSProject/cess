@@ -417,6 +417,7 @@ pub mod pallet {
 			let limit = count
 				.checked_mul(2).ok_or(Error::<T>::Overflow)?
 				.checked_div(3).ok_or(Error::<T>::Overflow)?;
+			let now = <frame_system::Pallet<T>>::block_number();
 			
 			if ChallengeProposal::<T>::contains_key(&hash) {
 				let proposal = ChallengeProposal::<T>::get(&hash).unwrap();
