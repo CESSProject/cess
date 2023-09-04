@@ -670,9 +670,17 @@ impl<T: Config> Pallet<T> {
         count >= 5
     }
 
-    pub(super) fn get_segment_length(deal_hash: &Hash) -> u32 {
-        if let Some(deal) = <DealMap<T>>::try_get(deal_hash) {
+    pub(super) fn get_segment_length_from_deal(deal_hash: &Hash) -> u32 {
+        if let Ok(deal) = <DealMap<T>>::try_get(deal_hash) {
             return deal.segment_list.len() as u32;
+        }
+
+        return 0;
+    }
+
+    pub(super) fn get_segment_length_from_file(file_hash: &Hash) -> u32 {
+        if let Ok(file) = <File<T>>::try_get(file_hash) {
+            return file.segment_list.len() as u32;
         }
 
         return 0;
