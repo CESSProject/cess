@@ -429,9 +429,12 @@ pub mod pallet {
 						<ChallengeDuration<T>>::put(duration);
 						let idle_duration = duration;
 						let one_hour = T::OneHours::get();
+						let tee_length = T::TeeWorkerHandler::get_controller_list().len();
 						let duration: u32 = (proposal.1.net_snap_shot.total_idle_space
 							.checked_add(proposal.1.net_snap_shot.total_service_space).ok_or(Error::<T>::Overflow)?
-							.checked_div(IDLE_VERIFY_RATE).ok_or(Error::<T>::Overflow)?) as u32;
+							.checked_div(IDLE_VERIFY_RATE).ok_or(Error::<T>::Overflow)?
+							.checked_div(tee_length as u128).ok_or(Error::<T>::Overflow)?
+						) as u32;
 						let v_duration = idle_duration
 							.checked_add(&duration.saturated_into()).ok_or(Error::<T>::Overflow)?
 							.checked_add(&one_hour).ok_or(Error::<T>::Overflow)?;
@@ -819,7 +822,7 @@ pub mod pallet {
 				weight = weight.saturating_add(T::DbWeight::get().reads(1));
 				for miner_snapshot in snap_shot.miner_snapshot_list.iter() {
 					// unwrap_or(3) 3 Need to match the maximum number of consecutive penalties.
-					let count = <CountedClear<T>>::get(&miner_snapshot.miner).checked_add(1).unwrap_or(3);
+					let count = <CountedClear<T>>::get(&miner_snapshot.miner).checked_add(1).unwrap_or(6);
 					weight = weight.saturating_add(T::DbWeight::get().reads(1));
 
 					let _ = T::MinerControl::clear_punish(
@@ -829,8 +832,8 @@ pub mod pallet {
 						miner_snapshot.service_space
 					);
 					weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-
-					if count >= 3 {
+					//For Testing
+					if count >= 6 {
 						let result = T::MinerControl::force_miner_exit(&miner_snapshot.miner);
 						if result.is_err() {
 							log::info!("force clear miner: {:?} failed", miner_snapshot.miner);
