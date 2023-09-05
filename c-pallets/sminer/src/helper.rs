@@ -201,11 +201,11 @@ impl<T: Config> Pallet<T> {
 	pub(super) fn clear_punish(miner: &AccountOf<T>, level: u8, idle_space: u128, service_space: u128) -> DispatchResult {
 		let power = Self::calculate_power(idle_space, service_space);
 		let limit = Self::check_collateral_limit(power)?;
-
+		// FOR TESTING
 		let punish_amount = match level {
 			1 => Perbill::from_percent(30).mul_floor(limit),
 			2 => Perbill::from_percent(60).mul_floor(limit),
-			3 => limit,
+			3 | 4 | 5 | 6 => limit,
 			_ => return Err(Error::<T>::Unexpected)?,
 		};
 
