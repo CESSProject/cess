@@ -150,11 +150,11 @@ pub mod pallet {
 		Deposit {
 			balance: BalanceOf<T>,
 		},
-		UpdataBeneficiary {
+		UpdateBeneficiary {
 			acc: AccountOf<T>,
 			new: AccountOf<T>,
 		},
-		UpdataIp {
+		UpdatePeerId {
 			acc: AccountOf<T>,
 			old: PeerId,
 			new: PeerId,
@@ -412,7 +412,7 @@ pub mod pallet {
 						<CurrencyReward<T>>::mutate(|reward| -> DispatchResult {
 							*reward = reward.checked_add(&miner_info.debt).ok_or(Error::<T>::Overflow)?;
 							Ok(())
-						});
+						})?;
 						miner_info.debt = BalanceOf::<T>::zero();
 					}
 				}
@@ -439,7 +439,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// updata miner beneficiary.
+		/// update miner beneficiary.
 		///
 		/// Parameters:
 		/// - `beneficiary`: The beneficiary related to signer account.
@@ -459,11 +459,11 @@ pub mod pallet {
 				Ok(())
 			})?;
 
-			Self::deposit_event(Event::<T>::UpdataBeneficiary { acc: sender, new: beneficiary });
+			Self::deposit_event(Event::<T>::UpdateBeneficiary { acc: sender, new: beneficiary });
 			Ok(())
 		}
 
-		/// updata miner IP.
+		/// update miner IP.
 		///
 		/// Parameters:
 		/// - `ip`: The registered IP of storage miner.
@@ -481,7 +481,7 @@ pub mod pallet {
 				Ok(old)
 			})?;
 
-			Self::deposit_event(Event::<T>::UpdataIp { acc: sender, old, new: peer_id.into() });
+			Self::deposit_event(Event::<T>::UpdatePeerId { acc: sender, old, new: peer_id.into() });
 			Ok(())
 		}
 

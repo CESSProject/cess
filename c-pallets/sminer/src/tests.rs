@@ -75,7 +75,7 @@ fn miner_register_works() {
 		let event =
 			Sys::events().pop().expect("Expected at least one Registered to be found").event;
 		assert_eq!(
-			mock::RuntimeEvent::from(Event::UpdataBeneficiary { acc: ACCOUNT1.0, new: beneficiary_new }),
+			mock::RuntimeEvent::from(Event::UpdateBeneficiary { acc: ACCOUNT1.0, new: beneficiary_new }),
 			event
 		);
 
@@ -86,7 +86,7 @@ fn miner_register_works() {
 		let event =
 			Sys::events().pop().expect("Expected at least one Registered to be found").event;
 		assert_eq!(
-			mock::RuntimeEvent::from(Event::UpdataIp { acc: ACCOUNT1.0, old: ip, new: ip_new }),
+			mock::RuntimeEvent::from(Event::UpdatePeerId { acc: ACCOUNT1.0, old: ip, new: ip_new }),
 			event
 		);
 	});

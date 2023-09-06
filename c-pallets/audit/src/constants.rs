@@ -1,6 +1,7 @@
-pub(super) const SERVICE_PROVE_RATE: u128 = 50_331_648;
-
-pub(super) const IDLE_PROVE_RATE: u128 = 143_165_576;
+// miner cpu use 50%.
+pub(super) const SERVICE_PROVE_RATE: u128 = 25_165_824;
+// miner cpu use 50%.
+pub(super) const IDLE_PROVE_RATE: u128 = 71_582_788;
 
 pub(super) const IDLE_VERIFY_RATE: u128 = 2_147_483_648;
 
