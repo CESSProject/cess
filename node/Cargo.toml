@@ -38,9 +38,7 @@ sp-inherents = { version = "4.0.0-dev", git = "https://github.com/CESSProject/su
 sp-keyring = { version = "7.0.0", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sp-keystore = { version = "0.13.0", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 sp-consensus = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-# sp-transaction-pool
 sp-transaction-storage-proof = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-# sp-io
 
 # client dependencies
 sc-client-api = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
@@ -65,21 +63,15 @@ sc-sysinfo = { version = "6.0.0-dev", git = "https://github.com/CESSProject/subs
 
 # frame dependencies
 frame-system = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-# frame-system-rpc-runtime-api = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-# pallet-assets
-# pallet-asset-tx-payment
 pallet-im-online = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 
 # node-specific dependencies
 cess-node-runtime = { path = "../runtime" }
-# node-rpc
-# node-primitives
 
 # CLI-specific dependencies
 sc-cli = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-# node-inspect
 try-runtime-cli = { version = "0.10.0-dev", optional = true, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
 serde_json = "1.0.85"
 
