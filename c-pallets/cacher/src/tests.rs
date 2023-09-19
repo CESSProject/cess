@@ -2,7 +2,7 @@
 
 use super::*;
 use frame_support::{assert_noop, assert_ok};
-use mock::{new_test_ext, Cacher, Origin, Test};
+use mock::{new_test_ext, Cacher, RuntimeOrigin, Test};
 use sp_runtime::traits::Hash;
 use pallet_balances::Error as BalancesError;
 
