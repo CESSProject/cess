@@ -485,7 +485,7 @@ pub mod pallet {
 			deal_hash: Hash,
 			count: u8,
 			life: u32,
-		) -> DispatchResultWithPostInfo {
+		) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 			let segment_length = Self::get_segment_length_from_deal(&deal_hash);
 			if count < 20 {
@@ -515,7 +515,7 @@ pub mod pallet {
 					deal_info.count = count;
 					// count <= 20
 					Self::start_first_task(deal_hash.0.to_vec(), deal_hash, count + 1, life)?;
-					Ok(Some(0).into())
+					Ok(())
 				}) {
 					Self::remove_deal(&deal_hash)?;
 				}
@@ -523,7 +523,7 @@ pub mod pallet {
 				Self::remove_deal(&deal_hash)?;
 			}
 
-			Ok(Some(0).into())
+			Ok(())
 		}
 		/// Transfer needs to be restricted, such as target consent
 		/// Document ownership transfer function.
