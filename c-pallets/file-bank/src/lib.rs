@@ -485,7 +485,7 @@ pub mod pallet {
 			deal_hash: Hash,
 			count: u8,
 			life: u32,
-		) -> DispatchResult {
+		) -> DispatchResultWithPostInfo {
 			let _ = ensure_root(origin)?;
 			let segment_length = Self::get_segment_length_from_deal(&deal_hash);
 			if count < 20 {
@@ -523,7 +523,7 @@ pub mod pallet {
 				Self::remove_deal(&deal_hash)?;
 			}
 
-			Ok(())
+			Ok(Weight::zero())
 		}
 		/// Transfer needs to be restricted, such as target consent
 		/// Document ownership transfer function.
