@@ -1228,8 +1228,8 @@ pub mod pallet {
 			}
 
 			// FOR TESTING
-			// let need_miner_count = miner_count;
-			let need_miner_count = miner_count / 10 + 1;
+			let need_miner_count = miner_count;
+			// let need_miner_count = miner_count / 10 + 1;
 
 			let mut miner_list: BoundedVec<MinerSnapShot<AccountOf<T>, BlockNumberOf<T>>, T::ChallengeMinerMax> = Default::default();
 
