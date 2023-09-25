@@ -168,9 +168,9 @@ pub mod pallet {
 		//file upload declaration
 		UploadDeclaration { operator: AccountOf<T>, owner: AccountOf<T>, deal_hash: Hash },
 		//file uploaded.
-		TransferReport { acc: AccountOf<T>, failed_list: Vec<Hash> },
+		TransferReport { acc: AccountOf<T>, deal_hash: Hash },
 		//File deletion event
-		DeleteFile { operator:AccountOf<T>, owner: AccountOf<T>, file_hash_list: Vec<Hash> },
+		DeleteFile { operator:AccountOf<T>, owner: AccountOf<T>, file_hash: Hash },
 
 		ReplaceFiller { acc: AccountOf<T>, filler_list: Vec<Hash> },
 
@@ -339,6 +339,7 @@ pub mod pallet {
 		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
 			let days = T::OneDay::get();
 			let mut weight: Weight = Weight::from_ref_time(0);
+			// FOR TESTING
 			if now % days == 0u32.saturated_into() {
 				let (temp_weight, acc_list) = T::StorageHandle::frozen_task();
 				weight = weight.saturating_add(temp_weight);
@@ -420,7 +421,7 @@ pub mod pallet {
 		/// - `file_name`: User defined file name.
 		#[pallet::call_index(0)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_declaration())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_declaration(deal_info.len() as u32))]
 		pub fn upload_declaration(
 			origin: OriginFor<T>,
 			file_hash: Hash,
@@ -473,8 +474,12 @@ pub mod pallet {
 		}
 
 		#[pallet::call_index(1)]
-		#[transactional]
-		#[pallet::weight(1_000_000_000)]
+		// #[transactional]
+		#[pallet::weight(
+			{
+				let v = Pallet::<T>::get_segment_length_from_deal(&deal_hash);
+				<T as pallet::Config>::WeightInfo::deal_reassign_miner(v)
+			})]
 		pub fn deal_reassign_miner(
 			origin: OriginFor<T>,
 			deal_hash: Hash,
@@ -482,7 +487,7 @@ pub mod pallet {
 			life: u32,
 		) -> DispatchResult {
 			let _ = ensure_root(origin)?;
-
+			let segment_length = Self::get_segment_length_from_deal(&deal_hash);
 			if count < 20 {
 				if let Err(_e) = <DealMap<T>>::try_mutate(&deal_hash, |opt| -> DispatchResult {
 					let deal_info = opt.as_mut().ok_or(Error::<T>::NonExistent)?;
@@ -537,7 +542,7 @@ pub mod pallet {
 		/// - `file_hash`: File hash, which is also the unique identifier of the file
 		#[pallet::call_index(2)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::ownership_transfer())]
+		#[pallet::weight(1_000_000_000)]
 		pub fn ownership_transfer(
 			origin: OriginFor<T>,
 			target_brief: UserBrief<T>,
@@ -600,108 +605,90 @@ pub mod pallet {
 		/// - `file_size`: File size calculated by consensus.
 		/// - `slice_info`: List of file slice information.
 		#[pallet::call_index(3)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload(2))]
+		// #[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::transfer_report(Pallet::<T>::get_segment_length_from_deal(&deal_hash)))]
 		pub fn transfer_report(
 			origin: OriginFor<T>,
-			deal_hash: Vec<Hash>,
+			deal_hash: Hash,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			ensure!(deal_hash.len() < 5, Error::<T>::LengthExceedsLimit);
-			let mut failed_list: Vec<Hash> = Default::default();
-			for hash in deal_hash {
-				if !<DealMap<T>>::contains_key(&hash) {
-					failed_list.push(hash);
-					continue;
-				} else {
-					<DealMap<T>>::try_mutate(&hash, |deal_info_opt| -> DispatchResult {
-						// can use unwrap because there was a judgment above
-						let deal_info = deal_info_opt.as_mut().unwrap();
-						let mut task_miner_list: Vec<AccountOf<T>> = Default::default();
-						for miner_task in &deal_info.assigned_miner {
-							task_miner_list.push(miner_task.miner.clone());
-						}
-						if task_miner_list.contains(&sender) {
-							if !deal_info.complete_list.contains(&sender) {
-								deal_info.complete_list.try_push(sender.clone()).map_err(|_| Error::<T>::BoundedVecError)?;
-							}
-							// If it is the last submitter of the order.
-							if deal_info.complete_list.len() == deal_info.assigned_miner.len() {
-								deal_info.stage = 2;
-								Self::generate_file(
-									&hash,
-									deal_info.segment_list.clone(),
-									deal_info.assigned_miner.clone(),
-									deal_info.share_info.to_vec(),
-									deal_info.user.clone(),
-									FileState::Calculate,
-									deal_info.file_size,
-								)?;
 
-								let mut max_task_count = 0;
-								for miner_task in deal_info.assigned_miner.iter() {
-									let count = miner_task.fragment_list.len() as u128;
-									if count > max_task_count {
-										max_task_count = count;
-									}
-									// Miners need to report the replaced documents themselves. 
-									// If a challenge is triggered before the report is completed temporarily, 
-									// these documents to be replaced also need to be verified
-									<PendingReplacements<T>>::try_mutate(miner_task.miner.clone(), |pending_space| -> DispatchResult {
-										let replace_space = FRAGMENT_SIZE.checked_mul(count).ok_or(Error::<T>::Overflow)?;
-										let pending_space_temp = pending_space.checked_add(replace_space).ok_or(Error::<T>::Overflow)?;
-										*pending_space = pending_space_temp;
-										Ok(())
-									})?;
-
-									Self::zero_task_failed_count(&miner_task.miner)?;
-								}
-
-								let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
-
-								T::StorageHandle::unlock_and_used_user_space(&deal_info.user.user, needed_space)?;
-								T::StorageHandle::sub_total_idle_space(needed_space)?;
-								T::StorageHandle::add_total_service_space(needed_space)?;
-
-								let result = T::FScheduler::cancel_named(hash.0.to_vec()).map_err(|_| Error::<T>::Unexpected);
-								if let Err(_) = result {
-									log::info!("transfer report cancel schedule failed: {:?}", hash.clone());
-								}
-								// Calculate the maximum time required for storage nodes to tag files
-								let max_needed_cal_space = (max_task_count as u32).checked_mul(FRAGMENT_SIZE as u32).ok_or(Error::<T>::Overflow)?;
-								let mut life: u32 = (max_needed_cal_space / TRANSFER_RATE as u32).checked_add(11).ok_or(Error::<T>::Overflow)?;
-								life = (max_needed_cal_space / CALCULATE_RATE as u32)
-									.checked_add(10).ok_or(Error::<T>::Overflow)?
-									.checked_add(life).ok_or(Error::<T>::Overflow)?;
-
-								Self::start_second_task(hash.0.to_vec(), hash, life)?;
-								if <Bucket<T>>::contains_key(&deal_info.user.user, &deal_info.user.bucket_name) {
-									Self::add_file_to_bucket(&deal_info.user.user, &deal_info.user.bucket_name, &hash)?;
-								} else {
-									Self::create_bucket_helper(&deal_info.user.user, &deal_info.user.bucket_name, Some(hash))?;
-								}
-
-								Self::add_user_hold_fileslice(&deal_info.user.user, hash.clone(), needed_space)?;
-
-								Self::deposit_event(Event::<T>::StorageCompleted{ file_hash: hash });
-							}
-						} else {
-							failed_list.push(hash);
-						}
-
-						Ok(())
-					})?;
+			ensure!(<DealMap<T>>::contains_key(&deal_hash), Error::<T>::NonExistent);
+			<DealMap<T>>::try_mutate(&deal_hash, |deal_info_opt| -> DispatchResult {
+				// can use unwrap because there was a judgment above
+				let deal_info = deal_info_opt.as_mut().unwrap();
+				let mut task_miner_list: Vec<AccountOf<T>> = Default::default();
+				for miner_task in &deal_info.assigned_miner {
+					task_miner_list.push(miner_task.miner.clone());
 				}
-			}
+				if task_miner_list.contains(&sender) {
+					if !deal_info.complete_list.contains(&sender) {
+						deal_info.complete_list.try_push(sender.clone()).map_err(|_| Error::<T>::BoundedVecError)?;
+					}
+					// If it is the last submitter of the order.
+					if deal_info.complete_list.len() == deal_info.assigned_miner.len() {
+						deal_info.stage = 2;
+						Self::generate_file(
+							&deal_hash,
+							deal_info.segment_list.clone(),
+							deal_info.assigned_miner.clone(),
+							deal_info.share_info.to_vec(),
+							deal_info.user.clone(),
+							FileState::Calculate,
+							deal_info.file_size,
+						)?;
+						let mut max_task_count = 0;
+						for miner_task in deal_info.assigned_miner.iter() {
+							let count = miner_task.fragment_list.len() as u128;
+							if count > max_task_count {
+								max_task_count = count;
+							}
+							// Miners need to report the replaced documents themselves. 
+							// If a challenge is triggered before the report is completed temporarily, 
+							// these documents to be replaced also need to be verified
+							<PendingReplacements<T>>::try_mutate(miner_task.miner.clone(), |pending_space| -> DispatchResult {
+								let replace_space = FRAGMENT_SIZE.checked_mul(count).ok_or(Error::<T>::Overflow)?;
+								let pending_space_temp = pending_space.checked_add(replace_space).ok_or(Error::<T>::Overflow)?;
+								*pending_space = pending_space_temp;
+								Ok(())
+							})?;
+							Self::zero_task_failed_count(&miner_task.miner)?;
+						}
+						let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
+						T::StorageHandle::unlock_and_used_user_space(&deal_info.user.user, needed_space)?;
+						T::StorageHandle::sub_total_idle_space(needed_space)?;
+						T::StorageHandle::add_total_service_space(needed_space)?;
+						let result = T::FScheduler::cancel_named(deal_hash.0.to_vec()).map_err(|_| Error::<T>::Unexpected);
+						if let Err(_) = result {
+							log::info!("transfer report cancel schedule failed: {:?}", deal_hash.clone());
+						}
+						// Calculate the maximum time required for storage nodes to tag files
+						let max_needed_cal_space = (max_task_count as u32).checked_mul(FRAGMENT_SIZE as u32).ok_or(Error::<T>::Overflow)?;
+						let mut life: u32 = (max_needed_cal_space / TRANSFER_RATE as u32).checked_add(11).ok_or(Error::<T>::Overflow)?;
+						life = (max_needed_cal_space / CALCULATE_RATE as u32)
+							.checked_add(10).ok_or(Error::<T>::Overflow)?
+							.checked_add(life).ok_or(Error::<T>::Overflow)?;
+						Self::start_second_task(deal_hash.0.to_vec(), deal_hash, life)?;
+						if <Bucket<T>>::contains_key(&deal_info.user.user, &deal_info.user.bucket_name) {
+							Self::add_file_to_bucket(&deal_info.user.user, &deal_info.user.bucket_name, &deal_hash)?;
+						} else {
+							Self::create_bucket_helper(&deal_info.user.user, &deal_info.user.bucket_name, Some(deal_hash))?;
+						}
+						Self::add_user_hold_fileslice(&deal_info.user.user, deal_hash.clone(), needed_space)?;
+						Self::deposit_event(Event::<T>::StorageCompleted{ file_hash: deal_hash });
+					}
+				}
+				Ok(())
+			})?;
 
-			Self::deposit_event(Event::<T>::TransferReport{acc: sender, failed_list});
+			Self::deposit_event(Event::<T>::TransferReport{acc: sender, deal_hash: deal_hash});
 
 			Ok(())
 		}
 
 		#[pallet::call_index(4)]
 		#[transactional]
-		#[pallet::weight(1_000_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::calculate_end(Pallet::<T>::get_segment_length_from_deal(&deal_hash)))]
 		pub fn calculate_end(
 			origin: OriginFor<T>,
 			deal_hash: Hash,
@@ -737,7 +724,7 @@ pub mod pallet {
 
 		#[pallet::call_index(5)]
 		#[transactional]
-		#[pallet::weight(1_000_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::replace_idle_space())]
 		pub fn replace_idle_space(
 			origin: OriginFor<T>,
 			idle_sig_info: SpaceProofInfo<AccountOf<T>>,
@@ -780,21 +767,21 @@ pub mod pallet {
 
 		#[pallet::call_index(6)]
 		#[transactional]
-		#[pallet::weight(1_000_000_000)]
-		pub fn delete_file(origin: OriginFor<T>, owner: AccountOf<T>, file_hash_list: Vec<Hash>) -> DispatchResult {
+		#[pallet::weight({
+			let v = Pallet::<T>::get_segment_length_from_file(&file_hash);
+			<T as pallet::Config>::WeightInfo::delete_file(v)
+		})]
+		pub fn delete_file(origin: OriginFor<T>, owner: AccountOf<T>, file_hash: Hash) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			// Check if you have operation permissions.
 			ensure!(Self::check_permission(sender.clone(), owner.clone()), Error::<T>::NoPermission);
-			ensure!(file_hash_list.len() < 10, Error::<T>::LengthExceedsLimit);
 
-			for file_hash in file_hash_list.iter() {
-				let file = <File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::NonExistent)?;
-				let _ = Self::delete_user_file(&file_hash, &owner, &file)?;
-				Self::bucket_remove_file(&file_hash, &owner, &file)?;
-				Self::remove_user_hold_file_list(&file_hash, &owner)?;
-			}
-
-			Self::deposit_event(Event::<T>::DeleteFile{ operator: sender, owner, file_hash_list });
+			let file = <File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::NonExistent)?;
+			let _ = Self::delete_user_file(&file_hash, &owner, &file)?;
+			Self::bucket_remove_file(&file_hash, &owner, &file)?;
+			Self::remove_user_hold_file_list(&file_hash, &owner)?;
+			
+			Self::deposit_event(Event::<T>::DeleteFile{ operator: sender, owner, file_hash });
 
 			Ok(())
 		}
@@ -810,7 +797,7 @@ pub mod pallet {
 		/// - `filler_list`: Meta information list of idle files.
 		#[pallet::call_index(8)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::cert_idle_space())]
 		pub fn cert_idle_space(
 			origin: OriginFor<T>,
 			idle_sig_info: SpaceProofInfo<AccountOf<T>>,
@@ -907,7 +894,7 @@ pub mod pallet {
 		// restoral file
 		#[pallet::call_index(13)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::generate_restoral_order())]
 		pub fn generate_restoral_order(
 			origin: OriginFor<T>,
 			file_hash: Hash,
@@ -954,7 +941,7 @@ pub mod pallet {
 
 		#[pallet::call_index(14)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::claim_restoral_order())]
 		pub fn claim_restoral_order(
 			origin: OriginFor<T>,
 			restoral_fragment: Hash,
@@ -984,7 +971,7 @@ pub mod pallet {
 
 		#[pallet::call_index(15)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::claim_restoral_noexist_order())]
 		pub fn claim_restoral_noexist_order(
 			origin: OriginFor<T>,
 			miner: AccountOf<T>,
@@ -1044,7 +1031,7 @@ pub mod pallet {
 
 		#[pallet::call_index(16)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::restoral_order_complete())]
 		pub fn restoral_order_complete(
 			origin: OriginFor<T>,
 			fragment_hash: Hash,

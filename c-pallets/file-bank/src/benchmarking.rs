@@ -73,11 +73,11 @@ pub fn buy_space<T: Config>(user: T::AccountId) -> Result<(), &'static str> {
 	Ok(())
 }
 
-pub fn create_deal_info<T: Config>(acc: AccountOf<T>, length: u32) -> Result<DealSubmitInfo<T>, &'static str> {
+pub fn create_deal_info<T: Config>(acc: AccountOf<T>, length: u32, hash_seed: u8) -> Result<DealSubmitInfo<T>, &'static str> {
 	let mut deal_info: BoundedVec<SegmentList<T>, T::SegmentCount> = Default::default();
 	let file_name = "test-file".as_bytes().to_vec();
 	let bucket_name = "test-bucket1".as_bytes().to_vec();
-	let file_hash: Hash = Hash([4u8; 64]);
+	let file_hash: Hash = Hash([hash_seed; 64]);
 	let user_brief = UserBrief::<T>{
 		user: acc,
 		file_name: file_name.try_into().map_err(|_e| "file name convert err")?,
@@ -212,7 +212,7 @@ benchmarks! {
 		}
 		buy_space::<T>(caller.clone())?;
 
-		let deal_info = create_deal_info::<T>(caller.clone(), v)?;
+		let deal_info = create_deal_info::<T>(caller.clone(), v, 4)?;
 	}: upload_declaration(RawOrigin::Signed(caller), deal_info.file_hash.clone(), deal_info.segment_list, deal_info.user_brief, deal_info.file_size)
 	verify {
 		assert!(DealMap::<T>::contains_key(&deal_info.file_hash));
@@ -223,16 +223,13 @@ benchmarks! {
 		log::info!("start transfer_report");
 		let caller: AccountOf<T> = account("user1", 100, SEED);
 		let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
-		for i in 0 .. 15 {
+		for i in 0 .. 3 {
 			let miner = pallet_sminer::benchmarking::add_miner::<T>(miner_list[i as usize])?;
 			add_idle_space::<T>(miner.clone())?;
-			if i < 12 {
-				pallet_sminer::benchmarking::freeze_miner::<T>(miner.clone())?;
-			}
 		}
 		buy_space::<T>(caller.clone())?;
 
-		let deal_submit_info = create_deal_info::<T>(caller.clone(), v)?;
+		let deal_submit_info = create_deal_info::<T>(caller.clone(), v, 4)?;
 		FileBank::<T>::upload_declaration(
 			RawOrigin::Signed(caller).into(),
 			deal_submit_info.file_hash.clone(),
@@ -240,11 +237,11 @@ benchmarks! {
 			deal_submit_info.user_brief,
 			deal_submit_info.file_size,
 		)?;
+		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
 
-		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
-	}: _(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()), vec![deal_submit_info.file_hash])
+	}: _(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()), deal_submit_info.file_hash)
 	verify {
-		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
+		let deal_info = DealMap::<T>::get(deal_submit_info.file_hash).unwrap();
 		assert_eq!(deal_info.complete_list.len(), 1);
 	}
 
@@ -262,7 +259,7 @@ benchmarks! {
 		}
 		buy_space::<T>(caller.clone())?;
 
-		let deal_submit_info = create_deal_info::<T>(caller.clone(), v)?;
+		let deal_submit_info = create_deal_info::<T>(caller.clone(), v, 4)?;
 		FileBank::<T>::upload_declaration(
 			RawOrigin::Signed(caller).into(),
 			deal_submit_info.file_hash.clone(),
@@ -272,9 +269,9 @@ benchmarks! {
 		)?;
 
 		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
-	}: transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()), vec![deal_submit_info.file_hash])
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), deal_submit_info.file_hash)?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), deal_submit_info.file_hash)?;
+	}: transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()), deal_submit_info.file_hash)
 	verify {
 		assert!(File::<T>::contains_key(&deal_submit_info.file_hash));
 	}
@@ -293,7 +290,7 @@ benchmarks! {
 		}
 		buy_space::<T>(caller.clone())?;
 
-		let deal_submit_info = create_deal_info::<T>(caller.clone(), v)?;
+		let deal_submit_info = create_deal_info::<T>(caller.clone(), v, 4)?;
 		FileBank::<T>::upload_declaration(
 			RawOrigin::Signed(caller).into(),
 			deal_submit_info.file_hash.clone(),
@@ -303,12 +300,12 @@ benchmarks! {
 		)?;
 
 		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), deal_submit_info.file_hash)?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), deal_submit_info.file_hash)?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), deal_submit_info.file_hash)?;
 		let caller: AccountOf<T> = account("user2", 100, SEED);
 		buy_space::<T>(caller.clone())?;
-		let deal_submit_info = create_deal_info::<T>(caller.clone(), v)?;
+		let deal_submit_info = create_deal_info::<T>(caller.clone(), v, 4)?;
 	}: upload_declaration(RawOrigin::Signed(caller.clone()), deal_submit_info.file_hash.clone(), deal_submit_info.segment_list, deal_submit_info.user_brief.clone(), deal_submit_info.file_size)
 	verify {
 		let file = File::<T>::get(deal_submit_info.file_hash.clone()).unwrap();
@@ -329,7 +326,7 @@ benchmarks! {
 		}
 		buy_space::<T>(caller.clone())?;
 
-		let deal_submit_info = create_deal_info::<T>(caller.clone(), v)?;
+		let deal_submit_info = create_deal_info::<T>(caller.clone(), v, 4)?;
 		FileBank::<T>::upload_declaration(
 			RawOrigin::Signed(caller.clone()).into(),
 			deal_submit_info.file_hash.clone(),
@@ -359,7 +356,7 @@ benchmarks! {
 		}
 		buy_space::<T>(caller.clone())?;
 
-		let deal_submit_info = create_deal_info::<T>(caller.clone(), v)?;
+		let deal_submit_info = create_deal_info::<T>(caller.clone(), v, 4)?;
 		FileBank::<T>::upload_declaration(
 			RawOrigin::Signed(caller.clone()).into(),
 			deal_submit_info.file_hash.clone(),
@@ -383,7 +380,7 @@ benchmarks! {
 		}
 		buy_space::<T>(caller.clone())?;
 
-		let deal_submit_info = create_deal_info::<T>(caller.clone(), v)?;
+		let deal_submit_info = create_deal_info::<T>(caller.clone(), v, 4)?;
 		FileBank::<T>::upload_declaration(
 			RawOrigin::Signed(caller).into(),
 			deal_submit_info.file_hash.clone(),
@@ -393,9 +390,9 @@ benchmarks! {
 		)?;
 
 		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), deal_submit_info.file_hash)?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), deal_submit_info.file_hash)?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), deal_submit_info.file_hash)?;
 		let file_info = File::<T>::get(&deal_submit_info.file_hash).unwrap();
 	}: _(RawOrigin::Root, deal_submit_info.file_hash)
 	verify {
@@ -413,7 +410,7 @@ benchmarks! {
 		}
 		buy_space::<T>(caller.clone())?;
 
-		let deal_submit_info = create_deal_info::<T>(caller.clone(), 50)?;
+		let deal_submit_info = create_deal_info::<T>(caller.clone(), 50, 4)?;
 		FileBank::<T>::upload_declaration(
 			RawOrigin::Signed(caller).into(),
 			deal_submit_info.file_hash.clone(),
@@ -423,9 +420,9 @@ benchmarks! {
 		)?;
 		let miner: AccountOf<T> = account("miner1", 100, SEED);
 		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), deal_submit_info.file_hash)?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), deal_submit_info.file_hash)?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), deal_submit_info.file_hash)?;
 
 		let avail_replace_space = deal_info.assigned_miner[0].fragment_list.len() as u128 * FRAGMENT_SIZE;
 		let front = avail_replace_space / IDLE_SEG_SIZE;
@@ -454,7 +451,7 @@ benchmarks! {
 	}
 
 	delete_file {
-		let v in 0 ..30;
+		let v in 0 .. 30;
 		log::info!("start delete_file");
 		let caller: AccountOf<T> = account("user1", 100, SEED);
 		let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
@@ -464,7 +461,7 @@ benchmarks! {
 		}
 		buy_space::<T>(caller.clone())?;
 
-		let deal_submit_info = create_deal_info::<T>(caller.clone(), v)?;
+		let deal_submit_info = create_deal_info::<T>(caller.clone(), v, 4)?;
 		FileBank::<T>::upload_declaration(
 			RawOrigin::Signed(caller.clone()).into(),
 			deal_submit_info.file_hash.clone(),
@@ -474,9 +471,9 @@ benchmarks! {
 		)?;
 
 		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), deal_submit_info.file_hash)?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), deal_submit_info.file_hash)?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), deal_submit_info.file_hash)?;
 		FileBank::<T>::calculate_end(RawOrigin::Root.into(), deal_submit_info.file_hash.clone());
 	}: _(RawOrigin::Signed(caller.clone()), caller.clone(), vec![deal_submit_info.file_hash.clone()])
 	verify {
@@ -515,7 +512,7 @@ benchmarks! {
 		}
 		buy_space::<T>(caller.clone())?;
 
-		let deal_submit_info = create_deal_info::<T>(caller.clone(), 50)?;
+		let deal_submit_info = create_deal_info::<T>(caller.clone(), 50, 4)?;
 		FileBank::<T>::upload_declaration(
 			RawOrigin::Signed(caller.clone()).into(),
 			deal_submit_info.file_hash.clone(),
@@ -525,9 +522,9 @@ benchmarks! {
 		)?;
 
 		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), deal_submit_info.file_hash)?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), deal_submit_info.file_hash)?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), deal_submit_info.file_hash)?;
 		FileBank::<T>::calculate_end(RawOrigin::Root.into(), deal_submit_info.file_hash.clone());
 	}: _(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()), deal_submit_info.file_hash, Hash([99u8; 64]))
 	verify {
@@ -544,7 +541,7 @@ benchmarks! {
 		}
 		buy_space::<T>(caller.clone())?;
 
-		let deal_submit_info = create_deal_info::<T>(caller.clone(), 50)?;
+		let deal_submit_info = create_deal_info::<T>(caller.clone(), 50, 4)?;
 		FileBank::<T>::upload_declaration(
 			RawOrigin::Signed(caller).into(),
 			deal_submit_info.file_hash.clone(),
@@ -554,9 +551,9 @@ benchmarks! {
 		)?;
 
 		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), deal_submit_info.file_hash)?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), deal_submit_info.file_hash)?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), deal_submit_info.file_hash)?;
 		FileBank::<T>::calculate_end(RawOrigin::Root.into(), deal_submit_info.file_hash)?;
 		FileBank::<T>::generate_restoral_order(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), deal_submit_info.file_hash, Hash([99u8; 64]))?;
 	}: _(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()), Hash([99u8; 64]))
@@ -575,7 +572,7 @@ benchmarks! {
 		}
 		buy_space::<T>(caller.clone())?;
 
-		let deal_submit_info = create_deal_info::<T>(caller.clone(), 50)?;
+		let deal_submit_info = create_deal_info::<T>(caller.clone(), 50, 4)?;
 		FileBank::<T>::upload_declaration(
 			RawOrigin::Signed(caller).into(),
 			deal_submit_info.file_hash.clone(),
@@ -585,9 +582,9 @@ benchmarks! {
 		)?;
 
 		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), deal_submit_info.file_hash)?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), deal_submit_info.file_hash)?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), deal_submit_info.file_hash)?;
 		FileBank::<T>::calculate_end(RawOrigin::Root.into(), deal_submit_info.file_hash)?;
 		FileBank::<T>::generate_restoral_order(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), deal_submit_info.file_hash, Hash([99u8; 64]))?;
 		frame_system::pallet::Pallet::<T>::set_block_number(2u32.saturated_into());
@@ -607,7 +604,7 @@ benchmarks! {
 		}
 		buy_space::<T>(caller.clone())?;
 
-		let deal_submit_info = create_deal_info::<T>(caller.clone(), 50)?;
+		let deal_submit_info = create_deal_info::<T>(caller.clone(), 50, 4)?;
 		FileBank::<T>::upload_declaration(
 			RawOrigin::Signed(caller).into(),
 			deal_submit_info.file_hash.clone(),
@@ -617,9 +614,9 @@ benchmarks! {
 		)?;
 
 		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
-		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), vec![deal_submit_info.file_hash])?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), deal_submit_info.file_hash)?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), deal_submit_info.file_hash)?;
+		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), deal_submit_info.file_hash)?;
 		FileBank::<T>::calculate_end(RawOrigin::Root.into(), deal_submit_info.file_hash)?;
 		pallet_sminer::benchmarking::bench_miner_exit::<T>(deal_info.assigned_miner[2].miner.clone())?;
 	}: _(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()), deal_info.assigned_miner[2].miner.clone(), deal_submit_info.file_hash, Hash([99u8; 64]))

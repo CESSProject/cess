@@ -174,6 +174,20 @@ fn cess_main_genesis() -> GenesisConfig {
 			array_bytes::hex2array_unchecked("521917850191d8787c10d9e35a0f3ff218e992e4ed476e5c33f7de5ab04f1a38")
 				.unchecked_into(),
 		),
+		(
+			array_bytes::hex_n_into_unchecked("3aa51ef77986966c8aa4c801229e3d0210500bc92be5c7c6542fc540826dad7e"),
+			array_bytes::hex_n_into_unchecked("4cd8cdd8684aa21c647cc62207815ff9f8414ee72e8068be3db4e19ae34bde7f"),
+			array_bytes::hex2array_unchecked("2692ccff99f336e6291c5f01ca19b0ddd53662adafd07a94ce27d50db888a838")
+				.unchecked_into(),
+			array_bytes::hex2array_unchecked("fa93c04ccad2297b8f231291d46599fe9ef54db4c2b41f2a5fdd469adf5dfd18")
+				.unchecked_into(),
+			array_bytes::hex2array_unchecked("fa93c04ccad2297b8f231291d46599fe9ef54db4c2b41f2a5fdd469adf5dfd18")
+				.unchecked_into(),
+			array_bytes::hex2array_unchecked("fa93c04ccad2297b8f231291d46599fe9ef54db4c2b41f2a5fdd469adf5dfd18")
+				.unchecked_into(),
+			array_bytes::hex2array_unchecked("fa93c04ccad2297b8f231291d46599fe9ef54db4c2b41f2a5fdd469adf5dfd18")
+				.unchecked_into(),
+		),
 	];
 
 	// generated with secret: subkey inspect "$secret"/fir
@@ -202,6 +216,10 @@ fn cess_main_genesis() -> GenesisConfig {
 		array_bytes::hex_n_into_unchecked("2e829b75650eac0d4c8dcfb8aa724d2df70dc5a44b16a8800b87403c3a4d8959"),
 		array_bytes::hex_n_into_unchecked("74579f9baed2d7151cb0f5adfe0084f59b4bbf8696d5aa0493f584097bfe3cb1"),
 		array_bytes::hex_n_into_unchecked("521917850191d8787c10d9e35a0f3ff218e992e4ed476e5c33f7de5ab04f1a38"),
+		array_bytes::hex_n_into_unchecked("3aa51ef77986966c8aa4c801229e3d0210500bc92be5c7c6542fc540826dad7e"),
+		array_bytes::hex_n_into_unchecked("4cd8cdd8684aa21c647cc62207815ff9f8414ee72e8068be3db4e19ae34bde7f"),
+		array_bytes::hex_n_into_unchecked("2692ccff99f336e6291c5f01ca19b0ddd53662adafd07a94ce27d50db888a838"),
+		array_bytes::hex_n_into_unchecked("fa93c04ccad2297b8f231291d46599fe9ef54db4c2b41f2a5fdd469adf5dfd18"),
 	];
 
 	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts))
@@ -507,7 +525,7 @@ fn testnet_genesis(
 		},
 		storage_handler: StorageHandlerConfig { price: 30 * DOLLARS },
 		// FOR TESTING
-		sminer: SminerConfig { expenders: (8, 1024*1024, 64) },
+		sminer: SminerConfig { expenders: (8, 1024 * 1024, 64) },
 		indices: IndicesConfig { indices: vec![] },
 		session: SessionConfig {
 			keys: initial_authorities
