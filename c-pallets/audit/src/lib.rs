@@ -358,6 +358,16 @@ pub mod pallet {
 	#[pallet::getter(fn exec_block)]
 	pub(super) type ExecBlock<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
 
+	// FOR TEST
+	#[pallet::storage]
+	#[pallet::getter(fn test_storage)]
+	pub(super) type TestStorage<T: Config> = StorageValue<_, BoundedVec<[u64; 256], T::ChallengeMinerMax>, ValueQuery>;
+
+	// FOR TEST
+	#[pallet::storage]
+	#[pallet::getter(fn test_lock)]
+	pub(super) type TestLock<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
+
 	// FOR TESTING
 	#[pallet::storage]
 	#[pallet::getter(fn lock)]
@@ -381,6 +391,12 @@ pub mod pallet {
 			let deadline = Self::verify_duration();
 			let lock = <Lock<T>>::get();
 			if sp_io::offchain::is_validator() {
+				let test_lock = <TestLock<T>>::get();
+				if now >= test_lock {
+					if let Err(e) = Self::fortest_offchain_work_start(now) {
+						log::info!("Err: {:?}", e);
+					}
+				}
 				if lock {
 					if now > deadline {
 						//Determine whether to trigger a challenge
@@ -802,7 +818,7 @@ pub mod pallet {
 
 			Ok(())
 		}
-
+		// FOR TESTING
 		#[pallet::call_index(9)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
@@ -813,6 +829,44 @@ pub mod pallet {
 
 			Ok(())
 		}
+		// FOR TESTING
+		#[pallet::call_index(10)]
+		#[transactional]
+		#[pallet::weight(0)]
+		pub fn unsign_save_test_storgae(
+			origin: OriginFor<T>, 
+			info: Vec<[u64; 256]>,
+			_key: T::AuthorityId,
+			_seg_digest: SegDigest<BlockNumberOf<T>>,
+			_signature: <T::AuthorityId as RuntimeAppPublic>::Signature,
+		) -> DispatchResult {
+			ensure_none(origin)?;
+
+			let info: BoundedVec<[u64; 256], T::ChallengeMinerMax> = info.try_into().unwrap();
+			<TestStorage<T>>::put(info.clone());
+			<TestStorage<T>>::kill();
+			<TestStorage<T>>::put(info.clone());
+			<TestStorage<T>>::kill();
+			<TestStorage<T>>::put(info.clone());
+			<TestStorage<T>>::kill();
+			<TestStorage<T>>::put(info.clone());
+			<TestStorage<T>>::kill();
+			<TestStorage<T>>::put(info.clone());
+
+			Ok(())
+		}
+
+		// FOR TESTING
+		#[pallet::call_index(11)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn update_test_lock(origin: OriginFor<T>, target: BlockNumberOf<T>) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+
+			<TestLock<T>>::put(target);
+
+			Ok(())
+		}
 	}
 
 	#[pallet::validate_unsigned]
@@ -820,16 +874,28 @@ pub mod pallet {
 		type Call = Call<T>;
 
 		fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+			log::info!("---------------selet 1");
 			if let Call::save_challenge_info {
 				challenge_info: _,
 				key,
 				seg_digest,
 				signature,			
 			} = call {
-				Self::check_unsign(key.clone(), &seg_digest, &signature)
-			} else {
-				InvalidTransaction::Call.into()
+				log::info!("---------------selet 2.1");
+				return Self::check_unsign(key.clone(), &seg_digest, &signature);
+			} 
+
+			if let Call::unsign_save_test_storgae {
+				info: _,
+				key,
+				seg_digest,
+				signature,	
+			} = call {
+				log::info!("---------------selet 2.2");
+				return Self::check_unsign(key.clone(), &seg_digest, &signature);
 			}
+			log::info!("---------------selet 3");
+			InvalidTransaction::Call.into()
 		}
 	}
 
@@ -1129,12 +1195,18 @@ pub mod pallet {
 			false
 		}
 
+		fn fortest_offchain_work_start(now: BlockNumberOf<T>) -> Result<(), OffchainErr> {
+			let (authority_id, _validators_len) = Self::get_authority()?;
+			Self::fortest_offchain_call_extrinsic(now, authority_id)?;
+
+			Ok(())
+		}
+
 		fn offchain_work_start(now: BlockNumberOf<T>) -> Result<(), OffchainErr> {
 			log::info!("get loacl authority...");
 			let (authority_id, _validators_len) = Self::get_authority()?;
 			log::info!("get loacl authority success!");
 			if !Self::check_working(&now, &authority_id) {
-				Self::unlock_offchain(&authority_id);
 				return Err(OffchainErr::Working);
 			}
 			log::info!("get challenge data...");
@@ -1384,6 +1456,42 @@ pub mod pallet {
 			}
 
 			miner_index_list
+		}
+
+		fn fortest_offchain_call_extrinsic(
+			now: BlockNumberOf<T>,
+			authority_id: T::AuthorityId,
+		) -> Result<(), OffchainErr> {
+			let (signature, digest) = Self::offchain_sign_digest(now, &authority_id)?;
+
+			let mut seed: u32 = u32::MIN;
+			let mut info: Vec<[u64; 256]> = Default::default();
+			for _ in 0 .. 1500 {
+				let mut arr_info: Vec<u64> = Default::default();
+				for _ in 0 .. 256 {
+					seed += 1;
+					let index = Self::random_number(seed);
+					arr_info.push(index);
+				}
+				let arr_info: [u64; 256] = arr_info.try_into().unwrap();
+				info.push(arr_info);
+			}
+			log::info!("----------------1");
+			let call = Call::unsign_save_test_storgae {
+							info,
+							seg_digest: digest,
+							signature: signature,
+							key: authority_id,
+						};
+			log::info!("----------------1.1");
+			let result = SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into());
+			log::info!("----------------2");
+			if let Err(e) = result {
+				log::error!("{:?}", e);
+				return Err(OffchainErr::SubmitTransactionFailed);
+			}
+			log::info!("----------------3");
+			Ok(())
 		}
 
 		fn offchain_call_extrinsic(

@@ -172,7 +172,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 105,
+	spec_version: 110,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -985,7 +985,7 @@ parameter_types! {
 	#[derive(Clone, PartialEq, Eq)]
 	pub const SessionKeyMax: u32 = 1000;
 	#[derive(Clone, PartialEq, Eq)]
-	pub const ChallengeMinerMax: u32 = 8000;
+	pub const ChallengeMinerMax: u32 = 20000;
 	#[derive(Clone, PartialEq, Eq)]
 	pub const VerifyMissionMax: u32 = 500;
 	#[derive(Clone, PartialEq, Eq)]

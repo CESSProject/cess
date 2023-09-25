@@ -523,7 +523,7 @@ pub mod pallet {
 				Self::remove_deal(&deal_hash)?;
 			}
 
-			Ok(Weight::zero())
+			Ok(Some(Weight::zero()).into())
 		}
 		/// Transfer needs to be restricted, such as target consent
 		/// Document ownership transfer function.
