@@ -16,18 +16,18 @@ pub fn wasm_binary_unwrap() -> &'static [u8] {
 	)
 }
 
-use codec::{Decode, Encode, /*MaxEncodedLen*/};
-use frame_election_provider_support::{
-	onchain, ExtendedBalance, ElectionDataProvider, VoteWeight
-};
+use codec::{Decode, Encode};
+use cp_cess_common::FRAGMENT_COUNT;
+use frame_election_provider_support::{onchain, ElectionDataProvider, ExtendedBalance, VoteWeight};
+pub use frame_system::Call as SystemCall;
 pub use pallet_file_bank;
-pub use pallet_storage_handler;
-pub use pallet_oss;
 use pallet_grandpa::{
 	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
+pub use pallet_oss;
 use pallet_session::historical as pallet_session_historical;
+pub use pallet_storage_handler;
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier, TargetedFeeAdjustment};
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use sp_api::impl_runtime_apis;
@@ -39,8 +39,9 @@ use sp_runtime::{
 	generic::Era,
 	impl_opaque_keys,
 	traits::{
-		BlakeTwo256, Block as BlockT, Bounded, ConvertInto, Dispatchable, DispatchInfoOf, IdentifyAccount, NumberFor,
-		OpaqueKeys, PostDispatchInfoOf, SaturatedConversion, StaticLookup, Verify,
+		BlakeTwo256, Block as BlockT, Bounded, ConvertInto, DispatchInfoOf, Dispatchable,
+		IdentifyAccount, NumberFor, OpaqueKeys, PostDispatchInfoOf, SaturatedConversion,
+		StaticLookup, Verify,
 	},
 	transaction_validity::{
 		TransactionPriority, TransactionSource, TransactionValidity, TransactionValidityError,
@@ -48,9 +49,7 @@ use sp_runtime::{
 	ApplyExtrinsicResult, FixedPointNumber, MultiSignature, Perbill, Percent, Permill, Perquintill,
 	RuntimeAppPublic,
 };
-use cp_cess_common::{FRAGMENT_COUNT};
 use sp_std::{marker::PhantomData, prelude::*};
-pub use frame_system::Call as SystemCall;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
@@ -58,17 +57,19 @@ use sp_version::RuntimeVersion;
 // A few exports that help ease life for downstream crates.
 pub use frame_support::{
 	construct_runtime,
+	dispatch::DispatchClass,
 	pallet_prelude::Get,
 	parameter_types,
-	dispatch::DispatchClass,
 	traits::{
 		AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU16, ConstU32, ConstU8, Currency,
 		CurrencyToVote, EitherOfDiverse, EqualPrivilegeOnly, Everything, FindAuthor, Imbalance,
-		InstanceFilter, KeyOwnerProofSystem, Nothing,
-		OnUnbalanced, Randomness, StorageInfo, U128CurrencyToVote,
+		InstanceFilter, KeyOwnerProofSystem, Nothing, OnUnbalanced, Randomness, StorageInfo,
+		U128CurrencyToVote,
 	},
 	weights::{
-		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_REF_TIME_PER_SECOND},
+		constants::{
+			BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_REF_TIME_PER_SECOND,
+		},
 		ConstantMultiplier, IdentityFee, Weight,
 	},
 	ConsensusEngineId, PalletId, StorageValue,
@@ -81,11 +82,7 @@ use frame_system::{
 
 pub mod impls;
 use impls::{Author, CreditToBlockAuthor, SchedulerStashAccountFinder};
-// use frame_support::traits::OnRuntimeUpgrade;
-// pub use pallet_file_bank::migrations::TestMigrationFileBank;
-// pub use pallet_audit::migrations::MigrationSegmentBook;
 
-pub mod constants;
 use fp_rpc::TransactionStatus;
 pub use pallet_balances::Call as BalancesCall;
 use pallet_ethereum::{Call::transact, Transaction as EthereumTransaction};
@@ -274,7 +271,8 @@ parameter_types! {
 const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(10);
 
 /// We allow for 2 seconds of compute with a 6 second average block time.
-const MAXIMUM_BLOCK_WEIGHT: Weight = Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND.saturating_mul(2), u64::MAX);
+const MAXIMUM_BLOCK_WEIGHT: Weight =
+	Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND.saturating_mul(2), u64::MAX);
 
 parameter_types! {
 	pub RuntimeBlockLength: BlockLength =
@@ -459,8 +457,6 @@ impl pallet_scheduler::Config for Runtime {
 	type WeightInfo = pallet_scheduler::weights::SubstrateWeight<Runtime>;
 	type OriginPrivilegeCmp = EqualPrivilegeOnly;
 	type Preimages = Preimage;
-	// type PreimageProvider = Preimage;
-	// type NoPreimagePostponement = NoPreimagePostponement;
 }
 
 parameter_types! {
@@ -770,7 +766,10 @@ pub struct OnChainVrfSloverConfig;
 impl pallet_rrsc::VrfSloverConfig for OnChainVrfSloverConfig {
 	fn min_electable_weight() -> VoteWeight {
 		let total_issuance = <Runtime as pallet_cess_staking::Config>::Currency::total_issuance();
-		<Runtime as pallet_cess_staking::Config>::CurrencyToVote::to_vote(MIN_ELECTABLE_STAKE, total_issuance)
+		<Runtime as pallet_cess_staking::Config>::CurrencyToVote::to_vote(
+			MIN_ELECTABLE_STAKE,
+			total_issuance,
+		)
 	}
 }
 
@@ -926,8 +925,13 @@ impl pallet_transaction_payment::Config for Runtime {
 	type OperationalFeeMultiplier = OperationalFeeMultiplier;
 	type WeightToFee = IdentityFee<Balance>;
 	type LengthToFee = ConstantMultiplier<Balance, TransactionByteFee>;
-	type FeeMultiplierUpdate =
-		TargetedFeeAdjustment<Self, TargetBlockFullness, AdjustmentVariable, MinimumMultiplier, MaximumMultiplier>;
+	type FeeMultiplierUpdate = TargetedFeeAdjustment<
+		Self,
+		TargetBlockFullness,
+		AdjustmentVariable,
+		MinimumMultiplier,
+		MaximumMultiplier,
+	>;
 }
 
 impl pallet_sudo::Config for Runtime {
@@ -1125,7 +1129,10 @@ where
 		public: <Signature as sp_runtime::traits::Verify>::Signer,
 		account: AccountId,
 		nonce: Index,
-	) -> Option<(RuntimeCall, <UncheckedExtrinsic as sp_runtime::traits::Extrinsic>::SignaturePayload)> {
+	) -> Option<(
+		RuntimeCall,
+		<UncheckedExtrinsic as sp_runtime::traits::Extrinsic>::SignaturePayload,
+	)> {
 		let tip = 0;
 		// take the biggest period possible.
 		let period =
@@ -1409,7 +1416,7 @@ impl fp_self_contained::SelfContainedCall for RuntimeCall {
 	}
 
 	fn validate_self_contained(
-		&self, 
+		&self,
 		info: &Self::SignedInfo,
 		dispatch_info: &DispatchInfoOf<RuntimeCall>,
 		len: usize,
@@ -1420,7 +1427,6 @@ impl fp_self_contained::SelfContainedCall for RuntimeCall {
 		}
 	}
 
-
 	fn pre_dispatch_self_contained(
 		&self,
 		info: &Self::SignedInfo,
@@ -1428,7 +1434,8 @@ impl fp_self_contained::SelfContainedCall for RuntimeCall {
 		len: usize,
 	) -> Option<Result<(), TransactionValidityError>> {
 		match self {
-			RuntimeCall::Ethereum(call) => call.pre_dispatch_self_contained(info, dispatch_info, len),
+			RuntimeCall::Ethereum(call) =>
+				call.pre_dispatch_self_contained(info, dispatch_info, len),
 			_ => None,
 		}
 	}
@@ -1438,9 +1445,10 @@ impl fp_self_contained::SelfContainedCall for RuntimeCall {
 		info: Self::SignedInfo,
 	) -> Option<sp_runtime::DispatchResultWithInfo<PostDispatchInfoOf<Self>>> {
 		match self {
-			call @ RuntimeCall::Ethereum(pallet_ethereum::Call::transact { .. }) => Some(
-				call.dispatch(RuntimeOrigin::from(pallet_ethereum::RawOrigin::EthereumTransaction(info))),
-			),
+			call @ RuntimeCall::Ethereum(pallet_ethereum::Call::transact { .. }) =>
+				Some(call.dispatch(RuntimeOrigin::from(
+					pallet_ethereum::RawOrigin::EthereumTransaction(info),
+				))),
 			_ => None,
 		}
 	}
@@ -1565,7 +1573,8 @@ pub type SignedExtra = (
 pub type UncheckedExtrinsic =
 	fp_self_contained::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
 /// Extrinsic type that has already been checked.
-pub type CheckedExtrinsic = fp_self_contained::CheckedExtrinsic<AccountId, RuntimeCall, SignedExtra, H160>; 
+pub type CheckedExtrinsic =
+	fp_self_contained::CheckedExtrinsic<AccountId, RuntimeCall, SignedExtra, H160>;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
 // Executive: handles dispatch to the various modules.

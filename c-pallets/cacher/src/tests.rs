@@ -2,7 +2,7 @@
 
 use super::*;
 use frame_support::{assert_noop, assert_ok};
-use mock::{new_test_ext, Cacher, Origin, Test};
+use mock::{new_test_ext, Cacher, RuntimeOrigin, Test};
 use sp_runtime::traits::Hash;
 use pallet_balances::Error as BalancesError;
 
@@ -41,15 +41,8 @@ fn update_works() {
 			byte_price: 200u32.into(),
 		};
 		// Wrong accout update fails.
-<<<<<<< HEAD
-<<<<<<< HEAD
+
 		assert_noop!(Cacher::update(RuntimeOrigin::signed(2), new_info.clone()), Error::<Test>::UnRegister);
-=======
-		assert_noop!(Cacher::update(Origin::signed(2), new_info.clone()), Error::<Test>::UnRegistered);
->>>>>>> main
-=======
-		assert_noop!(Cacher::update(RuntimeOrigin::signed(2), new_info.clone()), Error::<Test>::UnRegister);
->>>>>>> main
 		// Update works.
 		assert_ok!(Cacher::update(RuntimeOrigin::signed(1), new_info.clone()));
 
@@ -69,15 +62,8 @@ fn logout_works() {
 		assert_ok!(Cacher::register(RuntimeOrigin::signed(1), info.clone()));
 
 		// Wrong accout logout fails.
-<<<<<<< HEAD
-<<<<<<< HEAD
 		assert_noop!(Cacher::logout(RuntimeOrigin::signed(2)), Error::<Test>::UnRegister);
-=======
-		assert_noop!(Cacher::logout(Origin::signed(2)), Error::<Test>::UnRegistered);
->>>>>>> main
-=======
-		assert_noop!(Cacher::logout(RuntimeOrigin::signed(2)), Error::<Test>::UnRegister);
->>>>>>> main
+
 		// Logout works.
 		assert_ok!(Cacher::logout(RuntimeOrigin::signed(1)));
 	});
@@ -105,15 +91,7 @@ fn pay_works() {
 		let bills: BoundedVec<_, <Test as Config>::BillsLimit> = bill_vec.try_into().unwrap();
 
 		// Pay fails.
-<<<<<<< HEAD
-<<<<<<< HEAD
 		assert_noop!(Cacher::pay(RuntimeOrigin::signed(1), bills.clone()), Error::<Test>::InsufficientBalance);
-=======
-		assert_noop!(Cacher::pay(Origin::signed(1), bills.clone()), BalancesError::<Test>::InsufficientBalance);
->>>>>>> main
-=======
-		assert_noop!(Cacher::pay(RuntimeOrigin::signed(1), bills.clone()), Error::<Test>::InsufficientBalance);
->>>>>>> main
 
 		<Test as Config>::Currency::make_free_balance_be(&1, BalanceOf::<Test>::max_value());
 		let balance_befor_1 = <Test as Config>::Currency::free_balance(&1);

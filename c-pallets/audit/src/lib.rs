@@ -1130,9 +1130,9 @@ pub mod pallet {
 		}
 
 		fn offchain_work_start(now: BlockNumberOf<T>) -> Result<(), OffchainErr> {
-			log::info!("get loacl authority...");
+			log::info!("get local authority...");
 			let (authority_id, _validators_len) = Self::get_authority()?;
-			log::info!("get loacl authority success!");
+			log::info!("get local authority success!");
 			if !Self::check_working(&now, &authority_id) {
 				Self::unlock_offchain(&authority_id);
 				return Err(OffchainErr::Working);
