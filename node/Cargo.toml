@@ -26,88 +26,88 @@ log = "0.4.17"
 rand = "0.8"
 
 # primitives
-sp-authority-discovery = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-cessp-consensus-rrsc = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36"}
-grandpa-primitives = { version = "4.0.0-dev", package = "sp-finality-grandpa",  git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sp-api = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sp-core = { version = "7.0.0", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sp-runtime = { version = "7.0.0", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sp-timestamp = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sp-authorship = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sp-inherents = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sp-keyring = { version = "7.0.0", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sp-keystore = { version = "0.13.0", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sp-consensus = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sp-transaction-storage-proof = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+sp-authority-discovery = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+cessp-consensus-rrsc = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+grandpa-primitives = { version = "4.0.0-dev", package = "sp-consensus-grandpa",  git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sp-api = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sp-core = { version = "7.0.0", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sp-runtime = { version = "7.0.0", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sp-timestamp = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+# sp-authorship = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sp-inherents = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sp-keyring = { version = "7.0.0", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sp-keystore = { version = "0.13.0", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sp-consensus = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sp-transaction-storage-proof = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 
 # client dependencies
-sc-client-api = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sc-chain-spec = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sc-consensus = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sc-transaction-pool-api = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sc-network = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sc-network-common = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sc-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-cessc-consensus-rrsc = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sc-consensus-uncles = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-grandpa = { version = "0.10.0-dev", package = "sc-finality-grandpa", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sc-rpc = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sc-basic-authorship = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sc-service = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sc-telemetry = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sc-executor = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sc-authority-discovery = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-cessc-sync-state-rpc = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sc-sysinfo = { version = "6.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+sc-client-api = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sc-chain-spec = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sc-consensus = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sc-transaction-pool = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sc-transaction-pool-api = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sc-network = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sc-network-common = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sc-consensus-slots = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+cessc-consensus-rrsc = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+# sc-consensus-uncles = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+grandpa = { version = "0.10.0-dev", package = "sc-consensus-grandpa", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sc-rpc = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sc-basic-authorship = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sc-service = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sc-telemetry = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sc-executor = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sc-authority-discovery = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+cessc-sync-state-rpc = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sc-sysinfo = { version = "6.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 
 # frame dependencies
-frame-system = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-pallet-im-online = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+frame-system = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+pallet-im-online = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 
 # node-specific dependencies
 cess-node-runtime = { path = "../runtime" }
 
 # CLI-specific dependencies
-sc-cli = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-try-runtime-cli = { version = "0.10.0-dev", optional = true, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+sc-cli = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+frame-benchmarking-cli = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+try-runtime-cli = { version = "0.10.0-dev", optional = true, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 serde_json = "1.0.85"
 
 # Other
 
-frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-pallet-mmr-rpc = { version = "4.0.0-dev", package = "mmr-rpc", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-substrate-state-trie-migration-rpc = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-pallet-transaction-payment-rpc = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sc-keystore = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sc-rpc-api = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sp-block-builder = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-substrate-frame-rpc-system = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sc-rpc-spec-v2 = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+frame-benchmarking = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+pallet-mmr-rpc = { version = "4.0.0-dev", package = "mmr-rpc", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+substrate-state-trie-migration-rpc = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+pallet-transaction-payment-rpc = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sc-keystore = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sc-rpc-api = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sp-block-builder = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sp-blockchain = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+substrate-frame-rpc-system = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sc-rpc-spec-v2 = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 pallet-audit = { version = "0.7.0", default-features = false, path = "../c-pallets/audit" }
-sc-finality-grandpa-rpc = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-cessc-consensus-rrsc-rpc = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sc-consensus-epochs = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-pallet-contracts = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+sc-consensus-grandpa-rpc = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+cessc-consensus-rrsc-rpc = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sc-consensus-epochs = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+pallet-contracts = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 
 # Frontier
-fc-consensus = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
-fc-db = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
-fc-mapping-sync = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
-fc-rpc = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
-fc-rpc-core = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
-fp-consensus = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
-fp-dynamic-fee = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
-fp-evm = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
-fp-rpc = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
-fp-storage = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.36", default-features = false }
+fc-consensus = { git = "https://github.com/paritytech/frontier", branch = "polkadot-v0.9.42", default-features = false }
+fc-db = { git = "https://github.com/paritytech/frontier", branch = "polkadot-v0.9.42", default-features = false }
+fc-mapping-sync = { git = "https://github.com/paritytech/frontier", branch = "polkadot-v0.9.42", default-features = false }
+fc-rpc = { git = "https://github.com/paritytech/frontier", branch = "polkadot-v0.9.42", default-features = false }
+fc-rpc-core = { git = "https://github.com/paritytech/frontier", branch = "polkadot-v0.9.42", default-features = false }
+fp-consensus = { git = "https://github.com/paritytech/frontier", branch = "polkadot-v0.9.42", default-features = false }
+fp-dynamic-fee = { git = "https://github.com/paritytech/frontier", branch = "polkadot-v0.9.42", default-features = false }
+fp-evm = { git = "https://github.com/paritytech/frontier", branch = "polkadot-v0.9.42", default-features = false }
+fp-rpc = { git = "https://github.com/paritytech/frontier", branch = "polkadot-v0.9.42", default-features = false }
+fp-storage = { git = "https://github.com/paritytech/frontier", branch = "polkadot-v0.9.42", default-features = false }
 
 [build-dependencies]
-try-runtime-cli = { version = "0.10.0-dev", optional = true , git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+try-runtime-cli = { version = "0.10.0-dev", optional = true , git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+substrate-build-script-utils = { version = "3.0.0", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 
 [features]
 default = ["cli"]

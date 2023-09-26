@@ -11,12 +11,12 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-serde = { version = "1.0.101", optional = true }
+# serde = { version = "1.0.136", optional = true }
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive", "max-encoded-len"] }
 scale-info = { default-features = false, features = ['derive'], version = "2.0.1" }
 log = { version = "0.4.14", default-features = false }
 pallet-cess-staking = { path = '../staking', version = '4.0.0-dev', default-features = false }
-pallet-preimage = { version = "4.0.0-dev", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = "cess-polkadot-v0.9.36" }
+pallet-preimage = { version = "4.0.0-dev", default-features = false, git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42" }
 
 # local pallet
 cp-bloom-filter = { path = '../../primitives/bloom-filter', version = '0.1.0', default-features = false }
@@ -26,57 +26,57 @@ cp-enclave-verify = { path = '../../primitives/enclave-verify', version = '0.1.0
 
 [dependencies.frame-benchmarking]
 default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = "cess-polkadot-v0.9.36"
+git = 'https://github.com/CESSProject/substrate'
+branch = "cess-polkadot-v0.9.42"
 version = '4.0.0-dev'
 optional = true
 
 [dependencies.frame-support]
 default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = "cess-polkadot-v0.9.36"
+git = 'https://github.com/CESSProject/substrate'
+branch = "cess-polkadot-v0.9.42"
 version = '4.0.0-dev'
 
 [dependencies.frame-system]
 default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = "cess-polkadot-v0.9.36"
+git = 'https://github.com/CESSProject/substrate'
+branch = "cess-polkadot-v0.9.42"
 version = '4.0.0-dev'
 
 [dependencies.sp-io]
 default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = "cess-polkadot-v0.9.36"
+git = 'https://github.com/CESSProject/substrate'
+branch = "cess-polkadot-v0.9.42"
 version = '7.0.0'
 
 [dependencies.sp-std]
 default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = "cess-polkadot-v0.9.36"
+git = 'https://github.com/CESSProject/substrate'
+branch = "cess-polkadot-v0.9.42"
 version = '5.0.0'
 
 [dependencies.pallet-balances]
 default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = "cess-polkadot-v0.9.36"
+git = 'https://github.com/CESSProject/substrate'
+branch = "cess-polkadot-v0.9.42"
 version = '4.0.0-dev'
 
 [dependencies.sp-core]
 default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = "cess-polkadot-v0.9.36"
+git = 'https://github.com/CESSProject/substrate'
+branch = "cess-polkadot-v0.9.42"
 version = '7.0.0'
 
 [dev-dependencies.pallet-timestamp]
 default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = "cess-polkadot-v0.9.36"
+git = 'https://github.com/CESSProject/substrate'
+branch = "cess-polkadot-v0.9.42"
 version = '4.0.0-dev'
 
 [dependencies.sp-runtime]
 default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = "cess-polkadot-v0.9.36"
+git = 'https://github.com/CESSProject/substrate'
+branch = "cess-polkadot-v0.9.42"
 version = '7.0.0'
 
 # local dependencies
@@ -105,31 +105,31 @@ version = '0.7.0'
 
 [dev-dependencies.frame-support-test]
 default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = "cess-polkadot-v0.9.36"
+git = 'https://github.com/CESSProject/substrate'
+branch = "cess-polkadot-v0.9.42"
 version = '3.0.0'
 
 [dev-dependencies.pallet-balances]
 #default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = "cess-polkadot-v0.9.36"
+git = 'https://github.com/CESSProject/substrate'
+branch = "cess-polkadot-v0.9.42"
 version = '4.0.0-dev'
 
 [dev-dependencies.pallet-scheduler]
 #default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = "cess-polkadot-v0.9.36"
+git = 'https://github.com/CESSProject/substrate'
+branch = "cess-polkadot-v0.9.42"
 version = '4.0.0-dev'
 
 [dev-dependencies]
 pallet-cess-staking = { path = '../staking', version = '4.0.0-dev', default-features = false}
-sp-staking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sp-npos-elections = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-frame-election-provider-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+sp-staking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sp-npos-elections = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+frame-election-provider-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 pallet-session = { version = "4.0.0-dev", default-features = false, features = [
 	"historical",
-], git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-pallet-bags-list = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+], git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+pallet-bags-list = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 pallet-scheduler-credit = { version = "0.1.0", default-features = false, path = '../scheduler-credit'}
 cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
 pallet-oss = { path = '../oss', version = '0.7.0', default-features = false }
@@ -141,7 +141,6 @@ std = [
 	"frame-support/std",
 	"frame-system/std",
 	"scale-info/std",
-	"serde",
 	"sp-io/std",
 	"sp-runtime/std",
 	"sp-std/std",
