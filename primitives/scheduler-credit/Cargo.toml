@@ -11,7 +11,6 @@ scale-info = { version = "2.1.1", default-features = false, features = ["derive"
 sp-api = { version = "4.0.0-dev", default-features = false, git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42" }
 sp-core = { version = "7.0.0", default-features = false, git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42" }
 sp-std = { version = "5.0.0", default-features = false, git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42" }
-sp-application-crypto = { version = "7.0.0", default-features = false, git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42" }
 frame-support = {default-features = false, git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42", version = '4.0.0-dev'}
 
 [features]
@@ -22,6 +21,5 @@ std = [
     "sp-api/std",
     "sp-core/std",
     "sp-std/std",
-    "sp-application-crypto/std",
-	  "frame-support/std",
+	"frame-support/std",
 ]

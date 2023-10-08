@@ -29,7 +29,6 @@ sp-core = { version = "7.0.0", default-features = false, git = 'https://github.c
 # verify sgx signture
 webpki = { package = "webpki", path = '../../utils/webpki', default-features = false }
 base64 = { default-features = false, features = ["alloc"], version = "0.12.2" }
-sp-application-crypto = { version = '7.0.0', branch = 'cess-polkadot-v0.9.42', git = 'https://github.com/CESSProject/substrate', default-features = false }
 # 
 
 [dev-dependencies]
@@ -42,7 +41,6 @@ std = [
 	"codec/std",
 	"scale-info/std",
 	"sp-std/std",
-	"sp-application-crypto/std",
 	"sp-api/std",
 	"sp-core/std",
 	"frame-support/std",

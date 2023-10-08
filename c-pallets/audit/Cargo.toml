@@ -126,9 +126,7 @@ pallet-cess-staking = { path = '../staking', version = '4.0.0-dev', default-feat
 sp-staking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 sp-npos-elections = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 frame-election-provider-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
-pallet-session = { version = "4.0.0-dev", default-features = false, features = [
-	"historical",
-], git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+pallet-session = { version = "4.0.0-dev", default-features = false,  git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 pallet-bags-list = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 pallet-scheduler-credit = { version = "0.1.0", default-features = false, path = '../scheduler-credit'}
 cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }

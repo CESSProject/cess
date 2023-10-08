@@ -25,7 +25,6 @@ cp-enclave-verify = { path = '../../primitives/enclave-verify', version = '0.1.0
 pallet-oss = { path = '../oss', version = '0.7.0', default-features = false }
 pallet-rrsc = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 pallet-grandpa = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
-pallet-session = { version = "4.0.0-dev", default-features = false, features = ["historical"], git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
  # cessp-consensus-rrsc = { version = "0.10.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 
 # substrate pallet
@@ -106,9 +105,7 @@ pallet-timestamp = { git = 'https://github.com/CESSProject/substrate', branch = 
 sp-staking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 sp-npos-elections = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 frame-election-provider-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
-pallet-session = { version = "4.0.0-dev", default-features = false, features = [
-	"historical",
-], git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+pallet-session = { version = "4.0.0-dev", default-features = false,  git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 pallet-bags-list = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 pallet-scheduler-credit = { version = "0.1.0", default-features = false, path = '../scheduler-credit'}
 pallet-preimage = { version = "4.0.0-dev", default-features = false, git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42" }
