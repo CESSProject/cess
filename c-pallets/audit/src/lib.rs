@@ -59,46 +59,40 @@ pub mod benchmarking;
 pub mod weights;
 
 use sp_runtime::{
+	offchain::storage::{StorageRetrievalError, StorageValueRef},
 	traits::{CheckedAdd, SaturatedConversion},
-	RuntimeDebug, Permill,
-	offchain::storage::{StorageValueRef, StorageRetrievalError},
+	Permill, RuntimeDebug,
 };
 
-
 use codec::{Decode, Encode};
+use cp_bloom_filter::BloomFilter;
+use cp_cess_common::*;
+use cp_enclave_verify::verify_rsa;
+use cp_scheduler_credit::SchedulerCreditCounter;
 use frame_support::{
-	transactional,
 	dispatch::DispatchResult,
 	pallet_prelude::*,
 	storage::bounded_vec::BoundedVec,
 	traits::{
-		FindAuthor, Randomness, ReservableCurrency, EstimateNextSessionRotation,
-		ValidatorSetWithIdentification, ValidatorSet, OneSessionHandler, StorageVersion,
+		EstimateNextSessionRotation, FindAuthor, OneSessionHandler, Randomness, ReservableCurrency,
+		StorageVersion, ValidatorSet, ValidatorSetWithIdentification,
 	},
-	PalletId, WeakBoundedVec, BoundedSlice,
+	transactional, BoundedSlice, PalletId, WeakBoundedVec,
 };
-use sp_core::{
-	crypto::KeyTypeId,
-	offchain::OpaqueNetworkState,
-};
-use sp_runtime::{Saturating, app_crypto::RuntimeAppPublic};
 use frame_system::offchain::{CreateSignedTransaction, SubmitTransaction};
 use pallet_file_bank::RandomFileList;
-use pallet_tee_worker::TeeWorkerHandler;
 use pallet_sminer::MinerControl;
 use pallet_storage_handler::StorageHandle;
+use pallet_tee_worker::TeeWorkerHandler;
 use scale_info::TypeInfo;
-use sp_core::H256;
-use sp_std::{ 
-		convert:: { TryFrom, TryInto },
-		prelude::*,
-		collections::btree_map::BTreeMap,
-	};
-use cp_enclave_verify::verify_rsa;
-use cp_cess_common::*;
+use sp_core::{crypto::KeyTypeId, offchain::OpaqueNetworkState, H256};
+use sp_runtime::{app_crypto::RuntimeAppPublic, Saturating};
+use sp_std::{
+	collections::btree_map::BTreeMap,
+	convert::{TryFrom, TryInto},
+	prelude::*,
+};
 pub use weights::WeightInfo;
-use cp_bloom_filter::BloomFilter;
-use cp_scheduler_credit::SchedulerCreditCounter;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
@@ -152,8 +146,11 @@ impl sp_std::fmt::Debug for OffchainErr {
 pub mod pallet {
 	use super::*;
 	// use frame_benchmarking::baseline::Config;
-	use frame_support::{traits::Get};
-	use frame_system::{ensure_signed, pallet_prelude::{*, OriginFor}};
+	use frame_support::traits::Get;
+	use frame_system::{
+		ensure_signed,
+		pallet_prelude::{OriginFor, *},
+	};
 
 	///18446744073709551615
 	pub const LIMIT: u64 = u64::MAX;
@@ -246,7 +243,6 @@ pub mod pallet {
 		SubmitServiceVerifyResult { tee: AccountOf<T>, miner: AccountOf<T>, result: bool },
 
 		VerifyProof { tee_worker: AccountOf<T>, miner: AccountOf<T> },
-
 	}
 
 	/// Error for the audit pallet.
@@ -312,11 +308,13 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn keys)]
-	pub(super) type Keys<T: Config> = StorageValue<_, WeakBoundedVec<T::AuthorityId, T::SessionKeyMax>, ValueQuery>;
+	pub(super) type Keys<T: Config> =
+		StorageValue<_, WeakBoundedVec<T::AuthorityId, T::SessionKeyMax>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn challenge_proposal)]
-	pub(super) type ChallengeProposal<T: Config> = CountedStorageMap<_, Blake2_128Concat, [u8; 32], (u32, ChallengeInfo<T>)>;
+	pub(super) type ChallengeProposal<T: Config> =
+		CountedStorageMap<_, Blake2_128Concat, [u8; 32], (u32, ChallengeInfo<T>)>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn challenge_snap_shot)]
@@ -324,15 +322,18 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn counted_idle_failed)]
-	pub(super) type CountedIdleFailed<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, u32, ValueQuery>;
+	pub(super) type CountedIdleFailed<T: Config> =
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, u32, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn counted_service_failed)]
-	pub(super) type CountedServiceFailed<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, u32, ValueQuery>;
+	pub(super) type CountedServiceFailed<T: Config> =
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, u32, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn counted_clear)]
-	pub(super) type CountedClear<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, u8, ValueQuery>;
+	pub(super) type CountedClear<T: Config> =
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, u8, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn challenge_era)]
@@ -340,15 +341,28 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn unverify_idle_proof)]
-	pub(super) type UnverifyIdleProof<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<IdleProveInfo<T>, T::VerifyMissionMax>, ValueQuery>;
+	pub(super) type UnverifyIdleProof<T: Config> = StorageMap<
+		_,
+		Blake2_128Concat,
+		AccountOf<T>,
+		BoundedVec<IdleProveInfo<T>, T::VerifyMissionMax>,
+		ValueQuery,
+	>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn unverify_service_proof)]
-	pub(super) type UnverifyServiceProof<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<ServiceProveInfo<T>, T::VerifyMissionMax>, ValueQuery>;
+	pub(super) type UnverifyServiceProof<T: Config> = StorageMap<
+		_,
+		Blake2_128Concat,
+		AccountOf<T>,
+		BoundedVec<ServiceProveInfo<T>, T::VerifyMissionMax>,
+		ValueQuery,
+	>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn verify_result)]
-	pub(super) type VerifyResult<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, (Option<bool>, Option<bool>)>;
+	pub(super) type VerifyResult<T: Config> =
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, (Option<bool>, Option<bool>)>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn verify_reassign_count)]
@@ -390,8 +404,13 @@ pub mod pallet {
 							log::info!("offchain worker random challenge start");
 							if let Err(e) = Self::offchain_work_start(now) {
 								match e {
-									OffchainErr::Working => log::info!("offchain working, Unable to perform a new round of work."),
-									_ => log::info!("offchain worker generation challenge failed:{:?}", e),
+									OffchainErr::Working => log::info!(
+										"offchain working, Unable to perform a new round of work."
+									),
+									_ => log::info!(
+										"offchain worker generation challenge failed:{:?}",
+										e
+									),
 								};
 							}
 							log::info!("offchain worker random challenge end");
@@ -423,33 +442,44 @@ pub mod pallet {
 
 			let count: u32 = Keys::<T>::get().len() as u32;
 			let limit = count
-				.checked_mul(2).ok_or(Error::<T>::Overflow)?
-				.checked_div(3).ok_or(Error::<T>::Overflow)?;
+				.checked_mul(2)
+				.ok_or(Error::<T>::Overflow)?
+				.checked_div(3)
+				.ok_or(Error::<T>::Overflow)?;
 			let now = <frame_system::Pallet<T>>::block_number();
 
 			let cur_block = <VerifyDuration<T>>::get();
 
 			if now <= cur_block {
-				return Ok(());
-			}		
-			
+				return Ok(())
+			}
+
 			if ChallengeProposal::<T>::contains_key(&hash) {
 				let mut proposal = ChallengeProposal::<T>::get(&hash).unwrap();
 				proposal.0 += 1;
 				if proposal.0 >= limit {
-					let duration = now.checked_add(&proposal.1.net_snap_shot.life).ok_or(Error::<T>::Overflow)?;
+					let duration = now
+						.checked_add(&proposal.1.net_snap_shot.life)
+						.ok_or(Error::<T>::Overflow)?;
 					<ChallengeDuration<T>>::put(duration);
 					let idle_duration = duration;
 					let one_hour = T::OneHours::get();
 					let tee_length = T::TeeWorkerHandler::get_controller_list().len();
-					let duration: u32 = (proposal.1.net_snap_shot.total_idle_space
-						.checked_add(proposal.1.net_snap_shot.total_service_space).ok_or(Error::<T>::Overflow)?
-						.checked_div(IDLE_VERIFY_RATE).ok_or(Error::<T>::Overflow)?
-						.checked_div(tee_length as u128).ok_or(Error::<T>::Overflow)?
-					) as u32;
+					let duration: u32 = (proposal
+						.1
+						.net_snap_shot
+						.total_idle_space
+						.checked_add(proposal.1.net_snap_shot.total_service_space)
+						.ok_or(Error::<T>::Overflow)?
+						.checked_div(IDLE_VERIFY_RATE)
+						.ok_or(Error::<T>::Overflow)?
+						.checked_div(tee_length as u128)
+						.ok_or(Error::<T>::Overflow)?) as u32;
 					let v_duration = idle_duration
-						.checked_add(&duration.saturated_into()).ok_or(Error::<T>::Overflow)?
-						.checked_add(&one_hour).ok_or(Error::<T>::Overflow)?;
+						.checked_add(&duration.saturated_into())
+						.ok_or(Error::<T>::Overflow)?
+						.checked_add(&one_hour)
+						.ok_or(Error::<T>::Overflow)?;
 					<VerifyDuration<T>>::put(v_duration);
 					<ChallengeSnapShot<T>>::put(proposal.1);
 					let _ = ChallengeProposal::<T>::clear(ChallengeProposal::<T>::count(), None);
@@ -462,10 +492,7 @@ pub mod pallet {
 					// Proposal Generally Less
 					let _ = ChallengeProposal::<T>::clear(ChallengeProposal::<T>::count(), None);
 				} else {
-					ChallengeProposal::<T>::insert(
-						&hash,
-						(1, challenge_info),
-					);
+					ChallengeProposal::<T>::insert(&hash, (1, challenge_info));
 				}
 			}
 
@@ -512,10 +539,7 @@ pub mod pallet {
 			let index: u32 = index % (tee_list.len() as u32);
 			let tee_acc = &tee_list[index as usize];
 
-			let prove_info = IdleProveInfo::<T> {
-				snap_shot: miner_snapshot,
-				idle_prove,
-			};
+			let prove_info = IdleProveInfo::<T> { snap_shot: miner_snapshot, idle_prove };
 
 			UnverifyIdleProof::<T>::mutate(tee_acc, |unverify_list| -> DispatchResult {
 				unverify_list.try_push(prove_info).map_err(|_| Error::<T>::Overflow)?;
@@ -552,7 +576,6 @@ pub mod pallet {
 							<CountedClear<T>>::insert(&sender, u8::MIN);
 							challenge_info.miner_snapshot_list.remove(index);
 						}
-						
 						return Ok(temp_miner_snap);
 					}
 				}
@@ -568,10 +591,7 @@ pub mod pallet {
 			let index: u32 = index % (tee_list.len() as u32);
 			let tee_acc = &tee_list[index as usize];
 
-			let prove_info = ServiceProveInfo::<T> {
-				snap_shot: miner_snapshot,
-				service_prove,
-			};
+			let prove_info = ServiceProveInfo::<T> { snap_shot: miner_snapshot, service_prove };
 
 			UnverifyServiceProof::<T>::mutate(tee_acc, |unverify_list| -> DispatchResult {
 				unverify_list.try_push(prove_info).map_err(|_| Error::<T>::Overflow)?;
@@ -602,9 +622,10 @@ pub mod pallet {
 			<UnverifyIdleProof<T>>::try_mutate(&tee_acc, |unverify_list| -> DispatchResult {
 				for (index, miner_info) in unverify_list.iter().enumerate() {
 					if &miner_info.snap_shot.miner == &sender {
-						let snap_shot = <ChallengeSnapShot<T>>::try_get().map_err(|_| Error::<T>::UnexpectedError)?;
+						let snap_shot = <ChallengeSnapShot<T>>::try_get()
+							.map_err(|_| Error::<T>::UnexpectedError)?;
 
-						let verify_idle_result = VerifyIdleResultInfo::<T>{
+						let verify_idle_result = VerifyIdleResultInfo::<T> {
 							miner: sender.clone(),
 							miner_prove: total_prove_hash.clone(),
 							front: miner_info.snap_shot.space_proof_info.front,
@@ -618,12 +639,25 @@ pub mod pallet {
 						let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
 						let encoding = verify_idle_result.encode();
 						let hashing = sp_io::hashing::sha2_256(&encoding);
-						ensure!(verify_rsa(&tee_puk, &hashing, &signature), Error::<T>::VerifyTeeSigFailed);
+						ensure!(
+							verify_rsa(&tee_puk, &hashing, &signature),
+							Error::<T>::VerifyTeeSigFailed
+						);
 
-						let idle_result = Self::check_idle_verify_param(idle_result, front, rear, &total_prove_hash, &accumulator, &miner_info);
+						let idle_result = Self::check_idle_verify_param(
+							idle_result,
+							front,
+							rear,
+							&total_prove_hash,
+							&accumulator,
+							&miner_info,
+						);
 
-						if let Ok((_, service_result_opt)) = <VerifyResult<T>>::try_get(&sender).map_err(|_| Error::<T>::UnexpectedError) {
-							let service_result = service_result_opt.ok_or(Error::<T>::UnexpectedError)?;
+						if let Ok((_, service_result_opt)) = <VerifyResult<T>>::try_get(&sender)
+							.map_err(|_| Error::<T>::UnexpectedError)
+						{
+							let service_result =
+								service_result_opt.ok_or(Error::<T>::UnexpectedError)?;
 							if idle_result && service_result {
 								T::MinerControl::calculate_miner_reward(
 									&sender,
@@ -646,19 +680,33 @@ pub mod pallet {
 						if idle_result {
 							<CountedIdleFailed<T>>::insert(&sender, u32::MIN);
 						} else {
-							let count = <CountedIdleFailed<T>>::get(&sender).checked_add(1).unwrap_or(IDLE_FAULT_TOLERANT as u32);
+							let count = <CountedIdleFailed<T>>::get(&sender)
+								.checked_add(1)
+								.unwrap_or(IDLE_FAULT_TOLERANT as u32);
 							if count >= IDLE_FAULT_TOLERANT as u32 {
-								T::MinerControl::idle_punish(&sender, miner_info.snap_shot.idle_space, miner_info.snap_shot.service_space)?;
+								T::MinerControl::idle_punish(
+									&sender,
+									miner_info.snap_shot.idle_space,
+									miner_info.snap_shot.service_space,
+								)?;
 							}
 							<CountedIdleFailed<T>>::insert(&sender, count);
 						}
 
-						let count = miner_info.snap_shot.space_proof_info.rear
-							.checked_sub(miner_info.snap_shot.space_proof_info.front).ok_or(Error::<T>::Overflow)?;
+						let count = miner_info
+							.snap_shot
+							.space_proof_info
+							.rear
+							.checked_sub(miner_info.snap_shot.space_proof_info.front)
+							.ok_or(Error::<T>::Overflow)?;
 						T::CreditCounter::record_proceed_block_size(&tee_acc, count)?;
 						unverify_list.remove(index);
 
-						Self::deposit_event(Event::<T>::SubmitIdleVerifyResult { tee: tee_acc.clone(), miner: sender, result: idle_result });
+						Self::deposit_event(Event::<T>::SubmitIdleVerifyResult {
+							tee: tee_acc.clone(),
+							miner: sender,
+							result: idle_result,
+						});
 
 						return Ok(())
 					}
@@ -683,32 +731,38 @@ pub mod pallet {
 			<UnverifyServiceProof<T>>::try_mutate(&tee_acc, |unverify_list| -> DispatchResult {
 				for (index, miner_info) in unverify_list.iter().enumerate() {
 					if &miner_info.snap_shot.miner == &sender {
-						let snap_shot = <ChallengeSnapShot<T>>::try_get().map_err(|_| Error::<T>::UnexpectedError)?;
+						let snap_shot = <ChallengeSnapShot<T>>::try_get()
+							.map_err(|_| Error::<T>::UnexpectedError)?;
 
-						let verify_service_result = VerifyServiceResultInfo::<T>{
+						let verify_service_result = VerifyServiceResultInfo::<T> {
 							miner: sender.clone(),
 							tee_acc: tee_acc.clone(),
 							miner_prove: miner_info.service_prove.clone(),
 							result: service_result,
-							chal: QElement { 
+							chal: QElement {
 								random_index_list: snap_shot.net_snap_shot.random_index_list,
 								random_list: snap_shot.net_snap_shot.random_list,
 							},
-							service_bloom_filter: service_bloom_filter,
+							service_bloom_filter,
 						};
 
 						let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
 						let encoding = verify_service_result.encode();
 						let hashing = sp_io::hashing::sha2_256(&encoding);
-						ensure!(verify_rsa(&tee_puk, &hashing, &signature), Error::<T>::VerifyTeeSigFailed);
+						ensure!(
+							verify_rsa(&tee_puk, &hashing, &signature),
+							Error::<T>::VerifyTeeSigFailed
+						);
 
 						ensure!(
 							service_bloom_filter == miner_info.snap_shot.service_bloom_filter,
 							Error::<T>::BloomFilterError,
-						); 
+						);
 
 						// Determine whether both proofs have been verified.
-						if let Ok((idle_result_opt, _)) = <VerifyResult<T>>::try_get(&sender).map_err(|_| Error::<T>::UnexpectedError) {
+						if let Ok((idle_result_opt, _)) = <VerifyResult<T>>::try_get(&sender)
+							.map_err(|_| Error::<T>::UnexpectedError)
+						{
 							let idle_result = idle_result_opt.ok_or(Error::<T>::UnexpectedError)?;
 							// Determine whether to distribute rewards to miners.
 							if idle_result && service_result {
@@ -732,20 +786,34 @@ pub mod pallet {
 						if service_result {
 							<CountedIdleFailed<T>>::insert(&sender, u32::MIN);
 						} else {
-							let count = <CountedServiceFailed<T>>::get(&sender).checked_add(1).unwrap_or(SERVICE_FAULT_TOLERANT.into());
+							let count = <CountedServiceFailed<T>>::get(&sender)
+								.checked_add(1)
+								.unwrap_or(SERVICE_FAULT_TOLERANT.into());
 							if count >= SERVICE_FAULT_TOLERANT as u32 {
-								T::MinerControl::service_punish(&sender, miner_info.snap_shot.idle_space, miner_info.snap_shot.service_space)?;
+								T::MinerControl::service_punish(
+									&sender,
+									miner_info.snap_shot.idle_space,
+									miner_info.snap_shot.service_space,
+								)?;
 							}
 							<CountedServiceFailed<T>>::insert(&sender, count);
 						}
 
-						let count = miner_info.snap_shot.service_space
-							.checked_div(IDLE_SEG_SIZE).ok_or(Error::<T>::Overflow)?
-							.checked_add(1).ok_or(Error::<T>::Overflow)?;
+						let count = miner_info
+							.snap_shot
+							.service_space
+							.checked_div(IDLE_SEG_SIZE)
+							.ok_or(Error::<T>::Overflow)?
+							.checked_add(1)
+							.ok_or(Error::<T>::Overflow)?;
 						T::CreditCounter::record_proceed_block_size(&tee_acc, count as u64)?;
 						unverify_list.remove(index);
 
-						Self::deposit_event(Event::<T>::SubmitServiceVerifyResult { tee: tee_acc.clone(), miner: sender, result: service_result });
+						Self::deposit_event(Event::<T>::SubmitServiceVerifyResult {
+							tee: tee_acc.clone(),
+							miner: sender,
+							result: service_result,
+						});
 
 						return Ok(())
 					}
@@ -761,16 +829,18 @@ pub mod pallet {
 		pub fn update_lock(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
-			Lock::<T>::mutate(|lock| *lock = !*lock );
+			Lock::<T>::mutate(|lock| *lock = !*lock);
 
 			Ok(())
-
 		}
 		// FOR TESTING
 		#[pallet::call_index(6)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
-		pub fn update_verify_duration(origin: OriginFor<T>, new: BlockNumberOf<T>) -> DispatchResult {
+		pub fn update_verify_duration(
+			origin: OriginFor<T>,
+			new: BlockNumberOf<T>,
+		) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
 			<VerifyDuration<T>>::put(new);
@@ -784,10 +854,7 @@ pub mod pallet {
 		pub fn update_counted_clear(origin: OriginFor<T>, miner: AccountOf<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
-			<CountedClear<T>>::insert(
-				&miner, 
-				0,
-			);
+			<CountedClear<T>>::insert(&miner, 0);
 
 			Ok(())
 		}
@@ -795,7 +862,10 @@ pub mod pallet {
 		#[pallet::call_index(8)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
-		pub fn update_challenge_duration(origin: OriginFor<T>, new: BlockNumberOf<T>) -> DispatchResult {
+		pub fn update_challenge_duration(
+			origin: OriginFor<T>,
+			new: BlockNumberOf<T>,
+		) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
 			<ChallengeDuration<T>>::put(new);
@@ -820,12 +890,9 @@ pub mod pallet {
 		type Call = Call<T>;
 
 		fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
-			if let Call::save_challenge_info {
-				challenge_info: _,
-				key,
-				seg_digest,
-				signature,			
-			} = call {
+			if let Call::save_challenge_info { challenge_info: _, key, seg_digest, signature } =
+				call
+			{
 				Self::check_unsign(key.clone(), &seg_digest, &signature)
 			} else {
 				InvalidTransaction::Call.into()
@@ -846,14 +913,15 @@ pub mod pallet {
 				weight = weight.saturating_add(T::DbWeight::get().reads(1));
 				for miner_snapshot in snap_shot.miner_snapshot_list.iter() {
 					// unwrap_or(3) 3 Need to match the maximum number of consecutive penalties.
-					let count = <CountedClear<T>>::get(&miner_snapshot.miner).checked_add(1).unwrap_or(6);
+					let count =
+						<CountedClear<T>>::get(&miner_snapshot.miner).checked_add(1).unwrap_or(6);
 					weight = weight.saturating_add(T::DbWeight::get().reads(1));
 
 					let _ = T::MinerControl::clear_punish(
-						&miner_snapshot.miner, 
-						count, 
-						miner_snapshot.idle_space, 
-						miner_snapshot.service_space
+						&miner_snapshot.miner,
+						count,
+						miner_snapshot.idle_space,
+						miner_snapshot.service_space,
 					);
 					weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 					//For Testing
@@ -864,10 +932,7 @@ pub mod pallet {
 						}
 						<CountedClear<T>>::remove(&miner_snapshot.miner);
 					} else {
-						<CountedClear<T>>::insert(
-							&miner_snapshot.miner, 
-							count,
-						);
+						<CountedClear<T>>::insert(&miner_snapshot.miner, count);
 					}
 				}
 
@@ -906,7 +971,7 @@ pub mod pallet {
 						<VerifyResult<T>>::remove(miner);
 						weight = weight.saturating_add(T::DbWeight::get().writes(1));
 					}
-					return weight;
+					return weight
 				} else {
 					reassign_count = reassign_count.checked_add(1).unwrap_or(ceiling);
 					<VerifyReassignCount<T>>::put(reassign_count);
@@ -917,7 +982,10 @@ pub mod pallet {
 				let mut mission_count: u32 = 0;
 				let mut max_count = 0;
 				let tee_list = T::TeeWorkerHandler::get_controller_list();
-				let mut reassign_list: BTreeMap<AccountOf<T>, BoundedVec<IdleProveInfo<T>, T::VerifyMissionMax>> = Default::default();
+				let mut reassign_list: BTreeMap<
+					AccountOf<T>,
+					BoundedVec<IdleProveInfo<T>, T::VerifyMissionMax>,
+				> = Default::default();
 
 				for (acc, unverify_list) in UnverifyIdleProof::<T>::iter() {
 					seed += 1;
@@ -940,10 +1008,11 @@ pub mod pallet {
 							let result = value.try_append(&mut unverify_list.to_vec());
 
 							if result.is_err() {
-								let new_block: BlockNumberOf<T> = now.saturating_add(10u32.saturated_into());
+								let new_block: BlockNumberOf<T> =
+									now.saturating_add(10u32.saturated_into());
 								<VerifyDuration<T>>::put(new_block);
 								weight = weight.saturating_add(T::DbWeight::get().writes(1));
-								return weight;
+								return weight
 							}
 						} else {
 							reassign_list.insert(tee_acc.clone(), unverify_list);
@@ -958,17 +1027,23 @@ pub mod pallet {
 				if mission_count != 0 {
 					max_count = mission_count;
 					for (acc, unverify_list) in reassign_list {
-						let result = UnverifyIdleProof::<T>::mutate(acc, |tar_unverify_list| -> DispatchResult {
-							tar_unverify_list.try_append(&mut unverify_list.to_vec()).map_err(|_| Error::<T>::Overflow)?;
-							// tar_unverify_list.try_push(mission)
-							Ok(())
-						});
+						let result = UnverifyIdleProof::<T>::mutate(
+							acc,
+							|tar_unverify_list| -> DispatchResult {
+								tar_unverify_list
+									.try_append(&mut unverify_list.to_vec())
+									.map_err(|_| Error::<T>::Overflow)?;
+								// tar_unverify_list.try_push(mission)
+								Ok(())
+							},
+						);
 
 						if result.is_err() {
-							let new_block: BlockNumberOf<T> = now.saturating_add(5u32.saturated_into());
+							let new_block: BlockNumberOf<T> =
+								now.saturating_add(5u32.saturated_into());
 							<VerifyDuration<T>>::put(new_block);
 							weight = weight.saturating_add(T::DbWeight::get().writes(1));
-							return weight;
+							return weight
 						}
 
 						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
@@ -976,7 +1051,10 @@ pub mod pallet {
 				}
 
 				let mut mission_count: u32 = 0;
-				let mut reassign_list: BTreeMap<AccountOf<T>, BoundedVec<ServiceProveInfo<T>, T::VerifyMissionMax>> = Default::default();
+				let mut reassign_list: BTreeMap<
+					AccountOf<T>,
+					BoundedVec<ServiceProveInfo<T>, T::VerifyMissionMax>,
+				> = Default::default();
 
 				for (acc, unverify_list) in UnverifyServiceProof::<T>::iter() {
 					seed += 1;
@@ -999,10 +1077,11 @@ pub mod pallet {
 							let result = value.try_append(&mut unverify_list.to_vec());
 
 							if result.is_err() {
-								let new_block: BlockNumberOf<T> = now.saturating_add(10u32.saturated_into());
+								let new_block: BlockNumberOf<T> =
+									now.saturating_add(10u32.saturated_into());
 								<VerifyDuration<T>>::put(new_block);
 								weight = weight.saturating_add(T::DbWeight::get().writes(1));
-								return weight;
+								return weight
 							}
 						} else {
 							reassign_list.insert(tee_acc.clone(), unverify_list);
@@ -1017,17 +1096,23 @@ pub mod pallet {
 				if mission_count != 0 {
 					max_count = mission_count;
 					for (acc, unverify_list) in reassign_list {
-						let result = UnverifyServiceProof::<T>::mutate(acc, |tar_unverify_list| -> DispatchResult {
-							tar_unverify_list.try_append(&mut unverify_list.to_vec()).map_err(|_| Error::<T>::Overflow)?;
-							// tar_unverify_list.try_push(mission)
-							Ok(())
-						});
+						let result = UnverifyServiceProof::<T>::mutate(
+							acc,
+							|tar_unverify_list| -> DispatchResult {
+								tar_unverify_list
+									.try_append(&mut unverify_list.to_vec())
+									.map_err(|_| Error::<T>::Overflow)?;
+								// tar_unverify_list.try_push(mission)
+								Ok(())
+							},
+						);
 
 						if result.is_err() {
-							let new_block: BlockNumberOf<T> = now.saturating_add(5u32.saturated_into());
+							let new_block: BlockNumberOf<T> =
+								now.saturating_add(5u32.saturated_into());
 							<VerifyDuration<T>>::put(new_block);
 							weight = weight.saturating_add(T::DbWeight::get().writes(1));
-							return weight;
+							return weight
 						}
 
 						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
@@ -1045,7 +1130,8 @@ pub mod pallet {
 					}
 				} else {
 					let new_block = max_count.checked_mul(50u32).unwrap_or(u32::MAX.into());
-					let new_block = now.checked_add(&new_block.saturated_into()).unwrap_or(u32::MAX.into());
+					let new_block =
+						now.checked_add(&new_block.saturated_into()).unwrap_or(u32::MAX.into());
 					<VerifyDuration<T>>::put(new_block);
 				}
 			}
@@ -1062,12 +1148,11 @@ pub mod pallet {
 			let keys = Keys::<T>::get();
 
 			if !keys.contains(&key) {
-				return InvalidTransaction::Stale.into();
-			} 
+				return InvalidTransaction::Stale.into()
+			}
 
-			let signature_valid = seg_digest.using_encoded(|encoded_seg_digest| {
-				key.verify(&encoded_seg_digest, &signature)
-			});
+			let signature_valid = seg_digest
+				.using_encoded(|encoded_seg_digest| key.verify(&encoded_seg_digest, &signature));
 
 			if !signature_valid {
 				log::error!("bad signature.");
@@ -1118,13 +1203,14 @@ pub mod pallet {
 			let range = LIMIT / probability as u64 * 10;
 			if (time_point > 2190502) && (time_point < (range + 2190502)) {
 				if let (Some(progress), _) =
-				T::NextSessionRotation::estimate_current_session_progress(now) {
+					T::NextSessionRotation::estimate_current_session_progress(now)
+				{
 					if progress >= START_FINAL_PERIOD {
 						log::error!("TooLate!");
-						return false;
+						return false
 					}
 				}
-				return true;
+				return true
 			}
 			false
 		}
@@ -1135,7 +1221,7 @@ pub mod pallet {
 			log::info!("get local authority success!");
 			if !Self::check_working(&now, &authority_id) {
 				Self::unlock_offchain(&authority_id);
-				return Err(OffchainErr::Working);
+				return Err(OffchainErr::Working)
 			}
 			log::info!("get challenge data...");
 			let challenge_info = Self::generation_challenge(now).map_err(|e| {
@@ -1156,23 +1242,30 @@ pub mod pallet {
 			let key = &authority_id.encode();
 			let storage = StorageValueRef::persistent(key);
 
-			let res = storage.mutate(|status: Result<Option<BlockNumberOf<T>>, StorageRetrievalError>| {
-				match status {
-					// we are still waiting for inclusion.
-					Ok(Some(last_block)) => {
-						let lock_time = T::LockTime::get();
-						// Based on human time, there is no possibility of overflow here
-						if last_block + lock_time > *now {
-							log::info!("last_block: {:?}, lock_time: {:?}, now: {:?}", last_block, lock_time, now);
-							Err(OffchainErr::Working)
-						} else {
-							Ok(*now)
-						}
-					},
-					// attempt to set new status
-					_ => Ok(*now),
-				}
-			});
+			let res = storage.mutate(
+				|status: Result<Option<BlockNumberOf<T>>, StorageRetrievalError>| {
+					match status {
+						// we are still waiting for inclusion.
+						Ok(Some(last_block)) => {
+							let lock_time = T::LockTime::get();
+							// Based on human time, there is no possibility of overflow here
+							if last_block + lock_time > *now {
+								log::info!(
+									"last_block: {:?}, lock_time: {:?}, now: {:?}",
+									last_block,
+									lock_time,
+									now
+								);
+								Err(OffchainErr::Working)
+							} else {
+								Ok(*now)
+							}
+						},
+						// attempt to set new status
+						_ => Ok(*now),
+					}
+				},
+			);
 
 			if res.is_err() {
 				log::error!("offchain work: {:?}", OffchainErr::Working);
@@ -1196,7 +1289,7 @@ pub mod pallet {
 
 			if local_keys.len() == 0 {
 				log::info!("no local_keys");
-				return Err(OffchainErr::Ineligible);
+				return Err(OffchainErr::Ineligible)
 			}
 
 			local_keys.sort();
@@ -1210,18 +1303,17 @@ pub mod pallet {
 				};
 
 				if let Some(authority_id) = authority_id {
-					return Ok((authority_id.clone(), validators.len()));
+					return Ok((authority_id.clone(), validators.len()))
 				}
 			}
 
 			Err(OffchainErr::Ineligible)
 		}
 
-		fn generation_challenge(now: BlockNumberOf<T>) 
-			-> Result<ChallengeInfo<T>, OffchainErr> 
-		{
+		fn generation_challenge(now: BlockNumberOf<T>) -> Result<ChallengeInfo<T>, OffchainErr> {
 			// let miner_count = T::MinerControl::get_miner_count();
-			let allminer = T::MinerControl::get_all_miner().map_err(|_| OffchainErr::GenerateInfoError)?;
+			let allminer =
+				T::MinerControl::get_all_miner().map_err(|_| OffchainErr::GenerateInfoError)?;
 			let miner_count = allminer.len() as u32;
 			if miner_count == 0 {
 				Err(OffchainErr::GenerateInfoError)?;
@@ -1231,7 +1323,10 @@ pub mod pallet {
 			let need_miner_count = miner_count;
 			// let need_miner_count = miner_count / 10 + 1;
 
-			let mut miner_list: BoundedVec<MinerSnapShot<AccountOf<T>, BlockNumberOf<T>>, T::ChallengeMinerMax> = Default::default();
+			let mut miner_list: BoundedVec<
+				MinerSnapShot<AccountOf<T>, BlockNumberOf<T>>,
+				T::ChallengeMinerMax,
+			> = Default::default();
 
 			let mut valid_index_list: Vec<u32> = Default::default();
 
@@ -1242,44 +1337,67 @@ pub mod pallet {
 
 			// TODO: need to set a maximum number of cycles
 			let mut seed: u32 = 20230601;
-			while ((miner_list.len() as u32) < need_miner_count) && (valid_index_list.len() as u32 != miner_count) {
-				seed = seed.saturating_add(1); 
-				let index_list = Self::random_select_miner(need_miner_count, miner_count, &valid_index_list, seed);
+			while ((miner_list.len() as u32) < need_miner_count) &&
+				(valid_index_list.len() as u32 != miner_count)
+			{
+				seed = seed.saturating_add(1);
+				let index_list = Self::random_select_miner(
+					need_miner_count,
+					miner_count,
+					&valid_index_list,
+					seed,
+				);
 
 				for index in index_list {
 					valid_index_list.push(index);
 					let miner = allminer[index as usize].clone();
-					let state = T::MinerControl::get_miner_state(&miner).map_err(|_| OffchainErr::GenerateInfoError)?;
-					if state == "lock".as_bytes().to_vec() || state == "offline".as_bytes().to_vec() || state == "exit".as_bytes().to_vec() {
-						continue;
+					let state = T::MinerControl::get_miner_state(&miner)
+						.map_err(|_| OffchainErr::GenerateInfoError)?;
+					if state == "lock".as_bytes().to_vec() ||
+						state == "offline".as_bytes().to_vec() ||
+						state == "exit".as_bytes().to_vec()
+					{
+						continue
 					}
 
-					let (idle_space, service_space, service_bloom_filter, space_proof_info, tee_signature) = T::MinerControl::get_miner_snapshot(&miner).map_err(|_| OffchainErr::GenerateInfoError)?;
+					let (
+						idle_space,
+						service_space,
+						service_bloom_filter,
+						space_proof_info,
+						tee_signature,
+					) = T::MinerControl::get_miner_snapshot(&miner)
+						.map_err(|_| OffchainErr::GenerateInfoError)?;
 
 					if (idle_space == 0) && (service_space == 0) {
-						continue;
+						continue
 					}
 
 					let idle_life: u32 = (idle_space
-						.checked_div(IDLE_PROVE_RATE).ok_or(OffchainErr::Overflow)?
-						.checked_add(50).ok_or(OffchainErr::Overflow)?
-					) as u32;
+						.checked_div(IDLE_PROVE_RATE)
+						.ok_or(OffchainErr::Overflow)?
+						.checked_add(50)
+						.ok_or(OffchainErr::Overflow)?) as u32;
 
 					if idle_life > max_life {
 						max_life = idle_life;
 					}
 
 					let service_life: u32 = (service_space
-						.checked_div(SERVICE_PROVE_RATE).ok_or(OffchainErr::Overflow)?
-						.checked_add(50).ok_or(OffchainErr::Overflow)?
-					) as u32;
+						.checked_div(SERVICE_PROVE_RATE)
+						.ok_or(OffchainErr::Overflow)?
+						.checked_add(50)
+						.ok_or(OffchainErr::Overflow)?) as u32;
 
 					if service_life > max_life {
 						max_life = service_life;
 					}
 
-					total_idle_space = total_idle_space.checked_add(idle_space).ok_or(OffchainErr::Overflow)?;
-					total_service_space = total_service_space.checked_add(service_space).ok_or(OffchainErr::Overflow)?;
+					total_idle_space =
+						total_idle_space.checked_add(idle_space).ok_or(OffchainErr::Overflow)?;
+					total_service_space = total_service_space
+						.checked_add(service_space)
+						.ok_or(OffchainErr::Overflow)?;
 
 					let miner_snapshot = MinerSnapShot::<AccountOf<T>, BlockNumberOf<T>> {
 						miner,
@@ -1295,11 +1413,11 @@ pub mod pallet {
 					};
 
 					if let Err(_e) = miner_list.try_push(miner_snapshot) {
-						return Err(OffchainErr::GenerateInfoError)?;
+						return Err(OffchainErr::GenerateInfoError)?
 					};
 
 					if (miner_list.len() as u32) >= need_miner_count {
-						break;
+						break
 					}
 				}
 			}
@@ -1327,55 +1445,70 @@ pub mod pallet {
 			}
 
 			// generate idle challenge param
-			let (_, n, d) = T::MinerControl::get_expenders().map_err(|_| OffchainErr::GenerateInfoError)?;
+			let (_, n, d) =
+				T::MinerControl::get_expenders().map_err(|_| OffchainErr::GenerateInfoError)?;
 			let mut space_challenge_param: SpaceChallengeParam = Default::default();
 			let mut repeat_filter: Vec<u64> = Default::default();
 			let mut seed_multi: u32 = 10000;
 			let mut seed: u32 = 1;
 			for elem in &mut space_challenge_param {
 				loop {
-					let random = Self::random_number(seed.checked_add(seed_multi).ok_or(OffchainErr::Overflow)?) % n;
+					let random = Self::random_number(
+						seed.checked_add(seed_multi).ok_or(OffchainErr::Overflow)?,
+					) % n;
 					let random = n
-						.checked_mul(d).ok_or(OffchainErr::Overflow)?
-						.checked_add(random).ok_or(OffchainErr::Overflow)?;
+						.checked_mul(d)
+						.ok_or(OffchainErr::Overflow)?
+						.checked_add(random)
+						.ok_or(OffchainErr::Overflow)?;
 					if repeat_filter.contains(&random) {
-						continue;
+						continue
 					}
 					repeat_filter.push(random);
 					*elem = random;
 					seed = seed.checked_add(1).ok_or(OffchainErr::Overflow)?;
-					break;
+					break
 				}
 				seed_multi = seed_multi.checked_add(10000).ok_or(OffchainErr::Overflow)?;
 			}
 
 			let total_reward: u128 = T::MinerControl::get_reward() / 6;
-			let snap_shot = NetSnapShot::<BlockNumberOf<T>>{
+			let snap_shot = NetSnapShot::<BlockNumberOf<T>> {
 				start: now,
 				life: max_life.into(),
 				total_reward,
 				total_idle_space,
 				total_service_space,
-				random_index_list: random_index_list.try_into().map_err(|_| OffchainErr::GenerateInfoError)?,
+				random_index_list: random_index_list
+					.try_into()
+					.map_err(|_| OffchainErr::GenerateInfoError)?,
 				random_list: random_list.try_into().map_err(|_| OffchainErr::GenerateInfoError)?,
 				space_challenge_param,
 			};
 
-			Ok( ChallengeInfo::<T>{ net_snap_shot: snap_shot, miner_snapshot_list: miner_list } )
+			Ok(ChallengeInfo::<T> { net_snap_shot: snap_shot, miner_snapshot_list: miner_list })
 		}
 
 		// Ensure that the length is not 0
-		fn random_select_miner(need: u32, length: u32, valid_index_list: &Vec<u32>, seed: u32) -> Vec<u32> {
+		fn random_select_miner(
+			need: u32,
+			length: u32,
+			valid_index_list: &Vec<u32>,
+			seed: u32,
+		) -> Vec<u32> {
 			let mut miner_index_list: Vec<u32> = Default::default();
 			let mut seed: u32 = seed.saturating_mul(5000);
-			// In theory, unless the number of registered miners reaches 400 million, there is no possibility of overflow.
-			while (miner_index_list.len() as u32) < need && ((valid_index_list.len() + miner_index_list.len()) as u32 != length) {
+			// In theory, unless the number of registered miners reaches 400 million, there is no
+			// possibility of overflow.
+			while (miner_index_list.len() as u32) < need &&
+				((valid_index_list.len() + miner_index_list.len()) as u32 != length)
+			{
 				seed += 1;
 				let index = Self::random_number(seed);
 				let index: u32 = (index % length as u64) as u32;
 
 				if valid_index_list.contains(&index) {
-					continue;
+					continue
 				}
 
 				if !miner_index_list.contains(&index) {
@@ -1391,21 +1524,20 @@ pub mod pallet {
 			authority_id: T::AuthorityId,
 			challenge_info: ChallengeInfo<T>,
 		) -> Result<(), OffchainErr> {
-
 			let (signature, digest) = Self::offchain_sign_digest(now, &authority_id)?;
 
 			let call = Call::save_challenge_info {
-							challenge_info,
-							seg_digest: digest,
-							signature: signature,
-							key: authority_id,
-						};
-		
+				challenge_info,
+				seg_digest: digest,
+				signature,
+				key: authority_id,
+			};
+
 			let result = SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into());
 
 			if let Err(e) = result {
 				log::error!("{:?}", e);
-				return Err(OffchainErr::SubmitTransactionFailed);
+				return Err(OffchainErr::SubmitTransactionFailed)
 			}
 
 			Ok(())
@@ -1414,20 +1546,26 @@ pub mod pallet {
 		fn offchain_sign_digest(
 			now: BlockNumberOf<T>,
 			authority_id: &T::AuthorityId,
-		) -> Result< (<<T as pallet::Config>::AuthorityId as sp_runtime::RuntimeAppPublic>::Signature, SegDigest::<BlockNumberOf<T>>), OffchainErr> {
-
+		) -> Result<
+			(
+				<<T as pallet::Config>::AuthorityId as sp_runtime::RuntimeAppPublic>::Signature,
+				SegDigest<BlockNumberOf<T>>,
+			),
+			OffchainErr,
+		> {
 			let network_state =
 				sp_io::offchain::network_state().map_err(|_| OffchainErr::NetworkState)?;
 
 			let author_len = Keys::<T>::get().len();
 
-			let digest = SegDigest::<BlockNumberOf<T>>{
+			let digest = SegDigest::<BlockNumberOf<T>> {
 				validators_len: author_len as u32,
 				block_num: now,
 				network_state,
 			};
 
-			let signature = authority_id.sign(&digest.encode()).ok_or(OffchainErr::FailedSigning)?;
+			let signature =
+				authority_id.sign(&digest.encode()).ok_or(OffchainErr::FailedSigning)?;
 
 			Ok((signature, digest))
 		}
@@ -1468,20 +1606,19 @@ pub mod pallet {
 					.expect("secure hashes should always be bigger than u32; qed");
 				let random_vec = random_seed.as_bytes().to_vec();
 				if random_vec.len() >= 20 {
-					return random_vec[0..20].try_into().unwrap();
+					return random_vec[0..20].try_into().unwrap()
 				}
 			}
 		}
 
 		fn check_idle_verify_param(
-			mut idle_result: bool, 
-			front: u64, 
-			rear: u64, 
+			mut idle_result: bool,
+			front: u64,
+			rear: u64,
 			total_prove_hash: &BoundedVec<u8, T::IdleTotalHashLength>,
-			accumulator: &Accumulator, 
+			accumulator: &Accumulator,
 			miner_info: &IdleProveInfo<T>,
 		) -> bool {
-
 			if accumulator != &miner_info.snap_shot.space_proof_info.accumulator {
 				idle_result = false
 			}

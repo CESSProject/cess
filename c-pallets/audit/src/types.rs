@@ -7,7 +7,8 @@ use super::*;
 #[codec(mel_bound())]
 pub struct ChallengeInfo<T: pallet::Config> {
 	pub(super) net_snap_shot: NetSnapShot<BlockNumberOf<T>>,
-	pub(super) miner_snapshot_list: BoundedVec<MinerSnapShot<AccountOf<T>, BlockNumberOf<T>>, T::ChallengeMinerMax>,
+	pub(super) miner_snapshot_list:
+		BoundedVec<MinerSnapShot<AccountOf<T>, BlockNumberOf<T>>, T::ChallengeMinerMax>,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
@@ -26,7 +27,7 @@ pub struct NetSnapShot<Block> {
 pub struct MinerSnapShot<AccountId, Block> {
 	pub(super) miner: AccountId,
 	pub(super) idle_life: Block,
-    pub(super) service_life: Block,
+	pub(super) service_life: Block,
 	pub(super) idle_space: u128,
 	pub(super) service_space: u128,
 	pub(super) idle_submitted: bool,
