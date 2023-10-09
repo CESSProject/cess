@@ -15,12 +15,14 @@
 
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-
+use futures::TryFutureExt;
+#[cfg(feature = "runtime-benchmarks")]
+use crate::benchmarking::{inherent_benchmark_data, RemarkBuilder, TransferKeepAliveBuilder};
 use crate::{
-	benchmarking::{inherent_benchmark_data, RemarkBuilder, TransferKeepAliveBuilder},
 	chain_spec,
 	cli::{Cli, Subcommand},
 	service::{ self, new_partial, FullClient },
+	client::CESSNodeRuntimeExecutor,
 };
 use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
 use cess_node_runtime::{Block, EXISTENTIAL_DEPOSIT};
@@ -82,8 +84,9 @@ pub fn run() -> Result<()> {
 		None => {
 			let runner = cli.create_runner(&cli.run)?;
 			runner.run_node_until_exit(|config| async move {
-				service::new_full(config, cli.no_hardware_benchmarks)
-					.map_err(sc_cli::Error::Service)
+				service::build_full(config, cli.eth, cli.sealing)
+					.map_err(Into::into)
+					.await
 			})
 		},
 		Some(Subcommand::Key(cmd)) => cmd.run(&cli),
@@ -96,31 +99,33 @@ pub fn run() -> Result<()> {
 		},
 		Some(Subcommand::CheckBlock(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
-			runner.async_run(|config| {
-				let PartialComponents { client, task_manager, import_queue, .. } =
-					new_partial(&config)?;
+			runner.async_run(|mut config| {
+				let (client, _, import_queue, task_manager, _) =
+					service::new_chain_ops(&mut config, &cli.eth)?;
 				Ok((cmd.run(client, import_queue), task_manager))
 			})
 		},
 		Some(Subcommand::ExportBlocks(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
-			runner.async_run(|config| {
-				let PartialComponents { client, task_manager, .. } = new_partial(&config)?;
+			runner.async_run(|mut config| {
+				let (client, _, _, task_manager, _) =
+					service::new_chain_ops(&mut config, &cli.eth)?;
 				Ok((cmd.run(client, config.database), task_manager))
 			})
 		},
 		Some(Subcommand::ExportState(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
-			runner.async_run(|config| {
-				let PartialComponents { client, task_manager, .. } = new_partial(&config)?;
+			runner.async_run(|mut config| {
+				let (client, _, _, task_manager, _) =
+					service::new_chain_ops(&mut config, &cli.eth)?;
 				Ok((cmd.run(client, config.chain_spec), task_manager))
 			})
 		},
 		Some(Subcommand::ImportBlocks(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
-			runner.async_run(|config| {
-				let PartialComponents { client, task_manager, import_queue, .. } =
-					new_partial(&config)?;
+			runner.async_run(|mut config| {
+				let (client, _, import_queue, task_manager, _) =
+					service::new_chain_ops(&mut config, &cli.eth)?;
 				Ok((cmd.run(client, import_queue), task_manager))
 			})
 		},
@@ -130,9 +135,10 @@ pub fn run() -> Result<()> {
 		},
 		Some(Subcommand::Revert(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
-			runner.async_run(|config| {
-				let PartialComponents { client, task_manager, backend, .. } = new_partial(&config)?;
-				let aux_revert = Box::new(|client: Arc<FullClient>, backend, blocks| {
+			runner.async_run(|mut config| {
+				let (client, backend, _, task_manager, _) =
+					service::new_chain_ops(&mut config, &cli.eth)?;
+				let aux_revert = Box::new(|client: Arc<FullClient<cess_node_runtime::RuntimeApi, CESSNodeRuntimeExecutor>>, backend, blocks| {
 					cessc_consensus_rrsc::revert(client.clone(), backend, blocks)?;
 					grandpa::revert(client, blocks)?;
 					Ok(())
@@ -140,6 +146,11 @@ pub fn run() -> Result<()> {
 				Ok((cmd.run(client, backend, Some(aux_revert)), task_manager))
 			})
 		},
+		#[cfg(not(feature = "runtime-benchmarks"))]
+		Some(Subcommand::Benchmark(_)) => Err("Benchmarking wasn't enabled when building the node. \
+			You can enable it with `--features runtime-benchmarks`."
+			.into()),
+		#[cfg(feature = "runtime-benchmarks")]
 		Some(Subcommand::Benchmark(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 
@@ -159,7 +170,8 @@ pub fn run() -> Result<()> {
 						cmd.run::<Block, service::ExecutorDispatch>(config)
 					},
 					BenchmarkCmd::Block(cmd) => {
-						let PartialComponents { client, .. } = new_partial(&config)?;
+						let (client, _, _, _, _) =
+							service::new_chain_ops(&mut config, &cli.eth)?;
 						cmd.run(client)
 					},
 					#[cfg(not(feature = "runtime-benchmarks"))]
@@ -169,16 +181,14 @@ pub fn run() -> Result<()> {
 					),
 					#[cfg(feature = "runtime-benchmarks")]
 					BenchmarkCmd::Storage(cmd) => {
-						let partial = new_partial(&config)?;
-						let db = partial.backend.expose_db();
-						let storage = partial.backend.expose_storage();
-
-						cmd.run(config, partial.client, db, storage)
+						let (client, backend, _, _, _) = service::new_chain_ops(&mut config, &cli.eth)?;
+						let db = backend.expose_db();
+						let storage = backend.expose_storage();
+						cmd.run(config, client, db, storage)
 					},
 					BenchmarkCmd::Overhead(cmd) => {
-						let PartialComponents { client, .. } = new_partial(&config)?;
+						let (client, _, _, _, _) = service::new_chain_ops(&mut config, &cli.eth)?;
 						let ext_builder = RemarkBuilder::new(client.clone());
-
 						cmd.run(
 							config,
 							client,
@@ -188,21 +198,21 @@ pub fn run() -> Result<()> {
 						)
 					},
 					BenchmarkCmd::Extrinsic(cmd) => {
-						let PartialComponents { client, .. } = new_partial(&config)?;
+						let (client, _, _, _, _) = service::new_chain_ops(&mut config, &cli.eth)?;
 						// Register the *Remark* and *TKA* builders.
 						let ext_factory = ExtrinsicFactory(vec![
 							Box::new(RemarkBuilder::new(client.clone())),
 							Box::new(TransferKeepAliveBuilder::new(
 								client.clone(),
-								Sr25519Keyring::Alice.to_account_id(),
-								EXISTENTIAL_DEPOSIT,
+								get_account_id_from_seed::<sp_core::ecdsa::Public>("Alice"),
+								ExistentialDeposit::get(),
 							)),
 						]);
 
 						cmd.run(client, inherent_benchmark_data()?, Vec::new(), &ext_factory)
 					},
 					BenchmarkCmd::Machine(cmd) =>
-						cmd.run(&config, SUBSTRATE_REFERENCE_HARDWARE.clone()),
+					runner.sync_run(|config| cmd.run(&config, SUBSTRATE_REFERENCE_HARDWARE.clone()))
 				}
 			})
 		},

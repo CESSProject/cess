@@ -7,17 +7,17 @@ edition = "2021"
 log = { version = "0.4.14", default-features = false }
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive", "max-encoded-len"] }
 scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
-sp-std = { version = "5.0.0", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.36" }
-sp-runtime = { version = "7.0.0", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.36" }
-frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.36" }
-frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.36" }
+sp-std = { version = "5.0.0", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sp-runtime = { version = "7.0.0", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
-frame-benchmarking = { version = '4.0.0-dev', default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'cess-polkadot-v0.9.36', optional = true}
+frame-benchmarking = { version = '4.0.0-dev', default-features = false, git = 'https://github.com/CESSProject/substrate', branch = 'cess-polkadot-v0.9.42', optional = true}
 
 [dev-dependencies]
-sp-core = {version = '7.0.0', git = 'https://github.com/CESSProject/substrate.git', default-features = false, branch = 'cess-polkadot-v0.9.36'}
-pallet-balances = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sp-io = {version = '7.0.0', git = 'https://github.com/CESSProject/substrate.git', default-features = false, branch = 'cess-polkadot-v0.9.36'}
+sp-core = {version = '7.0.0', git = 'https://github.com/CESSProject/substrate', default-features = false, branch = 'cess-polkadot-v0.9.42'}
+pallet-balances = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sp-io = {version = '7.0.0', git = 'https://github.com/CESSProject/substrate', default-features = false, branch = 'cess-polkadot-v0.9.42'}
 
 [features]
 default = ["std"]
@@ -36,3 +36,4 @@ std = [
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 ]
+
