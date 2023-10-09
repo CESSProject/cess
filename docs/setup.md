@@ -153,7 +153,7 @@ compile Substrate runtime code to the Wasm target.
 
 > There are upstream issues in Rust that need to be resolved before all of Substrate can use
 > the stable Rust toolchain -
-> [this is our tracking issue](https://github.com/paritytech/substrate/issues/1252)
+> [this is our tracking issue](https://github.com/CESSProject/substrate/issues/1252)
 > if you are curious as to why and how this may be resolved.
 
 #### Latest Nightly for Substrate `master`

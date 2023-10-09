@@ -17,45 +17,43 @@ log = { version = "0.4.14", default-features = false }
 cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
 cp-scheduler-credit = { path = '../../primitives/scheduler-credit', version = '0.1.0', default-features = false }
 cp-enclave-verify = { path = '../../primitives/enclave-verify', version = '0.1.0', default-features = false }
-
-sp-application-crypto = { version = '7.0.0', branch = 'cess-polkadot-v0.9.36', git = 'https://github.com/CESSProject/substrate.git', default-features = false }
-sp-io = { version = "7.0.0", default-features = false, branch = 'cess-polkadot-v0.9.36', git = 'https://github.com/CESSProject/substrate.git' }
+sp-io = { version = "7.0.0", default-features = false, branch = 'cess-polkadot-v0.9.42', git = 'https://github.com/CESSProject/substrate' }
 
 [dependencies.frame-benchmarking]
 default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = "cess-polkadot-v0.9.36"
+git = 'https://github.com/CESSProject/substrate'
+branch = "cess-polkadot-v0.9.42"
 version = '4.0.0-dev'
 optional = true
 
 [dependencies.frame-support]
 default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = "cess-polkadot-v0.9.36"
+git = 'https://github.com/CESSProject/substrate'
+branch = "cess-polkadot-v0.9.42"
 version = '4.0.0-dev'
 
 [dependencies.frame-system]
 default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = "cess-polkadot-v0.9.36"
+git = 'https://github.com/CESSProject/substrate'
+branch = "cess-polkadot-v0.9.42"
 version = '4.0.0-dev'
 
 [dependencies.sp-std]
 default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = "cess-polkadot-v0.9.36"
+git = 'https://github.com/CESSProject/substrate'
+branch = "cess-polkadot-v0.9.42"
 version = '5.0.0'
 
 [dependencies.sp-core]
 default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = "cess-polkadot-v0.9.36"
+git = 'https://github.com/CESSProject/substrate'
+branch = "cess-polkadot-v0.9.42"
 version = '7.0.0'
 
 [dependencies.sp-runtime]
 default-features = false
-git = 'https://github.com/CESSProject/substrate.git'
-branch = "cess-polkadot-v0.9.36"
+git = 'https://github.com/CESSProject/substrate'
+branch = "cess-polkadot-v0.9.42"
 version = '7.0.0'
 
 [dependencies.pallet-cess-staking]
@@ -64,15 +62,13 @@ path = '../staking'
 version = '4.0.0-dev'
 
 [dev-dependencies]
-pallet-balances = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sp-staking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-sp-npos-elections = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-frame-election-provider-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-pallet-session = { version = "4.0.0-dev", default-features = false, features = [
-	"historical",
-], git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
-pallet-bags-list = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate.git", branch = "cess-polkadot-v0.9.36" }
+pallet-balances = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+pallet-timestamp = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sp-staking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sp-npos-elections = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+frame-election-provider-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+pallet-session = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+pallet-bags-list = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 pallet-scheduler-credit = { version = "0.1.0", default-features = false, path = '../scheduler-credit'}
 
 
@@ -83,6 +79,7 @@ std = [
 	"codec/std",
 	"scale-info/std",
 	"sp-std/std",
+	"sp-io/std",
 	"sp-runtime/std",
 	"frame-support/std",
 	"frame-system/std",

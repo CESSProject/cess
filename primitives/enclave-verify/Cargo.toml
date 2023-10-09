@@ -13,28 +13,27 @@ ic-verify-bls-signature = { version = "0.2.0", path = '../../utils/verify-bls-si
 log = { version = "0.4.14", default-features = false }
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
 scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
-sp-std = { default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'cess-polkadot-v0.9.36', version = '5.0'}
+sp-std = { default-features = false, git = 'https://github.com/CESSProject/substrate', branch = 'cess-polkadot-v0.9.42', version = '5.0'}
 cp-cess-common = { version = "0.1.0", path = '../common', default-features = false }
 # ed25519-dalek = { version = "1.0.1", default-features = false, optional = true }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 rsa = { version = "0.8.2", default-features = false }
 hex = { version='0.4.3', default-features=false, features = ['alloc'] }
 
-frame-support = {default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'cess-polkadot-v0.9.36', version = '4.0.0-dev'}
-sp-api = { version = "4.0.0-dev", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'cess-polkadot-v0.9.36' }
-sp-core = { version = "7.0.0", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'cess-polkadot-v0.9.36' }
-# sp-externalities = { version = "0.13.0", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'cess-polkadot-v0.9.36' }
-# sp-runtime-interface = { version = "7.0.0", default-features = false, git = 'https://github.com/CESSProject/substrate.git', branch = 'cess-polkadot-v0.9.36' }
+frame-support = {default-features = false, git = 'https://github.com/CESSProject/substrate', branch = 'cess-polkadot-v0.9.42', version = '4.0.0-dev'}
+sp-api = { version = "4.0.0-dev", default-features = false, git = 'https://github.com/CESSProject/substrate', branch = 'cess-polkadot-v0.9.42' }
+sp-core = { version = "7.0.0", default-features = false, git = 'https://github.com/CESSProject/substrate', branch = 'cess-polkadot-v0.9.42' }
+# sp-externalities = { version = "0.13.0", default-features = false, git = 'https://github.com/CESSProject/substrate', branch = 'cess-polkadot-v0.9.42' }
+# sp-runtime-interface = { version = "7.0.0", default-features = false, git = 'https://github.com/CESSProject/substrate', branch = 'cess-polkadot-v0.9.42' }
 
 # verify sgx signture
 webpki = { package = "webpki", path = '../../utils/webpki', default-features = false }
 base64 = { default-features = false, features = ["alloc"], version = "0.12.2" }
-sp-application-crypto = { version = '7.0.0', branch = 'cess-polkadot-v0.9.36', git = 'https://github.com/CESSProject/substrate.git', default-features = false }
 # 
 
 [dev-dependencies]
 rand = "0.8.5"
-sp-io = { version = "7.0.0", default-features = false, branch = 'cess-polkadot-v0.9.36', git = 'https://github.com/CESSProject/substrate.git' }
+sp-io = { version = "7.0.0", default-features = false, branch = 'cess-polkadot-v0.9.42', git = 'https://github.com/CESSProject/substrate' }
 
 [features]
 default = ["std"]
@@ -42,7 +41,6 @@ std = [
 	"codec/std",
 	"scale-info/std",
 	"sp-std/std",
-	"sp-application-crypto/std",
 	"sp-api/std",
 	"sp-core/std",
 	"frame-support/std",

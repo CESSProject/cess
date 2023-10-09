@@ -56,6 +56,8 @@ pub use pallet::*;
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 
+pub mod weights;
+
 use sp_runtime::{
 	traits::{CheckedAdd, SaturatedConversion},
 	RuntimeDebug, Permill,
@@ -94,7 +96,6 @@ use sp_std::{
 	};
 use cp_enclave_verify::verify_rsa;
 use cp_cess_common::*;
-pub mod weights;
 pub use weights::WeightInfo;
 use cp_bloom_filter::BloomFilter;
 use cp_scheduler_credit::SchedulerCreditCounter;
@@ -152,7 +153,7 @@ pub mod pallet {
 	use super::*;
 	// use frame_benchmarking::baseline::Config;
 	use frame_support::{traits::Get};
-	use frame_system::{ensure_signed, pallet_prelude::*};
+	use frame_system::{ensure_signed, pallet_prelude::{*, OriginFor}};
 
 	///18446744073709551615
 	pub const LIMIT: u64 = u64::MAX;
@@ -353,6 +354,10 @@ pub mod pallet {
 	#[pallet::getter(fn verify_reassign_count)]
 	pub(super) type VerifyReassignCount<T: Config> = StorageValue<_, u8, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn exec_block)]
+	pub(super) type ExecBlock<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
+
 	// FOR TESTING
 	#[pallet::storage]
 	#[pallet::getter(fn lock)]
@@ -380,6 +385,8 @@ pub mod pallet {
 					if now > deadline {
 						//Determine whether to trigger a challenge
 						// if Self::trigger_challenge(now) {
+						let exec_block = <ExecBlock<T>>::get();
+						if now == exec_block {
 							log::info!("offchain worker random challenge start");
 							if let Err(e) = Self::offchain_work_start(now) {
 								match e {
@@ -388,6 +395,7 @@ pub mod pallet {
 								};
 							}
 							log::info!("offchain worker random challenge end");
+						}
 						// }
 					}
 				}
@@ -418,31 +426,36 @@ pub mod pallet {
 				.checked_mul(2).ok_or(Error::<T>::Overflow)?
 				.checked_div(3).ok_or(Error::<T>::Overflow)?;
 			let now = <frame_system::Pallet<T>>::block_number();
+
+			let cur_block = <VerifyDuration<T>>::get();
+
+			if now <= cur_block {
+				return Ok(());
+			}		
 			
 			if ChallengeProposal::<T>::contains_key(&hash) {
-				let proposal = ChallengeProposal::<T>::get(&hash).unwrap();
-				if proposal.0 + 1 >= limit {
-					let cur_blcok = <ChallengeDuration<T>>::get();
-					
-					if now > cur_blcok {
-						let duration = now.checked_add(&proposal.1.net_snap_shot.life).ok_or(Error::<T>::Overflow)?;
-						<ChallengeDuration<T>>::put(duration);
-						let idle_duration = duration;
-						let one_hour = T::OneHours::get();
-						let tee_length = T::TeeWorkerHandler::get_controller_list().len();
-						let duration: u32 = (proposal.1.net_snap_shot.total_idle_space
-							.checked_add(proposal.1.net_snap_shot.total_service_space).ok_or(Error::<T>::Overflow)?
-							.checked_div(IDLE_VERIFY_RATE).ok_or(Error::<T>::Overflow)?
-							.checked_div(tee_length as u128).ok_or(Error::<T>::Overflow)?
-						) as u32;
-						let v_duration = idle_duration
-							.checked_add(&duration.saturated_into()).ok_or(Error::<T>::Overflow)?
-							.checked_add(&one_hour).ok_or(Error::<T>::Overflow)?;
-						<VerifyDuration<T>>::put(v_duration);
-						<ChallengeSnapShot<T>>::put(proposal.1);
-						let _ = ChallengeProposal::<T>::clear(ChallengeProposal::<T>::count(), None);
-						Self::deposit_event(Event::<T>::GenerateChallenge);
-					}
+				let mut proposal = ChallengeProposal::<T>::get(&hash).unwrap();
+				proposal.0 += 1;
+				if proposal.0 >= limit {
+					let duration = now.checked_add(&proposal.1.net_snap_shot.life).ok_or(Error::<T>::Overflow)?;
+					<ChallengeDuration<T>>::put(duration);
+					let idle_duration = duration;
+					let one_hour = T::OneHours::get();
+					let tee_length = T::TeeWorkerHandler::get_controller_list().len();
+					let duration: u32 = (proposal.1.net_snap_shot.total_idle_space
+						.checked_add(proposal.1.net_snap_shot.total_service_space).ok_or(Error::<T>::Overflow)?
+						.checked_div(IDLE_VERIFY_RATE).ok_or(Error::<T>::Overflow)?
+						.checked_div(tee_length as u128).ok_or(Error::<T>::Overflow)?
+					) as u32;
+					let v_duration = idle_duration
+						.checked_add(&duration.saturated_into()).ok_or(Error::<T>::Overflow)?
+						.checked_add(&one_hour).ok_or(Error::<T>::Overflow)?;
+					<VerifyDuration<T>>::put(v_duration);
+					<ChallengeSnapShot<T>>::put(proposal.1);
+					let _ = ChallengeProposal::<T>::clear(ChallengeProposal::<T>::count(), None);
+					Self::deposit_event(Event::<T>::GenerateChallenge);
+				} else {
+					ChallengeProposal::<T>::insert(&hash, proposal);
 				}
 			} else {
 				if ChallengeProposal::<T>::count() > count {
@@ -461,7 +474,7 @@ pub mod pallet {
 
 		#[pallet::call_index(1)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_idle_proof())]
 		pub fn submit_idle_proof(
 			origin: OriginFor<T>,
 			idle_prove: BoundedVec<u8, T::IdleTotalHashLength>,
@@ -516,7 +529,7 @@ pub mod pallet {
 
 		#[pallet::call_index(2)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_service_proof())]
 		pub fn submit_service_proof(
 			origin: OriginFor<T>,
 			service_prove: BoundedVec<u8, T::SigmaMax>,
@@ -573,7 +586,7 @@ pub mod pallet {
 
 		#[pallet::call_index(3)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_verify_idle_result())]
 		pub fn submit_verify_idle_result(
 			origin: OriginFor<T>,
 			total_prove_hash: BoundedVec<u8, T::IdleTotalHashLength>,
@@ -657,7 +670,7 @@ pub mod pallet {
 
 		#[pallet::call_index(4)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_verify_service_result())]
 		pub fn submit_verify_service_result(
 			origin: OriginFor<T>,
 			service_result: bool,
@@ -786,6 +799,17 @@ pub mod pallet {
 			let _ = ensure_root(origin)?;
 
 			<ChallengeDuration<T>>::put(new);
+
+			Ok(())
+		}
+
+		#[pallet::call_index(9)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn update_exec_block(origin: OriginFor<T>, target: BlockNumberOf<T>) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			<ExecBlock<T>>::put(target);
 
 			Ok(())
 		}
