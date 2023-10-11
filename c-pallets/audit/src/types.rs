@@ -98,4 +98,3 @@ pub struct QElement {
 	pub(super) random_index_list: BoundedVec<u32, ConstU32<1024>>,
 	pub(super) random_list: BoundedVec<[u8; 20], ConstU32<1024>>,
 }
-

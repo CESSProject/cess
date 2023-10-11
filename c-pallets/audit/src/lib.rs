@@ -1,10 +1,10 @@
-//! # Segemnt Book Module
+//! # Audit Module
 //!
 //!  This file is the exclusive pallet of cess and the proof of podr2 adaptation
 //!
 //! ## OverView
 //!
-//!  The job of this segment Book pallet is to process the proof of miner's service file and filling
+//!  The job of this audit pallet is to process the proof of miner's service file and filling
 //! file,  and generate random challenges. Call some traits of Smith pallet to punish miners.
 //!  Call the trail of file bank pallet to obtain random files or files with problems in handling
 //! challenges.
@@ -63,6 +63,10 @@ use sp_runtime::{
 };
 
 use codec::{Decode, Encode};
+use cp_bloom_filter::BloomFilter;
+use cp_cess_common::*;
+use cp_enclave_verify::verify_rsa;
+use cp_scheduler_credit::SchedulerCreditCounter;
 use frame_support::{
 	pallet_prelude::*, transactional,
 	storage::bounded_vec::BoundedVec,
@@ -79,9 +83,9 @@ use sp_core::{
 use sp_runtime::{Saturating, app_crypto::RuntimeAppPublic, SaturatedConversion};
 use frame_system::offchain::{CreateSignedTransaction};
 use pallet_file_bank::RandomFileList;
-use pallet_tee_worker::TeeWorkerHandler;
 use pallet_sminer::MinerControl;
 use pallet_storage_handler::StorageHandle;
+use pallet_tee_worker::TeeWorkerHandler;
 use scale_info::TypeInfo;
 use sp_core::H256;
 use sp_std::{ 
@@ -91,8 +95,6 @@ use sp_std::{
 use cp_enclave_verify::verify_rsa;
 use cp_cess_common::*;
 pub use weights::WeightInfo;
-use cp_bloom_filter::BloomFilter;
-use cp_scheduler_credit::SchedulerCreditCounter;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
@@ -138,8 +140,11 @@ impl sp_std::fmt::Debug for AuditErr {
 pub mod pallet {
 	use super::*;
 	// use frame_benchmarking::baseline::Config;
-	use frame_support::{traits::Get};
-	use frame_system::{ensure_signed, pallet_prelude::{*, OriginFor}};
+	use frame_support::traits::Get;
+	use frame_system::{
+		ensure_signed,
+		pallet_prelude::{OriginFor, *},
+	};
 
 	///18446744073709551615
 	pub const LIMIT: u64 = u64::MAX;
@@ -232,7 +237,6 @@ pub mod pallet {
 		SubmitServiceVerifyResult { tee: AccountOf<T>, miner: AccountOf<T>, result: bool },
 
 		VerifyProof { tee_worker: AccountOf<T>, miner: AccountOf<T> },
-
 	}
 
 	/// Error for the audit pallet.
@@ -302,23 +306,28 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn keys)]
-	pub(super) type Keys<T: Config> = StorageValue<_, WeakBoundedVec<T::AuthorityId, T::SessionKeyMax>, ValueQuery>;
+	pub(super) type Keys<T: Config> =
+		StorageValue<_, WeakBoundedVec<T::AuthorityId, T::SessionKeyMax>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn challenge_proposal)]
-	pub(super) type ChallengeProposal<T: Config> = CountedStorageMap<_, Blake2_128Concat, [u8; 32], (u32, ChallengeInfo<T>)>;
+	pub(super) type ChallengeProposal<T: Config> =
+		CountedStorageMap<_, Blake2_128Concat, [u8; 32], (u32, ChallengeInfo<T>)>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn counted_idle_failed)]
-	pub(super) type CountedIdleFailed<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, u32, ValueQuery>;
+	pub(super) type CountedIdleFailed<T: Config> =
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, u32, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn counted_service_failed)]
-	pub(super) type CountedServiceFailed<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, u32, ValueQuery>;
+	pub(super) type CountedServiceFailed<T: Config> =
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, u32, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn counted_clear)]
-	pub(super) type CountedClear<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, u8, ValueQuery>;
+	pub(super) type CountedClear<T: Config> =
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, u8, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn challenge_era)]
@@ -326,15 +335,28 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn unverify_idle_proof)]
-	pub(super) type UnverifyIdleProof<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<IdleProveInfo<T>, T::VerifyMissionMax>, ValueQuery>;
+	pub(super) type UnverifyIdleProof<T: Config> = StorageMap<
+		_,
+		Blake2_128Concat,
+		AccountOf<T>,
+		BoundedVec<IdleProveInfo<T>, T::VerifyMissionMax>,
+		ValueQuery,
+	>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn unverify_service_proof)]
-	pub(super) type UnverifyServiceProof<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, BoundedVec<ServiceProveInfo<T>, T::VerifyMissionMax>, ValueQuery>;
+	pub(super) type UnverifyServiceProof<T: Config> = StorageMap<
+		_,
+		Blake2_128Concat,
+		AccountOf<T>,
+		BoundedVec<ServiceProveInfo<T>, T::VerifyMissionMax>,
+		ValueQuery,
+	>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn verify_result)]
-	pub(super) type VerifyResult<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, (Option<bool>, Option<bool>)>;
+	pub(super) type VerifyResult<T: Config> =
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, (Option<bool>, Option<bool>)>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn verify_reassign_count)]
@@ -638,10 +660,7 @@ pub mod pallet {
 		pub fn update_counted_clear(origin: OriginFor<T>, miner: AccountOf<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
-			<CountedClear<T>>::insert(
-				&miner, 
-				0,
-			);
+			<CountedClear<T>>::insert(&miner, 0);
 
 			Ok(())
 		}
@@ -931,7 +950,7 @@ pub mod pallet {
 						.checked_mul(d).ok_or(AuditErr::SpaceParamErr)?
 						.checked_add(random).ok_or(AuditErr::SpaceParamErr)?;
 					if repeat_filter.contains(&random) {
-						continue;
+						continue
 					}
 					repeat_filter.push(random);
 					*elem = random;
@@ -977,9 +996,9 @@ pub mod pallet {
 		}
 
 		fn check_idle_verify_param(
-			mut idle_result: bool, 
-			front: u64, 
-			rear: u64, 
+			mut idle_result: bool,
+			front: u64,
+			rear: u64,
 			total_prove_hash: &BoundedVec<u8, T::IdleTotalHashLength>,
 			accumulator: &Accumulator, 
 			miner_info: &MinerSnapShot<T>,
