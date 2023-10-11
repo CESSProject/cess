@@ -56,7 +56,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: Sminer MinerPublicKey (r:0 w:1)
 	fn regnstk() -> Weight {
 		// Minimum execution time: 1_549_086 nanoseconds.
-		Weight::from_ref_time(1_641_778_000)
+		Weight::from_parts(1_641_778_000, 0)
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(6))
 	}
@@ -64,28 +64,28 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: System Account (r:1 w:1)
 	fn increase_collateral() -> Weight {
 		// Minimum execution time: 75_685 nanoseconds.
-		Weight::from_ref_time(77_185_000)
+		Weight::from_parts(77_185_000, 0)
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
 	// Storage: Sminer MinerItems (r:1 w:1)
 	fn update_beneficiary() -> Weight {
 		// Minimum execution time: 56_771 nanoseconds.
-		Weight::from_ref_time(60_287_000)
+		Weight::from_parts(60_287_000, 0)
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	// Storage: Sminer MinerItems (r:1 w:1)
 	fn update_peer_id() -> Weight {
 		// Minimum execution time: 57_187 nanoseconds.
-		Weight::from_ref_time(61_289_000)
+		Weight::from_parts(61_289_000, 0)
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	// Storage: System Account (r:1 w:1)
 	fn faucet_top_up() -> Weight {
 		// Minimum execution time: 75_384 nanoseconds.
-		Weight::from_ref_time(79_388_000)
+		Weight::from_parts(79_388_000, 0)
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -95,7 +95,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: Scheduler Agenda (r:1 w:1)
 	fn miner_exit_prep() -> Weight {
 		// Minimum execution time: 76_791 nanoseconds.
-		Weight::from_ref_time(77_847_000)
+		Weight::from_parts(77_847_000, 0)
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
@@ -107,7 +107,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: Sminer RestoralTarget (r:0 w:1)
 	fn miner_exit() -> Weight {
 		// Minimum execution time: 71_523 nanoseconds.
-		Weight::from_ref_time(73_043_000)
+		Weight::from_parts(73_043_000, 0)
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(6))
 	}
@@ -118,7 +118,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: Sminer MinerPublicKey (r:0 w:1)
 	fn miner_withdraw() -> Weight {
 		// Minimum execution time: 84_622 nanoseconds.
-		Weight::from_ref_time(88_092_000)
+		Weight::from_parts(88_092_000, 0)
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
@@ -135,7 +135,7 @@ impl WeightInfo for () {
 	// Storage: Sminer MinerPublicKey (r:0 w:1)
 	fn regnstk() -> Weight {
 		// Minimum execution time: 1_549_086 nanoseconds.
-		Weight::from_ref_time(1_641_778_000)
+		Weight::from_parts(1_641_778_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(5))
 			.saturating_add(RocksDbWeight::get().writes(6))
 	}
@@ -143,28 +143,28 @@ impl WeightInfo for () {
 	// Storage: System Account (r:1 w:1)
 	fn increase_collateral() -> Weight {
 		// Minimum execution time: 75_685 nanoseconds.
-		Weight::from_ref_time(77_185_000)
+		Weight::from_parts(77_185_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(2))
 			.saturating_add(RocksDbWeight::get().writes(2))
 	}
 	// Storage: Sminer MinerItems (r:1 w:1)
 	fn update_beneficiary() -> Weight {
 		// Minimum execution time: 56_771 nanoseconds.
-		Weight::from_ref_time(60_287_000)
+		Weight::from_parts(60_287_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(1))
 			.saturating_add(RocksDbWeight::get().writes(1))
 	}
 	// Storage: Sminer MinerItems (r:1 w:1)
 	fn update_peer_id() -> Weight {
 		// Minimum execution time: 57_187 nanoseconds.
-		Weight::from_ref_time(61_289_000)
+		Weight::from_parts(61_289_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(1))
 			.saturating_add(RocksDbWeight::get().writes(1))
 	}
 	// Storage: System Account (r:1 w:1)
 	fn faucet_top_up() -> Weight {
 		// Minimum execution time: 75_384 nanoseconds.
-		Weight::from_ref_time(79_388_000)
+		Weight::from_parts(79_388_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(1))
 			.saturating_add(RocksDbWeight::get().writes(1))
 	}
@@ -174,7 +174,7 @@ impl WeightInfo for () {
 	// Storage: Scheduler Agenda (r:1 w:1)
 	fn miner_exit_prep() -> Weight {
 		// Minimum execution time: 76_791 nanoseconds.
-		Weight::from_ref_time(77_847_000)
+		Weight::from_parts(77_847_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(4))
 			.saturating_add(RocksDbWeight::get().writes(4))
 	}
@@ -186,7 +186,7 @@ impl WeightInfo for () {
 	// Storage: Sminer RestoralTarget (r:0 w:1)
 	fn miner_exit() -> Weight {
 		// Minimum execution time: 71_523 nanoseconds.
-		Weight::from_ref_time(73_043_000)
+		Weight::from_parts(73_043_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(5))
 			.saturating_add(RocksDbWeight::get().writes(6))
 	}
@@ -197,7 +197,7 @@ impl WeightInfo for () {
 	// Storage: Sminer MinerPublicKey (r:0 w:1)
 	fn miner_withdraw() -> Weight {
 		// Minimum execution time: 84_622 nanoseconds.
-		Weight::from_ref_time(88_092_000)
+		Weight::from_parts(88_092_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(4))
 			.saturating_add(RocksDbWeight::get().writes(4))
 	}

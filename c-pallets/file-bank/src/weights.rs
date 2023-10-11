@@ -61,7 +61,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: StorageHandler TotalIdleSpace (r:1 w:1)
 	fn cert_idle_space() -> Weight {
 		// Minimum execution time: 1_465_084 nanoseconds.
-		Weight::from_ref_time(1_520_990_000)
+		Weight::from_parts(1_520_990_000, 0)
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -77,9 +77,9 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	/// The range of component `v` is `[1, 30]`.
 	fn upload_declaration(v: u32, ) -> Weight {
 		// Minimum execution time: 130_096 nanoseconds.
-		Weight::from_ref_time(173_201_944)
+		Weight::from_parts(173_201_944, 0)
 			// Standard Error: 112_849
-			.saturating_add(Weight::from_ref_time(3_023_108).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(3_023_108, 0).saturating_mul(v.into()))
 			.saturating_add(T::DbWeight::get().reads(11))
 			.saturating_add(T::DbWeight::get().writes(7))
 	}
@@ -95,7 +95,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	/// The range of component `v` is `[1, 30]`.
 	fn upload_declaration_expected_max(_v: u32, ) -> Weight {
 		// Minimum execution time: 372_440 nanoseconds.
-		Weight::from_ref_time(472_294_231)
+		Weight::from_parts(472_294_231, 0)
 			.saturating_add(T::DbWeight::get().reads(36))
 			.saturating_add(T::DbWeight::get().writes(6))
 	}
@@ -103,9 +103,9 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	/// The range of component `v` is `[1, 30]`.
 	fn transfer_report(v: u32, ) -> Weight {
 		// Minimum execution time: 57_255 nanoseconds.
-		Weight::from_ref_time(68_385_886)
+		Weight::from_parts(68_385_886, 0)
 			// Standard Error: 37_035
-			.saturating_add(Weight::from_ref_time(519_563).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(519_563, 0).saturating_mul(v.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -124,9 +124,9 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	/// The range of component `v` is `[1, 30]`.
 	fn transfer_report_last(v: u32, ) -> Weight {
 		// Minimum execution time: 177_496 nanoseconds.
-		Weight::from_ref_time(180_547_407)
+		Weight::from_parts(180_547_407, 0)
 			// Standard Error: 74_093
-			.saturating_add(Weight::from_ref_time(4_661_110).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(4_661_110, 0).saturating_mul(v.into()))
 			.saturating_add(T::DbWeight::get().reads(16))
 			.saturating_add(T::DbWeight::get().writes(17))
 	}
@@ -138,9 +138,9 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	/// The range of component `v` is `[1, 30]`.
 	fn upload_declaration_fly_upload(v: u32, ) -> Weight {
 		// Minimum execution time: 100_259 nanoseconds.
-		Weight::from_ref_time(115_372_577)
+		Weight::from_parts(115_372_577, 0)
 			// Standard Error: 51_183
-			.saturating_add(Weight::from_ref_time(943_540).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(943_540, 0).saturating_mul(v.into()))
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(5))
 	}
@@ -154,9 +154,9 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	/// The range of component `v` is `[0, 30]`.
 	fn deal_reassign_miner(v: u32, ) -> Weight {
 		// Minimum execution time: 381_575 nanoseconds.
-		Weight::from_ref_time(411_033_067)
+		Weight::from_parts(411_033_067, 0)
 			// Standard Error: 74_850
-			.saturating_add(Weight::from_ref_time(1_245_688).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(1_245_688, 0).saturating_mul(v.into()))
 			.saturating_add(T::DbWeight::get().reads(41))
 			.saturating_add(T::DbWeight::get().writes(12))
 	}
@@ -166,9 +166,9 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	/// The range of component `v` is `[0, 30]`.
 	fn deal_reassign_miner_exceed_limit(v: u32, ) -> Weight {
 		// Minimum execution time: 99_424 nanoseconds.
-		Weight::from_ref_time(111_303_061)
+		Weight::from_parts(111_303_061, 0)
 			// Standard Error: 33_521
-			.saturating_add(Weight::from_ref_time(586_379).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(586_379, 0).saturating_mul(v.into()))
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(5))
 	}
@@ -178,9 +178,9 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	/// The range of component `v` is `[1, 30]`.
 	fn calculate_end(v: u32, ) -> Weight {
 		// Minimum execution time: 144_573 nanoseconds.
-		Weight::from_ref_time(151_655_693)
+		Weight::from_parts(151_655_693, 0)
 			// Standard Error: 38_575
-			.saturating_add(Weight::from_ref_time(3_286_351).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(3_286_351, 0).saturating_mul(v.into()))
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(5))
 	}
@@ -189,7 +189,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: FileBank PendingReplacements (r:1 w:1)
 	fn replace_idle_space() -> Weight {
 		// Minimum execution time: 1_484_864 nanoseconds.
-		Weight::from_ref_time(1_519_692_000)
+		Weight::from_parts(1_519_692_000, 0)
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -203,9 +203,9 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	/// The range of component `v` is `[0, 30]`.
 	fn delete_file(v: u32, ) -> Weight {
 		// Minimum execution time: 87_256 nanoseconds.
-		Weight::from_ref_time(195_439_527)
+		Weight::from_parts(195_439_527, 0)
 			// Standard Error: 121_694
-			.saturating_add(Weight::from_ref_time(4_058_900).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(4_058_900, 0).saturating_mul(v.into()))
 			.saturating_add(T::DbWeight::get().reads(10))
 			.saturating_add(T::DbWeight::get().writes(8))
 	}
@@ -213,7 +213,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: FileBank UserBucketList (r:1 w:1)
 	fn create_bucket() -> Weight {
 		// Minimum execution time: 44_383 nanoseconds.
-		Weight::from_ref_time(45_277_000)
+		Weight::from_parts(45_277_000, 0)
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -221,7 +221,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: FileBank UserBucketList (r:1 w:1)
 	fn delete_bucket() -> Weight {
 		// Minimum execution time: 52_452 nanoseconds.
-		Weight::from_ref_time(55_820_000)
+		Weight::from_parts(55_820_000, 0)
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -229,7 +229,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: FileBank File (r:1 w:1)
 	fn generate_restoral_order() -> Weight {
 		// Minimum execution time: 88_578 nanoseconds.
-		Weight::from_ref_time(94_129_000)
+		Weight::from_parts(94_129_000, 0)
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -237,7 +237,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: FileBank RestoralOrder (r:1 w:1)
 	fn claim_restoral_order() -> Weight {
 		// Minimum execution time: 64_488 nanoseconds.
-		Weight::from_ref_time(70_910_000)
+		Weight::from_parts(70_910_000, 0)
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -248,7 +248,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: Sminer RestoralTarget (r:1 w:0)
 	fn restoral_order_complete() -> Weight {
 		// Minimum execution time: 185_004 nanoseconds.
-		Weight::from_ref_time(196_225_000)
+		Weight::from_parts(196_225_000, 0)
 			.saturating_add(T::DbWeight::get().reads(6))
 			.saturating_add(T::DbWeight::get().writes(5))
 	}
@@ -258,7 +258,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: FileBank File (r:1 w:1)
 	fn claim_restoral_noexist_order() -> Weight {
 		// Minimum execution time: 106_741 nanoseconds.
-		Weight::from_ref_time(113_477_000)
+		Weight::from_parts(113_477_000, 0)
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -271,7 +271,7 @@ impl WeightInfo for () {
 	// Storage: StorageHandler TotalIdleSpace (r:1 w:1)
 	fn cert_idle_space() -> Weight {
 		// Minimum execution time: 1_465_084 nanoseconds.
-		Weight::from_ref_time(1_520_990_000)
+		Weight::from_parts(1_520_990_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(3))
 			.saturating_add(RocksDbWeight::get().writes(2))
 	}
@@ -287,9 +287,9 @@ impl WeightInfo for () {
 	/// The range of component `v` is `[1, 30]`.
 	fn upload_declaration(v: u32, ) -> Weight {
 		// Minimum execution time: 130_096 nanoseconds.
-		Weight::from_ref_time(173_201_944)
+		Weight::from_parts(173_201_944, 0)
 			// Standard Error: 112_849
-			.saturating_add(Weight::from_ref_time(3_023_108).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(3_023_108, 0).saturating_mul(v.into()))
 			.saturating_add(RocksDbWeight::get().reads(11))
 			.saturating_add(RocksDbWeight::get().writes(7))
 	}
@@ -305,7 +305,7 @@ impl WeightInfo for () {
 	/// The range of component `v` is `[1, 30]`.
 	fn upload_declaration_expected_max(_v: u32, ) -> Weight {
 		// Minimum execution time: 372_440 nanoseconds.
-		Weight::from_ref_time(472_294_231)
+		Weight::from_parts(472_294_231, 0)
 			.saturating_add(RocksDbWeight::get().reads(36))
 			.saturating_add(RocksDbWeight::get().writes(6))
 	}
@@ -313,9 +313,9 @@ impl WeightInfo for () {
 	/// The range of component `v` is `[1, 30]`.
 	fn transfer_report(v: u32, ) -> Weight {
 		// Minimum execution time: 57_255 nanoseconds.
-		Weight::from_ref_time(68_385_886)
+		Weight::from_parts(68_385_886, 0)
 			// Standard Error: 37_035
-			.saturating_add(Weight::from_ref_time(519_563).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(519_563, 0).saturating_mul(v.into()))
 			.saturating_add(RocksDbWeight::get().reads(1))
 			.saturating_add(RocksDbWeight::get().writes(1))
 	}
@@ -334,9 +334,9 @@ impl WeightInfo for () {
 	/// The range of component `v` is `[1, 30]`.
 	fn transfer_report_last(v: u32, ) -> Weight {
 		// Minimum execution time: 177_496 nanoseconds.
-		Weight::from_ref_time(180_547_407)
+		Weight::from_parts(180_547_407, 0)
 			// Standard Error: 74_093
-			.saturating_add(Weight::from_ref_time(4_661_110).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(4_661_110, 0).saturating_mul(v.into()))
 			.saturating_add(RocksDbWeight::get().reads(16))
 			.saturating_add(RocksDbWeight::get().writes(17))
 	}
@@ -348,9 +348,9 @@ impl WeightInfo for () {
 	/// The range of component `v` is `[1, 30]`.
 	fn upload_declaration_fly_upload(v: u32, ) -> Weight {
 		// Minimum execution time: 100_259 nanoseconds.
-		Weight::from_ref_time(115_372_577)
+		Weight::from_parts(115_372_577, 0)
 			// Standard Error: 51_183
-			.saturating_add(Weight::from_ref_time(943_540).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(943_540, 0).saturating_mul(v.into()))
 			.saturating_add(RocksDbWeight::get().reads(5))
 			.saturating_add(RocksDbWeight::get().writes(5))
 	}
@@ -364,9 +364,9 @@ impl WeightInfo for () {
 	/// The range of component `v` is `[0, 30]`.
 	fn deal_reassign_miner(v: u32, ) -> Weight {
 		// Minimum execution time: 381_575 nanoseconds.
-		Weight::from_ref_time(411_033_067)
+		Weight::from_parts(411_033_067, 0)
 			// Standard Error: 74_850
-			.saturating_add(Weight::from_ref_time(1_245_688).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(1_245_688, 0).saturating_mul(v.into()))
 			.saturating_add(RocksDbWeight::get().reads(41))
 			.saturating_add(RocksDbWeight::get().writes(12))
 	}
@@ -376,9 +376,9 @@ impl WeightInfo for () {
 	/// The range of component `v` is `[0, 30]`.
 	fn deal_reassign_miner_exceed_limit(v: u32, ) -> Weight {
 		// Minimum execution time: 99_424 nanoseconds.
-		Weight::from_ref_time(111_303_061)
+		Weight::from_parts(111_303_061, 0)
 			// Standard Error: 33_521
-			.saturating_add(Weight::from_ref_time(586_379).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(586_379, 0).saturating_mul(v.into()))
 			.saturating_add(RocksDbWeight::get().reads(5))
 			.saturating_add(RocksDbWeight::get().writes(5))
 	}
@@ -388,9 +388,9 @@ impl WeightInfo for () {
 	/// The range of component `v` is `[1, 30]`.
 	fn calculate_end(v: u32, ) -> Weight {
 		// Minimum execution time: 144_573 nanoseconds.
-		Weight::from_ref_time(151_655_693)
+		Weight::from_parts(151_655_693, 0)
 			// Standard Error: 38_575
-			.saturating_add(Weight::from_ref_time(3_286_351).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(3_286_351, 0).saturating_mul(v.into()))
 			.saturating_add(RocksDbWeight::get().reads(5))
 			.saturating_add(RocksDbWeight::get().writes(5))
 	}
@@ -399,7 +399,7 @@ impl WeightInfo for () {
 	// Storage: FileBank PendingReplacements (r:1 w:1)
 	fn replace_idle_space() -> Weight {
 		// Minimum execution time: 1_484_864 nanoseconds.
-		Weight::from_ref_time(1_519_692_000)
+		Weight::from_parts(1_519_692_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(3))
 			.saturating_add(RocksDbWeight::get().writes(2))
 	}
@@ -413,9 +413,9 @@ impl WeightInfo for () {
 	/// The range of component `v` is `[0, 30]`.
 	fn delete_file(v: u32, ) -> Weight {
 		// Minimum execution time: 87_256 nanoseconds.
-		Weight::from_ref_time(195_439_527)
+		Weight::from_parts(195_439_527, 0)
 			// Standard Error: 121_694
-			.saturating_add(Weight::from_ref_time(4_058_900).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(4_058_900, 0).saturating_mul(v.into()))
 			.saturating_add(RocksDbWeight::get().reads(10))
 			.saturating_add(RocksDbWeight::get().writes(8))
 	}
@@ -423,7 +423,7 @@ impl WeightInfo for () {
 	// Storage: FileBank UserBucketList (r:1 w:1)
 	fn create_bucket() -> Weight {
 		// Minimum execution time: 44_383 nanoseconds.
-		Weight::from_ref_time(45_277_000)
+		Weight::from_parts(45_277_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(2))
 			.saturating_add(RocksDbWeight::get().writes(2))
 	}
@@ -431,7 +431,7 @@ impl WeightInfo for () {
 	// Storage: FileBank UserBucketList (r:1 w:1)
 	fn delete_bucket() -> Weight {
 		// Minimum execution time: 52_452 nanoseconds.
-		Weight::from_ref_time(55_820_000)
+		Weight::from_parts(55_820_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(2))
 			.saturating_add(RocksDbWeight::get().writes(2))
 	}
@@ -439,7 +439,7 @@ impl WeightInfo for () {
 	// Storage: FileBank File (r:1 w:1)
 	fn generate_restoral_order() -> Weight {
 		// Minimum execution time: 88_578 nanoseconds.
-		Weight::from_ref_time(94_129_000)
+		Weight::from_parts(94_129_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(2))
 			.saturating_add(RocksDbWeight::get().writes(2))
 	}
@@ -447,7 +447,7 @@ impl WeightInfo for () {
 	// Storage: FileBank RestoralOrder (r:1 w:1)
 	fn claim_restoral_order() -> Weight {
 		// Minimum execution time: 64_488 nanoseconds.
-		Weight::from_ref_time(70_910_000)
+		Weight::from_parts(70_910_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(2))
 			.saturating_add(RocksDbWeight::get().writes(1))
 	}
@@ -458,7 +458,7 @@ impl WeightInfo for () {
 	// Storage: Sminer RestoralTarget (r:1 w:0)
 	fn restoral_order_complete() -> Weight {
 		// Minimum execution time: 185_004 nanoseconds.
-		Weight::from_ref_time(196_225_000)
+		Weight::from_parts(196_225_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(6))
 			.saturating_add(RocksDbWeight::get().writes(5))
 	}
@@ -468,7 +468,7 @@ impl WeightInfo for () {
 	// Storage: FileBank File (r:1 w:1)
 	fn claim_restoral_noexist_order() -> Weight {
 		// Minimum execution time: 106_741 nanoseconds.
-		Weight::from_ref_time(113_477_000)
+		Weight::from_parts(113_477_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(4))
 			.saturating_add(RocksDbWeight::get().writes(2))
 	}

@@ -65,7 +65,7 @@
 
 // parameter_types! {
 // 	pub const BlockHashCount: u64 = 250;
-// 	pub BlockWeights: frame_system::limits::BlockWeights = frame_system::limits::BlockWeights::simple_max(frame_support::weights::Weight::from_ref_time(1024));
+// 	pub BlockWeights: frame_system::limits::BlockWeights = frame_system::limits::BlockWeights::simple_max(frame_support::weights::Weight::from_parts(1024));
 // }
 
 // pub(crate) type AccountId = <<Signature as Verify>::Signer as IdentifyAccount>::AccountId;

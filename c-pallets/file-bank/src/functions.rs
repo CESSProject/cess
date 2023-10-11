@@ -382,7 +382,7 @@ impl<T: Config> Pallet<T> {
     }
 
     pub(super) fn delete_user_file(file_hash: &Hash, acc: &AccountOf<T>, file: &FileInfo<T>) -> Result<Weight, DispatchError> {
-        let mut weight: Weight = Weight::from_ref_time(0);
+        let mut weight: Weight = Weight::zero();
 		ensure!(file.stat != FileState::Calculate, Error::<T>::Calculate);
 
 		for user_brief in file.owner.iter() {
@@ -451,7 +451,7 @@ impl<T: Config> Pallet<T> {
 
     // The status of the file must be confirmed before use.
     pub(super) fn remove_file_last_owner(file_hash: &Hash, acc: &AccountOf<T>, user_clear: bool) -> Result<Weight, DispatchError> {
-        let mut weight = Weight::from_ref_time(0);
+        let mut weight = Weight::zero();
 
         let file = <File<T>>::try_get(file_hash).map_err(|_| Error::<T>::NonExistent)?; // reads 1
         weight = weight.saturating_add(T::DbWeight::get().reads(1));

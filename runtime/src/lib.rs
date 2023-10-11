@@ -29,7 +29,6 @@ pub use pallet_oss;
 use pallet_session::historical as pallet_session_historical;
 pub use pallet_storage_handler;
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier, TargetedFeeAdjustment};
-use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
@@ -82,7 +81,6 @@ use frame_system::{
 
 pub mod impls;
 use impls::{Author, CreditToBlockAuthor, SchedulerStashAccountFinder};
-use fp_account::EthereumSignature;
 use fp_rpc::TransactionStatus;
 pub use pallet_balances::Call as BalancesCall;
 use pallet_ethereum::{Call::transact, PostLogContent, Transaction as EthereumTransaction};
@@ -154,7 +152,6 @@ pub mod opaque {
 			pub grandpa: Grandpa,
 			pub im_online: ImOnline,
 			pub authority_discovery: AuthorityDiscovery,
-			pub audit: Audit,
 		}
 	}
 }

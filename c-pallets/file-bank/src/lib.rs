@@ -331,14 +331,13 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
-	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(PhantomData<T>);
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberOf<T>> for Pallet<T> {
 		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
 			let days = T::OneDay::get();
-			let mut weight: Weight = Weight::from_ref_time(0);
+			let mut weight: Weight = Weight::zero();
 			// FOR TESTING
 			if now % days == 0u32.saturated_into() {
 				let (temp_weight, acc_list) = T::StorageHandle::frozen_task();
@@ -487,7 +486,8 @@ pub mod pallet {
 			life: u32,
 		) -> DispatchResult {
 			let _ = ensure_root(origin)?;
-			let segment_length = Self::get_segment_length_from_deal(&deal_hash);
+			// ReadME
+			let _segment_length = Self::get_segment_length_from_deal(&deal_hash);
 			if count < 20 {
 				if let Err(_e) = <DealMap<T>>::try_mutate(&deal_hash, |opt| -> DispatchResult {
 					let deal_info = opt.as_mut().ok_or(Error::<T>::NonExistent)?;
@@ -1135,7 +1135,7 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 	}
 
 	fn clear_file(_file_hash: Hash) -> Result<Weight, DispatchError> {
-		let weight: Weight = Weight::from_ref_time(0);
+		let weight: Weight = Weight::zero();
 		Ok(weight)
 	}
 }

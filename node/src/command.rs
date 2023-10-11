@@ -21,14 +21,11 @@ use crate::benchmarking::{inherent_benchmark_data, RemarkBuilder, TransferKeepAl
 use crate::{
 	chain_spec,
 	cli::{Cli, Subcommand},
-	service::{ self, new_partial, FullClient },
+	service::{ self, FullClient },
 	client::CESSNodeRuntimeExecutor,
 };
-use frame_benchmarking_cli::{BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE};
-use cess_node_runtime::{Block, EXISTENTIAL_DEPOSIT};
+use cess_node_runtime::{Block};
 use sc_cli::{ChainSpec, Result, RuntimeVersion, SubstrateCli};
-use sc_service::PartialComponents;
-use sp_keyring::Sr25519Keyring;
 
 use std::sync::Arc;
 

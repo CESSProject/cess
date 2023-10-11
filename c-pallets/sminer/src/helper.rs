@@ -140,19 +140,19 @@ impl<T: Config> Pallet<T> {
 
     pub(super) fn calculate_miner_reward(
 		miner: &AccountOf<T>,
-		total_reward: u128,
 		total_idle_space: u128,
 		total_service_space: u128,
 		miner_idle_space: u128,
 		miner_service_space: u128,
 	) -> DispatchResult {
+		let total_reward = <CurrencyReward<T>>::get();
 		let total_power = Self::calculate_power(total_idle_space, total_service_space);
 		let miner_power = Self::calculate_power(miner_idle_space, miner_service_space);
 
 		let miner_prop = Perbill::from_rational(miner_power, total_power);
 		let this_round_reward = miner_prop.mul_floor(total_reward);
 		let each_share = EACH_SHARE_MUTI.mul_floor(this_round_reward);
-		let each_share = each_share.checked_div(RELEASE_NUMBER.into()).ok_or(Error::<T>::Overflow)?;
+		let each_share = each_share.checked_div(&RELEASE_NUMBER.into()).ok_or(Error::<T>::Overflow)?;
 		let issued: BalanceOf<T> = ISSUE_MUTI.mul_floor(this_round_reward).try_into().map_err(|_| Error::<T>::Overflow)?;
 
 		let order = RewardOrder::<BalanceOf<T>>{

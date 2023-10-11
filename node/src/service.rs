@@ -13,39 +13,28 @@ use crate::{
 	rpc as node_rpc
 };
 use sc_rpc::SubscriptionTaskExecutor;
-use fc_rpc::EthTask;
-use fc_rpc_core::types::{
-	FeeHistoryCache, 
-	FilterPool
-};
-use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
-use prometheus_endpoint::Registry;
-use futures::{channel::mpsc, prelude::*};
+use futures::prelude::*;
 use node_primitives::Block;
-use sc_cli::SubstrateCli;
-use sc_client_api::{BlockBackend, BlockchainEvents, StateBackendFor};
+use sc_client_api::{BlockBackend, StateBackendFor};
 use cessc_consensus_rrsc::{self, SlotProportion};
-use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch};
-use sc_network::{event::Event, NetworkService, NetworkEventStream};
+use sc_executor::{NativeExecutionDispatch};
+use sc_network::{event::Event, NetworkEventStream};
 use sc_network_common::sync::warp::WarpSyncParams;
 use sc_service::{ 
-	BasePath, Configuration, error::Error as ServiceError, 
-	RpcHandlers, TaskManager, PartialComponents,
+	Configuration, error::Error as ServiceError, 
+	TaskManager, PartialComponents,
 };
-use sc_telemetry::{Telemetry, TelemetryWorker, TelemetryHandle};
+use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_runtime::{
-	traits::{Block as BlockT, BlakeTwo256}, 
+	traits::{BlakeTwo256}, 
 };
-use sp_api::{ConstructRuntimeApi, TransactionFor};
+use sp_api::{ConstructRuntimeApi};
 use std::{
-	cell::RefCell,
-	collections::BTreeMap,
-	sync::{Arc, Mutex},
+	sync::{Arc},
 	time::Duration,
 	path::Path,
 };
-use sp_core::U256;
-use cess_node_runtime::{TransactionConverter, Hash};
+use cess_node_runtime::{TransactionConverter};
 use sc_consensus::BasicQueue;
 use sp_trie::PrefixedMemoryDB;
 
@@ -56,9 +45,9 @@ type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 type GrandpaLinkHalf<Client> = grandpa::LinkHalf<Block, Client, FullSelectChain>;
 type GrandpaBlockImport<Client> =
 	grandpa::GrandpaBlockImport<FullBackend, Block, Client, FullSelectChain>;
-type BoxBlockImport<Client> = sc_consensus::BoxBlockImport<Block, TransactionFor<Client, Block>>;
+// type BoxBlockImport<Client> = sc_consensus::BoxBlockImport<Block, TransactionFor<Client, Block>>;
 /// The transaction pool type defintion.
-pub type TransactionPool = sc_transaction_pool::FullPool<Block, FullClient<cess_node_runtime::RuntimeApi, CESSNodeRuntimeExecutor>>;
+// pub type TransactionPool = sc_transaction_pool::FullPool<Block, FullClient<cess_node_runtime::RuntimeApi, CESSNodeRuntimeExecutor>>;
 
 pub type Client = FullClient<cess_node_runtime::RuntimeApi, CESSNodeRuntimeExecutor>;
 
@@ -343,7 +332,7 @@ where
 		forced_parent_hashes: None,
 	};
 
-	let (rpc_extensions_builder, rpc_setup) = {
+	let (rpc_extensions_builder, _rpc_setup) = {
 		let grandpa_link= &grandpa_link;
 
 		let justification_stream = grandpa_link.justification_stream();

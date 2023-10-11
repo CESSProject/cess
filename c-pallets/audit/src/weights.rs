@@ -49,7 +49,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: Audit UnverifyIdleProof (r:1 w:1)
 	fn submit_idle_proof() -> Weight {
 		// Minimum execution time: 124_658 nanoseconds.
-		Weight::from_ref_time(131_390_000)
+		Weight::from_parts(131_390_000, 0)
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -59,7 +59,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: Audit UnverifyServiceProof (r:1 w:1)
 	fn submit_service_proof() -> Weight {
 		// Minimum execution time: 127_080 nanoseconds.
-		Weight::from_ref_time(132_384_000)
+		Weight::from_parts(132_384_000, 0)
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -73,7 +73,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: Audit CountedIdleFailed (r:0 w:1)
 	fn submit_verify_idle_result() -> Weight {
 		// Minimum execution time: 1_495_812 nanoseconds.
-		Weight::from_ref_time(1_517_527_000)
+		Weight::from_parts(1_517_527_000, 0)
 			.saturating_add(T::DbWeight::get().reads(7))
 			.saturating_add(T::DbWeight::get().writes(6))
 	}
@@ -87,7 +87,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: Audit CountedIdleFailed (r:0 w:1)
 	fn submit_verify_service_result() -> Weight {
 		// Minimum execution time: 1_521_687 nanoseconds.
-		Weight::from_ref_time(1_549_366_000)
+		Weight::from_parts(1_549_366_000, 0)
 			.saturating_add(T::DbWeight::get().reads(7))
 			.saturating_add(T::DbWeight::get().writes(6))
 	}
@@ -101,7 +101,7 @@ impl WeightInfo for () {
 	// Storage: Audit UnverifyIdleProof (r:1 w:1)
 	fn submit_idle_proof() -> Weight {
 		// Minimum execution time: 124_658 nanoseconds.
-		Weight::from_ref_time(131_390_000)
+		Weight::from_parts(131_390_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(5))
 			.saturating_add(RocksDbWeight::get().writes(2))
 	}
@@ -111,7 +111,7 @@ impl WeightInfo for () {
 	// Storage: Audit UnverifyServiceProof (r:1 w:1)
 	fn submit_service_proof() -> Weight {
 		// Minimum execution time: 127_080 nanoseconds.
-		Weight::from_ref_time(132_384_000)
+		Weight::from_parts(132_384_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(5))
 			.saturating_add(RocksDbWeight::get().writes(2))
 	}
@@ -125,7 +125,7 @@ impl WeightInfo for () {
 	// Storage: Audit CountedIdleFailed (r:0 w:1)
 	fn submit_verify_idle_result() -> Weight {
 		// Minimum execution time: 1_495_812 nanoseconds.
-		Weight::from_ref_time(1_517_527_000)
+		Weight::from_parts(1_517_527_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(7))
 			.saturating_add(RocksDbWeight::get().writes(6))
 	}
@@ -139,7 +139,7 @@ impl WeightInfo for () {
 	// Storage: Audit CountedIdleFailed (r:0 w:1)
 	fn submit_verify_service_result() -> Weight {
 		// Minimum execution time: 1_521_687 nanoseconds.
-		Weight::from_ref_time(1_549_366_000)
+		Weight::from_parts(1_549_366_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(7))
 			.saturating_add(RocksDbWeight::get().writes(6))
 	}
