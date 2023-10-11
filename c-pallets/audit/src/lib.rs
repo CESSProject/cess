@@ -1,10 +1,10 @@
-//! # Segemnt Book Module
+//! # Audit Module
 //!
 //!  This file is the exclusive pallet of cess and the proof of podr2 adaptation
 //!
 //! ## OverView
 //!
-//!  The job of this segment Book pallet is to process the proof of miner's service file and filling
+//!  The job of this audit pallet is to process the proof of miner's service file and filling
 //! file,  and generate random challenges. Call some traits of Smith pallet to punish miners.
 //!  Call the trail of file bank pallet to obtain random files or files with problems in handling
 //! challenges.
