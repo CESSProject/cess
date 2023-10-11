@@ -92,7 +92,6 @@ use sp_std::{
 		convert:: { TryFrom, TryInto },
 		prelude::*,
 	};
-use cp_enclave_verify::verify_rsa;
 use cp_cess_common::*;
 pub use weights::WeightInfo;
 
