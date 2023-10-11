@@ -34,7 +34,7 @@ use sp_runtime::traits::Zero;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::{AccountIdConversion, CheckedAdd, CheckedSub, SaturatedConversion},
+	traits::{AccountIdConversion, CheckedAdd, CheckedSub, CheckedDiv, SaturatedConversion},
 	RuntimeDebug, Perbill,
 };
 use sp_std::{convert::TryInto, prelude::*};
@@ -269,7 +269,6 @@ pub mod pallet {
 		StorageMap< _, Blake2_128Concat, AccountOf<T>, RestoralTargetInfo<AccountOf<T>, BlockNumberOf<T>>>;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::genesis_config]
@@ -780,7 +779,6 @@ pub trait MinerControl<AccountId, BlockNumber> {
 	fn get_reward() -> u128; 
 	fn calculate_miner_reward(
 		miner: &AccountId, 
-		total_reward: u128,
 		total_idle_space: u128,
 		total_service_space: u128,
 		miner_idle_space: u128,
@@ -927,7 +925,6 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 
 	fn calculate_miner_reward(
 		miner: &AccountOf<T>, 
-		total_reward: u128,
 		total_idle_space: u128,
 		total_service_space: u128,
 		miner_idle_space: u128,
@@ -935,7 +932,6 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 	) -> DispatchResult {
 		Self::calculate_miner_reward(
 			miner, 
-			total_reward, 
 			total_idle_space, 
 			total_service_space, 
 			miner_idle_space, 

@@ -142,7 +142,6 @@ pub mod pallet {
 
     #[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
-	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(PhantomData<T>);
 
     #[pallet::genesis_config]
@@ -477,7 +476,7 @@ impl<T: Config> Pallet<T> {
         let now: BlockNumberOf<T> = <frame_system::Pallet<T>>::block_number();
         let number: u128 = now.saturated_into();
     
-        let mut weight: Weight = Weight::from_ref_time(0);
+        let mut weight: Weight = Weight::zero();
         let mut clear_acc_list: Vec<AccountOf<T>> = Default::default();
 
         log::info!("Start lease expiration check");
@@ -644,6 +643,8 @@ pub trait StorageHandle<AccountId> {
 	fn sub_total_idle_space(decrement: u128) -> DispatchResult;
 	fn add_total_service_space(increment: u128) -> DispatchResult;
 	fn sub_total_service_space(decrement: u128) -> DispatchResult;
+    fn get_total_idle_space() -> u128;
+    fn get_total_service_space() -> u128;
     fn add_purchased_space(size: u128) -> DispatchResult;
 	fn sub_purchased_space(size: u128) -> DispatchResult;
     fn get_total_space() -> Result<u128, DispatchError>;
@@ -710,7 +711,7 @@ impl<T: Config> StorageHandle<T::AccountId> for Pallet<T> {
     }
 
     fn delete_user_space_storage(acc: &T::AccountId) -> Result<Weight, DispatchError> {
-        let mut weight: Weight = Weight::from_ref_time(0);
+        let mut weight: Weight = Weight::zero();
 
         let space_info = <UserOwnedSpace<T>>::try_get(acc).map_err(|_| Error::<T>::NotPurchasedSpace)?;
         weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
@@ -722,5 +723,13 @@ impl<T: Config> StorageHandle<T::AccountId> for Pallet<T> {
         weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
 
         Ok(weight)
+    }
+
+    fn get_total_idle_space() -> u128 {
+        <TotalIdleSpace<T>>::get()
+    }
+
+    fn get_total_service_space() -> u128 {
+        <TotalServiceSpace<T>>::get()
     }
 }

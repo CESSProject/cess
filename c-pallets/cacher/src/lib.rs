@@ -74,7 +74,6 @@ pub mod pallet {
 	pub(super) type Cachers<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, CacherInfo<AccountOf<T>, BalanceOf<T>>>;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(PhantomData<T>);
 
 	#[pallet::call]

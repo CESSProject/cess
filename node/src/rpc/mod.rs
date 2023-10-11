@@ -6,40 +6,32 @@
 #![warn(missing_docs)]
 
 use crate::primitives as node_primitives;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{sync::Arc};
 use futures::channel::mpsc;
 use node_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Index};
 use jsonrpsee::RpcModule;
 
 // Substrate
 use sc_client_api::{
-	backend::{AuxStore, Backend, StateBackend, StorageProvider},
+	backend::{AuxStore, Backend, StorageProvider},
 	client::BlockchainEvents,
 };
 use grandpa::{
 	FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState,
 };
 use sc_consensus_manual_seal::rpc::EngineCommand;
-use sc_network::NetworkService;
 use sc_rpc::SubscriptionTaskExecutor;
-use sc_transaction_pool::{ChainApi, Pool};
+use sc_transaction_pool::{ChainApi};
 use sc_service::TransactionPool;
 use sp_api::{CallApiAt, ProvideRuntimeApi};
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
-use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
-use cessc_consensus_rrsc::{RRSCConfiguration, Epoch, RRSCWorkerHandle};
-use sc_consensus_epochs::SharedEpochChanges;
+use sp_runtime::traits::{Block as BlockT};
+use cessc_consensus_rrsc::{RRSCWorkerHandle};
 pub use sc_rpc_api::DenyUnsafe;
 use sp_consensus::SelectChain;
 use cessp_consensus_rrsc::RRSCApi;
 use cessc_consensus_rrsc_rpc::{RRSC, RRSCApiServer};
 use sp_keystore::KeystorePtr;
-use sp_core::H256;
-use fc_rpc::{
-	RuntimeApiStorageOverride, SchemaV1Override,
-	SchemaV2Override, SchemaV3Override,
-};
-use sc_network_sync::SyncingService;
 
 mod eth;
 pub use self::eth::{create_eth, overrides_handle, EthDeps};

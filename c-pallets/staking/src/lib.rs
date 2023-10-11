@@ -297,7 +297,7 @@ pub mod migrations;
 pub mod slashing;
 pub mod weights;
 
-mod pallet;
+pub mod pallet;
 
 use codec::{Decode, Encode, HasCompact, MaxEncodedLen};
 use frame_support::{

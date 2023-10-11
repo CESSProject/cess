@@ -50,7 +50,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: System Account (r:2 w:2)
 	fn buy_space() -> Weight {
 		// Minimum execution time: 92_464 nanoseconds.
-		Weight::from_ref_time(93_249_000)
+		Weight::from_parts(93_249_000, 0)
 			.saturating_add(T::DbWeight::get().reads(7))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
@@ -62,7 +62,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: StorageHandler TotalServiceSpace (r:1 w:0)
 	fn expansion_space() -> Weight {
 		// Minimum execution time: 84_456 nanoseconds.
-		Weight::from_ref_time(87_497_000)
+		Weight::from_parts(87_497_000, 0)
 			.saturating_add(T::DbWeight::get().reads(7))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
@@ -71,7 +71,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: System Account (r:2 w:2)
 	fn renewal_space() -> Weight {
 		// Minimum execution time: 75_841 nanoseconds.
-		Weight::from_ref_time(78_035_000)
+		Weight::from_parts(78_035_000, 0)
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}
@@ -87,7 +87,7 @@ impl WeightInfo for () {
 	// Storage: System Account (r:2 w:2)
 	fn buy_space() -> Weight {
 		// Minimum execution time: 92_464 nanoseconds.
-		Weight::from_ref_time(93_249_000)
+		Weight::from_parts(93_249_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(7))
 			.saturating_add(RocksDbWeight::get().writes(4))
 	}
@@ -99,7 +99,7 @@ impl WeightInfo for () {
 	// Storage: StorageHandler TotalServiceSpace (r:1 w:0)
 	fn expansion_space() -> Weight {
 		// Minimum execution time: 84_456 nanoseconds.
-		Weight::from_ref_time(87_497_000)
+		Weight::from_parts(87_497_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(7))
 			.saturating_add(RocksDbWeight::get().writes(4))
 	}
@@ -108,7 +108,7 @@ impl WeightInfo for () {
 	// Storage: System Account (r:2 w:2)
 	fn renewal_space() -> Weight {
 		// Minimum execution time: 75_841 nanoseconds.
-		Weight::from_ref_time(78_035_000)
+		Weight::from_parts(78_035_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(4))
 			.saturating_add(RocksDbWeight::get().writes(3))
 	}

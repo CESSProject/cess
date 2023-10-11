@@ -60,30 +60,30 @@ pub struct SubstrateWeight<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	// Storage: Oss AuthorityList (r:0 w:1)
 	fn authorize() -> Weight {
-		Weight::from_ref_time(31_511_000 as u64)
+		Weight::from_parts(31_511_000, 0)
 			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Oss AuthorityList (r:1 w:1)
 	fn cancel_authorize() -> Weight {
-		Weight::from_ref_time(22_793_000 as u64)
+		Weight::from_parts(22_793_000, 0)
 			.saturating_add(T::DbWeight::get().reads(1 as u64))
 			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Oss Oss (r:1 w:1)
 	fn register() -> Weight {
-		Weight::from_ref_time(21_736_000 as u64)
+		Weight::from_parts(21_736_000, 0)
 			.saturating_add(T::DbWeight::get().reads(1 as u64))
 			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Oss Oss (r:1 w:1)
 	fn update() -> Weight {
-		Weight::from_ref_time(23_216_000 as u64)
+		Weight::from_parts(23_216_000, 0)
 			.saturating_add(T::DbWeight::get().reads(1 as u64))
 			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: Oss Oss (r:1 w:1)
 	fn destroy() -> Weight {
-		Weight::from_ref_time(22_212_000 as u64)
+		Weight::from_parts(22_212_000, 0)
 			.saturating_add(T::DbWeight::get().reads(1 as u64))
 			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
@@ -93,30 +93,30 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 impl WeightInfo for () {
 	// Storage: Oss AuthorityList (r:0 w:1)
 	fn authorize() -> Weight {
-		Weight::from_ref_time(31_511_000 as u64)
+		Weight::from_parts(31_511_000, 0)
 			.saturating_add(RocksDbWeight::get().writes(1 as u64))
 	}
 	// Storage: Oss AuthorityList (r:1 w:1)
 	fn cancel_authorize() -> Weight {
-		Weight::from_ref_time(22_793_000 as u64)
+		Weight::from_parts(22_793_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(1 as u64))
 			.saturating_add(RocksDbWeight::get().writes(1 as u64))
 	}
 	// Storage: Oss Oss (r:1 w:1)
 	fn register() -> Weight {
-		Weight::from_ref_time(21_736_000 as u64)
+		Weight::from_parts(21_736_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(1 as u64))
 			.saturating_add(RocksDbWeight::get().writes(1 as u64))
 	}
 	// Storage: Oss Oss (r:1 w:1)
 	fn update() -> Weight {
-		Weight::from_ref_time(23_216_000 as u64)
+		Weight::from_parts(23_216_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(1 as u64))
 			.saturating_add(RocksDbWeight::get().writes(1 as u64))
 	}
 	// Storage: Oss Oss (r:1 w:1)
 	fn destroy() -> Weight {
-		Weight::from_ref_time(22_212_000 as u64)
+		Weight::from_parts(22_212_000, 0)
 			.saturating_add(RocksDbWeight::get().reads(1 as u64))
 			.saturating_add(RocksDbWeight::get().writes(1 as u64))
 	}
