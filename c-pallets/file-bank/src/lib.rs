@@ -216,7 +216,7 @@ pub mod pallet {
 		// replaced
 		MinerPowerInsufficient,
 
-		IsZero,
+		NotEmpty,
 		//Multi consensus query restriction of off chain workers
 		Locked,
 
@@ -860,16 +860,8 @@ pub mod pallet {
 			ensure!(Self::check_permission(sender.clone(), owner.clone()), Error::<T>::NoPermission);
 			ensure!(<Bucket<T>>::contains_key(&owner, &name), Error::<T>::NonExistent);
 			let bucket = <Bucket<T>>::try_get(&owner, &name).map_err(|_| Error::<T>::Unexpected)?;
-			for file_hash in bucket.object_list.iter() {
-				let file = <File<T>>::try_get(file_hash).map_err(|_| Error::<T>::Unexpected)?;
-				if file.owner.len() > 1 {
-					Self::remove_file_owner(file_hash, &owner, true)?;
-				 } else {
-					Self::remove_file_last_owner(file_hash, &owner, true)?;
-				}
+			ensure!(bucket.object_list == 0, Error::<T>::NotEmpty);
 
-				Self::remove_user_hold_file_list(file_hash, &owner)?;
-			}
 			<Bucket<T>>::remove(&owner, &name);
 			<UserBucketList<T>>::try_mutate(&owner, |bucket_list| -> DispatchResult {
 				let mut index = 0;
