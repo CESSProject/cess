@@ -373,6 +373,10 @@ pub mod pallet {
 	#[pallet::getter(fn verify_slip)]
 	pub(super) type VerifySlip<T: Config> = StorageDoubleMap<_, Blake2_128Concat, BlockNumberOf<T>, Blake2_128Concat, AccountOf<T>, bool>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn test_option_storage)]
+	pub(super) type TestOptionStorage<T: Config> = StorageMap<_, Blake2_128Concat, u32, Option<IdleProveInfo<T>>>;
+
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
@@ -653,6 +657,18 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		#[pallet::call_index(8)]
+		#[transactional]
+		#[pallet::weight(100_000_000)]
+		pub fn test_insert_option(origin: OriginFor<T>, key: u32, value: Option<IdleProveInfo<T>> ) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			TestOptionStorage::insert(key, value);
+
+			Ok(())
+		}
+		
 	}
 
 	impl<T: Config> Pallet<T> {
