@@ -45,16 +45,12 @@ impl<T: Config> Pallet<T> {
 			if miner_info.collaterals > punish_amount {
 				T::Currency::unreserve(miner, punish_amount);
 				T::Currency::transfer(miner, &reward_pot, punish_amount, KeepAlive)?;
-				<CurrencyReward<T>>::mutate(|reward| {
-					*reward = *reward + punish_amount;
-				});
+				T::RewardPool::add_reward(punish_amount)?;
 				miner_info.collaterals = miner_info.collaterals.checked_sub(&punish_amount).ok_or(Error::<T>::Overflow)?;
 			} else {
 				T::Currency::unreserve(miner, miner_info.collaterals);
 				T::Currency::transfer(miner, &reward_pot, miner_info.collaterals, KeepAlive)?;
-				<CurrencyReward<T>>::mutate(|reward| {
-					*reward = *reward + miner_info.collaterals;
-				});
+				T::RewardPool::add_reward(miner_info.collaterals)?;
 				miner_info.collaterals = BalanceOf::<T>::zero();
 				miner_info.debt = punish_amount.checked_sub(&miner_info.collaterals).ok_or(Error::<T>::Overflow)?;
 			}
@@ -95,9 +91,7 @@ impl<T: Config> Pallet<T> {
 		if let Ok(reward_info) = <RewardMap<T>>::try_get(acc).map_err(|_| Error::<T>::NotExisted) {
 			let reward = reward_info.total_reward
 				.checked_sub(&reward_info.reward_issued).ok_or(Error::<T>::Overflow)?;
-			<CurrencyReward<T>>::mutate(|v| {
-				*v = *v + reward;
-			});
+			T::RewardPool::add_reward(reward)?;
 		}
 
 		let mut miner_list = AllMiner::<T>::get();

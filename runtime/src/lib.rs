@@ -956,6 +956,11 @@ impl pallet_sminer::Config for Runtime {
 	type SPalletsOrigin = OriginCaller;
 	type SProposal = RuntimeCall;
 	type StorageHandle = StorageHandler;
+	type RewardPool = SminerReward;
+}
+
+impl pallet_sminer_reward::Config for Runtime {
+	type Currency = Balances;
 }
 
 parameter_types! {
@@ -970,7 +975,8 @@ impl pallet_storage_handler::Config for Runtime {
 	type Currency = Balances;
 	type WeightInfo = pallet_storage_handler::weights::SubstrateWeight<Runtime>;
 	type OneDay = OneDay;
-	type FilbakPalletId = RewardPalletId;
+	type RewardPalletId = RewardPalletId;
+	type RewardPool = SminerReward;
 	type TreasuryPalletId = TreasuryPalletId;
 	type StateStringMax = StateStringMax;
 	type FrozenDays = FrozenDays;
@@ -1549,6 +1555,7 @@ construct_runtime!(
 		SchedulerCredit: pallet_scheduler_credit = 65,
 		Oss: pallet_oss = 66,
 		Cacher: pallet_cacher = 67,
+		SminerReward: pallet_sminer_reward = 68,
 	}
 );
 

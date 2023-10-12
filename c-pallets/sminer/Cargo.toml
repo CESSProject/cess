@@ -25,6 +25,7 @@ pallet-cess-staking = { path = '../staking', version = '4.0.0-dev', default-feat
 #local crate
 pallet-tee-worker = { default-features = false, path = '../tee-worker', version = '0.7.0' }
 pallet-storage-handler = { default-features = false, path = '../storage-handler', version = '0.7.0' }
+pallet-sminer-reward = { default-features = false, path = "../sminer-reward", version = "0.7.4" }
 
 [dependencies.frame-benchmarking]
 default-features = false
@@ -112,6 +113,7 @@ std = [
 	"pallet-scheduler/std",
 	"frame-benchmarking/std",
 	"cp-cess-common/std",
+	"pallet-sminer-reward/std",
 ]
 
 runtime-benchmarks = [

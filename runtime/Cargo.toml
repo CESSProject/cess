@@ -111,6 +111,7 @@ pallet-scheduler-credit = { default-features = false, version = "0.1.0", path = 
 
 # local dependencies
 pallet-sminer = { default-features = false, path = "../c-pallets/sminer", version = "0.7.0" }
+pallet-sminer-reward = { default-features = false, path = "../c-pallets/sminer-reward", version = "0.7.4" }
 pallet-audit = { default-features = false, path = "../c-pallets/audit", version = "0.7.0" }
 pallet-file-bank = { default-features = false, path = "../c-pallets/file-bank", version = "0.7.0" }
 pallet-tee-worker = { default-features = false, path = "../c-pallets/tee-worker", version = "0.7.0" }
@@ -166,6 +167,7 @@ std = [
     "pallet-storage-handler/std",
 		"pallet-oss/std",
     "pallet-cacher/std",
+    "pallet-sminer-reward/std",
     "pallet-preimage/std",
     "pallet-assets/std",
     "pallet-child-bounties/std",
