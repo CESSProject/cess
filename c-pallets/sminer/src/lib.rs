@@ -43,6 +43,7 @@ use cp_enclave_verify::verify_rsa;
 use pallet_tee_worker::TeeWorkerHandler;
 use cp_bloom_filter::BloomFilter;
 use pallet_storage_handler::StorageHandle;
+use pallet_sminer_reward::RewardPool;
 
 pub use pallet::*;
 
@@ -106,6 +107,8 @@ pub mod pallet {
 		type OneDayBlock: Get<BlockNumberOf<Self>>;
 		/// The WeightInfo.
 		type WeightInfo: WeightInfo;
+
+		type RewardPool: RewardPool<BalanceOf<Self>>;
 
 		type FScheduler: ScheduleNamed<Self::BlockNumber, Self::SProposal, Self::SPalletsOrigin>;
 
@@ -245,10 +248,6 @@ pub mod pallet {
 	#[pallet::getter(fn faucet_record)]
 	pub(super) type FaucetRecordMap<T: Config> =
 		StorageMap<_, Blake2_128Concat, T::AccountId, FaucetRecord<BlockNumberOf<T>>>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn currency_reward)]
-	pub(super) type CurrencyReward<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn miner_public_key)]
@@ -402,16 +401,10 @@ pub mod pallet {
 					if miner_info.debt > collaterals {
 						miner_info.debt = miner_info.debt.checked_sub(&collaterals).ok_or(Error::<T>::Overflow)?;
 						remaining = BalanceOf::<T>::zero();
-						<CurrencyReward<T>>::mutate(|reward| -> DispatchResult {
-							*reward = reward.checked_add(&collaterals).ok_or(Error::<T>::Overflow)?;
-							Ok(())
-						})?;
+						T::RewardPool::add_reward(collaterals)?;
 					} else {
 						remaining = remaining.checked_sub(&miner_info.debt).ok_or(Error::<T>::Overflow)?;
-						<CurrencyReward<T>>::mutate(|reward| -> DispatchResult {
-							*reward = reward.checked_add(&miner_info.debt).ok_or(Error::<T>::Overflow)?;
-							Ok(())
-						})?;
+						T::RewardPool::add_reward(miner_info.debt)?;
 						miner_info.debt = BalanceOf::<T>::zero();
 					}
 				}
@@ -746,10 +739,8 @@ impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for Pallet<T> {
 
 		// Must resolve into existing but better to be safe.
 		let _ = T::Currency::resolve_creating(&T::PalletId::get().into_account_truncating(), amount);
-		<CurrencyReward<T>>::mutate(|v| {
-			// The total issuance amount will not exceed u128::Max, so there is no overflow risk
-			*v = *v + numeric_amount;
-		});
+		// The total issuance amount will not exceed u128::Max, so there is no overflow risk
+		T::RewardPool::add_reward(numeric_amount).unwrap();
 
 		Self::deposit_event(Event::Deposit { balance: numeric_amount });
 	}
@@ -776,7 +767,6 @@ pub trait MinerControl<AccountId, BlockNumber> {
 
 	fn get_miner_idle_space(acc: &AccountId) -> Result<u128, DispatchError>;
 	fn get_miner_count() -> u32;
-	fn get_reward() -> u128; 
 	fn calculate_miner_reward(
 		miner: &AccountId, 
 		total_idle_space: u128,
@@ -917,10 +907,6 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 
 	fn get_miner_count() -> u32 {
 		<MinerItems<T>>::count()
-	}
-
-	fn get_reward() -> u128 {
-		<CurrencyReward<T>>::get().saturated_into()
 	}
 
 	fn calculate_miner_reward(

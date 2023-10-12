@@ -860,7 +860,7 @@ pub mod pallet {
 			ensure!(Self::check_permission(sender.clone(), owner.clone()), Error::<T>::NoPermission);
 			ensure!(<Bucket<T>>::contains_key(&owner, &name), Error::<T>::NonExistent);
 			let bucket = <Bucket<T>>::try_get(&owner, &name).map_err(|_| Error::<T>::Unexpected)?;
-			ensure!(bucket.object_list == 0, Error::<T>::NotEmpty);
+			ensure!(bucket.object_list.len() == 0, Error::<T>::NotEmpty);
 
 			<Bucket<T>>::remove(&owner, &name);
 			<UserBucketList<T>>::try_mutate(&owner, |bucket_list| -> DispatchResult {
