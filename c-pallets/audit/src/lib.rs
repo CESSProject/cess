@@ -539,16 +539,6 @@ pub mod pallet {
 					}
 				}
 
-				if idle_result {
-					<CountedIdleFailed<T>>::insert(&sender, u32::MIN);
-				} else {
-					let count = <CountedIdleFailed<T>>::get(&sender).checked_add(1).unwrap_or(IDLE_FAULT_TOLERANT as u32);
-					if count >= IDLE_FAULT_TOLERANT as u32 {
-						T::MinerControl::idle_punish(&sender, *idle_space, *service_space)?;
-					}
-					<CountedIdleFailed<T>>::insert(&sender, count);
-				}
-
 				let count = challenge_info.miner_snapshot.space_proof_info.rear
 					.checked_sub(challenge_info.miner_snapshot.space_proof_info.front).ok_or(Error::<T>::Overflow)?;
 				T::CreditCounter::record_proceed_block_size(&tee_acc, count)?;
@@ -672,8 +662,7 @@ pub mod pallet {
 			for (miner, _) in <ChallengeSlip<T>>::iter_prefix(&now) {
 				if let Ok(challenge_info) = <ChallengeSnapShot<T>>::try_get(&miner) {
 					weight = weight.saturating_add(T::DbWeight::get().reads(1));
-					if challenge_info.prove_info.idle_prove.is_none() 
-						|| challenge_info.prove_info.service_prove.is_none() {
+					if challenge_info.prove_info.service_prove.is_none() {
 							let count = <CountedClear<T>>::get(&miner).checked_add(1).unwrap_or(6);
 							weight = weight.saturating_add(T::DbWeight::get().reads(1));
 		
