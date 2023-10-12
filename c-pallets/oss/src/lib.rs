@@ -5,6 +5,9 @@ pub mod benchmarking;
 
 pub mod weights;
 
+mod types;
+use types::*;
+
 #[cfg(test)]
 mod mock;
 #[cfg(test)]
@@ -78,7 +81,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn oss)]
-	pub(super) type Oss<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, PeerId>;
+	pub(super) type Oss<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, OssInfo>;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(PhantomData<T>);
@@ -131,10 +134,14 @@ pub mod pallet {
 		#[pallet::call_index(2)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::register())]
-		pub fn register(origin: OriginFor<T>, endpoint: PeerId) -> DispatchResult {
+		pub fn register(origin: OriginFor<T>, endpoint: PeerId, domain: BoundedVec<u8, ConstU32<50>>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!<Oss<T>>::contains_key(&sender), Error::<T>::Registered);
-			<Oss<T>>::insert(&sender, endpoint.clone());
+			let oss_info = OssInfo {
+				peer_id: endpoint.clone(),
+				domain,
+			};
+			<Oss<T>>::insert(&sender, oss_info);
 
 			Self::deposit_event(Event::<T>::OssRegister {acc: sender, endpoint});
 
@@ -144,13 +151,14 @@ pub mod pallet {
 		#[pallet::call_index(3)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update())]
-		pub fn update(origin: OriginFor<T>, endpoint: PeerId) -> DispatchResult {
+		pub fn update(origin: OriginFor<T>, endpoint: PeerId, domain: BoundedVec<u8, ConstU32<50>>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(<Oss<T>>::contains_key(&sender), Error::<T>::UnRegister);
 
-			<Oss<T>>::try_mutate(&sender, |endpoint_opt| -> DispatchResult {
-				let p_endpoint = endpoint_opt.as_mut().ok_or(Error::<T>::OptionParseError)?;
-				*p_endpoint = endpoint.clone();
+			<Oss<T>>::try_mutate(&sender, |oss_info_opt| -> DispatchResult {
+				let oss_info = oss_info_opt.as_mut().ok_or(Error::<T>::OptionParseError)?;
+				oss_info.peer_id = endpoint;
+				oss_info.domain = domain;
 				Ok(())
 			})?;
 
