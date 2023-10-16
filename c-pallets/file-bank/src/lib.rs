@@ -1085,10 +1085,10 @@ pub mod pallet {
 		
 			Ok(())
 		}
-
+		// FOR TEST
 		#[pallet::call_index(20)]
 		#[transactional]
-		#[pallet::weight(10_000_000_000)]
+		#[pallet::weight(Weight::zero())]
 		pub fn root_clear_failed_count(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 

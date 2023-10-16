@@ -11,8 +11,10 @@ sp-std = { version = "5.0.0", default-features = false, git = "https://github.co
 sp-runtime = { version = "7.0.0", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
-cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
 frame-benchmarking = { version = '4.0.0-dev', default-features = false, git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42", optional = true}
+
+#local dependencies
+cp-cess-common = { path = '../../primitives/common', default-features = false }
 
 [dev-dependencies]
 sp-core = {version = '7.0.0', git = 'https://github.com/CESSProject/substrate', default-features = false, branch = "cess-polkadot-v0.9.42"}

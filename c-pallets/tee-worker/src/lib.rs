@@ -176,7 +176,7 @@ pub mod pallet {
 
         #[pallet::call_index(1)]
         #[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(Weight::zero())]
         pub fn update_whitelist(origin: OriginFor<T>, mr_enclave: [u8; 64]) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 			<MrEnclaveWhitelist<T>>::mutate(|list| -> DispatchResult {
@@ -207,7 +207,7 @@ pub mod pallet {
 		// FOR TESTING
 		#[pallet::call_index(3)]
         #[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(Weight::zero())]
 		pub fn update_podr2_pk(origin: OriginFor<T>, podr2_pbk: Podr2Key) -> DispatchResult {
 			let _sender = ensure_root(origin)?;
 

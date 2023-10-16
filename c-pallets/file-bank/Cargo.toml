@@ -31,6 +31,11 @@ pallet-grandpa = { version = "4.0.0-dev", default-features = false, git = "https
 pallet-scheduler = { version = '4.0.0-dev', git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42", default-features = false }
 # sc-network = { version = "0.10.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 
+# local dependencies
+pallet-sminer = { default-features = false, path = '../sminer' }
+pallet-tee-worker = { default-features = false, path = '../tee-worker' }
+pallet-storage-handler = { default-features = false, path = '../storage-handler' }
+
 [dependencies.frame-benchmarking]
 default-features = false
 git = 'https://github.com/CESSProject/substrate'
@@ -79,22 +84,6 @@ default-features = false
 git = 'https://github.com/CESSProject/substrate'
 branch = "cess-polkadot-v0.9.42"
 version = '7.0.0'
-
-# local dependencies
-[dependencies.pallet-sminer]
-default-features = false
-path = '../sminer'
-version = '0.7.0'
-
-[dependencies.pallet-tee-worker]
-default-features = false
-path = '../tee-worker'
-version = '0.7.0'
-
-[dependencies.pallet-storage-handler]
-default-features = false
-path = '../storage-handler'
-version = '0.7.0'
 
 # dev dependencies
 [dev-dependencies]

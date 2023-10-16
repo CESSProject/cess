@@ -19,11 +19,11 @@ pallet-cess-staking = { path = '../staking', version = '4.0.0-dev', default-feat
 pallet-preimage = { version = "4.0.0-dev", default-features = false, git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42" }
 
 # local pallet
-cp-bloom-filter = { path = '../../primitives/bloom-filter', version = '0.1.0', default-features = false }
-cp-scheduler-credit = { path = '../../primitives/scheduler-credit', version = '0.1.0', default-features = false }
-cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
-cp-enclave-verify = { path = '../../primitives/enclave-verify', version = '0.1.0', default-features = false }
-pallet-sminer-reward = { default-features = false, path = "../sminer-reward", version = "0.7.4" }
+cp-bloom-filter = { path = '../../primitives/bloom-filter', default-features = false }
+cp-scheduler-credit = { path = '../../primitives/scheduler-credit', default-features = false }
+cp-cess-common = { path = '../../primitives/common', default-features = false }
+cp-enclave-verify = { path = '../../primitives/enclave-verify', default-features = false }
+pallet-sminer-reward = { default-features = false, path = "../sminer-reward" }
 
 [dependencies.frame-benchmarking]
 default-features = false
@@ -84,25 +84,21 @@ version = '7.0.0'
 [dependencies.pallet-file-bank]
 default-features = false
 path = '../file-bank'
-version = '0.7.0'
 
 # local dependencies
 [dependencies.pallet-sminer]
 default-features = false
 path = '../sminer'
-version = '0.7.0'
 
 # local dependencies
 [dependencies.pallet-tee-worker]
 default-features = false
 path = '../tee-worker'
-version = '0.7.0'
 
 # local dependencies
 [dependencies.pallet-storage-handler]
 default-features = false
 path = '../storage-handler'
-version = '0.7.0'
 
 [dev-dependencies.frame-support-test]
 default-features = false
@@ -129,9 +125,9 @@ sp-npos-elections = { version = "4.0.0-dev", git = "https://github.com/CESSProje
 frame-election-provider-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 pallet-session = { version = "4.0.0-dev", default-features = false,  git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 pallet-bags-list = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
-pallet-scheduler-credit = { version = "0.1.0", default-features = false, path = '../scheduler-credit'}
-cp-cess-common = { path = '../../primitives/common', version = '0.1.0', default-features = false }
-pallet-oss = { path = '../oss', version = '0.7.0', default-features = false }
+pallet-scheduler-credit = { default-features = false, path = '../scheduler-credit'}
+cp-cess-common = { path = '../../primitives/common', default-features = false }
+pallet-oss = { path = '../oss', default-features = false }
 
 [features]
 default = ["std"]

@@ -638,6 +638,7 @@ pub mod pallet {
 		///
 		/// Parameters:
 		/// - `acc`: Withdraw money account.
+		/// FOR TEST
 		#[pallet::call_index(14)]
 		#[transactional]
 		#[pallet::weight(35_000_000)]
@@ -717,7 +718,7 @@ pub mod pallet {
 		// FOR TESTING
 		#[pallet::call_index(15)]
 		#[transactional]
-		#[pallet::weight(100_000)]
+		#[pallet::weight(Weight::zero())]
 		pub fn update_expender(
 			origin: OriginFor<T>, 
 			k: u64, 
