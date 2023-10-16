@@ -92,7 +92,6 @@ use sp_std::{
 		convert:: { TryFrom, TryInto },
 		prelude::*,
 	};
-use cp_cess_common::*;
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -372,10 +371,10 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn verify_slip)]
 	pub(super) type VerifySlip<T: Config> = StorageDoubleMap<_, Blake2_128Concat, BlockNumberOf<T>, Blake2_128Concat, AccountOf<T>, bool>;
-
+	// FOR TEST
 	#[pallet::storage]
 	#[pallet::getter(fn test_option_storage)]
-	pub(super) type TestOptionStorage<T: Config> = StorageMap<_, Blake2_128Concat, u32, Option<IdleProveInfo<T>>>;
+	pub(super) type TestOptionStorageV2<T: Config> = StorageMap<_, Blake2_128Concat, u32, ProveInfo<T>>;
 
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
@@ -646,10 +645,10 @@ pub mod pallet {
 				Ok(())
 			})
 		}
-
+		// FOR TEST
 		#[pallet::call_index(7)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(Weight::zero())]
 		pub fn update_counted_clear(origin: OriginFor<T>, miner: AccountOf<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
@@ -657,18 +656,17 @@ pub mod pallet {
 
 			Ok(())
 		}
-
+		// FOR TEST
 		#[pallet::call_index(8)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
-		pub fn test_insert_option(origin: OriginFor<T>, key: u32, value: Option<IdleProveInfo<T>> ) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
+		#[pallet::weight(Weight::zero())]
+		pub fn test_insert_option(origin: OriginFor<T>, key: u32, value: ProveInfo<T> ) -> DispatchResult {
+			let _sender = ensure_signed(origin)?;
 
-			TestOptionStorage::insert(key, value);
+			TestOptionStorageV2::insert(key, value);
 
 			Ok(())
 		}
-		
 	}
 
 	impl<T: Config> Pallet<T> {
@@ -679,33 +677,33 @@ pub mod pallet {
 				if let Ok(challenge_info) = <ChallengeSnapShot<T>>::try_get(&miner) {
 					weight = weight.saturating_add(T::DbWeight::get().reads(1));
 					if challenge_info.prove_info.service_prove.is_none() {
-							let count = <CountedClear<T>>::get(&miner).checked_add(1).unwrap_or(6);
-							weight = weight.saturating_add(T::DbWeight::get().reads(1));
+						let count = <CountedClear<T>>::get(&miner).checked_add(1).unwrap_or(6);
+						weight = weight.saturating_add(T::DbWeight::get().reads(1));
 		
-							let _ = T::MinerControl::clear_punish(
-								&miner, 
-								count, 
-								challenge_info.miner_snapshot.idle_space, 
-								challenge_info.miner_snapshot.service_space
-							);
-							weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-							//For Testing
-							if count >= 6 {
-								let result = T::MinerControl::force_miner_exit(&miner);
-								weight = weight.saturating_add(T::DbWeight::get().reads_writes(5, 5));
-								if result.is_err() {
-									log::info!("force clear miner: {:?} failed", miner);
-								}
-								<CountedClear<T>>::remove(&miner);
-								weight = weight.saturating_add(T::DbWeight::get().writes(1));
-							} else {
-								<CountedClear<T>>::insert(
-									&miner, 
-									count,
-								);
-								weight = weight.saturating_add(T::DbWeight::get().writes(1));
+						let _ = T::MinerControl::clear_punish(
+							&miner, 
+							count, 
+							challenge_info.miner_snapshot.idle_space, 
+							challenge_info.miner_snapshot.service_space
+						);
+						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+						//For Testing
+						if count >= 6 {
+							let result = T::MinerControl::force_miner_exit(&miner);
+							weight = weight.saturating_add(T::DbWeight::get().reads_writes(5, 5));
+							if result.is_err() {
+								log::info!("force clear miner: {:?} failed", miner);
 							}
+							<CountedClear<T>>::remove(&miner);
+							weight = weight.saturating_add(T::DbWeight::get().writes(1));
+						} else {
+							<CountedClear<T>>::insert(
+								&miner, 
+								count,
+							);
+							weight = weight.saturating_add(T::DbWeight::get().writes(1));
 						}
+					}
 				}
 
 				<ChallengeSlip<T>>::remove(&now, &miner);

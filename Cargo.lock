@@ -880,7 +880,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node"
-version = "0.7.0"
+version = "0.7.4"
 dependencies = [
  "array-bytes",
  "async-trait",
@@ -969,7 +969,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node-runtime"
-version = "0.7.0"
+version = "0.7.4"
 dependencies = [
  "cessp-consensus-rrsc",
  "cp-cess-common",

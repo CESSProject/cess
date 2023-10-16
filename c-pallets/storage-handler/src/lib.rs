@@ -333,10 +333,10 @@ pub mod pallet {
 			});
 			Ok(())
 		}
-
+        // FOR TEST
 		#[pallet::call_index(4)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(Weight::zero())]
 		pub fn update_price(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 			let default_price: BalanceOf<T> = 30u32.saturated_into();
@@ -344,10 +344,10 @@ pub mod pallet {
 
 			Ok(())
 		}
-
+        // FOR TEST
         #[pallet::call_index(5)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(Weight::zero())]
         pub fn update_user_life(origin: OriginFor<T>, user: AccountOf<T>, deadline: BlockNumberOf<T>) -> DispatchResult {
             let _ = ensure_root(origin)?;
 

@@ -14,7 +14,8 @@ sp-runtime = { version = "7.0.0", default-features = false, git = "https://githu
 frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 
-cp-scheduler-credit = { version = "0.1.0", default-features = false, path = '../../primitives/scheduler-credit' }
+#lock dependencies
+cp-scheduler-credit = { default-features = false, path = '../../primitives/scheduler-credit' }
 
 [dev-dependencies]
 sp-io = { version = "7.0.0", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }

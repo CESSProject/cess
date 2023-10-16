@@ -6,8 +6,6 @@ use frame_support::{
 	dispatch::{DispatchResult},
     pallet_prelude::{StorageValue, ValueQuery},
 };
-use codec::{Decode, Encode};
-use scale_info::TypeInfo;
 // use sp_std::prelude::*;
 use sp_runtime::{
     SaturatedConversion,
