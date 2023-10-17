@@ -3,7 +3,7 @@ This file is the exclusive pallet of cess and the proof of podr2 adaptation
 
 ## OverView
 
-The job of this aduit pallet is to process the proof of miner's service file and filling file,  and generate random challenges. Call some traits of Smith pallet to punish miners. Call the trail of file bank pallet to obtain random files or files with problems in handling challenges.
+The job of this aduit pallet is to process the proof of miner's service file and filling file, and generate random challenges. Call some traits of Sminer pallet to punish miners. Call the trail of file bank pallet to obtain random files or files with problems in handling challenges.
 
 ### Terminology
 
@@ -11,7 +11,7 @@ The job of this aduit pallet is to process the proof of miner's service file and
 The miners need to complete the challenge within a limited time and submit the certificates of
 the corresponding documents.
 
-* **deadline:** 		Expiration time of challenge, stored in challengeduration.
+* **deadline:** 		Expiration time of challenge, stored in challenge duration.
 * **mu:**				Miner generated challenge related information.
 * **sigma:**			Miner generated challenge related information.
 

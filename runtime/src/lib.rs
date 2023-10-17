@@ -1608,7 +1608,7 @@ pub type Executive = frame_executive::Executive<
 	AllPalletsWithSystem,
 	(),
 	// TestMigrationFileBank<Runtime>,
-	// MigrationSegmentBook<Runtime>,
+	// MigrationAudit<Runtime>,
 >;
 
 #[cfg(feature = "runtime-benchmarks")]

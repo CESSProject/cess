@@ -2,12 +2,12 @@ use crate::*;
 use codec::{Decode, Encode};
 use frame_support::{
 	codec, generate_storage_alias,
-	traits::{Get},
+	traits::Get,
 };
 use frame_support::traits::OnRuntimeUpgrade;
 
-pub struct MigrationSegmentBook<T: crate::Config>(sp_std::marker::PhantomData<T>);
-impl<T: crate::Config> OnRuntimeUpgrade for MigrationSegmentBook<T> {
+pub struct MigrationAudit<T: crate::Config>(sp_std::marker::PhantomData<T>);
+impl<T: crate::Config> OnRuntimeUpgrade for MigrationAudit<T> {
 	fn on_runtime_upgrade() -> Weight {
         log::info!("Audit migrate start!");
 		migrate::<T>()
