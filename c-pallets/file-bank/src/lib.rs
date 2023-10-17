@@ -491,7 +491,7 @@ pub mod pallet {
 			if count < 20 {
 				if let Err(_e) = <DealMap<T>>::try_mutate(&deal_hash, |opt| -> DispatchResult {
 					let deal_info = opt.as_mut().ok_or(Error::<T>::NonExistent)?;
-					// unlock mienr space
+					// unlock miner space
 					let mut needed_list: BoundedVec<MinerTaskList<T>, T::FragmentCount> = Default::default();
 					let mut selected_miner: BoundedVec<AccountOf<T>, T::FragmentCount> = Default::default();
 					for miner_task in &deal_info.assigned_miner.clone() {

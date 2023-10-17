@@ -4,9 +4,9 @@
 //!
 //! ## OverView
 //!
-//!  The job of this audit pallet is to process the proof of miner's service file and filling
-//! file,  and generate random challenges. Call some traits of Smith pallet to punish miners.
-//!  Call the trail of file bank pallet to obtain random files or files with problems in handling
+//! The job of this audit pallet is to process the proof of miner's service file and filling
+//! file, and generate random challenges. Call some traits of Sminer pallet to punish miners.
+//! Call the trail of file bank pallet to obtain random files or files with problems in handling
 //! challenges.
 //!
 //! ### Terminology
@@ -15,7 +15,7 @@
 //!   The miners need to complete the challenge within a limited time and submit the certificates of
 //!   the corresponding documents.
 //!
-//! * **deadline:** 		Expiration time of challenge, stored in challengeduration
+//! * **deadline:** 		Expiration time of challenge, stored in challenge duration
 //! * **mu:**				Miner generated challenge related information
 //! * **sigma:**			Miner generated challenge related information
 //!
@@ -58,9 +58,7 @@ pub mod benchmarking;
 
 pub mod weights;
 
-use sp_runtime::{
-	RuntimeDebug,
-};
+use sp_runtime::RuntimeDebug;
 
 use codec::{Decode, Encode};
 use cp_bloom_filter::BloomFilter;
@@ -81,7 +79,7 @@ use sp_core::{
 	offchain::OpaqueNetworkState,
 };
 use sp_runtime::{Saturating, app_crypto::RuntimeAppPublic, SaturatedConversion};
-use frame_system::offchain::{CreateSignedTransaction};
+use frame_system::offchain::CreateSignedTransaction;
 use pallet_file_bank::RandomFileList;
 use pallet_sminer::MinerControl;
 use pallet_storage_handler::StorageHandle;
@@ -92,7 +90,6 @@ use sp_std::{
 		convert:: { TryFrom, TryInto },
 		prelude::*,
 	};
-use cp_cess_common::*;
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -390,6 +387,14 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		/// Submit an idle proof for challenge verification.
+		///
+		/// This function allows an account, identified by the `origin`, to submit an idle proof as part of a challenge verification process.
+		///
+		/// # Parameters
+		///
+		/// - `origin`: The origin of the request, typically a user or account.
+		/// - `idle_prove`: A bounded vector of bytes representing the idle proof to be submitted. It should match the configured total hash length for idle proofs.
 		#[pallet::call_index(1)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_idle_proof())]
@@ -428,6 +433,15 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Submit a service proof as part of a challenge in the pallet.
+		///
+		/// This function is a part of the pallet's public interface and allows an authorized account
+		/// (identified by the `origin`) to submit a service proof as a response to a challenge.
+		///
+		/// # Parameters
+		///
+		/// - `origin`: The origin of the transaction, representing the caller.
+		/// - `service_prove`: A bounded vector of bytes (`BoundedVec`) containing the service proof data.
 		#[pallet::call_index(2)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_service_proof())]
@@ -466,6 +480,22 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Submit a verification result for idle space proofs in response to a challenge.
+		///
+		/// This function is a part of the pallet's public interface and allows an authorized user
+		/// (identified by the `origin`) to submit the verification result for idle space proofs
+		/// as part of a challenge response.
+		///
+		/// # Parameters
+		///
+		/// - `origin`: The origin of the transaction, representing the caller.
+		/// - `total_prove_hash`: A bounded vector of bytes (`BoundedVec`) containing the total proof hash.
+		/// - `front`: The front index of the proof range.
+		/// - `rear`: The rear index of the proof range.
+		/// - `accumulator`: The accumulator data.
+		/// - `idle_result`: A boolean indicating the verification result for idle space.
+		/// - `signature`: A TEERsaSignature for the verification.
+		/// - `tee_acc`: The TEERsaSignature worker account associated with the proof.
 		#[pallet::call_index(3)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_verify_idle_result())]
@@ -559,6 +589,19 @@ pub mod pallet {
 			})
 		}
 
+		/// Submit a verification result for service proofs in response to a challenge.
+		///
+		/// This function is a part of the pallet's public interface and allows an authorized user
+		/// (identified by the `origin`) to submit the verification result for service proofs
+		/// as part of a challenge response.
+		///
+		/// # Parameters
+		///
+		/// - `origin`: The origin of the transaction, representing the caller.
+		/// - `service_result`: A boolean indicating the verification result for service proofs.
+		/// - `signature`: A TEERsaSignature for the verification.
+		/// - `service_bloom_filter`: A BloomFilter representing the service's data.
+		/// - `tee_acc`: The TEERsaSignature worker account associated with the proof.
 		#[pallet::call_index(4)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_verify_service_result())]
@@ -653,6 +696,15 @@ pub mod pallet {
 			})
 		}
 
+		/// Update and reset the counted clear value for a specific miner.
+		///
+		/// This function is designed for administrative purposes and can only be called by a root user
+		/// (administrator) to reset the `CountedClear` value for a specific miner to zero.
+		///
+		/// # Parameters
+		///
+		/// - `origin`: The origin of the transaction, representing the caller (administrator).
+		/// - `miner`: The account of the miner whose `CountedClear` value will be reset to zero.
 		#[pallet::call_index(7)]
 		#[transactional]
 		#[pallet::weight(100_000_000)]
@@ -666,6 +718,19 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
+
+		/// Clear challenge data and perform associated actions for the given block number.
+		///
+		/// This function is used to clear challenge data and perform various operations for a specific block number.
+		/// It iterates over challenges in the `ChallengeSlip` storage item and checks the associated `ChallengeSnapShot`.
+		///
+		/// # Parameters
+		///
+		/// - `now`: The block number for which challenge data is to be cleared and processed.
+		///
+		/// # Returns
+		///
+		/// The total weight consumed by the operation.
 		fn clear_challenge(now: BlockNumberOf<T>) -> Weight {
 			let mut weight: Weight = Weight::zero();
 
@@ -710,6 +775,19 @@ pub mod pallet {
 			weight
 		}
 
+		/// Clear Verify Missions and Update Challenge Information
+		///
+		/// This function iterates through Verify Missions for a given block number `now`, 
+		/// processes each mission, and updates challenge information accordingly. Verify
+		/// Missions represent task miners must complete within a certain time frame. If 
+		/// a miner fails to meet the requirements, their mission may be cleared and 
+		/// challenge information updated.
+		///
+		/// Parameters:
+		/// - `now`: The block number for which verification missions are processed.
+		///
+		/// Returns:
+		/// - A `Weight` value representing the computational cost of the operation.
 		fn clear_verify_mission(now: BlockNumberOf<T>) -> Weight {
 			let mut weight: Weight = Weight::zero();
 
@@ -776,6 +854,18 @@ pub mod pallet {
 			weight
 		}
 
+		/// Generate and Initiate Challenge for a Miner
+		///
+		/// This function generates and initiates a challenge for a miner based on various
+		/// parameters and configuration settings. It involves selecting a miner, creating
+		/// a challenge with specific timing characteristics, and initializing challenge-related
+		/// data structures.
+		///
+		/// Parameters:
+		/// - `now`: The block number representing the current state of the blockchain.
+		///
+		/// Returns:
+		/// - A `Weight` value representing the computational cost of the operation.
 		fn generate_challenge(now: BlockNumberOf<T>) -> Weight {
 			let mut weight: Weight = Weight::zero();
 			
@@ -881,6 +971,20 @@ pub mod pallet {
 			weight
 		}
 
+		/// Randomly Select Trusted Execution Environment (TEE) Account
+		///
+		/// This function selects a Trusted Execution Environment (TEE) account from a list
+		/// of available TEE accounts. The selection is made based on a random index generated
+		/// from a seed derived from the current block number. An optional bit mask can be
+		/// applied to the seed to influence the randomness.
+		///
+		/// Parameters:
+		/// - `mask`: An optional bit mask to apply to the randomization process. It can be used
+		///   to influence the selection by XOR-ing with the block-based seed.
+		///
+		/// Returns:
+		/// - A `Result` containing the selected TEE account if successful, or a `DispatchError`
+		///   if there are no available TEE accounts or if random number generation fails.
 		fn random_select_tee_acc(mask: u32) -> Result<AccountOf<T>, DispatchError> {
 			let tee_list = T::TeeWorkerHandler::get_controller_list();
 			ensure!(tee_list.len() > 0, Error::<T>::SystemError);
@@ -893,6 +997,22 @@ pub mod pallet {
 			Ok(tee_acc.clone())
 		}
 
+		/// Generate Miner QElement
+		///
+		/// This function generates a `QElement`, which contains a list of random indices
+		/// (`random_index_list`) and corresponding random values (`random_list`). These
+		/// values are used for auditing purposes.
+		///
+		/// The generation process involves selecting a number of random indices (random_index_list)
+		/// and corresponding random values (random_list). These selections are based on a seed,
+		/// and the generated elements are used in auditing processes.
+		///
+		/// Parameters:
+		/// - `seed`: An initial seed value used to generate random indices and values.
+		///
+		/// Returns:
+		/// - A `Result` containing a `QElement` with populated random indices and values if successful,
+		///   or an `AuditErr` error in case of potential issues during the generation process.
 		fn generate_miner_qelement(seed: u32) -> Result<QElement, AuditErr> {
 			let mut random_index_list: BoundedVec<u32, ConstU32<1024>> = Default::default();
 			let mut random_list: BoundedVec<[u8; 20], ConstU32<1024>> = Default::default();
@@ -928,6 +1048,20 @@ pub mod pallet {
 			Ok(QElement{random_index_list, random_list})
 		}
 
+		/// Generate Miner Space Challenge Parameters
+		///
+		/// This function generates space challenge parameters (`SpaceChallengeParam`) for a miner.
+		/// These parameters are used in auditing processes. The parameters consist of a list
+		/// of elements, each representing a specific space challenge.
+		///
+		/// The generation process involves generating unique random values for the space challenges.
+		///
+		/// Parameters:
+		/// - `seed`: An initial seed value used to introduce variation in random value generation.
+		///
+		/// Returns:
+		/// - A `Result` containing a `SpaceChallengeParam` with populated space challenge elements if
+		///   successful, or an `AuditErr` error in case of potential issues during the generation process.
 		fn generate_miner_space_param(seed: u32) -> Result<SpaceChallengeParam, AuditErr> {
 			// generate idle challenge param
 			let (_, n, d) = T::MinerControl::get_expenders().map_err(|_| AuditErr::SpaceParamErr)?;
@@ -994,6 +1128,34 @@ pub mod pallet {
 			}
 		}
 
+		/// Check Idle Verify Parameters
+		///
+		/// This function checks the integrity of idle verification parameters by comparing them to
+		/// expected values. The parameters are used in the idle verification process, and ensuring
+		/// their correctness is crucial for audit procedures.
+		///
+		/// The function compares the following parameters:
+		///
+		/// - `accumulator`: The current accumulator, which should match the one stored in `miner_info`.
+		/// - `rear`: The rear value, which should match the `rear` value in `miner_info`.
+		/// - `front`: The front value, which should match the `front` value in `miner_info`.
+		/// - `total_prove_hash`: The total proof hash, which should match `m_total_prove_hash`.
+		///
+		/// If any of the comparisons result in a mismatch, the `idle_result` flag is set to `false`,
+		/// indicating that the parameters are not correct.
+		///
+		/// Parameters:
+		/// - `idle_result`: A boolean flag that tracks the correctness of the idle verification parameters.
+		///   It is initially set to `true` and is updated to `false` if any of the checks fail.
+		/// - `front`: The front value used in idle verification.
+		/// - `rear`: The rear value used in idle verification.
+		/// - `total_prove_hash`: The total proof hash generated during idle verification.
+		/// - `accumulator`: The current accumulator, which should match the one stored in `miner_info`.
+		/// - `miner_info`: Information about the miner's space proof and related data.
+		/// - `m_total_prove_hash`: The total proof hash value expected to match the generated `total_prove_hash`.
+		///
+		/// Returns:
+		/// - A boolean flag (`idle_result`) indicating whether the idle verification parameters are correct.
 		fn check_idle_verify_param(
 			mut idle_result: bool,
 			front: u64,
