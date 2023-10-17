@@ -880,7 +880,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node"
-version = "0.7.0"
+version = "0.7.4"
 dependencies = [
  "array-bytes",
  "async-trait",
@@ -969,7 +969,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node-runtime"
-version = "0.7.0"
+version = "0.7.4"
 dependencies = [
  "cessp-consensus-rrsc",
  "cp-cess-common",
@@ -1026,6 +1026,7 @@ dependencies = [
  "pallet-scheduler-credit",
  "pallet-session",
  "pallet-sminer",
+ "pallet-sminer-reward",
  "pallet-storage-handler",
  "pallet-sudo",
  "pallet-tee-worker",
@@ -5836,6 +5837,7 @@ dependencies = [
  "pallet-scheduler-credit",
  "pallet-session",
  "pallet-sminer",
+ "pallet-sminer-reward",
  "pallet-storage-handler",
  "pallet-tee-worker",
  "pallet-timestamp",
@@ -6518,6 +6520,7 @@ dependencies = [
  "pallet-cess-staking",
  "pallet-preimage",
  "pallet-scheduler",
+ "pallet-sminer-reward",
  "pallet-storage-handler",
  "pallet-tee-worker",
  "pallet-timestamp",
@@ -6527,6 +6530,18 @@ dependencies = [
  "serde",
  "sp-core",
  "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-sminer-reward"
+version = "0.7.4"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
  "sp-runtime",
  "sp-std",
 ]
@@ -6552,6 +6567,7 @@ dependencies = [
  "frame-system",
  "log",
  "pallet-balances",
+ "pallet-sminer-reward",
  "parity-scale-codec",
  "scale-info",
  "serde",

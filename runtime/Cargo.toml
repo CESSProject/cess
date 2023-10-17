@@ -4,7 +4,7 @@ edition = "2021"
 license = "Unlicense"
 name = "cess-node-runtime"
 repository = "https://github.com/CESSProject/cess"
-version = "0.7.0"
+version = "0.7.4"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -106,16 +106,17 @@ pallet-transaction-payment = { version = "4.0.0-dev", default-features = false, 
 pallet-transaction-payment-rpc-runtime-api = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 pallet-asset-tx-payment = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 
-cp-scheduler-credit = { default-features = false, version = "0.1.0", path = "../primitives/scheduler-credit" }
-pallet-scheduler-credit = { default-features = false, version = "0.1.0", path = "../c-pallets/scheduler-credit" }
+cp-scheduler-credit = { default-features = false, path = "../primitives/scheduler-credit" }
+pallet-scheduler-credit = { default-features = false, path = "../c-pallets/scheduler-credit" }
 
 # local dependencies
-pallet-sminer = { default-features = false, path = "../c-pallets/sminer", version = "0.7.0" }
-pallet-audit = { default-features = false, path = "../c-pallets/audit", version = "0.7.0" }
-pallet-file-bank = { default-features = false, path = "../c-pallets/file-bank", version = "0.7.0" }
-pallet-tee-worker = { default-features = false, path = "../c-pallets/tee-worker", version = "0.7.0" }
-pallet-storage-handler = { default-features = false, path = "../c-pallets/storage-handler", version = "0.7.0" }
-pallet-oss = { default-features = false, path = "../c-pallets/oss", version = "0.7.0" }
+pallet-sminer = { default-features = false, path = "../c-pallets/sminer" }
+pallet-sminer-reward = { default-features = false, path = "../c-pallets/sminer-reward" }
+pallet-audit = { default-features = false, path = "../c-pallets/audit" }
+pallet-file-bank = { default-features = false, path = "../c-pallets/file-bank" }
+pallet-tee-worker = { default-features = false, path = "../c-pallets/tee-worker" }
+pallet-storage-handler = { default-features = false, path = "../c-pallets/storage-handler" }
+pallet-oss = { default-features = false, path = "../c-pallets/oss" }
 
 # Frontier
 fp-account = { git = "https://github.com/CESSProject/frontier", branch = "cess-polkadot-v0.9.42", default-features = false }
@@ -166,6 +167,7 @@ std = [
     "pallet-storage-handler/std",
 		"pallet-oss/std",
     "pallet-cacher/std",
+    "pallet-sminer-reward/std",
     "pallet-preimage/std",
     "pallet-assets/std",
     "pallet-child-bounties/std",

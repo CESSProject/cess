@@ -23,7 +23,8 @@ sp-runtime = { version = "7.0.0", git = 'https://github.com/CESSProject/substrat
 frame-benchmarking = { version = '4.0.0-dev', git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42", default-features = false }
 
 # local dependencies
-cp-cess-common = { version = '0.1.0', path = '../../primitives/common', default-features = false }
+cp-cess-common = { path = '../../primitives/common', default-features = false }
+pallet-sminer-reward = { default-features = false, path = "../sminer-reward" }
 
 [features]
 default = ["std"]
@@ -36,6 +37,7 @@ std = [
     "sp-std/std",
     "sp-runtime/std",
     "frame-benchmarking/std",
+    "pallet-sminer-reward/std",
 ]
 
 try-runtime = [ "frame-support/try-runtime" ]

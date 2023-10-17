@@ -145,7 +145,7 @@ impl<T: Config> Pallet<T> {
 		miner_idle_space: u128,
 		miner_service_space: u128,
 	) -> DispatchResult {
-		let total_reward = <CurrencyReward<T>>::get();
+		let total_reward = T::RewardPool::get_reward();
 		let total_power = Self::calculate_power(total_idle_space, total_service_space);
 		let miner_power = Self::calculate_power(miner_idle_space, miner_service_space);
 
@@ -189,11 +189,7 @@ impl<T: Config> Pallet<T> {
 
 			Ok(())
 		})?;
-
-		<CurrencyReward<T>>::mutate(|v| -> DispatchResult {
-			*v = v.checked_sub(&order.order_reward).ok_or(Error::<T>::Overflow)?;
-			Ok(())
-		})?;
+		T::RewardPool::sub_reward(order.order_reward)?;
 		
 		Ok(())
 	}
@@ -240,9 +236,7 @@ impl<T: Config> Pallet<T> {
 		if let Ok(reward_info) = <RewardMap<T>>::try_get(acc).map_err(|_| Error::<T>::NotExisted) {
 			let reward = reward_info.total_reward
 				.checked_sub(&reward_info.reward_issued).ok_or(Error::<T>::Overflow)?;
-			<CurrencyReward<T>>::mutate(|v| {
-				*v = *v + reward;
-			});
+			T::RewardPool::add_reward(reward)?;
 		}
 		let mut miner_list = AllMiner::<T>::get();
 		miner_list.retain(|s| s != acc);

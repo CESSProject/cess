@@ -369,6 +369,10 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn verify_slip)]
 	pub(super) type VerifySlip<T: Config> = StorageDoubleMap<_, Blake2_128Concat, BlockNumberOf<T>, Blake2_128Concat, AccountOf<T>, bool>;
+	// FOR TEST
+	#[pallet::storage]
+	#[pallet::getter(fn test_option_storage)]
+	pub(super) type TestOptionStorageV2<T: Config> = StorageMap<_, Blake2_128Concat, u32, ProveInfo<T>>;
 
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
@@ -569,16 +573,6 @@ pub mod pallet {
 					}
 				}
 
-				if idle_result {
-					<CountedIdleFailed<T>>::insert(&sender, u32::MIN);
-				} else {
-					let count = <CountedIdleFailed<T>>::get(&sender).checked_add(1).unwrap_or(IDLE_FAULT_TOLERANT as u32);
-					if count >= IDLE_FAULT_TOLERANT as u32 {
-						T::MinerControl::idle_punish(&sender, *idle_space, *service_space)?;
-					}
-					<CountedIdleFailed<T>>::insert(&sender, count);
-				}
-
 				let count = challenge_info.miner_snapshot.space_proof_info.rear
 					.checked_sub(challenge_info.miner_snapshot.space_proof_info.front).ok_or(Error::<T>::Overflow)?;
 				T::CreditCounter::record_proceed_block_size(&tee_acc, count)?;
@@ -695,7 +689,7 @@ pub mod pallet {
 				Ok(())
 			})
 		}
-
+		// FOR TEST
 		/// Update and reset the counted clear value for a specific miner.
 		///
 		/// This function is designed for administrative purposes and can only be called by a root user
@@ -707,11 +701,22 @@ pub mod pallet {
 		/// - `miner`: The account of the miner whose `CountedClear` value will be reset to zero.
 		#[pallet::call_index(7)]
 		#[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(Weight::zero())]
 		pub fn update_counted_clear(origin: OriginFor<T>, miner: AccountOf<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
 			<CountedClear<T>>::insert(&miner, 0);
+
+			Ok(())
+		}
+		// FOR TEST
+		#[pallet::call_index(8)]
+		#[transactional]
+		#[pallet::weight(Weight::zero())]
+		pub fn test_insert_option(origin: OriginFor<T>, key: u32, value: ProveInfo<T> ) -> DispatchResult {
+			let _sender = ensure_signed(origin)?;
+
+			TestOptionStorageV2::insert(key, value);
 
 			Ok(())
 		}
@@ -737,35 +742,34 @@ pub mod pallet {
 			for (miner, _) in <ChallengeSlip<T>>::iter_prefix(&now) {
 				if let Ok(challenge_info) = <ChallengeSnapShot<T>>::try_get(&miner) {
 					weight = weight.saturating_add(T::DbWeight::get().reads(1));
-					if challenge_info.prove_info.idle_prove.is_none() 
-						|| challenge_info.prove_info.service_prove.is_none() {
-							let count = <CountedClear<T>>::get(&miner).checked_add(1).unwrap_or(6);
-							weight = weight.saturating_add(T::DbWeight::get().reads(1));
+					if challenge_info.prove_info.service_prove.is_none() {
+						let count = <CountedClear<T>>::get(&miner).checked_add(1).unwrap_or(6);
+						weight = weight.saturating_add(T::DbWeight::get().reads(1));
 		
-							let _ = T::MinerControl::clear_punish(
-								&miner, 
-								count, 
-								challenge_info.miner_snapshot.idle_space, 
-								challenge_info.miner_snapshot.service_space
-							);
-							weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-							//For Testing
-							if count >= 6 {
-								let result = T::MinerControl::force_miner_exit(&miner);
-								weight = weight.saturating_add(T::DbWeight::get().reads_writes(5, 5));
-								if result.is_err() {
-									log::info!("force clear miner: {:?} failed", miner);
-								}
-								<CountedClear<T>>::remove(&miner);
-								weight = weight.saturating_add(T::DbWeight::get().writes(1));
-							} else {
-								<CountedClear<T>>::insert(
-									&miner, 
-									count,
-								);
-								weight = weight.saturating_add(T::DbWeight::get().writes(1));
+						let _ = T::MinerControl::clear_punish(
+							&miner, 
+							count, 
+							challenge_info.miner_snapshot.idle_space, 
+							challenge_info.miner_snapshot.service_space
+						);
+						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+						//For Testing
+						if count >= 6 {
+							let result = T::MinerControl::force_miner_exit(&miner);
+							weight = weight.saturating_add(T::DbWeight::get().reads_writes(5, 5));
+							if result.is_err() {
+								log::info!("force clear miner: {:?} failed", miner);
 							}
+							<CountedClear<T>>::remove(&miner);
+							weight = weight.saturating_add(T::DbWeight::get().writes(1));
+						} else {
+							<CountedClear<T>>::insert(
+								&miner, 
+								count,
+							);
+							weight = weight.saturating_add(T::DbWeight::get().writes(1));
 						}
+					}
 				}
 
 				<ChallengeSlip<T>>::remove(&now, &miner);
