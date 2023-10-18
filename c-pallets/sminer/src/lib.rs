@@ -294,14 +294,19 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// Staking and register for storage miner.
+		/// Register as a Miner and Stake Collateral
 		///
-		/// The dispatch origin of this call must be _Signed_.
+		/// This function allows an account to register as a Miner in the network and stake a certain amount of collateral to participate in the mining process. 
+		/// The registration also includes specifying a beneficiary account, providing a unique peer ID for network identification, 
+		/// and submitting a proof of space (PoS) key along with a TeeRSA signature for verification.
 		///
 		/// Parameters:
-		/// - `beneficiary`: The beneficiary related to signer account.
-		/// - `ip`: The registered IP of storage miner.
-		/// - `staking_val`: The number of staking.
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically, this is the account that wishes to register as a Miner.
+		/// - `beneficiary`: The account that will receive the rewards for mining.
+		/// - `peer_id`: A unique identifier for the Miner on the network.
+		/// - `staking_val`: The amount of collateral that the Miner is staking to participate in mining.
+		/// - `pois_key`: The PoS key provided by the Miner.
+		/// - `tee_sig`: A TeeRSA signature for verifying the authenticity of the PoS key.
 		#[pallet::call_index(0)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
@@ -374,10 +379,15 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Increase the miner collateral.
+
+		/// Increase Collateral and Update Miner's State
+		///
+		/// This function allows a registered Miner to increase their staked collateral. 
+		/// The additional collateral is used to support the Miner's participation in the network and may affect the Miner's state.
 		///
 		/// Parameters:
-		/// - `collaterals`: Miner's TCESS.
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically, this is the account that is a registered Miner.
+		/// - `collaterals`: The amount of additional collateral the Miner wants to stake. It is specified as a `BalanceOf<T>` value, typically a token balance(Miner's TCESS).
 		#[pallet::call_index(1)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::increase_collateral())]
@@ -431,10 +441,14 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// update miner beneficiary.
+		/// Update Miner's Beneficiary Account
+		///
+		/// This function allows a registered Miner to update their beneficiary account. 
+		/// The beneficiary account is the recipient of the Miner's rewards and earnings from the network.
 		///
 		/// Parameters:
-		/// - `beneficiary`: The beneficiary related to signer account.
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically, this is the account that is a registered Miner.
+		/// - `beneficiary`: The new beneficiary account to be associated with the Miner.
 		#[pallet::call_index(2)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_beneficiary())]
@@ -455,10 +469,13 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// update miner IP.
+		/// Update Miner's Peer ID
+		///
+		/// This function allows a registered Miner to update their Peer ID, which is used for network communication and connectivity.
 		///
 		/// Parameters:
-		/// - `ip`: The registered IP of storage miner.
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically, this is the account that is a registered Miner.
+		/// - `peer_id`: The new Peer ID to be associated with the Miner for network communication.
 		#[pallet::call_index(3)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_peer_id())]
@@ -477,6 +494,14 @@ pub mod pallet {
 			Ok(())
 		}
 
+
+		/// Receive Miner's Reward
+		///
+		/// This function allows a registered Miner in a positive state to receive their available rewards from the reward pool. 
+		/// It transfers the rewards to the Miner's beneficiary.
+		///
+		/// Parameters:
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically, this is the account of a registered Miner.
 		#[pallet::call_index(6)]
 		#[transactional]
 		#[pallet::weight(100_000_000_000)]
@@ -515,7 +540,15 @@ pub mod pallet {
 			Ok(())
 		}
 
-		// The lock in time must be greater than the survival period of the challenge
+		/// Prepare Miner Exit
+		///
+		/// This function allows a registered Miner to initiate the process of exiting the system gracefully. 
+		/// It transitions the Miner from a positive state to a locked state, effectively preparing for the exit. 
+		/// During the locked state, the Miner's resources will be locked for a specific period, 
+		/// ensuring that they fulfill any existing challenges before they can exit completely.
+		///
+		/// Parameters:
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically, this is the account of a registered Miner.
 		#[pallet::call_index(7)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::miner_exit_prep())]
@@ -562,6 +595,15 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Miner Exit
+		///
+		/// This function allows a privileged entity, typically a root user, 
+		/// to finalize the exit process for a Miner who has previously initiated the exit preparation using the `miner_exit_prep` function. 
+		/// It transitions the Miner from a locked state to an exited state, effectively allowing the Miner to leave the system gracefully.
+		///
+		/// Parameters:
+		/// - `origin`: The origin from which the function is called, ensuring the caller has root privileges.
+		/// - `miner`: The account of the Miner who is exiting the system.
 		#[pallet::call_index(8)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::miner_exit())]
@@ -585,6 +627,13 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Miner Withdraw
+		///
+		/// This function allows a Miner to withdraw their assets and rights from the network after their exit has been finalized, 
+		/// and any necessary cool-down period has passed.
+		///
+		/// Parameters:
+		/// - `origin`: The origin from which the function is called, representing the Miner's account.
 		#[pallet::call_index(9)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::miner_withdraw())]

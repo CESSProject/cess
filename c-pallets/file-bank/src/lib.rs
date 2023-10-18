@@ -405,19 +405,17 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// Users need to make a declaration before uploading files.
+		/// Upload Declaration of Data Storage
 		///
-		/// This method is used to declare the file to be uploaded.
-		/// If the file already exists on the chain,
-		/// the user directly becomes one of the holders of the file
-		/// If the file does not exist, after declaring the file,
-		/// wait for the dispatcher to upload the meta information of the file
-		///
-		/// The dispatch origin of this call must be _Signed_.
+		/// This function allows a user to upload a declaration for data storage, specifying the file's metadata,
+		/// deal information, and ownership details. It is used to initiate the storage process of a file.
 		///
 		/// Parameters:
-		/// - `file_hash`: Hash of the file to be uploaded.
-		/// - `file_name`: User defined file name.
+		/// - `origin`: The origin of the transaction.
+		/// - `file_hash`: The unique hash identifier of the file.
+		/// - `deal_info`: A list of segment details for data storage.
+		/// - `user_brief`: A brief description of the user and the file's ownership.
+		/// - `file_size`: The size of the file in bytes.
 		#[pallet::call_index(0)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::upload_declaration(deal_info.len() as u32))]
@@ -472,6 +470,17 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Reassign Miners for a Storage Deal
+		///
+		/// This function is used to reassign miners for an existing storage deal. It is typically called when a deal
+		/// needs to be modified or if the storage task fails for some miners in the deal. The function allows reassigning
+		/// miners to ensure the storage deal is fulfilled within the specified parameters.
+		///
+		/// Parameters:
+		/// - `origin`: The origin of the transaction, expected to be a root/administrator account.
+		/// - `deal_hash`: The unique hash identifier of the storage deal.
+		/// - `count`: The new count (number of miners) for the storage deal. Must be less than or equal to 20.
+		/// - `life`: The duration (in blocks) for which the storage deal will remain active.
 		#[pallet::call_index(1)]
 		// #[transactional]
 		#[pallet::weight(
@@ -525,21 +534,17 @@ pub mod pallet {
 
 			Ok(())
 		}
-		/// Transfer needs to be restricted, such as target consent
-		/// Document ownership transfer function.
+		
+		/// Transfer Ownership of a File
 		///
-		/// You can replace Alice, the holder of the file, with Bob. At the same time,
-		/// Alice will lose the ownership of the file and release the corresponding use space.
-		/// Bob will get the ownership of the file and increase the corresponding use space
-		///
-		/// Premise:
-		/// - Alice has ownership of the file
-		/// - Bob has enough space and corresponding bucket
+		/// This function allows the owner of a file to transfer ownership to another account. The file is identified by its unique
+		/// `file_hash`, and the ownership is transferred to the target user specified in the `target_brief`. The sender of the
+		/// transaction must be the current owner of the file.
 		///
 		/// Parameters:
-		/// - `owner_bucket_name`: Origin stores the bucket name corresponding to the file
-		/// - `target_brief`: Information about the transfer object
-		/// - `file_hash`: File hash, which is also the unique identifier of the file
+		/// - `origin`: The origin of the transaction, representing the current owner of the file.
+		/// - `target_brief`: User brief information of the target user to whom ownership is being transferred.
+		/// - `file_hash`: The unique hash identifier of the file to be transferred
 		#[pallet::call_index(2)]
 		#[transactional]
 		#[pallet::weight(1_000_000_000)]
@@ -593,17 +598,16 @@ pub mod pallet {
 
 			Ok(())
 		}
-		/// Upload info of stored file.
+
+		/// Transfer Report for a Storage Deal
 		///
-		/// The dispatch origin of this call must be _Signed_.
-		///
-		/// The same file will only upload meta information once,
-		/// which will be uploaded by consensus.
+		/// This function allows miners participating in a storage deal to report that they have successfully stored the data segments.
+		/// A storage deal is identified by its unique `deal_hash`. Miners who are part of the deal and have successfully stored their assigned
+		/// data segments can call this function to report completion.
 		///
 		/// Parameters:
-		/// - `file_hash`: The beneficiary related to signer account.
-		/// - `file_size`: File size calculated by consensus.
-		/// - `slice_info`: List of file slice information.
+		/// - `origin`: The origin of the transaction, representing the reporting miner.
+		/// - `deal_hash`: The unique hash identifier of the storage deal being reported.
 		#[pallet::call_index(3)]
 		// #[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::transfer_report(Pallet::<T>::get_segment_length_from_deal(&deal_hash)))]
@@ -686,6 +690,13 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Calculate End of a Storage Deal
+		///
+		/// This function is used to finalize a storage deal and mark it as successfully completed.
+		///
+		/// Parameters:
+		/// - `origin`: The root origin, which authorizes administrative operations.
+		/// - `deal_hash`: The unique hash identifier of the storage deal to be finalized.
 		#[pallet::call_index(4)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::calculate_end(Pallet::<T>::get_segment_length_from_deal(&deal_hash)))]
@@ -722,6 +733,16 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Replace Idle Space
+		///
+		/// This function allows a signed user to replace their idle storage space.
+		///
+		/// Parameters:
+		/// - `origin`: The origin of the transaction.
+		/// - `idle_sig_info`: Space proof information associated with the idle space to be replaced.
+		/// - `tee_sig`: A signature from the TEE (Trusted Execution Environment) used to verify the idle space replacement.
+		///
+		/// The function ensures that the caller has enough pending space to perform the replacement.
 		#[pallet::call_index(5)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::replace_idle_space())]
@@ -765,6 +786,14 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Delete File
+		///
+		/// This function allows an authorized user to delete a file associated with a specific storage hash.
+		///
+		/// Parameters:
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization.
+		/// - `owner`: The owner of the file, representing the user who has permission to delete the file.
+		/// - `file_hash`: The unique hash identifier of the file to be deleted.
 		#[pallet::call_index(6)]
 		#[transactional]
 		#[pallet::weight({
@@ -785,16 +814,16 @@ pub mod pallet {
 
 			Ok(())
 		}
-		/// Upload idle files for miners.
+
+		/// Certify Idle Space
 		///
-		/// The dispatch origin of this call must be _Signed_.
-		///
-		/// Upload up to ten idle files for one transaction.
-		/// Currently, the size of each idle file is fixed at 8MiB.
+		/// This function allows a user to certify their idle storage space by providing 
+		/// a proof of their idle space's integrity and availability.
 		///
 		/// Parameters:
-		/// - `miner`: For which miner, miner's wallet address.
-		/// - `filler_list`: Meta information list of idle files.
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization.
+		/// - `idle_sig_info`: Information about the idle space, including the accumulator and rear values.
+		/// - `tee_sig`: A cryptographic signature provided by a Trusted Execution Environment (TEE) to verify the proof.
 		#[pallet::call_index(8)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::cert_idle_space())]
@@ -826,6 +855,14 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Create a Data Storage Bucket
+		///
+		/// This function allows a user with appropriate permissions to create a new data storage bucket.
+		///
+		/// Parameters:
+		/// - `origin`: The origin of the transaction.
+		/// - `owner`: The account identifier of the bucket owner.
+		/// - `name`: The name of the new bucket.
 		#[pallet::call_index(11)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::create_bucket())]
@@ -848,6 +885,15 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Delete a Bucket
+		///
+		/// This function allows a user to delete an empty storage bucket that they own. 
+		/// Deleting a bucket is only possible if it contains no files.
+		///
+		/// Parameters:
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization.
+		/// - `owner`: The owner's account for whom the bucket should be deleted.
+		/// - `name`: The name of the bucket to be deleted.
 		#[pallet::call_index(12)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::delete_bucket())]
@@ -883,7 +929,15 @@ pub mod pallet {
 			Ok(())
 		}
 
-		// restoral file
+		/// Generate a Restoration Order
+		///
+		/// This function allows a user to generate a restoration order for a specific fragment of a file. 
+		/// A restoration order is used to request the restoration of a lost or corrupted fragment from the network.
+		///
+		/// Parameters:
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization.
+		/// - `file_hash`: The hash of the file that the fragment belongs to.
+		/// - `restoral_fragment`: The hash of the fragment to be restored.
 		#[pallet::call_index(13)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::generate_restoral_order())]
@@ -931,6 +985,15 @@ pub mod pallet {
 			})
 		}
 
+		/// Claim a Restoration Order
+		///
+		/// This function allows a network miner to claim a restoration order for a specific fragment of a file. 
+		/// A restoration order is generated when a user requests the restoration of a lost or corrupted fragment. 
+		/// Miners can claim these orders to provide the requested fragments.
+		///
+		/// Parameters:
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. This function can only be called by authorized miners.
+		/// - `restoral_fragment`: The hash of the fragment associated with the restoration order to be claimed.
 		#[pallet::call_index(14)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::claim_restoral_order())]
@@ -961,6 +1024,17 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Claim a Non-Existent Restoration Order
+		///
+		/// This function allows an authorized network miner to claim a non-existent restoration order. 
+		/// A non-existent restoration order is generated when a user requests the restoration of a lost or corrupted fragment, 
+		/// but the corresponding restoration order does not exist.
+		///
+		/// Parameters:
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. This function can only be called by authorized miners.
+		/// - `miner`: The miner's account that claims the non-existent restoration order.
+		/// - `file_hash`: The hash of the file associated with the non-existent restoration order.
+		/// - `restoral_fragment`: The hash of the fragment for which the non-existent restoration order is being claimed.
 		#[pallet::call_index(15)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::claim_restoral_noexist_order())]
@@ -1021,6 +1095,16 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Complete a Restoration Order
+		///
+		/// This function allows authorized network miners to complete a restoration order, 
+		/// indicating that they have successfully restored a fragment to its original state. 
+		/// Restoration orders are generated when users request the restoration of lost or corrupted fragments. 
+		/// Miners claim these orders and provide the requested fragments for restoration.
+		///
+		/// Parameters:
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. This function can only be called by authorized miners.
+		/// - `fragment_hash`: The hash of the fragment to be restored, for which the restoration order is being completed.
 		#[pallet::call_index(16)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::restoral_order_complete())]

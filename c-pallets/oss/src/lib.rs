@@ -88,6 +88,15 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		
+		/// Authorize Operator
+		///
+		/// This function allows an account to authorize another account as an operator, 
+		/// granting them specific permissions or access rights to perform actions on behalf of the authorizing account.
+		///
+		/// Parameters:
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically, this is the authorizing account.
+		/// - `operator`: The account that will be authorized as an operator by the authorizing account.
 		#[pallet::call_index(0)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::authorize())]
@@ -110,6 +119,14 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Cancel Authorization
+		///
+		/// This function allows an account to cancel the authorization of another account (operator), 
+		/// revoking the operator's permissions or access rights to perform actions on behalf of the authorizing account.
+		///
+		/// Parameters:
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically, this is the authorizing account.
+		/// - `oss`: The account for which the authorization is canceled by the authorizing account.
 		#[pallet::call_index(1)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::cancel_authorize())]
@@ -131,6 +148,16 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Register an OSS
+		///
+		/// This function allows an account to register as an OSS in the pallet. 
+		/// An OSS is a service provider that offers its services via a defined endpoint. 
+		/// Registering as an OSS enables the account to make its services accessible to other users and be authorized for certain actions.
+		///
+		/// Parameters:
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically, this is the account registering as an OSS.
+		/// - `endpoint`: The unique peer ID or endpoint that identifies the OSS and its services.
+		/// - `domain`: A bounded vector of up to 50 bytes representing the domain or description of the OSS.
 		#[pallet::call_index(2)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::register())]
@@ -148,6 +175,17 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Update OSS Information
+		///
+		/// This function allows a registered OSS to update its information, 
+		/// including its endpoint and domain. 
+		/// An OSS is a service provider that offers its services via a defined endpoint. 
+		/// This function enables the OSS to modify its endpoint and provide an updated description of its services.
+		///
+		/// Parameters:
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically, this is the registered OSS that wishes to update its information.
+		/// - `endpoint`: The new unique peer ID or endpoint that identifies the OSS and its services.
+		/// - `domain`: A bounded vector of up to 50 bytes representing the updated domain or description of the OSS's services.
 		#[pallet::call_index(3)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update())]
@@ -167,6 +205,14 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Destroy OSS Registration
+		///
+		/// This function allows a registered OSS to voluntarily destroy its registration, 
+		/// effectively unregistering from the system. Once an OSS is unregistered, 
+		/// it will no longer be recognized as a valid service provider.
+		///
+		/// Parameters:
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically, this is the registered OSS that wishes to destroy its registration.
 		#[pallet::call_index(4)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::destroy())]
