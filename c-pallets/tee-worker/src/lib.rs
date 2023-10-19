@@ -125,7 +125,18 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		//Scheduling registration method
+		/// Register a TEE Worker
+		///
+		/// This function allows a user to register a Trusted Execution Environment (TEE) worker by providing necessary information,
+		/// including the TEE worker's public keys, Peer ID, and other details.
+		///
+		/// Parameters:
+		/// - `origin`: The origin from which the function is called, representing the user's account.
+		/// - `stash_account`: The stash account associated with the TEE worker, used for staking and governance.
+		/// - `node_key`: The public key of the TEE node.
+		/// - `peer_id`: The Peer ID of the TEE worker.
+		/// - `podr2_pbk`: The public key used for Proofs of Data Replication 2 (PoDR2) operations.
+		/// - `sgx_attestation_report`: The attestation report from the Intel Software Guard Extensions (SGX) enclave.
 		#[pallet::call_index(0)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::registration_scheduler())]
@@ -174,6 +185,15 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Update the TEE Worker MR Enclave Whitelist
+		///
+		/// This function allows the root or superuser to update the whitelist of Trusted Execution Environment (TEE) Worker MR (Measurement and Report) Enclaves. 
+		/// Each MR Enclave represents a specific instance of a TEE worker. By adding an MR Enclave to the whitelist, 
+		/// the user ensures that the associated TEE worker can participate in network activities.
+		///
+		/// Parameters:
+		/// - `origin`: The origin from which the function is called, representing the user's account. Only the root user is authorized to call this function.
+		/// - `mr_enclave`: A fixed-size array of 64 bytes representing the MR Enclave of the TEE worker to be added to the whitelist.
         #[pallet::call_index(1)]
         #[transactional]
 		#[pallet::weight(Weight::zero())]
@@ -188,6 +208,13 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Exit a TEE Worker from the Network
+		///
+		/// This function allows a TEE (Trusted Execution Environment) Worker to voluntarily exit from the network. 
+		/// When a TEE Worker exits, it will no longer participate in network activities and will be removed from the list of active TEE Workers.
+		///
+		/// Parameters:
+		/// - `origin`: The origin from which the function is called, representing the account of the TEE Worker. This should be the controller account of the TEE Worker.
 		#[pallet::call_index(2)]
         #[transactional]
 		#[pallet::weight(100_000_000)]

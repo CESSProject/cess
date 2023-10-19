@@ -171,12 +171,14 @@ pub mod pallet {
 
     #[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// Transaction of user purchasing space.
-		///
-		/// The dispatch origin of this call must be Signed.
-		///
-		/// Parameters:
-		/// - `gib_count`: Quantity of several gibs purchased.
+		/// Buy Space
+        ///
+        /// This function allows a user to purchase storage space in the network by specifying the desired capacity in gibibytes (GiB). 
+        /// The user's account is debited with the corresponding payment for the purchased space.
+        ///
+        /// Parameters:
+        /// - `origin`: The origin from which the function is called, representing the user's account.
+        /// - `gib_count`: The amount of storage space to purchase, specified in gibibytes (GiB).
 		#[pallet::call_index(0)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_space())]
@@ -210,14 +212,16 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::BuySpace { acc: sender, storage_capacity: space, spend: price });
 			Ok(())
 		}
-		/// Upgrade package (expansion of storage space)
-		///
-		/// It can only be called when the package has been purchased,
-		/// And the upgrade target needs to be higher than the current package.
-		///
-		/// Parameters:
-		/// - `gib_count`: Additional purchase quantity of several gibs.
-		#[pallet::call_index(1)]
+		
+        /// Expansion of Purchased Space
+        ///
+        /// This function allows a user who has previously purchased storage space to expand their purchased space by adding more storage capacity. 
+        /// The user specifies the desired capacity in gibibytes (GiB) for expansion.
+        ///
+        /// Parameters:
+        /// - `origin`: The origin from which the function is called, representing the user's account.
+        /// - `gib_count`: The amount of additional storage space to purchase for expansion, specified in gibibytes (GiB).
+        #[pallet::call_index(1)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::expansion_space())]
 		pub fn expansion_space(origin: OriginFor<T>, gib_count: u32) -> DispatchResult {
@@ -284,9 +288,14 @@ pub mod pallet {
 			});
 			Ok(())
 		}
-		/// Package renewal
-		///
-		/// Currently, lease renewal only supports single month renewal
+
+        /// Renewal of Purchased Space Lease
+        ///
+        /// This function allows a user who has purchased storage space to renew their lease for additional days by paying a renewal fee. The user specifies the number of days they wish to extend the lease.
+        ///
+        /// Parameters:
+        /// - `origin`: The origin from which the function is called, representing the user's account.
+        /// - `days`: The number of days for which the user wishes to renew the space lease.
 		#[pallet::call_index(2)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_space())]
