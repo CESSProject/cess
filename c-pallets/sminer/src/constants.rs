@@ -26,4 +26,4 @@ pub(super) const IDLE_PUNI_MUTI: Perbill = Perbill::from_percent(10);
 
 pub(super) const SERVICE_PUNI_MUTI: Perbill = Perbill::from_percent(25);
 
-pub(super) const BASE_LIMIT: u128 = 2_000_000_000_000_000;
+pub(super) const BASE_LIMIT: u128 = 4_000_000_000_000_000;
