@@ -200,7 +200,7 @@ impl<T: Config> Pallet<T> {
 		// FOR TESTING
 		let punish_amount = match level {
 			1 => Perbill::from_percent(30).mul_floor(limit),
-			2 => Perbill::from_percent(60).mul_floor(limit),
+			2 => Perbill::from_percent(50).mul_floor(limit),
 			3 | 4 | 5 | 6 => limit,
 			_ => return Err(Error::<T>::Unexpected)?,
 		};

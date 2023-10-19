@@ -216,6 +216,8 @@ pub mod pallet {
 		StateError,
 
 		BloomElemPushError,
+
+		CollateralNotUp,
 	}
 
 	/// The hashmap for info of storage miners.
@@ -315,6 +317,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!(<MinerItems<T>>::contains_key(&sender)), Error::<T>::AlreadyRegistered);
+			ensure!(staking_val >= BASE_LIMIT.try_into().map_err(|_| Error::<T>::Overflow)?, Error::<T>::CollateralNotUp);
 			T::Currency::reserve(&sender, staking_val)?;
 
 			let space_proof_info = SpaceProofInfo::<AccountOf<T>> {
