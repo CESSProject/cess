@@ -128,8 +128,8 @@ impl sp_std::fmt::Debug for AuditErr {
 	fn fmt(&self, fmt: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
 		match *self {
 			AuditErr::RandomErr => write!(fmt, "Unexpected error in generating random numbers!"),
-			AuditErr::QElementErr => write!(fmt, ""),
-			AuditErr::SpaceParamErr => write!(fmt, ""),
+			AuditErr::QElementErr => write!(fmt, "qelement generation failed"),
+			AuditErr::SpaceParamErr => write!(fmt, "Spatial parameter generation failed!"),
 		}
 	}
 }
@@ -290,11 +290,6 @@ pub mod pallet {
 
 	//Relevant time nodes for storage challenges
 	#[pallet::storage]
-	#[pallet::getter(fn challenge_duration)]
-	pub(super) type ChallengeDuration<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
-
-	//Relevant time nodes for storage challenges
-	#[pallet::storage]
 	#[pallet::getter(fn verify_duration)]
 	pub(super) type VerifyDuration<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
 
@@ -306,11 +301,6 @@ pub mod pallet {
 	#[pallet::getter(fn keys)]
 	pub(super) type Keys<T: Config> =
 		StorageValue<_, WeakBoundedVec<T::AuthorityId, T::SessionKeyMax>, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn challenge_proposal)]
-	pub(super) type ChallengeProposal<T: Config> =
-		CountedStorageMap<_, Blake2_128Concat, [u8; 32], (u32, ChallengeInfo<T>)>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn counted_idle_failed)]
@@ -330,26 +320,6 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn challenge_era)]
 	pub(super) type ChallengeEra<T: Config> = StorageValue<_, u32, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn unverify_idle_proof)]
-	pub(super) type UnverifyIdleProof<T: Config> = StorageMap<
-		_,
-		Blake2_128Concat,
-		AccountOf<T>,
-		BoundedVec<IdleProveInfo<T>, T::VerifyMissionMax>,
-		ValueQuery,
-	>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn unverify_service_proof)]
-	pub(super) type UnverifyServiceProof<T: Config> = StorageMap<
-		_,
-		Blake2_128Concat,
-		AccountOf<T>,
-		BoundedVec<ServiceProveInfo<T>, T::VerifyMissionMax>,
-		ValueQuery,
-	>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn verify_result)]
@@ -667,6 +637,18 @@ pub mod pallet {
 
 			Ok(())
 		}
+		// FOR TEST
+		#[pallet::call_index(9)]
+		#[transactional]
+		#[pallet::weight(Weight::zero())]
+		pub fn test_update_verify_slip(origin: OriginFor<T>, old: BlockNumberOf<T>, new: BlockNumberOf<T>, miner: AccountOf<T> ) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			VerifySlip::<T>::remove(&old, &miner);
+			VerifySlip::<T>::insert(&new, &miner, true);
+			
+			Ok(())
+		}
 	}
 
 	impl<T: Config> Pallet<T> {
@@ -721,13 +703,19 @@ pub mod pallet {
 				let mut flag = false;
 				if let Ok(challenge_info) = <ChallengeSnapShot<T>>::try_get(&miner) {
 					weight = weight.saturating_add(T::DbWeight::get().reads(1));
-					if challenge_info.prove_info.assign == 2 {
-						flag = true;
+					if let Some(idle_prove) = challenge_info.prove_info.idle_prove {
+						if idle_prove.verify_result.is_some() {
+							flag = true;
+						}
 					}
 
-					if challenge_info.prove_info.idle_prove.is_none()
-						&& challenge_info.prove_info.service_prove.is_none() 
-					{
+					if let Some(service_prove) = challenge_info.prove_info.service_prove {
+						if service_prove.verify_result.is_none() {
+							flag = false;
+						}
+					}
+
+					if challenge_info.prove_info.assign >= 2 {
 						flag = true;
 					}
 				}
@@ -763,10 +751,11 @@ pub mod pallet {
 
 						let one_hour: u32 = T::OneHours::get().saturated_into();
 						let verify_life: u32 = max_space
-							.saturating_add(one_hour as u128)
-							.saturating_div(IDLE_VERIFY_RATE) as u32;
+							.saturating_div(IDLE_VERIFY_RATE)
+							.saturating_add(one_hour as u128) as u32;
 						
 						let new_slip = now.saturating_add(verify_life.saturated_into());
+						challenge_info.challenge_element.verify_slip = new_slip;
 
 						<VerifySlip<T>>::remove(&now, &miner);
 						<VerifySlip<T>>::insert(&new_slip, &miner, true);
@@ -811,6 +800,10 @@ pub mod pallet {
 			};
 
 			let (idle_space, service_space, service_bloom_filter, space_proof_info, tee_signature) = miner_snapshot;
+
+			if idle_space + service_space == 0 {
+				return weight;
+			}
 
 			let service_param = match Self::generate_miner_qelement(now.saturated_into()) {
 				Ok(service_param) => service_param,
@@ -914,7 +907,6 @@ pub mod pallet {
 					return Err(AuditErr::QElementErr);
 				}
 			}
-
 			let mut counter: u32 = 0;
 			while random_list.len() < random_index_list.len() {
 				seed = seed.checked_add(1).ok_or(AuditErr::QElementErr)?;
@@ -927,7 +919,6 @@ pub mod pallet {
 					return Err(AuditErr::QElementErr);
 				}
 			}
-
 			Ok(QElement{random_index_list, random_list})
 		}
 
@@ -938,13 +929,14 @@ pub mod pallet {
 			let mut repeat_filter: Vec<u64> = Default::default();
 			let seed_multi: u32 = 5;
 			let mut seed: u32 = seed.checked_mul(seed_multi).ok_or(AuditErr::SpaceParamErr)?;
+			let limit = space_challenge_param.len();
 			for elem in &mut space_challenge_param {
 				let mut counter: usize = 0;
 				loop {
 					let random = Self::random_number(seed.checked_add(1).ok_or(AuditErr::SpaceParamErr)?)? % n;
 					counter = counter.checked_add(1).ok_or(AuditErr::SpaceParamErr)?;
 					
-					if counter > repeat_filter.len() * 3 {
+					if counter > limit * 3 {
 						return Err(AuditErr::SpaceParamErr);
 					}
 
@@ -960,7 +952,6 @@ pub mod pallet {
 					break;
 				}
 			}
-
 			Ok(space_challenge_param)
 		}
 
