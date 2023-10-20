@@ -21,7 +21,7 @@ use frame_support::{
 	transactional, ensure,
 	storage::bounded_vec::BoundedVec, PalletId,
 	traits::{
-		Currency,
+		Currency, WithdrawReasons,
 		ExistenceRequirement::KeepAlive,
 		Get, Imbalance, OnUnbalanced, ReservableCurrency,
 		schedule::{self, Anon as ScheduleAnon, DispatchTime, Named as ScheduleNamed}, 
@@ -75,6 +75,9 @@ type NegativeImbalanceOf<T> = <<T as pallet::Config>::Currency as Currency<
 	<T as frame_system::Config>::AccountId,
 >>::NegativeImbalance;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
+pub type PositiveImbalanceOf<T> = <<T as Config>::Currency as Currency<
+	<T as frame_system::Config>::AccountId,
+>>::PositiveImbalance;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -119,6 +122,9 @@ pub mod pallet {
 		type SProposal: Parameter + Dispatchable<RuntimeOrigin = Self::RuntimeOrigin> + From<Call<Self>>;
 
 		type StorageHandle: StorageHandle<Self::AccountId>;
+
+		/// Handler for the unbalanced decrease when treasury funds are burned.
+		type BurnDestination: OnUnbalanced<NegativeImbalanceOf<Self>>;
 	}
 
 	#[pallet::event]
@@ -777,6 +783,28 @@ pub mod pallet {
 			let _ = ensure_root(origin)?;
 
 			Expenders::<T>::put((k, n, d));
+
+			Ok(())
+		}
+
+		#[pallet::call_index(16)]
+		#[transactional]
+		#[pallet::weight(Weight::zero())]
+		pub fn test_burn(
+			origin: OriginFor<T>,
+			burn: BalanceOf<T>,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			let (debit, credit) = T::Currency::pair(burn);
+
+			let mut imbalance = <PositiveImbalanceOf<T>>::zero();
+
+			T::BurnDestination::on_unbalanced(credit);
+
+			if let Err(problem) = T::Currency::settle(&sender, debit, WithdrawReasons::TRANSFER, KeepAlive) {
+				drop(problem);
+			}
 
 			Ok(())
 		}

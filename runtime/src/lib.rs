@@ -957,6 +957,7 @@ impl pallet_sminer::Config for Runtime {
 	type SProposal = RuntimeCall;
 	type StorageHandle = StorageHandler;
 	type RewardPool = SminerReward;
+	type BurnDestination = ();
 }
 
 impl pallet_sminer_reward::Config for Runtime {
