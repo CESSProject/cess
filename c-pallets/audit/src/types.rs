@@ -21,6 +21,16 @@ pub struct ProveInfo<T: pallet::Config> {
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
+pub struct ProveInfoV2<T: pallet::Config> {
+	pub(super) idle_prove: Option<IdleProveInfo<T>>,
+	pub(super) assign: u8,
+	pub(super) service_prove: Option<ServiceProveInfo<T>>,
+}
+
+
+#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+#[codec(mel_bound())]
 pub struct ChallengeElement<T: pallet::Config> {
 	pub(super) start: BlockNumberOf<T>,
 	pub(super) idle_slip: BlockNumberOf<T>,
