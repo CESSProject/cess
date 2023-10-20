@@ -344,7 +344,7 @@ pub mod pallet {
 	// FOR TEST
 	#[pallet::storage]
 	#[pallet::getter(fn test_option_storage)]
-	pub(super) type TestOptionStorageV2<T: Config> = StorageMap<_, Blake2_128Concat, u32, ProveInfo<T>>;
+	pub(super) type TestOptionStorageV3<T: Config> = StorageMap<_, Blake2_128Concat, u32, ProveInfoV2<T>>;
 
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
@@ -630,15 +630,27 @@ pub mod pallet {
 		#[pallet::call_index(8)]
 		#[transactional]
 		#[pallet::weight(Weight::zero())]
-		pub fn test_insert_option(origin: OriginFor<T>, key: u32, value: ProveInfo<T> ) -> DispatchResult {
+		pub fn test_insert_option(origin: OriginFor<T>, key: u32, value: ProveInfoV2<T> ) -> DispatchResult {
 			let _sender = ensure_signed(origin)?;
 
-			TestOptionStorageV2::insert(key, value);
+			TestOptionStorageV3::insert(key, value);
 
 			Ok(())
 		}
 		// FOR TEST
 		#[pallet::call_index(9)]
+		#[transactional]
+		#[pallet::weight(Weight::zero())]
+		pub fn test_update_clear_slip(origin: OriginFor<T>, old: BlockNumberOf<T>, new: BlockNumberOf<T>, miner: AccountOf<T> ) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			ChallengeSlip::<T>::remove(&old, &miner);
+			ChallengeSlip::<T>::insert(&new, &miner, true);
+			
+			Ok(())
+		}
+		// FOR TEST
+		#[pallet::call_index(10)]
 		#[transactional]
 		#[pallet::weight(Weight::zero())]
 		pub fn test_update_verify_slip(origin: OriginFor<T>, old: BlockNumberOf<T>, new: BlockNumberOf<T>, miner: AccountOf<T> ) -> DispatchResult {
@@ -703,13 +715,15 @@ pub mod pallet {
 				let mut flag = false;
 				if let Ok(challenge_info) = <ChallengeSnapShot<T>>::try_get(&miner) {
 					weight = weight.saturating_add(T::DbWeight::get().reads(1));
-					if let Some(idle_prove) = challenge_info.prove_info.idle_prove {
+					if let Some(idle_prove) = &challenge_info.prove_info.idle_prove {
 						if idle_prove.verify_result.is_some() {
 							flag = true;
 						}
+					} else {
+						flag = true;
 					}
 
-					if let Some(service_prove) = challenge_info.prove_info.service_prove {
+					if let Some(service_prove) = &challenge_info.prove_info.service_prove {
 						if service_prove.verify_result.is_none() {
 							flag = false;
 						}
@@ -717,6 +731,12 @@ pub mod pallet {
 
 					if challenge_info.prove_info.assign >= 2 {
 						flag = true;
+					}
+
+					if challenge_info.prove_info.idle_prove.is_none()
+						&& challenge_info.prove_info.service_prove.is_none() 
+					{
+						flag = true
 					}
 				}
 
