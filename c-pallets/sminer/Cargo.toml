@@ -22,7 +22,7 @@ pallet-preimage = { version = "4.0.0-dev", default-features = false, git = 'http
 #local crate
 pallet-tee-worker = { default-features = false, path = '../tee-worker' }
 pallet-storage-handler = { default-features = false, path = '../storage-handler' }
-pallet-sminer-reward = { default-features = false, path = "../sminer-reward" }
+pallet-cess-treasury = { default-features = false, path = "../cess-treasury" }
 pallet-cess-staking = { default-features = false, path = '../staking' }
 cp-enclave-verify = { path = '../../primitives/enclave-verify', default-features = false }
 cp-bloom-filter = { path = '../../primitives/bloom-filter', default-features = false }
@@ -114,7 +114,7 @@ std = [
 	"pallet-scheduler/std",
 	"frame-benchmarking/std",
 	"cp-cess-common/std",
-	"pallet-sminer-reward/std",
+	"pallet-cess-treasury/std",
 ]
 
 runtime-benchmarks = [
