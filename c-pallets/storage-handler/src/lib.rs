@@ -8,13 +8,13 @@ use frame_support::{
     Blake2_128Concat, PalletId, weights::Weight, ensure, transactional,
     storage::bounded_vec::BoundedVec,
     traits::{
-        StorageVersion, Currency, ReservableCurrency, ExistenceRequirement::KeepAlive,
+        StorageVersion, Currency, ReservableCurrency,
     },
     pallet_prelude::*,
 };
 use sp_runtime::{
 	traits::{
-        AccountIdConversion, CheckedAdd, CheckedMul, CheckedDiv, CheckedSub,
+        CheckedAdd, CheckedMul, CheckedDiv, CheckedSub,
 		SaturatedConversion,
 	},
 	RuntimeDebug,

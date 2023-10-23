@@ -23,7 +23,7 @@ use frame_support::{
 	traits::{
 		Currency,
 		ExistenceRequirement::KeepAlive,
-		Get, Imbalance, OnUnbalanced, ReservableCurrency,
+		Get, ReservableCurrency,
 		schedule::{self, Anon as ScheduleAnon, DispatchTime, Named as ScheduleNamed}, 
 	},
 	dispatch::{Dispatchable, DispatchResult},
@@ -71,9 +71,6 @@ pub use weights::WeightInfo;
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> =
 	<<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-type NegativeImbalanceOf<T> = <<T as pallet::Config>::Currency as Currency<
-	<T as frame_system::Config>::AccountId,
->>::NegativeImbalance;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 
 #[frame_support::pallet]
@@ -506,7 +503,7 @@ pub mod pallet {
 		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically, this is the account of a registered Miner.
 		#[pallet::call_index(6)]
 		#[transactional]
-		#[pallet::weight(100_000_000_000)]
+		#[pallet::weight(Weight::zero())]
 		pub fn receive_reward(
 			origin: OriginFor<T>,
 		) -> DispatchResult {
@@ -691,7 +688,7 @@ pub mod pallet {
 		/// FOR TEST
 		#[pallet::call_index(14)]
 		#[transactional]
-		#[pallet::weight(35_000_000)]
+		#[pallet::weight(Weight::zero())]
 		pub fn faucet(origin: OriginFor<T>, to: AccountOf<T>) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 

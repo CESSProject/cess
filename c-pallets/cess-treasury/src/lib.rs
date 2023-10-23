@@ -5,7 +5,7 @@ use frame_support::{
 		ExistenceRequirement::KeepAlive, OnUnbalanced,
 	},
 	dispatch::{DispatchResult}, PalletId,
-    pallet_prelude::*,
+    pallet_prelude::{Weight, StorageValue, ValueQuery, Get, IsType},
 };
 // use sp_std::prelude::*;
 use sp_runtime::{
@@ -13,7 +13,7 @@ use sp_runtime::{
 	traits::{CheckedAdd, CheckedSub, AccountIdConversion},
 };
 use frame_system::{
-	pallet_prelude::*,
+	pallet_prelude::OriginFor,
 	ensure_signed, ensure_root,
 };
 
@@ -43,7 +43,7 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 		/// The overarching event type.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
-		
+
         /// The currency trait.
 		type Currency: ReservableCurrency<Self::AccountId>;
 
@@ -116,8 +116,6 @@ pub mod pallet {
 
 			let (debit, credit) = T::Currency::pair(burn_amount);
 
-			let mut imbalance = <PositiveImbalanceOf<T>>::zero();
-
 			T::BurnDestination::on_unbalanced(credit);
 
 			if let Err(problem) = T::Currency::settle(&pid, debit, WithdrawReasons::TRANSFER, KeepAlive) {
@@ -139,8 +137,6 @@ pub mod pallet {
 			let sid = T::SpaceTreasuryId::get().into_account_truncating();
 
 			let (debit, credit) = T::Currency::pair(burn_amount);
-
-			let mut imbalance = <PositiveImbalanceOf<T>>::zero();
 
 			T::BurnDestination::on_unbalanced(credit);
 

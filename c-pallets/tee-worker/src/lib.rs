@@ -217,7 +217,7 @@ pub mod pallet {
 		/// - `origin`: The origin from which the function is called, representing the account of the TEE Worker. This should be the controller account of the TEE Worker.
 		#[pallet::call_index(2)]
         #[transactional]
-		#[pallet::weight(100_000_000)]
+		#[pallet::weight(Weight::zero())]
 		pub fn exit(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
