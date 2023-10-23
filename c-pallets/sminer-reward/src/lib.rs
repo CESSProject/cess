@@ -29,6 +29,10 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
         /// The currency trait.
 		type Currency: ReservableCurrency<Self::AccountId>;
+
+		type PunishTreasuryId: Get<PalletId>;
+
+		type SpaceTreasuryId: Get<PalletId>;
     }
 
     #[pallet::error]
@@ -79,3 +83,10 @@ impl<T: Config> RewardPool<BalanceOf<T>> for Pallet<T> {
 		Ok(())
     }
 }
+
+pub trait TreasuryHandle<AccountId, Balance> {
+	fn send_to_punishid(acc: AccountId, amount: Balance) -> DispatchResult;
+	fn send_to_spaceid(acc: AccountId, amount: Balance) -> DispatchResult;
+}
+
+impl TreasuryHandle
