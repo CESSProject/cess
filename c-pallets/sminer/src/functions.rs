@@ -39,18 +39,14 @@ impl<T: Config> Pallet<T> {
 	pub(super) fn deposit_punish(miner: &AccountOf<T>, punish_amount: BalanceOf<T>) -> DispatchResult {
 		<MinerItems<T>>::try_mutate(miner, |miner_info_opt| -> DispatchResult {
 			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
-			
-			let reward_pot = T::PalletId::get().into_account_truncating();
 
 			if miner_info.collaterals > punish_amount {
 				T::Currency::unreserve(miner, punish_amount);
-				T::Currency::transfer(miner, &reward_pot, punish_amount, KeepAlive)?;
-				T::RewardPool::add_reward(punish_amount)?;
+				T::CessTreasuryHandle::send_to_pid(miner.clone(), punish_amount)?;
 				miner_info.collaterals = miner_info.collaterals.checked_sub(&punish_amount).ok_or(Error::<T>::Overflow)?;
 			} else {
 				T::Currency::unreserve(miner, miner_info.collaterals);
-				T::Currency::transfer(miner, &reward_pot, miner_info.collaterals, KeepAlive)?;
-				T::RewardPool::add_reward(miner_info.collaterals)?;
+				T::CessTreasuryHandle::send_to_pid(miner.clone(), miner_info.collaterals)?;
 				miner_info.collaterals = BalanceOf::<T>::zero();
 				miner_info.debt = punish_amount.checked_sub(&miner_info.collaterals).ok_or(Error::<T>::Overflow)?;
 			}

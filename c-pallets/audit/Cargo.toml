@@ -23,7 +23,7 @@ cp-bloom-filter = { path = '../../primitives/bloom-filter', default-features = f
 cp-scheduler-credit = { path = '../../primitives/scheduler-credit', default-features = false }
 cp-cess-common = { path = '../../primitives/common', default-features = false }
 cp-enclave-verify = { path = '../../primitives/enclave-verify', default-features = false }
-pallet-sminer-reward = { default-features = false, path = "../sminer-reward" }
+pallet-cess-treasury = { default-features = false, path = "../cess-treasury" }
 
 [dependencies.frame-benchmarking]
 default-features = false
@@ -145,7 +145,7 @@ std = [
 	"pallet-tee-worker/std",
 	"cp-cess-common/std",
 	"cp-cess-common/std",
-	"pallet-sminer-reward/std",
+	"pallet-cess-treasury/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

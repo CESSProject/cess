@@ -999,6 +999,7 @@ dependencies = [
  "pallet-bounties",
  "pallet-cacher",
  "pallet-cess-staking",
+ "pallet-cess-treasury",
  "pallet-child-bounties",
  "pallet-collective",
  "pallet-contracts",
@@ -1026,7 +1027,6 @@ dependencies = [
  "pallet-scheduler-credit",
  "pallet-session",
  "pallet-sminer",
- "pallet-sminer-reward",
  "pallet-storage-handler",
  "pallet-sudo",
  "pallet-tee-worker",
@@ -5830,6 +5830,7 @@ dependencies = [
  "pallet-bags-list",
  "pallet-balances",
  "pallet-cess-staking",
+ "pallet-cess-treasury",
  "pallet-file-bank",
  "pallet-oss",
  "pallet-preimage",
@@ -5837,7 +5838,6 @@ dependencies = [
  "pallet-scheduler-credit",
  "pallet-session",
  "pallet-sminer",
- "pallet-sminer-reward",
  "pallet-storage-handler",
  "pallet-tee-worker",
  "pallet-timestamp",
@@ -5994,6 +5994,18 @@ dependencies = [
  "sp-std",
  "sp-tracing",
  "substrate-test-utils",
+]
+
+[[package]]
+name = "pallet-cess-treasury"
+version = "0.7.4"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6518,9 +6530,9 @@ dependencies = [
  "log",
  "pallet-balances",
  "pallet-cess-staking",
+ "pallet-cess-treasury",
  "pallet-preimage",
  "pallet-scheduler",
- "pallet-sminer-reward",
  "pallet-storage-handler",
  "pallet-tee-worker",
  "pallet-timestamp",
@@ -6530,18 +6542,6 @@ dependencies = [
  "serde",
  "sp-core",
  "sp-io",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
-name = "pallet-sminer-reward"
-version = "0.7.4"
-dependencies = [
- "frame-support",
- "frame-system",
- "parity-scale-codec",
- "scale-info",
  "sp-runtime",
  "sp-std",
 ]
@@ -6567,7 +6567,7 @@ dependencies = [
  "frame-system",
  "log",
  "pallet-balances",
- "pallet-sminer-reward",
+ "pallet-cess-treasury",
  "parity-scale-codec",
  "scale-info",
  "serde",

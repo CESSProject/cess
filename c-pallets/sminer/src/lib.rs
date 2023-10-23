@@ -23,7 +23,7 @@ use frame_support::{
 	traits::{
 		Currency,
 		ExistenceRequirement::KeepAlive,
-		Get, Imbalance, OnUnbalanced, ReservableCurrency,
+		Get, ReservableCurrency,
 		schedule::{self, Anon as ScheduleAnon, DispatchTime, Named as ScheduleNamed}, 
 	},
 	dispatch::{Dispatchable, DispatchResult},
@@ -43,7 +43,7 @@ use cp_enclave_verify::verify_rsa;
 use pallet_tee_worker::TeeWorkerHandler;
 use cp_bloom_filter::BloomFilter;
 use pallet_storage_handler::StorageHandle;
-use pallet_sminer_reward::RewardPool;
+use pallet_cess_treasury::{RewardPool, TreasuryHandle};
 
 pub use pallet::*;
 
@@ -71,9 +71,6 @@ pub use weights::WeightInfo;
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> =
 	<<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-type NegativeImbalanceOf<T> = <<T as pallet::Config>::Currency as Currency<
-	<T as frame_system::Config>::AccountId,
->>::NegativeImbalance;
 type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 
 #[frame_support::pallet]
@@ -95,9 +92,6 @@ pub mod pallet {
 		type TeeWorkerHandler: TeeWorkerHandler<Self::AccountId>;
 		/// The treasury's pallet id, used for deriving its sovereign account ID.
 		#[pallet::constant]
-		type PalletId: Get<PalletId>;
-		/// The treasury's pallet id, used for deriving its sovereign account ID.
-		#[pallet::constant]
 		type FaucetId: Get<PalletId>;
 
 		#[pallet::constant]
@@ -108,7 +102,9 @@ pub mod pallet {
 		/// The WeightInfo.
 		type WeightInfo: WeightInfo;
 
-		type RewardPool: RewardPool<BalanceOf<Self>>;
+		type RewardPool: RewardPool<AccountOf<Self>, BalanceOf<Self>>;
+
+		type CessTreasuryHandle: TreasuryHandle<AccountOf<Self>, BalanceOf<Self>>;
 
 		type FScheduler: ScheduleNamed<Self::BlockNumber, Self::SProposal, Self::SPalletsOrigin>;
 
@@ -414,10 +410,10 @@ pub mod pallet {
 					if miner_info.debt > collaterals {
 						miner_info.debt = miner_info.debt.checked_sub(&collaterals).ok_or(Error::<T>::Overflow)?;
 						remaining = BalanceOf::<T>::zero();
-						T::RewardPool::add_reward(collaterals)?;
+						T::CessTreasuryHandle::send_to_pid(sender.clone(), collaterals)?;
 					} else {
 						remaining = remaining.checked_sub(&miner_info.debt).ok_or(Error::<T>::Overflow)?;
-						T::RewardPool::add_reward(miner_info.debt)?;
+						T::CessTreasuryHandle::send_to_pid(sender.clone(), miner_info.debt)?;
 						miner_info.debt = BalanceOf::<T>::zero();
 					}
 				}
@@ -507,7 +503,7 @@ pub mod pallet {
 		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically, this is the account of a registered Miner.
 		#[pallet::call_index(6)]
 		#[transactional]
-		#[pallet::weight(100_000_000_000)]
+		#[pallet::weight(Weight::zero())]
 		pub fn receive_reward(
 			origin: OriginFor<T>,
 		) -> DispatchResult {
@@ -523,8 +519,7 @@ pub mod pallet {
 					let reward = opt_reward.as_mut().ok_or(Error::<T>::Unexpected)?;
 					ensure!(reward.currently_available_reward != 0u32.saturated_into(), Error::<T>::NoReward);
 
-					let reward_pot = T::PalletId::get().into_account_truncating();
-					<T as pallet::Config>::Currency::transfer(&reward_pot, &miner.beneficiary, reward.currently_available_reward.clone(), KeepAlive)?;
+					T::RewardPool::send_reward_to_miner(miner.beneficiary, reward.currently_available_reward.clone())?;
 
 					reward.reward_issued = reward.reward_issued
 						.checked_add(&reward.currently_available_reward).ok_or(Error::<T>::Overflow)?;
@@ -693,7 +688,7 @@ pub mod pallet {
 		/// FOR TEST
 		#[pallet::call_index(14)]
 		#[transactional]
-		#[pallet::weight(35_000_000)]
+		#[pallet::weight(Weight::zero())]
 		pub fn faucet(origin: OriginFor<T>, to: AccountOf<T>) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 
@@ -783,19 +778,6 @@ pub mod pallet {
 
 			Ok(())
 		}
-	}
-}
-
-impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for Pallet<T> {
-	fn on_nonzero_unbalanced(amount: NegativeImbalanceOf<T>) {
-		let numeric_amount = amount.peek();
-
-		// Must resolve into existing but better to be safe.
-		let _ = T::Currency::resolve_creating(&T::PalletId::get().into_account_truncating(), amount);
-		// The total issuance amount will not exceed u128::Max, so there is no overflow risk
-		T::RewardPool::add_reward(numeric_amount).unwrap();
-
-		Self::deposit_event(Event::Deposit { balance: numeric_amount });
 	}
 }
 

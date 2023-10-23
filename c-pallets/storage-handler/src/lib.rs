@@ -8,13 +8,13 @@ use frame_support::{
     Blake2_128Concat, PalletId, weights::Weight, ensure, transactional,
     storage::bounded_vec::BoundedVec,
     traits::{
-        StorageVersion, Currency, ReservableCurrency, ExistenceRequirement::KeepAlive,
+        StorageVersion, Currency, ReservableCurrency,
     },
     pallet_prelude::*,
 };
 use sp_runtime::{
 	traits::{
-        AccountIdConversion, CheckedAdd, CheckedMul, CheckedDiv, CheckedSub,
+        CheckedAdd, CheckedMul, CheckedDiv, CheckedSub,
 		SaturatedConversion,
 	},
 	RuntimeDebug,
@@ -24,7 +24,7 @@ use sp_std::{convert::TryInto, prelude::*, str};
 use codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 use cp_cess_common::*;
-use pallet_sminer_reward::RewardPool;
+use pallet_cess_treasury::{TreasuryHandle};
 
 pub mod weights;
 use weights::WeightInfo;
@@ -77,7 +77,7 @@ pub mod pallet {
 		#[pallet::constant]
 		type FrozenDays: Get<BlockNumberOf<Self>> + Clone + Eq + PartialEq;
 
-        type RewardPool: RewardPool<BalanceOf<Self>>;
+        type CessTreasuryHandle: TreasuryHandle<AccountOf<Self>, BalanceOf<Self>>;
     }
 
     #[pallet::event]
@@ -196,18 +196,12 @@ pub mod pallet {
 				.checked_mul(&gib_count.saturated_into())
 				.ok_or(Error::<T>::Overflow)?;
             
-            let price = price.checked_div(&2u32.saturated_into()).ok_or(Error::<T>::Overflow)?;
-            
 			ensure!(
 				<T as pallet::Config>::Currency::can_slash(&sender, price.clone()),
 				Error::<T>::InsufficientBalance
 			);
-			let r_acc = T::RewardPalletId::get().into_account_truncating();
-            let t_acc = T::TreasuryPalletId::get().into_account_truncating();
 
-            T::RewardPool::add_reward(price.into())?;
-			<T as pallet::Config>::Currency::transfer(&sender, &r_acc, price.clone(), KeepAlive)?;
-            <T as pallet::Config>::Currency::transfer(&sender, &t_acc, price.clone(), KeepAlive)?;
+            T::CessTreasuryHandle::send_to_sid(sender.clone(), price)?;
 
 			Self::deposit_event(Event::<T>::BuySpace { acc: sender, storage_capacity: space, spend: price });
 			Ok(())
@@ -273,13 +267,7 @@ pub mod pallet {
 
 			Self::expension_puchased_package(sender.clone(), space)?;
 
-            let r_acc = T::RewardPalletId::get().into_account_truncating();
-            let t_acc = T::TreasuryPalletId::get().into_account_truncating();
-
-            T::RewardPool::add_reward(price.into())?;
-
-			<T as pallet::Config>::Currency::transfer(&sender, &t_acc, price.clone(), KeepAlive)?;
-            <T as pallet::Config>::Currency::transfer(&sender, &r_acc, price.clone(), KeepAlive)?;
+            T::CessTreasuryHandle::send_to_sid(sender.clone(), price.clone())?;
 
 			Self::deposit_event(Event::<T>::ExpansionSpace {
 				acc: sender,
@@ -327,13 +315,8 @@ pub mod pallet {
 				Error::<T>::InsufficientBalance
 			);
 
-			let r_acc = T::RewardPalletId::get().into_account_truncating();
-            let t_acc = T::TreasuryPalletId::get().into_account_truncating();
+			T::CessTreasuryHandle::send_to_sid(sender.clone(), price.clone())?;
 
-            T::RewardPool::add_reward(price.into())?;
-
-			<T as pallet::Config>::Currency::transfer(&sender, &t_acc, price.clone(), KeepAlive)?;
-            <T as pallet::Config>::Currency::transfer(&sender, &r_acc, price.clone(), KeepAlive)?;
 			Self::update_puchased_package(sender.clone(), days)?;
 			Self::deposit_event(Event::<T>::RenewalSpace {
 				acc: sender,

@@ -547,7 +547,8 @@ pub mod pallet {
 		/// - `file_hash`: The unique hash identifier of the file to be transferred
 		#[pallet::call_index(2)]
 		#[transactional]
-		#[pallet::weight(1_000_000_000)]
+		/// FIX ME
+		#[pallet::weight(Weight::zero())]
 		pub fn ownership_transfer(
 			origin: OriginFor<T>,
 			target_brief: UserBrief<T>,
@@ -1185,7 +1186,7 @@ pub mod pallet {
 
 		#[pallet::call_index(21)]
 		#[transactional]
-		#[pallet::weight(10_000_000_000)]
+		#[pallet::weight(Weight::zero())]
 		pub fn miner_clear_failed_count(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 

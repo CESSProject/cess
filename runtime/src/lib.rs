@@ -168,7 +168,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 115,
+	spec_version: 100,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -570,7 +570,7 @@ impl pallet_cess_staking::Config for Runtime {
 	const FIRST_YEAR_SMINER_REWARDS: Balance = 477_000_000 * DOLLARS;
 	const REWARD_DECREASE_RATIO: Perbill = Perbill::from_perthousand(841);
 	const REWARD_DECREASE_YEARS: u64 = 30;
-	type SminerRewardPool = Sminer;
+	type SminerRewardPool = CessTreasury;
 	type MaxNominations = MaxNominations;
 	type Currency = Balances;
 	type CurrencyBalance = Balance;
@@ -937,7 +937,6 @@ impl pallet_evm_chain_id::Config for Runtime {}
  * Add This Block
  */
 parameter_types! {
-	pub const RewardPalletId: PalletId = PalletId(*b"rewardpt");
 	pub const FaucetId: PalletId = PalletId(*b"facuetid");
 }
 
@@ -945,7 +944,6 @@ impl pallet_sminer::Config for Runtime {
 	type Currency = Balances;
 	// The ubiquitous event type.
 	type RuntimeEvent = RuntimeEvent;
-	type PalletId = RewardPalletId;
 	type FaucetId = FaucetId;
 	type WeightInfo = pallet_sminer::weights::SubstrateWeight<Runtime>;
 	type ItemLimit = ConstU32<200000>;
@@ -956,11 +954,23 @@ impl pallet_sminer::Config for Runtime {
 	type SPalletsOrigin = OriginCaller;
 	type SProposal = RuntimeCall;
 	type StorageHandle = StorageHandler;
-	type RewardPool = SminerReward;
+	type RewardPool = CessTreasury;
+	type CessTreasuryHandle = CessTreasury;
 }
 
-impl pallet_sminer_reward::Config for Runtime {
+parameter_types! {
+	pub const RewardPalletId: PalletId = PalletId(*b"rewardpt");
+	pub const PunishTreasuryId: PalletId = PalletId(*b"punisdpt");
+	pub const SpaceTreasuryId: PalletId = PalletId(*b"spacedpt");
+}
+
+impl pallet_cess_treasury::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
+	type MinerRewardId = RewardPalletId;
+	type PunishTreasuryId = PunishTreasuryId;
+	type SpaceTreasuryId = SpaceTreasuryId;
+	type BurnDestination = ();
 }
 
 parameter_types! {
@@ -976,10 +986,10 @@ impl pallet_storage_handler::Config for Runtime {
 	type WeightInfo = pallet_storage_handler::weights::SubstrateWeight<Runtime>;
 	type OneDay = OneDay;
 	type RewardPalletId = RewardPalletId;
-	type RewardPool = SminerReward;
 	type TreasuryPalletId = TreasuryPalletId;
 	type StateStringMax = StateStringMax;
 	type FrozenDays = FrozenDays;
+	type CessTreasuryHandle = CessTreasury;
 }
 
 parameter_types! {
@@ -1555,7 +1565,7 @@ construct_runtime!(
 		SchedulerCredit: pallet_scheduler_credit = 65,
 		Oss: pallet_oss = 66,
 		Cacher: pallet_cacher = 67,
-		SminerReward: pallet_sminer_reward = 68,
+		CessTreasury: pallet_cess_treasury = 68,
 	}
 );
 
