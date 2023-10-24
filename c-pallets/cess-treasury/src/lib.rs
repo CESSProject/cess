@@ -146,6 +146,40 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		#[pallet::call_index(4)]
+		// FIX ME!
+		#[pallet::weight(Weight::zero())]
+		pub fn pid_send_funds(
+			origin: OriginFor<T>,
+			acc: AccountOf<T>,
+			funds: BalanceOf<T>,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			let pid = T::PunishTreasuryId::get().into_account_truncating();
+
+			<T as pallet::Config>::Currency::transfer(&pid, &acc, funds, KeepAlive)?;
+
+			Ok(())
+		}
+
+		#[pallet::call_index(5)]
+		// FIX ME!
+		#[pallet::weight(Weight::zero())]
+		pub fn sid_send_funds(
+			origin: OriginFor<T>,
+			acc: AccountOf<T>,
+			funds: BalanceOf<T>,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			let sid = T::SpaceTreasuryId::get().into_account_truncating();
+
+			<T as pallet::Config>::Currency::transfer(&sid, &acc, funds, KeepAlive)?;
+
+			Ok(())
+		}
 	}
 }
 
