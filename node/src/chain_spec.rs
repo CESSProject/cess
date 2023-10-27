@@ -53,8 +53,9 @@ fn session_keys(
 	rrsc: RRSCId,
 	im_online: ImOnlineId,
 	authority_discovery: AuthorityDiscoveryId,
+	audit: SegmentBookId,
 ) -> SessionKeys {
-	SessionKeys { grandpa, rrsc, im_online, authority_discovery }
+	SessionKeys { grandpa, rrsc, im_online, authority_discovery, audit }
 }
 
 /// Generate an account ID from seed.
@@ -538,6 +539,7 @@ fn testnet_genesis(
 							x.3.clone(),
 							x.4.clone(),
 							x.5.clone(),
+							x.6.clone(),
 						),
 					)
 				})

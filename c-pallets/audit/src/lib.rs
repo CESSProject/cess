@@ -69,17 +69,17 @@ use frame_support::{
 	pallet_prelude::*, transactional,
 	storage::bounded_vec::BoundedVec,
 	traits::{
-		StorageVersion, ReservableCurrency, Randomness, FindAuthor, 
-		ValidatorSetWithIdentification, EstimateNextSessionRotation,
+		StorageVersion, ReservableCurrency, Randomness, FindAuthor, OneSessionHandler,
+		ValidatorSetWithIdentification, EstimateNextSessionRotation, ValidatorSet,
 	},
-	PalletId, WeakBoundedVec,
+	PalletId, WeakBoundedVec, BoundedSlice,
 };
 use sp_core::{
 	crypto::KeyTypeId,
 	offchain::OpaqueNetworkState,
 };
 use sp_runtime::{Saturating, app_crypto::RuntimeAppPublic, SaturatedConversion};
-use frame_system::offchain::CreateSignedTransaction;
+use frame_system::offchain::{CreateSignedTransaction, SubmitTransaction};
 use pallet_file_bank::RandomFileList;
 use pallet_sminer::MinerControl;
 use pallet_storage_handler::StorageHandle;
@@ -344,6 +344,14 @@ pub mod pallet {
 	#[pallet::getter(fn test_option_storage)]
 	pub(super) type TestOptionStorageV3<T: Config> = StorageMap<_, Blake2_128Concat, u32, ProveInfoV2<T>>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn test_big_storage)]
+	pub(super) type TestBigStorage<T: Config> = StorageValue<_, BoundedVec<[u64; 256], ConstU32<1024>> >;
+
+	#[pallet::storage]
+	#[pallet::getter(fn test_lock)]
+	pub(super) type TestLock<T: Config> = StorageValue<_, bool, ValueQuery>;
+
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
@@ -356,6 +364,17 @@ pub mod pallet {
 				.saturating_add(Self::generate_challenge(now))
 				.saturating_add(Self::clear_challenge(now))
 				.saturating_add(Self::clear_verify_mission(now))
+		}
+
+		fn offchain_worker(now: T::BlockNumber) {
+			let lock = <TestLock<T>>::get();
+			if lock {
+				log::info!(" test start! ");
+				if let Err(e) = Self::offchain_work_start(now) {
+					log::info!("Err: {:?}", e);
+				}
+				log::info!(" test end! ");
+			}
 		}
 	}
 
@@ -714,9 +733,186 @@ pub mod pallet {
 			
 			Ok(())
 		}
+		/// FOR TEST
+		#[pallet::call_index(11)]
+		#[pallet::weight(Weight::zero())]
+		pub fn test_save_big_data(
+			origin: OriginFor<T>,
+			data: BoundedVec<[u64; 256], ConstU32<1024>>,
+			_key: T::AuthorityId,
+			_seg_digest: SegDigest<BlockNumberOf<T>>,
+			_signature: <T::AuthorityId as RuntimeAppPublic>::Signature,
+		) -> DispatchResult {
+			ensure_none(origin)?;
+
+			TestBigStorage::<T>::put(data);
+
+			Ok(())
+		}
+		/// FOR TEST
+		#[pallet::call_index(12)]
+		#[pallet::weight(Weight::zero())]
+		pub fn test_update_lock(
+			origin: OriginFor<T>,
+		) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+
+			let lock = <TestLock<T>>::get();
+			<TestLock<T>>::put(!lock);
+
+			Ok(())
+		}
+	}
+
+	#[pallet::validate_unsigned]
+	impl<T: Config> ValidateUnsigned for Pallet<T> {
+		type Call = Call<T>;
+
+		fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+			if let Call::test_save_big_data {
+				data: _,
+				key,
+				seg_digest,
+				signature,			
+			} = call {
+				Self::check_unsign(key.clone(), &seg_digest, &signature)
+			} else {
+				InvalidTransaction::Call.into()
+			}
+		}
 	}
 
 	impl<T: Config> Pallet<T> {
+		fn check_unsign(
+			key: T::AuthorityId,
+			seg_digest: &SegDigest<BlockNumberOf<T>>,
+			signature: &<T::AuthorityId as RuntimeAppPublic>::Signature,
+		) -> TransactionValidity {
+			let current_session = T::ValidatorSet::session_index();
+			let keys = Keys::<T>::get();
+
+			if !keys.contains(&key) {
+				return InvalidTransaction::Stale.into();
+			} 
+
+			let signature_valid = seg_digest.using_encoded(|encoded_seg_digest| {
+				key.verify(&encoded_seg_digest, &signature)
+			});
+
+			if !signature_valid {
+				log::error!("bad signature.");
+				return InvalidTransaction::BadProof.into()
+			}
+
+			log::info!("build valid transaction");
+			ValidTransaction::with_tag_prefix("Audit")
+				.priority(T::UnsignedPriority::get())
+				.and_provides((current_session, key, signature))
+				.longevity(
+					TryInto::<u64>::try_into(
+						T::NextSessionRotation::average_session_length() / 2u32.into(),
+					)
+					.unwrap_or(64_u64),
+				)
+				.propagate(true)
+				.build()
+		}
+
+		fn offchain_work_start(now: BlockNumberOf<T>) -> Result<(), AuditErr> {
+			log::info!("-----1----");
+			let (authority_id, _validators_len) = Self::get_authority()?;
+			log::info!("-----2----");
+			Self::offchain_call_extrinsic(now, authority_id.clone())?;
+			log::info!("-----3----");
+			Ok(())
+		}
+
+		fn offchain_call_extrinsic(
+			now: BlockNumberOf<T>,
+			authority_id: T::AuthorityId,
+		) -> Result<(), AuditErr> {
+			let (signature, digest) = Self::offchain_sign_digest(now, &authority_id)?;
+
+			let temp_data: [u64; 256] = [1u64; 256];
+			let mut data: BoundedVec<[u64; 256], ConstU32<1024>> = Default::default();
+			for _ in 0 .. 1000 {
+				data.try_push(temp_data.clone()).unwrap();
+			}
+
+			let call = Call::test_save_big_data {
+							data,
+							seg_digest: digest,
+							signature: signature,
+							key: authority_id,
+						};
+		
+			let result = SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into());
+
+			if let Err(e) = result {
+				log::error!("{:?}", e);
+				return Err(AuditErr::RandomErr);
+			}
+
+			Ok(())
+		}
+
+		fn offchain_sign_digest(
+			now: BlockNumberOf<T>,
+			authority_id: &T::AuthorityId,
+		) -> Result< (<<T as pallet::Config>::AuthorityId as sp_runtime::RuntimeAppPublic>::Signature, SegDigest::<BlockNumberOf<T>>), AuditErr> {
+
+			let network_state =
+				sp_io::offchain::network_state().map_err(|_| AuditErr::RandomErr)?;
+
+			let author_len = Keys::<T>::get().len();
+
+			let digest = SegDigest::<BlockNumberOf<T>>{
+				validators_len: author_len as u32,
+				block_num: now,
+				network_state,
+			};
+
+			let signature = authority_id.sign(&digest.encode()).ok_or(AuditErr::RandomErr)?;
+
+			Ok((signature, digest))
+		}
+
+		fn get_authority() -> Result<(T::AuthorityId, usize), AuditErr> {
+			let validators = Keys::<T>::get();
+
+			let mut local_keys = T::AuthorityId::all();
+
+			if local_keys.len() == 0 {
+				log::info!("no local_keys");
+				return Err(AuditErr::RandomErr);
+			}
+
+			local_keys.sort();
+			// Find eligible keys locally.
+			for key in validators.iter() {
+				let res = local_keys.binary_search(key);
+
+				let authority_id = match res {
+					Ok(index) => local_keys.get(index),
+					Err(_e) => continue,
+				};
+
+				if let Some(authority_id) = authority_id {
+					return Ok((authority_id.clone(), validators.len()));
+				}
+			}
+
+			Err(AuditErr::RandomErr)
+		}
+
+		pub fn initialize_keys(keys: &[T::AuthorityId]) {
+			if !keys.is_empty() {
+				assert!(Keys::<T>::get().is_empty(), "Keys are already initialized!");
+				let bounded_keys = <BoundedSlice<'_, _, T::SessionKeyMax>>::try_from(keys)
+					.expect("More than the maximum number of keys provided");
+				Keys::<T>::put(bounded_keys);
+			}
+		}
 
 		/// Clear challenge data and perform associated actions for the given block number.
 		///
@@ -1199,5 +1395,49 @@ pub mod pallet {
 
 			idle_result
 		}
+	}
+}
+
+impl<T: Config> sp_runtime::BoundToRuntimeAppPublic for Pallet<T> {
+	type Public = T::AuthorityId;
+}
+
+impl<T: Config> OneSessionHandler<T::AccountId> for Pallet<T> {
+	type Key = T::AuthorityId;
+
+	fn on_genesis_session<'a, I: 'a>(validators: I)
+	where
+		I: Iterator<Item = (&'a T::AccountId, T::AuthorityId)>,
+	{
+		let keys = validators.map(|x| x.1).collect::<Vec<_>>();
+		Self::initialize_keys(&keys);
+	}
+
+	fn on_new_session<'a, I: 'a>(_changed: bool, validators: I, _queued_validators: I)
+	where
+		I: Iterator<Item = (&'a T::AccountId, T::AuthorityId)>,
+	{
+		// Tell the offchain worker to start making the next session's heartbeats.
+		// Since we consider producing blocks as being online,
+		// the heartbeat is deferred a bit to prevent spamming.
+
+		// Remember who the authorities are for the new session.
+		let keys = validators.map(|x| x.1).collect::<Vec<_>>();
+		let bounded_keys = WeakBoundedVec::<_, T::SessionKeyMax>::force_from(
+			keys,
+			Some(
+				"Warning: The session has more keys than expected. \
+  				A runtime configuration adjustment may be needed.",
+			),
+		);
+		Keys::<T>::put(bounded_keys);
+	}
+
+	fn on_before_session_ending() {
+		// ignore
+	}
+
+	fn on_disabled(_i: u32) {
+		// ignore
 	}
 }
