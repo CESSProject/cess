@@ -4,7 +4,7 @@ use cess_node_runtime::{
 	BalancesConfig, Block, CouncilConfig, GenesisConfig, GrandpaConfig, ImOnlineConfig,
 	IndicesConfig, MaxNominations, BabeConfig, SessionConfig, Signature, StakerStatus,
 	StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig, DOLLARS,
-	StorageHandlerConfig, SminerConfig,
+	StorageHandlerConfig, SminerConfig, EVMChainIdConfig,
 };
 
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
@@ -579,6 +579,6 @@ fn testnet_genesis(
 		ethereum: Default::default(),
 		dynamic_fee: Default::default(),
 		base_fee: Default::default(),
-		evm_chain_id: Default::default(),
+		evm_chain_id: EVMChainIdConfig { chain_id: 11330 },
 	}
 }
