@@ -339,10 +339,6 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn verify_slip)]
 	pub(super) type VerifySlip<T: Config> = StorageDoubleMap<_, Blake2_128Concat, BlockNumberOf<T>, Blake2_128Concat, AccountOf<T>, bool>;
-	// FOR TEST
-	#[pallet::storage]
-	#[pallet::getter(fn test_option_storage)]
-	pub(super) type TestOptionStorageV3<T: Config> = StorageMap<_, Blake2_128Concat, u32, ProveInfoV2<T>>;
 
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
@@ -676,17 +672,6 @@ pub mod pallet {
 			let _ = ensure_root(origin)?;
 
 			<CountedClear<T>>::insert(&miner, 0);
-
-			Ok(())
-		}
-		// FOR TEST
-		#[pallet::call_index(8)]
-		#[transactional]
-		#[pallet::weight(Weight::zero())]
-		pub fn test_insert_option(origin: OriginFor<T>, key: u32, value: ProveInfoV2<T> ) -> DispatchResult {
-			let _sender = ensure_signed(origin)?;
-
-			TestOptionStorageV3::insert(key, value);
 
 			Ok(())
 		}
