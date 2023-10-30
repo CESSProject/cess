@@ -66,30 +66,26 @@ use cp_cess_common::*;
 use cp_enclave_verify::verify_rsa;
 use cp_scheduler_credit::SchedulerCreditCounter;
 use frame_support::{
-	pallet_prelude::*, transactional,
+	pallet_prelude::*,
 	storage::bounded_vec::BoundedVec,
 	traits::{
-		StorageVersion, ReservableCurrency, Randomness, FindAuthor, 
-		ValidatorSetWithIdentification, EstimateNextSessionRotation,
+		EstimateNextSessionRotation, FindAuthor, Randomness, ReservableCurrency, StorageVersion,
+		ValidatorSetWithIdentification,
 	},
-	PalletId, WeakBoundedVec,
+	transactional, PalletId, WeakBoundedVec,
 };
-use sp_core::{
-	crypto::KeyTypeId,
-	offchain::OpaqueNetworkState,
-};
-use sp_runtime::{Saturating, app_crypto::RuntimeAppPublic, SaturatedConversion};
 use frame_system::offchain::CreateSignedTransaction;
 use pallet_file_bank::RandomFileList;
 use pallet_sminer::MinerControl;
 use pallet_storage_handler::StorageHandle;
 use pallet_tee_worker::TeeWorkerHandler;
 use scale_info::TypeInfo;
-use sp_core::H256;
-use sp_std::{ 
-		convert:: { TryFrom, TryInto },
-		prelude::*,
-	};
+use sp_core::{crypto::KeyTypeId, offchain::OpaqueNetworkState, H256};
+use sp_runtime::{app_crypto::RuntimeAppPublic, SaturatedConversion, Saturating};
+use sp_std::{
+	convert::{TryFrom, TryInto},
+	prelude::*,
+};
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -330,15 +326,30 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn chllenge_snap_shot)]
-	pub(super) type ChallengeSnapShot<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, ChallengeInfo<T>>;
+	pub(super) type ChallengeSnapShot<T: Config> =
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, ChallengeInfo<T>>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn challenge_slip)]
-	pub(super) type ChallengeSlip<T: Config> = StorageDoubleMap<_, Blake2_128Concat, BlockNumberOf<T>, Blake2_128Concat, AccountOf<T>, bool>;
-	
+	pub(super) type ChallengeSlip<T: Config> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		BlockNumberOf<T>,
+		Blake2_128Concat,
+		AccountOf<T>,
+		bool,
+	>;
+
 	#[pallet::storage]
 	#[pallet::getter(fn verify_slip)]
-	pub(super) type VerifySlip<T: Config> = StorageDoubleMap<_, Blake2_128Concat, BlockNumberOf<T>, Blake2_128Concat, AccountOf<T>, bool>;
+	pub(super) type VerifySlip<T: Config> = StorageDoubleMap<
+		_,
+		Blake2_128Concat,
+		BlockNumberOf<T>,
+		Blake2_128Concat,
+		AccountOf<T>,
+		bool,
+	>;
 
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
@@ -359,12 +370,14 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Submit an idle proof for challenge verification.
 		///
-		/// This function allows an account, identified by the `origin`, to submit an idle proof as part of a challenge verification process.
+		/// This function allows an account, identified by the `origin`, to submit an idle proof as
+		/// part of a challenge verification process.
 		///
 		/// # Parameters
 		///
 		/// - `origin`: The origin of the request, typically a user or account.
-		/// - `idle_prove`: A bounded vector of bytes representing the idle proof to be submitted. It should match the configured total hash length for idle proofs.
+		/// - `idle_prove`: A bounded vector of bytes representing the idle proof to be submitted.
+		///   It should match the configured total hash length for idle proofs.
 		#[pallet::call_index(1)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_idle_proof())]
@@ -378,7 +391,7 @@ pub mod pallet {
 				let challenge_info = challenge_info_opt.as_mut().ok_or(Error::<T>::NoChallenge)?;
 				let now = <frame_system::Pallet<T>>::block_number();
 				if now > challenge_info.challenge_element.idle_slip {
-					return Err(Error::<T>::Expired)?;
+					return Err(Error::<T>::Expired)?
 				}
 
 				if challenge_info.prove_info.idle_prove.is_none() {
@@ -392,7 +405,7 @@ pub mod pallet {
 
 					challenge_info.prove_info.idle_prove = Some(idle_prove_info);
 				} else {
-					return Err(Error::<T>::Submitted)?;
+					return Err(Error::<T>::Submitted)?
 				}
 
 				Ok(())
@@ -405,13 +418,15 @@ pub mod pallet {
 
 		/// Submit a service proof as part of a challenge in the pallet.
 		///
-		/// This function is a part of the pallet's public interface and allows an authorized account
-		/// (identified by the `origin`) to submit a service proof as a response to a challenge.
+		/// This function is a part of the pallet's public interface and allows an authorized
+		/// account (identified by the `origin`) to submit a service proof as a response to a
+		/// challenge.
 		///
 		/// # Parameters
 		///
 		/// - `origin`: The origin of the transaction, representing the caller.
-		/// - `service_prove`: A bounded vector of bytes (`BoundedVec`) containing the service proof data.
+		/// - `service_prove`: A bounded vector of bytes (`BoundedVec`) containing the service proof
+		///   data.
 		#[pallet::call_index(2)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_service_proof())]
@@ -425,7 +440,7 @@ pub mod pallet {
 				let challenge_info = challenge_info_opt.as_mut().ok_or(Error::<T>::NoChallenge)?;
 				let now = <frame_system::Pallet<T>>::block_number();
 				if now > challenge_info.challenge_element.service_slip {
-					return Err(Error::<T>::Expired)?;
+					return Err(Error::<T>::Expired)?
 				}
 
 				if challenge_info.prove_info.service_prove.is_none() {
@@ -439,7 +454,7 @@ pub mod pallet {
 
 					challenge_info.prove_info.service_prove = Some(service_prove_info);
 				} else {
-					return Err(Error::<T>::Submitted)?;
+					return Err(Error::<T>::Submitted)?
 				}
 
 				Ok(())
@@ -459,7 +474,8 @@ pub mod pallet {
 		/// # Parameters
 		///
 		/// - `origin`: The origin of the transaction, representing the caller.
-		/// - `total_prove_hash`: A bounded vector of bytes (`BoundedVec`) containing the total proof hash.
+		/// - `total_prove_hash`: A bounded vector of bytes (`BoundedVec`) containing the total
+		///   proof hash.
 		/// - `front`: The front index of the proof range.
 		/// - `rear`: The rear index of the proof range.
 		/// - `accumulator`: The accumulator data.
@@ -484,14 +500,15 @@ pub mod pallet {
 			<ChallengeSnapShot<T>>::try_mutate(&sender, |challenge_info_opt| -> DispatchResult {
 				let challenge_info = challenge_info_opt.as_mut().ok_or(Error::<T>::NoChallenge)?;
 
-				let idle_prove = challenge_info.prove_info.idle_prove.as_mut().ok_or(Error::<T>::UnSubmitted)?;
+				let idle_prove =
+					challenge_info.prove_info.idle_prove.as_mut().ok_or(Error::<T>::UnSubmitted)?;
 
 				if tee_acc != idle_prove.tee_acc {
-					return Err(Error::<T>::NonExistentMission)?;
+					return Err(Error::<T>::NonExistentMission)?
 				}
 
 				if let Some(_) = idle_prove.verify_result {
-					return Err(Error::<T>::Submitted)?;
+					return Err(Error::<T>::Submitted)?
 				}
 
 				let MinerSnapShot {
@@ -502,7 +519,7 @@ pub mod pallet {
 					tee_signature: _,
 				} = &challenge_info.miner_snapshot;
 
-				let verify_idle_info = VerifyIdleResultInfo::<T>{
+				let verify_idle_info = VerifyIdleResultInfo::<T> {
 					miner: sender.clone(),
 					miner_prove: total_prove_hash.clone(),
 					front: space_proof_info.front,
@@ -518,16 +535,24 @@ pub mod pallet {
 				let hashing = sp_io::hashing::sha2_256(&encoding);
 				ensure!(verify_rsa(&tee_puk, &hashing, &signature), Error::<T>::VerifyTeeSigFailed);
 
-				let idle_result = Self::check_idle_verify_param(idle_result, front, rear, &total_prove_hash, &accumulator, &challenge_info.miner_snapshot, &idle_prove.idle_prove);
+				let idle_result = Self::check_idle_verify_param(
+					idle_result,
+					front,
+					rear,
+					&total_prove_hash,
+					&accumulator,
+					&challenge_info.miner_snapshot,
+					&idle_prove.idle_prove,
+				);
 
 				idle_prove.verify_result = Some(idle_result);
-			
+
 				if let Some(service_prove) = &challenge_info.prove_info.service_prove {
 					if let Some(service_result) = service_prove.verify_result {
 						if idle_result && service_result {
 							let total_idle_space = T::StorageHandle::get_total_idle_space();
 							let total_service_space = T::StorageHandle::get_total_service_space();
-	
+
 							T::MinerControl::calculate_miner_reward(
 								&sender,
 								total_idle_space,
@@ -539,11 +564,19 @@ pub mod pallet {
 					}
 				}
 
-				let count = challenge_info.miner_snapshot.space_proof_info.rear
-					.checked_sub(challenge_info.miner_snapshot.space_proof_info.front).ok_or(Error::<T>::Overflow)?;
+				let count = challenge_info
+					.miner_snapshot
+					.space_proof_info
+					.rear
+					.checked_sub(challenge_info.miner_snapshot.space_proof_info.front)
+					.ok_or(Error::<T>::Overflow)?;
 				T::CreditCounter::record_proceed_block_size(&tee_acc, count)?;
 
-				Self::deposit_event(Event::<T>::SubmitIdleVerifyResult { tee: tee_acc.clone(), miner: sender.clone(), result: idle_result });
+				Self::deposit_event(Event::<T>::SubmitIdleVerifyResult {
+					tee: tee_acc.clone(),
+					miner: sender.clone(),
+					result: idle_result,
+				});
 
 				Ok(())
 			})
@@ -577,15 +610,19 @@ pub mod pallet {
 			<ChallengeSnapShot<T>>::try_mutate(&sender, |challenge_info_opt| -> DispatchResult {
 				let challenge_info = challenge_info_opt.as_mut().ok_or(Error::<T>::NoChallenge)?;
 
-				let service_prove = challenge_info.prove_info.service_prove.as_mut().ok_or(Error::<T>::UnSubmitted)?;
+				let service_prove = challenge_info
+					.prove_info
+					.service_prove
+					.as_mut()
+					.ok_or(Error::<T>::UnSubmitted)?;
 				if tee_acc != service_prove.tee_acc {
-					return Err(Error::<T>::NonExistentMission)?;
+					return Err(Error::<T>::NonExistentMission)?
 				}
 
 				if let Some(_) = service_prove.verify_result {
-					return Err(Error::<T>::Submitted)?;
+					return Err(Error::<T>::Submitted)?
 				}
-				
+
 				let MinerSnapShot {
 					idle_space,
 					service_space,
@@ -594,14 +631,22 @@ pub mod pallet {
 					tee_signature: _,
 				} = challenge_info.miner_snapshot;
 
-				let verify_service_info = VerifyServiceResultInfo::<T>{
+				let verify_service_info = VerifyServiceResultInfo::<T> {
 					miner: sender.clone(),
 					tee_acc: tee_acc.clone(),
 					miner_prove: service_prove.service_prove.clone(),
 					result: service_result,
 					chal: QElement {
-						random_index_list: challenge_info.challenge_element.service_param.random_index_list.clone(),
-						random_list: challenge_info.challenge_element.service_param.random_list.clone(),
+						random_index_list: challenge_info
+							.challenge_element
+							.service_param
+							.random_index_list
+							.clone(),
+						random_list: challenge_info
+							.challenge_element
+							.service_param
+							.random_list
+							.clone(),
 					},
 					service_bloom_filter: s_service_bloom_filter,
 				};
@@ -614,16 +659,16 @@ pub mod pallet {
 				ensure!(
 					service_bloom_filter == s_service_bloom_filter,
 					Error::<T>::BloomFilterError,
-				); 
+				);
 
 				service_prove.verify_result = Some(service_result);
-			
+
 				if let Some(idle_prove) = &challenge_info.prove_info.idle_prove {
 					if let Some(idle_result) = idle_prove.verify_result {
 						if idle_result && service_result {
 							let total_idle_space = T::StorageHandle::get_total_idle_space();
 							let total_service_space = T::StorageHandle::get_total_service_space();
-	
+
 							T::MinerControl::calculate_miner_reward(
 								&sender,
 								total_idle_space,
@@ -638,19 +683,29 @@ pub mod pallet {
 				if service_result {
 					<CountedServiceFailed<T>>::insert(&sender, u32::MIN);
 				} else {
-					let count = <CountedServiceFailed<T>>::get(&sender).checked_add(1).unwrap_or(SERVICE_FAULT_TOLERANT as u32);
+					let count = <CountedServiceFailed<T>>::get(&sender)
+						.checked_add(1)
+						.unwrap_or(SERVICE_FAULT_TOLERANT as u32);
 					if count >= SERVICE_FAULT_TOLERANT as u32 {
 						T::MinerControl::service_punish(&sender, service_space, service_space)?;
 					}
 					<CountedServiceFailed<T>>::insert(&sender, count);
 				}
 
-				let count = challenge_info.miner_snapshot.service_space
-							.checked_div(IDLE_SEG_SIZE).ok_or(Error::<T>::Overflow)?
-							.checked_add(1).ok_or(Error::<T>::Overflow)?;
+				let count = challenge_info
+					.miner_snapshot
+					.service_space
+					.checked_div(IDLE_SEG_SIZE)
+					.ok_or(Error::<T>::Overflow)?
+					.checked_add(1)
+					.ok_or(Error::<T>::Overflow)?;
 				T::CreditCounter::record_proceed_block_size(&tee_acc, count as u64)?;
 
-				Self::deposit_event(Event::<T>::SubmitServiceVerifyResult { tee: tee_acc.clone(), miner: sender.clone(), result: service_result });
+				Self::deposit_event(Event::<T>::SubmitServiceVerifyResult {
+					tee: tee_acc.clone(),
+					miner: sender.clone(),
+					result: service_result,
+				});
 
 				Ok(())
 			})
@@ -658,8 +713,8 @@ pub mod pallet {
 		// FOR TEST
 		/// Update and reset the counted clear value for a specific miner.
 		///
-		/// This function is designed for administrative purposes and can only be called by a root user
-		/// (administrator) to reset the `CountedClear` value for a specific miner to zero.
+		/// This function is designed for administrative purposes and can only be called by a root
+		/// user (administrator) to reset the `CountedClear` value for a specific miner to zero.
 		///
 		/// # Parameters
 		///
@@ -679,34 +734,44 @@ pub mod pallet {
 		#[pallet::call_index(9)]
 		#[transactional]
 		#[pallet::weight(Weight::zero())]
-		pub fn test_update_clear_slip(origin: OriginFor<T>, old: BlockNumberOf<T>, new: BlockNumberOf<T>, miner: AccountOf<T> ) -> DispatchResult {
+		pub fn test_update_clear_slip(
+			origin: OriginFor<T>,
+			old: BlockNumberOf<T>,
+			new: BlockNumberOf<T>,
+			miner: AccountOf<T>,
+		) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
 			ChallengeSlip::<T>::remove(&old, &miner);
 			ChallengeSlip::<T>::insert(&new, &miner, true);
-			
+
 			Ok(())
 		}
 		// FOR TEST
 		#[pallet::call_index(10)]
 		#[transactional]
 		#[pallet::weight(Weight::zero())]
-		pub fn test_update_verify_slip(origin: OriginFor<T>, old: BlockNumberOf<T>, new: BlockNumberOf<T>, miner: AccountOf<T> ) -> DispatchResult {
+		pub fn test_update_verify_slip(
+			origin: OriginFor<T>,
+			old: BlockNumberOf<T>,
+			new: BlockNumberOf<T>,
+			miner: AccountOf<T>,
+		) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
 			VerifySlip::<T>::remove(&old, &miner);
 			VerifySlip::<T>::insert(&new, &miner, true);
-			
+
 			Ok(())
 		}
 	}
 
 	impl<T: Config> Pallet<T> {
-
 		/// Clear challenge data and perform associated actions for the given block number.
 		///
-		/// This function is used to clear challenge data and perform various operations for a specific block number.
-		/// It iterates over challenges in the `ChallengeSlip` storage item and checks the associated `ChallengeSnapShot`.
+		/// This function is used to clear challenge data and perform various operations for a
+		/// specific block number. It iterates over challenges in the `ChallengeSlip` storage item
+		/// and checks the associated `ChallengeSnapShot`.
 		///
 		/// # Parameters
 		///
@@ -724,12 +789,12 @@ pub mod pallet {
 					if challenge_info.prove_info.service_prove.is_none() {
 						let count = <CountedClear<T>>::get(&miner).checked_add(1).unwrap_or(6);
 						weight = weight.saturating_add(T::DbWeight::get().reads(1));
-		
+
 						let _ = T::MinerControl::clear_punish(
-							&miner, 
-							count, 
-							challenge_info.miner_snapshot.idle_space, 
-							challenge_info.miner_snapshot.service_space
+							&miner,
+							count,
+							challenge_info.miner_snapshot.idle_space,
+							challenge_info.miner_snapshot.service_space,
 						);
 						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 						//For Testing
@@ -742,10 +807,7 @@ pub mod pallet {
 							<CountedClear<T>>::remove(&miner);
 							weight = weight.saturating_add(T::DbWeight::get().writes(1));
 						} else {
-							<CountedClear<T>>::insert(
-								&miner, 
-								count,
-							);
+							<CountedClear<T>>::insert(&miner, count);
 							weight = weight.saturating_add(T::DbWeight::get().writes(1));
 						}
 					}
@@ -760,10 +822,10 @@ pub mod pallet {
 
 		/// Clear Verify Missions and Update Challenge Information
 		///
-		/// This function iterates through Verify Missions for a given block number `now`, 
+		/// This function iterates through Verify Missions for a given block number `now`,
 		/// processes each mission, and updates challenge information accordingly. Verify
-		/// Missions represent task miners must complete within a certain time frame. If 
-		/// a miner fails to meet the requirements, their mission may be cleared and 
+		/// Missions represent task miners must complete within a certain time frame. If
+		/// a miner fails to meet the requirements, their mission may be cleared and
 		/// challenge information updated.
 		///
 		/// Parameters:
@@ -797,8 +859,8 @@ pub mod pallet {
 						flag = true;
 					}
 
-					if challenge_info.prove_info.idle_prove.is_none()
-						&& challenge_info.prove_info.service_prove.is_none() 
+					if challenge_info.prove_info.idle_prove.is_none() &&
+						challenge_info.prove_info.service_prove.is_none()
 					{
 						flag = true
 					}
@@ -813,20 +875,24 @@ pub mod pallet {
 						challenge_info.prove_info.assign += 1;
 						if challenge_info.prove_info.idle_prove.is_some() {
 							if let Ok(new_tee) = Self::random_select_tee_acc(0) {
-								let idle_prove = challenge_info.prove_info.idle_prove.as_mut().unwrap();
+								let idle_prove =
+									challenge_info.prove_info.idle_prove.as_mut().unwrap();
 								idle_prove.tee_acc = new_tee;
 							}
 						}
 
 						if challenge_info.prove_info.service_prove.is_some() {
 							if let Ok(new_tee) = Self::random_select_tee_acc(0) {
-								let service_prove = challenge_info.prove_info.service_prove.as_mut().unwrap();
+								let service_prove =
+									challenge_info.prove_info.service_prove.as_mut().unwrap();
 								service_prove.tee_acc = new_tee;
 							}
 						}
 
 						let max_space = {
-							if challenge_info.miner_snapshot.idle_space > challenge_info.miner_snapshot.service_space {
+							if challenge_info.miner_snapshot.idle_space >
+								challenge_info.miner_snapshot.service_space
+							{
 								challenge_info.miner_snapshot.idle_space
 							} else {
 								challenge_info.miner_snapshot.service_space
@@ -837,7 +903,7 @@ pub mod pallet {
 						let verify_life: u32 = max_space
 							.saturating_div(IDLE_VERIFY_RATE)
 							.saturating_add(one_hour as u128) as u32;
-						
+
 						let new_slip = now.saturating_add(verify_life.saturated_into());
 						challenge_info.challenge_element.verify_slip = new_slip;
 
@@ -848,7 +914,7 @@ pub mod pallet {
 					}
 				}
 			}
-			
+
 			weight
 		}
 
@@ -866,7 +932,7 @@ pub mod pallet {
 		/// - A `Weight` value representing the computational cost of the operation.
 		fn generate_challenge(now: BlockNumberOf<T>) -> Weight {
 			let mut weight: Weight = Weight::zero();
-			
+
 			weight = weight.saturating_add(T::DbWeight::get().reads(1));
 			let miner_list = match T::MinerControl::get_all_miner() {
 				Ok(miner_list) => miner_list,
@@ -875,7 +941,7 @@ pub mod pallet {
 
 			let miner_count = miner_list.len() as u64;
 			if miner_count == 0 {
-				return weight;
+				return weight
 			}
 
 			let factor = match Self::random_number(now.saturated_into()) {
@@ -886,7 +952,7 @@ pub mod pallet {
 			let miner = &miner_list[index as usize];
 
 			if <ChallengeSnapShot<T>>::contains_key(miner) {
-				return weight;
+				return weight
 			}
 
 			weight = weight.saturating_add(T::DbWeight::get().reads(1));
@@ -895,31 +961,34 @@ pub mod pallet {
 				Err(_) => return weight,
 			};
 
-			let (idle_space, service_space, service_bloom_filter, space_proof_info, tee_signature) = miner_snapshot;
+			let (idle_space, service_space, service_bloom_filter, space_proof_info, tee_signature) =
+				miner_snapshot;
 
 			if idle_space + service_space == 0 {
-				return weight;
+				return weight
 			}
 
 			let service_param = match Self::generate_miner_qelement(now.saturated_into()) {
 				Ok(service_param) => service_param,
-				Err(e) => {log::info!("audit: {:?}", e); return weight},
+				Err(e) => {
+					log::info!("audit: {:?}", e);
+					return weight
+				},
 			};
 			let space_param = match Self::generate_miner_space_param(now.saturated_into()) {
 				Ok(space_param) => space_param,
-				Err(e) => {log::info!("audit: {:?}", e); return weight},
+				Err(e) => {
+					log::info!("audit: {:?}", e);
+					return weight
+				},
 			};
 
-			let idle_life: u32 = (idle_space
-				.saturating_div(IDLE_PROVE_RATE)
-				.saturating_add(50)
-			) as u32;
+			let idle_life: u32 =
+				(idle_space.saturating_div(IDLE_PROVE_RATE).saturating_add(50)) as u32;
 			let idle_slip = now.saturating_add(idle_life.saturated_into());
 
-			let service_life: u32 = (service_space
-				.saturating_div(SERVICE_PROVE_RATE)
-				.saturating_add(50)
-			) as u32;
+			let service_life: u32 =
+				(service_space.saturating_div(SERVICE_PROVE_RATE).saturating_add(50)) as u32;
 			let service_slip = now.saturating_add(service_life.saturated_into());
 
 			let max_slip = {
@@ -936,11 +1005,9 @@ pub mod pallet {
 			let verify_life: u32 = (idle_space
 				.saturating_add(service_space)
 				.saturating_div(IDLE_VERIFY_RATE)
-				.saturating_div(tee_length as u128)
-			) as u32;
-			let verify_slip = max_slip
-				.saturating_add(verify_life.saturated_into())
-				.saturating_add(one_hour);
+				.saturating_div(tee_length as u128)) as u32;
+			let verify_slip =
+				max_slip.saturating_add(verify_life.saturated_into()).saturating_add(one_hour);
 
 			let challenge_info = ChallengeInfo::<T> {
 				miner_snapshot: MinerSnapShot::<T> {
@@ -962,7 +1029,7 @@ pub mod pallet {
 					assign: u8::MIN,
 					idle_prove: None,
 					service_prove: None,
-				}
+				},
 			};
 
 			weight = weight.saturating_add(T::DbWeight::get().writes(3));
@@ -981,16 +1048,16 @@ pub mod pallet {
 		/// applied to the seed to influence the randomness.
 		///
 		/// Parameters:
-		/// - `mask`: An optional bit mask to apply to the randomization process. It can be used
-		///   to influence the selection by XOR-ing with the block-based seed.
+		/// - `mask`: An optional bit mask to apply to the randomization process. It can be used to
+		///   influence the selection by XOR-ing with the block-based seed.
 		///
 		/// Returns:
-		/// - A `Result` containing the selected TEE account if successful, or a `DispatchError`
-		///   if there are no available TEE accounts or if random number generation fails.
+		/// - A `Result` containing the selected TEE account if successful, or a `DispatchError` if
+		///   there are no available TEE accounts or if random number generation fails.
 		fn random_select_tee_acc(mask: u32) -> Result<AccountOf<T>, DispatchError> {
 			let tee_list = T::TeeWorkerHandler::get_controller_list();
 			ensure!(tee_list.len() > 0, Error::<T>::SystemError);
-		
+
 			let seed: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
 			let index = Self::random_number(seed + mask).map_err(|_| Error::<T>::RandomErr)? as u32;
 			let index: u32 = index % (tee_list.len() as u32);
@@ -1013,8 +1080,9 @@ pub mod pallet {
 		/// - `seed`: An initial seed value used to generate random indices and values.
 		///
 		/// Returns:
-		/// - A `Result` containing a `QElement` with populated random indices and values if successful,
-		///   or an `AuditErr` error in case of potential issues during the generation process.
+		/// - A `Result` containing a `QElement` with populated random indices and values if
+		///   successful, or an `AuditErr` error in case of potential issues during the generation
+		///   process.
 		fn generate_miner_qelement(seed: u32) -> Result<QElement, AuditErr> {
 			let mut random_index_list: BoundedVec<u32, ConstU32<1024>> = Default::default();
 			let mut random_list: BoundedVec<[u8; 20], ConstU32<1024>> = Default::default();
@@ -1030,7 +1098,7 @@ pub mod pallet {
 					random_index_list.try_push(random_index).map_err(|_| AuditErr::QElementErr)?;
 				}
 				if counter > need_count * 3 {
-					return Err(AuditErr::QElementErr);
+					return Err(AuditErr::QElementErr)
 				}
 			}
 			let mut counter: u32 = 0;
@@ -1042,10 +1110,10 @@ pub mod pallet {
 					random_list.try_push(random_number).map_err(|_| AuditErr::QElementErr)?;
 				}
 				if counter > need_count * 3 {
-					return Err(AuditErr::QElementErr);
+					return Err(AuditErr::QElementErr)
 				}
 			}
-			Ok(QElement{random_index_list, random_list})
+			Ok(QElement { random_index_list, random_list })
 		}
 
 		/// Generate Miner Space Challenge Parameters
@@ -1054,17 +1122,20 @@ pub mod pallet {
 		/// These parameters are used in auditing processes. The parameters consist of a list
 		/// of elements, each representing a specific space challenge.
 		///
-		/// The generation process involves generating unique random values for the space challenges.
+		/// The generation process involves generating unique random values for the space
+		/// challenges.
 		///
 		/// Parameters:
 		/// - `seed`: An initial seed value used to introduce variation in random value generation.
 		///
 		/// Returns:
-		/// - A `Result` containing a `SpaceChallengeParam` with populated space challenge elements if
-		///   successful, or an `AuditErr` error in case of potential issues during the generation process.
+		/// - A `Result` containing a `SpaceChallengeParam` with populated space challenge elements
+		///   if successful, or an `AuditErr` error in case of potential issues during the
+		///   generation process.
 		fn generate_miner_space_param(seed: u32) -> Result<SpaceChallengeParam, AuditErr> {
 			// generate idle challenge param
-			let (_, n, d) = T::MinerControl::get_expenders().map_err(|_| AuditErr::SpaceParamErr)?;
+			let (_, n, d) =
+				T::MinerControl::get_expenders().map_err(|_| AuditErr::SpaceParamErr)?;
 			let mut space_challenge_param: SpaceChallengeParam = Default::default();
 			let mut repeat_filter: Vec<u64> = Default::default();
 			let seed_multi: u32 = 5;
@@ -1073,23 +1144,27 @@ pub mod pallet {
 			for elem in &mut space_challenge_param {
 				let mut counter: usize = 0;
 				loop {
-					let random = Self::random_number(seed.checked_add(1).ok_or(AuditErr::SpaceParamErr)?)? % n;
+					let random =
+						Self::random_number(seed.checked_add(1).ok_or(AuditErr::SpaceParamErr)?)? %
+							n;
 					counter = counter.checked_add(1).ok_or(AuditErr::SpaceParamErr)?;
-					
+
 					if counter > limit * 3 {
-						return Err(AuditErr::SpaceParamErr);
+						return Err(AuditErr::SpaceParamErr)
 					}
 
 					let random = n
-						.checked_mul(d).ok_or(AuditErr::SpaceParamErr)?
-						.checked_add(random).ok_or(AuditErr::SpaceParamErr)?;
+						.checked_mul(d)
+						.ok_or(AuditErr::SpaceParamErr)?
+						.checked_add(random)
+						.ok_or(AuditErr::SpaceParamErr)?;
 					if repeat_filter.contains(&random) {
 						continue
 					}
 					repeat_filter.push(random);
 					*elem = random;
 					seed = seed.checked_add(1).ok_or(AuditErr::SpaceParamErr)?;
-					break;
+					break
 				}
 			}
 			Ok(space_challenge_param)
@@ -1102,8 +1177,8 @@ pub mod pallet {
 				Some(v) => v,
 				None => Default::default(),
 			};
-			let random_number = <u64>::decode(&mut random_seed.as_ref())
-				.map_err(|_| AuditErr::RandomErr)?;
+			let random_number =
+				<u64>::decode(&mut random_seed.as_ref()).map_err(|_| AuditErr::RandomErr)?;
 			Ok(random_number)
 		}
 
@@ -1118,12 +1193,12 @@ pub mod pallet {
 					Some(v) => v,
 					None => Default::default(),
 				};
-				let random_seed = <H256>::decode(&mut r_seed.as_ref())
-					.map_err(|_| AuditErr::RandomErr)?;
+				let random_seed =
+					<H256>::decode(&mut r_seed.as_ref()).map_err(|_| AuditErr::RandomErr)?;
 				let random_vec = random_seed.as_bytes().to_vec();
 				if random_vec.len() >= 20 {
 					let random = random_vec[0..20].try_into().map_err(|_| AuditErr::RandomErr)?;
-					return Ok(random);
+					return Ok(random)
 				}
 			}
 		}
@@ -1136,36 +1211,40 @@ pub mod pallet {
 		///
 		/// The function compares the following parameters:
 		///
-		/// - `accumulator`: The current accumulator, which should match the one stored in `miner_info`.
+		/// - `accumulator`: The current accumulator, which should match the one stored in
+		///   `miner_info`.
 		/// - `rear`: The rear value, which should match the `rear` value in `miner_info`.
 		/// - `front`: The front value, which should match the `front` value in `miner_info`.
 		/// - `total_prove_hash`: The total proof hash, which should match `m_total_prove_hash`.
 		///
-		/// If any of the comparisons result in a mismatch, the `idle_result` flag is set to `false`,
-		/// indicating that the parameters are not correct.
+		/// If any of the comparisons result in a mismatch, the `idle_result` flag is set to
+		/// `false`, indicating that the parameters are not correct.
 		///
 		/// Parameters:
-		/// - `idle_result`: A boolean flag that tracks the correctness of the idle verification parameters.
-		///   It is initially set to `true` and is updated to `false` if any of the checks fail.
+		/// - `idle_result`: A boolean flag that tracks the correctness of the idle verification
+		///   parameters. It is initially set to `true` and is updated to `false` if any of the
+		///   checks fail.
 		/// - `front`: The front value used in idle verification.
 		/// - `rear`: The rear value used in idle verification.
 		/// - `total_prove_hash`: The total proof hash generated during idle verification.
-		/// - `accumulator`: The current accumulator, which should match the one stored in `miner_info`.
+		/// - `accumulator`: The current accumulator, which should match the one stored in
+		///   `miner_info`.
 		/// - `miner_info`: Information about the miner's space proof and related data.
-		/// - `m_total_prove_hash`: The total proof hash value expected to match the generated `total_prove_hash`.
+		/// - `m_total_prove_hash`: The total proof hash value expected to match the generated
+		///   `total_prove_hash`.
 		///
 		/// Returns:
-		/// - A boolean flag (`idle_result`) indicating whether the idle verification parameters are correct.
+		/// - A boolean flag (`idle_result`) indicating whether the idle verification parameters are
+		///   correct.
 		fn check_idle_verify_param(
 			mut idle_result: bool,
 			front: u64,
 			rear: u64,
 			total_prove_hash: &BoundedVec<u8, T::IdleTotalHashLength>,
-			accumulator: &Accumulator, 
+			accumulator: &Accumulator,
 			miner_info: &MinerSnapShot<T>,
 			m_total_prove_hash: &BoundedVec<u8, T::IdleTotalHashLength>,
 		) -> bool {
-
 			if accumulator != &miner_info.space_proof_info.accumulator {
 				idle_result = false
 			}

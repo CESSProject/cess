@@ -27,14 +27,13 @@ pub struct ProveInfoV2<T: pallet::Config> {
 	pub(super) service_prove: Option<ServiceProveInfo<T>>,
 }
 
-
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct ChallengeElement<T: pallet::Config> {
 	pub(super) start: BlockNumberOf<T>,
 	pub(super) idle_slip: BlockNumberOf<T>,
-    pub(super) service_slip: BlockNumberOf<T>,
+	pub(super) service_slip: BlockNumberOf<T>,
 	pub(super) verify_slip: BlockNumberOf<T>,
 	pub(super) space_param: SpaceChallengeParam,
 	pub(super) service_param: QElement,

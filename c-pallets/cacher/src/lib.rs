@@ -11,16 +11,13 @@ pub mod weights;
 mod types;
 use types::*;
 
-use frame_system::pallet_prelude::*;
+use cp_cess_common::IpAddress;
 use frame_support::{
 	pallet_prelude::*,
-	traits::{
-		Currency, LockableCurrency,
-		ExistenceRequirement::KeepAlive,
-	},
+	traits::{Currency, ExistenceRequirement::KeepAlive, LockableCurrency},
 	transactional,
 };
-use cp_cess_common::IpAddress;
+use frame_system::pallet_prelude::*;
 
 pub use pallet::*;
 use sp_std::prelude::*;
@@ -49,13 +46,24 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		//The event of successful Cacher registration
-		Register { acc: AccountOf<T>, info: CacherInfo<AccountOf<T>, BalanceOf<T>> },
+		Register {
+			acc: AccountOf<T>,
+			info: CacherInfo<AccountOf<T>, BalanceOf<T>>,
+		},
 		//Cacher information change success event
-		Update { acc: AccountOf<T>, info: CacherInfo<AccountOf<T>, BalanceOf<T>> },
+		Update {
+			acc: AccountOf<T>,
+			info: CacherInfo<AccountOf<T>, BalanceOf<T>>,
+		},
 		//Cacher account logout success event
-		Logout { acc: AccountOf<T> },
+		Logout {
+			acc: AccountOf<T>,
+		},
 		//Pay to cacher success event
-		Pay { acc: AccountOf<T>, bills: BoundedVec<Bill<AccountOf<T>, BalanceOf<T>, T::Hash>, T::BillsLimit> },
+		Pay {
+			acc: AccountOf<T>,
+			bills: BoundedVec<Bill<AccountOf<T>, BalanceOf<T>, T::Hash>, T::BillsLimit>,
+		},
 	}
 
 	#[pallet::error]
@@ -71,7 +79,8 @@ pub mod pallet {
 	/// Store all cacher info
 	#[pallet::storage]
 	#[pallet::getter(fn cacher)]
-	pub(super) type Cachers<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, CacherInfo<AccountOf<T>, BalanceOf<T>>>;
+	pub(super) type Cachers<T: Config> =
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, CacherInfo<AccountOf<T>, BalanceOf<T>>>;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(PhantomData<T>);
@@ -79,28 +88,34 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Register for cacher.
-		///	
+		///
 		/// Parameters:
 		/// - `info`: The cacher info related to signer account.
 		#[pallet::call_index(0)]
 		#[pallet::weight(T::WeightInfo::register())]
-		pub fn register(origin: OriginFor<T>, info: CacherInfo<AccountOf<T>, BalanceOf<T>>) -> DispatchResult {
+		pub fn register(
+			origin: OriginFor<T>,
+			info: CacherInfo<AccountOf<T>, BalanceOf<T>>,
+		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!<Cachers<T>>::contains_key(&sender), Error::<T>::AlreadyRegistered);
 			<Cachers<T>>::insert(&sender, info.clone());
 
-			Self::deposit_event(Event::<T>::Register {acc: sender, info});
+			Self::deposit_event(Event::<T>::Register { acc: sender, info });
 
 			Ok(())
 		}
 
 		/// Update cacher info.
-		///	
+		///
 		/// Parameters:
 		/// - `info`: The cacher info related to signer account.
 		#[pallet::call_index(1)]
 		#[pallet::weight(T::WeightInfo::update())]
-		pub fn update(origin: OriginFor<T>, info: CacherInfo<AccountOf<T>, BalanceOf<T>>) -> DispatchResult {
+		pub fn update(
+			origin: OriginFor<T>,
+			info: CacherInfo<AccountOf<T>, BalanceOf<T>>,
+		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(<Cachers<T>>::contains_key(&sender), Error::<T>::UnRegistered);
 
@@ -110,7 +125,7 @@ pub mod pallet {
 				Ok(())
 			})?;
 
-			Self::deposit_event(Event::<T>::Update {acc: sender, info});
+			Self::deposit_event(Event::<T>::Update { acc: sender, info });
 
 			Ok(())
 		}
@@ -130,19 +145,22 @@ pub mod pallet {
 		}
 
 		/// Pay to cachers for downloading files.
-		///	
+		///
 		/// Parameters:
 		/// - `bills`: list of bill.
 		#[pallet::call_index(3)]
 		#[transactional]
 		#[pallet::weight(T::WeightInfo::pay(bills.len() as u32))]
-		pub fn pay(origin: OriginFor<T>, bills: BoundedVec<Bill<AccountOf<T>, BalanceOf<T>, T::Hash>, T::BillsLimit>) -> DispatchResult {
+		pub fn pay(
+			origin: OriginFor<T>,
+			bills: BoundedVec<Bill<AccountOf<T>, BalanceOf<T>, T::Hash>, T::BillsLimit>,
+		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			
+
 			for bill in bills.clone() {
 				T::Currency::transfer(&sender, &bill.to, bill.amount, KeepAlive)?;
 			}
-			
+
 			Self::deposit_event(Event::<T>::Pay { acc: sender, bills });
 
 			Ok(())
