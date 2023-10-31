@@ -4,8 +4,8 @@ use super::*;
 
 use frame_benchmarking::{account, benchmarks};
 use frame_system::RawOrigin;
+use scale_info::prelude::{format, string::String};
 use sp_runtime::traits::{Bounded, Hash};
-use scale_info::prelude::{string::String, format};
 
 #[allow(unused)]
 use crate::Pallet as Cacher;
@@ -85,7 +85,7 @@ benchmarks! {
 		let bills: BoundedVec<_, T::BillsLimit> = bill_vec.try_into().unwrap();
 	}: _(RawOrigin::Signed(alice), bills)
 	verify {
-		
+
 	}
 
 	impl_benchmark_test_suite!(Cacher, crate::mock::new_test_ext(), crate::mock::Test)

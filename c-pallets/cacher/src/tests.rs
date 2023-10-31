@@ -3,15 +3,15 @@
 use super::*;
 use frame_support::{assert_noop, assert_ok};
 use mock::{new_test_ext, Cacher, RuntimeOrigin, Test};
-use sp_runtime::traits::Hash;
 use pallet_balances::Error as BalancesError;
+use sp_runtime::traits::Hash;
 
 #[test]
 fn register_works() {
 	new_test_ext().execute_with(|| {
 		let info = CacherInfo::<AccountOf<Test>, BalanceOf<Test>> {
 			payee: 1,
-			ip: IpAddress::IPV4([127,0,0,1], 8080),
+			ip: IpAddress::IPV4([127, 0, 0, 1], 8080),
 			byte_price: 100u32.into(),
 		};
 		// Register works.
@@ -21,7 +21,10 @@ fn register_works() {
 		assert_eq!(result_info, info);
 
 		// Register again fails.
-		assert_noop!(Cacher::register(RuntimeOrigin::signed(1), info.clone()), Error::<Test>::Registered);
+		assert_noop!(
+			Cacher::register(RuntimeOrigin::signed(1), info.clone()),
+			Error::<Test>::Registered
+		);
 	});
 }
 
@@ -30,19 +33,22 @@ fn update_works() {
 	new_test_ext().execute_with(|| {
 		let info = CacherInfo::<AccountOf<Test>, BalanceOf<Test>> {
 			payee: 1,
-			ip: IpAddress::IPV4([127,0,0,1], 8080),
+			ip: IpAddress::IPV4([127, 0, 0, 1], 8080),
 			byte_price: 100u32.into(),
 		};
 		assert_ok!(Cacher::register(RuntimeOrigin::signed(1), info.clone()));
 
 		let new_info = CacherInfo::<AccountOf<Test>, BalanceOf<Test>> {
 			payee: 1,
-			ip: IpAddress::IPV4([127,0,0,1], 80),
+			ip: IpAddress::IPV4([127, 0, 0, 1], 80),
 			byte_price: 200u32.into(),
 		};
 		// Wrong accout update fails.
 
-		assert_noop!(Cacher::update(RuntimeOrigin::signed(2), new_info.clone()), Error::<Test>::UnRegister);
+		assert_noop!(
+			Cacher::update(RuntimeOrigin::signed(2), new_info.clone()),
+			Error::<Test>::UnRegister
+		);
 		// Update works.
 		assert_ok!(Cacher::update(RuntimeOrigin::signed(1), new_info.clone()));
 
@@ -56,7 +62,7 @@ fn logout_works() {
 	new_test_ext().execute_with(|| {
 		let info = CacherInfo::<AccountOf<Test>, BalanceOf<Test>> {
 			payee: 1,
-			ip: IpAddress::IPV4([127,0,0,1], 8080),
+			ip: IpAddress::IPV4([127, 0, 0, 1], 8080),
 			byte_price: 100u32.into(),
 		};
 		assert_ok!(Cacher::register(RuntimeOrigin::signed(1), info.clone()));
@@ -77,21 +83,31 @@ fn pay_works() {
 		let s_file = String::from("file");
 		let s_slice = String::from("slice");
 		let mut bill_vec = Vec::new();
-		for i in 0 .. n {
-			let bill = Bill::<AccountOf<Test>, BalanceOf<Test>, <Test as frame_system::Config>::Hash> {
-				id: [i as u8; 16],
-				to: 2,
-				amount,
-				file_hash: <Test as frame_system::Config>::Hashing::hash_of(&format!("{}{}", s_file, i)),
-				slice_hash: <Test as frame_system::Config>::Hashing::hash_of(&format!("{}{}", s_slice, i)),
-				expiration_time: 1675900800u64,
-			};
+		for i in 0..n {
+			let bill =
+				Bill::<AccountOf<Test>, BalanceOf<Test>, <Test as frame_system::Config>::Hash> {
+					id: [i as u8; 16],
+					to: 2,
+					amount,
+					file_hash: <Test as frame_system::Config>::Hashing::hash_of(&format!(
+						"{}{}",
+						s_file, i
+					)),
+					slice_hash: <Test as frame_system::Config>::Hashing::hash_of(&format!(
+						"{}{}",
+						s_slice, i
+					)),
+					expiration_time: 1675900800u64,
+				};
 			bill_vec.push(bill);
 		}
 		let bills: BoundedVec<_, <Test as Config>::BillsLimit> = bill_vec.try_into().unwrap();
 
 		// Pay fails.
-		assert_noop!(Cacher::pay(RuntimeOrigin::signed(1), bills.clone()), Error::<Test>::InsufficientBalance);
+		assert_noop!(
+			Cacher::pay(RuntimeOrigin::signed(1), bills.clone()),
+			Error::<Test>::InsufficientBalance
+		);
 
 		<Test as Config>::Currency::make_free_balance_be(&1, BalanceOf::<Test>::max_value());
 		let balance_befor_1 = <Test as Config>::Currency::free_balance(&1);
