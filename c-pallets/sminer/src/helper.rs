@@ -13,19 +13,23 @@ impl<T: Config> Pallet<T> {
 			// check state 
 			ensure!(miner_info.state.to_vec() == STATE_POSITIVE.as_bytes().to_vec(), Error::<T>::NotpositiveState);
 
-			ensure!(miner_info.space_proof_info.rear < rear, Error::<T>::CountError);
+			let mut space_proof_info = miner_info.space_proof_info.clone().ok_or(Error::<T>::NotpositiveState)?;
 
-			let count = rear.checked_sub(miner_info.space_proof_info.rear).ok_or(Error::<T>::Overflow)?;
+			ensure!(space_proof_info.rear < rear, Error::<T>::CountError);
+
+			let count = rear.checked_sub(space_proof_info.rear).ok_or(Error::<T>::Overflow)?;
 			let idle_space = IDLE_SEG_SIZE.checked_mul(count as u128).ok_or(Error::<T>::Overflow)?;
 
-			miner_info.space_proof_info.rear = rear;
+			space_proof_info.rear = rear;
 
-			miner_info.space_proof_info.accumulator = accumulator;
+			space_proof_info.accumulator = accumulator;
 
 			miner_info.idle_space =
 				miner_info.idle_space.checked_add(idle_space).ok_or(Error::<T>::Overflow)?;
 
 			miner_info.tee_signature = tee_sig;
+
+			miner_info.space_proof_info = Some(space_proof_info);
 
 			Ok(idle_space)
 		})
@@ -40,15 +44,19 @@ impl<T: Config> Pallet<T> {
 		MinerItems::<T>::try_mutate(acc, |miner_info_opt| -> Result<u64, DispatchError> {
 			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
 
-			ensure!(miner_info.space_proof_info.front < front, Error::<T>::CountError);
+			let mut space_proof_info = miner_info.space_proof_info.clone().ok_or(Error::<T>::NotpositiveState)?;
 
-			let count = front - miner_info.space_proof_info.front;
+			ensure!(space_proof_info.front < front, Error::<T>::CountError);
 
-			miner_info.space_proof_info.front = front;
+			let count = front - space_proof_info.front;
 
-			miner_info.space_proof_info.accumulator = accumulator;
+			space_proof_info.front = front;
+
+			space_proof_info.accumulator = accumulator;
 
 			miner_info.tee_signature = tee_sig;
+
+			miner_info.space_proof_info = Some(space_proof_info);
 
 			Ok(count)
 		})
@@ -249,7 +257,8 @@ impl<T: Config> Pallet<T> {
 			T::StorageHandle::sub_total_idle_space(miner.idle_space)?;
 			Self::create_restoral_target(acc, miner.service_space)?;
 			miner.state = Self::str_to_bound(STATE_OFFLINE)?;
-			let encoding = miner.space_proof_info.pois_key.encode();
+			let space_proof_info = miner.space_proof_info.clone().ok_or(Error::<T>::NotpositiveState)?;
+			let encoding = space_proof_info.pois_key.encode();
 			let hashing = sp_io::hashing::sha2_256(&encoding);
 			MinerPublicKey::<T>::remove(hashing);
 			Ok(())

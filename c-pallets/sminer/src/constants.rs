@@ -1,5 +1,7 @@
 use super::*;
 
+pub(super) const STATE_NOT_READY: &str = "not ready";
+
 pub(super) const STATE_POSITIVE: &str = "positive";
 
 pub(super) const STATE_FROZEN: &str = "frozen";

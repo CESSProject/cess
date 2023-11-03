@@ -128,7 +128,8 @@ impl<T: Config> Pallet<T> {
 	pub(super) fn withdraw(acc: &AccountOf<T>) -> DispatchResult {
 		let miner_info = <MinerItems<T>>::try_get(acc).map_err(|_| Error::<T>::NotMiner)?;
 		T::Currency::unreserve(acc, miner_info.collaterals);
-		let encoding = miner_info.space_proof_info.pois_key.encode();
+		let space_proof_info = miner_info.space_proof_info.ok_or(Error::<T>::NotpositiveState)?;
+		let encoding = space_proof_info.pois_key.encode();
 		let hashing = sp_io::hashing::sha2_256(&encoding);
 		MinerPublicKey::<T>::remove(hashing);
 		<MinerItems<T>>::remove(acc);
