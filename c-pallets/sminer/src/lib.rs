@@ -313,28 +313,11 @@ pub mod pallet {
 			beneficiary: AccountOf<T>,
 			peer_id: PeerId,
 			staking_val: BalanceOf<T>,
-			pois_key: PoISKey,
-			tee_sig: TeeRsaSignature,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!(<MinerItems<T>>::contains_key(&sender)), Error::<T>::AlreadyRegistered);
 			ensure!(staking_val >= BASE_LIMIT.try_into().map_err(|_| Error::<T>::Overflow)?, Error::<T>::CollateralNotUp);
 			T::Currency::reserve(&sender, staking_val)?;
-
-			let space_proof_info = SpaceProofInfo::<AccountOf<T>> {
-				miner: sender.clone(),
-				front: u64::MIN,
-				rear: u64::MIN,
-				pois_key: pois_key.clone(),
-				accumulator: pois_key.g,
-			};
-
-			let encoding = space_proof_info.encode();
-			let original_text = sp_io::hashing::sha2_256(&encoding);
-			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
-			ensure!(verify_rsa(&tee_puk, &original_text, &tee_sig), Error::<T>::VerifyTeeSigFailed);
-
-			MinerPublicKey::<T>::insert(&original_text, sender.clone());
 
 			<MinerItems<T>>::insert(
 				&sender,
@@ -343,22 +326,15 @@ pub mod pallet {
 					peer_id: peer_id,
 					collaterals: staking_val,
 					debt: BalanceOf::<T>::zero(),
-					state: Self::str_to_bound(STATE_POSITIVE)?,
+					state: Self::str_to_bound(STATE_NOT_READY)?,
 					idle_space: u128::MIN,
 					service_space: u128::MIN,
 					lock_space: u128::MIN,
-					space_proof_info,			
+					space_proof_info: Option::None,			
 					service_bloom_filter: Default::default(),
-					tee_signature: tee_sig,
+					tee_signature: [0u8; 256],
 				},
 			);
-
-			AllMiner::<T>::try_mutate(|all_miner| -> DispatchResult {
-				all_miner
-					.try_push(sender.clone())
-					.map_err(|_e| Error::<T>::StorageLimitReached)?;
-				Ok(())
-			})?;
 
 			RewardMap::<T>::insert(
 				&sender,
@@ -378,6 +354,53 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(16)]
+		#[transactional]
+		#[pallet::weight(Weight::zero())]
+		pub fn register_pois_key(
+			origin: OriginFor<T>, 
+			pois_key: PoISKey<AccountOf<T>>, 
+			tee_sig: TeeRsaSignature
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			// Because the next operation consumes system resources, make a judgment in advance.
+			ensure!(<MinerItems<T>>::contains_key(&sender), Error::<T>::NotMiner);
+
+			let space_proof_info = SpaceProofInfo::<AccountOf<T>> {
+				miner: sender.clone(),
+				front: u64::MIN,
+				rear: u64::MIN,
+				pois_key: pois_key.clone(),
+				accumulator: pois_key.g,
+			};
+
+			let encoding = space_proof_info.encode();
+			let original_text = sp_io::hashing::sha2_256(&encoding);
+			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
+			ensure!(verify_rsa(&tee_puk, &original_text, &tee_sig), Error::<T>::VerifyTeeSigFailed);
+
+			MinerPublicKey::<T>::insert(&original_text, sender.clone());
+
+			<MinerItems<T>>::try_mutate(&sender, |info_opt| -> DispatchResult {
+				let miner_info = info_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
+				ensure!(STATE_NOT_READY.as_bytes().to_vec() == miner_info.state.to_vec(), Error::<T>::StateError);
+
+				miner_info.space_proof_info = Some(space_proof_info);
+				miner_info.state = Self::str_to_bound(STATE_POSITIVE)?;
+				miner_info.tee_signature = tee_sig;
+
+				Ok(())
+			})?;
+
+			AllMiner::<T>::try_mutate(|all_miner| -> DispatchResult {
+				all_miner
+					.try_push(sender.clone())
+					.map_err(|_e| Error::<T>::StorageLimitReached)?;
+				Ok(())
+			})?;
+
+			Ok(())
+		}
 
 		/// Increase Collateral and Update Miner's State
 		///
@@ -1026,7 +1049,8 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 		}
 		//There is a judgment on whether the primary key exists above
 		let miner_info = <MinerItems<T>>::try_get(miner).map_err(|_| Error::<T>::NotMiner)?;
-		Ok((miner_info.idle_space, miner_info.service_space, miner_info.service_bloom_filter, miner_info.space_proof_info, miner_info.tee_signature))
+		let space_proof_info = miner_info.space_proof_info.ok_or(Error::<T>::Unexpected)?;
+		Ok((miner_info.idle_space, miner_info.service_space, miner_info.service_bloom_filter, space_proof_info, miner_info.tee_signature))
 	}
 
 	fn update_restoral_target(miner: &AccountOf<T>, service_space: u128) -> DispatchResult {
