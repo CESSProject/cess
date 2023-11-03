@@ -8,7 +8,7 @@ use frame_support::{
     Blake2_128Concat, PalletId, weights::Weight, ensure, transactional,
     storage::bounded_vec::BoundedVec,
     traits::{
-        StorageVersion, Currency, ReservableCurrency,
+        StorageVersion, Currency, ReservableCurrency, Randomness,
     },
     pallet_prelude::*,
 };
@@ -25,6 +25,7 @@ use codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 use cp_cess_common::*;
 use pallet_cess_treasury::{TreasuryHandle};
+use sp_core::H256;
 
 pub mod weights;
 use weights::WeightInfo;
@@ -69,15 +70,14 @@ pub mod pallet {
 		type RewardPalletId: Get<PalletId>;
 
         #[pallet::constant]
-        type TreasuryPalletId: Get<PalletId>;
-
-        #[pallet::constant]
         type StateStringMax: Get<u32> + Clone + Eq + PartialEq;
         
 		#[pallet::constant]
 		type FrozenDays: Get<BlockNumberOf<Self>> + Clone + Eq + PartialEq;
 
         type CessTreasuryHandle: TreasuryHandle<AccountOf<Self>, BalanceOf<Self>>;
+
+        type MyRandomness: Randomness<Option<Self::Hash>, Self::BlockNumber>;
     }
 
     #[pallet::event]
@@ -93,6 +93,10 @@ pub mod pallet {
 		LeaseExpired { acc: AccountOf<T>, size: u128 },
 		//Storage space expiring within 24 hours
 		LeaseExpireIn24Hours { acc: AccountOf<T>, size: u128 },
+
+        CreatePayOrder { order_hash: BoundedVec<u8, ConstU32<32>> },
+
+        PaidOrder { order_hash: BoundedVec<u8, ConstU32<32>> },
     }
 
     #[pallet::error]
@@ -118,6 +122,10 @@ pub mod pallet {
         LeaseFreeze,
 
         LeaseExpired,
+
+        RandomErr,
+
+        NoOrder,
     }
 
 	#[pallet::storage]
@@ -142,6 +150,10 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn purchased_space)]
 	pub(super) type PurchasedSpace<T: Config> = StorageValue<_, u128, ValueQuery>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn pay_order)]
+    pub(super) type PayOrder<T: Config> = StorageMap<_, Blake2_128Concat, BoundedVec<u8, ConstU32<32>>, OrderInfo<T>>;
 
     #[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
@@ -351,10 +363,125 @@ pub mod pallet {
                 Ok(())
             })
         }
+
+        #[pallet::call_index(6)]
+        #[transactional]
+        #[pallet::weight(Weight::zero())]
+        pub fn create_order(origin: OriginFor<T>, target_acc: AccountOf<T>, order_type: OrderType, gib_count: u32, days: u32) -> DispatchResult {
+            let sender = ensure_signed(origin)?;
+
+            let price = match order_type {
+                OrderType::Buy => {
+                    ensure!(!<UserOwnedSpace<T>>::contains_key(&target_acc), Error::<T>::PurchasedSpace);
+                    let price = Self::calculate_price(gib_count, days)?;
+                    price
+                },
+                OrderType::Expansion => {
+                    let user_owned_space = <UserOwnedSpace<T>>::try_get(&target_acc).map_err(|_| Error::<T>::NotPurchasedSpace)?;
+                    let remain_day = Self::calculate_remain_day(user_owned_space.deadline)?;
+                    let price = Self::calculate_price(gib_count, remain_day.saturated_into())?;
+                    price
+                },
+                OrderType::Renewal => {
+                    let user_owned_space = <UserOwnedSpace<T>>::try_get(&target_acc).map_err(|_| Error::<T>::NotPurchasedSpace)?;
+                    let gib_count = user_owned_space.total_space.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
+                    let price = Self::calculate_price(gib_count as u32, days)?;
+                    price
+                },
+            };
+
+            let pay_order = OrderInfo::<T> {
+                pay: price,
+                gib_count: gib_count,
+                days,
+                expired: 10u32.saturated_into(),
+                pay_acc: sender,
+                target_acc: target_acc,
+                order_type,
+            };
+
+            let now = <frame_system::Pallet<T>>::block_number();
+            let (seed, _) =
+					T::MyRandomness::random(&(T::RewardPalletId::get(), now).encode());
+			let seed = match seed {
+				Some(v) => v,
+				None => Default::default(),
+			};
+			let random_hash =
+				<H256>::decode(&mut seed.as_ref()).map_err(|_| Error::<T>::RandomErr)?;
+
+            let random_hash: BoundedVec<u8, sp_core::ConstU32<32>> = random_hash.as_bytes().to_vec().try_into().map_err(|_| Error::<T>::BoundedVecError)?;
+            <PayOrder<T>>::insert(&random_hash, pay_order);
+
+            Self::deposit_event(Event::<T>::CreatePayOrder { order_hash: random_hash });
+
+            Ok(())
+        }
+
+        #[pallet::call_index(7)]
+        #[pallet::weight(Weight::zero())]
+        pub fn exec_order(origin: OriginFor<T>, order_id: BoundedVec<u8, ConstU32<32>>) -> DispatchResult {
+            let sender = ensure_signed(origin)?;
+
+            let order = <PayOrder<T>>::try_get(&order_id).map_err(|_| Error::<T>::NoOrder)?;
+            match order.order_type {
+                OrderType::Buy => {
+                    ensure!(!<UserOwnedSpace<T>>::contains_key(&order.target_acc), Error::<T>::PurchasedSpace);
+                    let space = G_BYTE.checked_mul(order.gib_count as u128).ok_or(Error::<T>::Overflow)?;
+                    Self::add_user_purchased_space(order.target_acc, space, order.days)?;
+			        Self::add_purchased_space(space)?;
+                },
+                OrderType::Expansion => {
+                    ensure!(<UserOwnedSpace<T>>::contains_key(&order.target_acc), Error::<T>::NotPurchasedSpace);
+                    let space = G_BYTE.checked_mul(order.gib_count as u128).ok_or(Error::<T>::Overflow)?;
+                    Self::add_purchased_space(space)?;
+                    Self::expension_puchased_package(order.target_acc, space)?;
+                },
+                OrderType::Renewal => {
+                    ensure!(<UserOwnedSpace<T>>::contains_key(&order.target_acc), Error::<T>::NotPurchasedSpace);
+                    Self::update_puchased_package(order.target_acc, order.days)?;
+                },
+            };
+
+            T::CessTreasuryHandle::send_to_sid(sender, order.pay)?;
+            Self::deposit_event(Event::<T>::PaidOrder { order_hash: order_id });
+
+            Ok(())
+        }
     }
 }
 
 impl<T: Config> Pallet<T> {
+    fn calculate_price(gib_count: u32, days: u32) -> Result<BalanceOf<T>, DispatchError> {
+        let unit_price: u128 = <UnitPrice<T>>::get().unwrap().try_into().map_err(|_| Error::<T>::Overflow)?;
+        let gib_count: u128 = gib_count.into();
+        let days: u128 = days.into();
+        let price = gib_count
+            .checked_mul(days).ok_or(Error::<T>::Overflow)?
+            .checked_mul(unit_price).ok_or(Error::<T>::Overflow)?;
+        
+        let price: BalanceOf<T> = price.try_into().map_err(|_| Error::<T>::Overflow)?;
+        Ok(price)
+    }
+
+    fn calculate_remain_day(deadline: BlockNumberOf<T>) -> Result<BlockNumberOf<T>, DispatchError>{
+        let now = <frame_system::Pallet<T>>::block_number();
+        //Calculate remaining days.
+        let block_oneday: BlockNumberOf<T> = <T as pallet::Config>::OneDay::get();
+        let diff_block = deadline.checked_sub(&now).ok_or(Error::<T>::Overflow)?;
+        let mut remain_day: u32 = diff_block
+            .checked_div(&block_oneday)
+            .ok_or(Error::<T>::Overflow)?
+            .saturated_into();
+        if diff_block % block_oneday != 0u32.saturated_into() {
+            remain_day = remain_day
+                .checked_add(1)
+                .ok_or(Error::<T>::Overflow)?
+                .saturated_into();
+        }
+
+        Ok(remain_day.into())
+    }
     /// helper: update_puchased_package.
     ///
     /// How to update the corresponding data after renewing the package.
