@@ -17,10 +17,13 @@ serde = { version = "1.0.136", optional = true }
 # substrate pallet
 frame-support = { version = "4.0.0-dev", git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42", default-features = false }
 frame-system = { version = "4.0.0-dev", git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42", default-features = false }
-sp-std = { version = "5.0.0", git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42", default-features = false }
-pallet-balances = { version = "4.0.0-dev", git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42", default-features = false }
-sp-runtime = { version = "7.0.0", git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42", default-features = false }
 frame-benchmarking = { version = '4.0.0-dev', git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42", default-features = false }
+pallet-balances = { version = "4.0.0-dev", git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42", default-features = false }
+
+# substrate primitives 
+sp-core = { version = "7.0.0", git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42", default-features = false }
+sp-std = { version = "5.0.0", git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42", default-features = false }
+sp-runtime = { version = "7.0.0", git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42", default-features = false }
 
 # local dependencies
 cp-cess-common = { path = '../../primitives/common', default-features = false }
