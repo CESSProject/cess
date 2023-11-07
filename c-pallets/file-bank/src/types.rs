@@ -19,7 +19,8 @@ pub struct SegmentList<T: Config> {
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct MinerTaskList<T: Config> {
-	pub(super) miner: AccountOf<T>,
+	pub(super) index: u8,
+	pub(super) miner: Option<AccountOf<T>>,
 	pub(super) fragment_list: BoundedVec<Hash,  <T as pallet::Config>::MissionCount>,
 }
 
@@ -41,11 +42,9 @@ pub struct DealInfo<T: Config> {
 	pub(super) count: u8,
 	pub(super) file_size: u128,
 	pub(super) segment_list: BoundedVec<SegmentList<T>, T::SegmentCount>,
-	pub(super) needed_list: BoundedVec<SegmentList<T>, T::SegmentCount>,
 	pub(super) user: UserBrief<T>,
-	pub(super) assigned_miner: BoundedVec<MinerTaskList<T>, ConstU32<ASSIGN_MINER_IDEAL_QUANTITY>>,
-	pub(super) share_info: BoundedVec<SegmentInfo<T>, T::SegmentCount>,
-	pub(super) complete_list: BoundedVec<AccountOf<T>, T::FragmentCount>,
+	pub(super) miner_task_list: BoundedVec<MinerTaskList<T>, ConstU32<ASSIGN_MINER_IDEAL_QUANTITY>>,
+	pub(super) complete_list: BoundedVec<u8, T::FragmentCount>,
 }
 
 //TODO! BoundedVec type -> BTreeMap
