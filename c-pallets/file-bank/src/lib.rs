@@ -45,6 +45,9 @@ mod functions;
 mod constants;
 use constants::*;
 
+mod impls;
+use impls::receptionist::Receptionist;
+
 use codec::{Decode, Encode};
 use frame_support::{
 	// bounded_vec, 
@@ -436,7 +439,7 @@ pub mod pallet {
 			// Check file specifications.
 			ensure!(Self::check_file_spec(&deal_info), Error::<T>::SpecError);
 			// Check whether the user-defined name meets the rules.
-			
+
 			let minimum = T::NameMinLength::get();
 			ensure!(user_brief.file_name.len() as u32 >= minimum, Error::<T>::SpecError);
 			ensure!(user_brief.bucket_name.len() as u32 >= minimum, Error::<T>::SpecError);
@@ -448,38 +451,10 @@ pub mod pallet {
 			ensure!(T::StorageHandle::get_user_avail_space(&user_brief.user)? > needed_space, Error::<T>::InsufficientAvailableSpace);
 
 			if <File<T>>::contains_key(&file_hash) {
-				T::StorageHandle::update_user_space(&user_brief.user, 1, needed_space)?;
-
-				if <Bucket<T>>::contains_key(&user_brief.user, &user_brief.bucket_name) {
-					Self::add_file_to_bucket(&user_brief.user, &user_brief.bucket_name, &file_hash)?;
-				} else {
-					Self::create_bucket_helper(&user_brief.user, &user_brief.bucket_name, Some(file_hash))?;
-				}
-
-				Self::add_user_hold_fileslice(&user_brief.user, file_hash, needed_space)?;
-
-				<File<T>>::try_mutate(&file_hash, |file_opt| -> DispatchResult {
-					let file = file_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
-					file.owner.try_push(user_brief.clone()).map_err(|_e| Error::<T>::BoundedVecError)?;
-					Ok(())
-				})?;
+				Receptionist::<T>::fly_upload_file(file_hash, user_brief.clone(), needed_space)?;
 			} else {
 				ensure!(assigned_data.len() as u32 == ASSIGN_MINER_IDEAL_QUANTITY, Error::<T>::SpecError);
-				let mut miner_task_list: BoundedVec<MinerTaskList<T>, ConstU32<ASSIGN_MINER_IDEAL_QUANTITY>> = Default::default();
-				let mut index = 1;
-				for fragment_list in assigned_data {
-					ensure!(fragment_list.len() == deal_info.len(), Error::<T>::SpecError);
-					let miner_task = MinerTaskList::<T> {
-						index,
-						miner: None,
-						fragment_list,
-					};
-					miner_task_list.try_push(miner_task).map_err(|_| Error::<T>::BoundedVecError)?;
-					index += 1;
-				}
-				T::StorageHandle::lock_user_space(&user_brief.user, needed_space)?;
-				// TODO! Replace the file_hash param
-				Self::generate_deal(file_hash.clone(), deal_info, miner_task_list, user_brief.clone(), file_size)?;
+				Receptionist::<T>::generate_deal(file_hash, deal_info, user_brief.clone(), assigned_data, needed_space, file_size)?;
 			}
 
 			Self::deposit_event(Event::<T>::UploadDeclaration { operator: sender, owner: user_brief.user, deal_hash: file_hash });
@@ -619,81 +594,7 @@ pub mod pallet {
 			<DealMap<T>>::try_mutate(&deal_hash, |deal_info_opt| -> DispatchResult {
 				// can use unwrap because there was a judgment above
 				let deal_info = deal_info_opt.as_mut().unwrap();
-
-				if !deal_info.complete_list.contains(&index) {
-					for task_info in &mut deal_info.miner_task_list {
-						if task_info.index == index {
-							match task_info.miner {
-								Some(_) => Err(Error::<T>::Existed)?,
-								None => {
-									task_info.miner = Some(sender.clone());
-									T::MinerControl::lock_space(&sender, task_info.fragment_list.len() as u128 * FRAGMENT_SIZE)?;
-									deal_info.complete_list.try_push(index).map_err(|_| Error::<T>::BoundedVecError)?;
-								},
-							};
-						} else {
-							if let Some(miner) = &task_info.miner {
-								if miner == &sender {
-									Err(Error::<T>::Existed)?;
-								}
-							};
-						}
-					}
-
-
-					// If it is the last submitter of the order.
-					if deal_info.complete_list.len() == deal_info.miner_task_list.len() {
-						deal_info.stage = 2;
-						Self::generate_file(
-							&deal_hash,
-							deal_info.segment_list.clone(),
-							deal_info.miner_task_list.clone(),
-							deal_info.user.clone(),
-							FileState::Calculate,
-							deal_info.file_size,
-						)?;
-						let mut max_task_count = 0;
-						for miner_task in deal_info.miner_task_list.iter() {
-							let count = miner_task.fragment_list.len() as u128;
-							if count > max_task_count {
-								max_task_count = count;
-							}
-							// Miners need to report the replaced documents themselves. 
-							// If a challenge is triggered before the report is completed temporarily, 
-							// these documents to be replaced also need to be verified
-							if let Some(miner) = &miner_task.miner {
-								<PendingReplacements<T>>::try_mutate(miner, |pending_space| -> DispatchResult {
-									let replace_space = FRAGMENT_SIZE.checked_mul(count).ok_or(Error::<T>::Overflow)?;
-									let pending_space_temp = pending_space.checked_add(replace_space).ok_or(Error::<T>::Overflow)?;
-									*pending_space = pending_space_temp;
-									Ok(())
-								})?;
-							}
-						}
-						let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
-						T::StorageHandle::unlock_and_used_user_space(&deal_info.user.user, needed_space)?;
-						T::StorageHandle::sub_total_idle_space(needed_space)?;
-						T::StorageHandle::add_total_service_space(needed_space)?;
-						let result = T::FScheduler::cancel_named(deal_hash.0.to_vec()).map_err(|_| Error::<T>::Unexpected);
-						if let Err(_) = result {
-							log::info!("transfer report cancel schedule failed: {:?}", deal_hash.clone());
-						}
-						// Calculate the maximum time required for storage nodes to tag files
-						let max_needed_cal_space = (max_task_count as u32).checked_mul(FRAGMENT_SIZE as u32).ok_or(Error::<T>::Overflow)?;
-						let mut life: u32 = (max_needed_cal_space / TRANSFER_RATE as u32).checked_add(11).ok_or(Error::<T>::Overflow)?;
-						life = (max_needed_cal_space / CALCULATE_RATE as u32)
-							.checked_add(30).ok_or(Error::<T>::Overflow)?
-							.checked_add(life).ok_or(Error::<T>::Overflow)?;
-						Self::start_second_task(deal_hash.0.to_vec(), deal_hash, life)?;
-						if <Bucket<T>>::contains_key(&deal_info.user.user, &deal_info.user.bucket_name) {
-							Self::add_file_to_bucket(&deal_info.user.user, &deal_info.user.bucket_name, &deal_hash)?;
-						} else {
-							Self::create_bucket_helper(&deal_info.user.user, &deal_info.user.bucket_name, Some(deal_hash))?;
-						}
-						Self::add_user_hold_fileslice(&deal_info.user.user, deal_hash.clone(), needed_space)?;
-						Self::deposit_event(Event::<T>::StorageCompleted{ file_hash: deal_hash });
-					}
-				}
+				Receptionist::<T>::qualification_report_processing(sender.clone(), deal_hash, deal_info, index)?;
 				Ok(())
 			})?;
 
