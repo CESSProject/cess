@@ -143,10 +143,10 @@ pub mod pallet {
 		pub fn register(
 			origin: OriginFor<T>,
 			stash_account: AccountOf<T>,
-			node_key: NodePublicKey,
 			peer_id: PeerId,
 			podr2_pbk: Podr2Key,
 			sgx_attestation_report: SgxAttestationReport,
+			end_point: EndPoint,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			//Even if the primary key is not present here, panic will not be caused
@@ -159,6 +159,7 @@ pub mod pallet {
 			let mut identity = Vec::new();
 			identity.append(&mut peer_id.to_vec());
 			identity.append(&mut podr2_pbk.to_vec());
+			identity.append(&mut end_point.to_vec());
 			let identity_hashing = sp_io::hashing::sha2_256(&identity);
 			let _ = verify_miner_cert(
 				&sgx_attestation_report.sign,
@@ -170,8 +171,8 @@ pub mod pallet {
 			let tee_worker_info = TeeWorkerInfo::<T> {
 				controller_account: sender.clone(),
 				peer_id: peer_id.clone(),
-				node_key,
 				stash_account: stash_account,
+				end_point,
 			};
 
 			if TeeWorkerMap::<T>::count() == 0 {
@@ -251,16 +252,16 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			stash_account: AccountOf<T>,
 			controller_account: AccountOf<T>,
-			node_key: NodePublicKey,
 			peer_id: PeerId,
+			end_point: EndPoint,
 		) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
 			let tee_worker_info = TeeWorkerInfo::<T> {
 				controller_account: controller_account.clone(),
 				peer_id: peer_id.clone(),
-				node_key,
 				stash_account: stash_account,
+				end_point,
 			};
 
 			TeeWorkerMap::<T>::insert(&controller_account, tee_worker_info);
