@@ -18,8 +18,7 @@ pub struct Hash(pub [u8; 64]);
 pub struct TryFromSliceError(());
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-pub struct PoISKey<AccountId> {
-	pub acc: AccountId,
+pub struct PoISKey {
 	pub g: [u8; 256],
 	pub n: [u8; 256],
 }
@@ -29,7 +28,7 @@ pub struct SpaceProofInfo<AccountId> {
 	pub miner: AccountId,
 	pub front: u64,
 	pub rear: u64,
-	pub pois_key: PoISKey<AccountId>,
+	pub pois_key: PoISKey,
 	pub accumulator: Accumulator,
 }
 

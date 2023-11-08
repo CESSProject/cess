@@ -359,7 +359,7 @@ pub mod pallet {
 		#[pallet::weight(Weight::zero())]
 		pub fn register_pois_key(
 			origin: OriginFor<T>, 
-			pois_key: PoISKey<AccountOf<T>>, 
+			pois_key: PoISKey, 
 			tee_sig: TeeRsaSignature
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
