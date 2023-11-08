@@ -32,10 +32,6 @@ impl<T: Config> Pallet<T> {
                 miner_task.fragment_list.sort();
             }
 
-            let best_count: u32 = (SEGMENT_SIZE * 15 / 10 / FRAGMENT_SIZE) as u32;
-            let cur_count: u32 = miner_task_list.len() as u32;
-            let flag = best_count == cur_count;
-
             for frag_hash in segment.fragment_list.iter() {
                 for miner_task in &mut miner_task_list {
                     if let Ok(index) = miner_task.fragment_list.binary_search(&frag_hash) {

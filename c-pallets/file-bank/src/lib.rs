@@ -668,7 +668,6 @@ pub mod pallet {
 									*pending_space = pending_space_temp;
 									Ok(())
 								})?;
-								Self::zero_task_failed_count(miner)?;
 							}
 						}
 						let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
