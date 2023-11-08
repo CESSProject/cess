@@ -6,8 +6,8 @@ use super::*;
 pub struct TeeWorkerInfo<T: pallet::Config> {
     pub controller_account: AccountOf<T>,
     pub peer_id: PeerId,
-    pub node_key: NodePublicKey,
     pub stash_account: AccountOf<T>,
+    pub end_point: EndPoint,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, Default, MaxEncodedLen, TypeInfo)]

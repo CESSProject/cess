@@ -108,6 +108,7 @@ pub type Mrenclave = [u8; 32];
 pub type PeerId = [u8; 38];
 pub type Podr2Key = [u8; 270];
 pub type TeeRsaSignature = [u8; 256];
+pub type EndPoint = BoundedVec<u8, ConstU32<100>>;
 
 pub const M_BYTE: u128 = 1_048_576;
 pub const G_BYTE: u128 = 1_048_576 * 1024;
