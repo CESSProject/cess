@@ -505,7 +505,7 @@ pub mod pallet {
 				let v = Pallet::<T>::get_segment_length_from_deal(&deal_hash);
 				<T as pallet::Config>::WeightInfo::deal_reassign_miner(v)
 			})]
-		pub fn deal_reassign_miner(
+		pub fn deal_timing_task(
 			origin: OriginFor<T>,
 			deal_hash: Hash,
 			count: u8,
@@ -610,7 +610,6 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			index: u8,
 			deal_hash: Hash,
-			// tee_list: BoundedVec<AccountOf<T>, ConstU32<3>>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 

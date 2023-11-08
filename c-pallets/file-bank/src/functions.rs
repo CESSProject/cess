@@ -154,7 +154,7 @@ impl<T: Config> Pallet<T> {
                 Option::None,
                 schedule::HARD_DEADLINE,
                 frame_system::RawOrigin::Root.into(),
-                Call::deal_reassign_miner{deal_hash: deal_hash, count: count, life: life}.into(),
+                Call::deal_timing_task{deal_hash: deal_hash, count: count, life: life}.into(),
         ).map_err(|_| Error::<T>::Unexpected)?;
 
         Ok(())
