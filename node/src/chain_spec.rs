@@ -346,7 +346,9 @@ pub fn cess_develop_config() -> ChainSpec {
 pub fn cess_testnet_generate_config() -> ChainSpec {
 	let boot_nodes = vec![];
 	ChainSpec::from_genesis(
+		// Name
 		"cess-devnet",
+		// ID
 		"cess-devnet",
 		ChainType::Live,
 		cess_testnet_config_genesis,
@@ -357,6 +359,7 @@ pub fn cess_testnet_generate_config() -> ChainSpec {
 		),
 		Some("TCESS"),
 		None,
+		// Properties
 		Some(
 			serde_json::from_str(
 				"{\"tokenDecimals\": 12, \"tokenSymbol\": \"TCESS\", \"SS58Prefix\": 11330}",
@@ -370,17 +373,24 @@ pub fn cess_testnet_generate_config() -> ChainSpec {
 pub fn cess_main() -> ChainSpec {
 	let boot_nodes = vec![];
 	ChainSpec::from_genesis(
+		// Name
 		"cess-testnet",
+		// ID
 		"cess-testnet",
 		ChainType::Live,
 		cess_main_genesis,
+		// Bootnodes
 		boot_nodes,
+		// Telemetry
 		Some(
 			TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
 				.expect("Staging telemetry url is valid; qed"),
 		),
+		// Protocol ID
 		Some("TCESS"),
+		// Fork ID
 		None,
+		// Properties
 		Some(
 			serde_json::from_str(
 				"{\"tokenDecimals\": 12, \"tokenSymbol\": \"TCESS\", \"SS58Prefix\": 11330}",
@@ -413,10 +423,16 @@ pub fn development_config() -> ChainSpec {
 		// Telemetry
 		None,
 		// Protocol ID
+		Some("TCESS"),
+		// Fork ID
 		None,
 		// Properties
-		None,
-		None,
+		Some(
+			serde_json::from_str(
+				"{\"tokenDecimals\": 12, \"tokenSymbol\": \"TCESS\", \"SS58Prefix\": 11330}",
+			)
+				.expect("Provided valid json map"),
+		),
 		// Extensions
 		Default::default(),
 	)
