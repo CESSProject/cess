@@ -1,3 +1,6 @@
+/// For function relationship in this file, refer to doc (2023-11-09):
+//    /docs/on-src/node/src/chain_spec.rs.md
+
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use cess_node_runtime::{
 	opaque::SessionKeys, wasm_binary_unwrap, AccountId, AuthorityDiscoveryConfig, Balance,
