@@ -43,8 +43,15 @@ pub struct DealInfo<T: Config> {
 	pub(super) file_size: u128,
 	pub(super) segment_list: BoundedVec<SegmentList<T>, T::SegmentCount>,
 	pub(super) user: UserBrief<T>,
-	pub(super) miner_task_list: BoundedVec<MinerTaskList<T>, ConstU32<ASSIGN_MINER_IDEAL_QUANTITY>>,
-	pub(super) complete_list: BoundedVec<u8, T::FragmentCount>,
+	pub(super) complete_list: BoundedVec<CompleteInfo<T>, T::FragmentCount>,
+}
+
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+#[codec(mel_bound())]
+pub struct CompleteInfo<T: Config> {
+	pub(super) index: u8,
+	pub(super) miner: AccountOf<T>,
 }
 
 //TODO! BoundedVec type -> BTreeMap

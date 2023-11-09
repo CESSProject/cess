@@ -27,43 +27,26 @@ impl<T: Config> Receptionist<T> {
         file_hash: Hash,
         deal_info: BoundedVec<SegmentList<T>, T::SegmentCount>,
         user_brief: UserBrief<T>,
-        assigned_data: BoundedVec<
-            BoundedVec<Hash, T::MissionCount>, 
-            ConstU32<ASSIGN_MINER_IDEAL_QUANTITY>,
-        >,
         needed_space: u128,
         file_size: u128,
     ) -> DispatchResult {
-        let mut miner_task_list: BoundedVec<MinerTaskList<T>, ConstU32<ASSIGN_MINER_IDEAL_QUANTITY>> = Default::default();
-        let mut index = 1;
-        for fragment_list in assigned_data {
-            ensure!(fragment_list.len() == deal_info.len(), Error::<T>::SpecError);
-            let miner_task = MinerTaskList::<T> {
-                index,
-                miner: None,
-                fragment_list,
-            };
-            miner_task_list.try_push(miner_task).map_err(|_| Error::<T>::BoundedVecError)?;
-            index += 1;
-        }
         T::StorageHandle::lock_user_space(&user_brief.user, needed_space)?;
         // TODO! Replace the file_hash param
-        Pallet::<T>::generate_deal(file_hash.clone(), deal_info, miner_task_list, user_brief.clone(), file_size)?;
+        Pallet::<T>::generate_deal(file_hash.clone(), deal_info, user_brief.clone(), file_size)?;
         
         Ok(())
     }
 
     pub fn qualification_report_processing(sender: AccountOf<T>, deal_hash: Hash, deal_info: &mut DealInfo<T>, index: u8) -> DispatchResult {
-        ensure!(!deal_info.complete_list.contains(&index), Error::<T>::Existed);
         deal_info.complete_part(sender.clone(), index)?;
 
         // If it is the last submitter of the order.
-        if deal_info.complete_list.len() == deal_info.miner_task_list.len() {
+        if deal_info.complete_list.len() == FRAGMENT_COUNT as usize {
             deal_info.completed_all()?;
             Pallet::<T>::generate_file(
                 &deal_hash,
                 deal_info.segment_list.clone(),
-                deal_info.miner_task_list.clone(),
+                deal_info.complete_list.clone(),
                 deal_info.user.clone(),
                 FileState::Calculate,
                 deal_info.file_size,

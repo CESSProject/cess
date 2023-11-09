@@ -16,41 +16,31 @@ impl<T: Config> Pallet<T> {
     pub fn generate_file(
         file_hash: &Hash,
         deal_info: BoundedVec<SegmentList<T>, T::SegmentCount>,
-        mut miner_task_list: BoundedVec<MinerTaskList<T>, ConstU32<ASSIGN_MINER_IDEAL_QUANTITY>>,
+        complete_list: BoundedVec<CompleteInfo<T>, T::FragmentCount>,
         user_brief: UserBrief<T>,
         stat: FileState,
         file_size: u128,
     ) -> DispatchResult {
         let mut segment_info_list: BoundedVec<SegmentInfo<T>, T::SegmentCount> = Default::default();
+        ensure!(complete_list.len() == FRAGMENT_COUNT as usize, Error::<T>::Unexpected);
         for segment in deal_info.iter() {
             let mut segment_info = SegmentInfo::<T> {
                 hash: segment.hash,
                 fragment_list: Default::default(),
             };
+            for (index, fragment_hash) in segment.fragment_list.iter().enumerate() {
+                let frag_info = FragmentInfo::<T> {
+                    hash:  *fragment_hash,
+                    avail: true,
+                    miner: complete_list[index as usize].miner.clone(),
+                };
 
-            for miner_task in &mut miner_task_list {
-                miner_task.fragment_list.sort();
-            }
-
-            for frag_hash in segment.fragment_list.iter() {
-                for miner_task in &mut miner_task_list {
-                    if let Ok(index) = miner_task.fragment_list.binary_search(&frag_hash) {
-                        let miner = miner_task.miner.clone().ok_or(Error::<T>::Unexpected)?;
-                        let frag_info = FragmentInfo::<T> {
-                            hash:  *frag_hash,
-                            avail: true,
-                            miner: miner.clone(),
-                        };
-                        segment_info.fragment_list.try_push(frag_info).map_err(|_e| Error::<T>::BoundedVecError)?;
-                        miner_task.fragment_list.remove(index);
-                        break;
-                    }
-                }
+                segment_info.fragment_list.try_push(frag_info).map_err(|_e| Error::<T>::BoundedVecError)?;
             }
 
             segment_info_list.try_push(segment_info).map_err(|_e| Error::<T>::BoundedVecError)?;
         }
-
+        
         let cur_block = <frame_system::Pallet<T>>::block_number();
 
         let file_info = FileInfo::<T> {
@@ -111,7 +101,6 @@ impl<T: Config> Pallet<T> {
     pub(super) fn generate_deal(
         file_hash: Hash, 
         file_info: BoundedVec<SegmentList<T>, T::SegmentCount>, 
-        miner_task_list: BoundedVec<MinerTaskList<T>, ConstU32<ASSIGN_MINER_IDEAL_QUANTITY>>,
         user_brief: UserBrief<T>,
         file_size: u128,
     ) -> DispatchResult {
@@ -127,7 +116,6 @@ impl<T: Config> Pallet<T> {
             file_size,
             segment_list: file_info.clone(),
             user: user_brief,
-            miner_task_list: miner_task_list,
             complete_list: Default::default(),
         };
 
@@ -179,11 +167,8 @@ impl<T: Config> Pallet<T> {
 		let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
 		T::StorageHandle::unlock_user_space(&deal_info.user.user, needed_space)?;
 		// unlock mienr space
-		for miner_task in deal_info.miner_task_list {
-            if let Some(miner) = miner_task.miner {
-                let count = miner_task.fragment_list.len() as u128;
-                T::MinerControl::unlock_space(&miner, FRAGMENT_SIZE * count)?;
-            }
+		for complete_info in deal_info.complete_list {
+            T::MinerControl::unlock_space(&complete_info.miner, FRAGMENT_SIZE * FRAGMENT_COUNT as u128)?;
 		}
 
 		<DealMap<T>>::remove(deal_hash);

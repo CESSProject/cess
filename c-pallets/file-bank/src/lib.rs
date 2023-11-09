@@ -426,10 +426,6 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			file_hash: Hash,
 			deal_info: BoundedVec<SegmentList<T>, T::SegmentCount>,
-			assigned_data: BoundedVec<
-				BoundedVec<Hash, T::MissionCount>, 
-				ConstU32<ASSIGN_MINER_IDEAL_QUANTITY>,
-			>,
 			user_brief: UserBrief<T>,
 			file_size: u128,
 		) -> DispatchResult {
@@ -453,8 +449,7 @@ pub mod pallet {
 			if <File<T>>::contains_key(&file_hash) {
 				Receptionist::<T>::fly_upload_file(file_hash, user_brief.clone(), needed_space)?;
 			} else {
-				ensure!(assigned_data.len() as u32 == ASSIGN_MINER_IDEAL_QUANTITY, Error::<T>::SpecError);
-				Receptionist::<T>::generate_deal(file_hash, deal_info, user_brief.clone(), assigned_data, needed_space, file_size)?;
+				Receptionist::<T>::generate_deal(file_hash, deal_info, user_brief.clone(), needed_space, file_size)?;
 			}
 
 			Self::deposit_event(Event::<T>::UploadDeclaration { operator: sender, owner: user_brief.user, deal_hash: file_hash });
@@ -620,18 +615,18 @@ pub mod pallet {
 			let _ = ensure_root(origin)?;
 
 			let deal_info = <DealMap<T>>::try_get(&deal_hash).map_err(|_| Error::<T>::NonExistent)?;
-			for miner_task in deal_info.miner_task_list {
-				let count = miner_task.fragment_list.len() as u32;
-				let mut hash_list: Vec<Box<[u8; 256]>> = Default::default(); 
-				for fragment_hash in miner_task.fragment_list {
+			for (index, complete_info) in deal_info.complete_list.iter().enumerate() {
+				let count = FRAGMENT_COUNT;
+				let mut hash_list: Vec<Box<[u8; 256]>> = Default::default();
+				for segment in &deal_info.segment_list {
+					let fragment_hash = segment.fragment_list[index as usize];
 					let hash_temp = fragment_hash.binary().map_err(|_| Error::<T>::BugInvalid)?;
 					hash_list.push(hash_temp);
 				}
 				// Accumulate the number of fragments stored by each miner
 				let unlock_space = FRAGMENT_SIZE.checked_mul(count as u128).ok_or(Error::<T>::Overflow)?;
-				let miner = miner_task.miner.ok_or(Error::<T>::Unexpected)?;
-				T::MinerControl::unlock_space_to_service(&miner, unlock_space)?;
-				T::MinerControl::insert_service_bloom(&miner, hash_list)?;
+				T::MinerControl::unlock_space_to_service(&complete_info.miner, unlock_space)?;
+				T::MinerControl::insert_service_bloom(&complete_info.miner, hash_list)?;
 			}
 
 			<File<T>>::try_mutate(&deal_hash, |file_opt| -> DispatchResult {
