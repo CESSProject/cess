@@ -3,7 +3,7 @@
 use super::*;
 use crate as pallet_cacher;
 
-use frame_support::traits::{ConstU128, ConstU32, ConstU64};
+use frame_support::traits::{ConstU128, ConstU32};
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
@@ -39,7 +39,7 @@ impl frame_system::Config for Test {
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
 	type RuntimeEvent = RuntimeEvent;
-	type BlockHashCount = BlockHashCount;
+	type BlockHashCount = Self::BlockHashCount;
 	type DbWeight = ();
 	type Version = ();
 	type PalletInfo = PalletInfo;
@@ -47,7 +47,7 @@ impl frame_system::Config for Test {
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
-	type SS58Prefix = SS58Prefix;
+	type SS58Prefix = Self::SS58Prefix;
 	type OnSetCode = ();
 	type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
