@@ -1,5 +1,5 @@
-/// For function relationship in this file, refer to doc (2023-11-09):
-//    /docs/on-src/node/src/chain_spec.rs.md
+/// Added a graph view on the functions relationship in this file, refer to the github-rendered view at:
+//    https://github.com/CESSProject/cess/blob/main/docs/on-src/node/src/chain_spec.rs.md
 
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use cess_node_runtime::{
