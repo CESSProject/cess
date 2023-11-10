@@ -3899,6 +3899,7 @@ dependencies = [
  "hex",
  "lazy_static",
  "pairing",
+ "rand 0.8.5",
  "sha2 0.9.9",
 ]
 

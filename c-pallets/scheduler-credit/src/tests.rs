@@ -6,12 +6,12 @@ use frame_support::traits::ValidatorCredits;
 #[test]
 fn figure_credit_scores_works() {
 	ExtBuilder::default().build_and_execute(|| {
-		<Pallet<Test> as SchedulerCreditCounter<AccountId>>::record_proceed_block_size(&1, 100);
-		<Pallet<Test> as SchedulerCreditCounter<AccountId>>::record_proceed_block_size(&1, 100);
+		let _ = <Pallet<Test> as SchedulerCreditCounter<AccountId>>::record_proceed_block_size(&1, 100);
+		let _ = <Pallet<Test> as SchedulerCreditCounter<AccountId>>::record_proceed_block_size(&1, 100);
 		assert_eq!(200, CurrentCounters::<Test>::get(1).proceed_block_size);
 
-		<Pallet<Test> as SchedulerCreditCounter<AccountId>>::record_proceed_block_size(&2, 50);
-		<Pallet<Test> as SchedulerCreditCounter<AccountId>>::record_proceed_block_size(&3, 150);
+		let _ = <Pallet<Test> as SchedulerCreditCounter<AccountId>>::record_proceed_block_size(&2, 50);
+		let _ = <Pallet<Test> as SchedulerCreditCounter<AccountId>>::record_proceed_block_size(&3, 150);
 
 		// switch period
 		let period_duration = PeriodDuration::get();

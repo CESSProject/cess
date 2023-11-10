@@ -9,7 +9,6 @@ description = "A library for handling BLS signatures"
 bls12_381 = { version = "0.7", default-features = false, features = ["groups", "pairings", "alloc", "experimental"] }
 pairing = { version = "0.22", default-features = false }
 lazy_static = { version = "1", default-features = false }
-# rand = { version = "0.8.5", default-features = false, features = ["getrandom"] }
 
 # Check references:
 #  - https://docs.rs/getrandom/latest/getrandom/index.html
@@ -20,3 +19,6 @@ lazy_static = { version = "1", default-features = false }
 getrandom = { version = "0.2.10", default-features = false, features = ["custom"] }
 sha2 = { version = "0.9", default-features = false }
 hex = { version = "0.4", default-features = false }
+
+[dev-dependencies]
+rand = { version = "0.8.5", default-features = false, features = ["getrandom"] }
