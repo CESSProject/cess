@@ -48,9 +48,11 @@ frame_support::construct_runtime!(
 
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
-	pub BlockWeights: frame_system::limits::BlockWeights =
-		frame_system::limits::BlockWeights::simple_max(Weight::from_parts(1024));
-	}
+	#[derive(Clone, Eq, PartialEq)]
+	pub const P2PLength: u32 = 10;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const AuthorLimit: u32 = 2;
+}
 
 impl frame_system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
@@ -81,7 +83,8 @@ impl frame_system::Config for Test {
 
 impl pallet_oss::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
-
+	type P2PLength = P2PLength;
+	type AuthorLimit = AuthorLimit;
 	type WeightInfo = ();
 }
 
