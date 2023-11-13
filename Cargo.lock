@@ -1019,9 +1019,11 @@ dependencies = [
  "pallet-insecure-randomness-collective-flip",
  "pallet-membership",
  "pallet-mmr",
+ "pallet-multisig",
  "pallet-offences",
  "pallet-oss",
  "pallet-preimage",
+ "pallet-proxy",
  "pallet-rrsc",
  "pallet-scheduler",
  "pallet-scheduler-credit",
@@ -6387,6 +6389,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-multisig"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate?branch=cess-polkadot-v0.9.42#48fb01c12d4cdb22c6a71f3b9b387b01e30f0ff9"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-offences"
 version = "4.0.0-dev"
 source = "git+https://github.com/CESSProject/substrate?branch=cess-polkadot-v0.9.42#48fb01c12d4cdb22c6a71f3b9b387b01e30f0ff9"
@@ -6433,6 +6451,21 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-proxy"
+version = "4.0.0-dev"
+source = "git+https://github.com/CESSProject/substrate?branch=cess-polkadot-v0.9.42#48fb01c12d4cdb22c6a71f3b9b387b01e30f0ff9"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
  "sp-io",
  "sp-runtime",
  "sp-std",

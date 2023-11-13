@@ -76,14 +76,14 @@ pallet-indices = {  version = "4.0.0-dev", default-features = false, git = "http
 pallet-membership = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 # pallet-message-queue
 pallet-mmr = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
-# pallet-multisig
+pallet-multisig = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 # pallet-nomination-pools
 # pallet-nomination-pools-benchmarking
 # pallet-nomination-pools-runtime-api
 pallet-offences = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 # pallet-offences-benchmarking
 pallet-preimage = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
-# pallet-proxy
+pallet-proxy = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 pallet-insecure-randomness-collective-flip = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
 # pallet-ranked-collective
 # pallet-recovery
@@ -156,6 +156,7 @@ std = [
     "frame-system-benchmarking?/std",
     "pallet-im-online/std",
     "pallet-membership/std",
+    "pallet-multisig/std",
     "pallet-offences/std",
     "pallet-scheduler/std",
     "pallet-session/std",
@@ -169,6 +170,7 @@ std = [
     "pallet-cacher/std",
     "pallet-cess-treasury/std",
     "pallet-preimage/std",
+    "pallet-proxy/std",
     "pallet-assets/std",
     "pallet-child-bounties/std",
     "pallet-mmr/std",
@@ -269,8 +271,10 @@ try-runtime = [
 	"pallet-indices/try-runtime",
 	"pallet-membership/try-runtime",
 	"pallet-mmr/try-runtime",
+  "pallet-multisig/try-runtime",
 	"pallet-offences/try-runtime",
 	"pallet-preimage/try-runtime",
+  "pallet-proxy/try-runtime",
 	"pallet-insecure-randomness-collective-flip/try-runtime",
 	"pallet-scheduler/try-runtime",
 	"pallet-session/try-runtime",
