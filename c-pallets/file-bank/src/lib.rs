@@ -265,7 +265,6 @@ pub mod pallet {
 		InsufficientReplaceable,
 	}
 
-	
 	#[pallet::storage]
 	#[pallet::getter(fn deal_map)]
 	pub(super) type DealMap<T: Config> = StorageMap<_, Blake2_128Concat, Hash, DealInfo<T>>;
