@@ -6,20 +6,20 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-log = { version = "0.4.14", default-features = false }
-codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive", "max-encoded-len"] }
-scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
-sp-std = { version = "5.0.0", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
-sp-runtime = { version = "7.0.0", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
-frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
-frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+log = { workspace = true }
+codec = { version = "3.2.2", package = "parity-scale-codec", default-features = false, features = ["derive", "max-encoded-len"] }
+scale-info = { workspace = true, features = ["derive"] }
+sp-std = { workspace = true }
+sp-runtime = { workspace = true }
+frame-support = { workspace = true }
+frame-system = { workspace = true }
 
 #lock dependencies
 cp-scheduler-credit = { default-features = false, path = '../../primitives/scheduler-credit' }
 
 [dev-dependencies]
-sp-io = { version = "7.0.0", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
-sp-core = { version = "7.0.0", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sp-io = { workspace = true }
+sp-core = { workspace = true }
 
 [features]
 default = ["std"]

@@ -11,12 +11,12 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-# serde = { version = "1.0.136", optional = true }
-codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive", "max-encoded-len"] }
-scale-info = { default-features = false, features = ['derive'], version = "2.0.1" }
-log = { version = "0.4.14", default-features = false }
+# serde = { workspace = true, optional = true }
+codec = { version = "3.2.2", package = "parity-scale-codec", default-features = false, features = ["derive", "max-encoded-len"] }
+scale-info = { workspace = true, features = ["derive"] }
+log = { workspace = true }
 pallet-cess-staking = { path = '../staking', version = '4.0.0-dev', default-features = false }
-pallet-preimage = { version = "4.0.0-dev", default-features = false, git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42" }
+pallet-preimage = { workspace = true }
 
 # local pallet
 cp-bloom-filter = { path = '../../primitives/bloom-filter', default-features = false }
@@ -25,106 +25,43 @@ cp-cess-common = { path = '../../primitives/common', default-features = false }
 cp-enclave-verify = { path = '../../primitives/enclave-verify', default-features = false }
 pallet-cess-treasury = { default-features = false, path = "../cess-treasury" }
 
-[dependencies.frame-benchmarking]
-default-features = false
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '4.0.0-dev'
-optional = true
+frame-benchmarking = { workspace = true, optional = true }
 
-[dependencies.frame-support]
-default-features = false
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '4.0.0-dev'
+frame-support = { workspace = true }
 
-[dependencies.frame-system]
-default-features = false
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '4.0.0-dev'
+frame-system = { workspace = true }
 
-[dependencies.sp-io]
-default-features = false
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '7.0.0'
+sp-io = { workspace = true }
 
-[dependencies.sp-std]
-default-features = false
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '5.0.0'
+sp-std = { workspace = true }
 
-[dependencies.pallet-balances]
-default-features = false
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '4.0.0-dev'
+pallet-balances = { workspace = true }
 
-[dependencies.sp-core]
-default-features = false
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '7.0.0'
+sp-core = { workspace = true }
 
-[dev-dependencies.pallet-timestamp]
-default-features = false
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '4.0.0-dev'
+pallet-timestamp = { workspace = true }
 
-[dependencies.sp-runtime]
-default-features = false
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '7.0.0'
+sp-runtime = { workspace = true }
 
 # local dependencies
-[dependencies.pallet-file-bank]
-default-features = false
-path = '../file-bank'
-
+pallet-file-bank = { default-features = false, path = '../file-bank' }
 # local dependencies
-[dependencies.pallet-sminer]
-default-features = false
-path = '../sminer'
-
+pallet-sminer = { default-features = false, path = '../sminer' }
 # local dependencies
-[dependencies.pallet-tee-worker]
-default-features = false
-path = '../tee-worker'
-
+pallet-tee-worker = { default-features = false, path = '../tee-worker' }
 # local dependencies
-[dependencies.pallet-storage-handler]
-default-features = false
-path = '../storage-handler'
-
-[dev-dependencies.frame-support-test]
-default-features = false
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '3.0.0'
-
-[dev-dependencies.pallet-balances]
-#default-features = false
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '4.0.0-dev'
-
-[dev-dependencies.pallet-scheduler]
-#default-features = false
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '4.0.0-dev'
+pallet-storage-handler = { default-features = false, path = '../storage-handler' }
 
 [dev-dependencies]
+frame-support-test = { workspace = true }
+pallet-balances = { workspace = true }
+pallet-scheduler = { workspace = true }
 pallet-cess-staking = { path = '../staking', version = '4.0.0-dev', default-features = false}
-sp-staking = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
-sp-npos-elections = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
-frame-election-provider-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
-pallet-session = { version = "4.0.0-dev", default-features = false,  git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
-pallet-bags-list = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
+sp-staking = { workspace = true }
+sp-npos-elections = { workspace = true }
+frame-election-provider-support = { workspace = true }
+pallet-session = { workspace = true }
+pallet-bags-list = { workspace = true }
 pallet-scheduler-credit = { default-features = false, path = '../scheduler-credit'}
 cp-cess-common = { path = '../../primitives/common', default-features = false }
 pallet-oss = { path = '../oss', default-features = false }
