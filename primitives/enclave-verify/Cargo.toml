@@ -8,32 +8,32 @@ edition = "2021"
 # bls-signatures = { version = "0.14.0", default-features = false, features = ["pairing"]}
 
 # signature_bls = { version = "0.35.0" , default-features = false}
-ic-verify-bls-signature = { version = "0.2.0", path = '../../utils/verify-bls-signatures', default-features = false }
+ic-verify-bls-signature = { path = '../../utils/verify-bls-signatures', default-features = false }
 
-log = { version = "0.4.14", default-features = false }
-codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
-scale-info = { version = "2.1.1", default-features = false, features = ["derive"] }
-sp-std = { default-features = false, git = 'https://github.com/CESSProject/substrate', branch = 'cess-polkadot-v0.9.42', version = '5.0'}
-cp-cess-common = { version = "0.1.0", path = '../common', default-features = false }
+log = { workspace = true }
+codec = { version = "3.2.2", package = "parity-scale-codec", default-features = false }
+scale-info = { workspace = true, features = ["derive"] }
+sp-std = { workspace = true}
+cp-cess-common = { path = '../common', default-features = false }
 # ed25519-dalek = { version = "1.0.1", default-features = false, optional = true }
-serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
-rsa = { version = "0.8.2", default-features = false }
-hex = { version='0.4.3', default-features=false, features = ['alloc'] }
+serde_json = { workspace = true, features = ["alloc"] }
+rsa = { workspace = true }
+hex = { workspace = true, features = ['alloc'] }
 
-frame-support = {default-features = false, git = 'https://github.com/CESSProject/substrate', branch = 'cess-polkadot-v0.9.42', version = '4.0.0-dev'}
-sp-api = { version = "4.0.0-dev", default-features = false, git = 'https://github.com/CESSProject/substrate', branch = 'cess-polkadot-v0.9.42' }
-sp-core = { version = "7.0.0", default-features = false, git = 'https://github.com/CESSProject/substrate', branch = 'cess-polkadot-v0.9.42' }
-# sp-externalities = { version = "0.13.0", default-features = false, git = 'https://github.com/CESSProject/substrate', branch = 'cess-polkadot-v0.9.42' }
-# sp-runtime-interface = { version = "7.0.0", default-features = false, git = 'https://github.com/CESSProject/substrate', branch = 'cess-polkadot-v0.9.42' }
+frame-support = {workspace = true}
+sp-api = { workspace = true }
+sp-core = { workspace = true }
+# sp-externalities = { workspace = true }
+# sp-runtime-interface = { workspace = true }
 
 # verify sgx signture
 webpki = { package = "webpki", path = '../../utils/webpki', default-features = false }
-base64 = { default-features = false, features = ["alloc"], version = "0.12.2" }
+base64 = { workspace = true, features = ["alloc"] }
 # 
 
 [dev-dependencies]
-rand = "0.8.5"
-sp-io = { version = "7.0.0", default-features = false, branch = 'cess-polkadot-v0.9.42', git = 'https://github.com/CESSProject/substrate' }
+rand = { workspace = true }
+sp-io = { workspace = true }
 
 [features]
 default = ["std"]
