@@ -4,12 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-# bls-signatures = "0.14.0"
-# bls-signatures = { version = "0.14.0", default-features = false, features = ["pairing"]}
-
-# signature_bls = { version = "0.35.0" , default-features = false}
-ic-verify-bls-signature = { workspace = true }
-
 log = { workspace = true }
 codec = { version = "3.2.2", package = "parity-scale-codec", default-features = false }
 scale-info = { workspace = true, features = ["derive"] }

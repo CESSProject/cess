@@ -17,10 +17,6 @@ use rsa::{
     Pkcs1v15Sign, 
     pkcs1::DecodeRsaPublicKey,
 };
-use ic_verify_bls_signature::{
-    Signature as BLSSignature,
-    PublicKey as BLSPubilc,
-};
 use sp_std::prelude::ToOwned;
 use serde_json::Value;
 use scale_info::prelude::string::String;
@@ -246,13 +242,6 @@ pub fn verify_rsa(key: &[u8], msg: &[u8], sig: &[u8]) -> bool {
         Ok(()) => return true,
         Err(_) => return false,
     };
-}
-
-pub fn verify_bls(key: &[u8], msg: &[u8], sig: &[u8]) -> Result<(), ()> {
-    let puk = BLSPubilc::deserialize(key).unwrap();
-    log::info!("bls puk: {:?}", puk);
-    let sig = BLSSignature::deserialize(sig).unwrap();
-    puk.verify(&msg, &sig)
 }
 
 // pub fn sig_rsa(key: &[u8], msg: &[u8]) -> &[u8] {`

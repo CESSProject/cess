@@ -292,7 +292,6 @@ sha2 = { version = "0.9", default-features = false }
 cp-cess-common = { path = "crates/common", default-features = false }
 cp-scheduler-credit = { path = "crates/scheduler-credit", default-features = false }
 cp-enclave-verify = { path = "crates/enclave-verify", default-features = false }
-ic-verify-bls-signature = { path = "crates/verify-bls-signatures", default-features = false }
 cp-bloom-filter = { path = "crates/bloom-filter", default-features = false }
 webpki = { path = "crates/webpki", default-features = false }
 pallet-audit = { path = "pallets/audit", default-features = false }
