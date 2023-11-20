@@ -105,10 +105,10 @@ cargo test --release
 ## Module Documentation
 
 
-* [Files Bank](c-pallets/file-bank)
-* [Audit](c-pallets/audit)
-* [Sminer](c-pallets/sminer)
-* [Tee Worker](c-pallets/tee-worker)
+* [Files Bank](pallets/file-bank)
+* [Audit](pallets/audit)
+* [Sminer](pallets/sminer)
+* [Tee Worker](pallets/tee-worker)
 
 ## Contribute
 

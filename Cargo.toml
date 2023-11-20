@@ -1,15 +1,14 @@
 [workspace]
 
 exclude = [
-    "utils/webpki",
-    "utils/ring",
+    "crates/webpki",
+    "crates/ring",
 ]
 
 members = [
-    'node',
-    'runtime',
-    'c-pallets/*',
-    'primitives/*'
+    "crates/*",
+    "pallets/*",
+    "standalone/chain/*",
 ]
 
 resolver = "2"
@@ -274,7 +273,7 @@ futures = "0.3"
 getrandom = { version = "0.2.10", default-features = false, features = ["custom"] }
 hex-literal = "0.4.1"
 hex = { version = "0.4", default-features = false }
-jsonrpsee = { version = "0.16" }  # this version of jsonrpsee is used by Substrate's crates
+jsonrpsee = { version = "0.16" }  # this version of jsonrpsee is used by Substrate"s crates
 lazy_static = { version = "1", default-features = false }
 libc = "0.2"
 log = { version = "0.4", default-features = false }
@@ -288,3 +287,22 @@ scale-info = { version = "2.5", default-features = false }
 serde_json = { version = "1.0", default-features = false }
 serde = { version = "1.0", default-features = false }
 sha2 = { version = "0.9", default-features = false }
+
+# Cess workspace crates and pallets
+cp-cess-common = { path = "crates/common", default-features = false }
+cp-scheduler-credit = { path = "crates/scheduler-credit", default-features = false }
+cp-enclave-verify = { path = "crates/enclave-verify", default-features = false }
+ic-verify-bls-signature = { path = "crates/verify-bls-signatures", default-features = false }
+cp-bloom-filter = { path = "crates/bloom-filter", default-features = false }
+webpki = { path = "crates/webpki", default-features = false }
+pallet-audit = { path = "pallets/audit", default-features = false }
+pallet-cacher = { path = "pallets/cacher", default-features = false }
+pallet-cess-treasury = { path = "pallets/cess-treasury", default-features = false }
+pallet-file-bank = { path = "pallets/file-bank", default-features = false }
+pallet-oss = { path = "pallets/oss", default-features = false }
+pallet-scheduler-credit = { path = "pallets/scheduler-credit", default-features = false }
+pallet-sminer = { path = "pallets/sminer", default-features = false }
+pallet-cess-staking = { path = "pallets/staking", default-features = false }
+pallet-storage-handler = { path = "pallets/storage-handler", default-features = false }
+pallet-tee-worker = { path = "pallets/tee-worker", default-features = false }
+cess-node-runtime = { path = "standalone/chain/runtime", default-features = false }
