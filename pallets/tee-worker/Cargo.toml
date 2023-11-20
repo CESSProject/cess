@@ -9,6 +9,8 @@ description = "FRAME pallet for TEE Worker management"
 readme = "README.md"
 
 [dependencies]
+chrono = { workspace = true }
+hex ={ workspace = true }
 serde = { workspace = true, optional = true }
 codec = { version = "3.2.2", package = "parity-scale-codec", default-features = false, features = ["derive", "max-encoded-len"] }
 scale-info = { workspace = true, features = ['derive'] }
@@ -19,7 +21,7 @@ sp-io = { workspace = true }
 # local dependencies
 cp-cess-common = { workspace = true }
 cp-scheduler-credit = { workspace = true }
-cp-enclave-verify = { workspace = true }
+sgx-attestation = { workspace = true }
 
 frame-benchmarking = { workspace = true, optional = true }
 
@@ -62,7 +64,6 @@ std = [
 	"pallet-session/std",
 	"pallet-cess-staking/std",
 	"cp-cess-common/std",
-	"cp-enclave-verify/std",
 ]
 
 runtime-benchmarks = [

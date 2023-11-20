@@ -4,40 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-log = { workspace = true }
-codec = { version = "3.2.2", package = "parity-scale-codec", default-features = false }
-scale-info = { workspace = true, features = ["derive"] }
-sp-std = { workspace = true}
-cp-cess-common = { workspace = true }
-# ed25519-dalek = { version = "1.0.1", default-features = false, optional = true }
-serde_json = { workspace = true, features = ["alloc"] }
 rsa = { workspace = true }
-hex = { workspace = true, features = ['alloc'] }
-
-frame-support = {workspace = true}
-sp-api = { workspace = true }
-sp-core = { workspace = true }
-# sp-externalities = { workspace = true }
-# sp-runtime-interface = { workspace = true }
-
-# verify sgx signture
-webpki = { workspace = true }
-base64 = { workspace = true, features = ["alloc"] }
-# 
 
 [dev-dependencies]
-rand = { workspace = true }
-sp-io = { workspace = true }
+hex = { workspace = true, features = ['alloc'] }
 
 [features]
 default = ["std"]
-std = [
-	"codec/std",
-	"scale-info/std",
-	"sp-std/std",
-	"sp-api/std",
-	"sp-core/std",
-	"frame-support/std",
-	"cp-cess-common/std",
-	"webpki/std",
-]
+std = []

@@ -7,7 +7,7 @@
 mod tests;
 
 mod mock;
-
+mod attestation;
 mod types;
 pub use types::*;
 
@@ -16,7 +16,7 @@ pub mod benchmarking;
 
 use codec::{Decode, Encode};
 use frame_support::{
-	dispatch::DispatchResult, traits::ReservableCurrency, transactional, BoundedVec, PalletId,
+	dispatch::DispatchResult, traits::{ReservableCurrency, UnixTime}, transactional, BoundedVec, PalletId,
 	pallet_prelude::*,
 };
 pub use pallet::*;
@@ -33,7 +33,6 @@ use cp_scheduler_credit::SchedulerCreditCounter;
 pub use weights::WeightInfo;
 use cp_cess_common::*;
 use frame_system::{ensure_signed, pallet_prelude::*};
-use cp_enclave_verify::*;
 pub mod weights;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -41,6 +40,7 @@ type AccountOf<T> = <T as frame_system::Config>::AccountId;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
+	use attestation::{Error as AttestationError, Attestation, AttestationValidator, IasValidator};
 	use frame_support::{
 		traits::Get,
 		Blake2_128Concat,
@@ -102,6 +102,16 @@ pub mod pallet {
 		TeePodr2PkNotInitialized,
 		
 		Existed,
+
+		CesealRejected,
+		InvalidIASSigningCert,
+		InvalidReport,
+		InvalidQuoteStatus,
+		BadIASReport,
+		OutdatedIASReport,
+		UnknownQuoteBodyFormat,
+		InvalidCesealInfoHash,
+		NoneAttestationDisabled,
 	}
 
 	#[pallet::storage]
@@ -156,17 +166,25 @@ pub mod pallet {
 				Err(Error::<T>::NotController)?;
 			}
 			ensure!(!TeeWorkerMap::<T>::contains_key(&sender), Error::<T>::AlreadyRegistration);
+			
+			// Validate RA report & embedded user data
 			let mut identity = Vec::new();
-			identity.append(&mut peer_id.to_vec());
-			identity.append(&mut podr2_pbk.to_vec());
-			identity.append(&mut end_point.to_vec());
-			let identity_hashing = sp_io::hashing::sha2_256(&identity);
-			let _ = verify_miner_cert(
-				&sgx_attestation_report.sign,
-				&sgx_attestation_report.cert_der,
-				&sgx_attestation_report.report_json_raw,
-				&identity_hashing,
-			).ok_or(Error::<T>::VerifyCertFailed)?;
+			identity.extend_from_slice(&peer_id);
+			identity.extend_from_slice(&podr2_pbk);
+			identity.extend_from_slice(&end_point);
+			let now = T::UnixTime::now().as_secs();
+			let a = Attestation::SgxIas{
+				ra_report: sgx_attestation_report.report_json_raw.to_vec(),
+				signature: sgx_attestation_report.sign.to_vec(),
+				raw_signing_cert: sgx_attestation_report.cert_der.to_vec(),
+			};
+			let _ = IasValidator::validate(
+				&a,
+				&sp_io::hashing::sha2_256(&identity),
+				now,
+				false,  //TODO: to implement the ceseal verify
+				vec![]
+			).map_err(Into::<Error<T>>::into)?;
 
 			let tee_worker_info = TeeWorkerInfo::<T> {
 				controller_account: sender.clone(),
@@ -269,8 +287,23 @@ pub mod pallet {
 			Ok(())
 		}
 	}
-}
 
+	impl<T: Config> From<AttestationError> for Error<T> {
+		fn from(err: AttestationError) -> Self {
+			match err {
+				AttestationError::CesealRejected => Self::CesealRejected,
+				AttestationError::InvalidIASSigningCert => Self::InvalidIASSigningCert,
+				AttestationError::InvalidReport => Self::InvalidReport,
+				AttestationError::InvalidQuoteStatus => Self::InvalidQuoteStatus,
+				AttestationError::BadIASReport => Self::BadIASReport,
+				AttestationError::OutdatedIASReport => Self::OutdatedIASReport,
+				AttestationError::UnknownQuoteBodyFormat => Self::UnknownQuoteBodyFormat,
+				AttestationError::InvalidUserDataHash => Self::InvalidCesealInfoHash,
+				AttestationError::NoneAttestationDisabled => Self::NoneAttestationDisabled,
+			}
+		}
+	}
+}
 pub trait TeeWorkerHandler<AccountId> {
 	fn contains_scheduler(acc: AccountId) -> bool;
 	fn punish_scheduler(acc: AccountId) -> DispatchResult;

@@ -1423,21 +1423,8 @@ dependencies = [
 name = "cp-enclave-verify"
 version = "0.1.0"
 dependencies = [
- "base64 0.12.3",
- "cp-cess-common",
- "frame-support",
  "hex",
- "log",
- "parity-scale-codec",
- "rand 0.8.5",
  "rsa",
- "scale-info",
- "serde_json",
- "sp-api",
- "sp-core",
- "sp-io",
- "sp-std",
- "webpki 0.21.0",
 ]
 
 [[package]]
@@ -2455,15 +2442,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "failure"
-version = "0.1.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d32e9bd16cc02eae7db7ef620b392808b89f6a5e16bb3497d159c6b92a0f4f86"
-dependencies = [
- "backtrace",
 ]
 
 [[package]]
@@ -4017,6 +3995,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "insta"
+version = "1.34.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d64600be34b2fcfc267740a243fa7744441bb4947a619ac4e5bb6507f35fbfc"
+dependencies = [
+ "console",
+ "lazy_static",
+ "linked-hash-map",
+ "similar",
+ "yaml-rust",
+]
+
+[[package]]
 name = "instant"
 version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5541,6 +5532,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "num-derive"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "876a53fff98e03a936a674b29568b0e605f06b29372c2489ff4de23f1949743d"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "num-format"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6597,13 +6599,14 @@ dependencies = [
 name = "pallet-tee-worker"
 version = "0.7.0"
 dependencies = [
+ "chrono",
  "cp-cess-common",
- "cp-enclave-verify",
  "cp-scheduler-credit",
  "frame-benchmarking",
  "frame-election-provider-support",
  "frame-support",
  "frame-system",
+ "hex",
  "log",
  "pallet-bags-list",
  "pallet-balances",
@@ -6615,6 +6618,7 @@ dependencies = [
  "scale-info",
  "serde",
  "serde_json",
+ "sgx-attestation",
  "sp-core",
  "sp-io",
  "sp-npos-elections",
@@ -7265,7 +7269,7 @@ dependencies = [
  "regex",
  "syn 1.0.109",
  "tempfile",
- "which 4.4.2",
+ "which",
 ]
 
 [[package]]
@@ -7310,6 +7314,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5787f7cda34e3033a72192c018bc5883100330f362ef279a8cbccfce8bb4e874"
 dependencies = [
  "cc",
+]
+
+[[package]]
+name = "ptr_meta"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0738ccf7ea06b608c10564b31debd4f5bc5e197fc8bfe088f68ae5ce81e7a4f1"
+dependencies = [
+ "ptr_meta_derive",
+]
+
+[[package]]
+name = "ptr_meta_derive"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16b845dbfca988fa33db069c0e230574d15a3088f147a87b64c7589eb662c9ac"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -7661,29 +7685,20 @@ dependencies = [
 
 [[package]]
 name = "ring"
-version = "0.16.9"
-dependencies = [
- "cc",
- "libc",
- "spin 0.5.2",
- "untrusted 0.7.1",
- "which 3.1.1",
- "winapi",
-]
-
-[[package]]
-name = "ring"
 version = "0.16.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3053cf52e236a3ed746dfc745aa9cacf1b791d846bdaf412f60a8d7d6e17c8fc"
+source = "git+https://github.com/jasl/ring-xous?branch=better-wasm32-support#2319016c733d13f78f107368724048fee296551e"
 dependencies = [
  "cc",
  "libc",
+ "log",
  "once_cell",
+ "rkyv",
  "spin 0.5.2",
  "untrusted 0.7.1",
- "web-sys",
  "winapi",
+ "xous",
+ "xous-api-names",
+ "xous-ipc",
 ]
 
 [[package]]
@@ -7707,6 +7722,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd124222d17ad93a644ed9d011a40f4fb64aa54275c08cc216524a9ea82fb09f"
 dependencies = [
  "digest 0.10.7",
+]
+
+[[package]]
+name = "rkyv"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70de01b38fe7baba4ecdd33b777096d2b326993d8ea99bc5b6ede691883d3010"
+dependencies = [
+ "memoffset 0.6.5",
+ "ptr_meta",
+ "rkyv_derive",
+]
+
+[[package]]
+name = "rkyv_derive"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95a169f6bc5a81033e86ed39d0f4150e2608160b73d2b93c6e8e6a3efa873f14"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]
@@ -7941,7 +7978,7 @@ checksum = "446e14c5cda4f3f30fe71863c34ec70f5ac79d6087097ad0bb433e1be5edf04c"
 dependencies = [
  "log",
  "ring 0.17.5",
- "rustls-webpki",
+ "rustls-webpki 0.101.7",
  "sct 0.7.1",
 ]
 
@@ -7967,6 +8004,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "rustls-pki-types"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a47003264dea418db67060fa420ad16d0d2f8f0a0360d825c00e177ac52cb5d8"
+
+[[package]]
 name = "rustls-webpki"
 version = "0.101.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7974,6 +8017,16 @@ checksum = "8b6275d1ee7a1cd780b64aca7726599a1dbc893b1e64144529e55c3c2f745765"
 dependencies = [
  "ring 0.17.5",
  "untrusted 0.9.0",
+]
+
+[[package]]
+name = "rustls-webpki"
+version = "0.102.0-alpha.3"
+source = "git+https://github.com/rustls/webpki?rev=2ed9a4324f48c2c46ffdd7dc9d3eb315af25fce2#2ed9a4324f48c2c46ffdd7dc9d3eb315af25fce2"
+dependencies = [
+ "ring 0.16.20",
+ "rustls-pki-types",
+ "untrusted 0.7.1",
 ]
 
 [[package]]
@@ -9364,6 +9417,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "sgx-attestation"
+version = "0.1.0"
+dependencies = [
+ "base64 0.12.3",
+ "hex",
+ "insta",
+ "parity-scale-codec",
+ "rustls-webpki 0.102.0-alpha.3",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "sha-1"
 version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9489,6 +9555,12 @@ dependencies = [
  "paste",
  "wide",
 ]
+
+[[package]]
+name = "similar"
+version = "2.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2aeaf503862c419d66959f5d7ca015337d864e9c49485d771b732e2a20453597"
 
 [[package]]
 name = "siphasher"
@@ -11944,15 +12016,6 @@ dependencies = [
 
 [[package]]
 name = "webpki"
-version = "0.21.0"
-dependencies = [
- "ring 0.16.20",
- "ring 0.16.9",
- "untrusted 0.7.1",
-]
-
-[[package]]
-name = "webpki"
 version = "0.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8e38c0608262c46d4a56202ebabdeb094cef7e560ca7a226c6bf055188aa4ea"
@@ -12192,16 +12255,6 @@ dependencies = [
  "thiserror",
  "tokio",
  "winapi",
-]
-
-[[package]]
-name = "which"
-version = "3.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d011071ae14a2f6671d0b74080ae0cd8ebf3a6f8c9589a2cd45f23126fe29724"
-dependencies = [
- "failure",
- "libc",
 ]
 
 [[package]]
@@ -12515,6 +12568,63 @@ dependencies = [
  "rusticata-macros",
  "thiserror",
  "time",
+]
+
+[[package]]
+name = "xous"
+version = "0.9.54"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a8a9f0a696320940ab2652fa1d20c98dc59eb7ba4591eeb91a3b8e40bc9255a1"
+dependencies = [
+ "lazy_static",
+]
+
+[[package]]
+name = "xous-api-log"
+version = "0.1.50"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03e07c190c743d6d9e076f715333e94c48de41b99078343d174c707803df28c7"
+dependencies = [
+ "log",
+ "num-derive",
+ "num-traits",
+ "xous",
+ "xous-ipc",
+]
+
+[[package]]
+name = "xous-api-names"
+version = "0.9.52"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32d8361077e67966d25922056284d17d042cbb1c96a7ebc2584eb8181427cbb0"
+dependencies = [
+ "log",
+ "num-derive",
+ "num-traits",
+ "rkyv",
+ "xous",
+ "xous-api-log",
+ "xous-ipc",
+]
+
+[[package]]
+name = "xous-ipc"
+version = "0.9.54"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ee1d318dacbd6242e4e2291dee7c4532249e5a0845de05d264c20fc871a0a1a"
+dependencies = [
+ "bitflags 1.3.2",
+ "rkyv",
+ "xous",
+]
+
+[[package]]
+name = "yaml-rust"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56c1936c4cc7a1c9ab21a1ebb602eb942ba868cbd44a99cb7cdc5892335e1c85"
+dependencies = [
+ "linked-hash-map",
 ]
 
 [[package]]

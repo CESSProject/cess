@@ -1,9 +1,6 @@
 [workspace]
 
-exclude = [
-    "crates/webpki",
-    "crates/ring",
-]
+exclude = []
 
 members = [
     "crates/*",
@@ -287,13 +284,16 @@ scale-info = { version = "2.5", default-features = false }
 serde_json = { version = "1.0", default-features = false }
 serde = { version = "1.0", default-features = false }
 sha2 = { version = "0.9", default-features = false }
+ring = "0.16.20"
+webpki = { git = "https://github.com/rustls/webpki", version = "=0.102.0-alpha.3", package = "rustls-webpki", default-features = false, features = ["alloc", "ring"], rev = "2ed9a4324f48c2c46ffdd7dc9d3eb315af25fce2" }  # Release version no-std has bug
+insta = "1"
+chrono = { version = "0.4.22", default-features = false }
 
 # Cess workspace crates and pallets
 cp-cess-common = { path = "crates/common", default-features = false }
 cp-scheduler-credit = { path = "crates/scheduler-credit", default-features = false }
 cp-enclave-verify = { path = "crates/enclave-verify", default-features = false }
 cp-bloom-filter = { path = "crates/bloom-filter", default-features = false }
-webpki = { path = "crates/webpki", default-features = false }
 pallet-audit = { path = "pallets/audit", default-features = false }
 pallet-cacher = { path = "pallets/cacher", default-features = false }
 pallet-cess-treasury = { path = "pallets/cess-treasury", default-features = false }
@@ -305,3 +305,9 @@ pallet-cess-staking = { path = "pallets/staking", default-features = false }
 pallet-storage-handler = { path = "pallets/storage-handler", default-features = false }
 pallet-tee-worker = { path = "pallets/tee-worker", default-features = false }
 cess-node-runtime = { path = "standalone/chain/runtime", default-features = false }
+
+sgx-attestation = { path = "crates/sgx-attestation", default-features = false }
+
+
+[patch.crates-io]
+ring = { git = "https://github.com/jasl/ring-xous", branch = "better-wasm32-support" }
