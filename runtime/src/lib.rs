@@ -985,6 +985,7 @@ impl pallet_storage_handler::Config for Runtime {
 	type Currency = Balances;
 	type WeightInfo = pallet_storage_handler::weights::SubstrateWeight<Runtime>;
 	type OneDay = OneDay;
+	type OneHours = OneHours;
 	type RewardPalletId = RewardPalletId;
 	type MyRandomness = pallet_rrsc::ParentBlockRandomness<Runtime>;
 	type StateStringMax = StateStringMax;
