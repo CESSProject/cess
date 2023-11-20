@@ -1,15 +1,11 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-/* use */
-use frame_support::{
-	RuntimeDebug,
-	dispatch::{Decode, Encode},
-};
 use frame_support::{
 	BoundedVec,
+	RuntimeDebug,
 	pallet_prelude::ConstU32,
 };
-use codec::{MaxEncodedLen};
+use codec::{MaxEncodedLen, Decode, Encode};
 use scale_info::TypeInfo;
 use sp_std::prelude::Box;
 

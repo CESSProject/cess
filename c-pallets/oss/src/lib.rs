@@ -69,9 +69,9 @@ pub mod pallet {
 		UnRegister,
 		//Option parse Error
 		OptionParseError,
-
+		//Bounded Vector Error
 		BoundedVecError,
-
+		//Already Exists Error
 		Existed,
 	}
 

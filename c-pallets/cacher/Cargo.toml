@@ -4,22 +4,22 @@ version = "0.7.0"
 edition = "2021"
 
 [dependencies]
-log = { version = "0.4.14", default-features = false }
-codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive", "max-encoded-len"] }
-scale-info = { version = "2.0.1", default-features = false, features = ["derive"] }
-sp-std = { version = "5.0.0", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
-sp-runtime = { version = "7.0.0", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
-frame-support = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
-frame-system = { version = "4.0.0-dev", default-features = false, git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
-frame-benchmarking = { version = '4.0.0-dev', default-features = false, git = 'https://github.com/CESSProject/substrate', branch = 'cess-polkadot-v0.9.42', optional = true}
+log = { workspace = true }
+codec = { version = "3.2.2", package = "parity-scale-codec", default-features = false, features = ["derive", "max-encoded-len"] }
+scale-info = { workspace = true, features = ["derive"] }
+sp-std = { workspace = true }
+sp-runtime = { workspace = true }
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+frame-benchmarking = { workspace = true, optional = true}
 
 #local dependencies
 cp-cess-common = { path = '../../primitives/common', default-features = false }
 
 [dev-dependencies]
-sp-core = {version = '7.0.0', git = 'https://github.com/CESSProject/substrate', default-features = false, branch = 'cess-polkadot-v0.9.42'}
-pallet-balances = { version = "4.0.0-dev", git = "https://github.com/CESSProject/substrate", branch = "cess-polkadot-v0.9.42" }
-sp-io = {version = '7.0.0', git = 'https://github.com/CESSProject/substrate', default-features = false, branch = 'cess-polkadot-v0.9.42'}
+sp-core = { workspace = true }
+pallet-balances = { workspace = true }
+sp-io = { workspace = true }
 
 [features]
 default = ["std"]

@@ -6,10 +6,9 @@ license = "Apache-2.0"
 description = "A library for handling BLS signatures"
 
 [dependencies]
-bls12_381 = { version = "0.7", default-features = false, features = ["groups", "pairings", "alloc", "experimental"] }
-pairing = { version = "0.22", default-features = false }
-lazy_static = { version = "1", default-features = false }
-# rand = { version = "0.8.5", default-features = false, features = ["getrandom"] }
+bls12_381 = { workspace = true, features = ["groups", "pairings", "alloc", "experimental"] }
+pairing = { workspace = true }
+lazy_static = { workspace = true }
 
 # Check references:
 #  - https://docs.rs/getrandom/latest/getrandom/index.html
@@ -17,6 +16,9 @@ lazy_static = { version = "1", default-features = false }
 #  - https://github.com/rust-random/getrandom/pull/109 // This one explains why "custom" feature
 #    is added, and we will need to call `register_custom_getrandom` in future.
 #  - https://docs.rs/getrandom/latest/getrandom/index.html#custom-implementations
-getrandom = { version = "0.2.10", default-features = false, features = ["custom"] }
-sha2 = { version = "0.9", default-features = false }
-hex = { version = "0.4", default-features = false }
+getrandom = { workspace = true, features = ["custom"] }
+sha2 = { workspace = true }
+hex = { workspace = true }
+
+[dev-dependencies]
+rand = { workspace = true, features = ["getrandom"] }

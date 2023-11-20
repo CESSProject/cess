@@ -11,13 +11,12 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-log = { version = "0.4.14", default-features = false }
-serde = { version = "1.0.136", optional = true }
-codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }
-scale-info = { default-features = false, features = ['derive'], version = "2.0.1" }
-rand_chacha = { version = "0.2", default-features = false, optional = true }
-pallet-preimage = { version = "4.0.0-dev", default-features = false, git = 'https://github.com/CESSProject/substrate', branch = "cess-polkadot-v0.9.42" }
-
+log = { workspace = true }
+serde = { workspace = true, optional = true }
+codec = { version = "3.2.2", package = "parity-scale-codec", default-features = false, features = ["derive"] }
+scale-info = { workspace = true, features = ["derive"] }
+rand_chacha = { workspace = true, optional = true }
+pallet-preimage = { workspace = true }
 
 #local crate
 pallet-tee-worker = { default-features = false, path = '../tee-worker' }
@@ -28,76 +27,29 @@ cp-enclave-verify = { path = '../../primitives/enclave-verify', default-features
 cp-bloom-filter = { path = '../../primitives/bloom-filter', default-features = false }
 cp-cess-common = { path = '../../primitives/common', default-features = false }
 
-[dependencies.frame-benchmarking]
-default-features = false
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '4.0.0-dev'
-optional = true
+frame-benchmarking = { workspace = true, optional = true }
 
-[dependencies.frame-support]
-default-features = false
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '4.0.0-dev'
+frame-support = { workspace = true }
 
-[dependencies.frame-system]
-default-features = false
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '4.0.0-dev'
+frame-system = { workspace = true }
 
-[dependencies.sp-io]
-default-features = false
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '7.0.0'
+sp-io = { workspace = true }
 
-[dependencies.sp-std]
-default-features = false
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '5.0.0'
+sp-std = { workspace = true }
 
-[dependencies.pallet-balances]
-default-features = false
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '4.0.0-dev'
+pallet-balances = { workspace = true }
 
-[dependencies.pallet-timestamp]
-default-features = false
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '4.0.0-dev'
+pallet-timestamp = { workspace = true }
 
-[dependencies.sp-core]
-default-features = false
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '7.0.0'
+sp-core = { workspace = true }
 
-[dependencies.sp-runtime]
-default-features = false
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '7.0.0'
+sp-runtime = { workspace = true }
 
-[dependencies.pallet-scheduler]
-default-features = false
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '4.0.0-dev'
+pallet-scheduler = { workspace = true }
 
-[dev-dependencies.pallet-scheduler]
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '4.0.0-dev'
-
-[dev-dependencies.pallet-balances]
-git = 'https://github.com/CESSProject/substrate'
-branch = "cess-polkadot-v0.9.42"
-version = '4.0.0-dev'
+[dev-dependencies]
+pallet-scheduler = { workspace = true }
+pallet-balances = { workspace = true }
 
 [features]
 default = ["std"]

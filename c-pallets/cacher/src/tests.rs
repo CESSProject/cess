@@ -3,7 +3,6 @@
 use super::*;
 use frame_support::{assert_noop, assert_ok};
 use mock::{new_test_ext, Cacher, RuntimeOrigin, Test};
-use pallet_balances::Error as BalancesError;
 use sp_runtime::traits::Hash;
 
 #[test]
