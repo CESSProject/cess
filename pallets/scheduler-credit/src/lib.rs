@@ -10,7 +10,6 @@ use codec::{Decode, Encode, MaxEncodedLen};
 use frame_support::{
 	pallet_prelude::*,
 	storage::child::KillStorageResult,
-	traits::ValidatorCredits,
 	weights::Weight,
 };
 use log::{debug, warn};
@@ -20,6 +19,7 @@ use sp_runtime::{
 	Percent,
 	RuntimeDebug, Perbill,
 };
+use cessp_consensus_rrsc::traits::ValidatorCredits;
 
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 

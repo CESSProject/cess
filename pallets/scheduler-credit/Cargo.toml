@@ -16,6 +16,7 @@ frame-system = { workspace = true }
 
 #lock dependencies
 cp-scheduler-credit = { workspace = true }
+cessp-consensus-rrsc = { workspace = true }
 
 [dev-dependencies]
 sp-io = { workspace = true }
@@ -31,6 +32,6 @@ std = [
     "sp-runtime/std",
     "frame-support/std",
     "frame-system/std",
-
     "cp-scheduler-credit/std",
+    "cessp-consensus-rrsc/std",
 ]
