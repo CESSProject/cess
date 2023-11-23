@@ -585,6 +585,8 @@ pub mod pallet {
 			ensure!(<DealMap<T>>::contains_key(&deal_hash), Error::<T>::NonExistent);
 			ensure!(index as u32 <= FRAGMENT_COUNT, Error::<T>::SpecError);
 			ensure!(index > 0, Error::<T>::SpecError);
+			let is_positive = T::MinerControl::is_positive(&sender)?;
+			ensure!(is_positive, Error::<T>::MinerStateError);
 			<DealMap<T>>::try_mutate(&deal_hash, |deal_info_opt| -> DispatchResult {
 				// can use unwrap because there was a judgment above
 				let deal_info = deal_info_opt.as_mut().unwrap();
@@ -615,10 +617,10 @@ pub mod pallet {
 
 			let deal_info = <DealMap<T>>::try_get(&deal_hash).map_err(|_| Error::<T>::NonExistent)?;
 			let count = deal_info.segment_list.len() as u128;
-			for (index, complete_info) in deal_info.complete_list.iter().enumerate() {
+			for complete_info in deal_info.complete_list.iter() {
 				let mut hash_list: Vec<Box<[u8; 256]>> = Default::default();
 				for segment in &deal_info.segment_list {
-					let fragment_hash = segment.fragment_list[index as usize];
+					let fragment_hash = segment.fragment_list[(complete_info.index - 1) as usize];
 					let hash_temp = fragment_hash.binary().map_err(|_| Error::<T>::BugInvalid)?;
 					hash_list.push(hash_temp);
 				}
