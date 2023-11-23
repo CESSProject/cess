@@ -383,7 +383,7 @@ pub mod pallet {
             // minute
             expired: u32,
         ) -> DispatchResult {
-            let sender = ensure_signed(origin)?;
+            let _ = ensure_signed(origin)?;
 
             let expired: BlockNumberOf<T> = (expired
                 .checked_mul(6).ok_or(Error::<T>::Overflow)?).saturated_into();

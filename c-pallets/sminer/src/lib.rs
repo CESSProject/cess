@@ -593,7 +593,7 @@ pub mod pallet {
 			<MinerItems<T>>::try_mutate(&sender, |miner_opt| -> DispatchResult {
 				let miner = miner_opt.as_mut().ok_or(Error::<T>::NotExisted)?;
 				ensure!(miner.state == STATE_POSITIVE.as_bytes().to_vec(), Error::<T>::StateError);
-				ensure!(miner_info.lock_space == 0, Error::<T>::StateError);
+				ensure!(miner.lock_space == 0, Error::<T>::StateError);
 				if miner.lock_space != 0 {
 					Err(Error::<T>::StateError)?;
 				}
