@@ -6,6 +6,8 @@ impl<T: Config> DealInfo<T> {
             ensure!(index != complete_info.index, Error::<T>::Existed);
             ensure!(miner != complete_info.miner, Error::<T>::Existed);
         }
+        
+        T::MinerControl::lock_space(&miner, FRAGMENT_SIZE * self.segment_list.len() as u128)?;
 
         let complete_info = CompleteInfo::<T> {
             index,

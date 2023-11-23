@@ -614,8 +614,8 @@ pub mod pallet {
 			let _ = ensure_root(origin)?;
 
 			let deal_info = <DealMap<T>>::try_get(&deal_hash).map_err(|_| Error::<T>::NonExistent)?;
+			let count = deal_info.segment_list.len() as u128;
 			for (index, complete_info) in deal_info.complete_list.iter().enumerate() {
-				let count = FRAGMENT_COUNT;
 				let mut hash_list: Vec<Box<[u8; 256]>> = Default::default();
 				for segment in &deal_info.segment_list {
 					let fragment_hash = segment.fragment_list[index as usize];
