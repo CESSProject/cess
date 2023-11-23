@@ -164,11 +164,12 @@ impl<T: Config> Pallet<T> {
 
     pub(super) fn remove_deal(deal_hash: &Hash) -> DispatchResult {
         let deal_info = <DealMap<T>>::try_get(deal_hash).map_err(|_| Error::<T>::NonExistent)?;
-		let needed_space = Self::cal_file_size(deal_info.segment_list.len() as u128);
+        let segment_len = deal_info.segment_list.len() as u128;
+		let needed_space = Self::cal_file_size(segment_len);
 		T::StorageHandle::unlock_user_space(&deal_info.user.user, needed_space)?;
 		// unlock mienr space
 		for complete_info in deal_info.complete_list {
-            T::MinerControl::unlock_space(&complete_info.miner, FRAGMENT_SIZE * FRAGMENT_COUNT as u128)?;
+            T::MinerControl::unlock_space(&complete_info.miner, FRAGMENT_SIZE * segment_len)?;
 		}
 
 		<DealMap<T>>::remove(deal_hash);

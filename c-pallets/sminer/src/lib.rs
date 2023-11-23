@@ -125,6 +125,9 @@ pub mod pallet {
 			acc: AccountOf<T>,
 			staking_val: BalanceOf<T>,
 		},
+		RegisterPoisKey {
+			miner: AccountOf<T>,
+		},
 		/// Users to withdraw faucet money
 		DrawFaucetMoney(),
 		/// User recharges faucet
@@ -398,6 +401,10 @@ pub mod pallet {
 					.map_err(|_e| Error::<T>::StorageLimitReached)?;
 				Ok(())
 			})?;
+
+			Self::deposit_event(Event::<T>::RegisterPoisKey {
+				miner: sender,
+			});
 
 			Ok(())
 		}
