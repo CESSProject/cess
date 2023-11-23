@@ -593,6 +593,7 @@ pub mod pallet {
 			<MinerItems<T>>::try_mutate(&sender, |miner_opt| -> DispatchResult {
 				let miner = miner_opt.as_mut().ok_or(Error::<T>::NotExisted)?;
 				ensure!(miner.state == STATE_POSITIVE.as_bytes().to_vec(), Error::<T>::StateError);
+				ensure!(miner_info.lock_space == 0, Error::<T>::StateError);
 				if miner.lock_space != 0 {
 					Err(Error::<T>::StateError)?;
 				}
@@ -646,7 +647,7 @@ pub mod pallet {
 			ensure!(miner_info.state.to_vec() == STATE_LOCK.as_bytes().to_vec(), Error::<T>::StateError);
 			// sub network total idle space.
 
-			T::StorageHandle::sub_total_idle_space(miner_info.idle_space)?;
+			T::StorageHandle::sub_total_idle_space(miner_info.idle_space + miner_info.lock_space)?;
 
 			Self::execute_exit(&miner)?;
 
