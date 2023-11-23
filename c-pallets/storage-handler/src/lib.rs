@@ -416,7 +416,6 @@ pub mod pallet {
                 gib_count: gib_count,
                 days,
                 expired,
-                pay_acc: sender,
                 target_acc: target_acc,
                 order_type,
             };
