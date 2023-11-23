@@ -65,7 +65,7 @@ impl<T: Config> Receptionist<T> {
             let max_needed_cal_space = (segment_count as u32).checked_mul(FRAGMENT_SIZE as u32).ok_or(Error::<T>::Overflow)?;
             let mut life: u32 = (max_needed_cal_space / TRANSFER_RATE as u32).checked_add(11).ok_or(Error::<T>::Overflow)?;
             life = (max_needed_cal_space / CALCULATE_RATE as u32)
-                .checked_add(30).ok_or(Error::<T>::Overflow)?
+                .checked_add(100).ok_or(Error::<T>::Overflow)?
                 .checked_add(life).ok_or(Error::<T>::Overflow)?;
                 Pallet::<T>::start_second_task(deal_hash.0.to_vec(), deal_hash, life)?;
             if <Bucket<T>>::contains_key(&deal_info.user.user, &deal_info.user.bucket_name) {
