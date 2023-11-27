@@ -350,7 +350,7 @@ pub mod pallet {
 		#[pallet::weight(Weight::zero())]
 		pub fn update_price(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
-			let default_price: BalanceOf<T> = 30u32.saturated_into();
+			let default_price: BalanceOf<T> = 30_000_000_000_000u128.try_into().map_err(|_| Error::<T>::Overflow)?;
 			UnitPrice::<T>::put(default_price);
 
 			Ok(())
@@ -383,7 +383,7 @@ pub mod pallet {
             // minute
             expired: u32,
         ) -> DispatchResult {
-            let sender = ensure_signed(origin)?;
+            let _ = ensure_signed(origin)?;
 
             let expired: BlockNumberOf<T> = (expired
                 .checked_mul(6).ok_or(Error::<T>::Overflow)?).saturated_into();
