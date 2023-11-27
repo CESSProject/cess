@@ -23,6 +23,8 @@ impl<T: Config> Pallet<T> {
     ) -> DispatchResult {
         let mut segment_info_list: BoundedVec<SegmentInfo<T>, T::SegmentCount> = Default::default();
         ensure!(complete_list.len() == FRAGMENT_COUNT as usize, Error::<T>::Unexpected);
+        let mut complete_list = complete_list;
+        complete_list.sort_by_key(|info| info.index);
         for segment in deal_info.iter() {
             let mut segment_info = SegmentInfo::<T> {
                 hash: segment.hash,

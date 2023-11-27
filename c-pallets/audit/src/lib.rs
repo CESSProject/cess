@@ -325,7 +325,7 @@ pub mod pallet {
 	pub(super) type VerifyReassignCount<T: Config> = StorageValue<_, u8, ValueQuery>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn chllenge_snap_shot)]
+	#[pallet::getter(fn challenge_snap_shot)]
 	pub(super) type ChallengeSnapShot<T: Config> =
 		StorageMap<_, Blake2_128Concat, AccountOf<T>, ChallengeInfo<T>>;
 
