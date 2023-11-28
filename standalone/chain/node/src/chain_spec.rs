@@ -3,11 +3,11 @@
 
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use cess_node_runtime::{
-	opaque::SessionKeys, wasm_binary_unwrap, AccountId, AuthorityDiscoveryConfig, Balance,
-	BalancesConfig, Block, CouncilConfig, GenesisConfig, GrandpaConfig, ImOnlineConfig,
+	opaque::SessionKeys, wasm_binary_unwrap, AccountId, Balance,
+	BalancesConfig, Block, CouncilConfig, ImOnlineConfig,
 	IndicesConfig, MaxNominations, BabeConfig, SessionConfig, Signature, StakerStatus,
 	StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig, DOLLARS,
-	StorageHandlerConfig, SminerConfig, EVMChainIdConfig,
+	StorageHandlerConfig, EVMChainIdConfig,
 };
 
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
@@ -22,6 +22,8 @@ use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
 	Perbill, 
 };
+
+pub use cess_node_runtime::RuntimeGenesisConfig;
 
 // The URL for the telemetry server.
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
@@ -47,7 +49,7 @@ pub struct Extensions {
 }
 
 /// Specialized `ChainSpec`.
-pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig, Extensions>;
+pub type ChainSpec = sc_service::GenericChainSpec<RuntimeGenesisConfig, Extensions>;
 
 type AccountPublic = <Signature as Verify>::Signer;
 
@@ -83,7 +85,7 @@ pub fn authority_keys_from_seed(
 	)
 }
 
-fn cess_main_genesis() -> GenesisConfig {
+fn cess_main_genesis() -> RuntimeGenesisConfig {
 	#[rustfmt::skip]
 		let initial_authorities: Vec<(
 		AccountId,
@@ -227,7 +229,7 @@ fn cess_main_genesis() -> GenesisConfig {
 	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts))
 }
 
-fn cess_testnet_config_genesis() -> GenesisConfig {
+fn cess_testnet_config_genesis() -> RuntimeGenesisConfig {
 	#[rustfmt::skip]
 	// stash, controller, session-key
 	// generated with secret:
@@ -401,7 +403,7 @@ pub fn cess_main() -> ChainSpec {
 	)
 }
 
-fn development_config_genesis() -> GenesisConfig {
+fn development_config_genesis() -> RuntimeGenesisConfig {
 	testnet_genesis(
 		vec![authority_keys_from_seed("Alice")],
 		vec![],
@@ -438,7 +440,7 @@ pub fn development_config() -> ChainSpec {
 	)
 }
 
-fn local_testnet_genesis() -> GenesisConfig {
+fn local_testnet_genesis() -> RuntimeGenesisConfig {
 	testnet_genesis(
 		vec![authority_keys_from_seed("Alice"), authority_keys_from_seed("Bob")],
 		vec![],
@@ -483,7 +485,7 @@ fn testnet_genesis(
 	initial_nominators: Vec<AccountId>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
-) -> GenesisConfig {
+) -> RuntimeGenesisConfig {
 	let mut endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(|| {
 		vec![
 			get_account_id_from_seed::<sr25519::Public>("Alice"),
@@ -535,15 +537,15 @@ fn testnet_genesis(
 	const ENDOWMENT: Balance = 100_000_000 * DOLLARS;
 	const STASH: Balance = 3_000_000 * DOLLARS;
 
-	GenesisConfig {
-		system: SystemConfig { code: wasm_binary_unwrap().to_vec() },
+	RuntimeGenesisConfig {
+		system: SystemConfig { code: wasm_binary_unwrap().to_vec(), ..Default::default() },
 		balances: BalancesConfig {
 			// Configure endowed accounts with initial balance of ENDOWMENT.
 			balances: endowed_accounts.iter().cloned().map(|k| (k, ENDOWMENT)).collect(),
 		},
 		storage_handler: StorageHandlerConfig { price: 30 * DOLLARS },
 		// FOR TESTING
-		sminer: SminerConfig { expenders: (8, 1024 * 1024, 64) },
+		sminer: Default::default(),
 		indices: IndicesConfig { indices: vec![] },
 		session: SessionConfig {
 			keys: initial_authorities
@@ -582,10 +584,11 @@ fn testnet_genesis(
 		babe: BabeConfig {
 			authorities: vec![],
 			epoch_config: Some(cess_node_runtime::RRSC_GENESIS_EPOCH_CONFIG),
+			..Default::default()
 		},
 		im_online: ImOnlineConfig { keys: vec![] },
-		authority_discovery: AuthorityDiscoveryConfig { keys: vec![] },
-		grandpa: GrandpaConfig { authorities: vec![] },
+		authority_discovery: Default::default(),
+		grandpa: Default::default(),
 		technical_membership: Default::default(),
 		treasury: Default::default(),
 		sudo: SudoConfig {
@@ -598,6 +601,6 @@ fn testnet_genesis(
 		ethereum: Default::default(),
 		dynamic_fee: Default::default(),
 		base_fee: Default::default(),
-		evm_chain_id: EVMChainIdConfig { chain_id: 11330 },
+		evm_chain_id: EVMChainIdConfig { chain_id: 11330, ..Default::default() },
 	}
 }

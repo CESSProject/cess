@@ -14,8 +14,6 @@ mod chain_spec;
 mod service;
 mod cli;
 mod command;
-mod executor;
-mod primitives;
 mod rpc;
 mod eth;
 mod client;

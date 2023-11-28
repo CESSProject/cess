@@ -12,6 +12,7 @@ use frame_support::{
 	storage::child::KillStorageResult,
 	weights::Weight,
 };
+use frame_system::pallet_prelude::BlockNumberFor;
 use log::{debug, warn};
 use scale_info::TypeInfo;
 use sp_runtime::{
@@ -91,7 +92,7 @@ pub mod pallet {
 	pub trait Config: frame_system::Config {
 
 		#[pallet::constant]
-		type PeriodDuration: Get<Self::BlockNumber>;
+		type PeriodDuration: Get<BlockNumberFor<Self>>;
 
 		type StashAccountFinder: SchedulerStashAccountFinder<Self::AccountId>;
 	}
@@ -111,10 +112,10 @@ pub mod pallet {
 		StorageDoubleMap<_, Twox64Concat, u32, Blake2_128Concat, T::AccountId, u32, ValueQuery>;
 
 	#[pallet::hooks]
-	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T> {
-		fn on_initialize(now: T::BlockNumber) -> Weight {
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn on_initialize(now: BlockNumberFor<T>) -> Weight {
 			let period_duration = T::PeriodDuration::get();
-			if now % period_duration == T::BlockNumber::zero() {
+			if now % period_duration == Zero::zero() {
 				let period: u32 = (now / period_duration).saturated_into();
 				Self::figure_credit_values(period.saturating_sub(1))
 			} else {

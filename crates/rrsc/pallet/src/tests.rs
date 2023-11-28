@@ -63,7 +63,8 @@ fn first_block_epoch_zero_start() {
 
 	ext.execute_with(|| {
 		let genesis_slot = Slot::from(100);
-		let (vrf_signature, vrf_randomness) = make_vrf_output(genesis_slot, &pairs[0]);
+		let (vrf_signature, vrf_randomness) =
+			make_vrf_signature_and_randomness(genesis_slot, &pairs[0]);
 
 		let pre_digest = make_primary_pre_digest(0, genesis_slot, vrf_signature);
 
@@ -111,7 +112,8 @@ fn current_slot_is_processed_on_initialization() {
 
 	ext.execute_with(|| {
 		let genesis_slot = Slot::from(10);
-		let (vrf_signature, vrf_randomness) = make_vrf_output(genesis_slot, &pairs[0]);
+		let (vrf_signature, vrf_randomness) =
+			make_vrf_signature_and_randomness(genesis_slot, &pairs[0]);
 		let pre_digest = make_primary_pre_digest(0, genesis_slot, vrf_signature);
 
 		System::reset_events();
@@ -140,7 +142,8 @@ where
 
 	ext.execute_with(|| {
 		let genesis_slot = Slot::from(10);
-		let (vrf_signature, vrf_randomness) = make_vrf_output(genesis_slot, &pairs[0]);
+		let (vrf_signature, vrf_randomness) =
+			make_vrf_signature_and_randomness(genesis_slot, &pairs[0]);
 		let pre_digest = make_pre_digest(0, genesis_slot, vrf_signature);
 
 		System::reset_events();
@@ -812,7 +815,7 @@ fn report_equivocation_has_valid_weight() {
 	// the weight depends on the size of the validator set,
 	// but there's a lower bound of 100 validators.
 	assert!((1..=100)
-		.map(<Test as Config>::WeightInfo::report_equivocation)
+		.map(|validators| <Test as Config>::WeightInfo::report_equivocation(validators, 1000))
 		.collect::<Vec<_>>()
 		.windows(2)
 		.all(|w| w[0] == w[1]));
@@ -820,7 +823,7 @@ fn report_equivocation_has_valid_weight() {
 	// after 100 validators the weight should keep increasing
 	// with every extra validator.
 	assert!((100..=1000)
-		.map(<Test as Config>::WeightInfo::report_equivocation)
+		.map(|validators| <Test as Config>::WeightInfo::report_equivocation(validators, 1000))
 		.collect::<Vec<_>>()
 		.windows(2)
 		.all(|w| w[0].ref_time() < w[1].ref_time()));

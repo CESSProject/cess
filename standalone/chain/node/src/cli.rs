@@ -18,13 +18,13 @@ pub struct Cli {
 	pub subcommand: Option<Subcommand>,
 
 	#[allow(missing_docs)]
-	#[clap(flatten)]
+	#[command(flatten)]
 	pub run: sc_cli::RunCmd,
 
 	/// Choose sealing method.
 	#[arg(long, value_enum, ignore_case = true)]
 	pub sealing: Option<Sealing>,
-	
+
 	#[command(flatten)]
 	pub eth: EthConfiguration,
 	/// Disable automatic hardware benchmarks.
@@ -81,12 +81,20 @@ pub enum Subcommand {
 	PurgeChain(sc_cli::PurgeChainCmd),
 
 	/// Sub-commands concerned with benchmarking.
+	#[cfg(feature = "runtime-benchmarks")]
 	#[command(subcommand)]
 	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
+
+	/// Sub-commands concerned with benchmarking.
+	#[cfg(not(feature = "runtime-benchmarks"))]
+	Benchmark,
 
 	/// Revert the chain to a previous state.
 	Revert(sc_cli::RevertCmd),
 
 	/// Db meta columns information.
 	ChainInfo(sc_cli::ChainInfoCmd),
+
+	/// Db meta columns information.
+	FrontierDb(fc_cli::FrontierDbCmd),
 }

@@ -186,8 +186,10 @@ impl From<Error> for JsonRpseeError {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use cessp_consensus_rrsc::inherents::InherentDataProvider;
-	use sp_core::{crypto::key_types::RRSC, testing::TaskExecutor};
+	use cessc_consensus_rrsc::ImportQueueParams;
+	use sc_transaction_pool_api::{OffchainTransactionPoolFactory, RejectAllTxPool};
+	use cessp_consensus_rrsc::{inherents::InherentDataProvider, KEY_TYPE as RRSC};
+	use sp_core::{testing::TaskExecutor};
 	use sp_keyring::Sr25519Keyring;
 	use sp_keystore::{testing::MemoryKeystore, Keystore};
 	use substrate_test_runtime_client::{
@@ -219,22 +221,25 @@ mod tests {
 			sc_consensus_rrsc::block_import(config.clone(), client.clone(), client.clone())
 				.expect("can initialize block-import");
 
-		let (_, rrsc_worker_handle) = sc_consensus_rrsc::import_queue(
-			link.clone(),
-			block_import.clone(),
-			None,
-			client.clone(),
-			longest_chain.clone(),
-			move |_, _| async move {
+		let (_, rrsc_worker_handle) = cessc_consensus_rrsc::import_queue(ImportQueueParams {
+			link: link.clone(),
+			block_import: block_import.clone(),
+			justification_import: None,
+			client: client.clone(),
+			select_chain: longest_chain.clone(),
+			create_inherent_data_providers: move |_, _| async move {
 				Ok((InherentDataProvider::from_timestamp_and_slot_duration(
 					0.into(),
 					slot_duration,
 				),))
 			},
-			&task_executor,
-			None,
-			None,
-		)
+			spawner: &task_executor,
+			registry: None,
+			telemetry: None,
+			offchain_tx_pool_factory: OffchainTransactionPoolFactory::new(
+				RejectAllTxPool::default(),
+			),
+		})
 		.unwrap();
 
 		RRSC::new(client.clone(), rrsc_worker_handle, keystore, longest_chain, deny_unsafe)

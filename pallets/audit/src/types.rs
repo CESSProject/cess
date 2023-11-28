@@ -1,4 +1,5 @@
 use super::*;
+use frame_system::pallet_prelude::BlockNumberFor;
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
@@ -31,10 +32,10 @@ pub struct ProveInfoV2<T: pallet::Config> {
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct ChallengeElement<T: pallet::Config> {
-	pub(super) start: BlockNumberOf<T>,
-	pub(super) idle_slip: BlockNumberOf<T>,
-	pub(super) service_slip: BlockNumberOf<T>,
-	pub(super) verify_slip: BlockNumberOf<T>,
+	pub(super) start: BlockNumberFor<T>,
+	pub(super) idle_slip: BlockNumberFor<T>,
+	pub(super) service_slip: BlockNumberFor<T>,
+	pub(super) verify_slip: BlockNumberFor<T>,
 	pub(super) space_param: SpaceChallengeParam,
 	pub(super) service_param: QElement,
 }

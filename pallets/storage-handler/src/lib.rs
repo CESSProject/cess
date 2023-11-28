@@ -45,7 +45,6 @@ pub const SPACE_DEAD: &str = "dead";
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> =
 	<<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 
 const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
@@ -64,7 +63,7 @@ pub mod pallet {
         type WeightInfo: WeightInfo;
 
         #[pallet::constant]
-		type OneDay: Get<BlockNumberOf<Self>>;
+		type OneDay: Get<BlockNumberFor<Self>>;
 		/// pallet address.
 		#[pallet::constant]
 		type RewardPalletId: Get<PalletId>;
@@ -73,11 +72,11 @@ pub mod pallet {
         type StateStringMax: Get<u32> + Clone + Eq + PartialEq;
         
 		#[pallet::constant]
-		type FrozenDays: Get<BlockNumberOf<Self>> + Clone + Eq + PartialEq;
+		type FrozenDays: Get<BlockNumberFor<Self>> + Clone + Eq + PartialEq;
 
         type CessTreasuryHandle: TreasuryHandle<AccountOf<Self>, BalanceOf<Self>>;
 
-        type MyRandomness: Randomness<Option<Self::Hash>, Self::BlockNumber>;
+        type MyRandomness: Randomness<Option<Self::Hash>, BlockNumberFor<Self>>;
     }
 
     #[pallet::event]
@@ -165,7 +164,6 @@ pub mod pallet {
 		pub price: BalanceOf<T>,
 	}
 
-	#[cfg(feature = "std")]
 	impl<T: Config> Default for GenesisConfig<T> {
 		fn default() -> Self {
 			Self {
@@ -175,7 +173,7 @@ pub mod pallet {
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
 		fn build(&self) {
 			UnitPrice::<T>::put(self.price);
 		}
@@ -247,7 +245,7 @@ pub mod pallet {
 				.checked_div(&30u32.saturated_into()).ok_or(Error::<T>::Overflow)?;
 			let space = G_BYTE.checked_mul(gib_count as u128).ok_or(Error::<T>::Overflow)?;
 			//Calculate remaining days.
-			let block_oneday: BlockNumberOf<T> = <T as pallet::Config>::OneDay::get();
+			let block_oneday: BlockNumberFor<T> = <T as pallet::Config>::OneDay::get();
 			let diff_block = cur_owned_space.deadline.checked_sub(&now).ok_or(Error::<T>::Overflow)?;
 			let mut remain_day: u32 = diff_block
 				.checked_div(&block_oneday)
@@ -352,7 +350,7 @@ pub mod pallet {
         #[pallet::call_index(5)]
 		#[transactional]
 		#[pallet::weight(Weight::zero())]
-        pub fn update_user_life(origin: OriginFor<T>, user: AccountOf<T>, deadline: BlockNumberOf<T>) -> DispatchResult {
+        pub fn update_user_life(origin: OriginFor<T>, user: AccountOf<T>, deadline: BlockNumberFor<T>) -> DispatchResult {
             let _ = ensure_root(origin)?;
 
             <UserOwnedSpace<T>>::try_mutate(&user, |space_opt| -> DispatchResult {
@@ -464,10 +462,10 @@ impl<T: Config> Pallet<T> {
         Ok(price)
     }
 
-    fn calculate_remain_day(deadline: BlockNumberOf<T>) -> Result<BlockNumberOf<T>, DispatchError>{
+    fn calculate_remain_day(deadline: BlockNumberFor<T>) -> Result<BlockNumberFor<T>, DispatchError>{
         let now = <frame_system::Pallet<T>>::block_number();
         //Calculate remaining days.
-        let block_oneday: BlockNumberOf<T> = <T as pallet::Config>::OneDay::get();
+        let block_oneday: BlockNumberFor<T> = <T as pallet::Config>::OneDay::get();
         let diff_block = deadline.checked_sub(&now).ok_or(Error::<T>::Overflow)?;
         let mut remain_day: u32 = diff_block
             .checked_div(&block_oneday)
@@ -495,7 +493,7 @@ impl<T: Config> Pallet<T> {
             let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
             let one_day = <T as pallet::Config>::OneDay::get();
             let now = <frame_system::Pallet<T>>::block_number();
-            let sur_block: BlockNumberOf<T> =
+            let sur_block: BlockNumberFor<T> =
                 one_day.checked_mul(&days.saturated_into()).ok_or(Error::<T>::Overflow)?;
             if now > s.deadline {
                 s.start = now;
@@ -552,7 +550,7 @@ impl<T: Config> Pallet<T> {
     ) -> DispatchResult {
         let now = <frame_system::Pallet<T>>::block_number();
         let one_day = <T as pallet::Config>::OneDay::get();
-        let sur_block: BlockNumberOf<T> = one_day
+        let sur_block: BlockNumberFor<T> = one_day
             .checked_mul(&days.saturated_into())
             .ok_or(Error::<T>::Overflow)?;
         let deadline = now.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
@@ -614,7 +612,7 @@ impl<T: Config> Pallet<T> {
     }
 
     fn frozen_task() -> (Weight, Vec<AccountOf<T>>) {
-        let now: BlockNumberOf<T> = <frame_system::Pallet<T>>::block_number();
+        let now: BlockNumberFor<T> = <frame_system::Pallet<T>>::block_number();
         let number: u128 = now.saturated_into();
     
         let mut weight: Weight = Weight::zero();
@@ -624,7 +622,7 @@ impl<T: Config> Pallet<T> {
         for (acc, info) in <UserOwnedSpace<T>>::iter() {
             weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
             if now > info.deadline {
-                let frozen_day: BlockNumberOf<T> = <T as pallet::Config>::FrozenDays::get();
+                let frozen_day: BlockNumberFor<T> = <T as pallet::Config>::FrozenDays::get();
                 if now > info.deadline + frozen_day {
                     log::info!("clear user:#{}'s files", number);
                     let result = <UserOwnedSpace<T>>::try_mutate(

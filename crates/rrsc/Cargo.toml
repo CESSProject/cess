@@ -15,7 +15,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 async-trait = { workspace = true }
 scale-info = { workspace = true, features = ["derive"] }
-codec = { package = "parity-scale-codec", version = "3.2.2", features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.6.1", features = ["derive"] }
 futures = { workspace = true }
 log = { workspace = true }
 num-bigint = { workspace = true }
@@ -31,17 +31,18 @@ sc-consensus-epochs = { workspace = true }
 sc-consensus-slots = { workspace = true }
 sc-keystore = { workspace = true }
 sc-telemetry = { workspace = true }
-sp-api = { workspace = true }
-sp-application-crypto = { workspace = true }
-sp-block-builder = { workspace = true, features = ["std"]}
-sp-blockchain = { workspace = true }
-sp-consensus = { workspace = true }
-sp-consensus-slots = { workspace = true }
-sp-core = { workspace = true }
-sp-inherents = { workspace = true }
-sp-keystore = { workspace = true }
-sp-runtime = { workspace = true }
-cessp-consensus-rrsc = { workspace = true, features = ["std"]}
+sc-transaction-pool-api = { workspace = true }
+sp-api = { workspace = true, default-features = true }
+sp-application-crypto = { workspace = true, default-features = true }
+sp-block-builder = { workspace = true, default-features = true }
+sp-blockchain = { workspace = true, default-features = true }
+sp-consensus = { workspace = true, default-features = true }
+sp-consensus-slots = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-inherents = { workspace = true, default-features = true }
+sp-keystore = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
+cessp-consensus-rrsc = { workspace = true, default-features = true }
 
 [dev-dependencies]
 rand_chacha = { workspace = true }

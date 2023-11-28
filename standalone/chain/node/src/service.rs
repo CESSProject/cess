@@ -1,55 +1,45 @@
-// This file is part of Substrate.
-pub use crate::{
-	executor::ExecutorDispatch,
+//! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
+
+use std::{path::Path, sync::Arc, time::Duration};
+
+use futures::prelude::*;
+// Substrate
+use sc_client_api::{Backend, BlockBackend};
+use sc_consensus::BasicQueue;
+use sc_executor::NativeExecutionDispatch;
+use sc_network_sync::warp::WarpSyncParams;
+use sc_service::{error::Error as ServiceError, Configuration, PartialComponents, TaskManager};
+use sc_telemetry::{Telemetry, TelemetryWorker};
+use sc_transaction_pool_api::OffchainTransactionPoolFactory;
+use sp_api::ConstructRuntimeApi;
+use sp_core::U256;
+// Runtime
+use cess_node_runtime::{opaque::Block, TransactionConverter};
+
+use crate::{
 	eth::{
-		db_config_dir, spawn_frontier_tasks, new_frontier_partial,
-		EthConfiguration, BackendType, FrontierBackend, FrontierBlockImport, FrontierPartialComponents, EthCompatRuntimeApiCollection
+		db_config_dir, new_frontier_partial, spawn_frontier_tasks, BackendType,
+		FrontierBackend, FrontierPartialComponents, EthConfiguration
 	},
 	cli::Sealing,
-	client::{BaseRuntimeApiCollection, FullBackend, FullClient, RuntimeApiCollection, CESSNodeRuntimeExecutor},
-};
-use crate::{
-	primitives as node_primitives, 
+	client::{FullBackend, FullClient, RuntimeApiCollection, Client, CESSNodeRuntimeExecutor},
 	rpc as node_rpc
 };
 use sc_rpc::SubscriptionTaskExecutor;
-use futures::prelude::*;
-use node_primitives::Block;
-use sc_client_api::{BlockBackend, StateBackendFor};
-use cessc_consensus_rrsc::{self, SlotProportion};
-use sc_executor::{NativeExecutionDispatch};
-use sc_network::{event::Event, NetworkEventStream};
-use sc_network_common::sync::warp::WarpSyncParams;
-use sc_service::{ 
-	Configuration, error::Error as ServiceError, 
-	TaskManager, PartialComponents,
-};
-use sc_telemetry::{Telemetry, TelemetryWorker};
-use sp_runtime::{
-	traits::{BlakeTwo256}, 
-};
-use sp_api::{ConstructRuntimeApi};
-use std::{
-	sync::{Arc},
-	time::Duration,
-	path::Path,
-};
-use cess_node_runtime::{TransactionConverter};
-use sc_consensus::BasicQueue;
-use sp_trie::PrefixedMemoryDB;
 
-type BasicImportQueue<Client> = sc_consensus::DefaultImportQueue<Block, Client>;
+use cessc_consensus_rrsc::{self, SlotProportion};
+use sc_network::{event::Event, NetworkEventStream};
+
+type BasicImportQueue = sc_consensus::DefaultImportQueue<Block>;
 type FullPool<Client> = sc_transaction_pool::FullPool<Block, Client>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 
+type GrandpaBlockImport<Client> = grandpa::GrandpaBlockImport<FullBackend, Block, Client, FullSelectChain>;
 type GrandpaLinkHalf<Client> = grandpa::LinkHalf<Block, Client, FullSelectChain>;
-type GrandpaBlockImport<Client> =
-	grandpa::GrandpaBlockImport<FullBackend, Block, Client, FullSelectChain>;
-// type BoxBlockImport<Client> = sc_consensus::BoxBlockImport<Block, TransactionFor<Client, Block>>;
-/// The transaction pool type defintion.
-// pub type TransactionPool = sc_transaction_pool::FullPool<Block, FullClient<cess_node_runtime::RuntimeApi, CESSNodeRuntimeExecutor>>;
 
-pub type Client = FullClient<cess_node_runtime::RuntimeApi, CESSNodeRuntimeExecutor>;
+/// The minimum period of blocks on which justifications will be
+/// imported and generated.
+const GRANDPA_JUSTIFICATION_PERIOD: u32 = 512;
 
 pub fn new_partial<RuntimeApi, Executor>(
 	config: &Configuration,
@@ -59,7 +49,7 @@ pub fn new_partial<RuntimeApi, Executor>(
 		FullClient<RuntimeApi, Executor>,
 		FullBackend,
 		FullSelectChain,
-		BasicImportQueue<FullClient<RuntimeApi, Executor>>,
+		BasicImportQueue,
 		FullPool<FullClient<RuntimeApi, Executor>>,
 		(
 			cessc_consensus_rrsc::RRSCLink<Block>,
@@ -76,8 +66,7 @@ pub fn new_partial<RuntimeApi, Executor>(
 where
 	RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>>,
 	RuntimeApi: Send + Sync + 'static,
-	RuntimeApi::RuntimeApi: RuntimeApiCollection<StateBackend = StateBackendFor<FullBackend, Block>>
-		+ EthCompatRuntimeApiCollection<StateBackend = StateBackendFor<FullBackend, Block>>,
+	RuntimeApi::RuntimeApi: RuntimeApiCollection,
 	Executor: NativeExecutionDispatch + 'static,
 {
 	let telemetry = config
@@ -111,6 +100,7 @@ where
 	let select_chain = sc_consensus::LongestChain::new(backend.clone());
 	let (grandpa_block_import, grandpa_link) = grandpa::block_import(
 		client.clone(),
+		GRANDPA_JUSTIFICATION_PERIOD,
 		&client,
 		select_chain.clone(),
 		telemetry.as_ref().map(|x| x.handle()),
@@ -125,28 +115,41 @@ where
 		client.clone(),
 	)?;
 
-	let slot_duration = rrsc_link.config().slot_duration();
-	let (import_queue, rrsc_worker_handle) = cessc_consensus_rrsc::import_queue(
-		rrsc_link.clone(),
-		block_import.clone(),
-		Some(Box::new(justification_import)),
-		client.clone(),
-		select_chain.clone(),
-		move |_, ()| async move {
-			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
-
-			let slot = 
-				cessp_consensus_rrsc::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
-					*timestamp,
-					slot_duration,
-				);
-
-			Ok((slot, timestamp))
-		},
-		&task_manager.spawn_essential_handle(),
+	let transaction_pool = sc_transaction_pool::BasicPool::new_full(
+		config.transaction_pool.clone(),
+		config.role.is_authority().into(),
 		config.prometheus_registry(),
-		telemetry.as_ref().map(|x| x.handle()),
-	).map_err::<ServiceError, _>(Into::into)?;
+		task_manager.spawn_essential_handle(),
+		client.clone(),
+	);
+
+	let slot_duration = rrsc_link.config().slot_duration();
+	let (import_queue, rrsc_worker_handle) = {
+		let param = cessc_consensus_rrsc::ImportQueueParams {
+			link: rrsc_link.clone(),
+			block_import: block_import.clone(),
+			justification_import: Some(Box::new(justification_import)),
+			client: client.clone(),
+			select_chain: select_chain.clone(),
+			create_inherent_data_providers: move |_, ()| async move {
+				let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
+
+				let slot = 
+					cessp_consensus_rrsc::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+						*timestamp,
+						slot_duration,
+					);
+
+				Ok((slot, timestamp))
+			},
+			spawner: &task_manager.spawn_essential_handle(),
+			registry: config.prometheus_registry(),
+			telemetry: telemetry.as_ref().map(|x| x.handle()),
+			offchain_tx_pool_factory: OffchainTransactionPoolFactory::new(transaction_pool.clone()),
+		};
+		cessc_consensus_rrsc::import_queue(param).map_err::<ServiceError, _>(Into::into)?
+	};
+		
 
 	let frontier_backend = match eth_config.frontier_backend_type {
 		BackendType::KeyValue => FrontierBackend::KeyValue(fc_db::kv::Backend::open(
@@ -177,14 +180,6 @@ where
 		}
 	};
 
-	let transaction_pool = sc_transaction_pool::BasicPool::new_full(
-		config.transaction_pool.clone(),
-		config.role.is_authority().into(),
-		config.prometheus_registry(),
-		task_manager.spawn_essential_handle(),
-		client.clone(),
-	);
-
 	Ok(PartialComponents {
 		client,
 		backend,
@@ -210,16 +205,11 @@ pub async fn new_full<RuntimeApi, Executor>(
 	mut config: Configuration,
 	eth_config: EthConfiguration,
 	sealing: Option<Sealing>,
-	with_startup_data: impl FnOnce(
-		&cessc_consensus_rrsc::RRSCBlockImport<Block, FullClient<RuntimeApi, Executor>, GrandpaBlockImport<FullClient<RuntimeApi, Executor>>>,
-		&cessc_consensus_rrsc::RRSCLink<Block>,
-	),
 ) -> Result<TaskManager, ServiceError>
 where
 	RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>>,
 	RuntimeApi: Send + Sync + 'static,
-	RuntimeApi::RuntimeApi:
-		RuntimeApiCollection<StateBackend = StateBackendFor<FullBackend, Block>>,
+	RuntimeApi::RuntimeApi: RuntimeApiCollection,
 	Executor: NativeExecutionDispatch + 'static,
 {
 	let PartialComponents {
@@ -239,6 +229,7 @@ where
 		fee_history_cache_limit,
 	} = new_frontier_partial(&eth_config)?;
 
+	let mut net_config = sc_network::config::FullNetworkConfiguration::new(&config.network);
 	let grandpa_protocol_name = grandpa::protocol_standard_name(
 		&client.block_hash(0)?.expect("Genesis block exists; qed"),
 		&config.chain_spec,
@@ -247,12 +238,9 @@ where
 	let warp_sync_params = if sealing.is_some() {
 		None
 	} else {
-		config
-			.network
-			.extra_sets
-			.push(grandpa::grandpa_peers_set_config(
-				grandpa_protocol_name.clone(),
-			));
+		net_config.add_notification_protocol(grandpa::grandpa_peers_set_config(
+			grandpa_protocol_name.clone(),
+		));
 		let warp_sync: Arc<dyn sc_network::config::WarpSyncProvider<Block>> =
 			Arc::new(grandpa::warp_proof::NetworkProvider::new(
 				backend.clone(),
@@ -265,6 +253,7 @@ where
 	let (network, system_rpc_tx, tx_handler_controller, network_starter, sync_service) =
 		sc_service::build_network(sc_service::BuildNetworkParams {
 			config: &config,
+			net_config,
 			client: client.clone(),
 			transaction_pool: transaction_pool.clone(),
 			spawn_handle: task_manager.spawn_handle(),
@@ -274,11 +263,23 @@ where
 		})?;
 
 	if config.offchain_worker.enabled {
-		sc_service::build_offchain_workers(
-			&config,
-			task_manager.spawn_handle(),
-			client.clone(),
-			network.clone(),
+		task_manager.spawn_handle().spawn(
+			"offchain-workers-runner",
+			"offchain-worker",
+			sc_offchain::OffchainWorkers::new(sc_offchain::OffchainWorkerOptions {
+				runtime_api_provider: client.clone(),
+				is_validator: config.role.is_authority(),
+				keystore: Some(keystore_container.keystore()),
+				offchain_db: backend.offchain_storage(),
+				transaction_pool: Some(OffchainTransactionPoolFactory::new(
+					transaction_pool.clone(),
+				)),
+				network_provider: network.clone(),
+				enable_http_requests: true,
+				custom_extensions: |_| vec![],
+			})
+			.run(client.clone(), task_manager.spawn_handle())
+			.boxed(),
 		);
 	}
 
@@ -289,8 +290,6 @@ where
 	let prometheus_registry = config.prometheus_registry().cloned();
 	let auth_disc_publish_non_global_ips = config.network.allow_non_globals_in_dht;
 
-	// Channel for the rpc handler to communicate with the authorship task.
-	// let (command_sink, commands_stream) = mpsc::channel::<T>(1000);
 
 	// Sinks for pubsub notifications.
 	// Everytime a new subscription is created, a new mpsc channel is added to the sink pool.
@@ -303,6 +302,19 @@ where
 
 	// for ethereum-compatibility rpc.
 	config.rpc_id_provider = Some(Box::new(fc_rpc::EthereumSubIdProvider));
+	let slot_duration = rrsc_link.config().slot_duration();
+	let target_gas_price = eth_config.target_gas_price;
+	let pending_create_inherent_data_providers = move |_, ()| async move {
+		let current = sp_timestamp::InherentDataProvider::from_system_time();
+		let next_slot = current.timestamp().as_millis() + slot_duration.as_millis();
+		let timestamp = sp_timestamp::InherentDataProvider::new(next_slot.into());
+		let slot = cessp_consensus_rrsc::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+			*timestamp,
+			slot_duration,
+		);
+		let dynamic_fee = fp_dynamic_fee::InherentDataProvider(U256::from(target_gas_price));
+		Ok((slot, timestamp, dynamic_fee))
+	};
 	let eth_rpc_params = crate::rpc::EthDeps {
 		client: client.clone(),
 		pool: transaction_pool.clone(),
@@ -330,6 +342,7 @@ where
 		fee_history_cache_limit,
 		execute_gas_limit_multiplier: eth_config.execute_gas_limit_multiplier,
 		forced_parent_hashes: None,
+		pending_create_inherent_data_providers,
 	};
 
 	let (rpc_extensions_builder, _rpc_setup) = {
@@ -354,6 +367,7 @@ where
 
 		let rpc_backend = backend.clone();
 		let rpc_extensions_builder = move |deny_unsafe, subscription_executor: SubscriptionTaskExecutor| {
+			let eths = eth_rpc_params.clone();
 			let deps = node_rpc::FullDeps {
 				client: client.clone(),
 				pool: pool.clone(),
@@ -371,11 +385,10 @@ where
 					subscription_executor: subscription_executor.clone(),
 					finality_provider: finality_proof_provider.clone(),
 				},
-				command_sink: None,
-				eth: eth_rpc_params.clone(),
+				backend: rpc_backend.clone(),
 			};
 
-			node_rpc::create_full(deps, subscription_executor, pubsub_notification_sinks.clone(), rpc_backend.clone()).map_err(Into::into)
+			node_rpc::create_full(deps, eths, subscription_executor, pubsub_notification_sinks.clone()).map_err(Into::into)
 		};
 
 		(rpc_extensions_builder, shared_voter_state2)
@@ -412,8 +425,6 @@ where
 		pubsub_notification_sinks,
 	)
 	.await;
-
-	(with_startup_data)(&block_import, &rrsc_link);
 
 	if let sc_service::config::Role::Authority { .. } = &role {
 		let proposer = sc_basic_authorship::ProposerFactory::new(
@@ -512,7 +523,7 @@ where
 		let grandpa_config = grandpa::Config {
 			// FIXME #1578 make this available through chainspec
 			gossip_duration: Duration::from_millis(333),
-			justification_period: 512,
+			justification_generation_period: GRANDPA_JUSTIFICATION_PERIOD,
 			name: Some(name),
 			observer_enabled: false,
 			keystore,
@@ -537,6 +548,7 @@ where
 				prometheus_registry,
 				shared_voter_state: grandpa::SharedVoterState::empty(),
 				telemetry: telemetry.as_ref().map(|x| x.handle()),
+				offchain_tx_pool_factory: OffchainTransactionPoolFactory::new(transaction_pool),
 			})?;
 
 		// the GRANDPA voter task is considered infallible, i.e.
@@ -547,15 +559,6 @@ where
 	}
 
 	network_starter.start_network();
-
-	// let database_source = config.database.clone();
-	// sc_storage_monitor::StorageMonitorService::try_spawn(
-	// 	cli.storage_monitor,
-	// 	database_source,
-	// 	&task_manager.spawn_essential_handle(),
-	// )
-	// .map_err(|e| ServiceError::Application(e.into()))?;
-
 	Ok(task_manager)
 }
 
@@ -565,7 +568,7 @@ pub async fn build_full(
 	sealing: Option<Sealing>,
 ) -> Result<TaskManager, ServiceError> {
 	new_full::<cess_node_runtime::RuntimeApi, CESSNodeRuntimeExecutor>(
-		config, eth_config, sealing, |_, _| (),
+		config, eth_config, sealing,
 	)
 	.await
 }
@@ -577,7 +580,7 @@ pub fn new_chain_ops(
 	(
 		Arc<Client>,
 		Arc<FullBackend>,
-		BasicQueue<Block, PrefixedMemoryDB<BlakeTwo256>>,
+		BasicQueue<Block>,
 		TaskManager,
 		FrontierBackend,
 	),

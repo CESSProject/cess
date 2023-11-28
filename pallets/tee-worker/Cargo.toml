@@ -12,7 +12,7 @@ readme = "README.md"
 chrono = { workspace = true }
 hex ={ workspace = true }
 serde = { workspace = true, optional = true }
-codec = { version = "3.2.2", package = "parity-scale-codec", default-features = false, features = ["derive", "max-encoded-len"] }
+codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive", "max-encoded-len"] }
 scale-info = { workspace = true, features = ['derive'] }
 serde_json = { workspace = true, features = ['alloc'] }
 log = { workspace = true }

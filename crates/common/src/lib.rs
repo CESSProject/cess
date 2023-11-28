@@ -2,11 +2,11 @@
 
 use frame_support::{
 	BoundedVec,
-	RuntimeDebug,
 	pallet_prelude::ConstU32,
 };
 use codec::{MaxEncodedLen, Decode, Encode};
 use scale_info::TypeInfo;
+use sp_core::RuntimeDebug;
 use sp_std::prelude::Box;
 
 #[derive(Copy, Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo, PartialOrd, Ord)]

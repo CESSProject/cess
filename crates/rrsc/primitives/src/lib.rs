@@ -26,14 +26,16 @@ pub mod traits;
 
 use codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
-#[cfg(feature = "std")]
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use sp_runtime::{traits::Header, ConsensusEngineId, RuntimeDebug};
 use sp_std::vec::Vec;
 use sp_core::crypto::KeyTypeId;
 use crate::digests::{NextConfigDescriptor, NextEpochDescriptor};
 
-pub use sp_core::sr25519::vrf::{VrfOutput, VrfProof, VrfSignature, VrfTranscript};
+pub use sp_core::sr25519::vrf::{
+	VrfInput, VrfOutput, VrfProof, VrfSignData, VrfSignature, VrfTranscript,
+};
 
 /// Key type for RRSC module.
 pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"rrsc");
@@ -95,9 +97,9 @@ pub type RRSCAuthorityWeight = u64;
 /// of 0 (regardless of whether they are plain or vrf secondary blocks).
 pub type RRSCBlockWeight = u32;
 
-/// Make a VRF transcript data container
-pub fn make_transcript(randomness: &Randomness, slot: Slot, epoch: u64) -> VrfTranscript {
-	VrfTranscript::new(
+/// Make VRF input suitable for BABE's randomness generation.
+pub fn make_vrf_transcript(randomness: &Randomness, slot: Slot, epoch: u64) -> VrfInput {
+	VrfInput::new(
 		&RRSC_ENGINE_ID,
 		&[
 			(b"slot number", &slot.to_le_bytes()),
@@ -105,6 +107,11 @@ pub fn make_transcript(randomness: &Randomness, slot: Slot, epoch: u64) -> VrfTr
 			(b"chain randomness", randomness),
 		],
 	)
+}
+
+/// Make VRF signing data suitable for BABE's protocol.
+pub fn make_vrf_sign_data(randomness: &Randomness, slot: Slot, epoch: u64) -> VrfSignData {
+	make_vrf_transcript(randomness, slot, epoch).into()
 }
 
 /// An consensus log item for RRSC.
@@ -211,7 +218,7 @@ impl RRSCConfiguration {
 
 /// Types of allowed slots.
 #[derive(Clone, Copy, PartialEq, Eq, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum AllowedSlots {
 	/// Only allow primary slots.
 	PrimarySlots,
@@ -235,7 +242,7 @@ impl AllowedSlots {
 
 /// Configuration data used by the RRSC consensus engine that may change with epochs.
 #[derive(Clone, PartialEq, Eq, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RRSCEpochConfiguration {
 	/// A constant value that is used in the threshold calculation formula.
 	/// Expressed as a rational where the first member of the tuple is the

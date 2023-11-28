@@ -12,7 +12,7 @@ repository = "https://github.com/paritytech/substrate/"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.2.2" }
+codec = { package = "parity-scale-codec", version = "3.6.1" }
 jsonrpsee = { workspace = true, features = ["client-core", "server", "macros"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

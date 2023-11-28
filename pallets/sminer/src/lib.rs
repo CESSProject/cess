@@ -26,18 +26,19 @@ use frame_support::{
 		Get, ReservableCurrency,
 		schedule::{self, Anon as ScheduleAnon, DispatchTime, Named as ScheduleNamed}, 
 	},
-	dispatch::{Dispatchable, DispatchResult},
+	dispatch::DispatchResult,
 	pallet_prelude::DispatchError,
 };
+use frame_system::pallet_prelude::BlockNumberFor;
 use cp_cess_common::*;
 use sp_runtime::traits::Zero;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::{AccountIdConversion, CheckedAdd, CheckedSub, CheckedDiv, SaturatedConversion},
-	RuntimeDebug, Perbill,
+	traits::{AccountIdConversion, CheckedAdd, CheckedSub, CheckedDiv, Dispatchable, SaturatedConversion},
+	RuntimeDebug, Perbill
 };
-use sp_std::{convert::TryInto, prelude::*};
+use sp_std::{convert::TryInto, prelude::*, marker::PhantomData};
 use sp_core::ConstU32;
 use cp_enclave_verify::verify_rsa;
 use pallet_tee_worker::TeeWorkerHandler;
@@ -71,7 +72,6 @@ pub use weights::WeightInfo;
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> =
 	<<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -98,7 +98,7 @@ pub mod pallet {
 		type ItemLimit: Get<u32>;
 
 		#[pallet::constant]
-		type OneDayBlock: Get<BlockNumberOf<Self>>;
+		type OneDayBlock: Get<BlockNumberFor<Self>>;
 		/// The WeightInfo.
 		type WeightInfo: WeightInfo;
 
@@ -106,9 +106,9 @@ pub mod pallet {
 
 		type CessTreasuryHandle: TreasuryHandle<AccountOf<Self>, BalanceOf<Self>>;
 
-		type FScheduler: ScheduleNamed<Self::BlockNumber, Self::SProposal, Self::SPalletsOrigin>;
+		type FScheduler: ScheduleNamed<BlockNumberFor<Self>, Self::SProposal, Self::SPalletsOrigin>;
 
-		type AScheduler: ScheduleAnon<Self::BlockNumber, Self::SProposal, Self::SPalletsOrigin>;
+		type AScheduler: ScheduleAnon<BlockNumberFor<Self>, Self::SProposal, Self::SPalletsOrigin>;
 		/// Overarching type of all pallets origins.
 		type SPalletsOrigin: From<frame_system::RawOrigin<Self::AccountId>>;
 		/// The SProposal.
@@ -133,8 +133,8 @@ pub mod pallet {
 		},
 		/// Prompt time
 		LessThan24Hours {
-			last: BlockNumberOf<T>,
-			now: BlockNumberOf<T>,
+			last: BlockNumberFor<T>,
+			now: BlockNumberFor<T>,
 		},
 		//The miners have been frozen
 		AlreadyFrozen {
@@ -245,7 +245,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn faucet_record)]
 	pub(super) type FaucetRecordMap<T: Config> =
-		StorageMap<_, Blake2_128Concat, T::AccountId, FaucetRecord<BlockNumberOf<T>>>;
+		StorageMap<_, Blake2_128Concat, T::AccountId, FaucetRecord<BlockNumberFor<T>>>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn miner_public_key)]
@@ -258,33 +258,34 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn miner_lock)]
 	pub(super) type MinerLock<T: Config> = 
-		StorageMap<_, Blake2_128Concat, AccountOf<T>, BlockNumberOf<T>>;
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, BlockNumberFor<T>>;
 	
 	#[pallet::storage]
 	#[pallet::getter(fn restoral_target)]
 	pub(super) type RestoralTarget<T: Config> = 
-		StorageMap< _, Blake2_128Concat, AccountOf<T>, RestoralTargetInfo<AccountOf<T>, BlockNumberOf<T>>>;
+		StorageMap< _, Blake2_128Concat, AccountOf<T>, RestoralTargetInfo<AccountOf<T>, BlockNumberFor<T>>>;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
 	#[pallet::genesis_config]
-	pub struct GenesisConfig{
+	pub struct GenesisConfig<T: Config>{
 		pub expenders: (u64, u64, u64),
+		_marker: PhantomData<T>,
 	}
 
-	#[cfg(feature = "std")]
-	impl Default for GenesisConfig {
+	impl<T: Config> Default for GenesisConfig<T> {
 		fn default() -> Self {
 			Self {
 				// FOR TESTING
 				expenders: (8, 1024*1024, 64),
+				_marker: PhantomData,
 			}
 		}
 	}
 
 	#[pallet::genesis_build]
-	impl<T: Config> GenesisBuild<T> for GenesisConfig {
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
 		fn build(&self) {
 			Expenders::<T>::put(self.expenders);
 		}
@@ -718,8 +719,8 @@ pub mod pallet {
 			if !<FaucetRecordMap<T>>::contains_key(&to) {
 				<FaucetRecordMap<T>>::insert(
 					&to,
-					FaucetRecord::<BlockNumberOf<T>> {
-						last_claim_time: BlockNumberOf::<T>::from(0u32),
+					FaucetRecord::<BlockNumberFor<T>> {
+						last_claim_time: BlockNumberFor::<T>::from(0u32),
 					},
 				);
 
@@ -734,7 +735,7 @@ pub mod pallet {
 				)?;
 				<FaucetRecordMap<T>>::insert(
 					&to,
-					FaucetRecord::<BlockNumberOf<T>> { last_claim_time: now },
+					FaucetRecord::<BlockNumberFor<T>> { last_claim_time: now },
 				);
 			} else {
 				let one_day: u32 = T::OneDayBlock::get().saturated_into();
@@ -745,10 +746,10 @@ pub mod pallet {
 				let now = <frame_system::Pallet<T>>::block_number();
 
 				let mut flag: bool = true;
-				if now >= BlockNumberOf::<T>::from(one_day) {
+				if now >= BlockNumberFor::<T>::from(one_day) {
 					if !(faucet_record.last_claim_time
 						<= now
-							.checked_sub(&BlockNumberOf::<T>::from(one_day))
+							.checked_sub(&BlockNumberFor::<T>::from(one_day))
 							.ok_or(Error::<T>::Overflow)?)
 					{
 						Self::deposit_event(Event::<T>::LessThan24Hours {
@@ -758,7 +759,7 @@ pub mod pallet {
 						flag = false;
 					}
 				} else {
-					if !(faucet_record.last_claim_time <= BlockNumberOf::<T>::from(0u32)) {
+					if !(faucet_record.last_claim_time <= BlockNumberFor::<T>::from(0u32)) {
 						Self::deposit_event(Event::<T>::LessThan24Hours {
 							last: faucet_record.last_claim_time,
 							now,
@@ -777,7 +778,7 @@ pub mod pallet {
 				)?;
 				<FaucetRecordMap<T>>::insert(
 					&to,
-					FaucetRecord::<BlockNumberOf<T>> { last_claim_time: now },
+					FaucetRecord::<BlockNumberFor<T>> { last_claim_time: now },
 				);
 			}
 
@@ -849,7 +850,7 @@ pub trait MinerControl<AccountId, BlockNumber> {
 	fn get_miner_snapshot(miner: &AccountId) -> Result<(u128, u128, BloomFilter, SpaceProofInfo<AccountId>, TeeRsaSignature), DispatchError>;
 }
 
-impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumberOf<T>> for Pallet<T> {
+impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumberFor<T>> for Pallet<T> {
 	fn add_miner_idle_space(
 		acc: &<T as frame_system::Config>::AccountId, 
 		accumulator: Accumulator,  

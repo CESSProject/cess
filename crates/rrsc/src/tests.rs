@@ -21,15 +21,16 @@
 use super::*;
 use authorship::claim_slot;
 use sc_block_builder::{BlockBuilder, BlockBuilderProvider};
-use sc_client_api::{backend::TransactionFor, BlockchainEvents, Finalizer};
+use sc_client_api::{BlockchainEvents, Finalizer};
 use sc_consensus::{BoxBlockImport, BoxJustificationImport};
 use sc_consensus_epochs::{EpochIdentifier, EpochIdentifierPosition};
 use sc_consensus_slots::BackoffAuthoringOnFinalizedHeadLagging;
 use sc_network_test::{Block as TestBlock, *};
-use sp_application_crypto::key_types::RRSC;
+use sc_transaction_pool_api::RejectAllTxPool;
+use cessp_consensus_rrsc::KEY_TYPE as RRSC;
 use sp_consensus::{DisableProofRecording, NoNetwork as DummyOracle, Proposal};
 use cessp_consensus_rrsc::{
-	inherents::InherentDataProvider, make_transcript, AllowedSlots, AuthorityId, AuthorityPair,
+	inherents::InherentDataProvider, make_vrf_sign_data, AllowedSlots, AuthorityId, AuthorityPair,
 	Slot,
 };
 use sp_consensus_slots::SlotDuration;
@@ -71,15 +72,12 @@ const SLOT_DURATION_MS: u64 = 1000;
 struct DummyFactory {
 	client: Arc<TestClient>,
 	epoch_changes: SharedEpochChanges<TestBlock, Epoch>,
-	config: RRSCConfiguration,
 	mutator: Mutator,
 }
 
 struct DummyProposer {
 	factory: DummyFactory,
 	parent_hash: Hash,
-	parent_number: u64,
-	parent_slot: Slot,
 }
 
 impl Environment<TestBlock> for DummyFactory {
@@ -88,15 +86,9 @@ impl Environment<TestBlock> for DummyFactory {
 	type Error = Error;
 
 	fn init(&mut self, parent_header: &<TestBlock as BlockT>::Header) -> Self::CreateProposer {
-		let parent_slot = crate::find_pre_digest::<TestBlock>(parent_header)
-			.expect("parent header has a pre-digest")
-			.slot();
-
 		future::ready(Ok(DummyProposer {
 			factory: self.clone(),
 			parent_hash: parent_header.hash(),
-			parent_number: *parent_header.number(),
-			parent_slot,
 		}))
 	}
 }
@@ -105,16 +97,7 @@ impl DummyProposer {
 	fn propose_with(
 		&mut self,
 		pre_digests: Digest,
-	) -> future::Ready<
-		Result<
-			Proposal<
-				TestBlock,
-				sc_client_api::TransactionFor<substrate_test_runtime_client::Backend, TestBlock>,
-				(),
-			>,
-			Error,
-		>,
-	> {
+	) -> future::Ready<Result<Proposal<TestBlock, ()>, Error>> {
 		let block_builder =
 			self.factory.client.new_block_at(self.parent_hash, pre_digests, false).unwrap();
 
@@ -122,39 +105,6 @@ impl DummyProposer {
 			Ok(b) => b.block,
 			Err(e) => return future::ready(Err(e)),
 		};
-
-		let this_slot = crate::find_pre_digest::<TestBlock>(block.header())
-			.expect("baked block has valid pre-digest")
-			.slot();
-
-		// figure out if we should add a consensus digest, since the test runtime
-		// doesn't.
-		let epoch_changes = self.factory.epoch_changes.shared_data();
-		let epoch = epoch_changes
-			.epoch_data_for_child_of(
-				descendent_query(&*self.factory.client),
-				&self.parent_hash,
-				self.parent_number,
-				this_slot,
-				|slot| Epoch::genesis(&self.factory.config, slot),
-			)
-			.expect("client has data to find epoch")
-			.expect("can compute epoch for baked block");
-
-		let first_in_epoch = self.parent_slot < epoch.start_slot;
-		if first_in_epoch {
-			// push a `Consensus` digest signalling next change.
-			// we just reuse the same randomness and authorities as the prior
-			// epoch. this will break when we add light client support, since
-			// that will re-check the randomness logic off-chain.
-			let digest_data = ConsensusLog::NextEpochData(NextEpochDescriptor {
-				authorities: epoch.authorities.clone(),
-				randomness: epoch.randomness,
-			})
-			.encode();
-			let digest = DigestItem::Consensus(RRSC_ENGINE_ID, digest_data);
-			block.header.digest_mut().push(digest)
-		}
 
 		// mutate the block header according to the mutator.
 		(self.factory.mutator)(&mut block.header, Stage::PreSeal);
@@ -165,9 +115,7 @@ impl DummyProposer {
 
 impl Proposer<TestBlock> for DummyProposer {
 	type Error = Error;
-	type Transaction =
-		sc_client_api::TransactionFor<substrate_test_runtime_client::Backend, TestBlock>;
-	type Proposal = future::Ready<Result<Proposal<TestBlock, Self::Transaction, ()>, Error>>;
+	type Proposal = future::Ready<Result<Proposal<TestBlock, ()>, Error>>;
 	type ProofRecording = DisableProofRecording;
 	type Proof = ();
 
@@ -192,15 +140,13 @@ pub struct PanickingBlockImport<B>(B);
 #[async_trait::async_trait]
 impl<B: BlockImport<TestBlock>> BlockImport<TestBlock> for PanickingBlockImport<B>
 where
-	B::Transaction: Send,
 	B: Send,
 {
 	type Error = B::Error;
-	type Transaction = B::Transaction;
 
 	async fn import_block(
 		&mut self,
-		block: BlockImportParams<TestBlock, Self::Transaction>,
+		block: BlockImportParams<TestBlock>,
 	) -> Result<ImportResult, Self::Error> {
 		Ok(self.0.import_block(block).await.expect("importing block failed"))
 	}
@@ -248,8 +194,8 @@ impl Verifier<TestBlock> for TestVerifier {
 	/// presented to the User in the logs.
 	async fn verify(
 		&mut self,
-		mut block: BlockImportParams<TestBlock, ()>,
-	) -> Result<BlockImportParams<TestBlock, ()>, String> {
+		mut block: BlockImportParams<TestBlock>,
+	) -> Result<BlockImportParams<TestBlock>, String> {
 		// apply post-sealing mutations (i.e. stripping seal, if desired).
 		(self.mutator)(&mut block.header, Stage::PostSeal);
 		self.inner.verify(block).await
@@ -258,14 +204,7 @@ impl Verifier<TestBlock> for TestVerifier {
 
 pub struct PeerData {
 	link: RRSCLink<TestBlock>,
-	block_import: Mutex<
-		Option<
-			BoxBlockImport<
-				TestBlock,
-				TransactionFor<substrate_test_runtime_client::Backend, TestBlock>,
-			>,
-		>,
-	>,
+	block_import: Mutex<Option<BoxBlockImport<TestBlock>>>,
 }
 
 impl TestNetFactory for RRSCTestNet {
@@ -290,7 +229,7 @@ impl TestNetFactory for RRSCTestNet {
 		let block_import = PanickingBlockImport(block_import);
 
 		let data_block_import =
-			Mutex::new(Some(Box::new(block_import.clone()) as BoxBlockImport<_, _>));
+			Mutex::new(Some(Box::new(block_import.clone()) as BoxBlockImport<_>));
 		(
 			BlockImportAdapter::new(block_import),
 			None,
@@ -325,6 +264,9 @@ impl TestNetFactory for RRSCTestNet {
 				config: data.link.config.clone(),
 				epoch_changes: data.link.epoch_changes.clone(),
 				telemetry: None,
+				offchain_tx_pool_factory: OffchainTransactionPoolFactory::new(
+					RejectAllTxPool::default(),
+				),
 			},
 			mutator: MUTATOR.with(|m| m.borrow().clone()),
 		}
@@ -351,7 +293,7 @@ impl TestNetFactory for RRSCTestNet {
 }
 
 #[tokio::test]
-#[should_panic]
+#[should_panic(expected = "No BABE pre-runtime digest found")]
 async fn rejects_empty_block() {
 	sp_tracing::try_init_simple();
 	let mut net = RRSCTestNet::new(3);
@@ -398,7 +340,6 @@ async fn run_one_test(mutator: impl Fn(&mut TestHeader, Stage) + Send + Sync + '
 
 		let environ = DummyFactory {
 			client: client.clone(),
-			config: data.link.config.clone(),
 			epoch_changes: data.link.epoch_changes.clone(),
 			mutator: mutator.clone(),
 		};
@@ -483,7 +424,7 @@ async fn authoring_blocks() {
 }
 
 #[tokio::test]
-#[should_panic]
+#[should_panic(expected = "valid babe headers must contain a predigest")]
 async fn rejects_missing_inherent_digest() {
 	run_one_test(|header: &mut TestHeader, stage| {
 		let v = std::mem::take(&mut header.digest_mut().logs);
@@ -496,7 +437,7 @@ async fn rejects_missing_inherent_digest() {
 }
 
 #[tokio::test]
-#[should_panic]
+#[should_panic(expected = "has a bad seal")]
 async fn rejects_missing_seals() {
 	run_one_test(|header: &mut TestHeader, stage| {
 		let v = std::mem::take(&mut header.digest_mut().logs);
@@ -509,7 +450,7 @@ async fn rejects_missing_seals() {
 }
 
 #[tokio::test]
-#[should_panic]
+#[should_panic(expected = "Expected epoch change to happen")]
 async fn rejects_missing_consensus_digests() {
 	run_one_test(|header: &mut TestHeader, stage| {
 		let v = std::mem::take(&mut header.digest_mut().logs);
@@ -630,11 +571,8 @@ fn claim_vrf_check() {
 		PreDigest::Primary(d) => d,
 		v => panic!("Unexpected pre-digest variant {:?}", v),
 	};
-	let transcript = make_transcript(&epoch.randomness.clone(), 0.into(), epoch.epoch_index);
-	let sign = keystore
-		.sr25519_vrf_sign(AuthorityId::ID, &public, &transcript)
-		.unwrap()
-		.unwrap();
+	let data = make_vrf_sign_data(&epoch.randomness.clone(), 0.into(), epoch.epoch_index);
+	let sign = keystore.sr25519_vrf_sign(AuthorityId::ID, &public, &data).unwrap().unwrap();
 	assert_eq!(pre_digest.vrf_signature.output, sign.output);
 
 	// We expect a SecondaryVRF claim for slot 1
@@ -642,11 +580,8 @@ fn claim_vrf_check() {
 		PreDigest::SecondaryVRF(d) => d,
 		v => panic!("Unexpected pre-digest variant {:?}", v),
 	};
-	let transcript = make_transcript(&epoch.randomness.clone(), 1.into(), epoch.epoch_index);
-	let sign = keystore
-		.sr25519_vrf_sign(AuthorityId::ID, &public, &transcript)
-		.unwrap()
-		.unwrap();
+	let data = make_vrf_sign_data(&epoch.randomness.clone(), 1.into(), epoch.epoch_index);
+	let sign = keystore.sr25519_vrf_sign(AuthorityId::ID, &public, &data).unwrap().unwrap();
 	assert_eq!(pre_digest.vrf_signature.output, sign.output);
 
 	// Check that correct epoch index has been used if epochs are skipped (primary VRF)
@@ -656,11 +591,8 @@ fn claim_vrf_check() {
 		v => panic!("Unexpected claim variant {:?}", v),
 	};
 	let fixed_epoch = epoch.clone_for_slot(slot);
-	let transcript = make_transcript(&epoch.randomness.clone(), slot, fixed_epoch.epoch_index);
-	let sign = keystore
-		.sr25519_vrf_sign(AuthorityId::ID, &public, &transcript)
-		.unwrap()
-		.unwrap();
+	let data = make_vrf_sign_data(&epoch.randomness.clone(), slot, fixed_epoch.epoch_index);
+	let sign = keystore.sr25519_vrf_sign(AuthorityId::ID, &public, &data).unwrap().unwrap();
 	assert_eq!(fixed_epoch.epoch_index, 11);
 	assert_eq!(claim.vrf_signature.output, sign.output);
 
@@ -671,21 +603,18 @@ fn claim_vrf_check() {
 		v => panic!("Unexpected claim variant {:?}", v),
 	};
 	let fixed_epoch = epoch.clone_for_slot(slot);
-	let transcript = make_transcript(&epoch.randomness.clone(), slot, fixed_epoch.epoch_index);
-	let sign = keystore
-		.sr25519_vrf_sign(AuthorityId::ID, &public, &transcript)
-		.unwrap()
-		.unwrap();
+	let data = make_vrf_sign_data(&epoch.randomness.clone(), slot, fixed_epoch.epoch_index);
+	let sign = keystore.sr25519_vrf_sign(AuthorityId::ID, &public, &data).unwrap().unwrap();
 	assert_eq!(fixed_epoch.epoch_index, 11);
 	assert_eq!(pre_digest.vrf_signature.output, sign.output);
 }
 
-// Propose and import a new RRSC block on top of the given parent.
-async fn propose_and_import_block<Transaction: Send + 'static>(
+// Propose and import a new BABE block on top of the given parent.
+async fn propose_and_import_block(
 	parent: &TestHeader,
 	slot: Option<Slot>,
 	proposer_factory: &mut DummyFactory,
-	block_import: &mut BoxBlockImport<TestBlock, Transaction>,
+	block_import: &mut BoxBlockImport<TestBlock>,
 ) -> Hash {
 	let mut proposer = proposer_factory.init(parent).await.unwrap();
 
@@ -752,10 +681,10 @@ async fn propose_and_import_block<Transaction: Send + 'static>(
 // Propose and import n valid RRSC blocks that are built on top of the given parent.
 // The proposer takes care of producing epoch change digests according to the epoch
 // duration (which is set to 6 slots in the test runtime).
-async fn propose_and_import_blocks<Transaction: Send + 'static>(
+async fn propose_and_import_blocks(
 	client: &PeersFullClient,
 	proposer_factory: &mut DummyFactory,
-	block_import: &mut BoxBlockImport<TestBlock, Transaction>,
+	block_import: &mut BoxBlockImport<TestBlock>,
 	parent_hash: Hash,
 	n: usize,
 ) -> Vec<Hash> {
@@ -782,7 +711,6 @@ async fn importing_block_one_sets_genesis_epoch() {
 
 	let mut proposer_factory = DummyFactory {
 		client: client.clone(),
-		config: data.link.config.clone(),
 		epoch_changes: data.link.epoch_changes.clone(),
 		mutator: Arc::new(|_, _| ()),
 	};
@@ -826,7 +754,6 @@ async fn revert_prunes_epoch_changes_and_removes_weights() {
 
 	let mut proposer_factory = DummyFactory {
 		client: client.clone(),
-		config: data.link.config.clone(),
 		epoch_changes: data.link.epoch_changes.clone(),
 		mutator: Arc::new(|_, _| ()),
 	};
@@ -914,7 +841,6 @@ async fn revert_not_allowed_for_finalized() {
 
 	let mut proposer_factory = DummyFactory {
 		client: client.clone(),
-		config: data.link.config.clone(),
 		epoch_changes: data.link.epoch_changes.clone(),
 		mutator: Arc::new(|_, _| ()),
 	};
@@ -955,7 +881,6 @@ async fn importing_epoch_change_block_prunes_tree() {
 
 	let mut proposer_factory = DummyFactory {
 		client: client.clone(),
-		config: data.link.config.clone(),
 		epoch_changes: data.link.epoch_changes.clone(),
 		mutator: Arc::new(|_, _| ()),
 	};
@@ -1042,7 +967,7 @@ async fn importing_epoch_change_block_prunes_tree() {
 }
 
 #[tokio::test]
-#[should_panic]
+#[should_panic(expected = "Slot number must increase: parent slot: 999, this slot: 999")]
 async fn verify_slots_are_strictly_increasing() {
 	let mut net = RRSCTestNet::new(1);
 
@@ -1054,7 +979,6 @@ async fn verify_slots_are_strictly_increasing() {
 
 	let mut proposer_factory = DummyFactory {
 		client: client.clone(),
-		config: data.link.config.clone(),
 		epoch_changes: data.link.epoch_changes.clone(),
 		mutator: Arc::new(|_, _| ()),
 	};
@@ -1082,7 +1006,7 @@ async fn obsolete_blocks_aux_data_cleanup() {
 	let mut net = RRSCTestNet::new(1);
 
 	let peer = net.peer(0);
-	let data = peer.data.as_ref().expect("rrsc link set up during initialization");
+	let data = peer.data.as_ref().expect("babe link set up during initialization");
 	let client = peer.client().as_client();
 
 	// Register the handler (as done by `rrsc_start`)
@@ -1094,7 +1018,6 @@ async fn obsolete_blocks_aux_data_cleanup() {
 
 	let mut proposer_factory = DummyFactory {
 		client: client.clone(),
-		config: data.link.config.clone(),
 		epoch_changes: data.link.epoch_changes.clone(),
 		mutator: Arc::new(|_, _| ()),
 	};
@@ -1180,7 +1103,6 @@ async fn allows_skipping_epochs() {
 
 	let mut proposer_factory = DummyFactory {
 		client: client.clone(),
-		config: data.link.config.clone(),
 		epoch_changes: data.link.epoch_changes.clone(),
 		mutator: Arc::new(|_, _| ()),
 	};
@@ -1310,7 +1232,6 @@ async fn allows_skipping_epochs_on_some_forks() {
 
 	let mut proposer_factory = DummyFactory {
 		client: client.clone(),
-		config: data.link.config.clone(),
 		epoch_changes: data.link.epoch_changes.clone(),
 		mutator: Arc::new(|_, _| ()),
 	};

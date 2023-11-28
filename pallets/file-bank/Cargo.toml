@@ -11,44 +11,35 @@ readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-# parking_lot = "0.11"
 serde = { workspace = true, optional = true }
-codec = { version = "3.2.2", package = "parity-scale-codec", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive"] }
 scale-info = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ['alloc'] }
 log = { workspace = true }
 rand_chacha = { workspace = true, optional = true }
-pallet-rrsc = { workspace = true }
-pallet-grandpa = { workspace = true }
 
-pallet-cess-staking = { workspace = true }
-cp-scheduler-credit = { workspace = true }
-cp-cess-common = { workspace = true }
-cp-enclave-verify = { workspace = true }
-pallet-oss = { workspace = true }
-
-# substrate pallet
-pallet-scheduler = { workspace = true }
-# sc-network = { workspace = true }
-
-# local dependencies
-pallet-sminer = { workspace = true }
-pallet-tee-worker = { workspace = true }
-pallet-storage-handler = { workspace = true }
-
+sp-io = { workspace = true }
+sp-std = { workspace = true }
+sp-core = { workspace = true }
+sp-runtime = { workspace = true }
+pallet-balances = { workspace = true }
+pallet-grandpa = { workspace = true, optional = true }
+# pallet-scheduler = { workspace = true }
 frame-benchmarking = { workspace = true, optional = true }
 frame-support = { workspace = true }
 frame-system = { workspace = true }
 
-sp-io = { workspace = true }
+# local dependencies
+cp-scheduler-credit = { workspace = true }
+cp-cess-common = { workspace = true }
+cp-enclave-verify = { workspace = true }
+pallet-cess-staking = { workspace = true }
+pallet-oss = { workspace = true }
+pallet-rrsc = { workspace = true, optional = true }
+pallet-sminer = { workspace = true }
+pallet-storage-handler = { workspace = true }
+pallet-tee-worker = { workspace = true }
 
-sp-std = { workspace = true }
-
-pallet-balances = { workspace = true }
-
-sp-core = { workspace = true }
-
-sp-runtime = { workspace = true }
 
 # dev dependencies
 [dev-dependencies]
@@ -75,8 +66,13 @@ std = [
 	"sp-runtime/std",
 	"frame-support/std",
 	"frame-system/std",
-	"pallet-balances/std",
 	"frame-benchmarking/std",
+	"pallet-balances/std",
+	"pallet-cess-staking/std",
+	"pallet-sminer/std",
+	"pallet-oss/std",
+	"pallet-scheduler/std",
+	"pallet-storage-handler/std",
 	"pallet-tee-worker/std",
 	"cp-scheduler-credit/std",
 	"cp-cess-common/std",

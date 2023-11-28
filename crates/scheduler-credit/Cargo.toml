@@ -6,20 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-codec = { version = "3.2.2", package = "parity-scale-codec", default-features = false }
-scale-info = { workspace = true, features = ["derive"] }
-sp-api = { workspace = true }
-sp-core = { workspace = true }
-sp-std = { workspace = true }
 frame-support = { workspace = true }
 
 [features]
 default = ["std"]
 std = [
-    "codec/std",
-    "scale-info/std",
-    "sp-api/std",
-    "sp-core/std",
-    "sp-std/std",
 	"frame-support/std",
 ]

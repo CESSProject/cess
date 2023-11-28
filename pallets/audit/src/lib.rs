@@ -89,7 +89,6 @@ use sp_std::{
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
-type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 
 pub const AUDIT: KeyTypeId = KeyTypeId(*b"cess");
 // type FailureRate = u32;
@@ -171,12 +170,12 @@ pub mod pallet {
 		type IdleTotalHashLength: Get<u32> + Clone + Eq + PartialEq;
 		// one day block
 		#[pallet::constant]
-		type OneDay: Get<BlockNumberOf<Self>>;
+		type OneDay: Get<BlockNumberFor<Self>>;
 		// one hours block
 		#[pallet::constant]
-		type OneHours: Get<BlockNumberOf<Self>>;
+		type OneHours: Get<BlockNumberFor<Self>>;
 		// randomness for seeds.
-		type MyRandomness: Randomness<Option<Self::Hash>, Self::BlockNumber>;
+		type MyRandomness: Randomness<Option<Self::Hash>, BlockNumberFor<Self>>;
 		//Find the consensus of the current block
 		type FindAuthor: FindAuthor<Self::AccountId>;
 		//Random files used to obtain this batch of challenges
@@ -185,7 +184,7 @@ pub mod pallet {
 		type TeeWorkerHandler: TeeWorkerHandler<Self::AccountId>;
 		//It is used to increase or decrease the miners' computing power, space, and execute
 		// punishment
-		type MinerControl: MinerControl<Self::AccountId, Self::BlockNumber>;
+		type MinerControl: MinerControl<Self::AccountId, BlockNumberFor<Self>>;
 
 		type StorageHandle: StorageHandle<Self::AccountId>;
 		//Configuration to be used for offchain worker
@@ -198,7 +197,7 @@ pub mod pallet {
 		//Verifier of this round
 		type ValidatorSet: ValidatorSetWithIdentification<Self::AccountId>;
 		//Information for the next session
-		type NextSessionRotation: EstimateNextSessionRotation<Self::BlockNumber>;
+		type NextSessionRotation: EstimateNextSessionRotation<BlockNumberFor<Self>>;
 		/// A configuration for base priority of unsigned transactions.
 		///
 		/// This is exposed so that it can be tuned for particular runtime, when
@@ -207,7 +206,7 @@ pub mod pallet {
 		type UnsignedPriority: Get<TransactionPriority>;
 
 		#[pallet::constant]
-		type LockTime: Get<BlockNumberOf<Self>>;
+		type LockTime: Get<BlockNumberFor<Self>>;
 
 		#[pallet::constant]
 		type ReassignCeiling: Get<u8> + Clone + Eq + PartialEq;
@@ -285,7 +284,7 @@ pub mod pallet {
 	//Relevant time nodes for storage challenges
 	#[pallet::storage]
 	#[pallet::getter(fn verify_duration)]
-	pub(super) type VerifyDuration<T: Config> = StorageValue<_, BlockNumberOf<T>, ValueQuery>;
+	pub(super) type VerifyDuration<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn cur_authority_index)]
@@ -334,7 +333,7 @@ pub mod pallet {
 	pub(super) type ChallengeSlip<T: Config> = StorageDoubleMap<
 		_,
 		Blake2_128Concat,
-		BlockNumberOf<T>,
+		BlockNumberFor<T>,
 		Blake2_128Concat,
 		AccountOf<T>,
 		bool,
@@ -345,7 +344,7 @@ pub mod pallet {
 	pub(super) type VerifySlip<T: Config> = StorageDoubleMap<
 		_,
 		Blake2_128Concat,
-		BlockNumberOf<T>,
+		BlockNumberFor<T>,
 		Blake2_128Concat,
 		AccountOf<T>,
 		bool,
@@ -356,8 +355,8 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberOf<T>> for Pallet<T> {
-		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn on_initialize(now: BlockNumberFor<T>) -> Weight {
 			let weight: Weight = Weight::zero();
 			weight
 				.saturating_add(Self::generate_challenge(now))
@@ -736,8 +735,8 @@ pub mod pallet {
 		#[pallet::weight(Weight::zero())]
 		pub fn test_update_clear_slip(
 			origin: OriginFor<T>,
-			old: BlockNumberOf<T>,
-			new: BlockNumberOf<T>,
+			old: BlockNumberFor<T>,
+			new: BlockNumberFor<T>,
 			miner: AccountOf<T>,
 		) -> DispatchResult {
 			let _ = ensure_root(origin)?;
@@ -753,8 +752,8 @@ pub mod pallet {
 		#[pallet::weight(Weight::zero())]
 		pub fn test_update_verify_slip(
 			origin: OriginFor<T>,
-			old: BlockNumberOf<T>,
-			new: BlockNumberOf<T>,
+			old: BlockNumberFor<T>,
+			new: BlockNumberFor<T>,
 			miner: AccountOf<T>,
 		) -> DispatchResult {
 			let _ = ensure_root(origin)?;
@@ -780,7 +779,7 @@ pub mod pallet {
 		/// # Returns
 		///
 		/// The total weight consumed by the operation.
-		fn clear_challenge(now: BlockNumberOf<T>) -> Weight {
+		fn clear_challenge(now: BlockNumberFor<T>) -> Weight {
 			let mut weight: Weight = Weight::zero();
 
 			for (miner, _) in <ChallengeSlip<T>>::iter_prefix(&now) {
@@ -833,7 +832,7 @@ pub mod pallet {
 		///
 		/// Returns:
 		/// - A `Weight` value representing the computational cost of the operation.
-		fn clear_verify_mission(now: BlockNumberOf<T>) -> Weight {
+		fn clear_verify_mission(now: BlockNumberFor<T>) -> Weight {
 			let mut weight: Weight = Weight::zero();
 
 			for (miner, _) in <VerifySlip<T>>::iter_prefix(&now) {
@@ -930,7 +929,7 @@ pub mod pallet {
 		///
 		/// Returns:
 		/// - A `Weight` value representing the computational cost of the operation.
-		fn generate_challenge(now: BlockNumberOf<T>) -> Weight {
+		fn generate_challenge(now: BlockNumberFor<T>) -> Weight {
 			let mut weight: Weight = Weight::zero();
 
 			weight = weight.saturating_add(T::DbWeight::get().reads(1));

@@ -8,8 +8,8 @@ pub struct OwnedSpaceDetails<T: Config> {
 	pub(super) used_space: u128,
 	pub(super) locked_space: u128,
 	pub(super) remaining_space: u128,
-	pub(super) start: BlockNumberOf<T>,
-	pub(super) deadline: BlockNumberOf<T>,
+	pub(super) start: BlockNumberFor<T>,
+	pub(super) deadline: BlockNumberFor<T>,
 	pub(super) state: BoundedVec<u8, T::StateStringMax>,
 }
 
@@ -20,7 +20,7 @@ pub struct OrderInfo<T: Config> {
 	pub(super) pay: BalanceOf<T>,
 	pub(super) gib_count: u32,
 	pub(super) days: u32,
-	pub(super) expired: BlockNumberOf<T>,
+	pub(super) expired: BlockNumberFor<T>,
 	pub(super) pay_acc: AccountOf<T>,
 	pub(super) target_acc: AccountOf<T>,
 	pub(super) order_type: OrderType,

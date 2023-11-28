@@ -2,11 +2,10 @@ use crate as pallet_oss;
 use frame_benchmarking::account;
 use frame_support:: {
 	parameter_types,
-	pallet_prelude::*,
 	traits::ConstU32,
 };
 use sp_runtime::{
-	testing::Header,
+	BuildStorage,
 	traits::{BlakeTwo256, IdentityLookup},
 };
 use sp_core::H256;
@@ -15,15 +14,10 @@ pub(crate) type AccountId = u32;
 // type BlockNumber = u64;
 // type Balance = u64;
 
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 
 frame_support::construct_runtime!(
-	pub enum Test where
-		Block = Block,
-		NodeBlock = Block,
-		UncheckedExtrinsic = UncheckedExtrinsic,
-	{
+	pub enum Test {
 		System: frame_system,
 		Oss: pallet_oss,
 		// Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
@@ -60,13 +54,12 @@ impl frame_system::Config for Test {
 	type BlockLength = ();
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;
-	type Index = u64;
-	type BlockNumber = u64;
+	type Block = Block;
+	type Nonce = u64;
 	type Hash = H256;
 	type Hashing = BlakeTwo256;
 	type AccountId = AccountId;
 	type Lookup = IdentityLookup<Self::AccountId>;
-	type Header = Header;
 	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type DbWeight = ();
@@ -118,7 +111,7 @@ impl Default for ExtBuilder {
 
 impl ExtBuilder {
 	fn build(self) -> sp_io::TestExternalities {
-		let storage = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		let storage = frame_system::GenesisConfig::<Test>::default().build_storage().unwrap();
 		let ext = sp_io::TestExternalities::from(storage);
 		ext
 	}

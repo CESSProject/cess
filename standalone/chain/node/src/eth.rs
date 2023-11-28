@@ -7,12 +7,11 @@ use std::{
 
 use futures::{future, prelude::*};
 // Substrate
-use sc_client_api::{BlockchainEvents, StateBackendFor};
+use sc_client_api::BlockchainEvents;
 use sc_executor::NativeExecutionDispatch;
 use sc_network_sync::SyncingService;
-use sc_service::{error::Error as ServiceError, BasePath, Configuration, TaskManager};
+use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sp_api::ConstructRuntimeApi;
-use sp_runtime::traits::BlakeTwo256;
 // Frontier
 pub use fc_consensus::FrontierBlockImport;
 use fc_rpc::{EthTask, OverrideHandle};
@@ -26,14 +25,7 @@ use crate::client::{FullBackend, FullClient};
 pub type FrontierBackend = fc_db::Backend<Block>;
 
 pub fn db_config_dir(config: &Configuration) -> PathBuf {
-	let application = &config.impl_name;
-	config
-		.base_path
-		.as_ref()
-		.map(|base_path| base_path.config_dir(config.chain_spec.id()))
-		.unwrap_or_else(|| {
-			BasePath::from_project("", "", application).config_dir(config.chain_spec.id())
-		})
+	config.base_path.config_dir(config.chain_spec.id())
 }
 
 /// Avalailable frontier backend types.
@@ -120,17 +112,14 @@ pub trait EthCompatRuntimeApiCollection:
 	sp_api::ApiExt<Block>
 	+ fp_rpc::ConvertTransactionRuntimeApi<Block>
 	+ fp_rpc::EthereumRuntimeRPCApi<Block>
-where
-	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 }
 
-impl<Api> EthCompatRuntimeApiCollection for Api
+impl<Api> EthCompatRuntimeApiCollection for Api 
 where
 	Api: sp_api::ApiExt<Block>
 		+ fp_rpc::ConvertTransactionRuntimeApi<Block>
-		+ fp_rpc::EthereumRuntimeRPCApi<Block>,
-	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+		+ fp_rpc::EthereumRuntimeRPCApi<Block>
 {
 }
 
@@ -152,8 +141,7 @@ pub async fn spawn_frontier_tasks<RuntimeApi, Executor>(
 ) where
 	RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>>,
 	RuntimeApi: Send + Sync + 'static,
-	RuntimeApi::RuntimeApi:
-		EthCompatRuntimeApiCollection<StateBackend = StateBackendFor<FullBackend, Block>>,
+	RuntimeApi::RuntimeApi: EthCompatRuntimeApiCollection,
 	Executor: NativeExecutionDispatch + 'static,
 {
 	// Spawn main mapping sync worker background task.

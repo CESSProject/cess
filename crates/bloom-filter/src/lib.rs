@@ -1,11 +1,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use frame_support::{
-	RuntimeDebug,
-	dispatch::{Decode, Encode},
-};
-use codec::{MaxEncodedLen};
+use codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
+use sp_core::RuntimeDebug;
 
 #[derive(Copy, Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct BloomFilter(pub [u64; 256]);

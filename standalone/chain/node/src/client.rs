@@ -1,8 +1,7 @@
-
+// Substrate
 use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch, NativeVersion};
-use sp_runtime::traits::BlakeTwo256;
 
-use cess_node_runtime::{opaque::Block, AccountId, Balance, Index};
+use cess_node_runtime::{opaque::Block, AccountId, Balance, Nonce};
 
 use crate::eth::EthCompatRuntimeApiCollection;
 
@@ -12,7 +11,7 @@ pub type FullBackend = sc_service::TFullBackend<Block>;
 pub type FullClient<RuntimeApi, Executor> =
 	sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<Executor>>;
 
-// pub type Client = FullClient<cess_node_runtime::RuntimeApi, CESSNodeRuntimeExecutor>;
+pub type Client = FullClient<cess_node_runtime::RuntimeApi, CESSNodeRuntimeExecutor>;
 
 /// Only enable the benchmarking host functions when we actually want to benchmark.
 #[cfg(feature = "runtime-benchmarks")]
@@ -42,20 +41,16 @@ pub trait BaseRuntimeApiCollection:
 	+ sp_offchain::OffchainWorkerApi<Block>
 	+ sp_session::SessionKeys<Block>
 	+ sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
-where
-	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 }
 
-impl<Api> BaseRuntimeApiCollection for Api
-where
+impl<Api> BaseRuntimeApiCollection for Api where
 	Api: sp_api::ApiExt<Block>
 		+ sp_api::Metadata<Block>
 		+ sp_block_builder::BlockBuilder<Block>
 		+ sp_offchain::OffchainWorkerApi<Block>
 		+ sp_session::SessionKeys<Block>
-		+ sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>,
-	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+		+ sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
 {
 }
 
@@ -66,22 +61,18 @@ pub trait RuntimeApiCollection:
 	+ cessc_consensus_rrsc::RRSCApi<Block>
 	+ sp_consensus_grandpa::GrandpaApi<Block>
     + sp_authority_discovery::AuthorityDiscoveryApi<Block>
-	+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Index>
+	+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
 	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
-where
-	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 }
 
-impl<Api> RuntimeApiCollection for Api
-where
+impl<Api> RuntimeApiCollection for Api where
 	Api: BaseRuntimeApiCollection
 		+ EthCompatRuntimeApiCollection
 		+ cessc_consensus_rrsc::RRSCApi<Block>
 		+ sp_consensus_grandpa::GrandpaApi<Block>
-        + sp_authority_discovery::AuthorityDiscoveryApi<Block>
-		+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Index>
-		+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>,
-	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+		+ sp_authority_discovery::AuthorityDiscoveryApi<Block>
+		+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
+		+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
 {
 }

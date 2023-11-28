@@ -34,5 +34,6 @@ serde_json = { workspace = true }
 tokio = { workspace = true }
 sc-consensus = { workspace = true }
 sc-keystore = { workspace = true }
+sc-transaction-pool-api = { workspace = true }
 sp-keyring = { workspace = true }
 substrate-test-runtime-client = { workspace = true }

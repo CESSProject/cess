@@ -1,7 +1,6 @@
 use super::*;
 // Substrate type
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
-type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 // Cess type
 // pub(super) type SegmentList<T> = BoundedVec<(Hash, BoundedVec<Hash, <T as pallet::Config>::FragmentCount>),  <T as pallet::Config>::SegmentCount>;
 // pub(super) type MinerTaskList<T> = BoundedVec<(AccountOf<T>, BoundedVec<Hash,  <T as pallet::Config>::FragmentCount>),  <T as pallet::Config>::FragmentCount>;
@@ -62,7 +61,7 @@ pub struct FileInfo<T: Config> {
 	pub(super) segment_list: BoundedVec<SegmentInfo<T>, T::SegmentCount>,
 	pub(super) owner: BoundedVec<UserBrief<T>, T::OwnerLimit>,
 	pub(super) file_size: u128,
-	pub(super) completion: BlockNumberOf<T>,
+	pub(super) completion: BlockNumberFor<T>,
 	pub(super) stat: FileState,
 }
 
@@ -123,7 +122,7 @@ pub struct RestoralOrderInfo<T: Config> {
 	pub(super) origin_miner: AccountOf<T>,
 	pub(super) fragment_hash: Hash,
 	pub(super) file_hash: Hash,
-	pub(super) gen_block: BlockNumberOf<T>,
-	pub(super) deadline: BlockNumberOf<T>,
+	pub(super) gen_block: BlockNumberFor<T>,
+	pub(super) deadline: BlockNumberFor<T>,
 }
 

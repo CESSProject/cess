@@ -53,7 +53,7 @@ use frame_support::{
 	// bounded_vec, 
 	transactional, 
 	PalletId, 
-	dispatch::{Dispatchable, DispatchResult}, 
+	dispatch::DispatchResult, 
 	pallet_prelude::*,
 	weights::Weight,
 	traits::schedule,
@@ -65,7 +65,7 @@ use pallet_storage_handler::StorageHandle;
 use cp_scheduler_credit::SchedulerCreditCounter;
 use sp_runtime::{
 	traits::{
-		BlockNumberProvider, CheckedAdd,
+		BlockNumberProvider, CheckedAdd, Dispatchable
 	},
 	RuntimeDebug, SaturatedConversion,
 };
@@ -84,7 +84,6 @@ use cp_enclave_verify::verify_rsa;
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
-type BlockNumberOf<T> = <T as frame_system::Config>::BlockNumber;
 
 const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 
@@ -108,9 +107,9 @@ pub mod pallet {
 
 		type RuntimeCall: From<Call<Self>>;
 
-		type FScheduler: ScheduleNamed<Self::BlockNumber, Self::SProposal, Self::SPalletsOrigin>;
+		type FScheduler: ScheduleNamed<BlockNumberFor<Self>, Self::SProposal, Self::SPalletsOrigin>;
 
-		type AScheduler: ScheduleAnon<Self::BlockNumber, Self::SProposal, Self::SPalletsOrigin>;
+		type AScheduler: ScheduleAnon<BlockNumberFor<Self>, Self::SProposal, Self::SPalletsOrigin>;
 		/// Overarching type of all pallets origins.
 		type SPalletsOrigin: From<frame_system::RawOrigin<Self::AccountId>>;
 		/// The SProposal.
@@ -120,9 +119,9 @@ pub mod pallet {
 		//Used to find out whether the schedule exists
 		type TeeWorkerHandler: TeeWorkerHandler<Self::AccountId>;
 		//It is used to control the computing power and space of miners
-		type MinerControl: MinerControl<Self::AccountId, Self::BlockNumber>;
+		type MinerControl: MinerControl<Self::AccountId, BlockNumberFor<Self>>;
 		//Interface that can generate random seeds
-		type MyRandomness: Randomness<Option<Self::Hash>, Self::BlockNumber>;
+		type MyRandomness: Randomness<Option<Self::Hash>, BlockNumberFor<Self>>;
 
 		type StorageHandle: StorageHandle<Self::AccountId>;
 		/// pallet address.
@@ -133,7 +132,7 @@ pub mod pallet {
 		type UserFileLimit: Get<u32> + Clone + Eq + PartialEq;
 
 		#[pallet::constant]
-		type OneDay: Get<BlockNumberOf<Self>>;
+		type OneDay: Get<BlockNumberFor<Self>>;
 
 		// User defined name length limit
 		#[pallet::constant]
@@ -292,7 +291,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn miner_lock)]
 	pub(super) type MinerLock<T: Config> = 
-		StorageMap<_, Blake2_128Concat, AccountOf<T>, BlockNumberOf<T>>;
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, BlockNumberFor<T>>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn bucket)]
@@ -337,8 +336,8 @@ pub mod pallet {
 	pub struct Pallet<T>(PhantomData<T>);
 
 	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberOf<T>> for Pallet<T> {
-		fn on_initialize(now: BlockNumberOf<T>) -> Weight {
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn on_initialize(now: BlockNumberFor<T>) -> Weight {
 			let days = T::OneDay::get();
 			let mut weight: Weight = Weight::zero();
 			// FOR TESTING
@@ -1126,7 +1125,7 @@ impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Palle
 }
 
 impl<T: Config> BlockNumberProvider for Pallet<T> {
-	type BlockNumber = T::BlockNumber;
+	type BlockNumber = BlockNumberFor<T>;
 
 	fn current_block_number() -> Self::BlockNumber {
 		<frame_system::Pallet<T>>::block_number()

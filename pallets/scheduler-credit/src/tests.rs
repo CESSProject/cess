@@ -1,7 +1,7 @@
 use super::*;
 use crate::mock::*;
 use cp_scheduler_credit::SchedulerCreditCounter;
-use frame_support::traits::ValidatorCredits;
+use cessp_consensus_rrsc::traits::ValidatorCredits;
 
 #[test]
 fn figure_credit_scores_works() {
