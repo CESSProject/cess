@@ -1002,6 +1002,9 @@ pub mod pallet {
 			let one_hour = T::OneHours::get();
 			weight = weight.saturating_add(T::DbWeight::get().reads(1));
 			let tee_length = T::TeeWorkerHandler::get_controller_list().len();
+			if tee_length == 0 {
+				return weight;
+			}
 			let verify_life: u32 = (idle_space
 				.saturating_add(service_space)
 				.saturating_div(IDLE_VERIFY_RATE)
