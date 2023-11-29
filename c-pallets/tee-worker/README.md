@@ -29,7 +29,7 @@ A series of methods for finding consensus scheduling.
  * `punish_scheduler` - Punish tee workers and deduct credibility points.
 
 #### Usage
-pallet::Config
+in pallet::Config
 ```rust
 pub trait Config:
 		frame_system::Config + sp_std::fmt::Debug
@@ -39,7 +39,7 @@ pub trait Config:
         //...
     }
 ```
-runtime.rs
+in runtime.rs
 ```rust
 impl pallet_audit::Config for Runtime {
     //...
