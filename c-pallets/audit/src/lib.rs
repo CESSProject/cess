@@ -933,6 +933,11 @@ pub mod pallet {
 		fn generate_challenge(now: BlockNumberOf<T>) -> Weight {
 			let mut weight: Weight = Weight::zero();
 
+			let one_day = T::OneDay::get();
+			if now < one_day.saturating_mul(3u32.saturated_into()) {
+				return weight;
+			}
+
 			weight = weight.saturating_add(T::DbWeight::get().reads(1));
 			let miner_list = match T::MinerControl::get_all_miner() {
 				Ok(miner_list) => miner_list,
