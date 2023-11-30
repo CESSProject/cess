@@ -933,6 +933,11 @@ pub mod pallet {
 		fn generate_challenge(now: BlockNumberOf<T>) -> Weight {
 			let mut weight: Weight = Weight::zero();
 
+			let one_day = T::OneDay::get();
+			if now < one_day.saturating_mul(3u32.saturated_into()) {
+				return weight;
+			}
+
 			weight = weight.saturating_add(T::DbWeight::get().reads(1));
 			let miner_list = match T::MinerControl::get_all_miner() {
 				Ok(miner_list) => miner_list,
@@ -1002,6 +1007,9 @@ pub mod pallet {
 			let one_hour = T::OneHours::get();
 			weight = weight.saturating_add(T::DbWeight::get().reads(1));
 			let tee_length = T::TeeWorkerHandler::get_controller_list().len();
+			if tee_length == 0 {
+				return weight;
+			}
 			let verify_life: u32 = (idle_space
 				.saturating_add(service_space)
 				.saturating_div(IDLE_VERIFY_RATE)
