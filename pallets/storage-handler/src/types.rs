@@ -20,8 +20,7 @@ pub struct OrderInfo<T: Config> {
 	pub(super) pay: BalanceOf<T>,
 	pub(super) gib_count: u32,
 	pub(super) days: u32,
-	pub(super) expired: BlockNumberFor<T>,
-	pub(super) pay_acc: AccountOf<T>,
+	pub(super) expired: BlockNumberFor<T>,	
 	pub(super) target_acc: AccountOf<T>,
 	pub(super) order_type: OrderType,
 }

@@ -64,7 +64,11 @@ pub mod pallet {
 
         #[pallet::constant]
 		type OneDay: Get<BlockNumberFor<Self>>;
-		/// pallet address.
+
+        #[pallet::constant]
+		type OneHours: Get<BlockNumberFor<Self>>;
+
+        /// pallet address.
 		#[pallet::constant]
 		type RewardPalletId: Get<PalletId>;
 
@@ -122,9 +126,13 @@ pub mod pallet {
 
         LeaseExpired,
 
+        OrderExpired,
+
         RandomErr,
 
         NoOrder,
+
+        ParamError,
     }
 
 	#[pallet::storage]
@@ -341,7 +349,7 @@ pub mod pallet {
 		#[pallet::weight(Weight::zero())]
 		pub fn update_price(origin: OriginFor<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
-			let default_price: BalanceOf<T> = 30u32.saturated_into();
+			let default_price: BalanceOf<T> = 30_000_000_000_000u128.try_into().map_err(|_| Error::<T>::Overflow)?;
 			UnitPrice::<T>::put(default_price);
 
 			Ok(())
@@ -365,8 +373,20 @@ pub mod pallet {
         #[pallet::call_index(6)]
         #[transactional]
         #[pallet::weight(Weight::zero())]
-        pub fn create_order(origin: OriginFor<T>, target_acc: AccountOf<T>, order_type: OrderType, gib_count: u32, days: u32) -> DispatchResult {
-            let sender = ensure_signed(origin)?;
+        pub fn create_order(
+            origin: OriginFor<T>, 
+            target_acc: AccountOf<T>, 
+            order_type: OrderType, 
+            gib_count: u32, 
+            days: u32,
+            // minute
+            expired: u32,
+        ) -> DispatchResult {
+            let _ = ensure_signed(origin)?;
+
+            let expired: BlockNumberFor<T> = (expired
+                .checked_mul(6).ok_or(Error::<T>::Overflow)?).saturated_into();
+            ensure!(expired < T::OneHours::get(), Error::<T>::ParamError);
 
             let price = match order_type {
                 OrderType::Buy => {
@@ -388,17 +408,17 @@ pub mod pallet {
                 },
             };
 
+            let now = <frame_system::Pallet<T>>::block_number();
+            let expired = now.checked_add(&expired.saturated_into()).ok_or(Error::<T>::Overflow)?;
             let pay_order = OrderInfo::<T> {
                 pay: price,
                 gib_count: gib_count,
                 days,
-                expired: 10u32.saturated_into(),
-                pay_acc: sender,
+                expired,
                 target_acc: target_acc,
                 order_type,
             };
 
-            let now = <frame_system::Pallet<T>>::block_number();
             let (seed, _) =
 					T::MyRandomness::random(&(T::RewardPalletId::get(), now).encode());
 			let seed = match seed {
@@ -422,6 +442,8 @@ pub mod pallet {
             let sender = ensure_signed(origin)?;
 
             let order = <PayOrder<T>>::try_get(&order_id).map_err(|_| Error::<T>::NoOrder)?;
+            let now = <frame_system::Pallet<T>>::block_number();
+            ensure!(order.expired > now, Error::<T>::OrderExpired);
             match order.order_type {
                 OrderType::Buy => {
                     ensure!(!<UserOwnedSpace<T>>::contains_key(&order.target_acc), Error::<T>::PurchasedSpace);

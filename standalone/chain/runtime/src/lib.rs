@@ -634,7 +634,7 @@ parameter_types! {
 	pub const ProposalBondMinimum: Balance = 1 * DOLLARS;
 	// For TESTING
 	pub const SpendPeriod: BlockNumber = 1 * MINUTES;
-	pub const Burn: Permill = Permill::from_percent(50);
+	pub const Burn: Permill = Permill::from_percent(0);
 	pub const TipCountdown: BlockNumber = 1 * DAYS;
 	pub const TipFindersFee: Percent = Percent::from_percent(20);
 	pub const TipReportDepositBase: Balance = 1 * DOLLARS;
@@ -877,9 +877,6 @@ impl pallet_timestamp::Config for Runtime {
 	type WeightInfo = pallet_timestamp::weights::SubstrateWeight<Runtime>;
 }
 
-/// Existential deposit.
-pub const EXISTENTIAL_DEPOSIT: u128 = 10_000_000 * 1000 * 100;
-
 parameter_types! {
 	pub const ExistentialDeposit: Balance = 1 * DOLLARS;
 	// For weight estimation, we assume that the most locks on an individual account will be 50.
@@ -1085,6 +1082,7 @@ impl pallet_storage_handler::Config for Runtime {
 	type Currency = Balances;
 	type WeightInfo = pallet_storage_handler::weights::SubstrateWeight<Runtime>;
 	type OneDay = OneDay;
+	type OneHours = OneHours;
 	type RewardPalletId = RewardPalletId;
 	type MyRandomness = pallet_rrsc::ParentBlockRandomness<Runtime>;
 	type StateStringMax = StateStringMax;

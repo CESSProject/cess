@@ -254,7 +254,7 @@ impl<T: Config> Pallet<T> {
 
 		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
 			let miner = miner_opt.as_mut().ok_or(Error::<T>::Unexpected)?;
-			T::StorageHandle::sub_total_idle_space(miner.idle_space)?;
+			T::StorageHandle::sub_total_idle_space(miner.idle_space + miner.lock_space)?;
 			Self::create_restoral_target(acc, miner.service_space)?;
 			miner.state = Self::str_to_bound(STATE_OFFLINE)?;
 			let space_proof_info = miner.space_proof_info.clone().ok_or(Error::<T>::NotpositiveState)?;
