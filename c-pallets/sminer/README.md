@@ -1,28 +1,15 @@
-# Sminer Module
+# Cess Treasury Module
 
-Contain operations related storage miners.
+One of the core pallets of CESS, used to manage storage nodes.
 
-### Terminology
+## Overview
 
-* **Collateral:** The Staking amount when registering storage miner.
-* **Earnings:** Store the storage miner's earnings during mining.
-* **Locked:** Store the locked amount of the storage miner during mining.
+In addition to registering and changing the basic information of storage nodes, this module also includes the work of rewarding and punishing storage nodes. If you want to know more details about storage nodes, you can view the [wiki](https://docs.cess.cloud/core/storage-miner).
+
+## Terminology
+
+## Extrinsic
 
 ## Interface
 
-### Dispatchable Functions
-
-* `regnstk` - Staking and register for storage miner.
-* `increase_collateral` - Additional pledge method for miners.
-* `update_beneficiary` -Miner replacement income account.
-* `update_ip` - Miner changes IP endpoint address.
-* `timing_storage_space` - A scheduled task for computing power trend data of the entire network.
-* `timing_storage_space_thirty_days` - Generate power trend data for the first 30 days.
-* `timed_increase_rewards` - Add reward orders.
-* `timing_task_increase_power_rewards` - Added timed tasks for reward orders.
-* `timed_user_receive_award1` - Users receive rewards for scheduled tasks.
-* `faucet_top_up` - Obtain transaction token from faucet.
-* `faucet` - Users receive money through the faucet.
-* `increase_collateral` - Increase additional deposit for miners.
-* `exit_miner` - Storage Miner exit system.
-* `withdraw` - Miners redeem deposit.
+## Implementation Details

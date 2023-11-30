@@ -89,7 +89,6 @@ impl pallet_sminer::Config for Runtime {
 
 ## Implementation Details
 
-
 ### Miner Reward
 
 The total issuance of storage node rewards in the first year is 477,000,000 CESS, with an average of 326,488 CESS per era (One era every six hours). 
