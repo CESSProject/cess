@@ -166,6 +166,14 @@ pub mod pallet {
 				Err(Error::<T>::NotController)?;
 			}
 			ensure!(!TeeWorkerMap::<T>::contains_key(&sender), Error::<T>::AlreadyRegistration);
+
+			let attestation = Attestation::SgxIas {
+				ra_report: sgx_attestation_report.report_json_raw.to_vec(),
+				signature: base64::decode(sgx_attestation_report.sign)
+					.map_err(|_|Error::<T>::InvalidReport)?,
+				raw_signing_cert: base64::decode(sgx_attestation_report.cert_der)
+					.map_err(|_|Error::<T>::InvalidReport)?,
+			};
 			
 			// Validate RA report & embedded user data
 			let mut identity = Vec::new();
@@ -173,13 +181,9 @@ pub mod pallet {
 			identity.extend_from_slice(&podr2_pbk);
 			identity.extend_from_slice(&end_point);
 			let now = T::UnixTime::now().as_secs();
-			let a = Attestation::SgxIas{
-				ra_report: sgx_attestation_report.report_json_raw.to_vec(),
-				signature: sgx_attestation_report.sign.to_vec(),
-				raw_signing_cert: sgx_attestation_report.cert_der.to_vec(),
-			};
+						
 			let _ = IasValidator::validate(
-				&a,
+				&attestation,
 				&sp_io::hashing::sha2_256(&identity),
 				now,
 				false,  //TODO: to implement the ceseal verify

@@ -7017,6 +7017,7 @@ dependencies = [
 name = "pallet-tee-worker"
 version = "0.7.0"
 dependencies = [
+ "base64 0.12.3",
  "chrono",
  "cp-cess-common",
  "cp-scheduler-credit",
