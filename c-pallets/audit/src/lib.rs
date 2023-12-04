@@ -686,9 +686,9 @@ pub mod pallet {
 					let count = <CountedServiceFailed<T>>::get(&sender)
 						.checked_add(1)
 						.unwrap_or(SERVICE_FAULT_TOLERANT as u32);
-					if count >= SERVICE_FAULT_TOLERANT as u32 {
-						T::MinerControl::service_punish(&sender, service_space, service_space)?;
-					}
+					// if count >= SERVICE_FAULT_TOLERANT as u32 {
+					// 	T::MinerControl::service_punish(&sender, service_space, service_space)?;
+					// }
 					<CountedServiceFailed<T>>::insert(&sender, count);
 				}
 
@@ -790,26 +790,29 @@ pub mod pallet {
 						let count = <CountedClear<T>>::get(&miner).checked_add(1).unwrap_or(6);
 						weight = weight.saturating_add(T::DbWeight::get().reads(1));
 
-						let _ = T::MinerControl::clear_punish(
-							&miner,
-							count,
-							challenge_info.miner_snapshot.idle_space,
-							challenge_info.miner_snapshot.service_space,
-						);
+						// let _ = T::MinerControl::clear_punish(
+						// 	&miner,
+						// 	count,
+						// 	challenge_info.miner_snapshot.idle_space,
+						// 	challenge_info.miner_snapshot.service_space,
+						// );
 						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 						//For Testing
-						if count >= 6 {
-							let result = T::MinerControl::force_miner_exit(&miner);
-							weight = weight.saturating_add(T::DbWeight::get().reads_writes(5, 5));
-							if result.is_err() {
-								log::info!("force clear miner: {:?} failed", miner);
-							}
-							<CountedClear<T>>::remove(&miner);
-							weight = weight.saturating_add(T::DbWeight::get().writes(1));
-						} else {
-							<CountedClear<T>>::insert(&miner, count);
-							weight = weight.saturating_add(T::DbWeight::get().writes(1));
-						}
+						// if count >= 6 {
+						// 	let result = T::MinerControl::force_miner_exit(&miner);
+						// 	weight = weight.saturating_add(T::DbWeight::get().reads_writes(5, 5));
+						// 	if result.is_err() {
+						// 		log::info!("force clear miner: {:?} failed", miner);
+						// 	}
+						// 	<CountedClear<T>>::remove(&miner);
+						// 	weight = weight.saturating_add(T::DbWeight::get().writes(1));
+						// } else {
+						// 	<CountedClear<T>>::insert(&miner, count);
+						// 	weight = weight.saturating_add(T::DbWeight::get().writes(1));
+						// }
+
+						<CountedClear<T>>::insert(&miner, count);
+						weight = weight.saturating_add(T::DbWeight::get().writes(1));
 					}
 				}
 
@@ -935,6 +938,10 @@ pub mod pallet {
 
 			let one_day = T::OneDay::get();
 			if now < one_day.saturating_mul(3u32.saturated_into()) {
+				return weight;
+			}
+
+			if now % 10u32.saturated_into() != 0u32.saturated_into() {
 				return weight;
 			}
 
