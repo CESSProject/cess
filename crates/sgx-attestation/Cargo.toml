@@ -1,0 +1,22 @@
+[package]
+name = "sgx-attestation"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = ["alloc"] }
+hex = { workspace = true, features = ["alloc"] }
+base64 = { workspace = true, features = ["alloc"] }
+parity-scale-codec = { workspace = true, features = ["derive"] }
+webpki = { workspace = true, features = ["alloc", "ring"] }
+
+[dev-dependencies]
+insta = { workspace = true }
+
+[features]
+default = ["std"]
+std = [
+    "serde_json/std", 
+    "serde/std"
+]

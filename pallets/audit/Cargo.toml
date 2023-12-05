@@ -1,0 +1,90 @@
+[package]
+name = "pallet-audit"
+authors = ["CESS LAB"]
+version = "0.7.0"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/CESSProject/cess"
+description = "FRAME pallet for segment management"
+readme = "README.md"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# serde = { workspace = true, optional = true }
+codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive", "max-encoded-len"] }
+scale-info = { workspace = true, features = ["derive"] }
+log = { workspace = true }
+pallet-cess-staking = { workspace = true }
+pallet-preimage = { workspace = true }
+
+# local pallet
+cp-bloom-filter = { workspace = true }
+cp-scheduler-credit = { workspace = true }
+cp-cess-common = { workspace = true }
+cp-enclave-verify = { workspace = true }
+pallet-cess-treasury = { workspace = true }
+
+frame-benchmarking = { workspace = true, optional = true }
+
+frame-support = { workspace = true }
+
+frame-system = { workspace = true }
+
+sp-io = { workspace = true }
+
+sp-std = { workspace = true }
+
+pallet-balances = { workspace = true }
+
+sp-core = { workspace = true }
+
+pallet-timestamp = { workspace = true }
+
+sp-runtime = { workspace = true }
+
+# local dependencies
+pallet-file-bank = { workspace = true }
+# local dependencies
+pallet-sminer = { workspace = true }
+# local dependencies
+pallet-tee-worker = { workspace = true }
+# local dependencies
+pallet-storage-handler = { workspace = true }
+
+[dev-dependencies]
+frame-support-test = { workspace = true }
+pallet-balances = { workspace = true }
+pallet-scheduler = { workspace = true }
+pallet-cess-staking = { workspace = true }
+sp-staking = { workspace = true }
+sp-npos-elections = { workspace = true }
+frame-election-provider-support = { workspace = true }
+pallet-session = { workspace = true }
+pallet-bags-list = { workspace = true }
+pallet-scheduler-credit = { workspace = true }
+cp-cess-common = { workspace = true }
+pallet-oss = { workspace = true }
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"frame-support/std",
+	"frame-system/std",
+	"scale-info/std",
+	"sp-io/std",
+	"sp-runtime/std",
+	"sp-std/std",
+	"frame-benchmarking/std",
+	"pallet-sminer/std",
+	"pallet-file-bank/std",
+	"pallet-tee-worker/std",
+	"cp-cess-common/std",
+	"cp-cess-common/std",
+	"pallet-cess-treasury/std",
+]
+runtime-benchmarks = [
+	"frame-benchmarking/runtime-benchmarks",
+	"pallet-cess-staking/runtime-benchmarks",
+]

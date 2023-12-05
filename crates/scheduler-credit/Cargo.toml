@@ -1,0 +1,15 @@
+[package]
+name = "cp-scheduler-credit"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+frame-support = { workspace = true }
+
+[features]
+default = ["std"]
+std = [
+	"frame-support/std",
+]

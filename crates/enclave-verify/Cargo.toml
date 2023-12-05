@@ -1,0 +1,14 @@
+[package]
+name = "cp-enclave-verify"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rsa = { workspace = true }
+
+[dev-dependencies]
+hex = { workspace = true, features = ['alloc'] }
+
+[features]
+default = ["std"]
+std = []

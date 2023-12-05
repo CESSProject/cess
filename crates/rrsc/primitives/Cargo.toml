@@ -1,0 +1,54 @@
+[package]
+name = "cessp-consensus-rrsc"
+version = "0.10.0-dev"
+authors = ["CESS"]
+description = "Primitives for RRSC consensus"
+edition = "2021"
+license = "Apache-2.0"
+homepage = "https://cess.one"
+repository = "https://github.com/CESSProject/substrate"
+readme = "README.md"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+async-trait = { workspace = true, optional = true }
+codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false }
+scale-info = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = ["derive", "alloc"], optional = true }
+sp-api = { workspace = true }
+sp-application-crypto = { workspace = true }
+sp-consensus-slots = { workspace = true }
+sp-core = { workspace = true }
+sp-inherents = { workspace = true }
+sp-runtime = { workspace = true }
+sp-std = { workspace = true }
+sp-timestamp = { workspace = true, optional = true }
+
+[features]
+default = [ "std" ]
+std = [
+	"async-trait",
+	"codec/std",
+	"scale-info/std",
+	"serde/std",
+	"sp-api/std",
+	"sp-application-crypto/std",
+	"sp-consensus-slots/std",
+	"sp-core/std",
+	"sp-inherents/std",
+	"sp-runtime/std",
+	"sp-std/std",
+	"sp-timestamp/std",
+]
+
+# Serde support without relying on std features.
+serde = [
+	"dep:serde",
+	"scale-info/serde",
+	"sp-application-crypto/serde",
+	"sp-consensus-slots/serde",
+	"sp-core/serde",
+	"sp-runtime/serde",
+]

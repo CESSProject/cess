@@ -1,0 +1,40 @@
+[package]
+name = "pallet-oss"
+version = "0.7.0"
+edition = "2021"
+
+[dependencies]
+log = { workspace = true }
+codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive", "max-encoded-len"] }
+scale-info = { workspace = true, features = ["derive"] }
+sp-std = { workspace = true }
+sp-runtime = { workspace = true }
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+frame-benchmarking = { workspace = true, optional = true}
+
+#local dependencies
+cp-cess-common = { workspace = true }
+
+[dev-dependencies]
+sp-core = { workspace = true }
+pallet-balances = { workspace = true }
+sp-io = { workspace = true }
+
+[features]
+default = ["std"]
+std = [
+	"log/std",
+	"codec/std",
+	"scale-info/std",
+	"sp-std/std",
+	"sp-runtime/std",
+	"frame-support/std",
+	"frame-system/std",
+	"cp-cess-common/std",
+	"frame-benchmarking/std",
+]
+
+runtime-benchmarks = [
+	"frame-benchmarking/runtime-benchmarks",
+]

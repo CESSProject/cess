@@ -1,0 +1,152 @@
+[package]
+authors = ['CESS LAB']
+build = 'build.rs'
+description = 'A fresh FRAME-based Substrate node, ready for hacking.'
+edition = '2021'
+license = 'Unlicense'
+name = 'cess-node'
+repository = 'https://github.com/CESSProject/cess'
+version = '0.7.5'
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[[bin]]
+name = "cess-node"
+
+[dependencies]
+# third-party dependencies
+array-bytes = { workspace = true }
+async-trait = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false }
+serde = { workspace = true, features = ["derive"] }
+jsonrpsee = { workspace = true, features = ["server"] }
+futures = { workspace = true, features = ["thread-pool"]}	
+log = { workspace = true }
+rand = { workspace = true }
+
+# primitives
+sp-api = { workspace = true, features = ["std", "frame-metadata"]}
+sp-authority-discovery = { workspace = true, features = ["default"] }
+sp-core = { workspace = true, features = ["default"] }
+sp-consensus = { workspace = true, features = ["default"] }
+cessp-consensus-rrsc = { workspace = true, features = ["default"] }
+sp-consensus-grandpa = { workspace = true, features = ["default"] }
+sp-runtime = { workspace = true, features = ["default"] }
+sp-timestamp = { workspace = true, features = ["default"] }
+sp-transaction-pool = { workspace = true, features = ["default"] }
+sp-inherents = { workspace = true, features = ["default"] }
+sp-keyring = { workspace = true }
+sp-keystore = { workspace = true, features = ["default"] }
+sp-transaction-storage-proof = { workspace = true, features = ["default"] }
+sp-offchain = { workspace = true, features = ["default"] }
+sp-session = { workspace = true, features = ["default"] }
+sp-trie = { workspace = true, features = ["default"] }
+
+# client dependencies
+sc-client-api = { workspace = true }
+sc-chain-spec = { workspace = true }
+sc-consensus = { workspace = true }
+sc-consensus-manual-seal = { workspace = true }
+sc-transaction-pool = { workspace = true }
+sc-transaction-pool-api = { workspace = true }
+sc-network = { workspace = true }
+sc-network-common = { workspace = true }
+sc-network-sync = { workspace = true }
+sc-offchain = { workspace = true }
+sc-consensus-slots = { workspace = true }
+cessc-consensus-rrsc = { workspace = true }
+grandpa = { workspace = true }
+sc-rpc = { workspace = true }
+sc-basic-authorship = { workspace = true }
+sc-service = { workspace = true }
+sc-telemetry = { workspace = true }
+sc-executor = { workspace = true }
+sc-authority-discovery = { workspace = true }
+cessc-sync-state-rpc = { workspace = true }
+sc-sysinfo = { workspace = true }
+prometheus-endpoint = { workspace = true }
+
+# frame dependencies
+frame-system = { workspace = true }
+frame-system-rpc-runtime-api = { workspace = true }
+pallet-transaction-payment = { workspace = true }
+pallet-transaction-payment-rpc = { workspace = true }
+pallet-transaction-payment-rpc-runtime-api = { workspace = true }
+pallet-im-online = { workspace = true, features = ["default"] }
+
+# node-specific dependencies
+cess-node-runtime = { workspace = true, features = ["std"] }
+
+# CLI-specific dependencies
+sc-cli = { workspace = true }
+frame-benchmarking-cli = { workspace = true }
+try-runtime-cli = { workspace = true, optional = true }
+serde_json = { workspace = true }
+
+# Other
+
+frame-benchmarking = { workspace = true }
+mmr-rpc = { workspace = true }
+substrate-state-trie-migration-rpc = { workspace = true }
+sc-keystore = { workspace = true }
+sc-rpc-api = { workspace = true }
+sp-block-builder = { workspace = true, features = ["default"] }
+sp-blockchain = { workspace = true }
+substrate-frame-rpc-system = { workspace = true }
+sc-rpc-spec-v2 = { workspace = true }
+pallet-audit = { workspace = true, features = ["default"] }
+sc-consensus-grandpa-rpc = { workspace = true }
+cessc-consensus-rrsc-rpc = { workspace = true }
+sc-consensus-epochs = { workspace = true }
+pallet-contracts = { workspace = true, features = ["default"] }
+
+# Frontier
+fc-api = { workspace = true }
+fc-cli = { workspace = true }
+fc-consensus = { workspace = true }
+fc-db = { workspace = true }
+fc-mapping-sync = { workspace = true }
+fc-rpc = { workspace = true }
+fc-rpc-core = { workspace = true }
+fc-storage = { workspace = true }
+fp-account = { workspace = true }
+fp-dynamic-fee = { workspace = true, features = ["default"] }
+fp-evm = { workspace = true, features = ["default"] }
+fp-rpc = { workspace = true, features = ["default"] }
+
+[build-dependencies]
+try-runtime-cli = { workspace = true, optional = true }
+substrate-build-script-utils = { workspace = true }
+
+[features]
+default = [
+	"rocksdb",
+	"sql",
+	"txpool"
+]
+rocksdb = [
+	"sc-cli/rocksdb",
+	"sc-service/rocksdb",
+	"fc-cli/rocksdb",
+	"fc-db/rocksdb",
+	"fc-mapping-sync/rocksdb",
+	"fc-rpc/rocksdb",
+]
+sql = [
+	"fc-db/sql",
+	"fc-mapping-sync/sql",
+]
+txpool = [
+	"fc-rpc/txpool"
+]
+runtime-benchmarks = [
+	'cess-node-runtime/runtime-benchmarks',
+	"frame-benchmarking/runtime-benchmarks",
+	"frame-benchmarking-cli/runtime-benchmarks",
+]
+try-runtime = [
+	"cess-node-runtime/try-runtime", 
+	"try-runtime-cli/try-runtime"
+]

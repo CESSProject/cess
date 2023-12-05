@@ -1,0 +1,31 @@
+[package]
+name = "pallet-cess-treasury"
+authors = ["CESS LAB"]
+version = "0.7.4"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/CESSProject/cess"
+description = "FRAME pallet for sminer management"
+readme = "README.md"
+
+[dependencies]
+scale-info = { workspace = true, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive"] }
+
+#substrate pallet
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+sp-std = { workspace = true }
+sp-runtime = { workspace = true }
+
+
+[features]
+default = ["std"]
+std = [
+    "codec/std",
+    "scale-info/std",
+    "frame-support/std",
+    "frame-system/std",
+    "sp-std/std",
+    "sp-runtime/std",
+]

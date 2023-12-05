@@ -1,0 +1,95 @@
+[package]
+name = "pallet-cess-staking"
+version = "4.0.0-dev"
+authors = ["CESS LAB"]
+edition = "2021"
+license = "Apache-2.0"
+homepage = "https://www.cess.cloud"
+repository = "https://github.com/CESSProject/cess/"
+description = "FRAME pallet cess staking"
+readme = "README.md"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+serde = { workspace = true, features = ["alloc", "derive"] }
+codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive"] }
+scale-info = { workspace = true, features = ["derive", "serde"] }
+sp-std = { workspace = true }
+sp-io = { workspace = true }
+sp-runtime = { workspace = true, features = ["serde"] }
+sp-staking = { workspace = true, features = ["serde"] }
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+pallet-session = { workspace = true, features = [ "historical" ] }
+pallet-authorship = { workspace = true }
+sp-application-crypto = { workspace = true, features = ["serde"] }
+frame-election-provider-support = { workspace = true }
+log = { workspace = true }
+
+# Optional imports for benchmarking
+frame-benchmarking = { workspace = true, optional = true }
+rand_chacha = { workspace = true, optional = true }
+
+[dev-dependencies]
+sp-tracing = { workspace = true }
+sp-core = { workspace = true }
+sp-npos-elections = { workspace = true }
+pallet-balances = { workspace = true }
+pallet-timestamp = { workspace = true }
+pallet-staking-reward-curve = { workspace = true }
+pallet-bags-list = { workspace = true }
+substrate-test-utils = { workspace = true }
+frame-benchmarking = { workspace = true }
+frame-election-provider-support = { workspace = true }
+rand_chacha = { workspace = true }
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"frame-benchmarking?/std",
+	"frame-election-provider-support/std",
+	"frame-support/std",
+	"frame-system/std",
+	"log/std",
+	"pallet-authorship/std",
+	"pallet-bags-list/std",
+	"pallet-balances/std",
+	"pallet-session/std",
+	"pallet-timestamp/std",
+	"scale-info/std",
+	"serde/std",
+	"sp-application-crypto/std",
+	"sp-core/std",
+	"sp-io/std",
+	"sp-npos-elections/std",
+	"sp-runtime/std",
+	"sp-staking/std",
+	"sp-std/std",
+	"sp-tracing/std",
+]
+runtime-benchmarks = [
+	"frame-benchmarking/runtime-benchmarks",
+	"frame-election-provider-support/runtime-benchmarks",
+	"frame-support/runtime-benchmarks",
+	"frame-system/runtime-benchmarks",
+	"pallet-bags-list/runtime-benchmarks",
+	"pallet-balances/runtime-benchmarks",
+	"pallet-timestamp/runtime-benchmarks",
+	"rand_chacha",
+	"sp-runtime/runtime-benchmarks",
+	"sp-staking/runtime-benchmarks",
+]
+try-runtime = [
+	"frame-election-provider-support/try-runtime",
+	"frame-support/try-runtime",
+	"frame-system/try-runtime",
+	"pallet-authorship/try-runtime",
+	"pallet-bags-list/try-runtime",
+	"pallet-balances/try-runtime",
+	"pallet-session/try-runtime",
+	"pallet-timestamp/try-runtime",
+	"sp-runtime/try-runtime",
+]
