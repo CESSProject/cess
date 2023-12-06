@@ -3,7 +3,8 @@ use super::*;
 impl<T: Config> Pallet<T> {
 	pub(super) fn add_miner_idle_space(
 		acc: &AccountOf<T>, 
-		accumulator: Accumulator, 
+		accumulator: Accumulator,
+		check_front: u64,
 		rear: u64, 
 		tee_sig: TeeRsaSignature,
 	) -> Result<u128, DispatchError> {
@@ -15,6 +16,7 @@ impl<T: Config> Pallet<T> {
 
 			let mut space_proof_info = miner_info.space_proof_info.clone().ok_or(Error::<T>::NotpositiveState)?;
 
+			ensure!(check_front == space_proof_info.front, Error::<T>::CountError);
 			ensure!(space_proof_info.rear < rear, Error::<T>::CountError);
 
 			let count = rear.checked_sub(space_proof_info.rear).ok_or(Error::<T>::Overflow)?;
@@ -38,7 +40,8 @@ impl<T: Config> Pallet<T> {
     pub(super) fn delete_idle_update_accu(
 		acc: &AccountOf<T>, 
 		accumulator: Accumulator, 
-		front: u64, 
+		front: u64,
+		check_rear: u64,
 		tee_sig: TeeRsaSignature,
 	) -> Result<u64, DispatchError> {
 		MinerItems::<T>::try_mutate(acc, |miner_info_opt| -> Result<u64, DispatchError> {
@@ -46,6 +49,7 @@ impl<T: Config> Pallet<T> {
 
 			let mut space_proof_info = miner_info.space_proof_info.clone().ok_or(Error::<T>::NotpositiveState)?;
 
+			ensure!(check_rear == space_proof_info.rear, Error::<T>::CountError);
 			ensure!(space_proof_info.front < front, Error::<T>::CountError);
 
 			let count = front - space_proof_info.front;

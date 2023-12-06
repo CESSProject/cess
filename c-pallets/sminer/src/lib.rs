@@ -813,9 +813,9 @@ pub mod pallet {
 }
 
 pub trait MinerControl<AccountId, BlockNumber> {
-	fn add_miner_idle_space(acc: &AccountId, accumulator: Accumulator, rear: u64, tee_sig: TeeRsaSignature) -> Result<u128, DispatchError>;
+	fn add_miner_idle_space(acc: &AccountId, accumulator: Accumulator, check_front: u64, rear: u64, tee_sig: TeeRsaSignature) -> Result<u128, DispatchError>;
 	// fn sub_miner_idle_space(acc: &AccountId, accumulator: Accumulator, rear: u64) -> DispatchResult;
-	fn delete_idle_update_accu(acc: &AccountId, accumulator: Accumulator, front: u64, tee_sig: TeeRsaSignature) -> Result<u64, DispatchError>;
+	fn delete_idle_update_accu(acc: &AccountId, accumulator: Accumulator, front: u64, check_rear: u64, tee_sig: TeeRsaSignature) -> Result<u64, DispatchError>;
 	fn delete_idle_update_space(acc: &AccountId, idle_space: u128) -> DispatchResult;
 	fn add_miner_service_space(acc: &AccountId, power: u128) -> DispatchResult;
 	fn sub_miner_service_space(acc: &AccountId, power: u128) -> DispatchResult;
@@ -861,12 +861,14 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 	fn add_miner_idle_space(
 		acc: &<T as frame_system::Config>::AccountId, 
 		accumulator: Accumulator,  
+		check_front: u64,
 		rear: u64, 
 		tee_sig: TeeRsaSignature
 	) -> Result<u128, DispatchError> {
 		let idle_space = Pallet::<T>::add_miner_idle_space(
 			acc, 
 			accumulator, 
+			check_front,
 			rear, 
 			tee_sig
 		)?;
@@ -876,13 +878,15 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 	fn delete_idle_update_accu(
 		acc: &AccountOf<T>, 
 		accumulator: Accumulator, 
-		front: u64, 
+		front: u64,
+		check_rear: u64,
 		tee_sig: TeeRsaSignature
 	) -> Result<u64, DispatchError> {
 		let count = Self::delete_idle_update_accu(
 			acc, 
 			accumulator, 
 			front, 
+			check_rear,
 			tee_sig
 		)?;
 

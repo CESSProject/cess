@@ -674,6 +674,7 @@ pub mod pallet {
 				&sender, 
 				idle_sig_info.accumulator,
 				idle_sig_info.front,
+				idle_sig_info.rear,
 				tee_sig,
 			)?;
 
@@ -754,6 +755,7 @@ pub mod pallet {
 			let idle_space = T::MinerControl::add_miner_idle_space(
 				&sender, 
 				idle_sig_info.accumulator, 
+				idle_sig_info.front,
 				idle_sig_info.rear,
 				tee_sig,
 			)?;
