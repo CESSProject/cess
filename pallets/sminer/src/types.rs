@@ -8,6 +8,7 @@ use frame_support::pallet_prelude::MaxEncodedLen;
 pub struct MinerInfo<T: Config> {
 	//Income account
 	pub(super) beneficiary: AccountOf<T>,
+	pub(super) staking_account: AccountOf<T>,
 	pub(super) peer_id: PeerId,
 	pub(super) collaterals: BalanceOf<T>,
 	pub(super) debt: BalanceOf<T>,

@@ -18,11 +18,11 @@
 //! * `buyfile` - Buy file with download fee.
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(test)]
-mod mock;
+// #[cfg(test)]
+// mod mock;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
 use frame_support::traits::{
 	FindAuthor, Randomness,

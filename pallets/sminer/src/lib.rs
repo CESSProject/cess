@@ -327,6 +327,7 @@ pub mod pallet {
 				&sender,
 				MinerInfo::<T> {
 					beneficiary: beneficiary.clone(),
+					staking_account: sender.clone(),
 					peer_id: peer_id,
 					collaterals: staking_val,
 					debt: BalanceOf::<T>::zero(),
@@ -407,6 +408,41 @@ pub mod pallet {
 				miner: sender,
 			});
 
+			Ok(())
+		}
+
+		#[pallet::call_index(17)]
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
+		pub fn regnstk_assign_staking(
+			origin: OriginFor<T>,
+			beneficiary: AccountOf<T>,
+			peer_id: PeerId,
+			staking_val: BalanceOf<T>,
+			staking_account: AccountOf<T>,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			ensure!(!(<MinerItems<T>>::contains_key(&sender)), Error::<T>::AlreadyRegistered);
+			ensure!(staking_val >= BASE_LIMIT.try_into().map_err(|_| Error::<T>::Overflow)?, Error::<T>::CollateralNotUp);
+
+			<MinerItems<T>>::insert(
+				&sender,
+				MinerInfo::<T> {
+					beneficiary: beneficiary.clone(),
+					staking_account: sender.clone(),
+					peer_id: peer_id,
+					collaterals: BalanceOf::<T>::zero(),
+					debt: BalanceOf::<T>::zero(),
+					state: Self::str_to_bound(STATE_NOT_READY)?,
+					idle_space: u128::MIN,
+					service_space: u128::MIN,
+					lock_space: u128::MIN,
+					space_proof_info: Option::None,	
+					service_bloom_filter: Default::default(),
+					tee_signature: [0u8; 256],
+				},
+			);
+			
 			Ok(())
 		}
 
