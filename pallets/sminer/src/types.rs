@@ -14,6 +14,7 @@ pub struct MinerInfo<T: Config> {
 	pub(super) debt: BalanceOf<T>,
 	//nomal, exit, frozen, e_frozen
 	pub(super) state: BoundedVec<u8, T::ItemLimit>,
+	pub(super) declaration_space: u128,
 	pub(super) idle_space: u128,
 	pub(super) service_space: u128,
 	pub(super) lock_space: u128,

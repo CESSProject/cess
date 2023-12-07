@@ -3,7 +3,8 @@ use super::*;
 impl<T: Config> Pallet<T> {
 	pub(super) fn add_miner_idle_space(
 		acc: &AccountOf<T>, 
-		accumulator: Accumulator, 
+		accumulator: Accumulator,
+		check_front: u64,
 		rear: u64, 
 		tee_sig: TeeRsaSignature,
 	) -> Result<u128, DispatchError> {
@@ -15,6 +16,7 @@ impl<T: Config> Pallet<T> {
 
 			let mut space_proof_info = miner_info.space_proof_info.clone().ok_or(Error::<T>::NotpositiveState)?;
 
+			ensure!(check_front == space_proof_info.front, Error::<T>::CountError);
 			ensure!(space_proof_info.rear < rear, Error::<T>::CountError);
 
 			let count = rear.checked_sub(space_proof_info.rear).ok_or(Error::<T>::Overflow)?;
@@ -26,6 +28,12 @@ impl<T: Config> Pallet<T> {
 
 			miner_info.idle_space =
 				miner_info.idle_space.checked_add(idle_space).ok_or(Error::<T>::Overflow)?;
+			
+			let currency_cert_space = miner_info.idle_space
+				.checked_add(miner_info.service_space).ok_or(Error::<T>::Overflow)?
+				.checked_add(miner_info.lock_space).ok_or(Error::<T>::Overflow)?;
+
+			ensure!(currency_cert_space <= miner_info.declaration_space, Error::<T>::ExceedingDeclarationSpace);
 
 			miner_info.tee_signature = tee_sig;
 
@@ -38,7 +46,8 @@ impl<T: Config> Pallet<T> {
     pub(super) fn delete_idle_update_accu(
 		acc: &AccountOf<T>, 
 		accumulator: Accumulator, 
-		front: u64, 
+		front: u64,
+		check_rear: u64,
 		tee_sig: TeeRsaSignature,
 	) -> Result<u64, DispatchError> {
 		MinerItems::<T>::try_mutate(acc, |miner_info_opt| -> Result<u64, DispatchError> {
@@ -46,6 +55,7 @@ impl<T: Config> Pallet<T> {
 
 			let mut space_proof_info = miner_info.space_proof_info.clone().ok_or(Error::<T>::NotpositiveState)?;
 
+			ensure!(check_rear == space_proof_info.rear, Error::<T>::CountError);
 			ensure!(space_proof_info.front < front, Error::<T>::CountError);
 
 			let count = front - space_proof_info.front;
@@ -204,7 +214,8 @@ impl<T: Config> Pallet<T> {
 
 	pub(super) fn clear_punish(miner: &AccountOf<T>, level: u8, idle_space: u128, service_space: u128) -> DispatchResult {
 		let power = Self::calculate_power(idle_space, service_space);
-		let limit = Self::check_collateral_limit(power)?;
+		let limit: BalanceOf<T> = Self::calculate_limit_by_space(power)?
+			.try_into().map_err(|_| Error::<T>::Overflow)?;
 		// FOR TESTING
 		let punish_amount = match level {
 			1 => Perbill::from_percent(30).mul_floor(limit),
@@ -220,7 +231,8 @@ impl<T: Config> Pallet<T> {
 
 	pub(super) fn idle_punish(miner: &AccountOf<T>, idle_space: u128, service_space: u128) -> DispatchResult {
 		let power = Self::calculate_power(idle_space, service_space);
-		let limit = Self::check_collateral_limit(power)?;
+		let limit: BalanceOf<T> = Self::calculate_limit_by_space(power)?
+			.try_into().map_err(|_| Error::<T>::Overflow)?;
 
 		let punish_amount = IDLE_PUNI_MUTI.mul_floor(limit);
 
@@ -231,7 +243,8 @@ impl<T: Config> Pallet<T> {
 
 	pub(super) fn service_punish(miner: &AccountOf<T>, idle_space: u128, service_space: u128) -> DispatchResult {
 		let power = Self::calculate_power(idle_space, service_space);
-		let limit = Self::check_collateral_limit(power)?;
+		let limit: BalanceOf<T> = Self::calculate_limit_by_space(power)?
+			.try_into().map_err(|_| Error::<T>::Overflow)?;
 
 		let punish_amount = SERVICE_PUNI_MUTI.mul_floor(limit);
 
@@ -255,6 +268,7 @@ impl<T: Config> Pallet<T> {
 		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
 			let miner = miner_opt.as_mut().ok_or(Error::<T>::Unexpected)?;
 			T::StorageHandle::sub_total_idle_space(miner.idle_space + miner.lock_space)?;
+			T::Currency::unreserve(&miner.staking_account, miner.collaterals);
 			Self::create_restoral_target(acc, miner.service_space)?;
 			miner.state = Self::str_to_bound(STATE_OFFLINE)?;
 			let space_proof_info = miner.space_proof_info.clone().ok_or(Error::<T>::NotpositiveState)?;

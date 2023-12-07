@@ -42,7 +42,7 @@ impl<T: Config> Pallet<T> {
 			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
 
 			if miner_info.collaterals > punish_amount {
-				T::Currency::unreserve(miner, punish_amount);
+				T::Currency::unreserve(&miner_info.staking_account, punish_amount);
 				T::CessTreasuryHandle::send_to_pid(miner.clone(), punish_amount)?;
 				miner_info.collaterals = miner_info.collaterals.checked_sub(&punish_amount).ok_or(Error::<T>::Overflow)?;
 			} else {
@@ -53,7 +53,8 @@ impl<T: Config> Pallet<T> {
 			}
 
 			let power = Self::calculate_power(miner_info.idle_space, miner_info.service_space);
-			let limit = Self::check_collateral_limit(power)?;
+			let limit: BalanceOf<T> = Self::calculate_limit_by_space(power)?
+				.try_into().map_err(|_| Error::<T>::Overflow)?;
 
 			if miner_info.collaterals < limit {
 				miner_info.state = Self::str_to_bound(STATE_FROZEN)?;
@@ -63,14 +64,6 @@ impl<T: Config> Pallet<T> {
 		})?;
 
 		Ok(())
-	}
-
-	pub(super) fn check_collateral_limit(power: u128) -> Result<BalanceOf<T>, Error<T>> {
-		let limit = 1 + power.checked_div(T_BYTE).ok_or(Error::<T>::Overflow)?;
-		let limit = BASE_LIMIT.checked_mul(limit).ok_or(Error::<T>::Overflow)?;
-		let limit: BalanceOf<T> = limit.try_into().map_err(|_| Error::<T>::Overflow)?;
-
-		Ok(limit)
 	}
 
 	pub(super) fn check_state(acc: &AccountOf<T>) -> Result<Vec<u8>, Error<T>> {
@@ -126,15 +119,26 @@ impl<T: Config> Pallet<T> {
     }
 	
 	// Note: that it is necessary to determine whether the state meets the exit conditions before use.
-	pub(super) fn withdraw(acc: &AccountOf<T>) -> DispatchResult {
-		let miner_info = <MinerItems<T>>::try_get(acc).map_err(|_| Error::<T>::NotMiner)?;
-		T::Currency::unreserve(acc, miner_info.collaterals);
+	pub(super) fn withdraw(miner: AccountOf<T>) -> DispatchResult {
+		let miner_info = <MinerItems<T>>::try_get(&miner).map_err(|_| Error::<T>::NotMiner)?;
+		T::Currency::unreserve(&miner_info.staking_account, miner_info.collaterals);
 		let space_proof_info = miner_info.space_proof_info.ok_or(Error::<T>::NotpositiveState)?;
 		let encoding = space_proof_info.pois_key.encode();
 		let hashing = sp_io::hashing::sha2_256(&encoding);
 		MinerPublicKey::<T>::remove(hashing);
-		<MinerItems<T>>::remove(acc);
+		<MinerItems<T>>::remove(miner);
 
 		Ok(())
+	}
+
+	pub(super) fn calculate_limit_by_space(space: u128) -> Result<u128, DispatchError> {
+		let mut tib_count = space.checked_div(T_BYTE).ok_or(Error::<T>::Overflow)?;
+		if space % T_BYTE != 0 {
+			tib_count = tib_count.checked_add(1).ok_or(Error::<T>::Overflow)?;
+		}
+
+		let collaterals_limit = tib_count.checked_mul(BASE_UNIT).ok_or(Error::<T>::Overflow)?;
+
+		Ok(collaterals_limit)
 	}
 }

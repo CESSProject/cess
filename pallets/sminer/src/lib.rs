@@ -99,6 +99,9 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type OneDayBlock: Get<BlockNumberFor<Self>>;
+
+		#[pallet::constant]
+		type StakingLockBlock: Get<BlockNumberFor<Self>>;
 		/// The WeightInfo.
 		type WeightInfo: WeightInfo;
 
@@ -123,7 +126,6 @@ pub mod pallet {
 		/// A new account was set.
 		Registered {
 			acc: AccountOf<T>,
-			staking_val: BalanceOf<T>,
 		},
 		RegisterPoisKey {
 			miner: AccountOf<T>,
@@ -171,6 +173,10 @@ pub mod pallet {
 		Withdraw { 
 			acc: AccountOf<T> 
 		},
+		IncreaseDeclarationSpace {
+			miner: AccountOf<T>,
+			space: u128,
+		},
 	}
 
 	/// Error for the sminer pallet.
@@ -217,6 +223,14 @@ pub mod pallet {
 		BloomElemPushError,
 
 		CollateralNotUp,
+
+		NotStakingAcc,
+
+		BugInvalid,
+
+		InsufficientStakingPeriod,
+
+		ExceedingDeclarationSpace,
 	}
 
 	/// The hashmap for info of storage miners.
@@ -266,7 +280,12 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn restoral_target)]
 	pub(super) type RestoralTarget<T: Config> = 
-		StorageMap< _, Blake2_128Concat, AccountOf<T>, RestoralTargetInfo<AccountOf<T>, BlockNumberFor<T>>>;
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, RestoralTargetInfo<AccountOf<T>, BlockNumberFor<T>>>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn staking_start_block)]
+	pub(super) type StakingStartBlock<T: Config> = 
+		StorageMap<_, Blake2_128Concat, AccountOf<T>, BlockNumberFor<T>>;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -317,11 +336,18 @@ pub mod pallet {
 			beneficiary: AccountOf<T>,
 			peer_id: PeerId,
 			staking_val: BalanceOf<T>,
+			tib_count: u32,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!(<MinerItems<T>>::contains_key(&sender)), Error::<T>::AlreadyRegistered);
-			ensure!(staking_val >= BASE_LIMIT.try_into().map_err(|_| Error::<T>::Overflow)?, Error::<T>::CollateralNotUp);
+			let declaration_space = T_BYTE.checked_mul(tib_count as u128).ok_or(Error::<T>::Overflow)?;
+			let base_limit: BalanceOf<T> = Self::calculate_limit_by_space(declaration_space)?
+				.try_into().map_err(|_| Error::<T>::Overflow)?;
+			ensure!(staking_val >= base_limit.try_into().map_err(|_| Error::<T>::Overflow)?, Error::<T>::CollateralNotUp);
 			T::Currency::reserve(&sender, staking_val)?;
+
+			let now = <frame_system::Pallet<T>>::block_number();
+			<StakingStartBlock<T>>::insert(&sender, now);
 
 			<MinerItems<T>>::insert(
 				&sender,
@@ -332,6 +358,7 @@ pub mod pallet {
 					collaterals: staking_val,
 					debt: BalanceOf::<T>::zero(),
 					state: Self::str_to_bound(STATE_NOT_READY)?,
+					declaration_space: declaration_space,
 					idle_space: u128::MIN,
 					service_space: u128::MIN,
 					lock_space: u128::MIN,
@@ -353,7 +380,6 @@ pub mod pallet {
 
 			Self::deposit_event(Event::<T>::Registered {
 				acc: sender,
-				staking_val: staking_val,
 			});
 			
 			Ok(())
@@ -391,7 +417,13 @@ pub mod pallet {
 				ensure!(STATE_NOT_READY.as_bytes().to_vec() == miner_info.state.to_vec(), Error::<T>::StateError);
 
 				miner_info.space_proof_info = Some(space_proof_info);
-				miner_info.state = Self::str_to_bound(STATE_POSITIVE)?;
+				let base_limit: BalanceOf<T> = Self::calculate_limit_by_space(miner_info.declaration_space)?
+					.try_into().map_err(|_| Error::<T>::Overflow)?;
+				if miner_info.collaterals >= base_limit {
+					miner_info.state = Self::str_to_bound(STATE_POSITIVE)?;
+				} else {
+					miner_info.state = Self::str_to_bound(STATE_FROZEN)?;
+				}
 				miner_info.tee_signature = tee_sig;
 
 				Ok(())
@@ -418,22 +450,23 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			beneficiary: AccountOf<T>,
 			peer_id: PeerId,
-			staking_val: BalanceOf<T>,
 			staking_account: AccountOf<T>,
+			tib_count: u32,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!(<MinerItems<T>>::contains_key(&sender)), Error::<T>::AlreadyRegistered);
-			ensure!(staking_val >= BASE_LIMIT.try_into().map_err(|_| Error::<T>::Overflow)?, Error::<T>::CollateralNotUp);
+			let declaration_space = T_BYTE.checked_mul(tib_count as u128).ok_or(Error::<T>::Overflow)?;
 
 			<MinerItems<T>>::insert(
 				&sender,
 				MinerInfo::<T> {
 					beneficiary: beneficiary.clone(),
-					staking_account: sender.clone(),
+					staking_account: staking_account.clone(),
 					peer_id: peer_id,
 					collaterals: BalanceOf::<T>::zero(),
 					debt: BalanceOf::<T>::zero(),
 					state: Self::str_to_bound(STATE_NOT_READY)?,
+					declaration_space: declaration_space,
 					idle_space: u128::MIN,
 					service_space: u128::MIN,
 					lock_space: u128::MIN,
@@ -442,7 +475,53 @@ pub mod pallet {
 					tee_signature: [0u8; 256],
 				},
 			);
+
+			RewardMap::<T>::insert(
+				&sender,
+				Reward::<T>{
+					total_reward: 0u32.saturated_into(),
+					reward_issued: 0u32.saturated_into(),
+					currently_available_reward: 0u32.saturated_into(),
+					order_list: Default::default()
+				},
+			);
+
+			Self::deposit_event(Event::<T>::Registered {
+				acc: sender,
+			});
 			
+			Ok(())
+		}
+
+		#[pallet::call_index(18)]
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::increase_collateral())]
+		pub fn increase_declaration_space(origin: OriginFor<T>, tib_count: u32) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
+			let increase_space = T_BYTE.checked_mul(tib_count as u128).ok_or(Error::<T>::Overflow)?;
+
+			<MinerItems<T>>::try_mutate(&sender, |miner_info_opt| -> DispatchResult {
+				let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
+
+				ensure!(miner_info.state.to_vec() == STATE_POSITIVE.as_bytes().to_vec(), Error::<T>::StateError);
+				miner_info.declaration_space = miner_info.declaration_space
+					.checked_add(increase_space).ok_or(Error::<T>::Overflow)?;
+				let base_limit: BalanceOf<T> = Self::calculate_limit_by_space(miner_info.declaration_space)?
+					.try_into().map_err(|_| Error::<T>::Overflow)?;
+				if base_limit > miner_info.collaterals {
+					miner_info.state = Self::str_to_bound(STATE_FROZEN)?;
+				}
+				
+				Ok(())
+			})?;
+
+			Self::deposit_event(Event::<T>::IncreaseDeclarationSpace {
+				miner: sender,
+				space: increase_space,
+			});
+
 			Ok(())
 		}
 
@@ -459,18 +538,20 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::increase_collateral())]
 		pub fn increase_collateral(
 			origin: OriginFor<T>,
+			miner: AccountOf<T>,
 			#[pallet::compact] collaterals: BalanceOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
+			ensure!(MinerItems::<T>::contains_key(&miner), Error::<T>::NotMiner);
 
 			let mut balance: BalanceOf<T> = 0u32.saturated_into();
-			<MinerItems<T>>::try_mutate(&sender, |miner_info_opt| -> DispatchResult {
+			<MinerItems<T>>::try_mutate(&miner, |miner_info_opt| -> DispatchResult {
 				let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
 
 				ensure!(miner_info.state.to_vec() != STATE_OFFLINE.as_bytes().to_vec(), Error::<T>::StateError);
 				ensure!(miner_info.state.to_vec() != STATE_LOCK.as_bytes().to_vec(), Error::<T>::StateError);
 				ensure!(miner_info.state.to_vec() != STATE_EXIT.as_bytes().to_vec(), Error::<T>::StateError);
+				ensure!(miner_info.staking_account == sender, Error::<T>::NotStakingAcc);
 
 				let mut remaining = collaterals;
 				if miner_info.debt > BalanceOf::<T>::zero() {
@@ -492,11 +573,15 @@ pub mod pallet {
 
 				if miner_info.state == STATE_FROZEN.as_bytes().to_vec() {
 					let power = Self::calculate_power(miner_info.idle_space, miner_info.service_space);
-					let limit = Self::check_collateral_limit(power)?;
+					let limit = Self::calculate_limit_by_space(power)?
+						.try_into().map_err(|_| Error::<T>::Overflow)?;
 					if miner_info.collaterals >= limit {
 						miner_info.state = Self::str_to_bound(STATE_POSITIVE)?;
 					}
 				}
+
+				let now = <frame_system::Pallet<T>>::block_number();
+				<StakingStartBlock<T>>::insert(&sender, now);
 
 				T::Currency::reserve(&sender, remaining)?;
 
@@ -619,23 +704,31 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::miner_exit_prep())]
 		pub fn miner_exit_prep(
 			origin: OriginFor<T>,
+			miner: AccountOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
+			let now = <frame_system::Pallet<T>>::block_number();
 			if let Ok(lock_time) = <MinerLock<T>>::try_get(&sender) {
-				let now = <frame_system::Pallet<T>>::block_number();
 				ensure!(now > lock_time, Error::<T>::StateError);
 			}
+			let staking_start_block = <StakingStartBlock<T>>::try_get(&miner).map_err(|_| Error::<T>::BugInvalid)?;
+			let staking_lock_block = T::StakingLockBlock::get();
+			ensure!(now > staking_start_block + staking_lock_block, Error::<T>::InsufficientStakingPeriod);
 
-			<MinerItems<T>>::try_mutate(&sender, |miner_opt| -> DispatchResult {
-				let miner = miner_opt.as_mut().ok_or(Error::<T>::NotExisted)?;
-				ensure!(miner.state == STATE_POSITIVE.as_bytes().to_vec(), Error::<T>::StateError);
-				ensure!(miner.lock_space == 0, Error::<T>::StateError);
-				if miner.lock_space != 0 {
+			<MinerItems<T>>::try_mutate(&sender, |miner_info_opt| -> DispatchResult {
+			
+				let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotExisted)?;
+				if (&sender != &miner) && (&sender != &miner_info.staking_account) {
+					Err(Error::<T>::NotStakingAcc)?;
+				}
+				ensure!(miner_info.state == STATE_POSITIVE.as_bytes().to_vec(), Error::<T>::StateError);
+				ensure!(miner_info.lock_space == 0, Error::<T>::StateError);
+				if miner_info.lock_space != 0 {
 					Err(Error::<T>::StateError)?;
 				}
 
-				miner.state = Self::str_to_bound(STATE_LOCK)?;
+				miner_info.state = Self::str_to_bound(STATE_LOCK)?;
 
 				Ok(())
 			})?;
@@ -644,19 +737,19 @@ pub mod pallet {
 			// TODO! Develop a lock-in period based on the maximum duration of the current challenge
 			let lock_time = T::OneDayBlock::get().checked_add(&now).ok_or(Error::<T>::Overflow)?;
 
-			<MinerLock<T>>::insert(&sender, lock_time);
+			<MinerLock<T>>::insert(&miner, lock_time);
 
-			let task_id: Vec<u8> = sender.encode();
+			let task_id: Vec<u8> = miner.encode();
 			T::FScheduler::schedule_named(
                 task_id,
                 DispatchTime::At(lock_time),
                 Option::None,
                 schedule::HARD_DEADLINE,
                 frame_system::RawOrigin::Root.into(),
-                Call::miner_exit{miner: sender.clone()}.into(), 
+                Call::miner_exit{miner: miner.clone()}.into(), 
         	).map_err(|_| Error::<T>::Unexpected)?;
 
-			Self::deposit_event(Event::<T>::MinerExitPrep{ miner: sender });
+			Self::deposit_event(Event::<T>::MinerExitPrep{ miner: miner });
 
 			Ok(())
 		}
@@ -713,7 +806,7 @@ pub mod pallet {
 				Err(Error::<T>::StateError)?;
 			}
 
-			Self::withdraw(&sender)?;
+			Self::withdraw(sender.clone())?;
 
 			Self::deposit_event(Event::<T>::Withdraw {
 				acc: sender,
@@ -721,6 +814,7 @@ pub mod pallet {
 
 			Ok(())
 		}
+		
 		/// Punish offline miners.
 		///
 		/// The dispatch origin of this call must be _root_.
@@ -850,9 +944,9 @@ pub mod pallet {
 }
 
 pub trait MinerControl<AccountId, BlockNumber> {
-	fn add_miner_idle_space(acc: &AccountId, accumulator: Accumulator, rear: u64, tee_sig: TeeRsaSignature) -> Result<u128, DispatchError>;
+	fn add_miner_idle_space(acc: &AccountId, accumulator: Accumulator, check_front: u64, rear: u64, tee_sig: TeeRsaSignature) -> Result<u128, DispatchError>;
 	// fn sub_miner_idle_space(acc: &AccountId, accumulator: Accumulator, rear: u64) -> DispatchResult;
-	fn delete_idle_update_accu(acc: &AccountId, accumulator: Accumulator, front: u64, tee_sig: TeeRsaSignature) -> Result<u64, DispatchError>;
+	fn delete_idle_update_accu(acc: &AccountId, accumulator: Accumulator, front: u64, check_rear: u64, tee_sig: TeeRsaSignature) -> Result<u64, DispatchError>;
 	fn delete_idle_update_space(acc: &AccountId, idle_space: u128) -> DispatchResult;
 	fn add_miner_service_space(acc: &AccountId, power: u128) -> DispatchResult;
 	fn sub_miner_service_space(acc: &AccountId, power: u128) -> DispatchResult;
@@ -898,12 +992,14 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 	fn add_miner_idle_space(
 		acc: &<T as frame_system::Config>::AccountId, 
 		accumulator: Accumulator,  
+		check_front: u64,
 		rear: u64, 
 		tee_sig: TeeRsaSignature
 	) -> Result<u128, DispatchError> {
 		let idle_space = Pallet::<T>::add_miner_idle_space(
 			acc, 
 			accumulator, 
+			check_front,
 			rear, 
 			tee_sig
 		)?;
@@ -913,13 +1009,15 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 	fn delete_idle_update_accu(
 		acc: &AccountOf<T>, 
 		accumulator: Accumulator, 
-		front: u64, 
+		front: u64,
+		check_rear: u64,
 		tee_sig: TeeRsaSignature
 	) -> Result<u64, DispatchError> {
 		let count = Self::delete_idle_update_accu(
 			acc, 
 			accumulator, 
 			front, 
+			check_rear,
 			tee_sig
 		)?;
 
