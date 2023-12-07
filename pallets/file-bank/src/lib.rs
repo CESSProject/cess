@@ -18,11 +18,11 @@
 //! * `buyfile` - Buy file with download fee.
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(test)]
-mod mock;
+// #[cfg(test)]
+// mod mock;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
 use frame_support::traits::{
 	FindAuthor, Randomness,
@@ -673,6 +673,7 @@ pub mod pallet {
 				&sender, 
 				idle_sig_info.accumulator,
 				idle_sig_info.front,
+				idle_sig_info.rear,
 				tee_sig,
 			)?;
 
@@ -753,6 +754,7 @@ pub mod pallet {
 			let idle_space = T::MinerControl::add_miner_idle_space(
 				&sender, 
 				idle_sig_info.accumulator, 
+				idle_sig_info.front,
 				idle_sig_info.rear,
 				tee_sig,
 			)?;

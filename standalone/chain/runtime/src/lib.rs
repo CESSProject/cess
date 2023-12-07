@@ -1035,6 +1035,8 @@ impl pallet_proxy::Config for Runtime {
  */
 parameter_types! {
 	pub const FaucetId: PalletId = PalletId(*b"facuetid");
+	#[derive(Clone, Eq, PartialEq)]
+	pub const StakingLockBlock: BlockNumber = DAYS * 180;
 }
 
 impl pallet_sminer::Config for Runtime {
@@ -1045,6 +1047,7 @@ impl pallet_sminer::Config for Runtime {
 	type WeightInfo = pallet_sminer::weights::SubstrateWeight<Runtime>;
 	type ItemLimit = ConstU32<200000>;
 	type OneDayBlock = OneDay;
+	type StakingLockBlock = StakingLockBlock;
 	type TeeWorkerHandler = TeeWorker;
 	type FScheduler = Scheduler;
 	type AScheduler = Scheduler;
