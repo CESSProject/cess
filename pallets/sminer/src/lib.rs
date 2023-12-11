@@ -35,7 +35,7 @@ use sp_runtime::traits::Zero;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::{AccountIdConversion, CheckedAdd, CheckedSub, CheckedDiv, Dispatchable, SaturatedConversion},
+	traits::{AccountIdConversion, CheckedAdd, CheckedSub, Dispatchable, SaturatedConversion},
 	RuntimeDebug, Perbill
 };
 use sp_std::{convert::TryInto, prelude::*, marker::PhantomData};
@@ -972,7 +972,7 @@ pub trait MinerControl<AccountId, BlockNumber> {
 		miner_service_space: u128,
 	) -> DispatchResult;
 
-	fn clear_punish(miner: &AccountId, level: u8, idle_space: u128, service_space: u128) -> DispatchResult;
+	fn clear_punish(miner: &AccountId, idle_space: u128, service_space: u128) -> DispatchResult;
 	fn idle_punish(miner: &AccountId, idle_space: u128, service_space: u128) -> DispatchResult;
 	fn service_punish(miner: &AccountId, idle_space: u128, service_space: u128) -> DispatchResult;
 
@@ -1128,11 +1128,10 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 
 	fn clear_punish(
 		miner: &AccountOf<T>, 
-		level: u8, 
 		idle_space: u128, 
 		service_space: u128
 	) -> DispatchResult {
-		Self::clear_punish(miner, level, idle_space, service_space)
+		Self::clear_punish(miner, idle_space, service_space)
 	}
 
 	fn idle_punish(

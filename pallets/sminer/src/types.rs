@@ -40,9 +40,6 @@ pub struct Reward<T: pallet::Config> {
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct RewardOrder<Balance> {
 	pub(super) order_reward: Balance,
-	pub(super) each_share: Balance,
-	pub(super) award_count: u8,
-	pub(super) has_issued: bool,
 }
 
 /// The custom struct for storing info of storage FaucetRecord.
