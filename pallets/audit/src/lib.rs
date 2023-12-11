@@ -791,13 +791,12 @@ pub mod pallet {
 
 						let _ = T::MinerControl::clear_punish(
 							&miner,
-							count,
 							challenge_info.miner_snapshot.idle_space,
 							challenge_info.miner_snapshot.service_space,
 						);
 						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-						//For Testing
-						if count >= 6 {
+
+						if count >= 3 {
 							let result = T::MinerControl::force_miner_exit(&miner);
 							weight = weight.saturating_add(T::DbWeight::get().reads_writes(5, 5));
 							if result.is_err() {

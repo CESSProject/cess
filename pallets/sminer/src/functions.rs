@@ -78,23 +78,22 @@ impl<T: Config> Pallet<T> {
 	// Note: that it is necessary to determine whether the state meets the exit conditions before use.
 	pub(super) fn execute_exit(acc: &AccountOf<T>) -> DispatchResult {
 		// T::Currency::unreserve(acc, miner.collaterals);
-		if let Ok(reward_info) = <RewardMap<T>>::try_get(acc).map_err(|_| Error::<T>::NotExisted) {
-			let reward = reward_info.total_reward
-				.checked_sub(&reward_info.reward_issued).ok_or(Error::<T>::Overflow)?;
-			T::RewardPool::add_reward(reward)?;
-		}
+		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
+			let miner_info = miner_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
+			miner_info.state = Self::str_to_bound(STATE_EXIT)?;
+			if let Ok(reward_info) = <RewardMap<T>>::try_get(acc).map_err(|_| Error::<T>::NotExisted) {
+				T::RewardPool::send_reward_to_miner(miner_info.beneficiary.clone(), reward_info.total_reward)?;
+			}
+			Ok(())
+		})?;
 
 		let mut miner_list = AllMiner::<T>::get();
 		miner_list.retain(|s| s != acc);
 		AllMiner::<T>::put(miner_list);
 
 		<RewardMap<T>>::remove(acc);
-		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
-			let miner_info = miner_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
-			miner_info.state = Self::str_to_bound(STATE_EXIT)?;
-
-			Ok(())
-		})
+		
+		Ok(())
 	}
 
 	pub(super) fn create_restoral_target(miner: &AccountOf<T>, service_space: u128) -> DispatchResult {

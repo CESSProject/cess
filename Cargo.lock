@@ -6361,6 +6361,7 @@ version = "0.7.4"
 dependencies = [
  "frame-support",
  "frame-system",
+ "log",
  "parity-scale-codec",
  "scale-info",
  "sp-runtime",

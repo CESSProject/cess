@@ -1062,6 +1062,7 @@ parameter_types! {
 	pub const RewardPalletId: PalletId = PalletId(*b"rewardpt");
 	pub const PunishTreasuryId: PalletId = PalletId(*b"punisdpt");
 	pub const SpaceTreasuryId: PalletId = PalletId(*b"spacedpt");
+	pub const ReserveRewardId: PalletId = PalletId(*b"sererdpt");
 }
 
 impl pallet_cess_treasury::Config for Runtime {
@@ -1070,6 +1071,7 @@ impl pallet_cess_treasury::Config for Runtime {
 	type MinerRewardId = RewardPalletId;
 	type PunishTreasuryId = PunishTreasuryId;
 	type SpaceTreasuryId = SpaceTreasuryId;
+	type ReserveRewardId = ReserveRewardId;
 	type BurnDestination = ();
 }
 
