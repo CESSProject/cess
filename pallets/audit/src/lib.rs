@@ -279,6 +279,8 @@ pub mod pallet {
 		RandomErr,
 
 		UnSubmitted,
+
+		TeeNoPermission,
 	}
 
 	//Relevant time nodes for storage challenges
@@ -518,6 +520,10 @@ pub mod pallet {
 					tee_signature: _,
 				} = &challenge_info.miner_snapshot;
 
+				ensure!(
+					T::TeeWorkerHandler::can_verify(&tee_acc),
+					Error::<T>::TeeNoPermission
+				);
 				let verify_idle_info = VerifyIdleResultInfo::<T> {
 					miner: sender.clone(),
 					miner_prove: total_prove_hash.clone(),
@@ -630,6 +636,10 @@ pub mod pallet {
 					tee_signature: _,
 				} = challenge_info.miner_snapshot;
 
+				ensure!(
+					T::TeeWorkerHandler::can_verify(&tee_acc),
+					Error::<T>::TeeNoPermission
+				);
 				let verify_service_info = VerifyServiceResultInfo::<T> {
 					miner: sender.clone(),
 					tee_acc: tee_acc.clone(),

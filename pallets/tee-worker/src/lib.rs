@@ -83,7 +83,7 @@ pub mod pallet {
 		//Already registered
 		AlreadyRegistration,
 		//Not a controller account
-		NotController,
+		NotStash,
 		//The scheduled error report has been reported once
 		AlreadyReport,
 		//Boundedvec conversion error
@@ -104,14 +104,24 @@ pub mod pallet {
 		Existed,
 
 		CesealRejected,
+
 		InvalidIASSigningCert,
+
 		InvalidReport,
+
 		InvalidQuoteStatus,
+
 		BadIASReport,
+
 		OutdatedIASReport,
+
 		UnknownQuoteBodyFormat,
+
 		InvalidCesealInfoHash,
+
 		NoneAttestationDisabled,
+
+		WrongTeeType,
 	}
 
 	#[pallet::storage]
@@ -130,6 +140,10 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn mr_enclave_whitelist)]
 	pub(super) type MrEnclaveWhitelist<T: Config> = StorageValue<_, BoundedVec<[u8; 64], T::MaxWhitelist>, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn validation_type_list)]
+	pub(super) type ValidationTypeList<T: Config> = StorageValue<_, BoundedVec<AccountOf<T>, T::SchedulerMaximum>, ValueQuery>;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -152,20 +166,26 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::registration_scheduler())]
 		pub fn register(
 			origin: OriginFor<T>,
-			stash_account: AccountOf<T>,
+			worker_account: AccountOf<T>,
+			stash_account: Option<AccountOf<T>>,
 			peer_id: PeerId,
 			podr2_pbk: Podr2Key,
 			sgx_attestation_report: SgxAttestationReport,
 			end_point: EndPoint,
+			tee_type: TeeType,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			//Even if the primary key is not present here, panic will not be caused
-			let acc = <pallet_cess_staking::Pallet<T>>::bonded(&stash_account)
-				.ok_or(Error::<T>::NotBond)?;
-			if sender != acc {
-				Err(Error::<T>::NotController)?;
-			}
-			ensure!(!TeeWorkerMap::<T>::contains_key(&sender), Error::<T>::AlreadyRegistration);
+			match &stash_account {
+				Some(acc) => {
+					ensure!(&sender == acc, Error::<T>::NotStash);
+					let _ = <pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond)?;
+					ensure!(tee_type == TeeType::Verifier || tee_type == TeeType::Full, Error::<T>::WrongTeeType);
+				},
+				None => ensure!(tee_type == TeeType::Certifier || tee_type == TeeType::Marker, Error::<T>::WrongTeeType),
+			};
+
+			ensure!(!TeeWorkerMap::<T>::contains_key(&worker_account), Error::<T>::AlreadyRegistration);
 
 			let attestation = Attestation::SgxIas {
 				ra_report: sgx_attestation_report.report_json_raw.to_vec(),
@@ -176,12 +196,14 @@ pub mod pallet {
 			};
 			
 			// Validate RA report & embedded user data
+			let worker_account_encode = worker_account.encode();
 			let mut identity = Vec::new();
 			identity.extend_from_slice(&peer_id);
 			identity.extend_from_slice(&podr2_pbk);
 			identity.extend_from_slice(&end_point);
+			identity.extend_from_slice(&worker_account_encode);
 			let now = T::UnixTime::now().as_secs();
-						
+
 			let _ = IasValidator::validate(
 				&attestation,
 				&sp_io::hashing::sha2_256(&identity),
@@ -191,19 +213,26 @@ pub mod pallet {
 			).map_err(Into::<Error<T>>::into)?;
 
 			let tee_worker_info = TeeWorkerInfo::<T> {
-				controller_account: sender.clone(),
 				peer_id: peer_id.clone(),
-				stash_account: stash_account,
+				bond_stash: stash_account,
 				end_point,
+				tee_type: tee_type.clone(),
 			};
+
+			if tee_type == TeeType::Full || tee_type == TeeType::Verifier {
+				ValidationTypeList::<T>::mutate(|tee_list| -> DispatchResult {
+					tee_list.try_push(worker_account.clone()).map_err(|_| Error::<T>::BoundedVecError)?;
+					Ok(())
+				})?;
+			}
 
 			if TeeWorkerMap::<T>::count() == 0 {
 				<TeePodr2Pk<T>>::put(podr2_pbk);
 			}
 
-			TeeWorkerMap::<T>::insert(&sender, tee_worker_info);
+			TeeWorkerMap::<T>::insert(&worker_account, tee_worker_info);
 
-			Self::deposit_event(Event::<T>::RegistrationTeeWorker { acc: sender, peer_id: peer_id });
+			Self::deposit_event(Event::<T>::RegistrationTeeWorker { acc: worker_account, peer_id: peer_id });
 
 			Ok(())
 		}
@@ -244,6 +273,13 @@ pub mod pallet {
 		pub fn exit(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
+			let tee_info = TeeWorkerMap::<T>::try_get(&sender).map_err(|_| Error::<T>::Overflow)?;
+			if tee_info.tee_type == TeeType::Full || tee_info.tee_type == TeeType::Verifier {
+				ValidationTypeList::<T>::mutate(|tee_list| {
+					tee_list.retain(|tee_acc| *tee_acc != sender.clone());
+				});
+			}
+
 			TeeWorkerMap::<T>::remove(&sender);
 
 			if TeeWorkerMap::<T>::count() == 0 {
@@ -272,18 +308,19 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::registration_scheduler())]
 		pub fn force_register(
 			origin: OriginFor<T>,
-			stash_account: AccountOf<T>,
+			stash_account: Option<AccountOf<T>>,
 			controller_account: AccountOf<T>,
 			peer_id: PeerId,
 			end_point: EndPoint,
+			tee_type: TeeType,
 		) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
 			let tee_worker_info = TeeWorkerInfo::<T> {
-				controller_account: controller_account.clone(),
 				peer_id: peer_id.clone(),
-				stash_account: stash_account,
+				bond_stash: stash_account,
 				end_point,
+				tee_type: tee_type,
 			};
 
 			TeeWorkerMap::<T>::insert(&controller_account, tee_worker_info);
@@ -309,37 +346,72 @@ pub mod pallet {
 	}
 }
 pub trait TeeWorkerHandler<AccountId> {
+	fn can_tag(acc: &AccountId) -> bool;
+	fn can_verify(acc: &AccountId) -> bool;
+	fn can_cert(acc: &AccountId) -> bool;
 	fn contains_scheduler(acc: AccountId) -> bool;
+	fn is_bonded(acc: AccountId) -> bool;
 	fn punish_scheduler(acc: AccountId) -> DispatchResult;
-	fn get_first_controller() -> Result<AccountId, DispatchError>;
 	fn get_controller_list() -> Vec<AccountId>;
 	fn get_tee_publickey() -> Result<Podr2Key, DispatchError>;
 }
 
 impl<T: Config> TeeWorkerHandler<<T as frame_system::Config>::AccountId> for Pallet<T> {
+	fn can_tag(acc: &AccountOf<T>) -> bool {
+		if let Ok(tee_info) = TeeWorkerMap::<T>::try_get(&acc) {
+			if TeeType::Marker == tee_info.tee_type || TeeType::Full == tee_info.tee_type {
+				return true;
+			}
+		}
+
+		false
+	}
+
+	fn can_verify(acc: &AccountOf<T>) -> bool {
+		if let Ok(tee_info) = TeeWorkerMap::<T>::try_get(acc) {
+			if TeeType::Verifier == tee_info.tee_type || TeeType::Full == tee_info.tee_type {
+				return true;
+			}
+		}
+
+		false
+	}
+
+	fn can_cert(acc: &AccountOf<T>) -> bool {
+		if let Ok(tee_info) = TeeWorkerMap::<T>::try_get(acc) {
+			if TeeType::Certifier == tee_info.tee_type || TeeType::Full == tee_info.tee_type {
+				return true;
+			}
+		}
+
+		false
+	}
+
 	fn contains_scheduler(acc: <T as frame_system::Config>::AccountId) -> bool {
 		TeeWorkerMap::<T>::contains_key(&acc)
 	}
 
+	fn is_bonded(acc: AccountOf<T>) -> bool {
+		if let Ok(tee_info) = TeeWorkerMap::<T>::try_get(&acc) {
+			let result = tee_info.bond_stash.is_some();
+			return result;
+		}
+
+		false
+	}
+
 	fn punish_scheduler(acc: <T as frame_system::Config>::AccountId) -> DispatchResult {
 		let tee_worker = TeeWorkerMap::<T>::try_get(&acc).map_err(|_| Error::<T>::NonTeeWorker)?;
-		pallet_cess_staking::slashing::slash_scheduler::<T>(&tee_worker.stash_account);
-		T::CreditCounter::record_punishment(&tee_worker.stash_account)?;
+		if let Some(stash_account) = tee_worker.bond_stash {
+			pallet_cess_staking::slashing::slash_scheduler::<T>(&stash_account);
+			T::CreditCounter::record_punishment(&stash_account)?;
+		}
 
 		Ok(())
 	}
 
-	fn get_first_controller() -> Result<<T as frame_system::Config>::AccountId, DispatchError> {
-		let (controller_acc, _) = TeeWorkerMap::<T>::iter().next().ok_or(Error::<T>::NonTeeWorker)?;
-		return Ok(controller_acc);
-	}
-
 	fn get_controller_list() -> Vec<AccountOf<T>> {
-		let mut acc_list: Vec<AccountOf<T>> = Default::default();
-
-		for (acc, _) in <TeeWorkerMap<T>>::iter() {
-			acc_list.push(acc);
-		}
+		let acc_list = <ValidationTypeList<T>>::get().to_vec();
 
 		acc_list
 	}
