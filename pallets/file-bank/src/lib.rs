@@ -262,6 +262,8 @@ pub mod pallet {
 		VerifyTeeSigFailed,
 
 		InsufficientReplaceable,
+
+		TeeNoPermission,
 	}
 
 	#[pallet::storage]
@@ -659,12 +661,20 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			idle_sig_info: SpaceProofInfo<AccountOf<T>>,
 			tee_sig: TeeRsaSignature,
+			tee_acc: AccountOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
-			let original = idle_sig_info.encode();
+			ensure!(
+				T::TeeWorkerHandler::can_cert(&tee_acc),
+				Error::<T>::TeeNoPermission
+			);
+			let idle_sig_info_encode = idle_sig_info.encode();
+			let tee_acc_encode = tee_acc.encode();
+			let mut original = Vec::new();
+			original.extend_from_slice(&idle_sig_info_encode);
+			original.extend_from_slice(&tee_acc_encode);
 			let original = sp_io::hashing::sha2_256(&original);
-
 			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
 
 			ensure!(verify_rsa(&tee_puk, &original, &tee_sig), Error::<T>::VerifyTeeSigFailed);
@@ -741,10 +751,19 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			idle_sig_info: SpaceProofInfo<AccountOf<T>>,
 			tee_sig: TeeRsaSignature,
+			tee_acc: AccountOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
-			let original = idle_sig_info.encode();
+			ensure!(
+				T::TeeWorkerHandler::can_cert(&tee_acc),
+				Error::<T>::TeeNoPermission
+			);
+			let idle_sig_info_encode = idle_sig_info.encode();
+			let tee_acc_encode = tee_acc.encode();
+			let mut original = Vec::new();
+			original.extend_from_slice(&idle_sig_info_encode);
+			original.extend_from_slice(&tee_acc_encode);
 			let original = sp_io::hashing::sha2_256(&original);
 
 			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
