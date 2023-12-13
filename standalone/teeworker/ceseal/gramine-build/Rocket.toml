@@ -1,0 +1,15 @@
+[global]
+address = "0.0.0.0"
+port = 8000
+workers = 1
+max_blocking = 32
+cli_colors = false
+
+[global.limits]
+json = 104857600
+bytes = 104857600
+"CesealApi.DispatchBlocks" = 104857600
+"CesealApi.InitRuntime" = 104857600
+
+[default.shutdown]
+ctrlc = false

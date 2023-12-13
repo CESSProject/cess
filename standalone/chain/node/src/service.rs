@@ -364,7 +364,6 @@ where
 		let select_chain = select_chain.clone();
 		let keystore = keystore_container.keystore();
 		let chain_spec = config.chain_spec.cloned_box();
-
 		let rpc_backend = backend.clone();
 		let rpc_extensions_builder = move |deny_unsafe, subscription_executor: SubscriptionTaskExecutor| {
 			let eths = eth_rpc_params.clone();
@@ -388,7 +387,12 @@ where
 				backend: rpc_backend.clone(),
 			};
 
-			node_rpc::create_full(deps, eths, subscription_executor, pubsub_notification_sinks.clone()).map_err(Into::into)
+			node_rpc::create_full(
+				deps, 
+				eths, 
+				subscription_executor, 
+				pubsub_notification_sinks.clone()
+			).map_err(Into::into)
 		};
 
 		(rpc_extensions_builder, shared_voter_state2)

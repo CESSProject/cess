@@ -1,0 +1,10 @@
+[package]
+name = "cestory-pal"
+version = "0.1.0"
+edition = "2021"
+description = "Platform abstraction layer for Ceseal"
+
+[dependencies]
+anyhow = { workspace = true }
+ces-types = { workspace = true, features = ["enable_serde", "sgx"] }
+cestory-api = { workspace = true }

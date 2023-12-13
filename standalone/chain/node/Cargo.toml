@@ -45,28 +45,29 @@ sp-session = { workspace = true, features = ["default"] }
 sp-trie = { workspace = true, features = ["default"] }
 
 # client dependencies
-sc-client-api = { workspace = true }
+cessc-consensus-rrsc = { workspace = true }
+cessc-sync-state-rpc = { workspace = true }
+grandpa = { workspace = true }
+prometheus-endpoint = { workspace = true }
+sc-authority-discovery = { workspace = true }
+sc-basic-authorship = { workspace = true }
 sc-chain-spec = { workspace = true }
+sc-client-api = { workspace = true }
+sc-client-db = { workspace = true }
 sc-consensus = { workspace = true }
 sc-consensus-manual-seal = { workspace = true }
-sc-transaction-pool = { workspace = true }
-sc-transaction-pool-api = { workspace = true }
+sc-consensus-slots = { workspace = true }
+sc-executor = { workspace = true }
 sc-network = { workspace = true }
 sc-network-common = { workspace = true }
 sc-network-sync = { workspace = true }
 sc-offchain = { workspace = true }
-sc-consensus-slots = { workspace = true }
-cessc-consensus-rrsc = { workspace = true }
-grandpa = { workspace = true }
 sc-rpc = { workspace = true }
-sc-basic-authorship = { workspace = true }
 sc-service = { workspace = true }
-sc-telemetry = { workspace = true }
-sc-executor = { workspace = true }
-sc-authority-discovery = { workspace = true }
-cessc-sync-state-rpc = { workspace = true }
 sc-sysinfo = { workspace = true }
-prometheus-endpoint = { workspace = true }
+sc-telemetry = { workspace = true }
+sc-transaction-pool = { workspace = true }
+sc-transaction-pool-api = { workspace = true }
 
 # frame dependencies
 frame-system = { workspace = true }
@@ -78,6 +79,8 @@ pallet-im-online = { workspace = true, features = ["default"] }
 
 # node-specific dependencies
 cess-node-runtime = { workspace = true, features = ["std"] }
+ces-node-rpc-ext = { workspace = true }
+pallet-mq-runtime-api = { workspace = true }
 
 # CLI-specific dependencies
 sc-cli = { workspace = true }
@@ -86,7 +89,6 @@ try-runtime-cli = { workspace = true, optional = true }
 serde_json = { workspace = true }
 
 # Other
-
 frame-benchmarking = { workspace = true }
 mmr-rpc = { workspace = true }
 substrate-state-trie-migration-rpc = { workspace = true }

@@ -1,0 +1,18 @@
+[package]
+name = "crpc-build"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+prost-build = { workspace = true }
+syn = { workspace = true }
+quote = { workspace = true }
+proc-macro2 = { workspace = true }
+derive_wrapper = { workspace = true }
+prost-types = { workspace = true }
+prost = { workspace = true }
+itertools = { workspace = true }
+either = { workspace = true }
+multimap = { workspace = true }
+heck = { workspace = true }
+log = { workspace = true }

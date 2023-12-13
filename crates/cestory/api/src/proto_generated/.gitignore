@@ -1,0 +1,5 @@
+*
+
+!.gitignore
+!mod.rs
+!tests.rs

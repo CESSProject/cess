@@ -2,6 +2,7 @@
 use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch, NativeVersion};
 
 use cess_node_runtime::{opaque::Block, AccountId, Balance, Nonce};
+use pallet_mq_runtime_api::MqApi;
 
 use crate::eth::EthCompatRuntimeApiCollection;
 
@@ -63,6 +64,7 @@ pub trait RuntimeApiCollection:
     + sp_authority_discovery::AuthorityDiscoveryApi<Block>
 	+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
 	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
+	+ MqApi<Block>
 {
 }
 
@@ -74,5 +76,6 @@ impl<Api> RuntimeApiCollection for Api where
 		+ sp_authority_discovery::AuthorityDiscoveryApi<Block>
 		+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
 		+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
+		+ MqApi<Block>
 {
 }

@@ -9,34 +9,25 @@ description = "FRAME pallet for TEE Worker management"
 readme = "README.md"
 
 [dependencies]
-chrono = { workspace = true }
-hex ={ workspace = true }
-serde = { workspace = true, optional = true }
-codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive", "max-encoded-len"] }
-scale-info = { workspace = true, features = ['derive'] }
-serde_json = { workspace = true, features = ['alloc'] }
-log = { workspace = true }
-sp-io = { workspace = true }
 base64 = { workspace = true }
+chrono = { workspace = true }
+codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive", "max-encoded-len"] }
+frame-benchmarking = { workspace = true, optional = true }
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+scale-info = { workspace = true, features = ['derive'] }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, features = ['alloc'] }
+sp-core = { workspace = true }
+sp-io = { workspace = true }
+sp-runtime = { workspace = true }
+sp-std = { workspace = true }
 
 # local dependencies
 cp-cess-common = { workspace = true }
 cp-scheduler-credit = { workspace = true }
-sgx-attestation = { workspace = true }
-
-frame-benchmarking = { workspace = true, optional = true }
-
-frame-support = { workspace = true }
-
-frame-system = { workspace = true }
-
-sp-std = { workspace = true }
-
-sp-core = { workspace = true }
-
-sp-runtime = { workspace = true }
-
 pallet-cess-staking = { workspace = true }
+sgx-attestation = { workspace = true }
 
 
 [dev-dependencies]
@@ -48,23 +39,27 @@ frame-election-provider-support = { workspace = true }
 pallet-session = { workspace = true }
 pallet-bags-list = { workspace = true }
 pallet-scheduler-credit = { workspace = true }
+hex ={ workspace = true }
 
 
 [features]
 default = ["std"]
 std = [
-	"serde",
 	"codec/std",
-	"scale-info/std",
-	"sp-std/std",
-	"sp-io/std",
-	"sp-runtime/std",
+	"chrono/std",
+	"cp-cess-common/std",
+	"frame-benchmarking/std",
 	"frame-support/std",
 	"frame-system/std",
-	"frame-benchmarking/std",
-	"pallet-session/std",
 	"pallet-cess-staking/std",
-	"cp-cess-common/std",
+	"pallet-session/std",
+	"scale-info/std",
+	"serde",
+	"sgx-attestation/std",
+	"sp-core/std",
+	"sp-io/std",
+	"sp-runtime/std",
+	"sp-std/std",
 ]
 
 runtime-benchmarks = [

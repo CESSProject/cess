@@ -84,6 +84,9 @@ pallet-tee-worker = { workspace = true }
 pallet-storage-handler = { workspace = true }
 pallet-oss = { workspace = true }
 pallet-cacher = { workspace = true }
+ces-types = { workspace = true }
+ces-pallets = { workspace = true }
+pallet-mq-runtime-api = { workspace = true }
 
 # Frontier
 fp-account = { workspace = true, features = ["serde"] }
@@ -187,6 +190,9 @@ std = [
   "sp-transaction-pool/std",
   "sp-version/std",
   "substrate-wasm-builder",
+  "ces-types/std",
+  "ces-pallets/std",
+	"pallet-mq-runtime-api/std",
 ]
 runtime-benchmarks = [
   "frame-benchmarking/runtime-benchmarks",

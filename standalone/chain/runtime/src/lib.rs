@@ -111,6 +111,9 @@ pub use pallet_cess_staking::StakerStatus;
 pub use sp_runtime::BuildStorage;
 
 mod voter_bags;
+mod msg_routing;
+
+pub use ces_pallets::{pallet_mq, pallet_registry};
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -179,7 +182,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
-	state_version: 1,
+	state_version: 0,
 };
 
 /// The Babe epoch configuration at genesis.
@@ -1259,6 +1262,7 @@ where
 			frame_system::CheckEra::<Runtime>::from(era),
 			frame_system::CheckNonce::<Runtime>::from(nonce),
 			frame_system::CheckWeight::<Runtime>::new(),
+			pallet_mq::CheckMqSequence::<Runtime>::new(),
 			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 		);
 		let raw_payload = SignedPayload::new(call, extra)
@@ -1592,6 +1596,36 @@ impl fp_self_contained::SelfContainedCall for RuntimeCall {
 /***
  * Frontier End--------------------------------------------------------------------
  */
+
+parameter_types! {
+	pub const NoneAttestationEnabled: bool = true;
+	pub const VerifyCeseal: bool = false;
+}
+
+impl pallet_registry::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type Currency = Balances;
+    type UnixTime = Timestamp;
+    type LegacyAttestationValidator = pallet_registry::IasValidator;
+    type NoneAttestationEnabled = NoneAttestationEnabled;
+    type VerifyCeseal = VerifyCeseal;
+    type GovernanceOrigin = EnsureRootOrHalfCouncil;
+}
+
+pub struct MqCallMatcher;
+impl pallet_mq::CallMatcher<Runtime> for MqCallMatcher {
+    fn match_call(call: &RuntimeCall) -> Option<&pallet_mq::Call<Runtime>> {
+        match call {
+            RuntimeCall::CesMq(mq_call) => Some(mq_call),
+            _ => None,
+        }
+    }
+}
+impl pallet_mq::Config for Runtime {
+    type QueueNotifyConfig = msg_routing::MessageRouteConfig;
+    type CallMatcher = MqCallMatcher;
+}
+
 parameter_types! {
 	pub const PeriodDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS * SessionsPerEra::get();
 }
@@ -1671,6 +1705,8 @@ construct_runtime!(
 		Oss: pallet_oss = 66,
 		Cacher: pallet_cacher = 67,
 		CessTreasury: pallet_cess_treasury = 68,
+		CesMq: pallet_mq = 69,
+        CesRegistry: pallet_registry = 70,
 	}
 );
 
@@ -1707,6 +1743,7 @@ pub type SignedExtra = (
 	frame_system::CheckEra<Runtime>,
 	frame_system::CheckNonce<Runtime>,
 	frame_system::CheckWeight<Runtime>,
+	pallet_mq::CheckMqSequence<Runtime>,
 	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
@@ -2345,4 +2382,10 @@ impl_runtime_apis! {
 			Ok(batches)
 		}
 	}
+
+	impl pallet_mq_runtime_api::MqApi<Block> for Runtime {
+        fn sender_sequence(sender: &ces_types::messaging::MessageOrigin) -> Option<u64> {
+            CesMq::offchain_ingress(sender)
+        }
+    }
 }

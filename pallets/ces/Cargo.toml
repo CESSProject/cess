@@ -1,0 +1,56 @@
+[package]
+authors = ["CESS Network"]
+edition = "2021"
+name = "ces-pallets"
+version = "4.1.0"
+license = "Apache 2.0"
+homepage = "https://cess.cloud/"
+repository = "https://github.com/CESSProject/cess"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+chrono = { workspace = true }
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+hex = { workspace = true }
+parity-scale-codec = { workspace = true, features = ["derive"] }
+primitive-types = { workspace = true, features = ["codec", "byteorder"] }
+scale-info = { workspace = true, features = ["derive"] }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, features = ["alloc"] }
+sp-core = { workspace = true }
+sp-io = { workspace = true }
+sp-runtime = { workspace = true }
+sp-std = { workspace = true }
+
+ces-types = { workspace = true, features = ["enable_serde"] }
+sgx-attestation = { workspace = true }
+
+
+[dev-dependencies]
+
+
+[features]
+default = ["std"]
+std = [
+	"ces-types/enable_serde",
+	"chrono/std",
+	"frame-support/std",
+	"frame-system/std",
+	"hex/std",
+	"parity-scale-codec/std",
+	"primitive-types/std",
+	"scale-info/std",
+	"serde/alloc",
+	"serde/derive",
+	"sgx-attestation/std",
+	"sp-core/std",
+	"sp-io/std",
+	"sp-runtime/std",
+	"sp-std/std",
+]
+runtime-benchmarks = []
+try-runtime = ["frame-support/try-runtime"]
+native = []

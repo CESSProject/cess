@@ -1,0 +1,8 @@
+[package]
+name = "ces-rocket-middleware"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rocket = { workspace = true }
+log = { workspace = true }

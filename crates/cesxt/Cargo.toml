@@ -1,0 +1,21 @@
+[package]
+name = "cesxt"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+parity-scale-codec = { workspace = true }
+scale-info = { workspace = true }
+scale-encode = { workspace = true }
+anyhow = { workspace = true }
+tokio = { workspace = true }
+
+subxt = { workspace = true, features = ["substrate-compat"] }
+jsonrpsee = { version = "0.20" }  # use the same version of jsonrpsee in subxt
+primitive-types = { workspace = true, default-features = true }
+
+ces-types = { workspace = true, default-features = true }
+ces-node-rpc-ext-types = { workspace = true, default-features = true }
+ces-pallets = { workspace = true, default-features = true }

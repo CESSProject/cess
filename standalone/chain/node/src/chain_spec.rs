@@ -602,5 +602,6 @@ fn testnet_genesis(
 		dynamic_fee: Default::default(),
 		base_fee: Default::default(),
 		evm_chain_id: EVMChainIdConfig { chain_id: 11330, ..Default::default() },
+		ces_registry: Default::default(),
 	}
 }
