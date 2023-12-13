@@ -1,7 +1,8 @@
 # Basic
 edition = "2021"
 hard_tabs = true
-max_width = 100
+tab_spaces = 4
+max_width = 120
 use_small_heuristics = "Max"
 # Imports
 imports_granularity = "Crate"
@@ -9,7 +10,7 @@ reorder_imports = true
 # Consistency
 newline_style = "Unix"
 # Format comments
-comment_width = 100
+comment_width = 120
 wrap_comments = true
 # Misc
 chain_width = 80
