@@ -34,6 +34,7 @@ impl<T: Config> Pallet<T> {
                 let frag_info = FragmentInfo::<T> {
                     hash:  *fragment_hash,
                     avail: true,
+                    tag: None,
                     miner: complete_list[index as usize].miner.clone(),
                 };
 
@@ -106,15 +107,8 @@ impl<T: Config> Pallet<T> {
         user_brief: UserBrief<T>,
         file_size: u128,
     ) -> DispatchResult {
-        let space = Self::cal_file_size(file_info.len() as u128);
-
-        let life = space / TRANSFER_RATE + 1;
-
-        Self::start_first_task(file_hash.0.to_vec(), file_hash, 1, life as u32)?;
 
         let deal = DealInfo::<T> {
-            stage: 1,
-            count: 0,
             file_size,
             segment_list: file_info.clone(),
             user: user_brief,
@@ -126,45 +120,7 @@ impl<T: Config> Pallet<T> {
         Ok(())
     }
 
-    pub(super) fn start_first_task(task_id: Vec<u8>, deal_hash: Hash, count: u8, life: u32) -> DispatchResult {
-        let start: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
-        let survival_block = start
-            // temp
-            // .checked_add(50 * (count as u32)).ok_or(Error::<T>::Overflow)?
-            .checked_add(50).ok_or(Error::<T>::Overflow)?
-            .checked_add(life).ok_or(Error::<T>::Overflow)?;
-
-        T::FScheduler::schedule_named(
-                task_id, 
-                DispatchTime::At(survival_block.saturated_into()),
-                Option::None,
-                schedule::HARD_DEADLINE,
-                frame_system::RawOrigin::Root.into(),
-                Call::deal_timing_task{deal_hash: deal_hash, count: count, life: life}.into(),
-        ).map_err(|_| Error::<T>::Unexpected)?;
-
-        Ok(())
-    }
-    
-    pub(super) fn start_second_task(task_id: Vec<u8>, deal_hash: Hash, life: u32) -> DispatchResult {
-        let start: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
-        // todo! calculate time
-        let survival_block = start
-            .checked_add(life).ok_or(Error::<T>::Overflow)?;
-
-        T::FScheduler::schedule_named(
-                task_id,
-                DispatchTime::At(survival_block.saturated_into()),
-                Option::None,
-                schedule::HARD_DEADLINE,
-                frame_system::RawOrigin::Root.into(),
-                Call::calculate_end{deal_hash: deal_hash}.into(), 
-        ).map_err(|_| Error::<T>::Unexpected)?;
-
-        Ok(())
-    }
-
-    pub(super) fn remove_deal(deal_hash: &Hash) -> DispatchResult {
+    pub fn remove_deal(deal_hash: &Hash) -> DispatchResult {
         let deal_info = <DealMap<T>>::try_get(deal_hash).map_err(|_| Error::<T>::NonExistent)?;
         let segment_len = deal_info.segment_list.len() as u128;
 		let needed_space = Self::cal_file_size(segment_len);
@@ -185,7 +141,6 @@ impl<T: Config> Pallet<T> {
 
     pub(super) fn delete_user_file(file_hash: &Hash, acc: &AccountOf<T>, file: &FileInfo<T>) -> Result<Weight, DispatchError> {
         let mut weight: Weight = Weight::zero();
-		ensure!(file.stat != FileState::Calculate, Error::<T>::Calculate);
 
 		for user_brief in file.owner.iter() {
             if &user_brief.user == acc {
@@ -261,41 +216,51 @@ impl<T: Config> Pallet<T> {
         let mut total_fragment_dec = 0;
         // Used to record and store the amount of service space that miners need to reduce, 
         // and read changes once through counting
-        let mut miner_list: BTreeMap<AccountOf<T>, Vec<Hash>> = Default::default();
+        let mut miner_list: BTreeMap<AccountOf<T>, Vec<(Hash, bool)>> = Default::default();
         // Traverse every segment
         for segment_info in file.segment_list.iter() {
             for fragment_info in segment_info.fragment_list.iter() {
                 // The total number of fragments in a file should never exceed u32
                 total_fragment_dec += 1;
+                let tag_avail = match fragment_info.tag {
+                    Some(_) => true,
+                    None => false,
+                };
                 if miner_list.contains_key(&fragment_info.miner) {
                     let temp_list = miner_list.get_mut(&fragment_info.miner).ok_or(Error::<T>::BugInvalid)?;
                     // The total number of fragments in a file should never exceed u32
-                    temp_list.push(fragment_info.hash);
+                    temp_list.push((fragment_info.hash, tag_avail));
                 } else {
-                    miner_list.insert(fragment_info.miner.clone(), vec![fragment_info.hash]);
+                    miner_list.insert(fragment_info.miner.clone(), vec![(fragment_info.hash, tag_avail)]);
                 }
             }
         }
 
         for (miner, hash_list) in miner_list.iter() {
             let count = hash_list.len() as u128;
+            
             if T::MinerControl::restoral_target_is_exist(miner) {
                 T::MinerControl::update_restoral_target(miner, FRAGMENT_SIZE * count)?;
+                weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
             } else {
+                let mut count: u128 = 0;
+                let mut unlock_count: u128 = 0;
                 let mut binary_list: Vec<Box<[u8; 256]>> = Default::default(); 
-                for fragment_hash in hash_list {
-					let binary_temp = fragment_hash.binary().map_err(|_| Error::<T>::BugInvalid)?;
-					binary_list.push(binary_temp);
+                for (fragment_hash, tag_avail) in hash_list {
+                    if *tag_avail {
+                        let binary_temp = fragment_hash.binary().map_err(|_| Error::<T>::BugInvalid)?;
+                        binary_list.push(binary_temp);
+                        count = count + 1;
+                    } else {
+                        unlock_count = unlock_count + 1;
+                    }
                 }
-                if file.stat == FileState::Active {
-                    T::MinerControl::sub_miner_service_space(miner, FRAGMENT_SIZE * count)?;
-                    T::MinerControl::delete_service_bloom(miner, binary_list)?;
-                }
-                if file.stat == FileState::Calculate {
-                    T::MinerControl::unlock_space(miner, FRAGMENT_SIZE * count)?;
-                }
+                T::MinerControl::sub_miner_service_space(miner, FRAGMENT_SIZE * count)?;
+                T::MinerControl::delete_service_bloom(miner, binary_list)?;
+                T::MinerControl::unlock_space_direct(miner, FRAGMENT_SIZE * unlock_count)?;
+                weight = weight.saturating_add(T::DbWeight::get().reads_writes(3, 3));
             }
-            weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+            
         }
 
         if user_clear {

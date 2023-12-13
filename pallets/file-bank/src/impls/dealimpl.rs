@@ -20,7 +20,6 @@ impl<T: Config> DealInfo<T> {
     }
 
     pub fn completed_all(&mut self) -> DispatchResult {
-        self.stage = 2;
         for complete_info in self.complete_list.iter() {
             <PendingReplacements<T>>::try_mutate(&complete_info.miner, |pending_space| -> DispatchResult {
                 let replace_space = FRAGMENT_SIZE  

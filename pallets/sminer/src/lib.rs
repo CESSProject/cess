@@ -35,7 +35,7 @@ use sp_runtime::traits::Zero;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::{AccountIdConversion, CheckedAdd, CheckedSub, Dispatchable, SaturatedConversion},
+	traits::{AccountIdConversion, CheckedAdd, CheckedSub, CheckedMul, Dispatchable, SaturatedConversion},
 	RuntimeDebug, Perbill
 };
 use sp_std::{convert::TryInto, prelude::*, marker::PhantomData};
@@ -735,7 +735,9 @@ pub mod pallet {
 
 			let now = <frame_system::Pallet<T>>::block_number();
 			// TODO! Develop a lock-in period based on the maximum duration of the current challenge
-			let lock_time = T::OneDayBlock::get().checked_add(&now).ok_or(Error::<T>::Overflow)?;
+			let lock_time = T::OneDayBlock::get()
+				.checked_mul(&15u32.saturated_into()).ok_or(Error::<T>::Overflow)?
+				.checked_add(&now).ok_or(Error::<T>::Overflow)?;
 
 			<MinerLock<T>>::insert(&miner, lock_time);
 
@@ -777,11 +779,11 @@ pub mod pallet {
 			ensure!(miner_info.state.to_vec() == STATE_LOCK.as_bytes().to_vec(), Error::<T>::StateError);
 			// sub network total idle space.
 
-			T::StorageHandle::sub_total_idle_space(miner_info.idle_space + miner_info.lock_space)?;
+			T::StorageHandle::sub_total_idle_space(miner_info.idle_space)?;
 
 			Self::execute_exit(&miner)?;
 
-			Self::create_restoral_target(&miner, miner_info.service_space)?;
+			Self::create_restoral_target(&miner, miner_info.service_space + miner_info.lock_space)?;
 
 			Ok(())
 		}
@@ -960,6 +962,7 @@ pub trait MinerControl<AccountId, BlockNumber> {
 	fn delete_service_bloom(acc: &AccountId, hash_list: Vec<Box<[u8; 256]>>) -> DispatchResult;
 	fn lock_space(acc: &AccountId, space: u128) -> DispatchResult;
 	fn unlock_space(acc: &AccountId, space: u128) -> DispatchResult;
+	fn unlock_space_direct(acc: &AccountId, space: u128) -> DispatchResult;
 	fn unlock_space_to_service(acc: &AccountId, space: u128) -> DispatchResult;
 
 	fn get_miner_idle_space(acc: &AccountId) -> Result<u128, DispatchError>;
@@ -1092,6 +1095,15 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 			if let Ok(miner) = miner_opt.as_mut().ok_or(Error::<T>::NotExisted) {
 				miner.lock_space = miner.lock_space.checked_sub(space).ok_or(Error::<T>::Overflow)?;
 				miner.idle_space = miner.idle_space.checked_add(space).ok_or(Error::<T>::Overflow)?;
+			}
+			Ok(())
+		})
+	}
+
+	fn unlock_space_direct(acc: &AccountOf<T>, space: u128) -> DispatchResult {
+		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
+			if let Ok(miner) = miner_opt.as_mut().ok_or(Error::<T>::NotExisted) {
+				miner.lock_space = miner.lock_space.checked_sub(space).ok_or(Error::<T>::Overflow)?;
 			}
 			Ok(())
 		})
