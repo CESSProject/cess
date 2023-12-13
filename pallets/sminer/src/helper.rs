@@ -250,7 +250,7 @@ impl<T: Config> Pallet<T> {
 			}
 			T::StorageHandle::sub_total_idle_space(miner.idle_space + miner.lock_space)?;
 			T::Currency::unreserve(&miner.staking_account, miner.collaterals);
-			Self::create_restoral_target(acc, miner.service_space)?;
+			Self::create_restoral_target(acc, miner.service_space + miner.lock_space)?;
 			miner.state = Self::str_to_bound(STATE_OFFLINE)?;
 			let space_proof_info = miner.space_proof_info.clone().ok_or(Error::<T>::NotpositiveState)?;
 			let encoding = space_proof_info.pois_key.encode();

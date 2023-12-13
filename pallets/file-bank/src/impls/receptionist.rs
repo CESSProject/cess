@@ -48,7 +48,7 @@ impl<T: Config> Receptionist<T> {
                 deal_info.segment_list.clone(),
                 deal_info.complete_list.clone(),
                 deal_info.user.clone(),
-                FileState::Calculate,
+                FileState::Active,
                 deal_info.file_size,
             )?;
 
@@ -61,19 +61,14 @@ impl<T: Config> Receptionist<T> {
             if let Err(_) = result {
                 log::info!("transfer report cancel schedule failed: {:?}", deal_hash.clone());
             }
-            // Calculate the maximum time required for storage nodes to tag files
-            let max_needed_cal_space = (segment_count as u32).checked_mul(FRAGMENT_SIZE as u32).ok_or(Error::<T>::Overflow)?;
-            let mut life: u32 = (max_needed_cal_space / TRANSFER_RATE as u32).checked_add(11).ok_or(Error::<T>::Overflow)?;
-            life = (max_needed_cal_space / CALCULATE_RATE as u32)
-                .checked_add(100).ok_or(Error::<T>::Overflow)?
-                .checked_add(life).ok_or(Error::<T>::Overflow)?;
-                Pallet::<T>::start_second_task(deal_hash.0.to_vec(), deal_hash, life)?;
+
             if <Bucket<T>>::contains_key(&deal_info.user.user, &deal_info.user.bucket_name) {
                 Pallet::<T>::add_file_to_bucket(&deal_info.user.user, &deal_info.user.bucket_name, &deal_hash)?;
             } else {
                 Pallet::<T>::create_bucket_helper(&deal_info.user.user, &deal_info.user.bucket_name, Some(deal_hash))?;
             }
             Pallet::<T>::add_user_hold_fileslice(&deal_info.user.user, deal_hash.clone(), needed_space)?;
+            <DealMap<T>>::remove(deal_hash);
             Pallet::<T>::deposit_event(Event::<T>::StorageCompleted{ file_hash: deal_hash });
         }
 

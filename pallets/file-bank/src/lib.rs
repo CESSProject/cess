@@ -27,7 +27,7 @@
 use frame_support::traits::{
 	FindAuthor, Randomness,
 	StorageVersion,
-	schedule::{Anon as ScheduleAnon, DispatchTime, Named as ScheduleNamed}, 
+	schedule::{Anon as ScheduleAnon, Named as ScheduleNamed}, 
 };
 // use sc_network::Multiaddr;
 
@@ -43,7 +43,6 @@ pub use types::*;
 mod functions;
 
 mod constants;
-use constants::*;
 
 mod impls;
 use impls::receptionist::Receptionist;
@@ -56,7 +55,6 @@ use frame_support::{
 	dispatch::DispatchResult, 
 	pallet_prelude::*,
 	weights::Weight,
-	traits::schedule,
 };
 use frame_system::pallet_prelude::*;
 use scale_info::TypeInfo;
@@ -193,6 +191,8 @@ pub mod pallet {
 		RecoveryCompleted { miner: AccountOf<T>, order_id: Hash },
 
 		StorageCompleted { file_hash: Hash },
+
+		CalculateReport { miner: AccountOf<T>, file_hash: Hash },
 	}
 
 	#[pallet::error]
@@ -456,48 +456,6 @@ pub mod pallet {
 
 			Ok(())
 		}
-
-		/// Reassign Miners for a Storage Deal
-		///
-		/// This function is used to reassign miners for an existing storage deal. It is typically called when a deal
-		/// needs to be modified or if the storage task fails for some miners in the deal. The function allows reassigning
-		/// miners to ensure the storage deal is fulfilled within the specified parameters.
-		///
-		/// Parameters:
-		/// - `origin`: The origin of the transaction, expected to be a root/administrator account.
-		/// - `deal_hash`: The unique hash identifier of the storage deal.
-		/// - `count`: The new count (number of miners) for the storage deal. Must be less than or equal to 20.
-		/// - `life`: The duration (in blocks) for which the storage deal will remain active.
-		#[pallet::call_index(1)]
-		// #[transactional]
-		#[pallet::weight(
-			{
-				let v = Pallet::<T>::get_segment_length_from_deal(&deal_hash);
-				<T as pallet::Config>::WeightInfo::deal_reassign_miner(v)
-			})]
-		pub fn deal_timing_task(
-			origin: OriginFor<T>,
-			deal_hash: Hash,
-			count: u8,
-			life: u32,
-		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			if count < 2 {
-				if let Err(_e) = <DealMap<T>>::try_mutate(&deal_hash, |deal_opt| -> DispatchResult {
-					let deal_info = deal_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
-					deal_info.count = count;
-					Self::start_first_task(deal_hash.0.to_vec(), deal_hash, count + 1, life)?;
-					Ok(())
-				}) {
-					Self::remove_deal(&deal_hash)?;
-				}
-			} else {
-				Self::remove_deal(&deal_hash)?;
-			}
-
-			Ok(())
-		}
 		
 		/// Transfer Ownership of a File
 		///
@@ -600,46 +558,39 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Calculate End of a Storage Deal
-		///
-		/// This function is used to finalize a storage deal and mark it as successfully completed.
-		///
-		/// Parameters:
-		/// - `origin`: The root origin, which authorizes administrative operations.
-		/// - `deal_hash`: The unique hash identifier of the storage deal to be finalized.
-		#[pallet::call_index(4)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::calculate_end(Pallet::<T>::get_segment_length_from_deal(&deal_hash)))]
-		pub fn calculate_end(
+		#[pallet::call_index(1)]
+		// FIX ME
+		#[pallet::weight(Weight::zero())]
+		pub fn calculate_report(
 			origin: OriginFor<T>,
-			deal_hash: Hash,
+			file_hash: Hash,
 		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
+			let sender = ensure_signed(origin)?;
 
-			let deal_info = <DealMap<T>>::try_get(&deal_hash).map_err(|_| Error::<T>::NonExistent)?;
-			let count = deal_info.segment_list.len() as u128;
-			for complete_info in deal_info.complete_list.iter() {
+			<File<T>>::try_mutate(&file_hash, |file_info_opt| -> DispatchResult {
+				let file_info = file_info_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
+				let now = <frame_system::Pallet<T>>::block_number();
+				let mut count: u128 = 0;
 				let mut hash_list: Vec<Box<[u8; 256]>> = Default::default();
-				for segment in &deal_info.segment_list {
-					let fragment_hash = segment.fragment_list[(complete_info.index - 1) as usize];
-					let hash_temp = fragment_hash.binary().map_err(|_| Error::<T>::BugInvalid)?;
-					hash_list.push(hash_temp);
+				for segment in file_info.segment_list.iter_mut() {
+					for fragment in segment.fragment_list.iter_mut() {
+						if fragment.miner == sender {
+							fragment.tag = Some(now);
+							count = count + 1;
+							let hash_temp = fragment.hash.binary().map_err(|_| Error::<T>::BugInvalid)?;
+							hash_list.push(hash_temp);
+						}
+					}
 				}
-				// Accumulate the number of fragments stored by each miner
-				let unlock_space = FRAGMENT_SIZE.checked_mul(count as u128).ok_or(Error::<T>::Overflow)?;
-				T::MinerControl::unlock_space_to_service(&complete_info.miner, unlock_space)?;
-				T::MinerControl::insert_service_bloom(&complete_info.miner, hash_list)?;
-			}
 
-			<File<T>>::try_mutate(&deal_hash, |file_opt| -> DispatchResult {
-				let file = file_opt.as_mut().ok_or(Error::<T>::BugInvalid)?;
-				file.stat = FileState::Active;
+				let unlock_space = FRAGMENT_SIZE.checked_mul(count as u128).ok_or(Error::<T>::Overflow)?;
+				T::MinerControl::unlock_space_to_service(&sender, unlock_space)?;
+				T::MinerControl::insert_service_bloom(&sender, hash_list)?;
+
+				Self::deposit_event(Event::<T>::CalculateReport{ miner: sender, file_hash: file_hash});
+
 				Ok(())
 			})?;
-
-			<DealMap<T>>::remove(&deal_hash);
-
-			Self::deposit_event(Event::<T>::CalculateEnd{ file_hash: deal_hash });
 
 			Ok(())
 		}
@@ -1064,9 +1015,7 @@ pub mod pallet {
 							if &fragment.hash == &fragment_hash {
 								if &fragment.miner == &order.origin_miner {
 									let binary = fragment.hash.binary().map_err(|_| Error::<T>::BugInvalid)?;
-									T::MinerControl::delete_service_bloom(&fragment.miner, vec![binary.clone()])?;
-									T::MinerControl::insert_service_bloom(&sender, vec![binary])?;
-									T::MinerControl::sub_miner_service_space(&fragment.miner, FRAGMENT_SIZE)?;
+									T::MinerControl::insert_service_bloom(&sender, vec![binary.clone()])?;
 									T::MinerControl::add_miner_service_space(&sender, FRAGMENT_SIZE)?;
 
 									// TODO!
@@ -1079,6 +1028,13 @@ pub mod pallet {
 
 									if T::MinerControl::restoral_target_is_exist(&fragment.miner) {
 										T::MinerControl::update_restoral_target(&fragment.miner, FRAGMENT_SIZE)?;
+									} else {
+										if fragment.tag.is_some() {
+											T::MinerControl::delete_service_bloom(&fragment.miner, vec![binary])?;
+											T::MinerControl::sub_miner_service_space(&fragment.miner, FRAGMENT_SIZE)?;
+										} else {
+											T::MinerControl::unlock_space_direct(&fragment.miner, FRAGMENT_SIZE)?;
+										}
 									}
 
 									fragment.avail = true;
