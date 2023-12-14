@@ -594,8 +594,10 @@ pub mod pallet {
 				T::MinerControl::unlock_space_to_service(&sender, unlock_space)?;
 				T::MinerControl::insert_service_bloom(&sender, hash_list)?;
 
-				let bond_stash = T::TeeWorkerHandler::get_stash(&tag_sig_info.tee_acc)?;
-				T::CreditCounter::increase_point_for_tag(&bond_stash, unlock_space)?;
+				if T::TeeWorkerHandler::is_bonded(&tag_sig_info.tee_acc) {
+					let bond_stash = T::TeeWorkerHandler::get_stash(&tag_sig_info.tee_acc)?;
+					T::CreditCounter::increase_point_for_tag(&bond_stash, unlock_space)?;
+				}
 
 				Self::deposit_event(Event::<T>::CalculateReport{ miner: sender, file_hash: tag_sig_info.file_hash});
 
@@ -650,8 +652,11 @@ pub mod pallet {
 			let replace_space = IDLE_SEG_SIZE.checked_mul(count.into()).ok_or(Error::<T>::Overflow)?;
 			T::MinerControl::decrease_replace_space(&sender, replace_space)?;
 
-			let bond_stash = T::TeeWorkerHandler::get_stash(&tee_acc)?;
-			T::CreditCounter::increase_point_for_replace(&bond_stash, replace_space)?;
+			if T::TeeWorkerHandler::is_bonded(&tee_acc) {
+				let bond_stash = T::TeeWorkerHandler::get_stash(&tee_acc)?;
+				T::CreditCounter::increase_point_for_replace(&bond_stash, replace_space)?;
+			}
+			
 			Self::deposit_event(Event::<T>::ReplaceIdleSpace { acc: sender.clone(), space: replace_space });
 
 			Ok(())
@@ -729,8 +734,11 @@ pub mod pallet {
 				tee_sig,
 			)?;
 
-			let bond_stash = T::TeeWorkerHandler::get_stash(&tee_acc)?;
-			T::CreditCounter::increase_point_for_cert(&bond_stash, idle_space)?;
+			if T::TeeWorkerHandler::is_bonded(&tee_acc) {
+				let bond_stash = T::TeeWorkerHandler::get_stash(&tee_acc)?;
+				T::CreditCounter::increase_point_for_cert(&bond_stash, idle_space)?;
+			}
+
 			T::StorageHandle::add_total_idle_space(idle_space)?;
 
 			Self::deposit_event(Event::<T>::IdleSpaceCert{ acc: sender, space: idle_space });
