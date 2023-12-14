@@ -125,3 +125,10 @@ pub struct RestoralOrderInfo<T: Config> {
 	pub(super) deadline: BlockNumberFor<T>,
 }
 
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+pub struct TagSigInfo<AccountId> {
+	pub(super) miner: AccountId,
+	pub(super) file_hash: Hash,
+	pub(super) tee_acc: AccountId,
+}
+

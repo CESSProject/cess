@@ -17,6 +17,7 @@ frame-system = { workspace = true }
 #lock dependencies
 cp-scheduler-credit = { workspace = true }
 cessp-consensus-rrsc = { workspace = true }
+cp-cess-common = { workspace = true }
 
 [dev-dependencies]
 sp-io = { workspace = true }
