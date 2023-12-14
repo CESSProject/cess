@@ -352,7 +352,7 @@ pub trait TeeWorkerHandler<AccountId> {
 	fn can_verify(acc: &AccountId) -> bool;
 	fn can_cert(acc: &AccountId) -> bool;
 	fn contains_scheduler(acc: AccountId) -> bool;
-	fn is_bonded(acc: AccountId) -> bool;
+	fn is_bonded(acc: &AccountId) -> bool;
 	fn get_stash(acc: &AccountId) -> Result<AccountId, DispatchError>;
 	fn punish_scheduler(acc: AccountId) -> DispatchResult;
 	fn get_controller_list() -> Vec<AccountId>;
@@ -394,8 +394,8 @@ impl<T: Config> TeeWorkerHandler<<T as frame_system::Config>::AccountId> for Pal
 		TeeWorkerMap::<T>::contains_key(&acc)
 	}
 
-	fn is_bonded(acc: AccountOf<T>) -> bool {
-		if let Ok(tee_info) = TeeWorkerMap::<T>::try_get(&acc) {
+	fn is_bonded(acc: &AccountOf<T>) -> bool {
+		if let Ok(tee_info) = TeeWorkerMap::<T>::try_get(acc) {
 			let result = tee_info.bond_stash.is_some();
 			return result;
 		}
@@ -404,7 +404,7 @@ impl<T: Config> TeeWorkerHandler<<T as frame_system::Config>::AccountId> for Pal
 	}
 
 	fn get_stash(acc: &AccountOf<T>) -> Result<AccountOf<T>, DispatchError> {
-		let tee_info = TeeWorkerMap::<T>::try_get(&acc).map_err(|_| Error::<T>::NonTeeWorker)?;
+		let tee_info = TeeWorkerMap::<T>::try_get(acc).map_err(|_| Error::<T>::NonTeeWorker)?;
 
 		if let Some(bond_stash) = tee_info.bond_stash {
 			return Ok(bond_stash)
