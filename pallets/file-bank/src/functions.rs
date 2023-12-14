@@ -323,6 +323,7 @@ impl<T: Config> Pallet<T> {
         let file_info =
             UserFileSliceInfo { file_hash: file_hash, file_size };
         <UserHoldFileList<T>>::try_mutate(user, |v| -> DispatchResult {
+            ensure!(!v.contains(&file_info), Error::<T>::Existed);
             v.try_push(file_info).map_err(|_| Error::<T>::StorageLimitReached)?;
             Ok(())
         })?;

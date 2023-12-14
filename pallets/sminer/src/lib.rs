@@ -231,6 +231,8 @@ pub mod pallet {
 		InsufficientStakingPeriod,
 
 		ExceedingDeclarationSpace,
+
+		InsufficientReplaceable,
 	}
 
 	/// The hashmap for info of storage miners.
@@ -286,6 +288,12 @@ pub mod pallet {
 	#[pallet::getter(fn staking_start_block)]
 	pub(super) type StakingStartBlock<T: Config> = 
 		StorageMap<_, Blake2_128Concat, AccountOf<T>, BlockNumberFor<T>>;
+
+	
+	#[pallet::storage]
+	#[pallet::getter(fn pending_replacements)]
+		pub(super) type PendingReplacements<T: Config> = 
+			StorageMap<_, Blake2_128Concat, AccountOf<T>, u128, ValueQuery>;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -989,6 +997,9 @@ pub trait MinerControl<AccountId, BlockNumber> {
 	fn update_miner_state(miner: &AccountId, state: &str) -> DispatchResult;
 	fn get_expenders() -> Result<(u64, u64, u64), DispatchError>;
 	fn get_miner_snapshot(miner: &AccountId) -> Result<(u128, u128, BloomFilter, SpaceProofInfo<AccountId>, TeeRsaSignature), DispatchError>;
+
+	fn increase_replace_space(miner: &AccountId, space: u128) -> DispatchResult;
+	fn decrease_replace_space(miner: &AccountId, space: u128) -> DispatchResult;
 }
 
 impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumberFor<T>> for Pallet<T> {
@@ -1213,5 +1224,26 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 
 	fn restoral_target_is_exist(miner: &AccountOf<T>) -> bool {
 		RestoralTarget::<T>::contains_key(miner)
+	}
+
+	fn increase_replace_space(miner: &AccountOf<T>, space: u128) -> DispatchResult {
+		<PendingReplacements<T>>::try_mutate(&miner, |pending_space| -> DispatchResult {
+			*pending_space = pending_space
+                    .checked_add(space).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})
+	}
+
+	fn decrease_replace_space(miner: &AccountOf<T>, space: u128) -> DispatchResult {
+		<PendingReplacements<T>>::try_mutate(&miner, |pending_space| -> DispatchResult {
+			if *pending_space / IDLE_SEG_SIZE == 0 {
+				Err(Error::<T>::InsufficientReplaceable)?;
+			}
+
+			*pending_space = pending_space
+                    .checked_sub(space).ok_or(Error::<T>::Overflow)?;
+
+			Ok(())
+		})
 	}
 }

@@ -43,6 +43,7 @@ pub use types::*;
 mod functions;
 
 mod constants;
+use constants::*;
 
 mod impls;
 use impls::receptionist::Receptionist;
@@ -112,13 +113,13 @@ pub mod pallet {
 		type SPalletsOrigin: From<frame_system::RawOrigin<Self::AccountId>>;
 		/// The SProposal.
 		type SProposal: Parameter + Dispatchable<RuntimeOrigin = Self::RuntimeOrigin> + From<Call<Self>>;
-		//Find the consensus of the current block
+		// Find the consensus of the current block
 		type FindAuthor: FindAuthor<Self::AccountId>;
-		//Used to find out whether the schedule exists
+		// Used to find out whether the schedule exists
 		type TeeWorkerHandler: TeeWorkerHandler<Self::AccountId>;
-		//It is used to control the computing power and space of miners
+		// It is used to control the computing power and space of miners
 		type MinerControl: MinerControl<Self::AccountId, BlockNumberFor<Self>>;
-		//Interface that can generate random seeds
+		// Interface that can generate random seeds	
 		type MyRandomness: Randomness<Option<Self::Hash>, BlockNumberFor<Self>>;
 
 		type StorageHandle: StorageHandle<Self::AccountId>;
@@ -261,8 +262,6 @@ pub mod pallet {
 
 		VerifyTeeSigFailed,
 
-		InsufficientReplaceable,
-
 		TeeNoPermission,
 	}
 
@@ -284,10 +283,6 @@ pub mod pallet {
 		BoundedVec<UserFileSliceInfo, T::UserFileLimit>,
 		ValueQuery,
 	>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn pending_replacements)]
-	pub(super) type PendingReplacements<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, u128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn miner_lock)]
@@ -359,8 +354,8 @@ pub mod pallet {
 				if let Ok(mut file_info_list) = <UserHoldFileList<T>>::try_get(&acc) {
 					weight = weight.saturating_add(T::DbWeight::get().reads(1));
 					while let Some(file_info) = file_info_list.pop() {
-						count = count.checked_add(1).unwrap_or(300);
-						if count == 300 {
+						count = count.checked_add(1).unwrap_or(ONCE_MAX_CLEAR_FILE);
+						if count == ONCE_MAX_CLEAR_FILE {
 							<UserHoldFileList<T>>::insert(&acc, file_info_list);
 							return weight;
 						}
@@ -637,22 +632,9 @@ pub mod pallet {
 				idle_sig_info.rear,
 				tee_sig,
 			)?;
-
-			<PendingReplacements<T>>::try_mutate(&sender, |pending_space| -> DispatchResult {
-				if *pending_space / IDLE_SEG_SIZE == 0 {
-					Err(Error::<T>::InsufficientReplaceable)?;
-				}
-				let replace_space = IDLE_SEG_SIZE.checked_mul(count.into()).ok_or(Error::<T>::Overflow)?;
-				log::info!("pending_space: {:?}, replace_space: {:?}, count: {:?}", pending_space, replace_space, count);
-				let pending_space_temp = pending_space.checked_sub(replace_space).ok_or(Error::<T>::Overflow)?;
-				*pending_space = pending_space_temp;
-
-				Self::deposit_event(Event::<T>::ReplaceIdleSpace { acc: sender.clone(), space: replace_space });
-
-				Ok(())
-			})?;
-
-			
+			let replace_space = IDLE_SEG_SIZE.checked_mul(count.into()).ok_or(Error::<T>::Overflow)?;
+			T::MinerControl::decrease_replace_space(&sender, replace_space)?;
+			Self::deposit_event(Event::<T>::ReplaceIdleSpace { acc: sender.clone(), space: replace_space });
 
 			Ok(())
 		}
@@ -1020,11 +1002,7 @@ pub mod pallet {
 
 									// TODO!
 									T::MinerControl::delete_idle_update_space(&sender, FRAGMENT_SIZE)?;
-									<PendingReplacements<T>>::try_mutate(&sender, |pending_space| -> DispatchResult {
-										let pending_space_temp = pending_space.checked_add(FRAGMENT_SIZE).ok_or(Error::<T>::Overflow)?;
-										*pending_space = pending_space_temp;
-										Ok(())
-									})?;
+									T::MinerControl::increase_replace_space(&sender, FRAGMENT_SIZE)?;
 
 									if T::MinerControl::restoral_target_is_exist(&fragment.miner) {
 										T::MinerControl::update_restoral_target(&fragment.miner, FRAGMENT_SIZE)?;
