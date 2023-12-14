@@ -558,11 +558,23 @@ pub mod pallet {
 		#[pallet::weight(Weight::zero())]
 		pub fn calculate_report(
 			origin: OriginFor<T>,
-			file_hash: Hash,
+			tee_sig: TeeRsaSignature,
+			tag_sig_info: TagSigInfo<AccountOf<T>>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
-			<File<T>>::try_mutate(&file_hash, |file_info_opt| -> DispatchResult {
+			ensure!(
+				T::TeeWorkerHandler::can_tag(&tag_sig_info.tee_acc),
+				Error::<T>::TeeNoPermission
+			);
+			let idle_sig_info_encode = tag_sig_info.encode();
+			let original = sp_io::hashing::sha2_256(&idle_sig_info_encode);
+			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
+
+			ensure!(verify_rsa(&tee_puk, &original, &tee_sig), Error::<T>::VerifyTeeSigFailed);
+			ensure!(tag_sig_info.miner == sender, Error::<T>::VerifyTeeSigFailed);
+
+			<File<T>>::try_mutate(&tag_sig_info.file_hash, |file_info_opt| -> DispatchResult {
 				let file_info = file_info_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
 				let now = <frame_system::Pallet<T>>::block_number();
 				let mut count: u128 = 0;
@@ -582,7 +594,10 @@ pub mod pallet {
 				T::MinerControl::unlock_space_to_service(&sender, unlock_space)?;
 				T::MinerControl::insert_service_bloom(&sender, hash_list)?;
 
-				Self::deposit_event(Event::<T>::CalculateReport{ miner: sender, file_hash: file_hash});
+				let bond_stash = T::TeeWorkerHandler::get_stash(&tag_sig_info.tee_acc)?;
+				T::CreditCounter::increase_point_for_tag(&bond_stash, unlock_space)?;
+
+				Self::deposit_event(Event::<T>::CalculateReport{ miner: sender, file_hash: tag_sig_info.file_hash});
 
 				Ok(())
 			})?;
@@ -634,6 +649,9 @@ pub mod pallet {
 			)?;
 			let replace_space = IDLE_SEG_SIZE.checked_mul(count.into()).ok_or(Error::<T>::Overflow)?;
 			T::MinerControl::decrease_replace_space(&sender, replace_space)?;
+
+			let bond_stash = T::TeeWorkerHandler::get_stash(&tee_acc)?;
+			T::CreditCounter::increase_point_for_replace(&bond_stash, replace_space)?;
 			Self::deposit_event(Event::<T>::ReplaceIdleSpace { acc: sender.clone(), space: replace_space });
 
 			Ok(())
@@ -711,6 +729,8 @@ pub mod pallet {
 				tee_sig,
 			)?;
 
+			let bond_stash = T::TeeWorkerHandler::get_stash(&tee_acc)?;
+			T::CreditCounter::increase_point_for_cert(&bond_stash, idle_space)?;
 			T::StorageHandle::add_total_idle_space(idle_space)?;
 
 			Self::deposit_event(Event::<T>::IdleSpaceCert{ acc: sender, space: idle_space });

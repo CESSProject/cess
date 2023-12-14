@@ -4,6 +4,7 @@ use super::*;
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct TeeWorkerInfo<T: pallet::Config> {
+    pub worker_account: AccountOf<T>,
     pub peer_id: PeerId,
     pub bond_stash: Option<AccountOf<T>>,
     pub end_point: EndPoint,
@@ -20,7 +21,6 @@ pub struct SgxAttestationReport {
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub enum TeeType {
     Full,
-    Certifier,
     Verifier,
     Marker,
 }

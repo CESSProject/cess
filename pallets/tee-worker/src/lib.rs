@@ -182,7 +182,7 @@ pub mod pallet {
 					let _ = <pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond)?;
 					ensure!(tee_type == TeeType::Verifier || tee_type == TeeType::Full, Error::<T>::WrongTeeType);
 				},
-				None => ensure!(tee_type == TeeType::Certifier || tee_type == TeeType::Marker, Error::<T>::WrongTeeType),
+				None => ensure!(tee_type == TeeType::Marker, Error::<T>::WrongTeeType),
 			};
 
 			ensure!(!TeeWorkerMap::<T>::contains_key(&worker_account), Error::<T>::AlreadyRegistration);
@@ -213,6 +213,7 @@ pub mod pallet {
 			).map_err(Into::<Error<T>>::into)?;
 
 			let tee_worker_info = TeeWorkerInfo::<T> {
+				worker_account: worker_account.clone(),
 				peer_id: peer_id.clone(),
 				bond_stash: stash_account,
 				end_point,
@@ -317,6 +318,7 @@ pub mod pallet {
 			let _ = ensure_root(origin)?;
 
 			let tee_worker_info = TeeWorkerInfo::<T> {
+				worker_account: controller_account.clone(),
 				peer_id: peer_id.clone(),
 				bond_stash: stash_account,
 				end_point,
@@ -351,6 +353,7 @@ pub trait TeeWorkerHandler<AccountId> {
 	fn can_cert(acc: &AccountId) -> bool;
 	fn contains_scheduler(acc: AccountId) -> bool;
 	fn is_bonded(acc: AccountId) -> bool;
+	fn get_stash(acc: &AccountId) -> Result<AccountId, DispatchError>;
 	fn punish_scheduler(acc: AccountId) -> DispatchResult;
 	fn get_controller_list() -> Vec<AccountId>;
 	fn get_tee_publickey() -> Result<Podr2Key, DispatchError>;
@@ -379,7 +382,7 @@ impl<T: Config> TeeWorkerHandler<<T as frame_system::Config>::AccountId> for Pal
 
 	fn can_cert(acc: &AccountOf<T>) -> bool {
 		if let Ok(tee_info) = TeeWorkerMap::<T>::try_get(acc) {
-			if TeeType::Certifier == tee_info.tee_type || TeeType::Full == tee_info.tee_type {
+			if TeeType::Marker == tee_info.tee_type || TeeType::Full == tee_info.tee_type {
 				return true;
 			}
 		}
@@ -398,6 +401,16 @@ impl<T: Config> TeeWorkerHandler<<T as frame_system::Config>::AccountId> for Pal
 		}
 
 		false
+	}
+
+	fn get_stash(acc: &AccountOf<T>) -> Result<AccountOf<T>, DispatchError> {
+		let tee_info = TeeWorkerMap::<T>::try_get(&acc).map_err(|_| Error::<T>::NonTeeWorker)?;
+
+		if let Some(bond_stash) = tee_info.bond_stash {
+			return Ok(bond_stash)
+		}
+
+		Err(Error::<T>::NonTeeWorker.into())
 	}
 
 	fn punish_scheduler(acc: <T as frame_system::Config>::AccountId) -> DispatchResult {
