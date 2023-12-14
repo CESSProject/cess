@@ -260,6 +260,7 @@ impl<T: Config> Pallet<T> {
 		})?;
 
 		<RewardMap<T>>::remove(acc);
+		<PendingReplacements<T>>::remove(miner);
 
 		Ok(())
 	}

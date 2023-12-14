@@ -125,7 +125,8 @@ impl<T: Config> Pallet<T> {
 		let encoding = space_proof_info.pois_key.encode();
 		let hashing = sp_io::hashing::sha2_256(&encoding);
 		MinerPublicKey::<T>::remove(hashing);
-		<MinerItems<T>>::remove(miner);
+		<MinerItems<T>>::remove(miner.clone());
+		<PendingReplacements<T>>::remove(miner);
 
 		Ok(())
 	}

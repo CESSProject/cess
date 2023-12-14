@@ -1,0 +1,1 @@
+pub(super) const ONCE_MAX_CLEAR_FILE: u32 = 300;
