@@ -798,20 +798,20 @@ pub mod pallet {
 						// );
 						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 						//For Testing
-						// if count >= 6 {
-						// 	let result = T::MinerControl::force_miner_exit(&miner);
-						// 	weight = weight.saturating_add(T::DbWeight::get().reads_writes(5, 5));
-						// 	if result.is_err() {
-						// 		log::info!("force clear miner: {:?} failed", miner);
-						// 	}
-						// 	<CountedClear<T>>::remove(&miner);
-						// 	weight = weight.saturating_add(T::DbWeight::get().writes(1));
-						// } else {
-						// 	<CountedClear<T>>::insert(&miner, count);
-						// 	weight = weight.saturating_add(T::DbWeight::get().writes(1));
-						// }
+						if count >= 27 {
+							let result = T::MinerControl::force_miner_exit(&miner);
+							weight = weight.saturating_add(T::DbWeight::get().reads_writes(5, 5));
+							if result.is_err() {
+								log::info!("force clear miner: {:?} failed", miner);
+							}
+							<CountedClear<T>>::remove(&miner);
+							weight = weight.saturating_add(T::DbWeight::get().writes(1));
+						} else {
+							<CountedClear<T>>::insert(&miner, count);
+							weight = weight.saturating_add(T::DbWeight::get().writes(1));
+						}
 
-						<CountedClear<T>>::insert(&miner, count);
+						// <CountedClear<T>>::insert(&miner, count);
 						weight = weight.saturating_add(T::DbWeight::get().writes(1));
 					}
 				}

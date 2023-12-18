@@ -439,15 +439,14 @@ pub mod pallet {
 			ensure!(user_brief.file_name.len() as u32 >= minimum, Error::<T>::SpecError);
 			ensure!(user_brief.bucket_name.len() as u32 >= minimum, Error::<T>::SpecError);
 
-			let needed_space = SEGMENT_SIZE
-				.checked_mul(15).ok_or(Error::<T>::Overflow)?
-				.checked_div(10).ok_or(Error::<T>::Overflow)?
-				.checked_mul(deal_info.len() as u128).ok_or(Error::<T>::Overflow)?;
-			ensure!(T::StorageHandle::get_user_avail_space(&user_brief.user)? > needed_space, Error::<T>::InsufficientAvailableSpace);
-
 			if <File<T>>::contains_key(&file_hash) {
-				Receptionist::<T>::fly_upload_file(file_hash, user_brief.clone(), needed_space)?;
+				Receptionist::<T>::fly_upload_file(file_hash, user_brief.clone())?;
 			} else {
+				let needed_space = SEGMENT_SIZE
+					.checked_mul(15).ok_or(Error::<T>::Overflow)?
+					.checked_div(10).ok_or(Error::<T>::Overflow)?
+					.checked_mul(deal_info.len() as u128).ok_or(Error::<T>::Overflow)?;
+            	ensure!(T::StorageHandle::get_user_avail_space(&user_brief.user)? > needed_space, Error::<T>::InsufficientAvailableSpace);
 				Receptionist::<T>::generate_deal(file_hash, deal_info, user_brief.clone(), needed_space, file_size)?;
 			}
 
