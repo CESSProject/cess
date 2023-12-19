@@ -1,8 +1,8 @@
 use crate::{rpc::ExtraRpcMethods, BlockNumber, Config, Hash, SubxtOnlineClient};
 use anyhow::{anyhow, Context, Result};
+use ces_types::{VersionedWorkerEndpoints, WorkerPublicKey};
 use jsonrpsee::{async_client::ClientBuilder, client_transport::ws::WsTransportClientBuilder};
 use parity_scale_codec::{Decode, Encode};
-use ces_types::{VersionedWorkerEndpoints, WorkerPublicKey};
 use std::{ops::Deref, sync::Arc};
 use subxt::{
     backend::{
@@ -172,17 +172,8 @@ impl ChainApi {
         Ok(Some(Decode::decode(&mut &data.encoded()[..])?))
     }
 
-    // pub async fn get_workers(&self, cluster_id: Hash) -> Result<Vec<WorkerPublicKey>> {
-    //     let result = self
-    //         .fetch("CesPhatContracts", "ClusterWorkers", Some(&cluster_id))
-    //         .await?;
-    //     Ok(result.unwrap_or_default())
-    // }
-
     pub async fn get_endpoints(&self, worker: &WorkerPublicKey) -> Result<Vec<String>> {
-        let result = self
-            .fetch("CesRegistry", "Endpoints", Some(worker))
-            .await?;
+        let result = self.fetch("CesRegistry", "Endpoints", Some(worker)).await?;
         let Some(VersionedWorkerEndpoints::V1(endpoints)) = result else {
             return Ok(vec![]);
         };

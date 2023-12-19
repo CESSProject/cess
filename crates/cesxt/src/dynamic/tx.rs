@@ -1,5 +1,5 @@
-use parity_scale_codec::Encode;
 use ces_types::messaging::SignedMessage;
+use parity_scale_codec::Encode;
 use subxt::{tx::TxPayload, utils::Encoded};
 
 #[derive(Clone, Debug, Eq, PartialEq)]

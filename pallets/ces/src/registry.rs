@@ -127,7 +127,7 @@ pub mod pallet {
 	/// Mapping from worker pubkey to WorkerInfo
 	#[pallet::storage]
 	pub type Workers<T: Config> =
-		StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfoV2<T::AccountId>>;
+		StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfo<T::AccountId>>;
 
 	/// The first time registered block number for each worker.
 	#[pallet::storage]
@@ -278,7 +278,7 @@ pub mod pallet {
 			operator: Option<T::AccountId>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			let worker_info = WorkerInfoV2 {
+			let worker_info = WorkerInfo {
 				pubkey,
 				ecdh_pubkey,
 				runtime_version: 0,
@@ -488,7 +488,7 @@ pub mod pallet {
 					}
 					None => {
 						// Case 2 - New worker register
-						*v = Some(WorkerInfoV2 {
+						*v = Some(WorkerInfo {
 							pubkey,
 							ecdh_pubkey: ceseal_info.ecdh_pubkey,
 							runtime_version: ceseal_info.version,
@@ -509,6 +509,98 @@ pub mod pallet {
 							pubkey,
 							attestation_provider: Some(AttestationProvider::Ias),
 							confidence_level: fields.confidence_level,
+						});
+						WorkerAddedAt::<T>::insert(
+							pubkey,
+							frame_system::Pallet::<T>::block_number(),
+						);
+					}
+				}
+			});
+			// Trigger benchmark anyway
+			let duration = BenchmarkDuration::<T>::get().unwrap_or_default();
+			Self::push_message(SystemEvent::new_worker_event(
+				pubkey,
+				WorkerEvent::BenchStart { duration },
+			));
+			Ok(())
+		}
+
+		/// Registers a worker on the blockchain.
+		/// This is the version 2 that both support DCAP attestation type.
+		///
+		/// Usually called by a bridging relayer program (`cifrost`). Can be called by
+		/// anyone on behalf of a worker.
+		#[pallet::call_index(7)]
+		#[pallet::weight({0})]
+		pub fn register_worker_v2(
+			origin: OriginFor<T>,
+			ceseal_info: WorkerRegistrationInfo<T::AccountId>,
+			attestation: Box<Option<AttestationReport>>,
+		) -> DispatchResult {
+			ensure_signed(origin)?;
+			// Validate RA report & embedded user data
+			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
+			let runtime_info_hash = crate::hashing::blake2_256(&Encode::encode(&ceseal_info));
+			let attestation_report = crate::attestation::validate(
+				*attestation,
+				&runtime_info_hash,
+				now,
+				T::VerifyCeseal::get(),
+				CesealAllowList::<T>::get(),
+				T::NoneAttestationEnabled::get(),
+			)
+			.map_err(Into::<Error<T>>::into)?;
+
+			// Update the registry
+			let pubkey = ceseal_info.pubkey;
+			Workers::<T>::mutate(pubkey, |v| {
+				match v {
+					Some(worker_info) => {
+						// Case 1 - Refresh the RA report, optionally update the operator, and redo benchmark
+						worker_info.last_updated = now;
+						worker_info.operator = ceseal_info.operator;
+						worker_info.runtime_version = ceseal_info.version;
+						worker_info.confidence_level = attestation_report.confidence_level;
+						worker_info.features = ceseal_info.features;
+						// TODO: We should reset `initial_score` here, but we need ensure no breaking.
+						// worker_info.initial_score = None;
+
+						Self::push_message(SystemEvent::new_worker_event(
+							pubkey,
+							WorkerEvent::Registered(messaging::WorkerInfo {
+								confidence_level: attestation_report.confidence_level,
+							}),
+						));
+						Self::deposit_event(Event::<T>::WorkerUpdated {
+							pubkey,
+							attestation_provider: attestation_report.provider,
+							confidence_level: attestation_report.confidence_level,
+						});
+					}
+					None => {
+						// Case 2 - New worker register
+						*v = Some(WorkerInfo {
+							pubkey,
+							ecdh_pubkey: ceseal_info.ecdh_pubkey,
+							runtime_version: ceseal_info.version,
+							last_updated: now,
+							operator: ceseal_info.operator,
+							attestation_provider: attestation_report.provider,
+							confidence_level: attestation_report.confidence_level,
+							initial_score: None,
+							features: ceseal_info.features,
+						});
+						Self::push_message(SystemEvent::new_worker_event(
+							pubkey,
+							WorkerEvent::Registered(messaging::WorkerInfo {
+								confidence_level: attestation_report.confidence_level,
+							}),
+						));
+						Self::deposit_event(Event::<T>::WorkerAdded {
+							pubkey,
+							attestation_provider: attestation_report.provider,
+							confidence_level: attestation_report.confidence_level,
 						});
 						WorkerAddedAt::<T>::insert(
 							pubkey,
@@ -813,7 +905,7 @@ pub mod pallet {
 			for (pubkey, ecdh_pubkey, operator) in &self.workers {
 				Workers::<T>::insert(
 					pubkey,
-					WorkerInfoV2 {
+					WorkerInfo {
 						pubkey: *pubkey,
 						ecdh_pubkey: ecdh_pubkey.as_slice().try_into().expect("Bad ecdh key"),
 						runtime_version: 0,
@@ -867,7 +959,7 @@ pub mod pallet {
 
 	/// The basic information of a registered worker
 	#[derive(Encode, Decode, TypeInfo, Debug, Clone)]
-	pub struct WorkerInfoV2<AccountId> {
+	pub struct WorkerInfo<AccountId> {
 		/// The identity public key of the worker
 		pub pubkey: WorkerPublicKey,
 		/// The public key for ECDH communication
