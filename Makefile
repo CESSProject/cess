@@ -7,7 +7,7 @@ node:
 ceseal:
 	make -C standalone/teeworker/ceseal
 test:
-	cargo test --workspace --exclude node-executor --exclude ces-node
+	cargo test --workspace --exclude node-executor --exclude cess-node
 
 clippy:
 	cargo clippy --tests
@@ -15,3 +15,7 @@ clippy:
 
 lint:
 	cargo dylint --all --workspace
+
+clean:
+	cargo clean
+	make -C standalone/teeworker/ceseal clean
