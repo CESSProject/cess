@@ -48,6 +48,9 @@ use constants::*;
 mod impls;
 use impls::receptionist::Receptionist;
 
+pub mod migrations;
+pub use migrations::*;
+
 use codec::{Decode, Encode};
 use frame_support::{
 	// bounded_vec, 
@@ -84,7 +87,7 @@ pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 
-const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
+const STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
 
 #[frame_support::pallet]
 pub mod pallet {

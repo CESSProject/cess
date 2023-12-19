@@ -178,7 +178,6 @@ pub mod pallet {
 			//Even if the primary key is not present here, panic will not be caused
 			match &stash_account {
 				Some(acc) => {
-					ensure!(&sender == acc, Error::<T>::NotStash);
 					let _ = <pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond)?;
 					ensure!(tee_type == TeeType::Verifier || tee_type == TeeType::Full, Error::<T>::WrongTeeType);
 				},
