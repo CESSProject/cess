@@ -39,7 +39,7 @@ type GrandpaLinkHalf<Client> = grandpa::LinkHalf<Block, Client, FullSelectChain>
 
 /// The minimum period of blocks on which justifications will be
 /// imported and generated.
-const GRANDPA_JUSTIFICATION_PERIOD: u32 = 512;
+const GRANDPA_JUSTIFICATION_PERIOD: u32 = 4;
 
 pub fn new_partial<RuntimeApi, Executor>(
 	config: &Configuration,

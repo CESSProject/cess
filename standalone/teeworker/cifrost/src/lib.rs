@@ -6,7 +6,6 @@ use std::str::FromStr;
 use std::time::Duration;
 use tokio::time::sleep;
 
-use parity_scale_codec::{Decode, Encode};
 use ces_pallets::pallet_registry::Attestation;
 use cesxt::{
     connect as subxt_connect,
@@ -14,6 +13,7 @@ use cesxt::{
     sp_core::{crypto::Pair, sr25519},
     ChainApi,
 };
+use parity_scale_codec::{Decode, Encode};
 use sp_consensus_grandpa::{AuthorityList, SetId, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
 
 pub use cesxt::subxt;
@@ -30,19 +30,18 @@ pub mod types;
 
 use crate::error::Error;
 use crate::types::{
-    Block, BlockNumber, ConvertTo, Hash, Header, NotifyReq, NumberOrHex, CesealClient,
-    SrSigner,
+    Block, BlockNumber, CesealClient, ConvertTo, Hash, Header, NotifyReq, NumberOrHex, SrSigner,
 };
 use cestory_api::blocks::{
     self, AuthoritySet, AuthoritySetChange, BlockHeader, BlockHeaderWithChanges, HeaderToSync,
 };
-use cestory_api::crpc::{self, InitRuntimeResponse};
 use cestory_api::ceseal_client;
+use cestory_api::crpc::{self, InitRuntimeResponse};
 
+use ces_types::AttestationProvider;
 use clap::Parser;
 use msg_sync::{Error as MsgSyncError, Receiver, Sender};
 use notify_client::NotifyClient;
-use ces_types::AttestationProvider;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -362,8 +361,12 @@ pub async fn get_authority_with_proof_at(
     // Set id
     let id = chain_api.current_set_id(Some(hash)).await?;
     // Proof
-    let proof =
-        chain_client::read_proofs(chain_api, Some(hash), vec![GRANDPA_AUTHORITIES_KEY, &id_key]).await?;
+    let proof = chain_client::read_proofs(
+        chain_api,
+        Some(hash),
+        vec![GRANDPA_AUTHORITIES_KEY, &id_key],
+    )
+    .await?;
     Ok(AuthoritySetChange {
         authority_set: AuthoritySet { list, id },
         authority_proof: proof,
@@ -466,7 +469,7 @@ const GRANDPA_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"FRNK";
 #[allow(clippy::too_many_arguments)]
 async fn batch_sync_block(
     chain_api: &ChainApi,
-    pr: &CesealClient,
+    ceseal_api: &CesealClient,
     sync_state: &mut BlockSyncState,
     batch_window: BlockNumber,
     info: &crpc::CesealInfo,
@@ -484,7 +487,7 @@ async fn batch_sync_block(
     macro_rules! sync_blocks_to {
         ($to: expr) => {
             if next_blocknum <= $to {
-                batch_sync_storage_changes(pr, chain_api, next_blocknum, $to, batch_window)
+                batch_sync_storage_changes(ceseal_api, chain_api, next_blocknum, $to, batch_window)
                     .await?;
                 synced_blocks += $to - next_blocknum + 1;
                 next_blocknum = $to + 1;
@@ -582,7 +585,8 @@ async fn batch_sync_block(
         let mut authrotiy_change: Option<AuthoritySetChange> = None;
         if let Some(change_at) = set_id_change_at {
             if change_at == last_header_number {
-                authrotiy_change = Some(get_authority_with_proof_at(chain_api, last_header_hash).await?);
+                authrotiy_change =
+                    Some(get_authority_with_proof_at(chain_api, last_header_hash).await?);
             }
         }
 
@@ -605,7 +609,7 @@ async fn batch_sync_block(
             }
         }
 
-        let r = req_sync_header(pr, header_batch, authrotiy_change).await?;
+        let r = req_sync_header(ceseal_api, header_batch, authrotiy_change).await?;
         info!("  ..sync_header: {:?}", r);
         next_headernum = r.synced_to + 1;
 
@@ -685,7 +689,13 @@ async fn register_worker(
         .tip(args.tip)
         .mortal(latest_block.header(), args.longevity)
         .build();
+    debug!(
+        "tx mortal: (from: {:?}, for_blocks: {:?})",
+        latest_block.header().number,
+        args.longevity
+    );
     let v2 = attestation.payload.is_none();
+    debug!("attestation: {attestation:?}, v2: {v2:?}");
     let attestation = match attestation.payload {
         Some(payload) => Attestation::SgxIas {
             ra_report: payload.report.as_bytes().to_vec(),
@@ -695,6 +705,7 @@ async fn register_worker(
         .encode(),
         None => attestation.encoded_report,
     };
+    debug!("encoded attestation: {}", hex::encode(&attestation));
     let tx = cesxt::dynamic::tx::register_worker(encoded_runtime_info, attestation, v2);
 
     let encoded_call_data = tx
@@ -790,10 +801,7 @@ async fn bridge(
 ) -> Result<()> {
     // Connect to substrate
     let chain_api: ChainApi = subxt_connect(&args.chain_ws_endpoint).await?;
-    info!(
-        "Connected to chain at: {}",
-        args.chain_ws_endpoint
-    );
+    info!("Connected to chain at: {}", args.chain_ws_endpoint);
 
     if !args.no_wait {
         // Don't start our worker until the substrate node is synced
@@ -943,7 +951,7 @@ async fn bridge(
             }
             sync_state.blocks.remove(0);
         }
-        
+
         info!(
             "try to sync blocks. next required: (body={}, header={}), finalized tip: {}, buffered: {}",
             info.blocknum, info.headernum, latest_block.header.number, sync_state.blocks.len());
@@ -974,14 +982,8 @@ async fn bridge(
         }
 
         // send the blocks to Ceseal in batch
-        let synced_blocks = batch_sync_block(
-            &chain_api,
-            &cc,
-            &mut sync_state,
-            args.sync_blocks,
-            &info,
-        )
-        .await?;
+        let synced_blocks =
+            batch_sync_block(&chain_api, &cc, &mut sync_state, args.sync_blocks, &info).await?;
 
         // check if Ceseal has already reached the chain tip.
         if synced_blocks == 0 && !more_blocks {
@@ -1039,9 +1041,8 @@ async fn bridge(
 
             // Launch key handover if required only when the old Ceseal is up-to-date
             if args.next_ceseal_endpoint.is_some() {
-                let next_pr = ceseal_client::new_ceseal_client(
-                    args.next_ceseal_endpoint.clone().unwrap(),
-                );
+                let next_pr =
+                    ceseal_client::new_ceseal_client(args.next_ceseal_endpoint.clone().unwrap());
                 handover_worker_key(&cc, &next_pr).await?;
             }
 
