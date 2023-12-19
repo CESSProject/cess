@@ -166,7 +166,6 @@ mod storage_ext {
             self.execute_with(pallet_registry::MinimumCesealVersion::<chain::Runtime>::get)
         }
 
-
         pub(crate) fn is_ceseal_in_whitelist(&self, measurement: &[u8]) -> bool {
             let list = self.execute_with(pallet_registry::CesealAllowList::<chain::Runtime>::get);
             for hash in list.iter() {

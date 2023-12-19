@@ -683,12 +683,13 @@ where
     pub fn dispatch_request(
         &self,
         req_id: u64,
-        path: String,
+        path: &str,
         data: &[u8],
         json: bool,
     ) -> impl Future<Output = (u16, Vec<u8>)> {
         use crpc::server::{Error, ProtoError};
         let data = data.to_vec();
+        let path = path.to_owned();
 
         let mut server = CesealApiServer::new(self.with_id(req_id));
 

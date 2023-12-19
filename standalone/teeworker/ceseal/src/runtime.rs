@@ -64,7 +64,7 @@ pub fn ecall_bench_run(index: u32) {
     }
 }
 
-pub async fn ecall_crpc_request(req_id: u64, path: String, data: &[u8], json: bool) -> (u16, Vec<u8>) {
+pub async fn ecall_crpc_request(req_id: u64, path: &str, data: &[u8], json: bool) -> (u16, Vec<u8>) {
     info!(%path, json, "Handling cRPC request");
     let (code, data) = APPLICATION.dispatch_request(req_id, path, data, json).await;
     info!(code, size = data.len(), "cRPC returned");

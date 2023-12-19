@@ -239,7 +239,7 @@ fn limit_for_method(method: &str, limits: &Limits) -> ByteUnit {
 #[post("/<method>?<json>", data = "<data>")]
 async fn crpc_proxy(
     id: TraceId,
-    method: String,
+    method: &str,
     data: Data<'_>,
     limits: &Limits,
     content_type: Option<&ContentType>,
@@ -250,7 +250,7 @@ async fn crpc_proxy(
 
 async fn crpc_proxy_inner(
     id: u64,
-    method: String,
+    method: &str,
     data: Data<'_>,
     limits: &Limits,
     content_type: Option<&ContentType>,
@@ -271,7 +271,7 @@ async fn crpc_proxy_inner(
     crpc_call(id, method, &data, json).await
 }
 
-async fn crpc_call(id: u64, method: String, data: &[u8], json: bool) -> Custom<Vec<u8>> {
+async fn crpc_call(id: u64, method: &str, data: &[u8], json: bool) -> Custom<Vec<u8>> {
     let (status_code, output) = runtime::ecall_crpc_request(id, method, data, json).await;
     if let Some(status) = Status::from_code(status_code) {
         Custom(status, output)
@@ -285,7 +285,7 @@ async fn crpc_call(id: u64, method: String, data: &[u8], json: bool) -> Custom<V
 #[post("/<method>?<json>", data = "<data>")]
 async fn crpc_proxy_acl(
     id: TraceId,
-    method: String,
+    method: &str,
     data: Data<'_>,
     limits: &Limits,
     content_type: Option<&ContentType>,
@@ -301,7 +301,7 @@ async fn crpc_proxy_acl(
 
 #[instrument(target="crpc", name="crpc", fields(%id), skip_all)]
 #[get("/<method>")]
-async fn crpc_proxy_get_acl(id: TraceId, method: String) -> Custom<Vec<u8>> {
+async fn crpc_proxy_get_acl(id: TraceId, method: &str) -> Custom<Vec<u8>> {
     info!(method, "crpc_acl get enter");
     if !rpc_type(&method).is_public() {
         error!("crpc_acl: access denied");
@@ -312,7 +312,7 @@ async fn crpc_proxy_get_acl(id: TraceId, method: String) -> Custom<Vec<u8>> {
 
 #[instrument(target="crpc", name="crpc", fields(%id), skip_all)]
 #[get("/<method>")]
-async fn crpc_proxy_get(id: TraceId, method: String) -> Custom<Vec<u8>> {
+async fn crpc_proxy_get(id: TraceId, method: &str) -> Custom<Vec<u8>> {
     crpc_call(id.id(), method, b"", true).await
 }
 
