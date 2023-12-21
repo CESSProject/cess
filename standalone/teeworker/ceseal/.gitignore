@@ -37,10 +37,6 @@ rls*.log
 *.so
 *.so.*
 
-# Executables
-bin/**
-!bin/Rocket.toml
-
 # SGX EDL generated stubs
 Enclave_u.c
 Enclave_u.h
