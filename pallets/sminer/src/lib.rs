@@ -398,7 +398,8 @@ pub mod pallet {
 		#[pallet::weight(Weight::zero())]
 		pub fn register_pois_key(
 			origin: OriginFor<T>, 
-			pois_key: PoISKey, 
+			pois_key: PoISKey,
+			tee_sig_need_verify: TeeRsaSignature,
 			tee_sig: TeeRsaSignature,
 			tee_acc: AccountOf<T>, 
 		) -> DispatchResult {
@@ -421,7 +422,7 @@ pub mod pallet {
 			original.extend_from_slice(&tee_acc_encode);
 			let original_text = sp_io::hashing::sha2_256(&original);
 			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
-			ensure!(verify_rsa(&tee_puk, &original_text, &tee_sig), Error::<T>::VerifyTeeSigFailed);
+			ensure!(verify_rsa(&tee_puk, &original_text, &tee_sig_need_verify), Error::<T>::VerifyTeeSigFailed);
 
 			MinerPublicKey::<T>::insert(&original_text, sender.clone());
 

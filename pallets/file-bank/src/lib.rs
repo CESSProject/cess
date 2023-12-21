@@ -622,6 +622,7 @@ pub mod pallet {
 		pub fn replace_idle_space(
 			origin: OriginFor<T>,
 			idle_sig_info: SpaceProofInfo<AccountOf<T>>,
+			tee_sig_need_verify: TeeRsaSignature,
 			tee_sig: TeeRsaSignature,
 			tee_acc: AccountOf<T>,
 		) -> DispatchResult {
@@ -639,7 +640,7 @@ pub mod pallet {
 			let original = sp_io::hashing::sha2_256(&original);
 			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
 
-			ensure!(verify_rsa(&tee_puk, &original, &tee_sig), Error::<T>::VerifyTeeSigFailed);
+			ensure!(verify_rsa(&tee_puk, &original, &tee_sig_need_verify), Error::<T>::VerifyTeeSigFailed);
 
 			let count = T::MinerControl::delete_idle_update_accu(
 				&sender, 
@@ -705,6 +706,7 @@ pub mod pallet {
 		pub fn cert_idle_space(
 			origin: OriginFor<T>,
 			idle_sig_info: SpaceProofInfo<AccountOf<T>>,
+			tee_sig_need_verify: TeeRsaSignature,
 			tee_sig: TeeRsaSignature,
 			tee_acc: AccountOf<T>,
 		) -> DispatchResult {
@@ -723,7 +725,7 @@ pub mod pallet {
 
 			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
 
-			ensure!(verify_rsa(&tee_puk, &original, &tee_sig), Error::<T>::VerifyTeeSigFailed);
+			ensure!(verify_rsa(&tee_puk, &original, &tee_sig_need_verify), Error::<T>::VerifyTeeSigFailed);
 
 			let idle_space = T::MinerControl::add_miner_idle_space(
 				&sender, 
