@@ -16,7 +16,9 @@ pub mod benchmarking;
 
 use codec::{Decode, Encode};
 use frame_support::{
-	dispatch::DispatchResult, traits::{ReservableCurrency, UnixTime}, transactional, BoundedVec, PalletId,
+	dispatch::DispatchResult, 
+	traits::{ReservableCurrency, UnixTime, StorageVersion}, 
+	transactional, BoundedVec, PalletId,
 	pallet_prelude::*,
 };
 pub use pallet::*;
@@ -34,6 +36,11 @@ pub use weights::WeightInfo;
 use cp_cess_common::*;
 use frame_system::{ensure_signed, pallet_prelude::*};
 pub mod weights;
+
+pub mod migrations;
+pub use migrations::*;
+
+const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 
@@ -146,7 +153,9 @@ pub mod pallet {
 	pub(super) type ValidationTypeList<T: Config> = StorageValue<_, BoundedVec<AccountOf<T>, T::SchedulerMaximum>, ValueQuery>;
 
 	#[pallet::pallet]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
+	
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Register a TEE Worker
@@ -174,7 +183,7 @@ pub mod pallet {
 			end_point: EndPoint,
 			tee_type: TeeType,
 		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
+			let _sender = ensure_signed(origin)?;
 			//Even if the primary key is not present here, panic will not be caused
 			match &stash_account {
 				Some(acc) => {

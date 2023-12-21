@@ -21,7 +21,7 @@ use frame_support::{
 	transactional, ensure,
 	storage::bounded_vec::BoundedVec, PalletId,
 	traits::{
-		Currency,
+		Currency, StorageVersion,
 		ExistenceRequirement::KeepAlive,
 		Get, ReservableCurrency,
 		schedule::{self, Anon as ScheduleAnon, DispatchTime, Named as ScheduleNamed}, 
@@ -63,6 +63,9 @@ pub use types::*;
 mod constants;
 use constants::*;
 
+pub mod migrations;
+pub use migrations::*;
+
 mod functions;
 mod helper;
 
@@ -72,6 +75,8 @@ pub use weights::WeightInfo;
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> =
 	<<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+
+const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -296,6 +301,7 @@ pub mod pallet {
 			StorageMap<_, Blake2_128Concat, AccountOf<T>, u128, ValueQuery>;
 
 	#[pallet::pallet]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::genesis_config]
@@ -399,7 +405,7 @@ pub mod pallet {
 		pub fn register_pois_key(
 			origin: OriginFor<T>, 
 			pois_key: PoISKey, 
-			tee_sig: TeeRsaSignature
+			tee_sig: TeeRsaSignature,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			// Because the next operation consumes system resources, make a judgment in advance.
