@@ -399,7 +399,8 @@ pub mod pallet {
 		pub fn register_pois_key(
 			origin: OriginFor<T>, 
 			pois_key: PoISKey, 
-			tee_sig: TeeRsaSignature
+			tee_sig: TeeRsaSignature,
+			tee_acc: AccountOf<T>, 
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			// Because the next operation consumes system resources, make a judgment in advance.
@@ -414,7 +415,11 @@ pub mod pallet {
 			};
 
 			let encoding = space_proof_info.encode();
-			let original_text = sp_io::hashing::sha2_256(&encoding);
+			let tee_acc_encode = tee_acc.encode();
+			let mut original = Vec::new();
+			original.extend_from_slice(&encoding);
+			original.extend_from_slice(&tee_acc_encode);
+			let original_text = sp_io::hashing::sha2_256(&original);
 			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
 			ensure!(verify_rsa(&tee_puk, &original_text, &tee_sig), Error::<T>::VerifyTeeSigFailed);
 
