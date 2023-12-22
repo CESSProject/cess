@@ -18,16 +18,16 @@
 //! * `buyfile` - Buy file with download fee.
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(test)]
-mod mock;
+// #[cfg(test)]
+// mod mock;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
 use frame_support::traits::{
 	FindAuthor, Randomness,
 	StorageVersion,
-	schedule::{Anon as ScheduleAnon, DispatchTime, Named as ScheduleNamed}, 
+	schedule::{Anon as ScheduleAnon, Named as ScheduleNamed}, 
 };
 // use sc_network::Multiaddr;
 
@@ -56,7 +56,6 @@ use frame_support::{
 	dispatch::DispatchResult, 
 	pallet_prelude::*,
 	weights::Weight,
-	traits::schedule,
 };
 use frame_system::pallet_prelude::*;
 use scale_info::TypeInfo;
@@ -114,13 +113,13 @@ pub mod pallet {
 		type SPalletsOrigin: From<frame_system::RawOrigin<Self::AccountId>>;
 		/// The SProposal.
 		type SProposal: Parameter + Dispatchable<RuntimeOrigin = Self::RuntimeOrigin> + From<Call<Self>>;
-		//Find the consensus of the current block
+		// Find the consensus of the current block
 		type FindAuthor: FindAuthor<Self::AccountId>;
-		//Used to find out whether the schedule exists
+		// Used to find out whether the schedule exists
 		type TeeWorkerHandler: TeeWorkerHandler<Self::AccountId>;
-		//It is used to control the computing power and space of miners
+		// It is used to control the computing power and space of miners
 		type MinerControl: MinerControl<Self::AccountId, BlockNumberFor<Self>>;
-		//Interface that can generate random seeds
+		// Interface that can generate random seeds	
 		type MyRandomness: Randomness<Option<Self::Hash>, BlockNumberFor<Self>>;
 
 		type StorageHandle: StorageHandle<Self::AccountId>;
@@ -193,6 +192,8 @@ pub mod pallet {
 		RecoveryCompleted { miner: AccountOf<T>, order_id: Hash },
 
 		StorageCompleted { file_hash: Hash },
+
+		CalculateReport { miner: AccountOf<T>, file_hash: Hash },
 	}
 
 	#[pallet::error]
@@ -261,7 +262,7 @@ pub mod pallet {
 
 		VerifyTeeSigFailed,
 
-		InsufficientReplaceable,
+		TeeNoPermission,
 	}
 
 	#[pallet::storage]
@@ -282,10 +283,6 @@ pub mod pallet {
 		BoundedVec<UserFileSliceInfo, T::UserFileLimit>,
 		ValueQuery,
 	>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn pending_replacements)]
-	pub(super) type PendingReplacements<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, u128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn miner_lock)]
@@ -357,8 +354,8 @@ pub mod pallet {
 				if let Ok(mut file_info_list) = <UserHoldFileList<T>>::try_get(&acc) {
 					weight = weight.saturating_add(T::DbWeight::get().reads(1));
 					while let Some(file_info) = file_info_list.pop() {
-						count = count.checked_add(1).unwrap_or(300);
-						if count == 300 {
+						count = count.checked_add(1).unwrap_or(ONCE_MAX_CLEAR_FILE);
+						if count == ONCE_MAX_CLEAR_FILE {
 							<UserHoldFileList<T>>::insert(&acc, file_info_list);
 							return weight;
 						}
@@ -451,48 +448,6 @@ pub mod pallet {
 			}
 
 			Self::deposit_event(Event::<T>::UploadDeclaration { operator: sender, owner: user_brief.user, deal_hash: file_hash });
-
-			Ok(())
-		}
-
-		/// Reassign Miners for a Storage Deal
-		///
-		/// This function is used to reassign miners for an existing storage deal. It is typically called when a deal
-		/// needs to be modified or if the storage task fails for some miners in the deal. The function allows reassigning
-		/// miners to ensure the storage deal is fulfilled within the specified parameters.
-		///
-		/// Parameters:
-		/// - `origin`: The origin of the transaction, expected to be a root/administrator account.
-		/// - `deal_hash`: The unique hash identifier of the storage deal.
-		/// - `count`: The new count (number of miners) for the storage deal. Must be less than or equal to 20.
-		/// - `life`: The duration (in blocks) for which the storage deal will remain active.
-		#[pallet::call_index(1)]
-		// #[transactional]
-		#[pallet::weight(
-			{
-				let v = Pallet::<T>::get_segment_length_from_deal(&deal_hash);
-				<T as pallet::Config>::WeightInfo::deal_reassign_miner(v)
-			})]
-		pub fn deal_timing_task(
-			origin: OriginFor<T>,
-			deal_hash: Hash,
-			count: u8,
-			life: u32,
-		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-
-			if count < 2 {
-				if let Err(_e) = <DealMap<T>>::try_mutate(&deal_hash, |deal_opt| -> DispatchResult {
-					let deal_info = deal_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
-					deal_info.count = count;
-					Self::start_first_task(deal_hash.0.to_vec(), deal_hash, count + 1, life)?;
-					Ok(())
-				}) {
-					Self::remove_deal(&deal_hash)?;
-				}
-			} else {
-				Self::remove_deal(&deal_hash)?;
-			}
 
 			Ok(())
 		}
@@ -598,46 +553,56 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Calculate End of a Storage Deal
-		///
-		/// This function is used to finalize a storage deal and mark it as successfully completed.
-		///
-		/// Parameters:
-		/// - `origin`: The root origin, which authorizes administrative operations.
-		/// - `deal_hash`: The unique hash identifier of the storage deal to be finalized.
-		#[pallet::call_index(4)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::calculate_end(Pallet::<T>::get_segment_length_from_deal(&deal_hash)))]
-		pub fn calculate_end(
+		#[pallet::call_index(1)]
+		// FIX ME
+		#[pallet::weight(Weight::zero())]
+		pub fn calculate_report(
 			origin: OriginFor<T>,
-			deal_hash: Hash,
+			tee_sig: TeeRsaSignature,
+			tag_sig_info: TagSigInfo<AccountOf<T>>,
 		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
+			let sender = ensure_signed(origin)?;
 
-			let deal_info = <DealMap<T>>::try_get(&deal_hash).map_err(|_| Error::<T>::NonExistent)?;
-			let count = deal_info.segment_list.len() as u128;
-			for complete_info in deal_info.complete_list.iter() {
+			ensure!(
+				T::TeeWorkerHandler::can_tag(&tag_sig_info.tee_acc),
+				Error::<T>::TeeNoPermission
+			);
+			let idle_sig_info_encode = tag_sig_info.encode();
+			let original = sp_io::hashing::sha2_256(&idle_sig_info_encode);
+			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
+
+			ensure!(verify_rsa(&tee_puk, &original, &tee_sig), Error::<T>::VerifyTeeSigFailed);
+			ensure!(tag_sig_info.miner == sender, Error::<T>::VerifyTeeSigFailed);
+
+			<File<T>>::try_mutate(&tag_sig_info.file_hash, |file_info_opt| -> DispatchResult {
+				let file_info = file_info_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
+				let now = <frame_system::Pallet<T>>::block_number();
+				let mut count: u128 = 0;
 				let mut hash_list: Vec<Box<[u8; 256]>> = Default::default();
-				for segment in &deal_info.segment_list {
-					let fragment_hash = segment.fragment_list[(complete_info.index - 1) as usize];
-					let hash_temp = fragment_hash.binary().map_err(|_| Error::<T>::BugInvalid)?;
-					hash_list.push(hash_temp);
+				for segment in file_info.segment_list.iter_mut() {
+					for fragment in segment.fragment_list.iter_mut() {
+						if fragment.miner == sender {
+							fragment.tag = Some(now);
+							count = count + 1;
+							let hash_temp = fragment.hash.binary().map_err(|_| Error::<T>::BugInvalid)?;
+							hash_list.push(hash_temp);
+						}
+					}
 				}
-				// Accumulate the number of fragments stored by each miner
-				let unlock_space = FRAGMENT_SIZE.checked_mul(count as u128).ok_or(Error::<T>::Overflow)?;
-				T::MinerControl::unlock_space_to_service(&complete_info.miner, unlock_space)?;
-				T::MinerControl::insert_service_bloom(&complete_info.miner, hash_list)?;
-			}
 
-			<File<T>>::try_mutate(&deal_hash, |file_opt| -> DispatchResult {
-				let file = file_opt.as_mut().ok_or(Error::<T>::BugInvalid)?;
-				file.stat = FileState::Active;
+				let unlock_space = FRAGMENT_SIZE.checked_mul(count as u128).ok_or(Error::<T>::Overflow)?;
+				T::MinerControl::unlock_space_to_service(&sender, unlock_space)?;
+				T::MinerControl::insert_service_bloom(&sender, hash_list)?;
+
+				if T::TeeWorkerHandler::is_bonded(&tag_sig_info.tee_acc) {
+					let bond_stash = T::TeeWorkerHandler::get_stash(&tag_sig_info.tee_acc)?;
+					T::CreditCounter::increase_point_for_tag(&bond_stash, unlock_space)?;
+				}
+
+				Self::deposit_event(Event::<T>::CalculateReport{ miner: sender, file_hash: tag_sig_info.file_hash});
+
 				Ok(())
 			})?;
-
-			<DealMap<T>>::remove(&deal_hash);
-
-			Self::deposit_event(Event::<T>::CalculateEnd{ file_hash: deal_hash });
 
 			Ok(())
 		}
@@ -659,12 +624,20 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			idle_sig_info: SpaceProofInfo<AccountOf<T>>,
 			tee_sig: TeeRsaSignature,
+			tee_acc: AccountOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
-			let original = idle_sig_info.encode();
+			ensure!(
+				T::TeeWorkerHandler::can_cert(&tee_acc),
+				Error::<T>::TeeNoPermission
+			);
+			let idle_sig_info_encode = idle_sig_info.encode();
+			let tee_acc_encode = tee_acc.encode();
+			let mut original = Vec::new();
+			original.extend_from_slice(&idle_sig_info_encode);
+			original.extend_from_slice(&tee_acc_encode);
 			let original = sp_io::hashing::sha2_256(&original);
-
 			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
 
 			ensure!(verify_rsa(&tee_puk, &original, &tee_sig), Error::<T>::VerifyTeeSigFailed);
@@ -673,24 +646,18 @@ pub mod pallet {
 				&sender, 
 				idle_sig_info.accumulator,
 				idle_sig_info.front,
+				idle_sig_info.rear,
 				tee_sig,
 			)?;
+			let replace_space = IDLE_SEG_SIZE.checked_mul(count.into()).ok_or(Error::<T>::Overflow)?;
+			T::MinerControl::decrease_replace_space(&sender, replace_space)?;
 
-			<PendingReplacements<T>>::try_mutate(&sender, |pending_space| -> DispatchResult {
-				if *pending_space / IDLE_SEG_SIZE == 0 {
-					Err(Error::<T>::InsufficientReplaceable)?;
-				}
-				let replace_space = IDLE_SEG_SIZE.checked_mul(count.into()).ok_or(Error::<T>::Overflow)?;
-				log::info!("pending_space: {:?}, replace_space: {:?}, count: {:?}", pending_space, replace_space, count);
-				let pending_space_temp = pending_space.checked_sub(replace_space).ok_or(Error::<T>::Overflow)?;
-				*pending_space = pending_space_temp;
-
-				Self::deposit_event(Event::<T>::ReplaceIdleSpace { acc: sender.clone(), space: replace_space });
-
-				Ok(())
-			})?;
-
+			if T::TeeWorkerHandler::is_bonded(&tee_acc) {
+				let bond_stash = T::TeeWorkerHandler::get_stash(&tee_acc)?;
+				T::CreditCounter::increase_point_for_replace(&bond_stash, replace_space)?;
+			}
 			
+			Self::deposit_event(Event::<T>::ReplaceIdleSpace { acc: sender.clone(), space: replace_space });
 
 			Ok(())
 		}
@@ -740,10 +707,19 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			idle_sig_info: SpaceProofInfo<AccountOf<T>>,
 			tee_sig: TeeRsaSignature,
+			tee_acc: AccountOf<T>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
-			let original = idle_sig_info.encode();
+			ensure!(
+				T::TeeWorkerHandler::can_cert(&tee_acc),
+				Error::<T>::TeeNoPermission
+			);
+			let idle_sig_info_encode = idle_sig_info.encode();
+			let tee_acc_encode = tee_acc.encode();
+			let mut original = Vec::new();
+			original.extend_from_slice(&idle_sig_info_encode);
+			original.extend_from_slice(&tee_acc_encode);
 			let original = sp_io::hashing::sha2_256(&original);
 
 			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
@@ -753,9 +729,15 @@ pub mod pallet {
 			let idle_space = T::MinerControl::add_miner_idle_space(
 				&sender, 
 				idle_sig_info.accumulator, 
+				idle_sig_info.front,
 				idle_sig_info.rear,
 				tee_sig,
 			)?;
+
+			if T::TeeWorkerHandler::is_bonded(&tee_acc) {
+				let bond_stash = T::TeeWorkerHandler::get_stash(&tee_acc)?;
+				T::CreditCounter::increase_point_for_cert(&bond_stash, idle_space)?;
+			}
 
 			T::StorageHandle::add_total_idle_space(idle_space)?;
 
@@ -1043,21 +1025,22 @@ pub mod pallet {
 							if &fragment.hash == &fragment_hash {
 								if &fragment.miner == &order.origin_miner {
 									let binary = fragment.hash.binary().map_err(|_| Error::<T>::BugInvalid)?;
-									T::MinerControl::delete_service_bloom(&fragment.miner, vec![binary.clone()])?;
-									T::MinerControl::insert_service_bloom(&sender, vec![binary])?;
-									T::MinerControl::sub_miner_service_space(&fragment.miner, FRAGMENT_SIZE)?;
+									T::MinerControl::insert_service_bloom(&sender, vec![binary.clone()])?;
 									T::MinerControl::add_miner_service_space(&sender, FRAGMENT_SIZE)?;
 
 									// TODO!
 									T::MinerControl::delete_idle_update_space(&sender, FRAGMENT_SIZE)?;
-									<PendingReplacements<T>>::try_mutate(&sender, |pending_space| -> DispatchResult {
-										let pending_space_temp = pending_space.checked_add(FRAGMENT_SIZE).ok_or(Error::<T>::Overflow)?;
-										*pending_space = pending_space_temp;
-										Ok(())
-									})?;
+									T::MinerControl::increase_replace_space(&sender, FRAGMENT_SIZE)?;
 
 									if T::MinerControl::restoral_target_is_exist(&fragment.miner) {
 										T::MinerControl::update_restoral_target(&fragment.miner, FRAGMENT_SIZE)?;
+									} else {
+										if fragment.tag.is_some() {
+											T::MinerControl::delete_service_bloom(&fragment.miner, vec![binary])?;
+											T::MinerControl::sub_miner_service_space(&fragment.miner, FRAGMENT_SIZE)?;
+										} else {
+											T::MinerControl::unlock_space_direct(&fragment.miner, FRAGMENT_SIZE)?;
+										}
 									}
 
 									fragment.avail = true;

@@ -37,8 +37,6 @@ pub enum FileState {
 pub struct DealInfo<T: Config> {
 	// There are two stages in total: 
 	// the first stage and the second stage, represented by 1 or 2, respectively.
-	pub(super) stage: u8, 
-	pub(super) count: u8,
 	pub(super) file_size: u128,
 	pub(super) segment_list: BoundedVec<SegmentList<T>, T::SegmentCount>,
 	pub(super) user: UserBrief<T>,
@@ -79,6 +77,7 @@ pub struct SegmentInfo<T: Config> {
 pub struct FragmentInfo<T: Config> {
 	pub(super) hash: Hash,
 	pub(super) avail: bool,
+	pub(super) tag: Option<BlockNumberFor<T>>,
 	pub(super) miner: AccountOf<T>,
 }
 
@@ -124,5 +123,12 @@ pub struct RestoralOrderInfo<T: Config> {
 	pub(super) file_hash: Hash,
 	pub(super) gen_block: BlockNumberFor<T>,
 	pub(super) deadline: BlockNumberFor<T>,
+}
+
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+pub struct TagSigInfo<AccountId> {
+	pub(super) miner: AccountId,
+	pub(super) file_hash: Hash,
+	pub(super) tee_acc: AccountId,
 }
 

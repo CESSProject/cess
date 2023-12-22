@@ -25,10 +25,31 @@ use cessp_consensus_rrsc::traits::ValidatorCredits;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 use cp_scheduler_credit::{SchedulerCreditCounter, SchedulerStashAccountFinder};
+use cp_cess_common::*;
 
 pub use pallet::*;
 
 pub type CreditScore = u32;
+
+pub const CERT_BASE_SIZE: u128 = 16 * G_BYTE;
+
+pub const CERT_BASE_POINT: u64 = 4;
+
+pub const TAG_BASE_SIZE: u128 = 16 * M_BYTE;
+
+pub const TAG_BASE_POINT: u64 = 180;
+
+pub const REPLACE_BASE_SIZE: u128 = 64 * M_BYTE;
+
+pub const REPLACE_BASE_POINT: u64 = 1;
+
+pub const IDLE_VERIFY_BASE_SIZE: u128 = 16 * G_BYTE;
+
+pub const IDLE_VERIFY_BASE_POINT: u64 = 1;
+
+pub const SERVICE_VERIFY_BASE_SIZE: u128 = 1 * G_BYTE;
+
+pub const SERVICE_VERIFY_BASE_POINT: u64 = 12;
 
 pub const FULL_CREDIT_SCORE: u32 = 1000;
 const LOG_TARGET: &str = "scheduler-credit";
@@ -100,6 +121,8 @@ pub mod pallet {
 	#[pallet::error]
 	pub enum Error<T> {
 		Overflow,
+
+		PointOverflow,
 	}
 
 	#[pallet::storage]
@@ -229,6 +252,81 @@ impl<T: Config> Pallet<T> {
 }
 
 impl<T: Config> SchedulerCreditCounter<T::AccountId> for Pallet<T> {
+	fn increase_point_for_tag(scheduler_id: &T::AccountId, space: u128) -> DispatchResult {
+		let mut base_count: u64 =  space
+			.checked_div(TAG_BASE_SIZE).ok_or(Error::<T>::PointOverflow)?
+			.try_into().map_err(|_| Error::<T>::Overflow)?;
+		if space % TAG_BASE_SIZE != 0 {
+			base_count = base_count.checked_add(1).ok_or(Error::<T>::PointOverflow)?;
+		}
+
+		let point: u64 = base_count.checked_mul(TAG_BASE_POINT).ok_or(Error::<T>::PointOverflow)?;
+
+		Self::record_proceed_block_size(scheduler_id, point)?;
+
+		Ok(())
+	}
+
+	fn increase_point_for_cert(scheduler_id: &T::AccountId, space: u128) -> DispatchResult {
+		let mut base_count: u64 =  space
+			.checked_div(CERT_BASE_SIZE).ok_or(Error::<T>::PointOverflow)?
+			.try_into().map_err(|_| Error::<T>::Overflow)?;
+		if space % CERT_BASE_SIZE != 0 {
+			base_count = base_count.checked_add(1).ok_or(Error::<T>::PointOverflow)?;
+		}
+
+		let point: u64 = base_count.checked_mul(CERT_BASE_POINT).ok_or(Error::<T>::PointOverflow)?;
+
+		Self::record_proceed_block_size(scheduler_id, point)?;
+
+		Ok(())
+	}
+
+	fn increase_point_for_idle_verify(scheduler_id: &T::AccountId, space: u128) -> DispatchResult {
+		let mut base_count: u64 =  space
+			.checked_div(IDLE_VERIFY_BASE_SIZE).ok_or(Error::<T>::PointOverflow)?
+			.try_into().map_err(|_| Error::<T>::Overflow)?;
+		if space % IDLE_VERIFY_BASE_SIZE != 0 {
+			base_count = base_count.checked_add(1).ok_or(Error::<T>::PointOverflow)?;
+		}
+
+		let point: u64 = base_count.checked_mul(IDLE_VERIFY_BASE_POINT).ok_or(Error::<T>::PointOverflow)?;
+
+		Self::record_proceed_block_size(scheduler_id, point)?;
+
+		Ok(())
+	}
+
+	fn increase_point_for_service_verify(scheduler_id: &T::AccountId, space: u128) -> DispatchResult {
+		let mut base_count: u64 =  space
+			.checked_div(SERVICE_VERIFY_BASE_SIZE).ok_or(Error::<T>::PointOverflow)?
+			.try_into().map_err(|_| Error::<T>::Overflow)?;
+		if space % SERVICE_VERIFY_BASE_SIZE != 0 {
+			base_count = base_count.checked_add(1).ok_or(Error::<T>::PointOverflow)?;
+		}
+
+		let point: u64 = base_count.checked_mul(SERVICE_VERIFY_BASE_POINT).ok_or(Error::<T>::PointOverflow)?;
+
+		Self::record_proceed_block_size(scheduler_id, point)?;
+
+		Ok(())
+	}
+
+	fn increase_point_for_replace(scheduler_id: &T::AccountId, space: u128) -> DispatchResult {
+		let mut base_count: u64 =  space
+			.checked_div(REPLACE_BASE_SIZE).ok_or(Error::<T>::PointOverflow)?
+			.try_into().map_err(|_| Error::<T>::Overflow)?;
+		if space % REPLACE_BASE_SIZE != 0 {
+			base_count = base_count.checked_add(1).ok_or(Error::<T>::PointOverflow)?;
+		}
+
+		let point: u64 = base_count.checked_mul(REPLACE_BASE_POINT).ok_or(Error::<T>::PointOverflow)?;
+
+		Self::record_proceed_block_size(scheduler_id, point)?;
+
+		Ok(())
+	}
+
 	fn record_proceed_block_size(scheduler_id: &T::AccountId, block_size: u64) -> DispatchResult {
 		Pallet::<T>::record_proceed_block_size(scheduler_id, block_size)?;
 		Ok(())

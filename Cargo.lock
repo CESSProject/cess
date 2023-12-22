@@ -7566,6 +7566,7 @@ version = "0.7.4"
 dependencies = [
  "frame-support",
  "frame-system",
+ "log",
  "parity-scale-codec",
  "scale-info",
  "sp-runtime",
@@ -8096,6 +8097,7 @@ name = "pallet-scheduler-credit"
 version = "0.1.0"
 dependencies = [
  "cessp-consensus-rrsc",
+ "cp-cess-common",
  "cp-scheduler-credit",
  "frame-support",
  "frame-system",

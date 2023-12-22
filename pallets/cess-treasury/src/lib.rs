@@ -9,13 +9,16 @@ use frame_support::{
 };
 // use sp_std::prelude::*;
 use sp_runtime::{
-    SaturatedConversion,
-	traits::{CheckedAdd, CheckedSub, AccountIdConversion},
+    SaturatedConversion, Perbill,
+	traits::{CheckedAdd, CheckedSub, AccountIdConversion, Zero},
 };
 use frame_system::{
 	pallet_prelude::OriginFor,
 	ensure_signed, ensure_root,
 };
+
+mod constants;
+use constants::*;
 
 pub use pallet::*;
 
@@ -53,6 +56,8 @@ pub mod pallet {
 
 		type SpaceTreasuryId: Get<PalletId>;
 
+		type ReserveRewardId: Get<PalletId>;
+
 		type BurnDestination: OnUnbalanced<NegativeImbalanceOf<Self>>;
     }
 	
@@ -72,6 +77,14 @@ pub mod pallet {
     #[pallet::storage]
 	#[pallet::getter(fn currency_reward)]
 	pub(super) type CurrencyReward<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn era_reward)]
+	pub(super) type EraReward<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn reserve_reward)]
+	pub(super) type ReserveReward<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
@@ -184,13 +197,47 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	pub fn add_miner_reward_pool(amount: BalanceOf<T>) -> DispatchResult {
+	pub fn get_reward() -> BalanceOf<T> {
+		<CurrencyReward<T>>::get()
+	}
+
+	pub fn get_reward_base() -> BalanceOf<T> {
+		let era_reward = <EraReward<T>>::get();
+		let base_reward = REWARD_BASE_MUTI.mul_floor(era_reward);
+
+		base_reward
+	}
+
+	pub fn add_reward(amount: BalanceOf<T>) -> DispatchResult {
 		<CurrencyReward<T>>::mutate(|v| -> DispatchResult {
+			*v = v.checked_add(&amount).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})?;
+
+		Ok(())
+	}
+
+	pub fn add_miner_reward_pool(amount: BalanceOf<T>) -> DispatchResult {
+		<EraReward<T>>::put(amount);
+		let base_reward = REWARD_BASE_MUTI.mul_floor(amount);
+		let mut reserve_output: BalanceOf<T> = BalanceOf::<T>::zero();
+
+		<CurrencyReward<T>>::mutate(|v| -> DispatchResult {
+			if *v > base_reward {
+				reserve_output = v.checked_sub(&base_reward).ok_or(Error::<T>::Overflow)?;
+				*v = v.checked_sub(&reserve_output).ok_or(Error::<T>::Overflow)?;
+			}
 			// The total issuance amount will not exceed u128::Max, so there is no overflow risk
 			*v = v.checked_add(&amount).ok_or(Error::<T>::Overflow)?;
 
 			Ok(())
-		})
+		})?;
+
+		if reserve_output != BalanceOf::<T>::zero() {
+			Self::reward_reserve(reserve_output)?;
+		}
+
+		Ok(())
 	} 
 
 	pub fn send_to_pid(acc: AccountOf<T>, amount: BalanceOf<T>) -> DispatchResult {
@@ -202,9 +249,40 @@ impl<T: Config> Pallet<T> {
 		let sid = T::SpaceTreasuryId::get().into_account_truncating();
 		<T as pallet::Config>::Currency::transfer(&acc, &sid, amount, KeepAlive)
 	}
+
+	pub fn send_to_rid(acc: AccountOf<T>, amount: BalanceOf<T>) -> DispatchResult {
+		let rid = T::ReserveRewardId::get().into_account_truncating();
+		<ReserveReward<T>>::mutate(|v| -> DispatchResult {
+			*v = v.checked_add(&amount).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})?;
+		<T as pallet::Config>::Currency::transfer(&acc, &rid, amount, KeepAlive)
+	}
+
+	pub fn reward_reserve(amount: BalanceOf<T>) -> DispatchResult {
+		let mrid = T::MinerRewardId::get().into_account_truncating();
+		Self::send_to_rid(mrid, amount)
+	}
+
+	pub fn sluice(amount: BalanceOf<T>) -> DispatchResult {
+		<ReserveReward<T>>::mutate(|v| -> DispatchResult {
+			*v = v.checked_sub(&amount).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})?;
+
+		<CurrencyReward<T>>::mutate(|v| -> DispatchResult {
+			*v = v.checked_add(&amount).ok_or(Error::<T>::Overflow)?;
+			Ok(())
+		})?;
+
+		let rid = T::ReserveRewardId::get().into_account_truncating();
+		let mrid = T::MinerRewardId::get().into_account_truncating();
+		<T as pallet::Config>::Currency::transfer(&rid, &mrid, amount, KeepAlive)
+	}
 }
 
 pub trait RewardPool<AccountId, Balance> {
+	fn get_reward_base() -> Balance;
     fn get_reward() -> Balance;
     fn get_reward_128() -> u128;
 	fn add_reward(amount: Balance) -> DispatchResult;
@@ -213,8 +291,12 @@ pub trait RewardPool<AccountId, Balance> {
 }
 
 impl<T: Config> RewardPool<AccountOf<T>, BalanceOf<T>> for Pallet<T> {
+	fn get_reward_base() -> BalanceOf<T> {
+		Self::get_reward_base()
+	}
+
     fn get_reward() -> BalanceOf<T> {
-		<CurrencyReward<T>>::get()
+		Self::get_reward()
 	}
 
 	fn get_reward_128() -> u128 {
@@ -222,16 +304,22 @@ impl<T: Config> RewardPool<AccountOf<T>, BalanceOf<T>> for Pallet<T> {
 	}
 
     fn add_reward(amount: BalanceOf<T>) -> DispatchResult {
-        Self::add_miner_reward_pool(amount)?;
+        Self::add_reward(amount)?;
 
 		Ok(())
     }
 
     fn sub_reward(amount: BalanceOf<T>) -> DispatchResult {
+		let reward = Self::get_reward();
+		if amount > reward {
+			if let Err(e) = Self::sluice(amount) {
+				log::info!("Insufficient reservoir reserves");
+				return Err(e);
+			}
+		}
         <CurrencyReward<T>>::mutate(|v| -> DispatchResult {
 			// The total issuance amount will not exceed u128::Max, so there is no overflow risk
 			*v = v.checked_sub(&amount).ok_or(Error::<T>::Overflow)?;
-
 			Ok(())
 		})?;
 

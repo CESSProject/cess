@@ -279,6 +279,8 @@ pub mod pallet {
 		RandomErr,
 
 		UnSubmitted,
+
+		TeeNoPermission,
 	}
 
 	//Relevant time nodes for storage challenges
@@ -518,6 +520,10 @@ pub mod pallet {
 					tee_signature: _,
 				} = &challenge_info.miner_snapshot;
 
+				ensure!(
+					T::TeeWorkerHandler::can_verify(&tee_acc),
+					Error::<T>::TeeNoPermission
+				);
 				let verify_idle_info = VerifyIdleResultInfo::<T> {
 					miner: sender.clone(),
 					miner_prove: total_prove_hash.clone(),
@@ -569,7 +575,10 @@ pub mod pallet {
 					.rear
 					.checked_sub(challenge_info.miner_snapshot.space_proof_info.front)
 					.ok_or(Error::<T>::Overflow)?;
-				T::CreditCounter::record_proceed_block_size(&tee_acc, count)?;
+				
+				let space = IDLE_SEG_SIZE.checked_mul(count as u128).ok_or(Error::<T>::Overflow)?;
+				let bond_stash = T::TeeWorkerHandler::get_stash(&tee_acc)?;
+				T::CreditCounter::increase_point_for_idle_verify(&bond_stash, space)?;
 
 				Self::deposit_event(Event::<T>::SubmitIdleVerifyResult {
 					tee: tee_acc.clone(),
@@ -630,6 +639,10 @@ pub mod pallet {
 					tee_signature: _,
 				} = challenge_info.miner_snapshot;
 
+				ensure!(
+					T::TeeWorkerHandler::can_verify(&tee_acc),
+					Error::<T>::TeeNoPermission
+				);
 				let verify_service_info = VerifyServiceResultInfo::<T> {
 					miner: sender.clone(),
 					tee_acc: tee_acc.clone(),
@@ -691,14 +704,8 @@ pub mod pallet {
 					<CountedServiceFailed<T>>::insert(&sender, count);
 				}
 
-				let count = challenge_info
-					.miner_snapshot
-					.service_space
-					.checked_div(IDLE_SEG_SIZE)
-					.ok_or(Error::<T>::Overflow)?
-					.checked_add(1)
-					.ok_or(Error::<T>::Overflow)?;
-				T::CreditCounter::record_proceed_block_size(&tee_acc, count as u64)?;
+				let bond_stash = T::TeeWorkerHandler::get_stash(&tee_acc)?;
+				T::CreditCounter::increase_point_for_idle_verify(&bond_stash, challenge_info.miner_snapshot.service_space)?;
 
 				Self::deposit_event(Event::<T>::SubmitServiceVerifyResult {
 					tee: tee_acc.clone(),
@@ -791,13 +798,12 @@ pub mod pallet {
 
 						let _ = T::MinerControl::clear_punish(
 							&miner,
-							count,
 							challenge_info.miner_snapshot.idle_space,
 							challenge_info.miner_snapshot.service_space,
 						);
 						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-						//For Testing
-						if count >= 6 {
+
+						if count >= 3 {
 							let result = T::MinerControl::force_miner_exit(&miner);
 							weight = weight.saturating_add(T::DbWeight::get().reads_writes(5, 5));
 							if result.is_err() {

@@ -8,11 +8,13 @@ use frame_support::pallet_prelude::MaxEncodedLen;
 pub struct MinerInfo<T: Config> {
 	//Income account
 	pub(super) beneficiary: AccountOf<T>,
+	pub(super) staking_account: AccountOf<T>,
 	pub(super) peer_id: PeerId,
 	pub(super) collaterals: BalanceOf<T>,
 	pub(super) debt: BalanceOf<T>,
 	//nomal, exit, frozen, e_frozen
 	pub(super) state: BoundedVec<u8, T::ItemLimit>,
+	pub(super) declaration_space: u128,
 	pub(super) idle_space: u128,
 	pub(super) service_space: u128,
 	pub(super) lock_space: u128,
@@ -38,9 +40,6 @@ pub struct Reward<T: pallet::Config> {
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct RewardOrder<Balance> {
 	pub(super) order_reward: Balance,
-	pub(super) each_share: Balance,
-	pub(super) award_count: u8,
-	pub(super) has_issued: bool,
 }
 
 /// The custom struct for storing info of storage FaucetRecord.

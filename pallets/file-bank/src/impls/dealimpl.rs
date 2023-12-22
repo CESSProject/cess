@@ -20,18 +20,11 @@ impl<T: Config> DealInfo<T> {
     }
 
     pub fn completed_all(&mut self) -> DispatchResult {
-        self.stage = 2;
         for complete_info in self.complete_list.iter() {
-            <PendingReplacements<T>>::try_mutate(&complete_info.miner, |pending_space| -> DispatchResult {
-                let replace_space = FRAGMENT_SIZE  
+            let replace_space = FRAGMENT_SIZE  
                     .checked_mul(self.segment_list.len() as u128)
                     .ok_or(Error::<T>::Overflow)?;
-
-                *pending_space = pending_space
-                    .checked_add(replace_space).ok_or(Error::<T>::Overflow)?;
-
-                Ok(())
-            })?;
+            T::MinerControl::increase_replace_space(&complete_info.miner, replace_space)?;
         }
 
         Ok(())
