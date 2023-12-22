@@ -175,8 +175,6 @@ pub mod pallet {
 
 		ReplaceFiller { acc: AccountOf<T>, filler_list: Vec<Hash> },
 
-		CalculateEnd{ file_hash: Hash },
-
 		IdleSpaceCert { acc: AccountOf<T>, space: u128 },
 
 		ReplaceIdleSpace { acc: AccountOf<T>, space: u128 },
