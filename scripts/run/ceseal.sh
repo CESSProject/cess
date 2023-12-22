@@ -1,14 +1,40 @@
 #!/bin/bash
 
-export ROCKET_PORT=8000
+port=8000
+work_dir="./standalone/teeworker/ceseal/bin"
+
+export ROCKET_PORT=$port
+export ROCKET_PROFILE=debug
+#export ROCKET_CONFIG="$dir/Rocket.toml"
 export RUST_LOG=info,ceseal=trace,cestory=trace
-cd standalone/teeworker/ceseal/bin
-rm *.seal*
-rm -rf ./data
-mkdir data
-./ceseal \
+
+purge_data=0
+getopts ":p" opt
+case ${opt} in
+    p)
+        purge_data=1
+        ;;
+    *)
+        ;;
+esac
+
+cd $work_dir
+
+bin="./ceseal"
+log_file="ceseal.log"
+data_dir="data"
+
+if [[ -e $log_file ]]; then
+    rm $log_file
+fi
+if [[ $purge_data -eq 1 && -e $data_dir ]]; then
+    echo "purge data ..."
+    rm -rf $data_dir
+    mkdir $data_dir
+fi
+
+$bin \
     --allow-cors \
     --address 0.0.0.0 \
-    --port 8000 \
-|& tee ceseal.log
-
+    --port $port \
+|& tee $log_file
