@@ -33,8 +33,8 @@ pub enum MessageOrigin {
     #[display("AccountId({})", "hex::encode(_0)")]
     #[serde(with = "more::scale_bytes")]
     AccountId(AccountId),
-    /// All gatekeepers share the same origin
-    Gatekeeper,
+    /// All keyfairys share the same origin
+    Keyfairy,
     /// Reserved, we use this prefix to indicate the signed content is not a mq message
     #[codec(index = 255)]
     Reserved,
@@ -62,7 +62,7 @@ impl MessageOrigin {
     pub fn is_offchain(&self) -> bool {
         matches!(
             self,
-            Self::Worker(_) | Self::Gatekeeper
+            Self::Worker(_) | Self::Keyfairy
         )
     }
 
@@ -73,12 +73,12 @@ impl MessageOrigin {
 
     /// Returns if we can trust the origin to not send us non-well-formed messages
     pub fn always_well_formed(&self) -> bool {
-        matches!(self, Self::Pallet(_) | Self::Worker(_) | Self::Gatekeeper)
+        matches!(self, Self::Pallet(_) | Self::Worker(_) | Self::Keyfairy)
     }
 
-    /// Returns if the origin is from a Gatekeeper
-    pub fn is_gatekeeper(&self) -> bool {
-        matches!(self, Self::Gatekeeper)
+    /// Returns if the origin is from a Keyfairy
+    pub fn is_keyfairy(&self) -> bool {
+        matches!(self, Self::Keyfairy)
     }
 
     /// Returns the account id if the origin is from a user, or `Err(BadOrigin)` otherwise

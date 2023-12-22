@@ -90,8 +90,6 @@ message CesealInfo {
   bool dev_mode = 6;
   // The number of mq messages in the egress queue.
   uint64 pending_messages = 7;
-  // Local estimated benchmark score.
-  uint64 score = 8; 
   // The App version
   string version = 9;
   // The git commit hash which this binary was built from
@@ -116,22 +114,22 @@ message SystemInfo {
   string public_key = 2;
   // ECDH public key of the worker.
   string ecdh_public_key = 3;
-  // Status of gatekeeper
-  GatekeeperStatus gatekeeper = 4;
+  // Status of keyfairy
+  KeyfairyStatus keyfairy = 4;
   // The block that the ceseal loaded the genesis state from.
   uint32 genesis_block = 5;
 }
 
-enum GatekeeperRole {
+enum KeyfairyRole {
   None = 0;
   Dummy = 1;
   Active = 2;
 }
 
-message GatekeeperStatus {
-  // The Gatekeeper role of the worker.
-  GatekeeperRole role = 1;
-  // The master public key, empty if not a Gatekeeper
+message KeyfairyStatus {
+  // The Keyfairy role of the worker.
+  KeyfairyRole role = 1;
+  // The master public key, empty if not a Keyfairy
   string master_public_key = 2;
 }
 

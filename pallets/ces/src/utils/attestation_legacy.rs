@@ -21,7 +21,7 @@ pub trait AttestationValidator {
 		user_data_hash: &[u8; 32],
 		now: u64,
 		verify_ceseal_hash: bool,
-		ceseal_allowlist: Vec<Vec<u8>>,
+		ceseal_bin_allowlist: Vec<Vec<u8>>,
 	) -> Result<IasFields, Error>;
 }
 
@@ -112,7 +112,7 @@ impl AttestationValidator for IasValidator {
 		user_data_hash: &[u8; 32],
 		now: u64,
 		verify_ceseal: bool,
-		ceseal_allowlist: Vec<Vec<u8>>,
+		ceseal_bin_allowlist: Vec<Vec<u8>>,
 	) -> Result<IasFields, Error> {
 		let fields = match attestation {
 			Attestation::SgxIas {
@@ -125,7 +125,7 @@ impl AttestationValidator for IasValidator {
 				raw_signing_cert,
 				now,
 				verify_ceseal,
-				ceseal_allowlist,
+				ceseal_bin_allowlist,
 			),
 		}?;
 		let commit = &fields.report_data[..32];
@@ -143,7 +143,7 @@ pub fn validate_ias_report(
 	raw_signing_cert: &[u8],
 	now: u64,
 	verify_ceseal: bool,
-	ceseal_allowlist: Vec<Vec<u8>>,
+	ceseal_bin_allowlist: Vec<Vec<u8>>,
 ) -> Result<IasFields, Error> {
 	// Validate report
 	sgx_attestation::ias::verify_signature(
@@ -159,7 +159,7 @@ pub fn validate_ias_report(
 	// Validate Ceseal
 	if verify_ceseal {
 		let t_mrenclave = ias_fields.extend_mrenclave();
-		if !ceseal_allowlist.contains(&t_mrenclave) {
+		if !ceseal_bin_allowlist.contains(&t_mrenclave) {
 			return Err(Error::CesealRejected);
 		}
 	}

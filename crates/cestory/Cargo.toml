@@ -75,7 +75,5 @@ ciborium = "0.2.0"
 default = [
     "sp-io/disable_panic_handler",
     "sp-io/disable_oom",
-    #"sp-io/disable_allocator",
 ]
 shadow-gk = []
-gk-stat = []

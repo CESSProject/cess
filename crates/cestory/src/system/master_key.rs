@@ -38,8 +38,6 @@ struct PersistentMasterKeyHistory {
 
 #[derive(Debug, Encode, Decode)]
 enum MasterKeySeal {
-    // Deprecated.
-    V1(PersistentMasterKey),
     V2(PersistentMasterKeyHistory),
 }
 
@@ -99,18 +97,7 @@ pub fn try_unseal(
         MasterKeySeal::decode(&mut &sealed_data[..]).expect("Failed to decode sealed master key");
 
     #[allow(clippy::infallible_destructuring_match)]
-    let secrets = match versioned_data {
-        MasterKeySeal::V1(data) => {
-            assert!(
-                identity_key.verify_data(&data.signature, &data.secret),
-                "Broken sealed master key"
-            );
-            vec![RotatedMasterKey {
-                rotation_id: 0,
-                block_height: 0,
-                secret: data.secret,
-            }]
-        }
+    let secrets = match versioned_data {        
         MasterKeySeal::V2(data) => {
             let encoded = data.payload.encode();
             let wrapped = wrap_content_to_sign(&encoded, SignedContentType::MasterKeyStore);

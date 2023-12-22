@@ -387,8 +387,8 @@ async fn try_load_handover_proof(pr: &CesealClient, chain_api: &ChainApi) -> Res
         chain_api,
         Some(hash),
         vec![
-            &storage_key("CesRegistry", "CesealAddedAt")[..],
-            &storage_key("CesRegistry", "CesealAllowList")[..],
+            &storage_key("CesRegistry", "CesealBinAddedAt")[..],
+            &storage_key("CesRegistry", "CesealBinAllowList")[..],
             &storage_key("Timestamp", "Now")[..],
         ],
     )
@@ -736,6 +736,7 @@ async fn try_register_worker(
     let info = ceseal_client
         .get_runtime_info(crpc::GetRuntimeInfoRequest::new(false, operator))
         .await?;
+    debug!("*** try_register_worker, info: {info:?}");
     if let Some(attestation) = info.attestation {
         info!("Registering worker...");
         register_worker(

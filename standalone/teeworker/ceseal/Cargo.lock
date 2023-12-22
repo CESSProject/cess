@@ -893,7 +893,6 @@ dependencies = [
  "hex_fmt",
  "humantime",
  "lazy_static",
- "libc",
  "num_cpus",
  "parity-scale-codec",
  "reqwest",

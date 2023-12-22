@@ -3,11 +3,11 @@ mod ias;
 mod pal_gramine;
 mod runtime;
 
-use std::{env, thread};
+use std::env;
 use std::time::Duration;
 
 use clap::Parser;
-use tracing::{error, info, info_span, Instrument};
+use tracing::{info, info_span, Instrument};
 
 use cestory_api::ecall_args::InitArgs;
 
@@ -171,19 +171,6 @@ async fn serve(sgx: bool) -> Result<(), rocket::Error> {
         panic!("Initialize Failed: {err:?}");
     }
 
-    for i in 0..cores {
-        thread::Builder::new()
-            .name(format!("bench-{i}"))
-            .spawn(move || {
-                set_thread_idle_policy();
-                loop {
-                    runtime::ecall_bench_run(i);
-                    std::thread::sleep(std::time::Duration::from_millis(200));
-                }
-            })
-            .expect("Failed to launch benchmark thread");
-    }
-
     let mut servers = vec![];
 
     if args.public_port.is_some() {
@@ -219,35 +206,4 @@ async fn serve(sgx: bool) -> Result<(), rocket::Error> {
     info!("Ceseal quited");
 
     Ok(())
-}
-
-#[cfg(not(target_os = "linux"))]
-fn set_thread_idle_policy() {}
-
-#[cfg(target_os = "linux")]
-fn set_thread_idle_policy() {
-    let param = libc::sched_param {
-        sched_priority: 0,
-        #[cfg(target_env = "musl")]
-        sched_ss_low_priority: 0,
-        #[cfg(target_env = "musl")]
-        sched_ss_repl_period: libc::timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        },
-        #[cfg(target_env = "musl")]
-        sched_ss_init_budget: libc::timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        },
-        #[cfg(target_env = "musl")]
-        sched_ss_max_repl: 0,
-    };
-
-    unsafe {
-        let rv = libc::sched_setscheduler(0, libc::SCHED_IDLE, &param);
-        if rv != 0 {
-            error!("Failed to set thread schedule prolicy to IDLE");
-        }
-    }
 }

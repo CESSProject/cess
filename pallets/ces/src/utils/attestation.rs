@@ -111,7 +111,7 @@ pub fn validate(
 	user_data_hash: &[u8; 32],
 	now: u64,
 	verify_ceseal_hash: bool,
-	ceseal_allowlist: Vec<Vec<u8>>,
+	ceseal_bin_allowlist: Vec<Vec<u8>>,
 	opt_out_enabled: bool,
 ) -> Result<ConfidentialReport, Error> {
 	match attestation {
@@ -126,7 +126,7 @@ pub fn validate(
 			raw_signing_cert.as_slice(),
 			now,
 			verify_ceseal_hash,
-			ceseal_allowlist,
+			ceseal_bin_allowlist,
 		),
 		None => {
 			if opt_out_enabled {
@@ -149,7 +149,7 @@ pub fn validate_ias_report(
 	raw_signing_cert: &[u8],
 	now: u64,
 	verify_ceseal_hash: bool,
-	ceseal_allowlist: Vec<Vec<u8>>,
+	ceseal_bin_allowlist: Vec<Vec<u8>>,
 ) -> Result<ConfidentialReport, Error> {
 	// Validate report
 	sgx_attestation::ias::verify_signature(
@@ -164,7 +164,7 @@ pub fn validate_ias_report(
 
 	// Validate Ceseal
 	let ceseal_hash = ias_fields.extend_mrenclave();
-	if verify_ceseal_hash && !ceseal_allowlist.contains(&ceseal_hash) {
+	if verify_ceseal_hash && !ceseal_bin_allowlist.contains(&ceseal_hash) {
 		return Err(Error::CesealRejected);
 	}
 

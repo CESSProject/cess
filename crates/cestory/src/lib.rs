@@ -51,8 +51,6 @@ pub use storage::ChainStorage;
 pub use types::BlockInfo;
 pub type CesealLightValidation = LightValidation<chain::Runtime>;
 
-pub mod benchmark;
-
 mod bin_api_service;
 mod crpc_service;
 mod cryptography;
@@ -298,10 +296,6 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
     }
 
     pub fn init(&mut self, args: InitArgs) {
-        if args.init_bench {
-            benchmark::resume();
-        }
-
         self.can_load_chain_state = !system::gk_master_key_exists(&args.sealing_path);
         self.args = Arc::new(args);
     }
@@ -449,7 +443,7 @@ impl<P: pal::Platform> Ceseal<P> {
         let min_version = chain_storage.minimum_ceseal_version();
 
         let measurement = self.platform.measurement().unwrap_or_else(|| vec![0; 32]);
-        let in_whitelist = chain_storage.is_ceseal_in_whitelist(&measurement);
+        let in_whitelist = chain_storage.is_ceseal_bin_in_whitelist(&measurement);
 
         if (ver.major, ver.minor, ver.patch) < min_version && !in_whitelist {
             error!("This ceseal is outdated. Please update to the latest version.");
@@ -604,7 +598,6 @@ impl<Platform: Serialize + DeserializeOwned> Ceseal<Platform> {
     fn dump_state<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut state = serializer.serialize_seq(None)?;
         state.serialize_element(&CHECKPOINT_VERSION)?;
-        state.serialize_element(&benchmark::dump_state())?;
         state.serialize_element(&self)?;
         state.serialize_element(&self.system)?;
         state.end()
@@ -636,10 +629,6 @@ impl<Platform: Serialize + DeserializeOwned> Ceseal<Platform> {
                     )));
                 }
 
-                let state = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::custom("Missing benchmark::State"))?;
-
                 let mut factory: Self::Value = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::custom("Missing Ceseal"))?;
@@ -664,7 +653,6 @@ impl<Platform: Serialize + DeserializeOwned> Ceseal<Platform> {
                 } else {
                     let _: Option<serde::de::IgnoredAny> = seq.next_element()?;
                 }
-                benchmark::restore_state(state);
                 Ok(factory)
             }
         }

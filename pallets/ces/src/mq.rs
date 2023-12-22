@@ -5,21 +5,25 @@ pub use frame_support::storage::generator::StorageMap as StorageMapTrait;
 
 #[frame_support::pallet]
 pub mod pallet {
+	use ces_types::{
+		messaging::{BindTopic, Message, MessageOrigin, Path, SignedMessage},
+		wrap_content_to_sign, MasterPublicKey, SignedContentType, WorkerPublicKey,
+	};
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
 		traits::{PalletInfo, StorageVersion},
 	};
 	use frame_system::pallet_prelude::*;
-
-	use ces_types::messaging::{BindTopic, Message, MessageOrigin, Path, SignedMessage};
 	use primitive_types::H256;
+	use sp_core::sr25519;
 	use sp_std::vec::Vec;
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + crate::registry::Config {
+	pub trait Config: frame_system::Config {
 		type QueueNotifyConfig: QueueNotifyConfig;
 		type CallMatcher: CallMatcher<Self>;
+		type MasterPubkeySupplier: MasterPubkeySupplier;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -48,12 +52,16 @@ pub mod pallet {
 		BadSender,
 		BadSequence,
 		BadDestination,
+		CannotHandleUnknownMessage,
+		MalformedSignature,
+		InvalidSignatureLength,
+		InvalidSignature,
+		MasterKeyUninitialized,
 	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T>
 	where
-		T: crate::registry::Config,
 		T::AccountId: IntoH256,
 	{
 		/// Syncs an unverified offchain message to the message queue
@@ -82,7 +90,7 @@ pub mod pallet {
 				Error::<T>::BadSequence
 			);
 			// Validate signature
-			crate::registry::Pallet::<T>::check_message(&signed_message)?;
+			Self::check_message(&signed_message)?;
 			// Update ingress
 			OffchainIngress::<T>::insert(sender.clone(), expected_seq + 1);
 			// Call dispatch_message
@@ -123,6 +131,35 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
+		pub fn check_message(message: &SignedMessage) -> DispatchResult {
+			let pubkey_copy: sr25519::Public;
+			let pubkey = match &message.message.sender {
+				MessageOrigin::Worker(pubkey) => pubkey,
+				MessageOrigin::Keyfairy => {
+					// MasterPublicKey should not be None
+					pubkey_copy = T::MasterPubkeySupplier::try_get()
+						.ok_or(Error::<T>::MasterKeyUninitialized)?;
+					&pubkey_copy
+				}
+				_ => return Err(Error::<T>::CannotHandleUnknownMessage.into()),
+			};
+			Self::verify_signature(pubkey, message)
+		}
+
+		fn verify_signature(pubkey: &WorkerPublicKey, message: &SignedMessage) -> DispatchResult {
+			let raw_sig = &message.signature;
+			ensure!(raw_sig.len() == 64, Error::<T>::InvalidSignatureLength);
+			let sig = sp_core::sr25519::Signature::try_from(raw_sig.as_slice())
+				.or(Err(Error::<T>::MalformedSignature))?;
+			let data = message.data_be_signed();
+			let data = wrap_content_to_sign(&data, SignedContentType::MqMessage);
+			ensure!(
+				sp_io::crypto::sr25519_verify(&sig, &data, pubkey),
+				Error::<T>::InvalidSignature
+			);
+			Ok(())
+		}
+
 		/// Push a validated message to the queue
 		pub fn dispatch_message(message: Message) {
 			// Notify subscribers
@@ -243,6 +280,13 @@ pub mod pallet {
 			Pallet::<Self::Config>::queue_bound_message(Self::message_origin(), payload);
 		}
 	}
+
+	pub trait MasterPubkeySupplier {
+		fn try_get() -> Option<MasterPublicKey> {
+			None
+		}
+	}
+	impl MasterPubkeySupplier for () {}
 }
 
 /// Provides `SignedExtension` to check message sequence.

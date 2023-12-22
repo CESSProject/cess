@@ -12,7 +12,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use parity_scale_codec::{Decode, Encode};
 	use scale_info::TypeInfo;
-	use sp_core::sr25519;
+
 	use sp_runtime::SaturatedConversion;
 	use sp_std::prelude::*;
 	use sp_std::{convert::TryFrom, vec};
@@ -21,8 +21,8 @@ pub mod pallet {
 	use crate::utils::attestation::Error as AttestationError;
 	use ces_types::{
 		messaging::{
-			self, bind_topic, DecodedMessage, GatekeeperChange, GatekeeperLaunch, MessageOrigin,
-			SignedMessage, SystemEvent, WorkerEvent,
+			self, bind_topic, DecodedMessage, KeyfairyChange, KeyfairyLaunch, MessageOrigin,
+			SystemEvent, WorkerEvent,
 		},
 		wrap_content_to_sign, AttestationProvider, EcdhPublicKey, MasterPublicKey,
 		SignedContentType, VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerIdentity,
@@ -39,22 +39,16 @@ pub mod pallet {
 	bind_topic!(RegistryEvent, b"^cess/registry/event");
 	#[derive(Encode, Decode, TypeInfo, Clone, Debug)]
 	pub enum RegistryEvent {
-		BenchReport {
-			start_time: u64,
-			iterations: u64,
-		},
 		///	MessageOrigin::Worker -> Pallet
 		///
 		/// Only used for first master pubkey upload, the origin has to be worker identity since there is no master pubkey
 		/// on-chain yet.
-		MasterPubkey {
-			master_pubkey: MasterPublicKey,
-		},
+		MasterPubkey { master_pubkey: MasterPublicKey },
 	}
 
-	bind_topic!(GatekeeperRegistryEvent, b"^cess/registry/gk_event");
+	bind_topic!(KeyfairyRegistryEvent, b"^cess/registry/kf_event");
 	#[derive(Encode, Decode, TypeInfo, Clone, Debug)]
-	pub enum GatekeeperRegistryEvent {
+	pub enum KeyfairyRegistryEvent {
 		RotatedMasterPubkey {
 			rotation_id: u64,
 			master_pubkey: MasterPublicKey,
@@ -99,17 +93,17 @@ pub mod pallet {
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
-	/// Gatekeeper pubkey list
+	/// Keyfairy pubkey list
 	#[pallet::storage]
-	pub type Gatekeeper<T: Config> = StorageValue<_, Vec<WorkerPublicKey>, ValueQuery>;
+	pub type Keyfairies<T: Config> = StorageValue<_, Vec<WorkerPublicKey>, ValueQuery>;
 
-	/// Gatekeeper master pubkey
+	/// Master public key
 	#[pallet::storage]
-	pub type GatekeeperMasterPubkey<T: Config> = StorageValue<_, MasterPublicKey>;
+	pub type MasterPubkey<T: Config> = StorageValue<_, MasterPublicKey>;
 
-	/// The block number and unix timestamp when the gatekeeper is launched
+	/// The block number and unix timestamp when the keyfairy is launched
 	#[pallet::storage]
-	pub type GatekeeperLaunchedAt<T: Config> = StorageValue<_, (BlockNumberFor<T>, u64)>;
+	pub type KeyfairyLaunchedAt<T: Config> = StorageValue<_, (BlockNumberFor<T>, u64)>;
 
 	/// The rotation counter starting from 1, it always equals to the latest rotation id.
 	/// The totation id 0 is reserved for the first master key before we introduce the rotation.
@@ -119,8 +113,8 @@ pub mod pallet {
 	/// Current rotation info including rotation id
 	///
 	/// Only one rotation process is allowed at one time.
-	/// Since the rotation request is broadcasted to all gatekeepers, it should be finished only if there is one functional
-	/// gatekeeper.
+	/// Since the rotation request is broadcasted to all keyfairys, it should be finished only if there is one functional
+	/// keyfairy.
 	#[pallet::storage]
 	pub type MasterKeyRotationLock<T: Config> = StorageValue<_, Option<u64>, ValueQuery>;
 
@@ -134,48 +128,35 @@ pub mod pallet {
 	pub type WorkerAddedAt<T: Config> =
 		StorageMap<_, Twox64Concat, WorkerPublicKey, BlockNumberFor<T>>;
 
-	/// Pubkey for secret topics.
-	#[pallet::storage]
-	pub type TopicKey<T> = StorageMap<_, Blake2_128Concat, Vec<u8>, Vec<u8>>;
-
-	/// The number of blocks to run the benchmark
-	#[pallet::storage]
-	pub type BenchmarkDuration<T: Config> = StorageValue<_, u32>;
-
 	/// Allow list of ceseal binary digest
 	///
 	/// Only ceseal within the list can register.
 	#[pallet::storage]
-	#[pallet::getter(fn ceseal_allowlist)]
-	pub type CesealAllowList<T: Config> = StorageValue<_, Vec<Vec<u8>>, ValueQuery>;
+	#[pallet::getter(fn ceseal_bin_allowlist)]
+	pub type CesealBinAllowList<T: Config> = StorageValue<_, Vec<Vec<u8>>, ValueQuery>;
 
 	/// The effective height of ceseal binary
 	#[pallet::storage]
-	pub type CesealAddedAt<T: Config> = StorageMap<_, Twox64Concat, Vec<u8>, BlockNumberFor<T>>;
+	pub type CesealBinAddedAt<T: Config> = StorageMap<_, Twox64Concat, Vec<u8>, BlockNumberFor<T>>;
 
 	/// Mapping from worker pubkey to CESS Network identity
 	#[pallet::storage]
 	pub type Endpoints<T: Config> =
 		StorageMap<_, Twox64Concat, WorkerPublicKey, VersionedWorkerEndpoints>;
 
-	/// Allow list of ceseal binary digest
-	///
-	/// Only ceseal within the list can register.
-	#[pallet::storage]
-	#[pallet::getter(fn temp_workers_iter_key)]
-	pub type TempWorkersIterKey<T: Config> = StorageValue<_, Option<Vec<u8>>, ValueQuery>;
-
 	/// Ceseals whoes version less than MinimumCesealVersion would be forced to quit.
 	#[pallet::storage]
 	pub type MinimumCesealVersion<T: Config> = StorageValue<_, (u32, u32, u32), ValueQuery>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// A new Gatekeeper is enabled on the blockchain
-		GatekeeperAdded {
+		MasterKeyLaunched,
+		/// A new Keyfairy is enabled on the blockchain
+		KeyfairyAdded {
 			pubkey: WorkerPublicKey,
 		},
-		GatekeeperRemoved {
+		KeyfairyRemoved {
 			pubkey: WorkerPublicKey,
 		},
 		WorkerAdded {
@@ -194,19 +175,13 @@ pub mod pallet {
 		},
 		MasterKeyRotationFailed {
 			rotation_lock: Option<u64>,
-			gatekeeper_rotation_id: u64,
-		},
-		InitialScoreSet {
-			pubkey: WorkerPublicKey,
-			init_score: u32,
+			keyfairy_rotation_id: u64,
 		},
 		MinimumCesealVersionChangedTo(u32, u32, u32),
-		GatekeeperLaunched,
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
-		CannotHandleUnknownMessage,
 		InvalidSender,
 		InvalidPubKey,
 		MalformedSignature,
@@ -226,8 +201,8 @@ pub mod pallet {
 		InvalidBenchReport,
 		WorkerNotFound,
 		NoneAttestationDisabled,
-		// Gatekeeper related
-		InvalidGatekeeper,
+		// Keyfairy related
+		InvalidKeyfairy,
 		InvalidMasterPubkey,
 		MasterKeyMismatch,
 		MasterKeyUninitialized,
@@ -241,7 +216,7 @@ pub mod pallet {
 		CesealNotFound,
 		// Additional
 		NotImplemented,
-		CannotRemoveLastGatekeeper,
+		CannotRemoveLastKeyfairy,
 		MasterKeyInRotation,
 		InvalidRotatedMasterPubkey,
 		// PRouter related
@@ -255,17 +230,6 @@ pub mod pallet {
 	where
 		T: crate::mq::Config,
 	{
-		/// Sets [`BenchmarkDuration`]
-		///
-		/// Can only be called by `GovernanceOrigin`.
-		#[pallet::call_index(0)]
-		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn force_set_benchmark_duration(origin: OriginFor<T>, value: u32) -> DispatchResult {
-			T::GovernanceOrigin::ensure_origin(origin)?;
-			BenchmarkDuration::<T>::put(value);
-			Ok(())
-		}
-
 		/// Force register a worker with the given pubkey with sudo permission
 		///
 		/// For test only.
@@ -309,95 +273,73 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Force register a topic pubkey
-		///
-		/// For test only.
-		#[pallet::call_index(2)]
-		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn force_register_topic_pubkey(
-			origin: OriginFor<T>,
-			topic: Vec<u8>,
-			pubkey: Vec<u8>,
-		) -> DispatchResult {
-			ensure_root(origin)?;
-			TopicKey::<T>::insert(topic, pubkey);
-			Ok(())
-		}
-
-		/// Register a gatekeeper.
+		/// Register a keyfairy.
 		///
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::call_index(3)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn register_gatekeeper(
+		pub fn register_keyfairy(
 			origin: OriginFor<T>,
-			gatekeeper: WorkerPublicKey,
+			keyfairy: WorkerPublicKey,
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
-			// disable gatekeeper change during key rotation
+			// disable keyfairy change during key rotation
 			let rotating = MasterKeyRotationLock::<T>::get();
 			ensure!(rotating.is_none(), Error::<T>::MasterKeyInRotation);
 
-			let mut gatekeepers = Gatekeeper::<T>::get();
-			// wait for the lead gatekeeper to upload the master pubkey
+			let mut keyfairys = Keyfairies::<T>::get();
+			// wait for the lead keyfairy to upload the master pubkey
 			ensure!(
-				gatekeepers.is_empty() || GatekeeperMasterPubkey::<T>::get().is_some(),
+				keyfairys.is_empty() || MasterPubkey::<T>::get().is_some(),
 				Error::<T>::MasterKeyUninitialized
 			);
 
-			if !gatekeepers.contains(&gatekeeper) {
-				let worker_info =
-					Workers::<T>::get(gatekeeper).ok_or(Error::<T>::WorkerNotFound)?;
-				gatekeepers.push(gatekeeper);
-				let gatekeeper_count = gatekeepers.len() as u32;
-				Gatekeeper::<T>::put(gatekeepers);
+			if !keyfairys.contains(&keyfairy) {
+				let worker_info = Workers::<T>::get(keyfairy).ok_or(Error::<T>::WorkerNotFound)?;
+				keyfairys.push(keyfairy);
+				let keyfairy_count = keyfairys.len() as u32;
+				Keyfairies::<T>::put(keyfairys);
 
-				if gatekeeper_count == 1 {
-					Self::push_message(GatekeeperLaunch::first_gatekeeper(
-						gatekeeper,
+				if keyfairy_count == 1 {
+					Self::push_message(KeyfairyLaunch::first_keyfairy(
+						keyfairy,
 						worker_info.ecdh_pubkey,
 					));
 				} else {
-					Self::push_message(GatekeeperChange::gatekeeper_registered(
-						gatekeeper,
+					Self::push_message(KeyfairyChange::keyfairy_registered(
+						keyfairy,
 						worker_info.ecdh_pubkey,
 					));
 				}
 			}
 
-			Self::deposit_event(Event::<T>::GatekeeperAdded { pubkey: gatekeeper });
+			Self::deposit_event(Event::<T>::KeyfairyAdded { pubkey: keyfairy });
 			Ok(())
 		}
 
-		/// Unregister a gatekeeper
+		/// Unregister a keyfairy
 		///
-		/// At least one gatekeeper should be available
+		/// At least one keyfairy should be available
 		#[pallet::call_index(4)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn unregister_gatekeeper(
+		pub fn unregister_keyfairy(
 			origin: OriginFor<T>,
-			gatekeeper: WorkerPublicKey,
+			keyfairy: WorkerPublicKey,
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
-			// disable gatekeeper change during key rotation
+			// disable keyfairy change during key rotation
 			let rotating = MasterKeyRotationLock::<T>::get();
 			ensure!(rotating.is_none(), Error::<T>::MasterKeyInRotation);
 
-			let mut gatekeepers = Gatekeeper::<T>::get();
-			ensure!(
-				gatekeepers.contains(&gatekeeper),
-				Error::<T>::InvalidGatekeeper
-			);
-			ensure!(
-				gatekeepers.len() > 1,
-				Error::<T>::CannotRemoveLastGatekeeper
-			);
+			let mut keyfairys = Keyfairies::<T>::get();
+			ensure!(keyfairys.contains(&keyfairy), Error::<T>::InvalidKeyfairy);
+			ensure!(keyfairys.len() > 1, Error::<T>::CannotRemoveLastKeyfairy);
 
-			gatekeepers.retain(|g| *g != gatekeeper);
-			Gatekeeper::<T>::put(gatekeepers);
-			Self::push_message(GatekeeperChange::gatekeeper_unregistered(gatekeeper));
+			keyfairys.retain(|g| *g != keyfairy);
+			Keyfairies::<T>::put(keyfairys);
+			Self::push_message(KeyfairyChange::keyfairy_unregistered(keyfairy));
 			Ok(())
 		}
 
@@ -410,8 +352,8 @@ pub mod pallet {
 			let rotating = MasterKeyRotationLock::<T>::get();
 			ensure!(rotating.is_none(), Error::<T>::MasterKeyInRotation);
 
-			let gatekeepers = Gatekeeper::<T>::get();
-			let gk_identities = gatekeepers
+			let keyfairys = Keyfairies::<T>::get();
+			let gk_identities = keyfairys
 				.iter()
 				.map(|gk| {
 					let worker_info = Workers::<T>::get(gk).ok_or(Error::<T>::WorkerNotFound)?;
@@ -428,7 +370,7 @@ pub mod pallet {
 			});
 
 			MasterKeyRotationLock::<T>::put(Some(rotation_id));
-			Self::push_message(GatekeeperLaunch::rotate_master_key(
+			Self::push_message(KeyfairyLaunch::rotate_master_key(
 				rotation_id,
 				gk_identities,
 			));
@@ -456,7 +398,7 @@ pub mod pallet {
 				&runtime_info_hash,
 				now,
 				T::VerifyCeseal::get(),
-				CesealAllowList::<T>::get(),
+				CesealBinAllowList::<T>::get(),
 			)
 			.map_err(Into::<Error<T>>::into)?;
 
@@ -471,8 +413,6 @@ pub mod pallet {
 						worker_info.runtime_version = ceseal_info.version;
 						worker_info.confidence_level = fields.confidence_level;
 						worker_info.features = ceseal_info.features;
-						// TODO: We should reset `initial_score` here, but we need ensure no breaking.
-						// worker_info.initial_score = None;
 
 						Self::push_message(SystemEvent::new_worker_event(
 							pubkey,
@@ -514,15 +454,24 @@ pub mod pallet {
 							pubkey,
 							frame_system::Pallet::<T>::block_number(),
 						);
+
+						// If the master key has been created, register immediately as Keyfair
+						if MasterPubkey::<T>::get().is_some() {
+							let mut keyfairys = Keyfairies::<T>::get();
+							if !keyfairys.contains(&pubkey) {
+								keyfairys.push(pubkey);
+								Keyfairies::<T>::put(keyfairys);
+
+								Self::push_message(KeyfairyChange::keyfairy_registered(
+									pubkey,
+									ceseal_info.ecdh_pubkey,
+								));
+								Self::deposit_event(Event::<T>::KeyfairyAdded { pubkey });
+							}
+						}
 					}
 				}
 			});
-			// Trigger benchmark anyway
-			let duration = BenchmarkDuration::<T>::get().unwrap_or_default();
-			Self::push_message(SystemEvent::new_worker_event(
-				pubkey,
-				WorkerEvent::BenchStart { duration },
-			));
 			Ok(())
 		}
 
@@ -547,7 +496,7 @@ pub mod pallet {
 				&runtime_info_hash,
 				now,
 				T::VerifyCeseal::get(),
-				CesealAllowList::<T>::get(),
+				CesealBinAllowList::<T>::get(),
 				T::NoneAttestationEnabled::get(),
 			)
 			.map_err(Into::<Error<T>>::into)?;
@@ -563,8 +512,6 @@ pub mod pallet {
 						worker_info.runtime_version = ceseal_info.version;
 						worker_info.confidence_level = attestation_report.confidence_level;
 						worker_info.features = ceseal_info.features;
-						// TODO: We should reset `initial_score` here, but we need ensure no breaking.
-						// worker_info.initial_score = None;
 
 						Self::push_message(SystemEvent::new_worker_event(
 							pubkey,
@@ -606,15 +553,24 @@ pub mod pallet {
 							pubkey,
 							frame_system::Pallet::<T>::block_number(),
 						);
+
+						// If the master key has been created, register immediately as Keyfair
+						if MasterPubkey::<T>::get().is_some() {
+							let mut keyfairys = Keyfairies::<T>::get();
+							if !keyfairys.contains(&pubkey) {
+								keyfairys.push(pubkey);
+								Keyfairies::<T>::put(keyfairys);
+
+								Self::push_message(KeyfairyChange::keyfairy_registered(
+									pubkey,
+									ceseal_info.ecdh_pubkey,
+								));
+								Self::deposit_event(Event::<T>::KeyfairyAdded { pubkey });
+							}
+						}
 					}
 				}
 			});
-			// Trigger benchmark anyway
-			let duration = BenchmarkDuration::<T>::get().unwrap_or_default();
-			Self::push_message(SystemEvent::new_worker_event(
-				pubkey,
-				WorkerEvent::BenchStart { duration },
-			));
 			Ok(())
 		}
 
@@ -662,7 +618,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Registers a ceseal binary to [`CesealAllowList`]
+		/// Registers a ceseal binary to [`CesealBinAllowList`]
 		///
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::call_index(9)]
@@ -670,22 +626,22 @@ pub mod pallet {
 		pub fn add_ceseal(origin: OriginFor<T>, ceseal_hash: Vec<u8>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
-			let mut allowlist = CesealAllowList::<T>::get();
+			let mut allowlist = CesealBinAllowList::<T>::get();
 			ensure!(
 				!allowlist.contains(&ceseal_hash),
 				Error::<T>::CesealAlreadyExists
 			);
 
 			allowlist.push(ceseal_hash.clone());
-			CesealAllowList::<T>::put(allowlist);
+			CesealBinAllowList::<T>::put(allowlist);
 
 			let now = frame_system::Pallet::<T>::block_number();
-			CesealAddedAt::<T>::insert(&ceseal_hash, now);
+			CesealBinAddedAt::<T>::insert(&ceseal_hash, now);
 
 			Ok(())
 		}
 
-		/// Removes a ceseal binary from [`CesealAllowList`]
+		/// Removes a ceseal binary from [`CesealBinAllowList`]
 		///
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::call_index(10)]
@@ -693,13 +649,13 @@ pub mod pallet {
 		pub fn remove_ceseal(origin: OriginFor<T>, ceseal_hash: Vec<u8>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
-			let mut allowlist = CesealAllowList::<T>::get();
+			let mut allowlist = CesealBinAllowList::<T>::get();
 			ensure!(allowlist.contains(&ceseal_hash), Error::<T>::CesealNotFound);
 
 			allowlist.retain(|h| *h != ceseal_hash);
-			CesealAllowList::<T>::put(allowlist);
+			CesealBinAllowList::<T>::put(allowlist);
 
-			CesealAddedAt::<T>::remove(&ceseal_hash);
+			CesealBinAddedAt::<T>::remove(&ceseal_hash);
 
 			Ok(())
 		}
@@ -724,40 +680,16 @@ pub mod pallet {
 		}
 	}
 
-	// TODO: Move it to mq
+	impl<T: Config> crate::mq::MasterPubkeySupplier for Pallet<T> {
+		fn try_get() -> Option<MasterPublicKey> {
+			MasterPubkey::<T>::get()
+		}
+	}
+
 	impl<T: Config> Pallet<T>
 	where
 		T: crate::mq::Config,
 	{
-		pub fn check_message(message: &SignedMessage) -> DispatchResult {
-			let pubkey_copy: sr25519::Public;
-			let pubkey = match &message.message.sender {
-				MessageOrigin::Worker(pubkey) => pubkey,
-				MessageOrigin::Gatekeeper => {
-					// GatekeeperMasterPubkey should not be None
-					pubkey_copy = GatekeeperMasterPubkey::<T>::get()
-						.ok_or(Error::<T>::MasterKeyUninitialized)?;
-					&pubkey_copy
-				}
-				_ => return Err(Error::<T>::CannotHandleUnknownMessage.into()),
-			};
-			Self::verify_signature(pubkey, message)
-		}
-
-		fn verify_signature(pubkey: &WorkerPublicKey, message: &SignedMessage) -> DispatchResult {
-			let raw_sig = &message.signature;
-			ensure!(raw_sig.len() == 64, Error::<T>::InvalidSignatureLength);
-			let sig = sp_core::sr25519::Signature::try_from(raw_sig.as_slice())
-				.or(Err(Error::<T>::MalformedSignature))?;
-			let data = message.data_be_signed();
-			let data = wrap_content_to_sign(&data, SignedContentType::MqMessage);
-			ensure!(
-				sp_io::crypto::sr25519_verify(&sig, &data, pubkey),
-				Error::<T>::InvalidSignature
-			);
-			Ok(())
-		}
-
 		pub fn on_message_received(message: DecodedMessage<RegistryEvent>) -> DispatchResult {
 			let worker_pubkey = match &message.sender {
 				MessageOrigin::Worker(key) => key,
@@ -765,44 +697,13 @@ pub mod pallet {
 			};
 
 			match message.payload {
-				RegistryEvent::BenchReport {
-					start_time,
-					iterations,
-				} => {
-					let now = T::UnixTime::now().as_millis().saturated_into::<u64>();
-					if now <= start_time {
-						// Oops, should not happen
-						return Err(Error::<T>::InvalidBenchReport.into());
-					}
-
-					const MAX_SCORE: u32 = 6000;
-					let score = iterations / ((now - start_time) / 1000);
-					let score = score * 6; // iterations per 6s
-					let score = MAX_SCORE.min(score as u32);
-
-					Workers::<T>::mutate(worker_pubkey, |val| {
-						if let Some(val) = val {
-							val.initial_score = Some(score);
-							val.last_updated = now / 1000;
-						}
-					});
-
-					Self::push_message(SystemEvent::new_worker_event(
-						*worker_pubkey,
-						WorkerEvent::BenchScore(score),
-					));
-					Self::deposit_event(Event::<T>::InitialScoreSet {
-						pubkey: *worker_pubkey,
-						init_score: score,
-					});
-				}
 				RegistryEvent::MasterPubkey { master_pubkey } => {
-					let gatekeepers = Gatekeeper::<T>::get();
+					let keyfairys = Keyfairies::<T>::get();
 					ensure!(
-						gatekeepers.contains(worker_pubkey),
-						Error::<T>::InvalidGatekeeper
+						keyfairys.contains(worker_pubkey),
+						Error::<T>::InvalidKeyfairy
 					);
-					match GatekeeperMasterPubkey::<T>::try_get() {
+					match MasterPubkey::<T>::try_get() {
 						Ok(saved_pubkey) => {
 							ensure!(
 								saved_pubkey.0 == master_pubkey.0,
@@ -810,11 +711,11 @@ pub mod pallet {
 							);
 						}
 						_ => {
-							GatekeeperMasterPubkey::<T>::put(master_pubkey);
-							Self::push_message(GatekeeperLaunch::master_pubkey_on_chain(
+							MasterPubkey::<T>::put(master_pubkey);
+							Self::push_message(KeyfairyLaunch::master_pubkey_on_chain(
 								master_pubkey,
 							));
-							Self::on_gatekeeper_launched();
+							Self::on_keyfairy_launched();
 						}
 					}
 				}
@@ -822,15 +723,15 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub fn on_gk_message_received(
-			message: DecodedMessage<GatekeeperRegistryEvent>,
+		pub fn on_keyfairy_message_received(
+			message: DecodedMessage<KeyfairyRegistryEvent>,
 		) -> DispatchResult {
-			if !message.sender.is_gatekeeper() {
+			if !message.sender.is_keyfairy() {
 				return Err(Error::<T>::InvalidSender.into());
 			}
 
 			match message.payload {
-				GatekeeperRegistryEvent::RotatedMasterPubkey {
+				KeyfairyRegistryEvent::RotatedMasterPubkey {
 					rotation_id,
 					master_pubkey,
 				} => {
@@ -838,50 +739,40 @@ pub mod pallet {
 					if rotating.is_none() || rotating.unwrap() != rotation_id {
 						Self::deposit_event(Event::<T>::MasterKeyRotationFailed {
 							rotation_lock: rotating,
-							gatekeeper_rotation_id: rotation_id,
+							keyfairy_rotation_id: rotation_id,
 						});
 						return Err(Error::<T>::InvalidRotatedMasterPubkey.into());
 					}
 
-					GatekeeperMasterPubkey::<T>::put(master_pubkey);
+					MasterPubkey::<T>::put(master_pubkey);
 					MasterKeyRotationLock::<T>::put(Option::<u64>::None);
 					Self::deposit_event(Event::<T>::MasterKeyRotated {
 						rotation_id,
 						master_pubkey,
 					});
-					Self::push_message(GatekeeperLaunch::master_pubkey_rotated(master_pubkey));
+					Self::push_message(KeyfairyLaunch::master_pubkey_rotated(master_pubkey));
 				}
 			}
 			Ok(())
 		}
 
-		fn on_gatekeeper_launched() {
+		fn on_keyfairy_launched() {
 			let block_number = frame_system::Pallet::<T>::block_number();
 			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
-			GatekeeperLaunchedAt::<T>::put((block_number, now));
-			Self::deposit_event(Event::<T>::GatekeeperLaunched);
-		}
-
-		pub fn is_worker_registered_after_gk_launched(worker: &WorkerPublicKey) -> bool {
-			let Some(worker_added_at) = WorkerAddedAt::<T>::get(worker) else {
-				return false;
-			};
-			let Some((gk_launched_at, _)) = GatekeeperLaunchedAt::<T>::get() else {
-				return false;
-			};
-			worker_added_at > gk_launched_at
+			KeyfairyLaunchedAt::<T>::put((block_number, now));
+			Self::deposit_event(Event::<T>::MasterKeyLaunched);
 		}
 	}
 
 	// Genesis config build
 
-	/// Genesis config to add some genesis worker or gatekeeper for testing purpose.
+	/// Genesis config to add some genesis worker or keyfairy for testing purpose.
 	#[pallet::genesis_config]
 	pub struct GenesisConfig<T: Config> {
 		/// List of `(identity, ecdh, operator)` tuple
 		pub workers: Vec<(WorkerPublicKey, Vec<u8>, Option<T::AccountId>)>,
-		/// List of Gatekeeper identities
-		pub gatekeepers: Vec<WorkerPublicKey>,
+		/// List of Keyfairy identities
+		pub keyfairys: Vec<WorkerPublicKey>,
 		pub benchmark_duration: u32,
 	}
 
@@ -889,7 +780,7 @@ pub mod pallet {
 		fn default() -> Self {
 			Self {
 				workers: Default::default(),
-				gatekeepers: Default::default(),
+				keyfairys: Default::default(),
 				benchmark_duration: 8u32,
 			}
 		}
@@ -923,28 +814,21 @@ pub mod pallet {
 						confidence_level: 128u8,
 					}),
 				));
-				Pallet::<T>::queue_message(SystemEvent::new_worker_event(
-					*pubkey,
-					WorkerEvent::BenchStart {
-						duration: self.benchmark_duration,
-					},
-				));
-				BenchmarkDuration::<T>::put(self.benchmark_duration);
 			}
-			let mut gatekeepers: Vec<WorkerPublicKey> = Vec::new();
-			for gatekeeper in &self.gatekeepers {
-				if let Ok(worker_info) = Workers::<T>::try_get(gatekeeper) {
-					gatekeepers.push(*gatekeeper);
-					let gatekeeper_count = gatekeepers.len() as u32;
-					Gatekeeper::<T>::put(gatekeepers.clone());
-					if gatekeeper_count == 1 {
-						Pallet::<T>::queue_message(GatekeeperLaunch::first_gatekeeper(
-							*gatekeeper,
+			let mut keyfairys: Vec<WorkerPublicKey> = Vec::new();
+			for keyfairy in &self.keyfairys {
+				if let Ok(worker_info) = Workers::<T>::try_get(keyfairy) {
+					keyfairys.push(*keyfairy);
+					let keyfairy_count = keyfairys.len() as u32;
+					Keyfairies::<T>::put(keyfairys.clone());
+					if keyfairy_count == 1 {
+						Pallet::<T>::queue_message(KeyfairyLaunch::first_keyfairy(
+							*keyfairy,
 							worker_info.ecdh_pubkey,
 						));
 					} else {
-						Pallet::<T>::queue_message(GatekeeperChange::gatekeeper_registered(
-							*gatekeeper,
+						Pallet::<T>::queue_message(KeyfairyChange::keyfairy_registered(
+							*keyfairy,
 							worker_info.ecdh_pubkey,
 						));
 					}

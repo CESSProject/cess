@@ -144,17 +144,17 @@ mod storage_ext {
         }
 
         /// Return `None` if given ceseal hash is not allowed on-chain
-        pub(crate) fn get_ceseal_added_at(
+        pub(crate) fn get_ceseal_bin_added_at(
             &self,
             runtime_hash: &[u8],
         ) -> Option<chain::BlockNumber> {
             self.execute_with(|| {
-                pallet_registry::CesealAddedAt::<chain::Runtime>::get(runtime_hash)
+                pallet_registry::CesealBinAddedAt::<chain::Runtime>::get(runtime_hash)
             })
         }
 
-        pub(crate) fn gatekeepers(&self) -> Vec<ces_types::WorkerPublicKey> {
-            self.execute_with(pallet_registry::Gatekeeper::<chain::Runtime>::get)
+        pub(crate) fn keyfairys(&self) -> Vec<ces_types::WorkerPublicKey> {
+            self.execute_with(pallet_registry::Keyfairies::<chain::Runtime>::get)
         }
 
         pub(crate) fn is_worker_registered(&self, worker: &ces_types::WorkerPublicKey) -> bool {
@@ -166,8 +166,8 @@ mod storage_ext {
             self.execute_with(pallet_registry::MinimumCesealVersion::<chain::Runtime>::get)
         }
 
-        pub(crate) fn is_ceseal_in_whitelist(&self, measurement: &[u8]) -> bool {
-            let list = self.execute_with(pallet_registry::CesealAllowList::<chain::Runtime>::get);
+        pub(crate) fn is_ceseal_bin_in_whitelist(&self, measurement: &[u8]) -> bool {
+            let list = self.execute_with(pallet_registry::CesealBinAllowList::<chain::Runtime>::get);
             for hash in list.iter() {
                 if hash.starts_with(measurement) {
                     return true;

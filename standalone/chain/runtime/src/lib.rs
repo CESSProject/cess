@@ -1624,6 +1624,7 @@ impl pallet_mq::CallMatcher<Runtime> for MqCallMatcher {
 impl pallet_mq::Config for Runtime {
     type QueueNotifyConfig = msg_routing::MessageRouteConfig;
     type CallMatcher = MqCallMatcher;
+	type MasterPubkeySupplier = pallet_registry::Pallet<Runtime>;
 }
 
 parameter_types! {

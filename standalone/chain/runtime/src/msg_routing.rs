@@ -32,6 +32,7 @@ impl pallet_mq::QueueNotifyConfig for MessageRouteConfig {
 
         route_handlers! {
             CesRegistry::on_message_received,
+            CesRegistry::on_keyfairy_message_received,
         };
         Ok(())
     }

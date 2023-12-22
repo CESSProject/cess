@@ -1,5 +1,5 @@
-use super::{RotatedMasterKey, TypedReceiver};
-use chain::pallet_registry::GatekeeperRegistryEvent;
+use super::RotatedMasterKey;
+use crate::types::BlockInfo;
 use ces_crypto::{
     aead, key_share,
     sr25519::{Persistence, Sr25519SecretKey, KDF},
@@ -8,58 +8,21 @@ use ces_mq::{traits::MessageChannel, MessageDispatcher, Sr25519Signer};
 use ces_serde_more as more;
 use ces_types::{
     messaging::{
-        BatchRotateMasterKeyEvent, DispatchMasterKeyHistoryEvent, EncryptedKey, GatekeeperEvent,
-        KeyDistribution, MessageOrigin, RandomNumber, RandomNumberEvent, RotateMasterKeyEvent,
+        BatchRotateMasterKeyEvent, DispatchMasterKeyHistoryEvent, EncryptedKey, KeyDistribution,
+        RotateMasterKeyEvent,
     },
     wrap_content_to_sign, EcdhPublicKey, SignedContentType, WorkerPublicKey,
 };
+use chain::pallet_registry::KeyfairyRegistryEvent;
+use log::info;
 use serde::{Deserialize, Serialize};
 use sp_core::{hashing, sr25519, Pair};
-
-use crate::types::BlockInfo;
-
 use std::{collections::BTreeMap, convert::TryInto};
-
-use log::{debug, info};
-
-/// Block interval to generate pseudo-random on chain
-///
-/// WARNING: this interval need to be large enough considering the latency of mq
-const VRF_INTERVAL: u32 = 5;
 
 const MASTER_KEY_SHARING_SALT: &[u8] = b"master_key_sharing";
 
-// pesudo_random_number = blake2_256(last_random_number, block_number, derived_master_key)
-//
-// NOTICE: we abandon the random number involving master key signature, since the malleability of sr25519 signature
-// refer to: https://github.com/w3f/schnorrkel/blob/34cdb371c14a73cbe86dfd613ff67d61662b4434/old/README.md#a-note-on-signature-malleability
-fn next_random_number(
-    master_key: &sr25519::Pair,
-    block_number: chain::BlockNumber,
-    last_random_number: RandomNumber,
-) -> RandomNumber {
-    let derived_random_key = master_key
-        .derive_sr25519_pair(&[b"random_number"])
-        .expect("should not fail with valid info");
-
-    let mut buf: Vec<u8> = last_random_number.to_vec();
-    buf.extend(block_number.to_be_bytes().iter().copied());
-    buf.extend(derived_random_key.dump_secret_key().iter().copied());
-
-    hashing::blake2_256(buf.as_ref())
-}
-
-#[cfg(feature = "gk-stat")]
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
-struct WorkerStat {
-    last_heartbeat_for_block: chain::BlockNumber,
-    last_heartbeat_at_block: chain::BlockNumber,
-    last_gk_responsive_event: i32,
-    last_gk_responsive_event_at_block: chain::BlockNumber,
-}
-
 #[derive(Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
-pub(crate) struct Gatekeeper<MsgChan> {
+pub(crate) struct Keyfairy<MsgChan> {
     /// The current master key in use
     #[serde(with = "more::key_bytes")]
     #[codec(skip)]
@@ -71,19 +34,16 @@ pub(crate) struct Gatekeeper<MsgChan> {
     #[serde(with = "more::scale_bytes")]
     master_key_history: Vec<RotatedMasterKey>,
     egress: MsgChan, // TODO: syncing the egress state while migrating.
-    gatekeeper_events: TypedReceiver<GatekeeperEvent>,
-    // Randomness
-    last_random_number: RandomNumber,
     iv_seq: u64,
 }
 
-impl<MsgChan> Gatekeeper<MsgChan>
+impl<MsgChan> Keyfairy<MsgChan>
 where
     MsgChan: MessageChannel<Signer = Sr25519Signer> + Clone,
 {
     pub fn new(
         master_key_history: Vec<RotatedMasterKey>,
-        recv_mq: &mut MessageDispatcher,
+        _recv_mq: &mut MessageDispatcher,
         egress: MsgChan,
     ) -> Self {
         let master_key = sr25519::Pair::restore_from_secret_key(
@@ -100,10 +60,7 @@ where
             registered_on_chain: false,
             master_key_history,
             egress: egress.clone(),
-            gatekeeper_events: recv_mq.subscribe_bound(),
-            last_random_number: [0_u8; 32],
             iv_seq: 0,
-            // computing_economics: ComputingEconomics::new(recv_mq, egress),
         }
     }
 
@@ -126,13 +83,13 @@ where
     }
 
     pub fn register_on_chain(&mut self) {
-        info!("Gatekeeper: register on chain");
+        info!("Keyfairy: register on chain");
         self.egress.set_dummy(false);
         self.registered_on_chain = true;
     }
 
     pub fn unregister_on_chain(&mut self) {
-        info!("Gatekeeper: unregister on chain");
+        info!("Keyfairy: unregister on chain");
         self.egress.set_dummy(true);
         self.registered_on_chain = false;
     }
@@ -168,13 +125,13 @@ where
         true
     }
 
-    /// Append the rotated key to Gatekeeper's master key history, return whether the history is really updated
+    /// Append the rotated key to Keyfairy's master key history, return whether the history is really updated
     pub fn append_master_key(&mut self, rotated_master_key: RotatedMasterKey) -> bool {
         if !self.master_key_history.contains(&rotated_master_key) {
             // the rotation id must be in order
             assert!(
                 rotated_master_key.rotation_id == self.master_key_history.len() as u64,
-                "Gatekeeper Master key history corrupted"
+                "Keyfairy Master key history corrupted"
             );
             self.master_key_history.push(rotated_master_key);
             return true;
@@ -182,7 +139,7 @@ where
         false
     }
 
-    /// Update the master key and Gatekeeper mq, return whether the key switch succeeds
+    /// Update the master key and Keyfairy mq, return whether the key switch succeeds
     pub fn switch_master_key(
         &mut self,
         rotation_id: u64,
@@ -196,13 +153,13 @@ where
         let raw_key = raw_key.expect("checked; qed.");
         assert!(
             raw_key.rotation_id == rotation_id && raw_key.block_height == block_height,
-            "Gatekeeper Master key history corrupted"
+            "Keyfairy Master key history corrupted"
         );
         let new_master_key = sr25519::Pair::restore_from_secret_key(&raw_key.secret);
         // send the RotatedMasterPubkey event with old master key
         let master_pubkey = new_master_key.public();
         self.egress
-            .push_message(&GatekeeperRegistryEvent::RotatedMasterPubkey {
+            .push_message(&KeyfairyRegistryEvent::RotatedMasterPubkey {
                 rotation_id: raw_key.rotation_id,
                 master_pubkey,
             });
@@ -231,7 +188,7 @@ where
         ecdh_pubkey: &EcdhPublicKey,
         block_number: chain::BlockNumber,
     ) {
-        info!("Gatekeeper: try dispatch master key");
+        info!("Keyfairy: try dispatch master key");
         let master_key = self.master_key.dump_secret_key();
         let encrypted_key = self.encrypt_key_to(
             &[MASTER_KEY_SHARING_SALT],
@@ -255,7 +212,7 @@ where
         ecdh_pubkey: &EcdhPublicKey,
         block_number: chain::BlockNumber,
     ) {
-        info!("Gatekeeper: try dispatch all historical master keys");
+        info!("Keyfairy: try dispatch all historical master keys");
         let encrypted_master_key_history = self
             .master_key_history
             .clone()
@@ -320,41 +277,13 @@ where
 
     pub fn will_process_block(&mut self, _block: &BlockInfo<'_>) {
         if !self.master_pubkey_on_chain {
-            info!(
-                "Gatekeeper: not handle the messages because Gatekeeper has not launched on chain"
-            );
+            info!("Keyfairy: not handle the messages because Keyfairy has not launched on chain");
         }
     }
 
-    pub fn process_messages(&mut self, _block: &BlockInfo<'_>) {
-        if !self.master_pubkey_on_chain {
-            return;
-        }
-        loop {
-            let ok = ces_mq::select_ignore_errors! {
-                (event, origin) = self.gatekeeper_events => {
-                    self.process_gatekeeper_event(origin, event);
-                },
-            };
-            if ok.is_none() {
-                // All messages processed
-                break;
-            }
-        }
-    }
+    pub fn process_messages(&mut self, _block: &BlockInfo<'_>) {}
 
-    pub fn did_process_block(&mut self, block: &BlockInfo<'_>) {
-        self.emit_random_number(block.block_number);
-    }
-
-    fn process_gatekeeper_event(&mut self, origin: MessageOrigin, event: GatekeeperEvent) {
-        debug!("Incoming gatekeeper event: {:?}", event);
-        match event {
-            GatekeeperEvent::NewRandomNumber(random_number_event) => {
-                self.process_random_number_event(origin, random_number_event)
-            }
-        }
-    }
+    pub fn did_process_block(&mut self, _block: &BlockInfo<'_>) {}
 
     /// Manually encrypt the secret key for sharing
     ///
@@ -383,60 +312,5 @@ where
             encrypted_key,
             iv,
         }
-    }
-
-    /// Verify on-chain random number
-    fn process_random_number_event(&mut self, origin: MessageOrigin, event: RandomNumberEvent) {
-        if !origin.is_gatekeeper() {
-            error!("Invalid origin {:?} sent a {:?}", origin, event);
-            return;
-        };
-
-        // determine which master key to use
-        // the random number may be generated with the latest master key or last key that was just rotated
-        let master_key = if self
-            .master_key_history
-            .last()
-            .expect("at least one key in gk; qed")
-            .block_height
-            > event.block_number
-        {
-            let len = self.master_key_history.len();
-            assert!(len >= 2, "no proper key for random generation");
-            let secret = self.master_key_history[len - 2].secret;
-            sr25519::Pair::restore_from_secret_key(&secret)
-        } else {
-            self.master_key.clone()
-        };
-
-        let expect_random =
-            next_random_number(&master_key, event.block_number, event.last_random_number);
-        // instead of checking the origin, we directly verify the random to avoid access storage
-        if expect_random != event.random_number {
-            error!("Fatal error: Expect random number {:?}", expect_random);
-            #[cfg(not(feature = "shadow-gk"))]
-            panic!("GK state poisoned");
-        }
-    }
-
-    pub fn emit_random_number(&mut self, block_number: chain::BlockNumber) {
-        if block_number % VRF_INTERVAL != 0 {
-            return;
-        }
-
-        let random_number =
-            next_random_number(&self.master_key, block_number, self.last_random_number);
-        info!(
-            "Gatekeeper: emit random number {} in block {}",
-            hex::encode(random_number),
-            block_number
-        );
-        self.egress
-            .push_message(&GatekeeperEvent::new_random_number(
-                block_number,
-                random_number,
-                self.last_random_number,
-            ));
-        self.last_random_number = random_number;
     }
 }

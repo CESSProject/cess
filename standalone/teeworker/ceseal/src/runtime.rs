@@ -2,7 +2,7 @@ use crate::pal_gramine::GraminePlatform;
 
 use anyhow::Result;
 use core::sync::atomic::{AtomicU32, Ordering};
-use cestory::{benchmark, Ceseal, RpcService};
+use cestory::{Ceseal, RpcService};
 use tracing::info;
 
 lazy_static::lazy_static! {
@@ -55,13 +55,6 @@ pub fn ecall_init(args: cestory_api::ecall_args::InitArgs) -> Result<()> {
 
     info!("Enclave init OK");
     Ok(())
-}
-
-pub fn ecall_bench_run(index: u32) {
-    if !benchmark::paused() {
-        info!(index, "Benchmark thread started");
-        benchmark::run();
-    }
 }
 
 pub async fn ecall_crpc_request(req_id: u64, path: &str, data: &[u8], json: bool) -> (u16, Vec<u8>) {
