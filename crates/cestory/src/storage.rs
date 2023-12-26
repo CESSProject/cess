@@ -36,7 +36,6 @@ impl BlockValidator for LightValidation<chain::Runtime> {
 
 mod storage_ext {
     use crate::{chain, light_validation::utils::storage_prefix};
-    use chain::{pallet_mq, pallet_registry};
     use log::error;
     use parity_scale_codec::{Decode, Error};
     use ces_mq::{Message, MessageOrigin};
@@ -139,7 +138,7 @@ mod storage_ext {
 
         /// Get the next mq sequnce number for given sender. Default to 0 if no message sent.
         pub fn mq_sequence(&self, sender: &MessageOrigin) -> u64 {
-            self.execute_with(|| pallet_mq::OffchainIngress::<chain::Runtime>::get(sender))
+            self.execute_with(|| ces_pallet_mq::OffchainIngress::<chain::Runtime>::get(sender))
                 .unwrap_or(0)
         }
 
@@ -149,25 +148,25 @@ mod storage_ext {
             runtime_hash: &[u8],
         ) -> Option<chain::BlockNumber> {
             self.execute_with(|| {
-                pallet_registry::CesealBinAddedAt::<chain::Runtime>::get(runtime_hash)
+                pallet_tee_worker::CesealBinAddedAt::<chain::Runtime>::get(runtime_hash)
             })
         }
 
         pub(crate) fn keyfairys(&self) -> Vec<ces_types::WorkerPublicKey> {
-            self.execute_with(pallet_registry::Keyfairies::<chain::Runtime>::get)
+            self.execute_with(pallet_tee_worker::Keyfairies::<chain::Runtime>::get)
         }
 
         pub(crate) fn is_worker_registered(&self, worker: &ces_types::WorkerPublicKey) -> bool {
-            self.execute_with(|| pallet_registry::Workers::<chain::Runtime>::get(worker))
+            self.execute_with(|| pallet_tee_worker::Workers::<chain::Runtime>::get(worker))
                 .is_some()
         }
 
         pub(crate) fn minimum_ceseal_version(&self) -> (u32, u32, u32) {
-            self.execute_with(pallet_registry::MinimumCesealVersion::<chain::Runtime>::get)
+            self.execute_with(pallet_tee_worker::MinimumCesealVersion::<chain::Runtime>::get)
         }
 
         pub(crate) fn is_ceseal_bin_in_whitelist(&self, measurement: &[u8]) -> bool {
-            let list = self.execute_with(pallet_registry::CesealBinAllowList::<chain::Runtime>::get);
+            let list = self.execute_with(pallet_tee_worker::CesealBinAllowList::<chain::Runtime>::get);
             for hash in list.iter() {
                 if hash.starts_with(measurement) {
                     return true;

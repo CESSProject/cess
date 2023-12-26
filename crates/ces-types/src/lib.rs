@@ -7,8 +7,7 @@ use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_core::H256;
 
-#[cfg(feature = "enable_serde")]
-use serde::{Deserialize, Serialize};
+pub mod attestation;
 
 pub mod messaging {
 	use super::{EcdhPublicKey, MasterPublicKey, WorkerIdentity, WorkerPublicKey};
@@ -228,20 +227,7 @@ pub mod messaging {
 }
 
 // Types used in storage
-
-#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
-pub enum AttestationReport {
-	SgxIas { ra_report: Vec<u8>, signature: Vec<u8>, raw_signing_cert: Vec<u8> },
-}
-
-#[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
-#[derive(Encode, Decode, TypeInfo, Debug, Copy, Clone, PartialEq, Eq)]
-pub enum AttestationProvider {
-	#[cfg_attr(feature = "enable_serde", serde(rename = "root"))]
-	Root,
-	#[cfg_attr(feature = "enable_serde", serde(rename = "ias"))]
-	Ias,
-}
+pub use attestation::{AttestationReport, AttestationProvider};
 
 type MachineId = Vec<u8>;
 pub use sp_core::sr25519::{

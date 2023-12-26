@@ -80,7 +80,7 @@ pallet-im-online = { workspace = true, features = ["default"] }
 # node-specific dependencies
 cess-node-runtime = { workspace = true, features = ["std"] }
 ces-node-rpc-ext = { workspace = true }
-pallet-mq-runtime-api = { workspace = true }
+ces-pallet-mq-runtime-api = { workspace = true }
 
 # CLI-specific dependencies
 sc-cli = { workspace = true }

@@ -3,25 +3,29 @@ use std::str::FromStr;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
-use crate::system::System ;
+use crate::system::System;
 
 use super::*;
-use parity_scale_codec::Encode;
-use pb::{
-    ceseal_api_server::{CesealApi, CesealApiServer},
-    server::Error as RpcError,
-};
-use cestory_api::blocks::StorageState;
-use cestory_api::{blocks, endpoints::EndpointType, crpc as pb};
 use ces_crypto::{
     key_share,
     sr25519::{Persistence, KDF},
 };
-use ces_pallets::utils::attestation::{validate as validate_attestation_report, IasFields};
 use ces_types::{
-    messaging::EncryptedKey, wrap_content_to_sign, AttestationReport, ChallengeHandlerInfo,
-    EncryptedWorkerKey, HandoverChallenge, SignedContentType, VersionedWorkerEndpoints,
-    WorkerEndpointPayload, WorkerRegistrationInfo,
+    attestation::{validate as validate_attestation_report, IasFields},
+    messaging::EncryptedKey,
+    wrap_content_to_sign, AttestationReport, ChallengeHandlerInfo, EncryptedWorkerKey,
+    HandoverChallenge, SignedContentType, VersionedWorkerEndpoints, WorkerEndpointPayload,
+    WorkerRegistrationInfo,
+};
+use cestory_api::{
+    blocks::{self, StorageState},
+    crpc as pb,
+    endpoints::EndpointType,
+};
+use parity_scale_codec::Encode;
+use pb::{
+    ceseal_api_server::{CesealApi, CesealApiServer},
+    server::Error as RpcError,
 };
 use tracing::{error, info};
 
@@ -223,10 +227,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         // load chain genesis
         let genesis_block_hash = genesis.block_header.hash();
         let chain_storage = ChainStorage::from_pairs(genesis_state.into_iter());
-        info!(
-            "Genesis state loaded: root={:?}",
-            chain_storage.root()
-        );
+        info!("Genesis state loaded: root={:?}", chain_storage.root());
 
         // load identity
         let rt_data = if let Some(raw_key) = debug_set_key {

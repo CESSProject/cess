@@ -113,8 +113,6 @@ pub use sp_runtime::BuildStorage;
 mod voter_bags;
 mod msg_routing;
 
-pub use ces_pallets::{pallet_mq, pallet_registry};
-
 /// An index to a block.
 pub type BlockNumber = u32;
 
@@ -1208,6 +1206,8 @@ parameter_types! {
 	pub const SchedulerMaximum: u32 = 10000;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const MaxWhitelist: u32 = 200;
+	pub const NoneAttestationEnabled: bool = true;
+	pub const VerifyCeseal: bool = false;
 }
 
 impl pallet_tee_worker::Config for Runtime {
@@ -1220,6 +1220,10 @@ impl pallet_tee_worker::Config for Runtime {
 	type CreditCounter = SchedulerCredit;
 	type MaxWhitelist = MaxWhitelist;
 	// type AuthorityId = pallet_tee_worker::ed25519::AuthorityId;
+	type LegacyAttestationValidator = pallet_tee_worker::IasValidator;
+    type NoneAttestationEnabled = NoneAttestationEnabled;
+    type VerifyCeseal = VerifyCeseal;
+    type GovernanceOrigin = EnsureRootOrHalfCouncil;
 }
 
 parameter_types! {
@@ -1267,7 +1271,7 @@ where
 			frame_system::CheckEra::<Runtime>::from(era),
 			frame_system::CheckNonce::<Runtime>::from(nonce),
 			frame_system::CheckWeight::<Runtime>::new(),
-			pallet_mq::CheckMqSequence::<Runtime>::new(),
+			ces_pallet_mq::CheckMqSequence::<Runtime>::new(),
 			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 		);
 		let raw_payload = SignedPayload::new(call, extra)
@@ -1602,34 +1606,19 @@ impl fp_self_contained::SelfContainedCall for RuntimeCall {
  * Frontier End--------------------------------------------------------------------
  */
 
-parameter_types! {
-	pub const NoneAttestationEnabled: bool = true;
-	pub const VerifyCeseal: bool = false;
-}
-
-impl pallet_registry::Config for Runtime {
-    type RuntimeEvent = RuntimeEvent;
-    type Currency = Balances;
-    type UnixTime = Timestamp;
-    type LegacyAttestationValidator = pallet_registry::IasValidator;
-    type NoneAttestationEnabled = NoneAttestationEnabled;
-    type VerifyCeseal = VerifyCeseal;
-    type GovernanceOrigin = EnsureRootOrHalfCouncil;
-}
-
 pub struct MqCallMatcher;
-impl pallet_mq::CallMatcher<Runtime> for MqCallMatcher {
-    fn match_call(call: &RuntimeCall) -> Option<&pallet_mq::Call<Runtime>> {
+impl ces_pallet_mq::CallMatcher<Runtime> for MqCallMatcher {
+    fn match_call(call: &RuntimeCall) -> Option<&ces_pallet_mq::Call<Runtime>> {
         match call {
             RuntimeCall::CesMq(mq_call) => Some(mq_call),
             _ => None,
         }
     }
 }
-impl pallet_mq::Config for Runtime {
+impl ces_pallet_mq::Config for Runtime {
     type QueueNotifyConfig = msg_routing::MessageRouteConfig;
     type CallMatcher = MqCallMatcher;
-	type MasterPubkeySupplier = pallet_registry::Pallet<Runtime>;
+	type MasterPubkeySupplier = pallet_tee_worker::Pallet<Runtime>;
 }
 
 parameter_types! {
@@ -1711,8 +1700,7 @@ construct_runtime!(
 		Oss: pallet_oss = 66,
 		Cacher: pallet_cacher = 67,
 		CessTreasury: pallet_cess_treasury = 68,
-		CesMq: pallet_mq = 69,
-        CesRegistry: pallet_registry = 70,
+		CesMq: ces_pallet_mq = 69,
 	}
 );
 
@@ -1749,7 +1737,7 @@ pub type SignedExtra = (
 	frame_system::CheckEra<Runtime>,
 	frame_system::CheckNonce<Runtime>,
 	frame_system::CheckWeight<Runtime>,
-	pallet_mq::CheckMqSequence<Runtime>,
+	ces_pallet_mq::CheckMqSequence<Runtime>,
 	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
@@ -2389,7 +2377,7 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_mq_runtime_api::MqApi<Block> for Runtime {
+	impl ces_pallet_mq_runtime_api::MqApi<Block> for Runtime {
         fn sender_sequence(sender: &ces_types::messaging::MessageOrigin) -> Option<u64> {
             CesMq::offchain_ingress(sender)
         }

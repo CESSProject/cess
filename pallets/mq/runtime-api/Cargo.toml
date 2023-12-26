@@ -1,5 +1,5 @@
 [package]
-name = "pallet-mq-runtime-api"
+name = "ces-pallet-mq-runtime-api"
 version = "0.1.0"
 edition = "2021"
 

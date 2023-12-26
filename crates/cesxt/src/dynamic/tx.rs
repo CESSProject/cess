@@ -47,7 +47,7 @@ pub fn register_worker(ceseal_info: Vec<u8>, attestation: Vec<u8>, v2: bool) -> 
         "register_worker"
     };
     EncodedPayload::new(
-        "CesRegistry",
+        "TeeWorker",
         call_name,
         (Encoded(ceseal_info), Encoded(attestation)).encode(),
     )
@@ -55,7 +55,7 @@ pub fn register_worker(ceseal_info: Vec<u8>, attestation: Vec<u8>, v2: bool) -> 
 
 pub fn update_worker_endpoint(signed_endpoint: Vec<u8>, signature: Vec<u8>) -> EncodedPayload {
     let args = (Encoded(signed_endpoint), signature).encode();
-    EncodedPayload::new("CesRegistry", "update_worker_endpoint", args)
+    EncodedPayload::new("TeeWorker", "update_worker_endpoint", args)
 }
 
 pub fn sync_offchain_message(message: SignedMessage) -> EncodedPayload {

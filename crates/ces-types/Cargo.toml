@@ -5,25 +5,32 @@ authors = ["CESS Network"]
 edition = "2021"
 
 [dependencies]
+chrono = { workspace = true }
 hex = { workspace = true, features = ["alloc"] }
 serde = { workspace = true, optional = true }
+serde_json = { workspace = true, features = ["alloc"] }
 parity-scale-codec = { workspace = true, features = ["full"] }
 scale-info = { workspace = true, features = ["derive"] }
 sp-core = { workspace = true }
+sp-std = { workspace = true }
 
 ces-mq = { workspace = true  }
 crpc = { workspace = true  }
+sgx-attestation = { workspace = true }
 
 [features]
 default = ["std", "enable_serde"]
 std = [
+	"chrono/std",
 	"serde/std",
 	"scale-info/std",
 	"parity-scale-codec/std",
 	"full_crypto",
 	"sp-core/std",
+	"sp-std/std",
 	"ces-mq/std",
 	"crpc/std",
+	"sgx-attestation/std",
 ]
 enable_serde = [
 	"serde/derive",

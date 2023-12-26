@@ -1,4 +1,3 @@
-use super::pallet_mq;
 use codec::Decode;
 use frame_support::dispatch::DispatchResult;
 use sp_runtime::DispatchError;
@@ -20,7 +19,7 @@ where
     Ok(())
 }
 
-impl pallet_mq::QueueNotifyConfig for MessageRouteConfig {
+impl ces_pallet_mq::QueueNotifyConfig for MessageRouteConfig {
     /// Handles an incoming message
     fn on_message_received(message: &Message) -> DispatchResult {
         use super::*;
@@ -31,8 +30,8 @@ impl pallet_mq::QueueNotifyConfig for MessageRouteConfig {
         }
 
         route_handlers! {
-            CesRegistry::on_message_received,
-            CesRegistry::on_keyfairy_message_received,
+            TeeWorker::on_message_received,
+            TeeWorker::on_keyfairy_message_received,
         };
         Ok(())
     }

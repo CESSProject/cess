@@ -6,7 +6,6 @@ use std::str::FromStr;
 use std::time::Duration;
 use tokio::time::sleep;
 
-use ces_pallets::pallet_registry::Attestation;
 use cesxt::{
     connect as subxt_connect,
     dynamic::storage_key,
@@ -28,17 +27,20 @@ mod prefetcher;
 pub mod chain_client;
 pub mod types;
 
-use crate::error::Error;
-use crate::types::{
-    Block, BlockNumber, CesealClient, ConvertTo, Hash, Header, NotifyReq, NumberOrHex, SrSigner,
+use crate::{
+    error::Error,
+    types::{
+        Block, BlockNumber, CesealClient, ConvertTo, Hash, Header, NotifyReq, NumberOrHex, SrSigner,
+    }
 };
-use cestory_api::blocks::{
-    self, AuthoritySet, AuthoritySetChange, BlockHeader, BlockHeaderWithChanges, HeaderToSync,
+use cestory_api::{
+    blocks::{
+        self, AuthoritySet, AuthoritySetChange, BlockHeader, BlockHeaderWithChanges, HeaderToSync,    
+    },
+    ceseal_client,
+    crpc::{self, InitRuntimeResponse},
 };
-use cestory_api::ceseal_client;
-use cestory_api::crpc::{self, InitRuntimeResponse};
-
-use ces_types::AttestationProvider;
+use ces_types::{attestation::legacy::Attestation, AttestationProvider};
 use clap::Parser;
 use msg_sync::{Error as MsgSyncError, Receiver, Sender};
 use notify_client::NotifyClient;
@@ -387,8 +389,8 @@ async fn try_load_handover_proof(pr: &CesealClient, chain_api: &ChainApi) -> Res
         chain_api,
         Some(hash),
         vec![
-            &storage_key("CesRegistry", "CesealBinAddedAt")[..],
-            &storage_key("CesRegistry", "CesealBinAllowList")[..],
+            &storage_key("TeeWorker", "CesealBinAddedAt")[..],
+            &storage_key("TeeWorker", "CesealBinAllowList")[..],
             &storage_key("Timestamp", "Now")[..],
         ],
     )

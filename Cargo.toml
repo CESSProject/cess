@@ -7,6 +7,7 @@ exclude = [
 members = [
     "crates/*",
     "pallets/*",
+    "pallets/mq/runtime-api",
     "standalone/chain/*",
     "standalone/teeworker/cifrost",
 ]
@@ -371,7 +372,8 @@ ces-mq = { path = "crates/ces-mq", default-features = false }
 ces-node-rpc-ext = { path = "crates/ces-node-rpc-ext", default-features = false }
 ces-node-rpc-ext-types = { path = "crates/ces-node-rpc-ext/types", default-features = false }
 ces-node-runtime = { path = "standalone/chain/runtime", package = "cess-node-runtime", default-features = false }
-ces-pallets = { path = "pallets/ces", default-features = false }
+ces-pallet-mq ={ path = "pallets/mq", default-features = false }
+ces-pallet-mq-runtime-api ={ path = "pallets/mq/runtime-api", default-features = false }
 ces-serde-more = { path = "crates/ces-serde-more", default-features = false }
 ces-trie-storage = { path = "crates/ces-trie-storage", default-features = false }
 ces-types = { path = "crates/ces-types", default-features = false }
@@ -395,7 +397,6 @@ pallet-cacher = { path = "pallets/cacher", default-features = false }
 pallet-cess-staking = { path = "pallets/staking", default-features = false }
 pallet-cess-treasury = { path = "pallets/cess-treasury", default-features = false }
 pallet-file-bank = { path = "pallets/file-bank", default-features = false }
-pallet-mq-runtime-api = { path = "pallets/ces/mq-runtime-api", default-features = false }
 pallet-oss = { path = "pallets/oss", default-features = false }
 pallet-scheduler-credit = { path = "pallets/scheduler-credit", default-features = false }
 pallet-sminer = { path = "pallets/sminer", default-features = false }

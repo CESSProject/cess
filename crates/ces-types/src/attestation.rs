@@ -1,10 +1,36 @@
-use crate::constants::*;
+pub mod legacy;
 
+pub mod ias_quote_consts {
+	pub const IAS_QUOTE_STATUS_LEVEL_1: &[&str] = &["OK"];
+	pub const IAS_QUOTE_STATUS_LEVEL_2: &[&str] = &["SW_HARDENING_NEEDED"];
+	pub const IAS_QUOTE_STATUS_LEVEL_3: &[&str] = &["CONFIGURATION_NEEDED", "CONFIGURATION_AND_SW_HARDENING_NEEDED"];
+	// LEVEL 4 is LEVEL 3 with advisors which not included in whitelist
+	pub const IAS_QUOTE_STATUS_LEVEL_5: &[&str] = &["GROUP_OUT_OF_DATE"];
+	pub const IAS_QUOTE_ADVISORY_ID_WHITELIST: &[&str] =
+		&["INTEL-SA-00334", "INTEL-SA-00219", "INTEL-SA-00381", "INTEL-SA-00389"];
+}
+
+use ias_quote_consts::*;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_std::vec::Vec;
 
-use ces_types::{AttestationProvider, AttestationReport};
+#[cfg(feature = "enable_serde")]
+use serde::{Deserialize, Serialize};
+
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
+pub enum AttestationReport {
+	SgxIas { ra_report: Vec<u8>, signature: Vec<u8>, raw_signing_cert: Vec<u8> },
+}
+
+#[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
+#[derive(Encode, Decode, TypeInfo, Debug, Copy, Clone, PartialEq, Eq)]
+pub enum AttestationProvider {
+	#[cfg_attr(feature = "enable_serde", serde(rename = "root"))]
+	Root,
+	#[cfg_attr(feature = "enable_serde", serde(rename = "ias"))]
+	Ias,
+}
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -61,13 +87,14 @@ impl IasFields {
 			confidence_level = 5;
 		}
 		if confidence_level == 128 {
-			return Err(Error::InvalidQuoteStatus);
+			return Err(Error::InvalidQuoteStatus)
 		}
 		// CL 1 means there is no known issue of the CPU
 		// CL 2 means the worker's firmware up to date, and the worker has well configured to prevent known issues
 		// CL 3 means the worker's firmware up to date, but needs to well configure its BIOS to prevent known issues
 		// CL 5 means the worker's firmware is outdated
-		// For CL 3, we don't know which vulnerable (aka SA) the worker not well configured, so we need to check the allow list
+		// For CL 3, we don't know which vulnerable (aka SA) the worker not well configured, so we need to check the
+		// allow list
 		if confidence_level == 3 {
 			// Filter AdvisoryIDs. `advisoryIDs` is optional
 			for advisory_id in parsed_report.advisory_ids.iter() {
@@ -79,9 +106,7 @@ impl IasFields {
 		}
 
 		// Extract quote fields
-		let quote = parsed_report
-			.decode_quote()
-			.or(Err(Error::UnknownQuoteBodyFormat))?;
+		let quote = parsed_report.decode_quote().or(Err(Error::UnknownQuoteBodyFormat))?;
 
 		Ok((
 			IasFields {
@@ -115,11 +140,7 @@ pub fn validate(
 	opt_out_enabled: bool,
 ) -> Result<ConfidentialReport, Error> {
 	match attestation {
-		Some(AttestationReport::SgxIas {
-			ra_report,
-			signature,
-			raw_signing_cert,
-		}) => validate_ias_report(
+		Some(AttestationReport::SgxIas { ra_report, signature, raw_signing_cert }) => validate_ias_report(
 			user_data_hash,
 			ra_report.as_slice(),
 			signature.as_slice(),
@@ -128,17 +149,12 @@ pub fn validate(
 			verify_ceseal_hash,
 			ceseal_bin_allowlist,
 		),
-		None => {
+		None =>
 			if opt_out_enabled {
-				Ok(ConfidentialReport {
-					provider: None,
-					runtime_hash: Vec::new(),
-					confidence_level: 128u8,
-				})
+				Ok(ConfidentialReport { provider: None, runtime_hash: Vec::new(), confidence_level: 128u8 })
 			} else {
 				Err(Error::NoneAttestationDisabled)
-			}
-		}
+			},
 	}
 }
 
@@ -152,30 +168,25 @@ pub fn validate_ias_report(
 	ceseal_bin_allowlist: Vec<Vec<u8>>,
 ) -> Result<ConfidentialReport, Error> {
 	// Validate report
-	sgx_attestation::ias::verify_signature(
-		report,
-		signature,
-		raw_signing_cert,
-		core::time::Duration::from_secs(now),
-	)
-	.or(Err(Error::InvalidIASSigningCert))?;
+	sgx_attestation::ias::verify_signature(report, signature, raw_signing_cert, core::time::Duration::from_secs(now))
+		.or(Err(Error::InvalidIASSigningCert))?;
 
 	let (ias_fields, report_timestamp) = IasFields::from_ias_report(report)?;
 
 	// Validate Ceseal
 	let ceseal_hash = ias_fields.extend_mrenclave();
 	if verify_ceseal_hash && !ceseal_bin_allowlist.contains(&ceseal_hash) {
-		return Err(Error::CesealRejected);
+		return Err(Error::CesealRejected)
 	}
 
 	// Validate time
 	if (now as i64 - report_timestamp) >= 7200 {
-		return Err(Error::OutdatedIASReport);
+		return Err(Error::OutdatedIASReport)
 	}
 
 	let commit = &ias_fields.report_data[..32];
 	if commit != user_data_hash {
-		return Err(Error::InvalidUserDataHash);
+		return Err(Error::InvalidUserDataHash)
 	}
 
 	// Check the following fields
@@ -191,14 +202,13 @@ mod test {
 	use super::*;
 	use frame_support::assert_ok;
 
-	pub const ATTESTATION_SAMPLE: &[u8] = include_bytes!("../../sample/ias_attestation.json");
+	pub const ATTESTATION_SAMPLE: &[u8] = include_bytes!("../sample/ias_attestation.json");
 	pub const ATTESTATION_TIMESTAMP: u64 = 1631441180; // 2021-09-12T18:06:20.402478
 	pub const PRUNTIME_HASH: &str = "518422fa769d2d55982015a0e0417c6a8521fdfc7308f5ec18aaa1b6924bd0f300000000815f42f11cf64430c30bab7816ba596a1da0130c3b028b673133a66cf9a3e0e6";
 
 	#[test]
 	fn test_ias_validator() {
-		let sample: sgx_attestation::ias::SignedIasReport =
-			serde_json::from_slice(ATTESTATION_SAMPLE).unwrap();
+		let sample: sgx_attestation::ias::SignedIasReport = serde_json::from_slice(ATTESTATION_SAMPLE).unwrap();
 
 		let report = sample.ra_report.as_bytes();
 		let parsed_report = sample.parse_report().unwrap();
@@ -209,15 +219,7 @@ mod test {
 		let commit = &quote.report_data[..32];
 
 		assert_eq!(
-			validate_ias_report(
-				&[0u8],
-				report,
-				&signature,
-				&raw_signing_cert,
-				ATTESTATION_TIMESTAMP,
-				false,
-				vec![]
-			),
+			validate_ias_report(&[0u8], report, &signature, &raw_signing_cert, ATTESTATION_TIMESTAMP, false, vec![]),
 			Err(Error::InvalidUserDataHash)
 		);
 
@@ -235,15 +237,7 @@ mod test {
 		);
 
 		assert_eq!(
-			validate_ias_report(
-				commit,
-				report,
-				&signature,
-				&raw_signing_cert,
-				ATTESTATION_TIMESTAMP,
-				true,
-				vec![]
-			),
+			validate_ias_report(commit, report, &signature, &raw_signing_cert, ATTESTATION_TIMESTAMP, true, vec![]),
 			Err(Error::CesealRejected)
 		);
 

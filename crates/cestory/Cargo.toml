@@ -52,13 +52,14 @@ sp-trie = { workspace = true }
 # CESS specific
 ces-crypto = { workspace = true, features = ["getrandom", "stream", "full_crypto"] }
 ces-mq = { workspace = true, features = ["dispatcher", "queue", "checkpoint", "signers"]}
-ces-pallets = { workspace = true }
+ces-pallet-mq = { workspace = true }
 ces-serde-more = { workspace = true }
 ces-trie-storage = { workspace = true }
 ces-types = { workspace = true, features = ["enable_serde", "sgx"] }
 cestory-api = { workspace = true }
 cestory-pal = { workspace = true }
 crpc = { workspace = true }
+pallet-tee-worker ={ workspace = true }
 reqwest-env-proxy ={ workspace = true }
 runtime = { workspace = true, features = ["std"] }
 sgx-api-lite = { workspace = true }

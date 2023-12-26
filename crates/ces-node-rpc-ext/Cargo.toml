@@ -29,6 +29,6 @@ sc-transaction-pool-api = { workspace = true }
 sc-rpc = { workspace = true }
 
 ces-mq = { workspace = true }
-ces-pallets = { workspace = true }
-pallet-mq-runtime-api = { workspace = true }
+ces-pallet-mq = { workspace = true }
+ces-pallet-mq-runtime-api = { workspace = true }
 ext-types = { workspace = true }

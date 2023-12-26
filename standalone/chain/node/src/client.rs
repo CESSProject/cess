@@ -2,7 +2,7 @@
 use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch, NativeVersion};
 
 use cess_node_runtime::{opaque::Block, AccountId, Balance, Nonce};
-use pallet_mq_runtime_api::MqApi;
+use ces_pallet_mq_runtime_api::MqApi;
 
 use crate::eth::EthCompatRuntimeApiCollection;
 

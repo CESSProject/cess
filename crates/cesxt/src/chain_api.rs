@@ -116,7 +116,7 @@ impl ChainApi {
             .await?
             .ok_or_else(|| anyhow!("Block number not found"))?;
         let worker = Value::from_bytes(worker);
-        let address = subxt::dynamic::storage("CesRegistry", "Workers", vec![worker]);
+        let address = subxt::dynamic::storage("TeeWorker", "Workers", vec![worker]);
         let registered = self
             .storage()
             .at(hash)
@@ -129,7 +129,7 @@ impl ChainApi {
 
     pub async fn worker_added_at(&self, worker: &[u8]) -> Result<Option<BlockNumber>> {
         let worker = Value::from_bytes(worker);
-        let address = subxt::dynamic::storage("CesRegistry", "WorkerAddedAt", vec![worker]);
+        let address = subxt::dynamic::storage("TeeWorker", "WorkerAddedAt", vec![worker]);
         let Some(block) = self
             .storage()
             .at_latest()
@@ -173,7 +173,7 @@ impl ChainApi {
     }
 
     pub async fn get_endpoints(&self, worker: &WorkerPublicKey) -> Result<Vec<String>> {
-        let result = self.fetch("CesRegistry", "Endpoints", Some(worker)).await?;
+        let result = self.fetch("TeeWorker", "Endpoints", Some(worker)).await?;
         let Some(VersionedWorkerEndpoints::V1(endpoints)) = result else {
             return Ok(vec![]);
         };

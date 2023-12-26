@@ -1,8 +1,8 @@
 use super::*;
-use pallet_mq_runtime_api::MqApi;
-use parity_scale_codec::Decode;
 use ces_mq::MessageOrigin;
-use ces_pallets::mq::tag;
+use ces_pallet_mq::tag;
+use ces_pallet_mq_runtime_api::MqApi;
+use parity_scale_codec::Decode;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

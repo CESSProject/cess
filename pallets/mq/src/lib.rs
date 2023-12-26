@@ -1,6 +1,14 @@
+#![cfg_attr(not(feature = "std"), no_std)]
+
 //! The message queue to connect components in the network
 
+extern crate alloc;
+
+/// Provides `SignedExtension` to check message sequence.
+mod check_seq;
+
 pub use self::pallet::*;
+pub use check_seq::{tag, CheckMqSequence};
 pub use frame_support::storage::generator::StorageMap as StorageMapTrait;
 
 #[frame_support::pallet]
@@ -67,10 +75,7 @@ pub mod pallet {
 		/// Syncs an unverified offchain message to the message queue
 		#[pallet::call_index(0)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn sync_offchain_message(
-			origin: OriginFor<T>,
-			signed_message: SignedMessage,
-		) -> DispatchResult {
+		pub fn sync_offchain_message(origin: OriginFor<T>, signed_message: SignedMessage) -> DispatchResult {
 			ensure_signed(origin)?;
 
 			// Check sender
@@ -78,17 +83,11 @@ pub mod pallet {
 			ensure!(sender.is_offchain(), Error::<T>::BadSender);
 
 			// Check destination
-			ensure!(
-				signed_message.message.destination.is_valid(),
-				Error::<T>::BadDestination
-			);
+			ensure!(signed_message.message.destination.is_valid(), Error::<T>::BadDestination);
 
 			// Check ingress sequence
 			let expected_seq = OffchainIngress::<T>::get(sender).unwrap_or(0);
-			ensure!(
-				signed_message.sequence == expected_seq,
-				Error::<T>::BadSequence
-			);
+			ensure!(signed_message.sequence == expected_seq, Error::<T>::BadSequence);
 			// Validate signature
 			Self::check_message(&signed_message)?;
 			// Update ingress
@@ -102,11 +101,7 @@ pub mod pallet {
 		// TODO: confirm the weight
 		#[pallet::call_index(1)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn push_message(
-			origin: OriginFor<T>,
-			destination: Vec<u8>,
-			payload: Vec<u8>,
-		) -> DispatchResult {
+		pub fn push_message(origin: OriginFor<T>, destination: Vec<u8>, payload: Vec<u8>) -> DispatchResult {
 			let origin = ensure_signed(origin)?;
 			let sender = MessageOrigin::AccountId(origin.into_h256());
 			let message = Message::new(sender, destination, payload);
@@ -137,10 +132,9 @@ pub mod pallet {
 				MessageOrigin::Worker(pubkey) => pubkey,
 				MessageOrigin::Keyfairy => {
 					// MasterPublicKey should not be None
-					pubkey_copy = T::MasterPubkeySupplier::try_get()
-						.ok_or(Error::<T>::MasterKeyUninitialized)?;
+					pubkey_copy = T::MasterPubkeySupplier::try_get().ok_or(Error::<T>::MasterKeyUninitialized)?;
 					&pubkey_copy
-				}
+				},
 				_ => return Err(Error::<T>::CannotHandleUnknownMessage.into()),
 			};
 			Self::verify_signature(pubkey, message)
@@ -149,14 +143,11 @@ pub mod pallet {
 		fn verify_signature(pubkey: &WorkerPublicKey, message: &SignedMessage) -> DispatchResult {
 			let raw_sig = &message.signature;
 			ensure!(raw_sig.len() == 64, Error::<T>::InvalidSignatureLength);
-			let sig = sp_core::sr25519::Signature::try_from(raw_sig.as_slice())
-				.or(Err(Error::<T>::MalformedSignature))?;
+			let sig =
+				sp_core::sr25519::Signature::try_from(raw_sig.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
 			let data = message.data_be_signed();
 			let data = wrap_content_to_sign(&data, SignedContentType::MqMessage);
-			ensure!(
-				sp_io::crypto::sr25519_verify(&sig, &data, pubkey),
-				Error::<T>::InvalidSignature
-			);
+			ensure!(sp_io::crypto::sr25519_verify(&sig, &data, pubkey), Error::<T>::InvalidSignature);
 			Ok(())
 		}
 
@@ -172,11 +163,7 @@ pub mod pallet {
 			}
 		}
 
-		pub fn push_message_to<M: Encode>(
-			topic: impl Into<Path>,
-			sender: MessageOrigin,
-			payload: M,
-		) {
+		pub fn push_message_to<M: Encode>(topic: impl Into<Path>, sender: MessageOrigin, payload: M) {
 			let message = Message::new(sender, topic, payload.encode());
 			Self::dispatch_message(message);
 		}
@@ -259,10 +246,7 @@ pub mod pallet {
 		type Config: Config;
 
 		fn message_origin() -> MessageOrigin {
-			let name =
-				<<Self as MessageOriginInfo>::Config as frame_system::Config>::PalletInfo::name::<
-					Self,
-				>()
+			let name = <<Self as MessageOriginInfo>::Config as frame_system::Config>::PalletInfo::name::<Self>()
 				.expect("Pallet should have a name");
 			MessageOrigin::Pallet(name.as_bytes().to_vec())
 		}
@@ -288,7 +272,3 @@ pub mod pallet {
 	}
 	impl MasterPubkeySupplier for () {}
 }
-
-/// Provides `SignedExtension` to check message sequence.
-mod check_seq;
-pub use check_seq::{tag, CheckMqSequence};

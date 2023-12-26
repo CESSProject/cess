@@ -799,14 +799,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "ces-pallets"
+name = "ces-pallet-mq"
 version = "4.1.0"
 dependencies = [
  "ces-types",
  "chrono",
  "frame-support",
  "frame-system",
- "hex",
  "parity-scale-codec",
  "primitive-types",
  "scale-info",
@@ -817,6 +816,14 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+]
+
+[[package]]
+name = "ces-pallet-mq-runtime-api"
+version = "0.1.0"
+dependencies = [
+ "ces-mq",
+ "sp-api",
 ]
 
 [[package]]
@@ -868,12 +875,16 @@ name = "ces-types"
 version = "0.3.0"
 dependencies = [
  "ces-mq",
+ "chrono",
  "crpc",
  "hex",
  "parity-scale-codec",
  "scale-info",
  "serde",
+ "serde_json",
+ "sgx-attestation",
  "sp-core",
+ "sp-std",
 ]
 
 [[package]]
@@ -912,7 +923,8 @@ dependencies = [
 name = "cess-node-runtime"
 version = "0.7.5"
 dependencies = [
- "ces-pallets",
+ "ces-pallet-mq",
+ "ces-pallet-mq-runtime-api",
  "ces-types",
  "cessp-consensus-rrsc",
  "cp-cess-common",
@@ -962,7 +974,6 @@ dependencies = [
  "pallet-insecure-randomness-collective-flip",
  "pallet-membership",
  "pallet-mmr",
- "pallet-mq-runtime-api",
  "pallet-multisig",
  "pallet-offences",
  "pallet-oss",
@@ -1026,7 +1037,7 @@ dependencies = [
  "bitflags 1.3.2",
  "ces-crypto",
  "ces-mq",
- "ces-pallets",
+ "ces-pallet-mq",
  "ces-serde-more",
  "ces-trie-storage",
  "ces-types",
@@ -1051,6 +1062,7 @@ dependencies = [
  "num-bigint",
  "num-traits",
  "once_cell",
+ "pallet-tee-worker",
  "parity-scale-codec",
  "rand 0.8.5",
  "regex",
@@ -4127,6 +4139,7 @@ version = "0.7.4"
 dependencies = [
  "frame-support",
  "frame-system",
+ "log",
  "parity-scale-codec",
  "scale-info",
  "sp-runtime",
@@ -4501,14 +4514,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-mq-runtime-api"
-version = "0.1.0"
-dependencies = [
- "ces-mq",
- "sp-api",
-]
-
-[[package]]
 name = "pallet-multisig"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.1.0#c8d2251cafadc108ba2f1f8a3208dc547ff38901"
@@ -4636,6 +4641,7 @@ name = "pallet-scheduler-credit"
 version = "0.1.0"
 dependencies = [
  "cessp-consensus-rrsc",
+ "cp-cess-common",
  "cp-scheduler-credit",
  "frame-support",
  "frame-system",
@@ -4735,6 +4741,8 @@ name = "pallet-tee-worker"
 version = "0.7.0"
 dependencies = [
  "base64 0.13.1",
+ "ces-pallet-mq",
+ "ces-types",
  "chrono",
  "cp-cess-common",
  "cp-scheduler-credit",

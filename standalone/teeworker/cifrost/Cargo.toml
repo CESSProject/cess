@@ -34,7 +34,6 @@ pallet-indices = { workspace = true }
 pallet-balances = { workspace = true }
 
 ces-types = { workspace = true }
-ces-pallets = { workspace = true }
 ces-trie-storage = { workspace = true }
 ces-node-rpc-ext = { workspace = true }
 ces-mq = { workspace = true }

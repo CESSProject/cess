@@ -28,6 +28,8 @@ cp-cess-common = { workspace = true }
 cp-scheduler-credit = { workspace = true }
 pallet-cess-staking = { workspace = true }
 sgx-attestation = { workspace = true }
+ces-types = { workspace = true, features = ["enable_serde"] }
+ces-pallet-mq ={ workspace = true }
 
 
 [dev-dependencies]
@@ -45,6 +47,8 @@ hex ={ workspace = true }
 [features]
 default = ["std"]
 std = [
+	"ces-types/enable_serde",
+	"ces-pallet-mq/std",
 	"codec/std",
 	"chrono/std",
 	"cp-cess-common/std",
@@ -65,3 +69,4 @@ std = [
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 ]
+native = []

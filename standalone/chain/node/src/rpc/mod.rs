@@ -115,7 +115,7 @@ where
 	C::Api: fp_rpc::ConvertTransactionRuntimeApi<Block>,
 	C::Api: fp_rpc::EthereumRuntimeRPCApi<Block>,
 	C::Api: RRSCApi<Block>,
-	C::Api: pallet_mq_runtime_api::MqApi<Block>,
+	C::Api: ces_pallet_mq_runtime_api::MqApi<Block>,
 	C: BlockchainEvents<Block> + 'static,
 	C: HeaderBackend<Block> + HeaderMetadata<Block, Error = BlockChainError> + 'static,
 	C: AuxStore + UsageProvider<Block> + StorageProvider<Block, B>,

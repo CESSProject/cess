@@ -18,4 +18,4 @@ primitive-types = { workspace = true, default-features = true }
 
 ces-types = { workspace = true, default-features = true }
 ces-node-rpc-ext-types = { workspace = true, default-features = true }
-ces-pallets = { workspace = true, default-features = true }
+# ces-pallets = { workspace = true, default-features = true }

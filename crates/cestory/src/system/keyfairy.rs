@@ -13,7 +13,7 @@ use ces_types::{
     },
     wrap_content_to_sign, EcdhPublicKey, SignedContentType, WorkerPublicKey,
 };
-use chain::pallet_registry::KeyfairyRegistryEvent;
+use pallet_tee_worker::KeyfairyRegistryEvent;
 use log::info;
 use serde::{Deserialize, Serialize};
 use sp_core::{hashing, sr25519, Pair};

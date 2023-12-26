@@ -26,7 +26,7 @@ use ces_types::{
     wrap_content_to_sign, EcdhPublicKey, SignedContentType, WorkerPublicKey,
 };
 pub use cestory_api::crpc::{KeyfairyRole, KeyfairyStatus, SystemInfo};
-use chain::pallet_registry::RegistryEvent;
+use pallet_tee_worker::RegistryEvent;
 pub use master_key::{gk_master_key_exists, RotatedMasterKey};
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
