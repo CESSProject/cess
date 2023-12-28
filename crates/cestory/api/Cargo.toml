@@ -23,10 +23,10 @@ log = { workspace = true }
 reqwest = { workspace = true, optional = true, features = ["rustls-tls", "socks"] }
 primitive-types = { workspace = true, optional = true }
 im = { workspace = true }
+tonic = { workspace = true }
 
 ces-trie-storage = { workspace = true, features = ["serde"] }
 ces-types = { workspace = true, features = ["enable_serde", "sgx"] }
-crpc = { workspace = true }
 ces-crypto = { workspace = true }
 chain = { workspace = true }
 ces-mq = { workspace = true }
@@ -38,9 +38,7 @@ hex = "0.4.3"
 
 
 [build-dependencies]
-crpc-build = { workspace = true }
-tera = { version = "1.12.1" }
-tempdir = { version = "0.3.7" }
+tonic-build = { workspace = true, features = ["prost"] }
 
 
 [features]
@@ -53,7 +51,6 @@ std = [
     "sp-application-crypto/std",
     "frame-system/std",
     "chain/std",
-    "crpc/std",
 ]
 
 sgx = []

@@ -35,12 +35,12 @@ async fn update_worker_endpoint(
 }
 
 pub async fn try_update_worker_endpoint(
-    pr: &CesealClient,
+    pr: &mut CesealClient,
     para_api: &ParachainApi,
     signer: &mut SrSigner,
     args: &Args,
 ) -> Result<bool> {
-    let info = pr.get_endpoint_info(()).await?;
+    let info = pr.get_endpoint_info(()).await?.into_inner();
     let encoded_endpoint_payload = match info.encoded_endpoint_payload {
         None => return Ok(false), // Early return if no endpoint payload is available
         Some(payload) => payload,

@@ -11,11 +11,8 @@ app: bin/app
 run:
 	./bin/app -c 0
 
-bin/app: bin/ceseal bin/Rocket.toml
+bin/app: bin/ceseal
 	cd bin && ln -sf ceseal app
-
-bin/Rocket.toml: gramine-build/Rocket.toml
-	cp $? $@
 
 bin/ceseal: target/${BUILD}/ceseal
 	cp $? $@

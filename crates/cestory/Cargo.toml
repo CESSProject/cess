@@ -48,6 +48,7 @@ sp-application-crypto = { workspace = true }
 sp-consensus-grandpa = { workspace = true }
 sp-core = { workspace = true }
 sp-trie = { workspace = true }
+tonic = { workspace = true }
 
 # CESS specific
 ces-crypto = { workspace = true, features = ["getrandom", "stream", "full_crypto"] }
@@ -58,7 +59,6 @@ ces-trie-storage = { workspace = true }
 ces-types = { workspace = true, features = ["enable_serde", "sgx"] }
 cestory-api = { workspace = true }
 cestory-pal = { workspace = true }
-crpc = { workspace = true }
 pallet-tee-worker ={ workspace = true }
 reqwest-env-proxy ={ workspace = true }
 runtime = { workspace = true, features = ["std"] }

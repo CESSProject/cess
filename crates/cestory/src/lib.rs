@@ -28,7 +28,6 @@ use scale_info::TypeInfo;
 use sp_core::{crypto::Pair, sr25519, H256};
 
 use cestory_api::{
-    blocks,
     crpc::{GetEndpointResponse, InitRuntimeResponse, NetworkConfig},
     ecall_args::InitArgs,
     endpoints::EndpointType,
@@ -46,13 +45,13 @@ use std::time::Instant;
 use types::Error;
 
 pub use chain::BlockNumber;
-pub use crpc_service::RpcService;
+pub use ceseal_service::RpcService;
 pub use storage::ChainStorage;
 pub use types::BlockInfo;
 pub type CesealLightValidation = LightValidation<chain::Runtime>;
 
-mod bin_api_service;
-mod crpc_service;
+// mod bin_api_service;
+mod ceseal_service;
 mod cryptography;
 mod light_validation;
 mod secret_channel;
@@ -707,17 +706,6 @@ fn generate_random_info() -> [u8; 32] {
     let rand = ring::rand::SystemRandom::new();
     rand.fill(&mut nonce_vec).unwrap();
     nonce_vec
-}
-
-// --------------------------------
-use serde_json::{json, Value};
-
-fn display(e: impl core::fmt::Display) -> Value {
-    error_msg(&e.to_string())
-}
-
-fn error_msg(msg: &str) -> Value {
-    json!({ "message": msg })
 }
 
 fn derive_key_for_checkpoint(identity_key: &[u8]) -> [u8; 16] {

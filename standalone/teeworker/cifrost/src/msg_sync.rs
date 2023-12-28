@@ -20,7 +20,7 @@ pub fn create_report_channel() -> (Sender<Error>, Receiver<Error>) {
 
 pub async fn maybe_sync_mq_egress(
     api: &ParachainApi,
-    pr: &CesealClient,
+    pr: &mut CesealClient,
     signer: &mut SrSigner,
     tip: u128,
     longevity: u64,
@@ -28,7 +28,7 @@ pub async fn maybe_sync_mq_egress(
     err_report: Sender<Error>,
 ) -> Result<()> {
     // Send the query
-    let messages = pr.get_egress_messages(()).await?.decode_messages()?;
+    let messages = pr.get_egress_messages(()).await?.into_inner().decode_messages()?;
 
     // No pending message. We are done.
     if messages.is_empty() {

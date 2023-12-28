@@ -37,7 +37,6 @@ use cestory_api::{
     blocks::{
         self, AuthoritySet, AuthoritySetChange, BlockHeader, BlockHeaderWithChanges, HeaderToSync,    
     },
-    ceseal_client,
     crpc::{self, InitRuntimeResponse},
 };
 use ces_types::{attestation::legacy::Attestation, AttestationProvider};
@@ -322,7 +321,7 @@ pub async fn fetch_storage_changes(
 }
 
 pub async fn batch_sync_storage_changes(
-    pr: &CesealClient,
+    pr: &mut CesealClient,
     chain_api: &ChainApi,
     from: BlockNumber,
     to: BlockNumber,
@@ -375,8 +374,8 @@ pub async fn get_authority_with_proof_at(
     })
 }
 
-async fn try_load_handover_proof(pr: &CesealClient, chain_api: &ChainApi) -> Result<()> {
-    let info = pr.get_info(()).await?;
+async fn try_load_handover_proof(pr: &mut CesealClient, chain_api: &ChainApi) -> Result<()> {
+    let info = pr.get_info(()).await?.into_inner();
     if info.safe_mode_level < 2 {
         return Ok(());
     }
@@ -448,22 +447,22 @@ async fn bisec_setid_change(
 }
 
 async fn req_sync_header(
-    pr: &CesealClient,
+    pr: &mut CesealClient,
     headers: Vec<HeaderToSync>,
     authority_set_change: Option<AuthoritySetChange>,
 ) -> Result<crpc::SyncedTo> {
     let resp = pr
         .sync_header(crpc::HeadersToSync::new(headers, authority_set_change))
         .await?;
-    Ok(resp)
+    Ok(resp.into_inner())
 }
 
 async fn req_dispatch_block(
-    pr: &CesealClient,
+    pr: &mut CesealClient,
     blocks: Vec<BlockHeaderWithChanges>,
 ) -> Result<crpc::SyncedTo> {
     let resp = pr.dispatch_blocks(crpc::Blocks::new(blocks)).await?;
-    Ok(resp)
+    Ok(resp.into_inner())
 }
 
 const GRANDPA_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"FRNK";
@@ -471,7 +470,7 @@ const GRANDPA_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"FRNK";
 #[allow(clippy::too_many_arguments)]
 async fn batch_sync_block(
     chain_api: &ChainApi,
-    ceseal_api: &CesealClient,
+    ceseal_api: &mut CesealClient,
     sync_state: &mut BlockSyncState,
     batch_window: BlockNumber,
     info: &crpc::CesealInfo,
@@ -630,7 +629,7 @@ async fn batch_sync_block(
 #[allow(clippy::too_many_arguments)]
 async fn init_runtime(
     chain_api: &ChainApi,
-    ceseal_client: &CesealClient,
+    ceseal_client: &mut CesealClient,
     attestation_provider: Option<AttestationProvider>,
     use_dev_key: bool,
     inject_key: &str,
@@ -675,7 +674,7 @@ async fn init_runtime(
             attestation_provider,
         ))
         .await?;
-    Ok(resp)
+    Ok(resp.into_inner())
 }
 
 async fn register_worker(
@@ -729,7 +728,7 @@ async fn register_worker(
 }
 
 async fn try_register_worker(
-    ceseal_client: &CesealClient,
+    ceseal_client: &mut CesealClient,
     chain_client: &ChainApi,
     signer: &mut SrSigner,
     operator: Option<AccountId32>,
@@ -737,8 +736,8 @@ async fn try_register_worker(
 ) -> Result<bool> {
     let info = ceseal_client
         .get_runtime_info(crpc::GetRuntimeInfoRequest::new(false, operator))
-        .await?;
-    debug!("*** try_register_worker, info: {info:?}");
+        .await?
+        .into_inner();
     if let Some(attestation) = info.attestation {
         info!("Registering worker...");
         register_worker(
@@ -755,8 +754,8 @@ async fn try_register_worker(
     }
 }
 
-async fn try_load_chain_state(pr: &CesealClient, chain_api: &ChainApi, args: &Args) -> Result<()> {
-    let info = pr.get_info(()).await?;
+async fn try_load_chain_state(pr: &mut CesealClient, chain_api: &ChainApi, args: &Args) -> Result<()> {
+    let info = pr.get_info(()).await?.into_inner();
     info!("info: {info:#?}");
     if !info.can_load_chain_state {
         return Ok(());
@@ -814,7 +813,7 @@ async fn bridge(
     }
 
     // Other initialization
-    let cc = ceseal_client::new_ceseal_client(args.ceseal_endpoint.clone());
+    let mut cc = CesealClient::connect(args.ceseal_endpoint.clone()).await?;
     let pair = <sr25519::Pair as Pair>::from_string(&args.mnemonic, None)
         .expect("Bad privkey derive path");
     let mut signer = SrSigner::new(pair);
@@ -824,7 +823,7 @@ async fn bridge(
     let mut initial_sync_finished = false;
 
     // Try to initialize Ceseal and register on-chain
-    let info = cc.get_info(()).await?;
+    let info = cc.get_info(()).await?.into_inner();
     let operator = match args.operator.clone() {
         None => None,
         Some(operator) => {
@@ -840,7 +839,7 @@ async fn bridge(
             info!("Resolved start header at {}", start_header);
             let runtime_info = init_runtime(
                 &chain_api,
-                &cc,
+                &mut cc,
                 args.attestation_provider.into(),
                 args.use_dev_key,
                 &args.inject_key,
@@ -880,20 +879,20 @@ async fn bridge(
         }
 
         if args.fast_sync {
-            try_load_chain_state(&cc, &chain_api, args).await?;
+            try_load_chain_state(&mut cc, &chain_api, args).await?;
         }
     }
 
     if args.no_sync {
         if !args.no_register {
             let registered =
-                try_register_worker(&cc, &chain_api, &mut signer, operator, args).await?;
+                try_register_worker(&mut cc, &chain_api, &mut signer, operator, args).await?;
             flags.worker_registered = registered;
         }
         // Try bind worker endpoint
         if !args.no_bind && info.public_key().is_some() {
             // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the cifrost initialization)
-            match endpoint::try_update_worker_endpoint(&cc, &chain_api, &mut signer, args).await {
+            match endpoint::try_update_worker_endpoint(&mut cc, &chain_api, &mut signer, args).await {
                 Ok(registered) => {
                     flags.endpoint_registered = registered;
                 }
@@ -914,7 +913,7 @@ async fn bridge(
 
     for round in 0u64.. {
         // update the latest Ceseal state
-        let info = cc.get_info(()).await?;
+        let info = cc.get_info(()).await?.into_inner();
         info!("Ceseal get_info response (round: {}): {:#?}", round, info);
         if info.blocknum >= args.to_block {
             info!("Reached target block: {}", args.to_block);
@@ -937,7 +936,7 @@ async fn bridge(
         if info.blocknum < next_headernum {
             info!("blocks fall behind");
             batch_sync_storage_changes(
-                &cc,
+                &mut cc,
                 &chain_api,
                 info.blocknum,
                 next_headernum - 1,
@@ -986,24 +985,24 @@ async fn bridge(
 
         // send the blocks to Ceseal in batch
         let synced_blocks =
-            batch_sync_block(&chain_api, &cc, &mut sync_state, args.sync_blocks, &info).await?;
+            batch_sync_block(&chain_api, &mut cc, &mut sync_state, args.sync_blocks, &info).await?;
 
         // check if Ceseal has already reached the chain tip.
         if synced_blocks == 0 && !more_blocks {
             if args.load_handover_proof {
-                try_load_handover_proof(&cc, &chain_api)
+                try_load_handover_proof(&mut cc, &chain_api)
                     .await
                     .context("Failed to load handover proof")?;
             }
             if !args.no_register && !flags.worker_registered {
                 flags.worker_registered =
-                    try_register_worker(&cc, &chain_api, &mut signer, operator.clone(), args)
+                    try_register_worker(&mut cc, &chain_api, &mut signer, operator.clone(), args)
                         .await?;
             }
 
             if !args.no_bind && !flags.endpoint_registered && info.public_key().is_some() {
                 // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the cifrost initialization)
-                match endpoint::try_update_worker_endpoint(&cc, &chain_api, &mut signer, args).await
+                match endpoint::try_update_worker_endpoint(&mut cc, &chain_api, &mut signer, args).await
                 {
                     Ok(registered) => {
                         flags.endpoint_registered = registered;
@@ -1030,7 +1029,7 @@ async fn bridge(
             if !args.no_msg_submit {
                 msg_sync::maybe_sync_mq_egress(
                     &chain_api,
-                    &cc,
+                    &mut cc,
                     &mut signer,
                     args.tip,
                     args.longevity,
@@ -1044,9 +1043,8 @@ async fn bridge(
 
             // Launch key handover if required only when the old Ceseal is up-to-date
             if args.next_ceseal_endpoint.is_some() {
-                let next_pr =
-                    ceseal_client::new_ceseal_client(args.next_ceseal_endpoint.clone().unwrap());
-                handover_worker_key(&cc, &next_pr).await?;
+                let mut next_pr = CesealClient::connect(args.next_ceseal_endpoint.clone().unwrap()).await?;
+                handover_worker_key(&mut cc, &mut next_pr).await?;
             }
 
             sleep(Duration::from_millis(args.dev_wait_block_ms)).await;
@@ -1106,12 +1104,6 @@ async fn collect_async_errors(
 }
 
 pub async fn run() {
-    env_logger::builder()
-        .filter_level(log::LevelFilter::Info)
-        .format_timestamp_micros()
-        .parse_default_env()
-        .init();
-
     let mut args = Args::parse();
     preprocess_args(&mut args);
 
@@ -1144,10 +1136,10 @@ pub async fn run() {
 }
 
 /// This function panics intentionally after the worker key handover finishes
-async fn handover_worker_key(server: &CesealClient, client: &CesealClient) -> Result<()> {
-    let challenge = server.handover_create_challenge(()).await?;
-    let response = client.handover_accept_challenge(challenge).await?;
-    let encrypted_key = server.handover_start(response).await?;
+async fn handover_worker_key(server: &mut CesealClient, client: &mut CesealClient) -> Result<()> {
+    let challenge = server.handover_create_challenge(()).await?.into_inner();
+    let response = client.handover_accept_challenge(challenge).await?.into_inner();
+    let encrypted_key = server.handover_start(response).await?.into_inner();
     client.handover_receive(encrypted_key).await?;
     panic!("Worker key handover done, the new Ceseal is ready to go");
 }

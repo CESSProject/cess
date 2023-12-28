@@ -9,7 +9,6 @@ edition = "2021"
 [dependencies]
 anyhow = { workspace = true }
 async-stream = { workspace = true }
-env_logger = { workspace = true }
 futures = { workspace = true }
 log = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
@@ -20,6 +19,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 rand = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
+tonic ={ workspace = true }
 
 async-trait = { workspace = true }
 frame-system = { workspace = true }
@@ -33,6 +33,7 @@ pallet-grandpa = { workspace = true }
 pallet-indices = { workspace = true }
 pallet-balances = { workspace = true }
 
+ces-sanitized-logger ={ workspace = true }
 ces-types = { workspace = true }
 ces-trie-storage = { workspace = true }
 ces-node-rpc-ext = { workspace = true }

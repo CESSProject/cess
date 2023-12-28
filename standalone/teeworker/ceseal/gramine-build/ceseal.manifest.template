@@ -78,6 +78,5 @@ trusted_files = [
 allowed_files = [
   "file:/etc/hosts",
   "file:/etc/resolv.conf",
-  "file:Rocket.toml",
   "file:{{ storage_dir }}/",
 ]

@@ -2,21 +2,19 @@ use cestory_api::{
     blocks::{BlockHeader, StorageProof},
     ceseal_client,
 };
+use cesxt::Config;
+use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use sp_runtime::{generic::SignedBlock as SpSignedBlock, Justifications, OpaqueExtrinsic};
-
-use cesxt::Config;
+use subxt::backend::legacy::rpc_methods::{BlockDetails, BlockJustification};
+use tonic::transport::Channel;
 
 pub use cesxt::rpc::{self, StorageData, StorageKey};
 pub use cesxt::{self, subxt, ParachainApi, RelaychainApi};
 
-use subxt::backend::legacy::rpc_methods::{BlockDetails, BlockJustification};
-
 pub use subxt::backend::legacy::rpc_methods::NumberOrHex;
 
-use parity_scale_codec::{Decode, Encode};
-
-pub type CesealClient = ceseal_client::CesealClient;
+pub type CesealClient = ceseal_client::CesealClient<Channel>;
 pub type SrSigner = cesxt::PairSigner;
 
 pub type SignedBlock<Hdr, Ext> = SpSignedBlock<sp_runtime::generic::Block<Hdr, Ext>>;

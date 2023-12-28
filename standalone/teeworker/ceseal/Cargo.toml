@@ -17,13 +17,14 @@ lazy_static = { version = "1.4.0", default-features = false }
 num_cpus = "1.13"
 parity-scale-codec = { version = "3.6.1", default-features = false }
 reqwest = { version = "0.11", default-features = false, features = ["rustls-tls", "socks", "blocking"] }
-rocket = { version = "0.5.0", features = ["json"] }
-rocket_cors = "0.6.0"
 serde_json = "1.0"
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 tracing = "0.1"
 urlencoding = "2.1.0"
 version = "3.0.0"
+tokio = { version = "1.24", features = ["rt-multi-thread", "macros", "time"] }
+tower ={ version = "0.4", features = ["limit", "load-shed"]}
+tonic = { version = "0.9.2" }
 
 reqwest-env-proxy = { path = "../../../crates/reqwest-env-proxy" }
 ces-sanitized-logger = { path = "../../../crates/ces-sanitized-logger" }
@@ -31,7 +32,6 @@ cestory = { path = "../../../crates/cestory" }
 cestory-api = { path = "../../../crates/cestory/api", features = ["ceseal-client"] }
 cestory-pal = { path = "../../../crates/cestory/pal" }
 ces-allocator = { path = "../../../crates/ces-allocator" }
-ces-rocket-middleware = { path = "../../../crates/ces-rocket-middleware" }
 ces-types = { path = "../../../crates/ces-types", default-features = false, features = ["enable_serde", "sgx"] }
 sgx-api-lite = { path = "../../../crates/sgx-api-lite" }
 

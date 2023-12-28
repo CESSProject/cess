@@ -118,7 +118,6 @@ distclean: clean
 pre-dist: all
 	mkdir -p ${PREFIX}/data
 	cp ${BIN_NAME} ${PREFIX}/
-	cp Rocket.toml ${PREFIX}/
 	cp -rfL ${RUNTIME_DIR} ${PREFIX}/
 
 .PHONY: dist

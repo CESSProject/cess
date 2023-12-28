@@ -15,7 +15,6 @@ sp-core = { workspace = true }
 sp-std = { workspace = true }
 
 ces-mq = { workspace = true  }
-crpc = { workspace = true  }
 sgx-attestation = { workspace = true }
 
 [features]
@@ -29,7 +28,6 @@ std = [
 	"sp-core/std",
 	"sp-std/std",
 	"ces-mq/std",
-	"crpc/std",
 	"sgx-attestation/std",
 ]
 enable_serde = [

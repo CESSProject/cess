@@ -1,18 +1,17 @@
-mod api_server;
+mod handover;
 mod ias;
 mod pal_gramine;
-mod runtime;
 
-use std::env;
-use std::time::Duration;
-
-use clap::Parser;
-use tracing::{info, info_span, Instrument};
-
-use cestory_api::ecall_args::InitArgs;
-
-mod handover;
+use anyhow::Result;
 use ces_sanitized_logger as logger;
+use cestory::{Ceseal, RpcService};
+use cestory_api::{crpc::ceseal_api_server::CesealApiServer, ecall_args::InitArgs};
+use clap::Parser;
+use pal_gramine::GraminePlatform;
+use std::{env, time::Duration};
+use tonic::transport::Server;
+use tower::{limit::ConcurrencyLimitLayer, load_shed::LoadShedLayer};
+use tracing::info;
 
 #[derive(Parser, Debug, Clone)]
 #[clap(about = "The CESS TEE worker app.", version, author)]
@@ -91,8 +90,8 @@ struct Args {
     ra_max_retries: u32,
 }
 
-#[rocket::main]
-async fn main() -> Result<(), rocket::Error> {
+#[tokio::main]
+async fn main() -> Result<()> {
     pal_gramine::print_target_info();
 
     let sgx = pal_gramine::is_gramine();
@@ -101,7 +100,7 @@ async fn main() -> Result<(), rocket::Error> {
 }
 
 #[tracing::instrument(name = "main", skip_all)]
-async fn serve(sgx: bool) -> Result<(), rocket::Error> {
+async fn serve(sgx: bool) -> Result<()> {
     let args = Args::parse();
 
     info!(sgx, "Starting ceseal...");
@@ -127,13 +126,11 @@ async fn serve(sgx: bool) -> Result<(), rocket::Error> {
         mkdir(storage_path);
     }
 
-    if let Some(address) = &args.address {
-        env::set_var("ROCKET_ADDRESS", address);
-    }
-
-    if let Some(port) = &args.port {
-        env::set_var("ROCKET_PORT", port.to_string());
-    }
+    let listener_addr = {
+        let ip = args.address.as_ref().map_or("0.0.0.0", String::as_str);
+        let port = args.port.unwrap_or(8000);
+        format!("{ip}:{port}").parse().unwrap()
+    };
 
     let cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
     info!(bench_cores = cores);
@@ -145,7 +142,11 @@ async fn serve(sgx: bool) -> Result<(), rocket::Error> {
             storage_path: storage_path.into(),
             init_bench: args.init_bench,
             version: env!("CARGO_PKG_VERSION").into(),
-            git_revision: format!("{}-{}", env!("VERGEN_GIT_DESCRIBE"), env!("VERGEN_BUILD_TIMESTAMP")),
+            git_revision: format!(
+                "{}-{}",
+                env!("VERGEN_GIT_DESCRIBE"),
+                env!("VERGEN_BUILD_TIMESTAMP")
+            ),
             enable_checkpoint: !args.disable_checkpoint,
             checkpoint_interval: args.checkpoint_interval,
             remove_corrupted_checkpoint: args.remove_corrupted_checkpoint,
@@ -167,41 +168,46 @@ async fn serve(sgx: bool) -> Result<(), rocket::Error> {
         info!("Handover done");
         return Ok(());
     }
-    if let Err(err) = runtime::ecall_init(init_args) {
-        panic!("Initialize Failed: {err:?}");
-    }
 
-    let mut servers = vec![];
-
-    if args.public_port.is_some() {
-        let args_clone = args.clone();
-        let server_acl = rocket::tokio::spawn(
-            async move {
-                let _rocket = api_server::rocket_acl(&args_clone, storage_path)
-                    .expect("should not failed as port is provided")
-                    .launch()
-                    .await
-                    .expect("Failed to launch API server");
+    let ceseal_service = RpcService::new(GraminePlatform);
+    if init_args.enable_checkpoint {
+        match Ceseal::restore_from_checkpoint(&GraminePlatform, &init_args) {
+            Ok(Some(factory)) => {
+                info!("Loaded checkpoint");
+                **ceseal_service
+                    .lock_ceseal(true, true)
+                    .expect("Failed to lock Ceseal") = factory;
+                return Ok(());
             }
-            .instrument(info_span!("srv-public")),
-        );
-        servers.push(server_acl);
-    }
-
-    let server_internal = rocket::tokio::spawn(
-        async move {
-            let _rocket = api_server::rocket(&args, storage_path)
-                .launch()
-                .await
-                .expect("Failed to launch API server");
+            Err(err) => {
+                anyhow::bail!("Failed to load checkpoint: {:?}", err);
+            }
+            Ok(None) => {
+                info!("No checkpoint found");
+            }
         }
-        .instrument(info_span!("srv-internal")),
-    );
-    servers.push(server_internal);
-
-    for server in servers {
-        server.await.expect("Failed to launch server");
+    } else {
+        info!("Checkpoint disabled.");
     }
+    ceseal_service
+        .lock_ceseal(true, true)
+        .unwrap()
+        .init(init_args);
+    info!("Enclave init OK");
+
+    let layer = tower::ServiceBuilder::new()
+        .layer(LoadShedLayer::new())
+        .layer(ConcurrencyLimitLayer::new(100))
+        .into_inner();
+    info!(
+        "Ceseal server listening on {}, max concurrent limit: {}",
+        listener_addr, 100
+    );
+    Server::builder()
+        .layer(layer)
+        .add_service(CesealApiServer::new(ceseal_service))
+        .serve(listener_addr)
+        .await?;
 
     info!("Ceseal quited");
 
