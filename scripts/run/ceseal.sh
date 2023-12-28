@@ -3,10 +3,9 @@
 port=8000
 work_dir="./standalone/teeworker/ceseal/bin"
 
-export ROCKET_PORT=$port
-export ROCKET_PROFILE=debug
-#export ROCKET_CONFIG="$dir/Rocket.toml"
-export RUST_LOG=info,ceseal=trace,cestory=trace
+export RUST_LOG=debug,ceseal=trace,cestory=trace,h2=info,hyper=info,reqwest=info,tower=info
+export RUST_LOG_SANITIZED=false
+export RUST_LOG_ANSI_COLOR=true
 
 purge_data=0
 getopts ":p" opt

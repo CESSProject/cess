@@ -1,6 +1,8 @@
 #!/bin/bash
 
-export RUST_LOG=debug,hyper=info,reqwest=info
+export RUST_LOG=debug,h2=info,hyper=info,reqwest=info,tower=info
+export RUST_LOG_SANITIZED=false
+export RUST_LOG_ANSI_COLOR=true
 export http_proxy=
 
 bin="../cess/target/debug/cifrost"
