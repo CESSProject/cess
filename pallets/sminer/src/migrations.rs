@@ -6,8 +6,10 @@ use frame_support::{
 	traits::{Get},
 	weights::Weight,
 };
+use sp_std::vec::Vec;
 use frame_support::traits::OnRuntimeUpgrade;
-
+#[cfg(feature = "try-runtime")]
+use sp_runtime::TryRuntimeError;
 /// A struct that does not migration, but only checks that the counter prefix exists and is correct.
 pub struct MigrationSminer<T: crate::Config>(sp_std::marker::PhantomData<T>);
 impl<T: crate::Config> OnRuntimeUpgrade for MigrationSminer<T> {
@@ -16,13 +18,13 @@ impl<T: crate::Config> OnRuntimeUpgrade for MigrationSminer<T> {
 	}
 
 	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		log::info!("🙋🏽file-bank check access");
-		return Ok(())
+	fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
+		log::info!("🙋🏽sminer check access");
+		return Ok(Default::default())
 	}
 
 	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
+	fn post_upgrade(_state: Vec<u8>) -> Result<(), TryRuntimeError> {
 		let weights = migrate::<T>();
 		return Ok(())
 	}

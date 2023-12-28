@@ -74,3 +74,4 @@ runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"pallet-cess-staking/runtime-benchmarks",
 ]
+try-runtime = [ "frame-support/try-runtime" ]

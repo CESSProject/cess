@@ -1,6 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 512.
-#![recursion_limit = "512"]
+#![recursion_limit = "1024"]
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -178,7 +178,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 101,
+	spec_version: 104,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -1618,7 +1618,7 @@ impl pallet_cacher::Config for Runtime {
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
-	pub enum Runtime
+	pub struct Runtime
 	{
 		// Basic stuff
 		System: frame_system = 0,
@@ -1732,10 +1732,14 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(TestMigrationFileBank<Runtime>, MigrationSminer<Runtime>, MigrationTee<Runtime>),
-	// TestMigrationFileBank<Runtime>,
-	// MigrationAudit<Runtime>,
+	Migrations,
 >;
+
+type Migrations = (
+	TestMigrationFileBank<Runtime>, 
+	MigrationSminer<Runtime>, 
+	MigrationTee<Runtime>,
+);
 
 #[cfg(feature = "runtime-benchmarks")]
 #[macro_use]
@@ -2280,7 +2284,7 @@ impl_runtime_apis! {
 
 	#[cfg(feature = "try-runtime")]
 	impl frame_try_runtime::TryRuntime<Block> for Runtime {
-		fn on_runtime_upgrade(checks: bool) -> (Weight, Weight) {
+		fn on_runtime_upgrade(checks: frame_try_runtime::UpgradeCheckSelect) -> (Weight, Weight) {
 			// NOTE: intentional unwrap: we don't want to propagate the error backwards, and want to
 			// have a backtrace here. If any of the pre/post migration checks fail, we shall stop
 			// right here and right now.
@@ -2292,7 +2296,7 @@ impl_runtime_apis! {
 			block: Block,
 			state_root_check: bool,
 			signature_check: bool,
-			select: frame_try_runtime::TryStateSelect
+			select: frame_try_runtime::TryStateSelect,
 		) -> Weight {
 			// NOTE: intentional unwrap: we don't want to propagate the error backwards, and want to
 			// have a backtrace here.
