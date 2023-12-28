@@ -50,7 +50,6 @@ pub use storage::ChainStorage;
 pub use types::BlockInfo;
 pub type CesealLightValidation = LightValidation<chain::Runtime>;
 
-// mod bin_api_service;
 mod ceseal_service;
 mod cryptography;
 mod light_validation;
