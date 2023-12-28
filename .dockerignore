@@ -1,8 +1,10 @@
 DS_Store
 Dockerfile
-target
+**/target
+**/ceseal/bin/*
 .github
 .maintain
+.vscode
 docs
 LICENSE
 README.md
