@@ -113,6 +113,8 @@ pub use pallet_cess_staking::StakerStatus;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 
+use frame_support::traits::{GetStorageVersion, OnRuntimeUpgrade, StorageVersion};
+
 mod voter_bags;
 
 /// An index to a block.
@@ -1298,6 +1300,7 @@ parameter_types! {
 	pub const DefaultDepositLimit: Balance = deposit(1024, 1024 * 1024);
 	pub Schedule: pallet_contracts::Schedule<Runtime> = Default::default();
 	pub CodeHashLockupDepositPercent: Perbill = Perbill::from_percent(30);
+	pub const TEST_ALL_STEPS: bool = cfg!(feature = "try-runtime");
 }
 
 impl pallet_contracts::Config for Runtime {
@@ -1328,7 +1331,15 @@ impl pallet_contracts::Config for Runtime {
 	type MaxDebugBufferLen = ConstU32<{ 2 * 1024 * 1024 }>;
 	type RuntimeHoldReason = RuntimeHoldReason;
 	#[cfg(not(feature = "runtime-benchmarks"))]
-	type Migrations = ();
+	type Migrations = (
+		pallet_contracts::migration::v09::Migration<Runtime>,
+		pallet_contracts::migration::v10::Migration<Runtime, TEST_ALL_STEPS>,
+        pallet_contracts::migration::v11::Migration<Runtime>,
+        pallet_contracts::migration::v12::Migration<Runtime, TEST_ALL_STEPS>,
+		pallet_contracts::migration::v13::Migration<Runtime>,
+		pallet_contracts::migration::v14::Migration<Runtime, TEST_ALL_STEPS>,
+		pallet_contracts::migration::v15::Migration<Runtime>,
+	);
 	#[cfg(feature = "runtime-benchmarks")]
 	type Migrations = pallet_contracts::migration::codegen::BenchMigrations;
 	type MaxDelegateDependencies = ConstU32<32>;
@@ -1735,7 +1746,26 @@ pub type Executive = frame_executive::Executive<
 	Migrations,
 >;
 
+pub struct SetStorageVersions;
+
+impl OnRuntimeUpgrade for SetStorageVersions {
+	fn on_runtime_upgrade() -> Weight {
+		// Was missed as part of: `runtime_common::session::migration::ClearOldSessionStorage<Runtime>`.
+		let storage_version = Historical::on_chain_storage_version();
+		if storage_version < 1 {
+			StorageVersion::new(1).put::<Historical>();
+		}
+
+		StorageVersion::new(4).put::<Bounties>();
+
+		RocksDbWeight::get().reads_writes(2, 2)
+	}
+}
+
 type Migrations = (
+	SetStorageVersions,
+	pallet_im_online::migration::v1::Migration<Runtime>,
+	pallet_contracts::Migration<Runtime>,
 	TestMigrationFileBank<Runtime>, 
 	MigrationSminer<Runtime>, 
 	MigrationTee<Runtime>,
