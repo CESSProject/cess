@@ -1098,7 +1098,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node"
-version = "0.7.5"
+version = "0.7.6"
 dependencies = [
  "array-bytes 4.2.0",
  "async-trait",
@@ -1189,7 +1189,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node-runtime"
-version = "0.7.5"
+version = "0.7.6"
 dependencies = [
  "cessp-consensus-rrsc",
  "cp-cess-common",
@@ -6148,7 +6148,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-audit"
-version = "0.7.0"
+version = "0.7.6"
 dependencies = [
  "cp-bloom-filter",
  "cp-cess-common",
@@ -6357,7 +6357,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-cess-treasury"
-version = "0.7.4"
+version = "0.7.6"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -6602,7 +6602,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-file-bank"
-version = "0.7.0"
+version = "0.7.6"
 dependencies = [
  "cp-cess-common",
  "cp-enclave-verify",
@@ -6921,7 +6921,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-sminer"
-version = "0.7.0"
+version = "0.7.6"
 dependencies = [
  "cp-bloom-filter",
  "cp-cess-common",
@@ -7017,7 +7017,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-tee-worker"
-version = "0.7.0"
+version = "0.7.6"
 dependencies = [
  "base64 0.12.3",
  "chrono",

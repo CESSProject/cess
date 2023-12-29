@@ -48,7 +48,7 @@ impl<T: Config> Receptionist<T> {
 
     pub fn qualification_report_processing(sender: AccountOf<T>, deal_hash: Hash, deal_info: &mut DealInfo<T>, index: u8) -> DispatchResult {
         deal_info.complete_part(sender.clone(), index)?;
-
+        <DealMap<T>>::insert(&deal_hash, deal_info.clone());
         // If it is the last submitter of the order.
         if deal_info.complete_list.len() == FRAGMENT_COUNT as usize {
             deal_info.completed_all()?;
@@ -66,10 +66,6 @@ impl<T: Config> Receptionist<T> {
             T::StorageHandle::unlock_and_used_user_space(&deal_info.user.user, needed_space)?;
             T::StorageHandle::sub_total_idle_space(needed_space)?;
             T::StorageHandle::add_total_service_space(needed_space)?;
-            let result = T::FScheduler::cancel_named(deal_hash.0.to_vec()).map_err(|_| Error::<T>::Unexpected);
-            if let Err(_) = result {
-                log::info!("transfer report cancel schedule failed: {:?}", deal_hash.clone());
-            }
 
             if <Bucket<T>>::contains_key(&deal_info.user.user, &deal_info.user.bucket_name) {
                 Pallet::<T>::add_file_to_bucket(&deal_info.user.user, &deal_info.user.bucket_name, &deal_hash)?;

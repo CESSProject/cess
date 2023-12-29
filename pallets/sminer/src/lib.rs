@@ -586,8 +586,7 @@ pub mod pallet {
 				balance = miner_info.collaterals;
 
 				if miner_info.state == STATE_FROZEN.as_bytes().to_vec() {
-					let power = Self::calculate_power(miner_info.idle_space, miner_info.service_space);
-					let limit = Self::calculate_limit_by_space(power)?
+					let limit = Self::calculate_limit_by_space(miner_info.declaration_space)?
 						.try_into().map_err(|_| Error::<T>::Overflow)?;
 					if miner_info.collaterals >= limit {
 						miner_info.state = Self::str_to_bound(STATE_POSITIVE)?;

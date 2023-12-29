@@ -533,17 +533,13 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
-			ensure!(<DealMap<T>>::contains_key(&deal_hash), Error::<T>::NonExistent);
 			ensure!(index as u32 <= FRAGMENT_COUNT, Error::<T>::SpecError);
 			ensure!(index > 0, Error::<T>::SpecError);
 			let is_positive = T::MinerControl::is_positive(&sender)?;
 			ensure!(is_positive, Error::<T>::MinerStateError);
-			<DealMap<T>>::try_mutate(&deal_hash, |deal_info_opt| -> DispatchResult {
-				// can use unwrap because there was a judgment above
-				let deal_info = deal_info_opt.as_mut().unwrap();
-				Receptionist::<T>::qualification_report_processing(sender.clone(), deal_hash, deal_info, index)?;
-				Ok(())
-			})?;
+
+			let mut deal_info = <DealMap<T>>::try_get(&deal_hash).map_err(|_| Error::<T>::NonExistent)?;
+			Receptionist::<T>::qualification_report_processing(sender.clone(), deal_hash, &mut deal_info, index)?;
 
 			Self::deposit_event(Event::<T>::TransferReport{acc: sender, deal_hash: deal_hash});
 
@@ -576,6 +572,7 @@ pub mod pallet {
 				let now = <frame_system::Pallet<T>>::block_number();
 				let mut count: u128 = 0;
 				let mut hash_list: Vec<Box<[u8; 256]>> = Default::default();
+				let mut flag = false;
 				for segment in file_info.segment_list.iter_mut() {
 					for fragment in segment.fragment_list.iter_mut() {
 						if fragment.miner == sender {
@@ -583,9 +580,12 @@ pub mod pallet {
 							count = count + 1;
 							let hash_temp = fragment.hash.binary().map_err(|_| Error::<T>::BugInvalid)?;
 							hash_list.push(hash_temp);
+							flag = true;
 						}
 					}
 				}
+
+				ensure!(flag, Error::<T>::NonExistent);
 
 				let unlock_space = FRAGMENT_SIZE.checked_mul(count as u128).ok_or(Error::<T>::Overflow)?;
 				T::MinerControl::unlock_space_to_service(&sender, unlock_space)?;
@@ -1042,6 +1042,8 @@ pub mod pallet {
 										}
 									}
 
+
+									fragment.tag = Some(now);
 									fragment.avail = true;
 									fragment.miner = sender.clone();
 									return Ok(());
