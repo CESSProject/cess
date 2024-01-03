@@ -322,7 +322,7 @@ fn convert_to_tag(value: PdpTag) -> ApiTag {
 
 /// verify_signature
 /// Used to verify data signed with the private key of the miner's wallet
-fn verify_signature(spk: Vec<u8>, sig: Vec<u8>, raw: &[u8]) -> Result<bool> {
+pub fn verify_signature(spk: Vec<u8>, sig: Vec<u8>, raw: &[u8]) -> Result<bool> {
     //verify miner_peer_id_sign first
     let spk: [u8; 32] = match spk.try_into() {
         Ok(pbk) => pbk,

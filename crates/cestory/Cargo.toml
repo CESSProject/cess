@@ -64,15 +64,14 @@ reqwest-env-proxy ={ workspace = true }
 runtime = { workspace = true, features = ["std"] }
 sgx-api-lite = { workspace = true }
 
-# PODR2
-# rsa = { workspace = true }
+dashmap = { workspace = true }
 threadpool = { workspace = true }
+prost = { workspace = true, features = ["std"] }
 rust-crypto = { workspace = true }
-# num-bigint-dig = { workspace = true }
-# num-integer = { workspace = true }
+num-bigint-dig = { workspace = true }
 cp-bloom-filter = { workspace = true }
-# sha2 = { workspace = true, default-features = false , features = ["oid"]}
 ces-pdp = { workspace = true }
+ces-pois = { workspace = true }
 
 
 [dev-dependencies]

@@ -546,6 +546,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 
 [[package]]
+name = "bigdecimal"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6773ddc0eafc0e509fb60e48dff7f450f8e674a0686ae8605e8d9901bd5eefa"
+dependencies = [
+ "num-bigint",
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
 name = "bincode"
 version = "1.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -836,6 +847,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "ces-pois"
+version = "0.4.4"
+dependencies = [
+ "anyhow",
+ "bigdecimal",
+ "byteorder",
+ "bytes",
+ "dashmap",
+ "hex",
+ "lazy_static",
+ "merkle_light",
+ "num-bigint-dig",
+ "num-integer",
+ "num-traits",
+ "prost",
+ "rand 0.8.5",
+ "rsa",
+ "serde",
+ "sha2 0.10.8",
+]
+
+[[package]]
 name = "ces-sanitized-logger"
 version = "0.1.0"
 dependencies = [
@@ -1041,6 +1074,7 @@ dependencies = [
  "ces-mq",
  "ces-pallet-mq",
  "ces-pdp",
+ "ces-pois",
  "ces-serde-more",
  "ces-trie-storage",
  "ces-types",
@@ -1049,6 +1083,7 @@ dependencies = [
  "cestory-pal",
  "chrono",
  "cp-bloom-filter",
+ "dashmap",
  "derive_more 1.0.0-beta.6",
  "environmental",
  "finality-grandpa",
@@ -1063,10 +1098,12 @@ dependencies = [
  "libc",
  "log",
  "num-bigint",
+ "num-bigint-dig",
  "num-traits",
  "once_cell",
  "pallet-tee-worker",
  "parity-scale-codec",
+ "prost",
  "rand 0.8.5",
  "regex",
  "reqwest",
@@ -1529,6 +1566,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.39",
+]
+
+[[package]]
+name = "dashmap"
+version = "5.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "978747c1d849a7d2ee5e8adc0159961c48fb7e5db2f06af6723b80123bb53856"
+dependencies = [
+ "cfg-if",
+ "hashbrown 0.14.3",
+ "lock_api",
+ "once_cell",
+ "parking_lot_core",
 ]
 
 [[package]]
@@ -3389,6 +3439,12 @@ checksum = "808b50db46293432a45e63bc15ea51e0ab4c0a1647b8eb114e31a3e698dd6fbe"
 dependencies = [
  "hash-db 0.16.0",
 ]
+
+[[package]]
+name = "merkle_light"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b879f617ec392ad9c11a50356ca373009c52363c0953b34c2e1b2234037a26a9"
 
 [[package]]
 name = "merlin"

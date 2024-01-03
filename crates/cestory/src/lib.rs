@@ -58,8 +58,9 @@ mod storage;
 mod system;
 mod types;
 pub mod podr2;
+pub mod pois;
 
-pub use podr2::{Podr2Server, Podr2VerifierServer};
+pub use podr2::{Podr2Server, Podr2VerifierServer, verify_signature};
 
 // TODO: Completely remove the reference to Ces/Khala runtime. Instead we can create a minimal
 // runtime definition locally.
