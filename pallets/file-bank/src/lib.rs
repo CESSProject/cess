@@ -576,11 +576,13 @@ pub mod pallet {
 				for segment in file_info.segment_list.iter_mut() {
 					for fragment in segment.fragment_list.iter_mut() {
 						if fragment.miner == sender {
-							fragment.tag = Some(now);
-							count = count + 1;
-							let hash_temp = fragment.hash.binary().map_err(|_| Error::<T>::BugInvalid)?;
-							hash_list.push(hash_temp);
-							flag = true;
+							if fragment.tag.is_none() {
+								fragment.tag = Some(now);
+								count = count + 1;
+								let hash_temp = fragment.hash.binary().map_err(|_| Error::<T>::BugInvalid)?;
+								hash_list.push(hash_temp);
+								flag = true;
+							}
 						}
 					}
 				}
@@ -1083,6 +1085,20 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 
 			<TaskFailedCount<T>>::remove(&sender);
+
+			Ok(())
+		}
+
+		#[pallet::call_index(22)]
+		#[transactional]
+		#[pallet::weight(Weight::zero())]
+		pub fn root_clear_file(origin: OriginFor<T>, owner: AccountOf<T>, file_hash: Hash) -> DispatchResult {
+			let sender = ensure_root(origin)?;
+
+			let file = <File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::NonExistent)?;
+			Self::bucket_remove_file(&file_hash, &owner, &file)?;
+			Self::remove_user_hold_file_list(&file_hash, &owner)?;
+			<File<T>>::remove(file_hash);
 
 			Ok(())
 		}
