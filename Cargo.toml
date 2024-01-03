@@ -277,13 +277,17 @@ async-std = "1.10.0"
 async-stream = "0.3.4"
 async-trait = "0.1"
 base64 = { version = "0.13", default-features = false, features = ["alloc"] }
+bigdecimal = "0.3.1"
 bitflags = "1"
 bls12_381 = { version = "0.7", default-features = false, features = ["groups", "pairings", "alloc", "experimental"] }
+byteorder = "1.4.3"
+bytes = "1.4.0"
 chrono = { version = "0.4.22", default-features = false }
 clap = { version = "4.0.32", features = ["derive"] }
 codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false }
 criterion = { version = "0.4.0", features = ["async_tokio"] }
 curve25519-dalek = { version = "2.0", default-features = false }
+dashmap = "5.5.3"
 derive_more = { version = "1.0.0-beta.6", default-features = false, features = ["display"] }
 derive_wrapper = "0.1.7"
 either = "1.6.1"
@@ -309,8 +313,11 @@ keccak-hasher = "0.16.0"
 lazy_static = { version = "1", default-features = false }
 libc = "0.2"
 log = { version = "0.4", default-features = false }
+merkle_light = "0.4.0"
 multimap = "0.8.3"
 num-bigint = "0.4"
+num-bigint-dig = "0.8.4"
+num-integer = "0.1.45"
 num-rational = "0.4"
 num-traits = "0.2"
 og = "0.4.14"
@@ -333,6 +340,7 @@ reqwest = { version = "0.11", default-features = false, features = ["rustls-tls"
 ring = "0.16.20"
 rocket = "0.5.0"
 rsa = { version = "0.8.2", default-features = false }
+rust-crypto = "0.2.36"
 scale-bits = "0.4.0"
 scale-decode = "0.9.0"
 scale-encode = "0.5.0"
@@ -344,7 +352,7 @@ serde = { version = "1.0", default-features = false }
 serde_cbor = "0.11.2"
 serde_json = { version = "1.0", default-features = false }
 serde-json-core = { version = "0.5", default-features = false }
-sha2 = { version = "0.9", default-features = false }
+sha2 = { version = "0.10", default-features = false }
 soketto = "0.7.1"
 spin = { version = "0.9", default-features = false, features = ["mutex", "use_ticket_mutex"] }
 static_assertions = "1.1.0"
@@ -352,16 +360,17 @@ subxt = { version = "0.32.1" }
 syn = "1.0.98"
 tempfile = "3.1.0"
 thiserror = "1.0"
+threadpool = "1.8.1"
 tokio ={ version = "1" }
 tokio-util = { version = "0.7.4", features = ["compat"] }
+tonic = { version = "0.9.2" }
+tonic-build = { version = "0.9.2", features = ["prost"] }
+tower = { version = "0.4" }
 tracing = { version = "0.1", default-features = false }
 tracing-core = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 trie-db = "0.27.1"
 typenum = { version = "1.14.0", default-features = false }
-tonic = { version = "0.9.2" }
-tonic-build = { version = "0.9.2", features = ["prost"] }
-tower = { version = "0.4" }
 untrusted = { version = "0.9.0" }
 vergen = { version = "8.2.6", default-features = false }
 wait-timeout = "0.2"
@@ -377,6 +386,8 @@ ces-node-rpc-ext-types = { path = "crates/ces-node-rpc-ext/types", default-featu
 ces-node-runtime = { path = "standalone/chain/runtime", package = "cess-node-runtime", default-features = false }
 ces-pallet-mq ={ path = "pallets/mq", default-features = false }
 ces-pallet-mq-runtime-api ={ path = "pallets/mq/runtime-api", default-features = false }
+ces-pdp = { path = "crates/ces-pdp" }
+ces-pois = { path = "crates/ces-pois" }
 ces-sanitized-logger = { path = "crates/ces-sanitized-logger" }
 ces-serde-more = { path = "crates/ces-serde-more", default-features = false }
 ces-trie-storage = { path = "crates/ces-trie-storage", default-features = false }

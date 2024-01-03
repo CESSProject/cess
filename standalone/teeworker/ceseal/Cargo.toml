@@ -34,7 +34,9 @@ cestory-pal = { path = "../../../crates/cestory/pal" }
 ces-allocator = { path = "../../../crates/ces-allocator" }
 ces-types = { path = "../../../crates/ces-types", default-features = false, features = ["enable_serde", "sgx"] }
 sgx-api-lite = { path = "../../../crates/sgx-api-lite" }
-
+# PODR2
+threadpool = "1.8.1"
+ces-pdp = { path = "../../../crates/ces-pdp" }
 
 [build-dependencies]
 vergen = { version = "8.2.6", features = ["build", "git", "gitcl"] }

@@ -1,0 +1,183 @@
+syntax = "proto3";
+
+package pois;
+
+
+service PoisCertifierApi {
+  rpc request_miner_get_new_key(RequestMinerInitParam)
+      returns (ResponseMinerInitParam) {}
+  rpc request_miner_commit_gen_chall(RequestMinerCommitGenChall)
+      returns (Challenge) {}
+  rpc request_verify_commit_proof(RequestVerifyCommitAndAccProof)
+      returns (ResponseVerifyCommitOrDeletionProof) {}
+  rpc request_verify_deletion_proof(RequestVerifyDeletionProof)
+      returns (ResponseVerifyCommitOrDeletionProof) {}
+}
+
+service PoisVerifierApi {
+  rpc request_space_proof_verify_single_block(RequestSpaceProofVerify)
+      returns (ResponseSpaceProofVerify) {}
+  rpc request_verify_space_total(RequestSpaceProofVerifyTotal)
+      returns (ResponseSpaceProofVerifyTotal) {}
+}
+
+message RequestMinerInitParam{
+  bytes miner_id = 1;
+}
+
+message ResponseMinerInitParam{
+  bytes acc = 1;//init value is from g in RsaKey
+  bytes key_n = 2;//RsaKey n
+  bytes key_g = 3;//RsaKey g
+  int64 front = 4;//begin with 0
+  int64 rear = 5;//begin with 0
+  bytes miner_id = 6;//miner id
+  bytes status_tee_sign = 7;
+  bytes signature_with_tee_controller = 8;//sig all
+}
+
+message RequestMinerCommitGenChall {
+  bytes miner_id = 1;
+  Commits commit = 2;
+  bytes miner_sign = 3;
+}
+
+message Commits {
+  repeated int64 file_indexs = 1;
+  repeated bytes roots = 2;
+}
+
+message MinerPoisInfo {
+  bytes acc = 1;
+  int64 front = 2;
+  int64 rear = 3;
+  bytes key_n = 4;
+  bytes key_g = 5;
+  bytes status_tee_sign = 6;
+}
+
+message Challenge {
+  repeated Int64Slice rows = 1;
+  bytes chall_tee_sign = 2;
+}
+message Int64Slice {
+  repeated int64 values = 1;
+}
+
+message RequestVerifyCommitAndAccProof {
+  CommitProofGroup commit_proof_group = 1;
+  AccProof acc_proof = 2;
+  bytes miner_id = 3;
+  MinerPoisInfo pois_info = 4;
+  bytes miner_sign = 5;
+}
+message CommitProofGroup {
+  repeated CommitProofGroupInner commit_proof_group_inner = 1;
+}
+message CommitProofGroupInner {
+  repeated CommitProof commit_proof = 1;
+}
+message CommitProof {
+  MhtProof node = 1;
+  repeated MhtProof parents = 2;
+  repeated MhtProof elders = 3;
+}
+message MhtProof {
+  int32 index = 1;
+  bytes label = 2;
+  repeated bytes paths = 3;
+  bytes locs = 4;
+}
+
+message AccProof {
+  repeated int64 indexs = 1;
+  repeated bytes labels = 2;
+  AccWitnessNode wit_chains = 3;
+  repeated bytes acc_path = 4;
+}
+message AccWitnessNode {
+  bytes elem = 1;
+  bytes wit = 2;
+  AccWitnessNode acc = 3;
+}
+
+message ResponseVerifyCommitOrDeletionProof{
+  PoisStatus pois_status = 1;
+  bytes status_tee_sign = 2;
+  bytes signature_with_tee_controller = 3;
+}
+
+message PoisStatus{
+  bytes acc = 1;
+  int64 front = 2;
+  int64 rear = 3;
+}
+
+message RequestSpaceProofVerify{
+  repeated int64 space_chals =1;
+  bytes miner_id = 2;
+  MinerPoisInfo pois_info = 3;
+  SpaceProof proof = 4;
+  bytes miner_space_proof_hash_polkadot_sig = 5;
+}
+
+message SpaceProof {
+  int64 left = 1;
+  int64 right = 2;
+  repeated MhtProofGroup proofs = 3;
+  repeated bytes roots = 4;
+  repeated AccWitnessNode wit_chains = 5;
+}
+
+message ProofHashAndLeftRight {
+  bytes space_proof_hash = 1;
+  int64 left = 2;
+  int64 right = 3;
+  bytes tee_id = 4;
+}
+
+message MhtProofGroup {
+  repeated MhtProof proofs = 1;
+}
+
+message ResponseSpaceProofVerify {
+  bytes signature = 1;
+}
+
+message RequestSpaceProofVerifyTotal{
+  bytes miner_id = 1;
+  repeated BlocksProof proof_list = 2;
+  int64 front = 3;
+  int64 rear = 4;
+  bytes acc = 5;
+  repeated int64 space_chals =6;
+}
+
+message BlocksProof {
+  ProofHashAndLeftRight proof_hash_and_left_right = 1;
+  bytes signature = 3;
+}
+
+message ResponseSpaceProofVerifyTotalSignatureMember {
+  bytes miner_id = 1;
+  bytes total_proof_hash = 2;
+  int64 front = 3;
+  int64 rear = 4;
+  bytes acc = 5;
+  repeated int64 space_chals =6;
+}
+
+message ResponseSpaceProofVerifyTotal{
+  bytes miner_id = 1;
+  bool idle_result = 2;
+  bytes signature = 3;
+}
+
+message RequestVerifyDeletionProof {
+  repeated bytes roots = 1;
+  AccWitnessNode wit_chain = 2;
+  repeated bytes acc_path = 3;
+  bytes miner_id = 4;
+  MinerPoisInfo pois_info = 5;
+  bytes miner_sign = 6;
+}

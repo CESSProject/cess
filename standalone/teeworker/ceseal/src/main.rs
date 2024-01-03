@@ -3,12 +3,20 @@ mod ias;
 mod pal_gramine;
 
 use anyhow::Result;
+use ces_pdp::gen_key;
 use ces_sanitized_logger as logger;
-use cestory::{Ceseal, RpcService};
-use cestory_api::{crpc::ceseal_api_server::CesealApiServer, ecall_args::InitArgs};
+use cestory::{Ceseal, Podr2Server, RpcService};
+use cestory_api::{
+    crpc::ceseal_api_server::CesealApiServer, ecall_args::InitArgs,
+    podr2::podr2_api_server::Podr2ApiServer,
+};
 use clap::Parser;
 use pal_gramine::GraminePlatform;
-use std::{env, time::Duration};
+use std::{
+    env,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 use tonic::transport::Server;
 use tower::{limit::ConcurrencyLimitLayer, load_shed::LoadShedLayer};
 use tracing::info;
@@ -195,6 +203,16 @@ async fn serve(sgx: bool) -> Result<()> {
         .init(init_args);
     info!("Enclave init OK");
 
+    // TODO: temp integere
+    let podr2_key = gen_key(2048);
+    let pool = Arc::new(Mutex::new(threadpool::ThreadPool::new(8)));
+    let podr2_server = Podr2Server {
+        podr2_keys: podr2_key.clone(),
+        threadpool: pool,
+        block_num: 1024,
+        tee_controller_account: [0; 32],
+    };
+
     let layer = tower::ServiceBuilder::new()
         .layer(LoadShedLayer::new())
         .layer(ConcurrencyLimitLayer::new(100))
@@ -206,6 +224,7 @@ async fn serve(sgx: bool) -> Result<()> {
     Server::builder()
         .layer(layer)
         .add_service(CesealApiServer::new(ceseal_service))
+        .add_service(Podr2ApiServer::new(podr2_server))
         .serve(listener_addr)
         .await?;
 

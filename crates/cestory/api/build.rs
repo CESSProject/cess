@@ -32,4 +32,7 @@ fn main() {
     builder
         .compile(&["ceseal_rpc.proto"], &["proto"])
         .unwrap();
+
+    tonic_build::compile_protos("proto/pois-api.proto").unwrap();
+    tonic_build::compile_protos("proto/podr2-api.proto").unwrap();
 }
