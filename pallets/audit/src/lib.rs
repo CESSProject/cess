@@ -405,6 +405,9 @@ pub mod pallet {
 					};
 
 					challenge_info.prove_info.idle_prove = Some(idle_prove_info);
+					if challenge_info.prove_info.service_prove.is_some() {
+						<CountedClear<T>>::insert(&sender, u8::MIN);
+					}
 				} else {
 					return Err(Error::<T>::Submitted)?
 				}
@@ -454,6 +457,9 @@ pub mod pallet {
 					};
 
 					challenge_info.prove_info.service_prove = Some(service_prove_info);
+					if challenge_info.prove_info.idle_prove.is_some() {
+						<CountedClear<T>>::insert(&sender, u8::MIN);
+					}
 				} else {
 					return Err(Error::<T>::Submitted)?
 				}
