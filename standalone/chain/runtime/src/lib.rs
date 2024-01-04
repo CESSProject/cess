@@ -1300,8 +1300,8 @@ parameter_types! {
 	pub const DefaultDepositLimit: Balance = deposit(1024, 1024 * 1024);
 	pub Schedule: pallet_contracts::Schedule<Runtime> = Default::default();
 	pub CodeHashLockupDepositPercent: Perbill = Perbill::from_percent(30);
-	pub const TEST_ALL_STEPS: bool = cfg!(feature = "try-runtime");
 }
+pub struct OldCurrency;
 
 impl pallet_contracts::Config for Runtime {
 	type Time = Timestamp;
@@ -1330,14 +1330,12 @@ impl pallet_contracts::Config for Runtime {
 	type UnsafeUnstableInterface = ConstBool<false>;
 	type MaxDebugBufferLen = ConstU32<{ 2 * 1024 * 1024 }>;
 	type RuntimeHoldReason = RuntimeHoldReason;
-	#[cfg(not(feature = "runtime-benchmarks"))]
 	type Migrations = (
-		pallet_contracts::migration::v09::Migration<Runtime>,
-		pallet_contracts::migration::v10::Migration<Runtime, TEST_ALL_STEPS>,
+		pallet_contracts::migration::v10::Migration<Runtime, Balances>,
         pallet_contracts::migration::v11::Migration<Runtime>,
-        pallet_contracts::migration::v12::Migration<Runtime, TEST_ALL_STEPS>,
+        pallet_contracts::migration::v12::Migration<Runtime, Balances>,
 		pallet_contracts::migration::v13::Migration<Runtime>,
-		pallet_contracts::migration::v14::Migration<Runtime, TEST_ALL_STEPS>,
+		pallet_contracts::migration::v14::Migration<Runtime, Balances>,
 		pallet_contracts::migration::v15::Migration<Runtime>,
 	);
 	#[cfg(feature = "runtime-benchmarks")]
@@ -1629,7 +1627,7 @@ impl pallet_cacher::Config for Runtime {
 
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
-	pub struct Runtime
+	pub enum Runtime
 	{
 		// Basic stuff
 		System: frame_system = 0,
@@ -1762,10 +1760,11 @@ impl OnRuntimeUpgrade for SetStorageVersions {
 	}
 }
 
+const TEST_ALL_STEPS: bool = cfg!(feature = "try-runtime");
 type Migrations = (
 	SetStorageVersions,
 	pallet_im_online::migration::v1::Migration<Runtime>,
-	pallet_contracts::Migration<Runtime>,
+	pallet_contracts::Migration<Runtime, TEST_ALL_STEPS>,
 	TestMigrationFileBank<Runtime>, 
 	MigrationSminer<Runtime>, 
 	MigrationTee<Runtime>,
