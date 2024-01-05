@@ -361,7 +361,7 @@ pub mod pallet {
 							weight = weight.saturating_add(T::DbWeight::get().reads(1));
 							if file.owner.len() > 1 {
 								match Self::remove_file_owner(&file_info.file_hash, &acc, false) {
-									Ok(()) => weight = weight.saturating_add(T::DbWeight::get(). reads_writes(2, 2)),
+									Ok(()) => weight = weight.saturating_add(T::DbWeight::get().reads_writes(2, 2)),
 									Err(e) => log::info!("delete file {:?} failed. error is: {:?}", e, file_info.file_hash),
 								};
 							 } else {
@@ -1093,7 +1093,7 @@ pub mod pallet {
 		#[transactional]
 		#[pallet::weight(Weight::zero())]
 		pub fn root_clear_file(origin: OriginFor<T>, owner: AccountOf<T>, file_hash: Hash) -> DispatchResult {
-			let sender = ensure_root(origin)?;
+			let _ = ensure_root(origin)?;
 
 			let file = <File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::NonExistent)?;
 			Self::bucket_remove_file(&file_hash, &owner, &file)?;

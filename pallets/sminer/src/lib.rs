@@ -102,6 +102,7 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type StakingLockBlock: Get<BlockNumberFor<Self>>;
+
 		/// The WeightInfo.
 		type WeightInfo: WeightInfo;
 
@@ -294,6 +295,17 @@ pub mod pallet {
 	#[pallet::getter(fn pending_replacements)]
 		pub(super) type PendingReplacements<T: Config> = 
 			StorageMap<_, Blake2_128Concat, AccountOf<T>, u128, ValueQuery>;
+	
+	#[pallet::storage]
+	#[pallet::getter(fn return_staking_schedule)]
+		pub(super) type ReturnStakingSchedule<T: Config> = 
+			StorageMap<
+				_,
+				Blake2_128Concat,
+				BlockNumberFor<T>,
+				BoundedVec<(AccountOf<T>, BalanceOf<T>), T::ItemLimit>,
+				ValueQuery,
+			>;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -324,7 +336,15 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(now: BlockNumberFor<T>) -> Weight {
-			
+			let mut weight: Weight = Weight::zero();
+			let miner_list = ReturnStakingSchedule::<T>::get(&now);
+			weight = weight.saturating_add(T::DbWeight::get().reads(1));
+			for (miner, collaterals) in miner_list {
+				T::Currency::unreserve(&miner, collaterals);
+				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+			}
+
+			weight
 		}
 	}
 
