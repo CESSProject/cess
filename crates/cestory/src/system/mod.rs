@@ -1,7 +1,7 @@
 pub mod keyfairy;
 mod master_key;
 
-use crate::{secret_channel::ecdh_serde, types::BlockInfo};
+use crate::{podr2, secret_channel::ecdh_serde, types::BlockDispatchContext, ExternalServiceMadeSender};
 use anyhow::Result;
 use core::fmt;
 use runtime::BlockNumber;
@@ -13,21 +13,21 @@ use ces_crypto::{
     sr25519::{Persistence, KDF},
 };
 use ces_mq::{
-    traits::MessageChannel, BadOrigin, MessageDispatcher, MessageOrigin, MessageSendQueue,
-    SignedMessageChannel, TypedReceiver,
+    traits::MessageChannel, BadOrigin, MessageDispatcher, MessageOrigin, MessageSendQueue, SignedMessageChannel,
+    TypedReceiver,
 };
 use ces_serde_more as more;
 use ces_types::{
     messaging::{
-        AeadIV, BatchRotateMasterKeyEvent, DispatchMasterKeyEvent, DispatchMasterKeyHistoryEvent,
-        KeyfairyChange, KeyfairyLaunch, KeyDistribution, NewKeyfairyEvent,
-        RemoveKeyfairyEvent, RotateMasterKeyEvent, SystemEvent, WorkerEvent,
+        AeadIV, BatchRotateMasterKeyEvent, DispatchMasterKeyEvent, DispatchMasterKeyHistoryEvent, KeyDistribution,
+        KeyfairyChange, KeyfairyLaunch, NewKeyfairyEvent, RemoveKeyfairyEvent, RotateMasterKeyEvent, SystemEvent,
+        WorkerEvent,
     },
-    wrap_content_to_sign, EcdhPublicKey, SignedContentType, WorkerPublicKey,
+    wrap_content_to_sign, EcdhPublicKey, SignedContentType,
 };
 pub use cestory_api::crpc::{KeyfairyRole, KeyfairyStatus, SystemInfo};
-use pallet_tee_worker::RegistryEvent;
 pub use master_key::{gk_master_key_exists, RotatedMasterKey};
+use pallet_tee_worker::RegistryEvent;
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use sp_core::{sr25519, Pair};
@@ -85,9 +85,7 @@ impl From<String> for TransactionError {
     }
 }
 
-#[derive(
-    Serialize, Deserialize, Clone, derive_more::Deref, derive_more::DerefMut, derive_more::From,
-)]
+#[derive(Serialize, Deserialize, Clone, derive_more::Deref, derive_more::DerefMut, derive_more::From)]
 #[serde(transparent)]
 pub(crate) struct WorkerIdentityKey(#[serde(with = "more::key_bytes")] sr25519::Pair);
 
@@ -97,9 +95,7 @@ pub(crate) struct WorkerIdentityKey(#[serde(with = "more::key_bytes")] sr25519::
 impl WorkerIdentityKey {
     pub(crate) fn public(&self) -> sr25519::Public {
         // The pubkey of the first GK on khala
-        sr25519::Public(hex_literal::hex!(
-            "60067697c486c809737e50d30a67480c5f0cede44be181b96f7d59bc2116a850"
-        ))
+        sr25519::Public(hex_literal::hex!("60067697c486c809737e50d30a67480c5f0cede44be181b96f7d59bc2116a850"))
     }
 }
 
@@ -137,6 +133,10 @@ pub struct System<Platform> {
 
     // If non-zero indicates the block which this worker loaded the chain state from.
     pub(crate) genesis_block: BlockNumber,
+
+    #[codec(skip)]
+    #[serde(skip)]
+    ext_srvs_made_sender: Option<ExternalServiceMadeSender>,
 }
 
 impl<Platform: pal::Platform> System<Platform> {
@@ -150,6 +150,7 @@ impl<Platform: pal::Platform> System<Platform> {
         ecdh_key: EcdhKey,
         send_mq: &MessageSendQueue,
         recv_mq: &mut MessageDispatcher,
+        ext_srvs_made_sender: ExternalServiceMadeSender,
     ) -> Self {
         // Trigger panic early if platform is not properly implemented.
         let _ = Platform::app_version();
@@ -175,10 +176,11 @@ impl<Platform: pal::Platform> System<Platform> {
             block_number: 0,
             now_ms: 0,
             genesis_block: 0,
+            ext_srvs_made_sender: Some(ext_srvs_made_sender),
         }
     }
 
-    pub fn process_next_message(&mut self, block: &mut BlockInfo) -> anyhow::Result<bool> {
+    pub fn process_next_message(&mut self, block: &mut BlockDispatchContext) -> anyhow::Result<bool> {
         let ok = ces_mq::select_ignore_errors! {
             (event, origin) = self.system_events => {
                 if !origin.is_pallet() {
@@ -199,7 +201,7 @@ impl<Platform: pal::Platform> System<Platform> {
         Ok(ok.is_none())
     }
 
-    pub fn will_process_block(&mut self, block: &mut BlockInfo) {
+    pub fn will_process_block(&mut self, block: &mut BlockDispatchContext) {
         self.block_number = block.block_number;
         self.now_ms = block.now_ms;
 
@@ -208,17 +210,16 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    pub fn process_messages(&mut self, block: &mut BlockInfo) {
+    pub fn process_messages(&mut self, block: &mut BlockDispatchContext) {
         loop {
             match self.process_next_message(block) {
                 Err(err) => {
                     error!("Error processing message: {:?}", err);
-                }
-                Ok(no_more) => {
+                },
+                Ok(no_more) =>
                     if no_more {
-                        break;
-                    }
-                }
+                        break
+                    },
             }
         }
         if let Some(keyfairy) = &mut self.keyfairy {
@@ -226,17 +227,17 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    pub fn did_process_block(&mut self, block: &mut BlockInfo) {
+    pub fn did_process_block(&mut self, block: &mut BlockDispatchContext) {
         if let Some(keyfairy) = &mut self.keyfairy {
             keyfairy.did_process_block(block);
         }
     }
 
-    fn process_system_event(&mut self, _block: &BlockInfo, event: &SystemEvent) {
+    fn process_system_event(&mut self, _block: &BlockDispatchContext, event: &SystemEvent) {
         match event {
             SystemEvent::WorkerEvent(evt) => {
                 if evt.pubkey != self.identity_key.public() {
-                    return;
+                    return
                 }
 
                 use WorkerEvent::*;
@@ -244,9 +245,9 @@ impl<Platform: pal::Platform> System<Platform> {
                 match evt.event {
                     Registered(_) => {
                         self.registered = true;
-                    }
+                    },
                 }
-            }
+            },
         };
     }
 
@@ -255,12 +256,7 @@ impl<Platform: pal::Platform> System<Platform> {
     /// Panic if `self.keyfairy` is None since it implies a need for resync from the start as gk
     fn set_master_key_history(&mut self, master_key_history: Vec<RotatedMasterKey>) {
         if self.keyfairy.is_none() {
-            master_key::seal(
-                self.sealing_path.clone(),
-                &master_key_history,
-                &self.identity_key,
-                &self.platform,
-            );
+            master_key::seal(self.sealing_path.clone(), &master_key_history, &self.identity_key, &self.platform);
             crate::maybe_remove_checkpoints(&self.storage_path);
             panic!("Received master key, please restart ceseal and cifrost to sync as Keyfairy");
         }
@@ -271,95 +267,77 @@ impl<Platform: pal::Platform> System<Platform> {
             .expect("checked; qed.")
             .set_master_key_history(&master_key_history)
         {
-            master_key::seal(
-                self.sealing_path.clone(),
-                &master_key_history,
-                &self.identity_key,
-                &self.platform,
-            );
+            master_key::seal(self.sealing_path.clone(), &master_key_history, &self.identity_key, &self.platform);
         }
     }
 
-    fn init_keyfairy(
-        &mut self,
-        block: &mut BlockInfo,
-        master_key_history: Vec<RotatedMasterKey>,
-    ) {
-        assert!(
-            self.keyfairy.is_none(),
-            "Duplicated keyfairy initialization"
-        );
-        assert!(
-            !master_key_history.is_empty(),
-            "Init keyfairy with no master key"
-        );
+    fn init_keyfairy(&mut self, block: &mut BlockDispatchContext, master_key_history: Vec<RotatedMasterKey>) {
+        assert!(self.keyfairy.is_none(), "Duplicated keyfairy initialization");
+        assert!(!master_key_history.is_empty(), "Init keyfairy with no master key");
 
         if self.genesis_block != 0 {
             panic!("Keyfairy must be synced start from the first block");
         }
 
         let master_key = sr25519::Pair::restore_from_secret_key(
-            &master_key_history
-                .first()
-                .expect("empty master key history")
-                .secret,
+            &master_key_history.first().expect("empty master key history").secret,
         );
         let keyfairy = keyfairy::Keyfairy::new(
             master_key_history,
             block.recv_mq,
-            block
-                .send_mq
-                .channel(MessageOrigin::Keyfairy, master_key.into()),
+            block.send_mq.channel(MessageOrigin::Keyfairy, master_key.into()),
         );
         self.keyfairy = Some(keyfairy);
+
+        //TODO! TO BE REFACOTER HERE!
+        let podr2_key = ces_pdp::gen_key(2048);
+        let s1 = podr2::new_podr2_api_server(podr2_key.clone(), block);
+        let s2 = podr2::new_podr2_verifier_api_server(podr2_key, block);
+        self.ext_srvs_made_sender
+            .as_ref()
+            .expect("ext_srvs_made_sender must be set")
+            .send((s1, s2))
+            .expect("must to be sent");
     }
 
     fn process_keyfairy_launch_event(
         &mut self,
-        block: &mut BlockInfo,
+        block: &mut BlockDispatchContext,
         origin: MessageOrigin,
         event: KeyfairyLaunch,
     ) {
         if !origin.is_pallet() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
-            return;
+            return
         }
 
         info!("Incoming keyfairy launch event: {:?}", event);
         match event {
-            KeyfairyLaunch::FirstKeyfairy(event) => {
-                self.process_first_keyfairy_event(block, origin, event)
-            }
+            KeyfairyLaunch::FirstKeyfairy(event) => self.process_first_keyfairy_event(block, origin, event),
             KeyfairyLaunch::MasterPubkeyOnChain(event) => {
-                info!(
-                    "Keyfairy launches on chain in block {}",
-                    block.block_number
-                );
+                info!("Keyfairy launches on chain in block {}", block.block_number);
                 if let Some(keyfairy) = &mut self.keyfairy {
                     keyfairy.master_pubkey_uploaded(event.master_pubkey);
                 }
-            }
+            },
             KeyfairyLaunch::RotateMasterKey(event) => {
-                info!(
-                    "Master key rotation req round {} in block {}",
-                    event.rotation_id, block.block_number
-                );
+                info!("Master key rotation req round {} in block {}", event.rotation_id, block.block_number);
                 self.process_master_key_rotation_request(block, origin, event);
-            }
+            },
             KeyfairyLaunch::MasterPubkeyRotated(event) => {
                 info!(
                     "Rotated Master Pubkey {} on chain in block {}",
                     hex::encode(event.master_pubkey),
                     block.block_number
                 );
-            }
+            },
         }
     }
 
     /// Generate the master key if this is the first keyfairy
     fn process_first_keyfairy_event(
         &mut self,
-        block: &mut BlockInfo,
+        block: &mut BlockDispatchContext,
         _origin: MessageOrigin,
         event: NewKeyfairyEvent,
     ) {
@@ -370,19 +348,13 @@ impl<Platform: pal::Platform> System<Platform> {
         // thank god we only need to do this once for each blockchain
 
         // double check the first keyfairy is valid on chain
-        if !chain_state::is_keyfairy(&event.pubkey, block.storage) {
-            error!(
-                "Fatal error: Invalid first keyfairy registration {:?}",
-                event
-            );
+        if !block.storage.lock().expect("ChainStorage lock").is_keyfairy(&event.pubkey) {
+            error!("Fatal error: Invalid first keyfairy registration {:?}", event);
             panic!("System state poisoned");
         }
 
-        let mut master_key_history = master_key::try_unseal(
-            self.sealing_path.clone(),
-            &self.identity_key.0,
-            &self.platform,
-        );
+        let mut master_key_history =
+            master_key::try_unseal(self.sealing_path.clone(), &self.identity_key.0, &self.platform);
         let my_pubkey = self.identity_key.public();
         if my_pubkey == event.pubkey {
             // if the first keyfairy reboots, it will possess the master key, and should not re-generate it
@@ -396,25 +368,14 @@ impl<Platform: pal::Platform> System<Platform> {
                     secret: master_key.dump_secret_key(),
                 });
                 // manually seal the first master key for the first gk
-                master_key::seal(
-                    self.sealing_path.clone(),
-                    &master_key_history,
-                    &self.identity_key,
-                    &self.platform,
-                );
+                master_key::seal(self.sealing_path.clone(), &master_key_history, &self.identity_key, &self.platform);
             }
 
-            let master_key = sr25519::Pair::restore_from_secret_key(
-                &master_key_history.first().expect("checked; qed.").secret,
-            );
+            let master_key =
+                sr25519::Pair::restore_from_secret_key(&master_key_history.first().expect("checked; qed.").secret);
             // upload the master key on chain via worker egress
-            info!(
-                "Keyfairy: upload master key {} on chain",
-                hex::encode(master_key.public())
-            );
-            let master_pubkey = RegistryEvent::MasterPubkey {
-                master_pubkey: master_key.public(),
-            };
+            info!("Keyfairy: upload master key {} on chain", hex::encode(master_key.public()));
+            let master_pubkey = RegistryEvent::MasterPubkey { master_pubkey: master_key.public() };
             self.egress.push_message(&master_pubkey);
         }
 
@@ -441,34 +402,26 @@ impl<Platform: pal::Platform> System<Platform> {
     /// update the master key on-chain.
     fn process_master_key_rotation_request(
         &mut self,
-        block: &mut BlockInfo,
+        block: &mut BlockDispatchContext,
         _origin: MessageOrigin,
         event: RotateMasterKeyEvent,
     ) {
         if let Some(keyfairy) = &mut self.keyfairy {
             info!("Keyfairy：Rotate master key");
-            keyfairy.process_master_key_rotation_request(
-                block,
-                event,
-                self.identity_key.0.clone(),
-            );
+            keyfairy.process_master_key_rotation_request(block, event, self.identity_key.0.clone());
         }
     }
 
     fn process_keyfairy_change_event(
         &mut self,
-        block: &mut BlockInfo,
+        block: &mut BlockDispatchContext,
         origin: MessageOrigin,
         event: KeyfairyChange,
     ) {
         info!("Incoming keyfairy change event: {:?}", event);
         match event {
-            KeyfairyChange::Registered(event) => {
-                self.process_new_keyfairy_event(block, origin, event)
-            }
-            KeyfairyChange::Unregistered(event) => {
-                self.process_remove_keyfairy_event(block, origin, event)
-            }
+            KeyfairyChange::Registered(event) => self.process_new_keyfairy_event(block, origin, event),
+            KeyfairyChange::Unregistered(event) => self.process_remove_keyfairy_event(block, origin, event),
         }
     }
 
@@ -476,21 +429,18 @@ impl<Platform: pal::Platform> System<Platform> {
     /// Tick the state if the registered keyfairy is this worker
     fn process_new_keyfairy_event(
         &mut self,
-        block: &mut BlockInfo,
+        block: &mut BlockDispatchContext,
         origin: MessageOrigin,
         event: NewKeyfairyEvent,
     ) {
         if !origin.is_pallet() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
-            return;
+            return
         }
 
         // double check the registered keyfairy is valid on chain
-        if !chain_state::is_keyfairy(&event.pubkey, block.storage) {
-            error!(
-                "Fatal error: Invalid first keyfairy registration {:?}",
-                event
-            );
+        if !block.storage.lock().expect("ChainStorage lock").is_keyfairy(&event.pubkey) {
+            error!("Fatal error: Invalid first keyfairy registration {:?}", event);
             panic!("System state poisoned");
         }
 
@@ -510,27 +460,24 @@ impl<Platform: pal::Platform> System<Platform> {
     /// There is no meaning to remove the master_key.seal file
     fn process_remove_keyfairy_event(
         &mut self,
-        _block: &mut BlockInfo,
+        _block: &mut BlockDispatchContext,
         origin: MessageOrigin,
         event: RemoveKeyfairyEvent,
     ) {
         if !origin.is_pallet() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
-            return;
+            return
         }
 
         let my_pubkey = self.identity_key.public();
         if my_pubkey == event.pubkey && self.keyfairy.is_some() {
-            self.keyfairy
-                .as_mut()
-                .expect("checked; qed.")
-                .unregister_on_chain();
+            self.keyfairy.as_mut().expect("checked; qed.").unregister_on_chain();
         }
     }
 
     fn process_key_distribution_event(
         &mut self,
-        block: &mut BlockInfo,
+        block: &mut BlockDispatchContext,
         origin: MessageOrigin,
         event: KeyDistribution<chain::BlockNumber>,
     ) {
@@ -539,39 +486,30 @@ impl<Platform: pal::Platform> System<Platform> {
                 if let Err(err) = self.process_master_key_distribution(origin, event) {
                     error!("Failed to process master key distribution event: {:?}", err);
                 };
-            }
+            },
             KeyDistribution::MasterKeyRotation(event) => {
                 if let Err(err) = self.process_batch_rotate_master_key(block, origin, event) {
-                    error!(
-                        "Failed to process batch master key rotation event: {:?}",
-                        err
-                    );
+                    error!("Failed to process batch master key rotation event: {:?}", err);
                 };
-            }
+            },
             KeyDistribution::MasterKeyHistory(event) => {
                 if let Err(err) = self.process_master_key_history(origin, event) {
                     error!("Failed to process master key history event: {:?}", err);
                 };
-            }
+            },
         }
     }
 
     /// Decrypt the key encrypted by `encrypt_key_to()`
     ///
     /// This function could panic a lot, thus should only handle data from other ceseals.
-    fn decrypt_key_from(
-        &self,
-        ecdh_pubkey: &EcdhPublicKey,
-        encrypted_key: &[u8],
-        iv: &AeadIV,
-    ) -> sr25519::Pair {
+    fn decrypt_key_from(&self, ecdh_pubkey: &EcdhPublicKey, encrypted_key: &[u8], iv: &AeadIV) -> sr25519::Pair {
         let my_ecdh_key = self
             .identity_key
             .derive_ecdh_key()
             .expect("Should never failed with valid identity key; qed.");
-        let secret =
-            key_share::decrypt_secret_from(&my_ecdh_key, &ecdh_pubkey.0, encrypted_key, iv)
-                .expect("Failed to decrypt dispatched key");
+        let secret = key_share::decrypt_secret_from(&my_ecdh_key, &ecdh_pubkey.0, encrypted_key, iv)
+            .expect("Failed to decrypt dispatched key");
         sr25519::Pair::restore_from_secret_key(&secret)
     }
 
@@ -583,13 +521,12 @@ impl<Platform: pal::Platform> System<Platform> {
     ) -> Result<(), TransactionError> {
         if !origin.is_keyfairy() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
-            return Err(TransactionError::BadOrigin);
+            return Err(TransactionError::BadOrigin)
         }
 
         let my_pubkey = self.identity_key.public();
         if my_pubkey == event.dest {
-            let master_pair =
-                self.decrypt_key_from(&event.ecdh_pubkey, &event.encrypted_master_key, &event.iv);
+            let master_pair = self.decrypt_key_from(&event.ecdh_pubkey, &event.encrypted_master_key, &event.iv);
             info!("Keyfairy: successfully decrypt received master key");
             self.set_master_key_history(vec![RotatedMasterKey {
                 rotation_id: 0,
@@ -607,7 +544,7 @@ impl<Platform: pal::Platform> System<Platform> {
     ) -> Result<(), TransactionError> {
         if !origin.is_keyfairy() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
-            return Err(TransactionError::BadOrigin);
+            return Err(TransactionError::BadOrigin)
         }
 
         let my_pubkey = self.identity_key.public();
@@ -633,52 +570,46 @@ impl<Platform: pal::Platform> System<Platform> {
     /// The new master key takes effect immediately after the KeyfairyRegistryEvent::RotatedMasterPubkey is sent
     fn process_batch_rotate_master_key(
         &mut self,
-        block: &mut BlockInfo,
+        block: &mut BlockDispatchContext,
         origin: MessageOrigin,
         event: BatchRotateMasterKeyEvent,
     ) -> Result<(), TransactionError> {
-        // ATTENTION.shelven: There would be a mismatch between on-chain and off-chain master key until the on-chain pubkey
-        // is updated, which may cause problem in the future.
+        // ATTENTION.shelven: There would be a mismatch between on-chain and off-chain master key until the on-chain
+        // pubkey is updated, which may cause problem in the future.
         if !origin.is_keyfairy() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
-            return Err(TransactionError::BadOrigin);
+            return Err(TransactionError::BadOrigin)
         }
 
-        // check the event sender identity and signature to ensure it's not forged with a leaked master key and really from
-        // a keyfairy
+        // check the event sender identity and signature to ensure it's not forged with a leaked master key and really
+        // from a keyfairy
         let data = event.data_be_signed();
         let sig = sp_core::sr25519::Signature::try_from(event.sig.as_slice())
             .or(Err(TransactionError::BadSenderSignature))?;
         let data = wrap_content_to_sign(&data, SignedContentType::MasterKeyRotation);
         if !sp_io::crypto::sr25519_verify(&sig, &data, &event.sender) {
-            return Err(TransactionError::BadSenderSignature);
+            return Err(TransactionError::BadSenderSignature)
         }
         // valid master key but from a non-gk
-        if !chain_state::is_keyfairy(&event.sender, block.storage) {
+        if !block.storage.lock().expect("ChainStorage lock").is_keyfairy(&event.sender) {
             error!("Fatal error: Forged batch master key rotation {:?}", event);
-            return Err(TransactionError::MasterKeyLeakage);
+            return Err(TransactionError::MasterKeyLeakage)
         }
 
         let my_pubkey = self.identity_key.public();
         // for normal worker
         if self.keyfairy.is_none() {
             if event.secret_keys.contains_key(&my_pubkey) {
-                panic!(
-                    "Batch rotate master key to a normal worker {:?}",
-                    &my_pubkey
-                );
+                panic!("Batch rotate master key to a normal worker {:?}", &my_pubkey);
             }
-            return Ok(());
+            return Ok(())
         }
 
         // for keyfairy (both active or unregistered)
         if event.secret_keys.contains_key(&my_pubkey) {
             let encrypted_key = &event.secret_keys[&my_pubkey];
-            let new_master_key = self.decrypt_key_from(
-                &encrypted_key.ecdh_pubkey,
-                &encrypted_key.encrypted_key,
-                &encrypted_key.iv,
-            );
+            let new_master_key =
+                self.decrypt_key_from(&encrypted_key.ecdh_pubkey, &encrypted_key.encrypted_key, &encrypted_key.iv);
             info!("Worker: successfully decrypt received rotated master key");
             let keyfairy = self.keyfairy.as_mut().expect("checked; qed.");
             if keyfairy.append_master_key(RotatedMasterKey {
@@ -733,10 +664,7 @@ impl<Platform: pal::Platform> System<Platform> {
             .as_ref()
             .map(|kf| hex::encode(kf.master_pubkey()))
             .unwrap_or_default();
-        KeyfairyStatus {
-            role: role.into(),
-            master_public_key,
-        }
+        KeyfairyStatus { role: role.into(), master_public_key }
     }
 
     pub fn get_info(&self) -> SystemInfo {
@@ -753,7 +681,7 @@ impl<Platform: pal::Platform> System<Platform> {
 impl<P: pal::Platform> System<P> {
     pub fn on_restored(&mut self, safe_mode_level: u8) -> Result<()> {
         if safe_mode_level > 0 {
-            return Ok(());
+            return Ok(())
         }
         Ok(())
     }
@@ -773,14 +701,5 @@ impl fmt::Display for Error {
             Error::TxHashNotFound => write!(f, "transaction hash not found"),
             Error::Other(e) => write!(f, "{e}"),
         }
-    }
-}
-
-pub mod chain_state {
-    use super::*;
-    use crate::storage::ChainStorage;
-
-    pub fn is_keyfairy(pubkey: &WorkerPublicKey, chain_storage: &ChainStorage) -> bool {
-        chain_storage.keyfairys().contains(pubkey)
     }
 }

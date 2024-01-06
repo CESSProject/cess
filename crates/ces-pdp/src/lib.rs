@@ -1,11 +1,3 @@
-use std::{
-    collections::HashSet,
-    convert::From,
-    fs,
-    io::{Read, Seek, SeekFrom},
-    str::FromStr,
-    sync::{mpsc::channel, Arc},
-};
 use crypto::{digest::Digest, sha2::Sha256};
 use hex;
 use num_bigint::{BigUint, ToBigUint};
@@ -15,6 +7,14 @@ use num_traits::Zero;
 use rand::{Rng, RngCore};
 use rsa::{
     pkcs1::EncodeRsaPublicKey, rand_core::OsRng, Pkcs1v15Sign, PublicKey, PublicKeyParts, RsaPrivateKey, RsaPublicKey,
+};
+use std::{
+    collections::HashSet,
+    convert::From,
+    fs,
+    io::{Read, Seek, SeekFrom},
+    str::FromStr,
+    sync::{mpsc::channel, Arc},
 };
 // use rsa::pkcs8::{DecodePrivateKey};
 use serde::{Deserialize, Serialize};
@@ -154,11 +154,13 @@ impl Keys {
         let signature: Signature = signing_key.sign_with_rng(&mut rng, data);
         Ok(signature.to_bytes().to_vec())
     }
+
     pub fn sign_data(&self, data: &[u8]) -> Result<Vec<u8>, PDPError> {
         self.skey
             .sign(Pkcs1v15Sign::new_raw(), data)
             .map_err(|e| PDPError { error_code: FailCode::ParameterError(e.to_string()) })
     }
+    
     pub fn verify_data(&self, hashed: &[u8], sig: &[u8]) -> Result<(), PDPError> {
         self.pkey
             .verify(Pkcs1v15Sign::new_raw(), hashed, sig)
@@ -188,9 +190,7 @@ impl Keys {
         //detect file size
         let file_size = match f.seek(SeekFrom::End(0)) {
             Ok(s) => s,
-            Err(e) => {
-                return Err(PDPError { error_code: FailCode::InternalError(e.to_string()) })
-            },
+            Err(e) => return Err(PDPError { error_code: FailCode::InternalError(e.to_string()) }),
         };
         if file_size % n_blocks != 0 {
             return Err(PDPError {
@@ -212,11 +212,10 @@ impl Keys {
             let _ = f.seek(SeekFrom::Start(offset));
             match f.read_exact(&mut chunks) {
                 Ok(_) => {},
-                Err(e) => {
+                Err(e) =>
                     return Err(PDPError {
                         error_code: FailCode::InternalError(format!("Fail in read file :{:?}", e.to_string())),
-                    })
-                },
+                    }),
             };
 
             let tx = tx.clone();
@@ -372,9 +371,7 @@ impl Keys {
 
         let file_size = match f.seek(SeekFrom::End(0)) {
             Ok(s) => s,
-            Err(e) => {
-                return Err(PDPError { error_code: FailCode::ParameterError(e.to_string()) })
-            },
+            Err(e) => return Err(PDPError { error_code: FailCode::ParameterError(e.to_string()) }),
         };
 
         let each_size = file_size / block_num as u64;

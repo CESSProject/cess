@@ -1572,6 +1572,7 @@ version = "0.3.0"
 dependencies = [
  "ces-mq",
  "chrono",
+ "frame-support",
  "hex",
  "parity-scale-codec",
  "scale-info",

@@ -130,6 +130,13 @@ pub mod messaging {
 		}
 	}
 
+	//TODO: To be removed after code-merge
+	bind_topic!(Podr2DemoEvent, b"cess/podr2/demo");
+	#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
+	pub enum Podr2DemoEvent {
+		Greeting,
+	}
+
 	// Messages: Distribution of master key
 	bind_topic!(KeyDistribution<BlockNumber>, b"cess/keyfairy/key");
 	#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]

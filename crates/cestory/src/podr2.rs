@@ -1,8 +1,10 @@
 use anyhow::{anyhow, Result};
 use ces_pdp::{HashSelf, Keys, QElement, Tag as PdpTag};
 use cestory_api::podr2::{
-    podr2_api_server::Podr2Api, podr2_verifier_api_server::Podr2VerifierApi, request_batch_verify::Qslice, tag,
-    RequestBatchVerify, RequestGenTag, ResponseBatchVerify, ResponseGenTag, Tag as ApiTag,
+    podr2_api_server::{self, Podr2Api},
+    podr2_verifier_api_server::{self, Podr2VerifierApi},
+    request_batch_verify::Qslice,
+    tag, EchoMessage, RequestBatchVerify, RequestGenTag, ResponseBatchVerify, ResponseGenTag, Tag as ApiTag,
 };
 use cp_bloom_filter::{binary, BloomFilter};
 use crypto::{digest::Digest, sha2::Sha256};
@@ -16,13 +18,52 @@ use std::{
 use threadpool::ThreadPool;
 use tonic::{Request, Response, Status};
 
-type Podr2Result<T> = Result<Response<T>, Status>;
+use crate::{storage::ChainStorage, types::BlockDispatchContext};
+use ces_mq::{types::MessageOrigin, SignedMessageChannel, TypedReceiver};
+use ces_types::messaging::Podr2DemoEvent;
 
+pub type Podr2ApiServer = podr2_api_server::Podr2ApiServer<Podr2Server>;
+pub type Podr2VerifierApiServer = podr2_verifier_api_server::Podr2VerifierApiServer<Podr2VerifierServer>;
+
+pub fn new_podr2_api_server(master_key: Keys, ctx: &mut BlockDispatchContext) -> Podr2ApiServer {
+    //FIXME: HERE!
+    let (pair, _) = sp_core::sr25519::Pair::generate();
+    let inner = Podr2Server {
+        podr2_keys: master_key,
+        threadpool: Arc::new(Mutex::new(threadpool::ThreadPool::new(8))),
+        block_num: 1024,
+        tee_controller_account: [0; 32],
+        chain_storage: ctx.storage.clone(),
+        egress: ctx.send_mq.channel(MessageOrigin::Keyfairy, pair.into()),
+        podr2_demo_events: ctx.recv_mq.subscribe_bound(),
+    };
+    Podr2ApiServer::new(inner)
+}
+
+pub fn new_podr2_verifier_api_server(master_key: Keys, _ctx: &mut BlockDispatchContext) -> Podr2VerifierApiServer {
+    //FIXME: HERE!
+    let inner = Podr2VerifierServer {
+        podr2_keys: master_key,
+        threadpool: Arc::new(Mutex::new(threadpool::ThreadPool::new(8))),
+        block_num: 1024,
+        tee_controller_account: [0; 32],
+    };
+    Podr2VerifierApiServer::new(inner)
+}
+
+pub type Podr2Result<T> = Result<Response<T>, Status>;
+
+//TODO: REMOVE HERE!
+#[allow(dead_code)]
+#[derive(Clone)]
 pub struct Podr2Server {
     pub podr2_keys: Keys,
     pub threadpool: Arc<Mutex<ThreadPool>>,
     pub block_num: u64,
     pub tee_controller_account: [u8; 32],
+    chain_storage: Arc<Mutex<ChainStorage>>,
+    egress: SignedMessageChannel,
+    podr2_demo_events: TypedReceiver<Podr2DemoEvent>,
 }
 
 pub struct Podr2VerifierServer {
@@ -74,23 +115,6 @@ struct VerifyServiceResultInfo {
 pub struct Challenge {
     pub random_index_list: BoundedVec<u32, ConstU32<1024>>,
     pub random_list: BoundedVec<[u8; 20], ConstU32<1024>>,
-}
-
-pub mod chain_client {
-    #[async_trait::async_trait]
-    pub trait Podr2ChainHelper: Send + Sync + 'static {
-        type Error: std::error::Error + Send;
-
-        async fn check_if_file_hash_in_deal_map(
-            &self,
-            file_hash: [u8; 64],
-            fragment_hash: [u8; 64],
-        ) -> Result<(), Self::Error>;
-
-        async fn query_fragment_infomation(&self, fragment_hash: [u8; 64]) -> Result<(u32, u32), Self::Error>;
-
-        async fn query_system_sync_state(&self) -> Result<u64, Self::Error>;
-    }
 }
 
 #[tonic::async_trait]
@@ -154,6 +178,12 @@ impl Podr2Api for Podr2Server {
         info!("[🚀Generate tag] PoDR2 Sig Gen Completed in: {:.2?}. file name is {:?}", now.elapsed(), &tag.t.name);
 
         Ok(Response::new(ResponseGenTag { tag: Some(convert_to_tag(tag)), u_sig, tag_sig_info }))
+    }
+
+    /// A echo rpc to measure network RTT.
+    async fn echo(&self, request: Request<EchoMessage>) -> Podr2Result<EchoMessage> {
+        let echo_msg = request.into_inner().echo_msg;
+        Ok(Response::new(EchoMessage { echo_msg }))
     }
 }
 

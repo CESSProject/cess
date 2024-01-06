@@ -15,17 +15,22 @@ use serde::{
 };
 
 use crate::light_validation::LightValidation;
-use std::{collections::BTreeMap, sync::Arc};
-use std::{fs::File, io::ErrorKind, path::PathBuf};
-use std::{io::Write, marker::PhantomData};
-use std::{path::Path, str};
-
 use anyhow::{anyhow, Context as _, Result};
 use ces_types::{AttestationProvider, HandoverChallenge};
 use parity_scale_codec::{Decode, Encode};
 use ring::rand::SecureRandom;
 use scale_info::TypeInfo;
 use sp_core::{crypto::Pair, sr25519, H256};
+use std::{
+    collections::BTreeMap,
+    fs::File,
+    io::{ErrorKind, Write},
+    marker::PhantomData,
+    path::{Path, PathBuf},
+    str,
+    sync::{mpsc, Arc, Mutex, MutexGuard},
+};
+use thiserror::Error;
 
 use cestory_api::{
     crpc::{GetEndpointResponse, InitRuntimeResponse, NetworkConfig},
@@ -44,23 +49,26 @@ use ces_serde_more as more;
 use std::time::Instant;
 use types::Error;
 
-pub use chain::BlockNumber;
 pub use ceseal_service::RpcService;
+pub use chain::BlockNumber;
 pub use storage::ChainStorage;
-pub use types::BlockInfo;
+pub use types::BlockDispatchContext;
 pub type CesealLightValidation = LightValidation<chain::Runtime>;
 
 mod ceseal_service;
 mod cryptography;
 mod light_validation;
+pub mod podr2;
+pub mod pois;
 mod secret_channel;
 mod storage;
 mod system;
 mod types;
-pub mod podr2;
-pub mod pois;
 
-pub use podr2::{Podr2Server, Podr2VerifierServer, verify_signature};
+pub use podr2::{verify_signature, Podr2ApiServer, Podr2VerifierApiServer};
+
+pub type ExternalServiceMadeSender = mpsc::Sender<(Podr2ApiServer, Podr2VerifierApiServer)>;
+pub type ExternalServiceMadeReceiver = mpsc::Receiver<(Podr2ApiServer, Podr2VerifierApiServer)>;
 
 // TODO: Completely remove the reference to Ces/Khala runtime. Instead we can create a minimal
 // runtime definition locally.
@@ -81,7 +89,7 @@ struct RuntimeState {
 
     // TODO: use a better serialization approach
     #[codec(skip)]
-    chain_storage: ChainStorage,
+    chain_storage: Arc<Mutex<ChainStorage>>,
 
     #[serde(with = "more::scale_bytes")]
     genesis_block_hash: H256,
@@ -90,7 +98,7 @@ struct RuntimeState {
 impl RuntimeState {
     fn purge_mq(&mut self) {
         self.send_mq
-            .purge(|sender| self.chain_storage.mq_sequence(sender))
+            .purge(|sender| self.chain_storage.lock().expect("ChainStorage lock").mq_sequence(sender))
     }
 }
 
@@ -115,9 +123,7 @@ fn glob_checkpoint_files(basedir: &str) -> Result<impl Iterator<Item = PathBuf>,
     Ok(glob::glob(&pattern)?.filter_map(|path| path.ok()))
 }
 
-fn glob_checkpoint_files_sorted(
-    basedir: &str,
-) -> Result<Vec<(chain::BlockNumber, PathBuf)>, PatternError> {
+fn glob_checkpoint_files_sorted(basedir: &str) -> Result<Vec<(chain::BlockNumber, PathBuf)>, PatternError> {
     fn parse_block(filename: &Path) -> Option<chain::BlockNumber> {
         let filename = filename.to_str()?;
         let block_number = filename.rsplit('-').next()?.parse().ok()?;
@@ -137,26 +143,21 @@ fn glob_checkpoint_files_sorted(
 fn maybe_remove_checkpoints(basedir: &str) {
     match glob_checkpoint_files(basedir) {
         Err(err) => error!("Error globbing checkpoints: {:?}", err),
-        Ok(iter) => {
+        Ok(iter) =>
             for filename in iter {
                 info!("Removing {}", filename.display());
                 if let Err(e) = std::fs::remove_file(&filename) {
                     error!("Failed to remove {}: {}", filename.display(), e);
                 }
-            }
-        }
+            },
     }
 }
 
-fn remove_outdated_checkpoints(
-    basedir: &str,
-    max_kept: u32,
-    current_block: chain::BlockNumber,
-) -> Result<()> {
+fn remove_outdated_checkpoints(basedir: &str, max_kept: u32, current_block: chain::BlockNumber) -> Result<()> {
     let mut kept = 0_u32;
     for (block, filename) in glob_checkpoint_files_sorted(basedir)? {
         if block > current_block {
-            continue;
+            continue
         }
         kept += 1;
         if kept > max_kept {
@@ -164,7 +165,7 @@ fn remove_outdated_checkpoints(
                 Err(e) => error!("Failed to remove checkpoint {}: {e}", filename.display()),
                 Ok(_) => {
                     info!("Removed {}", filename.display());
-                }
+                },
             }
         }
     }
@@ -193,9 +194,7 @@ impl PersistentRuntimeData {
         info!("Identity pubkey: {:?}", hex::encode(identity_sk.public()));
 
         // derive ecdh key
-        let ecdh_key = identity_sk
-            .derive_ecdh_key()
-            .expect("Unable to derive ecdh key");
+        let ecdh_key = identity_sk.derive_ecdh_key().expect("Unable to derive ecdh key");
         info!("ECDH pubkey: {:?}", hex::encode(ecdh_key.public()));
         (identity_sk, ecdh_key)
     }
@@ -259,6 +258,10 @@ pub struct Ceseal<Platform> {
     #[serde(skip)]
     #[serde(default = "Instant::now")]
     started_at: Instant,
+
+    #[codec(skip)]
+    #[serde(skip)]
+    pub(crate) ext_srvs_made_sender: Option<ExternalServiceMadeSender>,
 }
 
 #[test]
@@ -294,12 +297,17 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
             trusted_sk: false,
             rcu_dispatching: false,
             started_at: Instant::now(),
+            ext_srvs_made_sender: None,
         }
     }
 
-    pub fn init(&mut self, args: InitArgs) {
+    pub fn init(&mut self, args: InitArgs) -> ExternalServiceMadeReceiver {
         self.can_load_chain_state = !system::gk_master_key_exists(&args.sealing_path);
         self.args = Arc::new(args);
+
+        let (tx, rx) = mpsc::channel();
+        self.ext_srvs_made_sender = Some(tx);
+        rx
     }
 
     pub fn set_args(&mut self, args: InitArgs) {
@@ -328,17 +336,14 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
                     warn!("Persistent data not found.");
                     let identity_sk = new_sr25519_key();
                     self.save_runtime_data(genesis_block_hash, identity_sk, true, false)?
-                }
+                },
                 Err(err) => return Err(anyhow!("Failed to load persistent data: {}", err)),
             }
         };
 
         // check genesis block hash
         if genesis_block_hash != data.genesis_block_hash {
-            anyhow::bail!(
-                "Genesis block hash mismatches with saved keys, expected {}",
-                data.genesis_block_hash
-            );
+            anyhow::bail!("Genesis block hash mismatches with saved keys, expected {}", data.genesis_block_hash);
         }
         info!("Init done.");
         Ok(data)
@@ -354,12 +359,7 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
         // Put in PresistentRuntimeData
         let sk = sr25519_sk.dump_secret_key();
 
-        let data = PersistentRuntimeData {
-            genesis_block_hash,
-            sk,
-            trusted_sk,
-            dev_mode,
-        };
+        let data = PersistentRuntimeData { genesis_block_hash, sk, trusted_sk, dev_mode };
         {
             let data = RuntimeDataSeal::V1(data.clone());
             let encoded_vec = data.encode();
@@ -379,10 +379,7 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
         Self::load_runtime_data(&self.platform, &self.args.sealing_path)
     }
 
-    fn load_runtime_data(
-        platform: &Platform,
-        sealing_path: &str,
-    ) -> Result<PersistentRuntimeData, Error> {
+    fn load_runtime_data(platform: &Platform, sealing_path: &str) -> Result<PersistentRuntimeData, Error> {
         let filepath = PathBuf::from(sealing_path).join(RUNTIME_SEALED_DATA_FILE);
         let data = platform
             .unseal_data(filepath)
@@ -421,15 +418,19 @@ impl<P: pal::Platform> Ceseal<P> {
         self.check_requirements();
         self.reconfigure_network();
         self.update_runtime_info(|_| {});
-        self.trusted_sk =
-            Self::load_runtime_data(&self.platform, &self.args.sealing_path)?.trusted_sk;
+        self.trusted_sk = Self::load_runtime_data(&self.platform, &self.args.sealing_path)?.trusted_sk;
         if let Some(system) = &mut self.system {
             system.on_restored(self.args.safe_mode_level)?;
         }
         if self.args.safe_mode_level >= 2 {
             if let Some(state) = &mut self.runtime_state {
                 info!("Clearing the storage data to save memory");
-                state.chain_storage.inner_mut().load_proof(vec![])
+                state
+                    .chain_storage
+                    .lock()
+                    .expect("ChainStorage lock")
+                    .inner_mut()
+                    .load_proof(vec![])
             }
         }
         Ok(())
@@ -437,15 +438,14 @@ impl<P: pal::Platform> Ceseal<P> {
 
     fn check_requirements(&self) {
         let ver = P::app_version();
-        let chain_storage = &self
-            .runtime_state
-            .as_ref()
-            .expect("BUG: no runtime state")
-            .chain_storage;
-        let min_version = chain_storage.minimum_ceseal_version();
+        let chain_storage = &self.runtime_state.as_ref().expect("BUG: no runtime state").chain_storage;
+        let min_version = chain_storage.lock().expect("ChainStorage lock").minimum_ceseal_version();
 
         let measurement = self.platform.measurement().unwrap_or_else(|| vec![0; 32]);
-        let in_whitelist = chain_storage.is_ceseal_bin_in_whitelist(&measurement);
+        let in_whitelist = chain_storage
+            .lock()
+            .expect("ChainStorage lock")
+            .is_ceseal_bin_in_whitelist(&measurement);
 
         if (ver.major, ver.minor, ver.patch) < min_version && !in_whitelist {
             error!("This ceseal is outdated. Please update to the latest version.");
@@ -453,16 +453,9 @@ impl<P: pal::Platform> Ceseal<P> {
         }
     }
 
-    fn update_runtime_info(
-        &mut self,
-        f: impl FnOnce(&mut ces_types::WorkerRegistrationInfo<chain::AccountId>),
-    ) {
-        let Some(cached_resp) = self.runtime_info.as_mut() else {
-            return;
-        };
-        let mut runtime_info = cached_resp
-            .decode_runtime_info()
-            .expect("BUG: Decode runtime_info failed");
+    fn update_runtime_info(&mut self, f: impl FnOnce(&mut ces_types::WorkerRegistrationInfo<chain::AccountId>)) {
+        let Some(cached_resp) = self.runtime_info.as_mut() else { return };
+        let mut runtime_info = cached_resp.decode_runtime_info().expect("BUG: Decode runtime_info failed");
         runtime_info.version = Self::compat_app_version();
         f(&mut runtime_info);
         cached_resp.encoded_runtime_info = runtime_info.encode();
@@ -495,53 +488,37 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
             .context("Take checkpoint to writer failed")?;
         info!("Checkpoint saved to {checkpoint_file}");
         self.last_checkpoint = Instant::now();
-        remove_outdated_checkpoints(
-            &self.args.storage_path,
-            self.args.max_checkpoint_files,
-            current_block,
-        )?;
+        remove_outdated_checkpoints(&self.args.storage_path, self.args.max_checkpoint_files, current_block)?;
         Ok(current_block)
     }
 
     pub fn save_checkpoint_info(&self, filename: &str) -> anyhow::Result<()> {
         let info = self.get_info();
-        let content =
-            serde_json::to_string_pretty(&info).context("Failed to serialize checkpoint info")?;
+        let content = serde_json::to_string_pretty(&info).context("Failed to serialize checkpoint info")?;
         let info_filename = checkpoint_info_filename_for(filename);
-        let mut file =
-            File::create(info_filename).context("Failed to create checkpoint info file")?;
+        let mut file = File::create(info_filename).context("Failed to create checkpoint info file")?;
         file.write_all(content.as_bytes())
             .context("Failed to write checkpoint info file")?;
         Ok(())
     }
 
-    pub fn take_checkpoint_to_writer<W: std::io::Write>(
-        &mut self,
-        key: &[u8],
-        writer: W,
-    ) -> anyhow::Result<()> {
+    pub fn take_checkpoint_to_writer<W: std::io::Write>(&mut self, key: &[u8], writer: W) -> anyhow::Result<()> {
         let key128 = derive_key_for_checkpoint(key);
         let nonce = rand::thread_rng().gen();
         let mut enc_writer = aead::stream::new_aes128gcm_writer(key128, nonce, writer);
         serialize_ceseal_to_writer(self, &mut enc_writer).context("Failed to write checkpoint")?;
-        enc_writer
-            .flush()
-            .context("Failed to flush encrypted writer")?;
+        enc_writer.flush().context("Failed to flush encrypted writer")?;
         Ok(())
     }
 
-    pub fn restore_from_checkpoint(
-        platform: &Platform,
-        args: &InitArgs,
-    ) -> anyhow::Result<Option<Self>> {
+    pub fn restore_from_checkpoint(platform: &Platform, args: &InitArgs) -> anyhow::Result<Option<Self>> {
         let runtime_data = match Self::load_runtime_data(platform, &args.sealing_path) {
             Err(Error::PersistentRuntimeNotFound) => return Ok(None),
             other => other.context("Failed to load persistent data")?,
         };
-        let files = glob_checkpoint_files_sorted(&args.storage_path)
-            .context("Glob checkpoint files failed")?;
+        let files = glob_checkpoint_files_sorted(&args.storage_path).context("Glob checkpoint files failed")?;
         if files.is_empty() {
-            return Ok(None);
+            return Ok(None)
         }
         let (_block, ckpt_filename) = &files[0];
 
@@ -550,16 +527,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
             Err(err) if matches!(err.kind(), ErrorKind::NotFound) => {
                 // This should never happen unless it was removed just after the glob.
                 anyhow::bail!("Checkpoint file {ckpt_filename:?} is not found");
-            }
+            },
             Err(err) => {
                 error!("Failed to open checkpoint file {ckpt_filename:?}: {err:?}",);
                 if args.remove_corrupted_checkpoint {
                     error!("Removing {ckpt_filename:?}");
-                    std::fs::remove_file(ckpt_filename)
-                        .context("Failed to remove corrupted checkpoint file")?;
+                    std::fs::remove_file(ckpt_filename).context("Failed to remove corrupted checkpoint file")?;
                 }
                 anyhow::bail!("Failed to open checkpoint file {ckpt_filename:?}: {err:?}");
-            }
+            },
         };
 
         info!("Loading checkpoint from file {ckpt_filename:?}");
@@ -567,16 +543,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
             Ok(state) => {
                 info!("Succeeded to load checkpoint file {ckpt_filename:?}");
                 Ok(Some(state))
-            }
-            Err(_err /*Don't leak it into the log*/) => {
+            },
+            Err(_err /* Don't leak it into the log */) => {
                 error!("Failed to load checkpoint file {ckpt_filename:?}");
                 if args.remove_corrupted_checkpoint {
                     error!("Removing {:?}", ckpt_filename);
-                    std::fs::remove_file(ckpt_filename)
-                        .context("Failed to remove corrupted checkpoint file")?;
+                    std::fs::remove_file(ckpt_filename).context("Failed to remove corrupted checkpoint file")?;
                 }
                 anyhow::bail!("Failed to load checkpoint file {ckpt_filename:?}");
-            }
+            },
         }
     }
 
@@ -588,8 +563,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         let key128 = derive_key_for_checkpoint(key);
         let dec_reader = aead::stream::new_aes128gcm_reader(key128, reader);
 
-        let mut factory = deserialize_ceseal_from_reader(dec_reader, args.safe_mode_level)
-            .context("Failed to deserialize Ceseal")?;
+        let mut factory =
+            deserialize_ceseal_from_reader(dec_reader, args.safe_mode_level).context("Failed to deserialize Ceseal")?;
         factory.set_args(args.clone());
         factory.on_restored().context("Failed to restore Ceseal")?;
         Ok(factory)
@@ -605,10 +580,7 @@ impl<Platform: Serialize + DeserializeOwned> Ceseal<Platform> {
         state.end()
     }
 
-    fn load_state<'de, D: Deserializer<'de>>(
-        deserializer: D,
-        safe_mode_level: u8,
-    ) -> Result<Self, D::Error> {
+    fn load_state<'de, D: Deserializer<'de>>(deserializer: D, safe_mode_level: u8) -> Result<Self, D::Error> {
         struct CesealVisitor<Platform> {
             safe_mode_level: u8,
             _marker: PhantomData<Platform>,
@@ -626,14 +598,11 @@ impl<Platform: Serialize + DeserializeOwned> Ceseal<Platform> {
                     .next_element()?
                     .ok_or_else(|| de::Error::custom("Checkpoint version missing"))?;
                 if version > CHECKPOINT_VERSION {
-                    return Err(de::Error::custom(format!(
-                        "Checkpoint version {version} is not supported"
-                    )));
+                    return Err(de::Error::custom(format!("Checkpoint version {version} is not supported")))
                 }
 
-                let mut factory: Self::Value = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::custom("Missing Ceseal"))?;
+                let mut factory: Self::Value =
+                    seq.next_element()?.ok_or_else(|| de::Error::custom("Missing Ceseal"))?;
 
                 if self.safe_mode_level < 2 {
                     factory.system = {
@@ -647,8 +616,7 @@ impl<Platform: Serialize + DeserializeOwned> Ceseal<Platform> {
                         let seq = &mut seq;
                         ces_mq::checkpoint_helper::using_dispatcher(recv_mq, move || {
                             ces_mq::checkpoint_helper::using_send_mq(send_mq, || {
-                                seq.next_element()?
-                                    .ok_or_else(|| de::Error::custom("Missing System"))
+                                seq.next_element()?.ok_or_else(|| de::Error::custom("Missing System"))
                             })
                         })?
                     };
@@ -659,17 +627,11 @@ impl<Platform: Serialize + DeserializeOwned> Ceseal<Platform> {
             }
         }
 
-        deserializer.deserialize_seq(CesealVisitor {
-            safe_mode_level,
-            _marker: PhantomData,
-        })
+        deserializer.deserialize_seq(CesealVisitor { safe_mode_level, _marker: PhantomData })
     }
 }
 
-fn deserialize_ceseal_from_reader<Platform, R>(
-    reader: R,
-    safe_mode_level: u8,
-) -> Result<Ceseal<Platform>>
+fn deserialize_ceseal_from_reader<Platform, R>(reader: R, safe_mode_level: u8) -> Result<Ceseal<Platform>>
 where
     Platform: Serialize + DeserializeOwned,
     R: std::io::Read,
@@ -717,4 +679,64 @@ fn derive_key_for_checkpoint(identity_key: &[u8]) -> [u8; 16] {
 
 pub fn public_data_dir(storage_path: impl AsRef<Path>) -> PathBuf {
     storage_path.as_ref().to_path_buf().join("public")
+}
+
+#[derive(Clone)]
+pub struct CesealSafeBox<Platform>(Arc<Mutex<Ceseal<Platform>>>);
+
+#[derive(Error, Debug)]
+#[error("{:?}", self)]
+pub enum CesealLockError {
+    Poison(String),
+    #[error("RCU in progress, please try the request again later")]
+    Rcu,
+    #[error("This RPC is disabled in safe mode")]
+    SafeMode,
+}
+
+impl<Platform: pal::Platform> CesealSafeBox<Platform> {
+    pub fn new(platform: Platform) -> Self {
+        CesealSafeBox(Arc::new(Mutex::new(Ceseal::new(platform))))
+    }
+
+    pub fn lock(
+        &self,
+        allow_rcu: bool,
+        allow_safemode: bool,
+    ) -> Result<LogOnDrop<MutexGuard<'_, Ceseal<Platform>>>, CesealLockError> {
+        debug!(target: "cestory::lock", "Locking cestory...");
+        let guard = self.0.lock().map_err(|e| CesealLockError::Poison(e.to_string()))?;
+        debug!(target: "cestory::lock", "Locked cestory");
+        if !allow_rcu && guard.rcu_dispatching {
+            return Err(CesealLockError::Rcu)
+        }
+        if !allow_safemode && guard.args.safe_mode_level > 0 {
+            return Err(CesealLockError::SafeMode)
+        }
+        Ok(LogOnDrop { inner: guard, msg: "Unlocked cestory" })
+    }
+}
+
+pub struct LogOnDrop<T> {
+    inner: T,
+    msg: &'static str,
+}
+
+impl<T> core::ops::Deref for LogOnDrop<T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        &self.inner
+    }
+}
+
+impl<T> core::ops::DerefMut for LogOnDrop<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        &mut self.inner
+    }
+}
+
+impl<T> Drop for LogOnDrop<T> {
+    fn drop(&mut self) {
+        debug!(target: "cestory::lock", "{}", self.msg);
+    }
 }

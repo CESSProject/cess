@@ -3,22 +3,13 @@ mod ias;
 mod pal_gramine;
 
 use anyhow::Result;
-use ces_pdp::gen_key;
 use ces_sanitized_logger as logger;
-use cestory::{Ceseal, Podr2Server, RpcService};
-use cestory_api::{
-    crpc::ceseal_api_server::CesealApiServer, ecall_args::InitArgs,
-    podr2::podr2_api_server::Podr2ApiServer,
-};
+use cestory::{Ceseal, CesealSafeBox, RpcService};
+use cestory_api::{crpc::ceseal_api_server::CesealApiServer, ecall_args::InitArgs};
 use clap::Parser;
 use pal_gramine::GraminePlatform;
-use std::{
-    env,
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::{env, time::Duration};
 use tonic::transport::Server;
-use tower::{limit::ConcurrencyLimitLayer, load_shed::LoadShedLayer};
 use tracing::info;
 
 #[derive(Parser, Debug, Clone)]
@@ -139,6 +130,11 @@ async fn serve(sgx: bool) -> Result<()> {
         let port = args.port.unwrap_or(8000);
         format!("{ip}:{port}").parse().unwrap()
     };
+    let public_listener_addr = {
+        let ip = args.address.as_ref().map_or("0.0.0.0", String::as_str);
+        let port = args.public_port.unwrap_or(19999);
+        format!("{ip}:{port}").parse().unwrap()
+    };
 
     let cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
     info!(bench_cores = cores);
@@ -177,14 +173,12 @@ async fn serve(sgx: bool) -> Result<()> {
         return Ok(());
     }
 
-    let ceseal_service = RpcService::new(GraminePlatform);
+    let cestory = CesealSafeBox::new(GraminePlatform);
     if init_args.enable_checkpoint {
         match Ceseal::restore_from_checkpoint(&GraminePlatform, &init_args) {
             Ok(Some(factory)) => {
                 info!("Loaded checkpoint");
-                **ceseal_service
-                    .lock_ceseal(true, true)
-                    .expect("Failed to lock Ceseal") = factory;
+                **cestory.lock(true, true).expect("Failed to lock Ceseal") = factory;
                 return Ok(());
             }
             Err(err) => {
@@ -197,34 +191,36 @@ async fn serve(sgx: bool) -> Result<()> {
     } else {
         info!("Checkpoint disabled.");
     }
-    ceseal_service
-        .lock_ceseal(true, true)
-        .unwrap()
+    let ext_srvs_made_rx = cestory
+        .lock(true, true)
+        .expect("Failed to lock Ceseal")
         .init(init_args);
     info!("Enclave init OK");
 
-    // TODO: temp integere
-    let podr2_key = gen_key(2048);
-    let pool = Arc::new(Mutex::new(threadpool::ThreadPool::new(8)));
-    let podr2_server = Podr2Server {
-        podr2_keys: podr2_key.clone(),
-        threadpool: pool,
-        block_num: 1024,
-        tee_controller_account: [0; 32],
-    };
+    tokio::spawn(async move {
+        let (podr2, podr2v) = {
+            ext_srvs_made_rx
+                .recv()
+                .expect("external service made error")
+        };
+        info!(
+            "keyfairy ready, external server will listening on {}",
+            public_listener_addr
+        );
+        Server::builder()
+            .add_service(podr2)
+            .add_service(podr2v)
+            .serve(public_listener_addr)
+            .await
+            .expect("external service must be serve");
 
-    let layer = tower::ServiceBuilder::new()
-        .layer(LoadShedLayer::new())
-        .layer(ConcurrencyLimitLayer::new(100))
-        .into_inner();
-    info!(
-        "Ceseal server listening on {}, max concurrent limit: {}",
-        listener_addr, 100
-    );
+        info!("external server exit!");
+    });
+
+    let ceseal_service = RpcService::new_with(cestory);
+    info!("Ceseal internal server will listening on {}", listener_addr);
     Server::builder()
-        .layer(layer)
         .add_service(CesealApiServer::new(ceseal_service))
-        .add_service(Podr2ApiServer::new(podr2_server))
         .serve(listener_addr)
         .await?;
 

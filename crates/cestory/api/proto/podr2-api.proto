@@ -5,6 +5,13 @@ package podr2;
 service Podr2Api {
   rpc request_gen_tag(RequestGenTag)
       returns (ResponseGenTag) {}
+
+  // A echo rpc to measure network RTT.
+  rpc Echo (EchoMessage) returns (EchoMessage) {}
+}
+
+message EchoMessage {
+  bytes echo_msg = 1;
 }
 
 service Podr2VerifierApi {

@@ -1,18 +1,21 @@
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
-use std::fmt::Debug;
+use std::{
+    fmt::Debug,
+    sync::{Arc, Mutex},
+};
 use thiserror::Error;
 
 extern crate runtime as chain;
 
 // supportive
 
-pub struct BlockInfo<'a> {
+pub struct BlockDispatchContext<'a> {
     /// The block number.
     pub block_number: chain::BlockNumber,
     /// The timestamp of this block.
     pub now_ms: u64,
     /// The storage snapshot after this block executed.
-    pub storage: &'a crate::ChainStorage,
+    pub storage: Arc<Mutex<crate::ChainStorage>>,
     /// The message queue
     pub send_mq: &'a ces_mq::MessageSendQueue,
     pub recv_mq: &'a mut ces_mq::MessageDispatcher,

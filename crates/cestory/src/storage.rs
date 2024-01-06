@@ -13,14 +13,8 @@ impl BlockValidator for LightValidation<chain::Runtime> {
         grandpa_proof: Vec<u8>,
         authority_set_change: Option<cestory_api::blocks::AuthoritySetChange>,
     ) -> Result<()> {
-        self.submit_finalized_headers(
-            bridge_id,
-            header,
-            ancestry_proof,
-            grandpa_proof,
-            authority_set_change,
-        )
-        .map_err(|e| SyncError::HeaderValidateFailed(e.to_string()))
+        self.submit_finalized_headers(bridge_id, header, ancestry_proof, grandpa_proof, authority_set_change)
+            .map_err(|e| SyncError::HeaderValidateFailed(e.to_string()))
     }
 
     fn validate_storage_proof(
@@ -36,10 +30,10 @@ impl BlockValidator for LightValidation<chain::Runtime> {
 
 mod storage_ext {
     use crate::{chain, light_validation::utils::storage_prefix};
+    use ces_mq::{Message, MessageOrigin};
+    use ces_trie_storage::TrieStorage;
     use log::error;
     use parity_scale_codec::{Decode, Error};
-    use ces_mq::{Message, MessageOrigin};
-    use ces_trie_storage::TrieStorage;    
     use serde::{Deserialize, Serialize};
     use sp_state_machine::{Ext, OverlayedChanges};
 
@@ -50,17 +44,13 @@ mod storage_ext {
 
     impl Clone for ChainStorage {
         fn clone(&self) -> Self {
-            Self {
-                trie_storage: self.trie_storage.snapshot(),
-            }
+            Self { trie_storage: self.trie_storage.snapshot() }
         }
     }
 
     impl From<TrieStorage<crate::RuntimeHasher>> for ChainStorage {
         fn from(value: TrieStorage<crate::RuntimeHasher>) -> Self {
-            Self {
-                trie_storage: value,
-            }
+            Self { trie_storage: value }
         }
     }
 
@@ -75,25 +65,21 @@ mod storage_ext {
                     Err(e) => {
                         error!("Decode storage value failed: {}", e);
                         Err(e)
-                    }
+                    },
                 })
                 .transpose()
         }
     }
 
     impl ChainStorage {
-        pub fn from_pairs(
-            pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>,
-        ) -> Self {
+        pub fn from_pairs(pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>) -> Self {
             let mut me = Self::default();
             me.load(pairs);
             me
         }
 
         pub fn snapshot(&self) -> Self {
-            Self {
-                trie_storage: self.trie_storage.snapshot(),
-            }
+            Self { trie_storage: self.trie_storage.snapshot() }
         }
 
         pub fn load(&mut self, pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>) {
@@ -126,7 +112,7 @@ mod storage_ext {
                     .map(|v| v.unwrap_or_default())?;
                 if !messages.is_empty() {
                     info!("Got {} messages from {key}", messages.len());
-                    return Ok(messages);
+                    return Ok(messages)
                 }
             }
             Ok(vec![])
@@ -143,13 +129,12 @@ mod storage_ext {
         }
 
         /// Return `None` if given ceseal hash is not allowed on-chain
-        pub(crate) fn get_ceseal_bin_added_at(
-            &self,
-            runtime_hash: &[u8],
-        ) -> Option<chain::BlockNumber> {
-            self.execute_with(|| {
-                pallet_tee_worker::CesealBinAddedAt::<chain::Runtime>::get(runtime_hash)
-            })
+        pub(crate) fn get_ceseal_bin_added_at(&self, runtime_hash: &[u8]) -> Option<chain::BlockNumber> {
+            self.execute_with(|| pallet_tee_worker::CesealBinAddedAt::<chain::Runtime>::get(runtime_hash))
+        }
+
+        pub fn is_keyfairy(&self, pubkey: &ces_types::WorkerPublicKey) -> bool {
+            self.keyfairys().contains(pubkey)
         }
 
         pub(crate) fn keyfairys(&self) -> Vec<ces_types::WorkerPublicKey> {
@@ -169,7 +154,7 @@ mod storage_ext {
             let list = self.execute_with(pallet_tee_worker::CesealBinAllowList::<chain::Runtime>::get);
             for hash in list.iter() {
                 if hash.starts_with(measurement) {
-                    return true;
+                    return true
                 }
             }
             false

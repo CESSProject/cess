@@ -17,6 +17,11 @@ sp-std = { workspace = true }
 ces-mq = { workspace = true  }
 sgx-attestation = { workspace = true }
 
+
+[dev-dependencies]
+frame-support = { workspace = true }
+
+
 [features]
 default = ["std", "enable_serde"]
 std = [

@@ -1,5 +1,5 @@
 use super::RotatedMasterKey;
-use crate::types::BlockInfo;
+use crate::types::BlockDispatchContext;
 use ces_crypto::{
     aead, key_share,
     sr25519::{Persistence, Sr25519SecretKey, KDF},
@@ -240,7 +240,7 @@ where
 
     pub fn process_master_key_rotation_request(
         &mut self,
-        block: &BlockInfo,
+        block: &BlockDispatchContext,
         event: RotateMasterKeyEvent,
         identity_key: sr25519::Pair,
     ) {
@@ -275,15 +275,15 @@ where
             ));
     }
 
-    pub fn will_process_block(&mut self, _block: &BlockInfo<'_>) {
+    pub fn will_process_block(&mut self, _block: &BlockDispatchContext<'_>) {
         if !self.master_pubkey_on_chain {
             info!("Keyfairy: not handle the messages because Keyfairy has not launched on chain");
         }
     }
 
-    pub fn process_messages(&mut self, _block: &BlockInfo<'_>) {}
+    pub fn process_messages(&mut self, _block: &BlockDispatchContext<'_>) {}
 
-    pub fn did_process_block(&mut self, _block: &BlockInfo<'_>) {}
+    pub fn did_process_block(&mut self, _block: &BlockDispatchContext<'_>) {}
 
     /// Manually encrypt the secret key for sharing
     ///
