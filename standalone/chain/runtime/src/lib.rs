@@ -1129,7 +1129,6 @@ impl pallet_audit::Config for Runtime {
 	type VerifyMissionMax = VerifyMissionMax;
 	type OneDay = OneDay;
 	type OneHours = OneHours;
-	type File = FileBank;
 	type TeeWorkerHandler = TeeWorker;
 	type MinerControl = Sminer;
 	type StorageHandle = StorageHandler;

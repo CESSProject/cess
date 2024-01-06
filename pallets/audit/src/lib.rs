@@ -75,7 +75,6 @@ use frame_support::{
 	transactional, PalletId, WeakBoundedVec,
 };
 use frame_system::offchain::CreateSignedTransaction;
-use pallet_file_bank::RandomFileList;
 use pallet_sminer::MinerControl;
 use pallet_storage_handler::StorageHandle;
 use pallet_tee_worker::TeeWorkerHandler;
@@ -178,8 +177,6 @@ pub mod pallet {
 		type MyRandomness: Randomness<Option<Self::Hash>, BlockNumberFor<Self>>;
 		//Find the consensus of the current block
 		type FindAuthor: FindAuthor<Self::AccountId>;
-		//Random files used to obtain this batch of challenges
-		type File: RandomFileList<Self::AccountId>;
 		//Judge whether it is the trait of the consensus node
 		type TeeWorkerHandler: TeeWorkerHandler<Self::AccountId>;
 		//It is used to increase or decrease the miners' computing power, space, and execute

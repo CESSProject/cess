@@ -283,11 +283,6 @@ pub mod pallet {
 	>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn miner_lock)]
-	pub(super) type MinerLock<T: Config> = 
-		StorageMap<_, Blake2_128Concat, AccountOf<T>, BlockNumberFor<T>>;
-
-	#[pallet::storage]
 	#[pallet::getter(fn bucket)]
 	pub(super) type Bucket<T: Config> =
 		StorageDoubleMap<
@@ -1064,31 +1059,8 @@ pub mod pallet {
 		
 			Ok(())
 		}
-		// FOR TEST
-		#[pallet::call_index(20)]
-		#[transactional]
-		#[pallet::weight(Weight::zero())]
-		pub fn root_clear_failed_count(origin: OriginFor<T>) -> DispatchResult {
-			let _ = ensure_root(origin)?;
 
-			for (miner, _) in <TaskFailedCount<T>>::iter() {
-				<TaskFailedCount<T>>::remove(&miner);
-			}
-
-			Ok(())
-		}
-
-		#[pallet::call_index(21)]
-		#[transactional]
-		#[pallet::weight(Weight::zero())]
-		pub fn miner_clear_failed_count(origin: OriginFor<T>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-
-			<TaskFailedCount<T>>::remove(&sender);
-
-			Ok(())
-		}
-
+		// FOR TESTING
 		#[pallet::call_index(22)]
 		#[transactional]
 		#[pallet::weight(Weight::zero())]
@@ -1102,26 +1074,6 @@ pub mod pallet {
 
 			Ok(())
 		}
-	}
-}
-
-pub trait RandomFileList<AccountId> {
-	//Get random challenge data
-	fn get_random_challenge_data(
-	) -> Result<Vec<(AccountId, Hash, [u8; 68], Vec<u32>, u64, DataType)>, DispatchError>;
-	//Delete file backup
-	fn clear_file(_file_hash: Hash) -> Result<Weight, DispatchError>;
-}
-
-impl<T: Config> RandomFileList<<T as frame_system::Config>::AccountId> for Pallet<T> {
-	fn get_random_challenge_data(
-	) -> Result<Vec<(AccountOf<T>, Hash, [u8; 68], Vec<u32>, u64, DataType)>, DispatchError> {
-		Ok(Default::default())
-	}
-
-	fn clear_file(_file_hash: Hash) -> Result<Weight, DispatchError> {
-		let weight: Weight = Weight::zero();
-		Ok(weight)
 	}
 }
 
