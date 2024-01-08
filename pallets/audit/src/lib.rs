@@ -280,25 +280,6 @@ pub mod pallet {
 		TeeNoPermission,
 	}
 
-	//Relevant time nodes for storage challenges
-	#[pallet::storage]
-	#[pallet::getter(fn verify_duration)]
-	pub(super) type VerifyDuration<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn cur_authority_index)]
-	pub(super) type CurAuthorityIndex<T: Config> = StorageValue<_, u16, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn keys)]
-	pub(super) type Keys<T: Config> =
-		StorageValue<_, WeakBoundedVec<T::AuthorityId, T::SessionKeyMax>, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn counted_idle_failed)]
-	pub(super) type CountedIdleFailed<T: Config> =
-		StorageMap<_, Blake2_128Concat, AccountOf<T>, u32, ValueQuery>;
-
 	#[pallet::storage]
 	#[pallet::getter(fn counted_service_failed)]
 	pub(super) type CountedServiceFailed<T: Config> =
@@ -308,19 +289,6 @@ pub mod pallet {
 	#[pallet::getter(fn counted_clear)]
 	pub(super) type CountedClear<T: Config> =
 		StorageMap<_, Blake2_128Concat, AccountOf<T>, u8, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn challenge_era)]
-	pub(super) type ChallengeEra<T: Config> = StorageValue<_, u32, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn verify_result)]
-	pub(super) type VerifyResult<T: Config> =
-		StorageMap<_, Blake2_128Concat, AccountOf<T>, (Option<bool>, Option<bool>)>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn verify_reassign_count)]
-	pub(super) type VerifyReassignCount<T: Config> = StorageValue<_, u8, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn challenge_snap_shot)]
