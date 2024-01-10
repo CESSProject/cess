@@ -1917,6 +1917,7 @@ dependencies = [
  "num-bigint-dig",
  "num-traits",
  "once_cell",
+ "pallet-sminer",
  "pallet-tee-worker",
  "parity-scale-codec",
  "prost",

@@ -32,6 +32,7 @@ mod storage_ext {
     use crate::{chain, light_validation::utils::storage_prefix};
     use ces_mq::{Message, MessageOrigin};
     use ces_trie_storage::TrieStorage;
+    use chain::AccountId;
     use log::error;
     use parity_scale_codec::{Decode, Error};
     use serde::{Deserialize, Serialize};
@@ -126,6 +127,13 @@ mod storage_ext {
         pub fn mq_sequence(&self, sender: &MessageOrigin) -> u64 {
             self.execute_with(|| ces_pallet_mq::OffchainIngress::<chain::Runtime>::get(sender))
                 .unwrap_or(0)
+        }
+
+        pub fn get_storage_miner_info(
+            &self,
+            miner_account_id: AccountId,
+        ) -> Option<pallet_sminer::MinerInfo<chain::Runtime>> {
+            self.execute_with(|| pallet_sminer::pallet::Pallet::miner_items(miner_account_id))
         }
 
         /// Return `None` if given ceseal hash is not allowed on-chain

@@ -4,17 +4,16 @@ use ces_crypto::{
     aead, key_share,
     sr25519::{Persistence, Sr25519SecretKey, KDF},
 };
-use ces_mq::{traits::MessageChannel, MessageDispatcher, Sr25519Signer};
+use ces_mq::{traits::MessageChannel, Sr25519Signer};
 use ces_serde_more as more;
 use ces_types::{
     messaging::{
-        BatchRotateMasterKeyEvent, DispatchMasterKeyHistoryEvent, EncryptedKey, KeyDistribution,
-        RotateMasterKeyEvent,
+        BatchRotateMasterKeyEvent, DispatchMasterKeyHistoryEvent, EncryptedKey, KeyDistribution, RotateMasterKeyEvent,
     },
     wrap_content_to_sign, EcdhPublicKey, SignedContentType, WorkerPublicKey,
 };
-use pallet_tee_worker::KeyfairyRegistryEvent;
 use log::info;
+use pallet_tee_worker::KeyfairyRegistryEvent;
 use serde::{Deserialize, Serialize};
 use sp_core::{hashing, sr25519, Pair};
 use std::{collections::BTreeMap, convert::TryInto};
@@ -41,16 +40,9 @@ impl<MsgChan> Keyfairy<MsgChan>
 where
     MsgChan: MessageChannel<Signer = Sr25519Signer> + Clone,
 {
-    pub fn new(
-        master_key_history: Vec<RotatedMasterKey>,
-        _recv_mq: &mut MessageDispatcher,
-        egress: MsgChan,
-    ) -> Self {
+    pub fn new(master_key_history: Vec<RotatedMasterKey>, egress: MsgChan) -> Self {
         let master_key = sr25519::Pair::restore_from_secret_key(
-            &master_key_history
-                .first()
-                .expect("empty master key history")
-                .secret,
+            &master_key_history.first().expect("empty master key history").secret,
         );
         egress.set_dummy(true);
 
@@ -77,9 +69,7 @@ where
         self.iv_seq += 1;
 
         let hash = hashing::blake2_256(buf.as_ref());
-        hash[0..12]
-            .try_into()
-            .expect("should never fail given correct length; qed.")
+        hash[0..12].try_into().expect("should never fail given correct length; qed.")
     }
 
     pub fn register_on_chain(&mut self) {
@@ -100,11 +90,7 @@ where
 
     pub fn master_pubkey_uploaded(&mut self, master_pubkey: sr25519::Public) {
         #[cfg(not(feature = "shadow-gk"))]
-        assert_eq!(
-            self.master_key.public(),
-            master_pubkey,
-            "local and on-chain master key mismatch"
-        );
+        assert_eq!(self.master_key.public(), master_pubkey, "local and on-chain master key mismatch");
         self.master_pubkey_on_chain = true;
     }
 
@@ -119,7 +105,7 @@ where
     /// Return whether the history is really updated
     pub fn set_master_key_history(&mut self, master_key_history: &Vec<RotatedMasterKey>) -> bool {
         if master_key_history.len() <= self.master_key_history.len() {
-            return false;
+            return false
         }
         self.master_key_history = master_key_history.clone();
         true
@@ -134,20 +120,16 @@ where
                 "Keyfairy Master key history corrupted"
             );
             self.master_key_history.push(rotated_master_key);
-            return true;
+            return true
         }
         false
     }
 
     /// Update the master key and Keyfairy mq, return whether the key switch succeeds
-    pub fn switch_master_key(
-        &mut self,
-        rotation_id: u64,
-        block_height: chain::BlockNumber,
-    ) -> bool {
+    pub fn switch_master_key(&mut self, rotation_id: u64, block_height: chain::BlockNumber) -> bool {
         let raw_key = self.master_key_history.get(rotation_id as usize);
         if raw_key.is_none() {
-            return false;
+            return false
         }
 
         let raw_key = raw_key.expect("checked; qed.");
@@ -158,11 +140,10 @@ where
         let new_master_key = sr25519::Pair::restore_from_secret_key(&raw_key.secret);
         // send the RotatedMasterPubkey event with old master key
         let master_pubkey = new_master_key.public();
-        self.egress
-            .push_message(&KeyfairyRegistryEvent::RotatedMasterPubkey {
-                rotation_id: raw_key.rotation_id,
-                master_pubkey,
-            });
+        self.egress.push_message(&KeyfairyRegistryEvent::RotatedMasterPubkey {
+            rotation_id: raw_key.rotation_id,
+            master_pubkey,
+        });
 
         self.master_key = new_master_key;
         self.egress.set_signer(self.master_key.clone().into());
@@ -190,20 +171,14 @@ where
     ) {
         info!("Keyfairy: try dispatch master key");
         let master_key = self.master_key.dump_secret_key();
-        let encrypted_key = self.encrypt_key_to(
-            &[MASTER_KEY_SHARING_SALT],
-            ecdh_pubkey,
-            &master_key,
-            block_number,
-        );
-        self.egress.push_message(
-            &KeyDistribution::<chain::BlockNumber>::master_key_distribution(
+        let encrypted_key = self.encrypt_key_to(&[MASTER_KEY_SHARING_SALT], ecdh_pubkey, &master_key, block_number);
+        self.egress
+            .push_message(&KeyDistribution::<chain::BlockNumber>::master_key_distribution(
                 *pubkey,
                 encrypted_key.ecdh_pubkey,
                 encrypted_key.encrypted_key,
                 encrypted_key.iv,
-            ),
-        );
+            ));
     }
 
     pub fn share_master_key_history(
@@ -221,21 +196,15 @@ where
                 (
                     key.rotation_id,
                     key.block_height,
-                    self.encrypt_key_to(
-                        &[MASTER_KEY_SHARING_SALT],
-                        ecdh_pubkey,
-                        &key.secret,
-                        block_number,
-                    ),
+                    self.encrypt_key_to(&[MASTER_KEY_SHARING_SALT], ecdh_pubkey, &key.secret, block_number),
                 )
             })
             .collect();
-        self.egress.push_message(&KeyDistribution::MasterKeyHistory(
-            DispatchMasterKeyHistoryEvent {
+        self.egress
+            .push_message(&KeyDistribution::MasterKeyHistory(DispatchMasterKeyHistoryEvent {
                 dest: *pubkey,
                 encrypted_master_key_history,
-            },
-        ));
+            }));
     }
 
     pub fn process_master_key_rotation_request(
@@ -266,24 +235,11 @@ where
             sig: vec![],
         };
         let data_to_sign = event.data_be_signed();
-        let data_to_sign =
-            wrap_content_to_sign(&data_to_sign, SignedContentType::MasterKeyRotation);
+        let data_to_sign = wrap_content_to_sign(&data_to_sign, SignedContentType::MasterKeyRotation);
         event.sig = identity_key.sign(&data_to_sign).0.to_vec();
         self.egress
-            .push_message(&KeyDistribution::<chain::BlockNumber>::MasterKeyRotation(
-                event,
-            ));
+            .push_message(&KeyDistribution::<chain::BlockNumber>::MasterKeyRotation(event));
     }
-
-    pub fn will_process_block(&mut self, _block: &BlockDispatchContext<'_>) {
-        if !self.master_pubkey_on_chain {
-            info!("Keyfairy: not handle the messages because Keyfairy has not launched on chain");
-        }
-    }
-
-    pub fn process_messages(&mut self, _block: &BlockDispatchContext<'_>) {}
-
-    pub fn did_process_block(&mut self, _block: &BlockDispatchContext<'_>) {}
 
     /// Manually encrypt the secret key for sharing
     ///
@@ -299,18 +255,9 @@ where
         block_number: chain::BlockNumber,
     ) -> EncryptedKey {
         let iv = self.generate_iv(block_number);
-        let (ecdh_pubkey, encrypted_key) = key_share::encrypt_secret_to(
-            &self.master_key,
-            key_derive_info,
-            &ecdh_pubkey.0,
-            secret_key,
-            &iv,
-        )
-        .expect("should never fail with valid master key; qed.");
-        EncryptedKey {
-            ecdh_pubkey: sr25519::Public(ecdh_pubkey),
-            encrypted_key,
-            iv,
-        }
+        let (ecdh_pubkey, encrypted_key) =
+            key_share::encrypt_secret_to(&self.master_key, key_derive_info, &ecdh_pubkey.0, secret_key, &iv)
+                .expect("should never fail with valid master key; qed.");
+        EncryptedKey { ecdh_pubkey: sr25519::Public(ecdh_pubkey), encrypted_key, iv }
     }
 }

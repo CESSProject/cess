@@ -33,7 +33,7 @@ use std::{
 use thiserror::Error;
 
 use cestory_api::{
-    crpc::{GetEndpointResponse, InitRuntimeResponse, NetworkConfig},
+    crpc::{ceseal_api_server::CesealApiServer, GetEndpointResponse, InitRuntimeResponse, NetworkConfig},
     ecall_args::InitArgs,
     endpoints::EndpointType,
     storage_sync::{StorageSynchronizer, Synchronizer},
@@ -67,9 +67,6 @@ mod types;
 
 pub use podr2::{verify_signature, Podr2ApiServer, Podr2VerifierApiServer};
 
-pub type ExternalServiceMadeSender = mpsc::Sender<(Podr2ApiServer, Podr2VerifierApiServer)>;
-pub type ExternalServiceMadeReceiver = mpsc::Receiver<(Podr2ApiServer, Podr2VerifierApiServer)>;
-
 // TODO: Completely remove the reference to Ces/Khala runtime. Instead we can create a minimal
 // runtime definition locally.
 type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
@@ -89,7 +86,7 @@ struct RuntimeState {
 
     // TODO: use a better serialization approach
     #[codec(skip)]
-    chain_storage: Arc<Mutex<ChainStorage>>,
+    chain_storage: Arc<ChainStorage>,
 
     #[serde(with = "more::scale_bytes")]
     genesis_block_hash: H256,
@@ -97,8 +94,7 @@ struct RuntimeState {
 
 impl RuntimeState {
     fn purge_mq(&mut self) {
-        self.send_mq
-            .purge(|sender| self.chain_storage.lock().expect("ChainStorage lock").mq_sequence(sender))
+        self.send_mq.purge(|sender| self.chain_storage.mq_sequence(sender))
     }
 }
 
@@ -261,7 +257,7 @@ pub struct Ceseal<Platform> {
 
     #[codec(skip)]
     #[serde(skip)]
-    pub(crate) ext_srvs_made_sender: Option<ExternalServiceMadeSender>,
+    pub(crate) ext_srvs_made_sender: Option<types::ExternalServiceMadeSender>,
 }
 
 #[test]
@@ -301,7 +297,7 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
         }
     }
 
-    pub fn init(&mut self, args: InitArgs) -> ExternalServiceMadeReceiver {
+    pub fn init(&mut self, args: InitArgs) -> types::ExternalServiceMadeReceiver {
         self.can_load_chain_state = !system::gk_master_key_exists(&args.sealing_path);
         self.args = Arc::new(args);
 
@@ -425,12 +421,10 @@ impl<P: pal::Platform> Ceseal<P> {
         if self.args.safe_mode_level >= 2 {
             if let Some(state) = &mut self.runtime_state {
                 info!("Clearing the storage data to save memory");
-                state
-                    .chain_storage
-                    .lock()
-                    .expect("ChainStorage lock")
-                    .inner_mut()
-                    .load_proof(vec![])
+                let Some(chain_storage) = Arc::get_mut(&mut state.chain_storage) else {
+                    return Err(anyhow!(types::Error::MultiRefToChainStorage.to_string()))
+                };
+                chain_storage.inner_mut().load_proof(vec![])
             }
         }
         Ok(())
@@ -439,13 +433,10 @@ impl<P: pal::Platform> Ceseal<P> {
     fn check_requirements(&self) {
         let ver = P::app_version();
         let chain_storage = &self.runtime_state.as_ref().expect("BUG: no runtime state").chain_storage;
-        let min_version = chain_storage.lock().expect("ChainStorage lock").minimum_ceseal_version();
+        let min_version = chain_storage.minimum_ceseal_version();
 
         let measurement = self.platform.measurement().unwrap_or_else(|| vec![0; 32]);
-        let in_whitelist = chain_storage
-            .lock()
-            .expect("ChainStorage lock")
-            .is_ceseal_bin_in_whitelist(&measurement);
+        let in_whitelist = chain_storage.is_ceseal_bin_in_whitelist(&measurement);
 
         if (ver.major, ver.minor, ver.patch) < min_version && !in_whitelist {
             error!("This ceseal is outdated. Please update to the latest version.");
@@ -699,6 +690,10 @@ impl<Platform: pal::Platform> CesealSafeBox<Platform> {
         CesealSafeBox(Arc::new(Mutex::new(Ceseal::new(platform))))
     }
 
+    pub fn new_with(ceseal: Ceseal<Platform>) -> Self {
+        CesealSafeBox(Arc::new(Mutex::new(ceseal)))
+    }
+
     pub fn lock(
         &self,
         allow_rcu: bool,
@@ -738,5 +733,153 @@ impl<T> core::ops::DerefMut for LogOnDrop<T> {
 impl<T> Drop for LogOnDrop<T> {
     fn drop(&mut self) {
         debug!(target: "cestory::lock", "{}", self.msg);
+    }
+}
+
+use std::net::SocketAddr;
+use tonic::transport::Server;
+
+pub async fn run_ceseal_server<Platform>(
+    init_args: InitArgs,
+    platform: Platform,
+    inner_listener_addr: SocketAddr,
+    public_listener_addr: SocketAddr,
+) -> Result<()>
+where
+    Platform: pal::Platform + Serialize + DeserializeOwned,
+{
+    let cestory = if init_args.enable_checkpoint {
+        match Ceseal::restore_from_checkpoint(&platform, &init_args) {
+            Ok(Some(factory)) => {
+                info!("Loaded checkpoint");
+                CesealSafeBox::new_with(factory)
+            },
+            Ok(None) => {
+                info!("No checkpoint found");
+                CesealSafeBox::new(platform)
+            },
+            Err(err) => {
+                anyhow::bail!("Failed to load checkpoint: {:?}", err);
+            },
+        }
+    } else {
+        info!("Checkpoint disabled.");
+        CesealSafeBox::new(platform)
+    };
+    let ext_srvs_made_rx = cestory.lock(true, true).expect("Failed to lock Ceseal").init(init_args);
+    info!("Enclave init OK");
+
+    let cestory_clone = cestory.clone();
+    tokio::spawn(async move {
+        let ceseal = cestory_clone;
+        let (expert_cmd_rx, podr2, podr2v) = { ext_srvs_made_rx.recv().expect("external service made error") };
+
+        let expert_handler = tokio::spawn(expert::run(ceseal, expert_cmd_rx));
+
+        let ext_srv_handler = tokio::spawn(async move {
+            info!("keyfairy ready, external server will listening on {}", public_listener_addr);
+            let result = Server::builder()
+                .add_service(podr2)
+                .add_service(podr2v)
+                .serve(public_listener_addr)
+                .await;
+            info!("external server shutdown!");
+            result
+        });
+        let result = tokio::try_join!(expert_handler, ext_srv_handler);
+        if let Err(e) = result {
+            panic!("Error in tokio::try_join!: {:?}", e)
+        }
+    });
+
+    let ceseal_service = RpcService::new_with(cestory);
+    info!("Ceseal internal server will listening on {}", inner_listener_addr);
+    Server::builder()
+        .add_service(CesealApiServer::new(ceseal_service))
+        .serve(inner_listener_addr)
+        .await?;
+
+    info!("Ceseal quited");
+    Ok(())
+}
+
+pub mod expert {
+    use super::{pal::Platform, CesealSafeBox, ChainStorage};
+    use std::sync::Arc;
+    use tokio::sync::{mpsc, oneshot};
+
+    pub type ExpertCmdSender = mpsc::Sender<Cmd>;
+    pub type ExpertCmdReceiver = mpsc::Receiver<Cmd>;
+
+    #[derive(thiserror::Error, Debug)]
+    pub enum Error {
+        #[error("{0}")]
+        MpscSend(String),
+        #[error("{0}")]
+        OneshotRecv(String),
+    }
+
+    pub type MasterKey = [u8; 32];
+    pub type CmdResult<T> = Result<T, Error>;
+
+    pub enum Cmd {
+        MasterKey(oneshot::Sender<MasterKey>),
+        ChainStorage(oneshot::Sender<Option<Arc<ChainStorage>>>),
+        EgressMessage,
+    }
+
+    #[allow(dead_code)]
+    pub async fn run<P: Platform>(ceseal: CesealSafeBox<P>, mut expert_cmd_rx: ExpertCmdReceiver) -> CmdResult<()> {
+        loop {
+            match expert_cmd_rx.recv().await {
+                Some(cmd) => match cmd {
+                    Cmd::MasterKey(_resp_sender) => {
+                        //ceseal.lock(false, false)?
+                    },
+                    Cmd::ChainStorage(resp_sender) => {
+                        let guard = ceseal.lock(false, false).expect("xxx");
+                        let chain_storage = guard.runtime_state.as_ref().map(|s| s.chain_storage.clone());
+                        let _ = resp_sender.send(chain_storage);
+                    },
+                    Cmd::EgressMessage => {},
+                },
+                None => break,
+            }
+        }
+        Ok(())
+    }
+
+    #[derive(Clone)]
+    pub struct CesealExpertStub {
+        cmd_sender: mpsc::Sender<Cmd>,
+    }
+
+    impl CesealExpertStub {
+        pub fn new() -> (Self, ExpertCmdReceiver) {
+            let (tx, rx) = mpsc::channel(16);
+            (Self { cmd_sender: tx }, rx)
+        }
+
+        pub async fn get_master_key(&self) -> CmdResult<MasterKey> {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_sender
+                .send(Cmd::MasterKey(tx))
+                .await
+                .map_err(|e| Error::MpscSend(e.to_string()))?;
+            Ok(rx.await.map_err(|e| Error::OneshotRecv(e.to_string()))?)
+        }
+
+        pub async fn using_chain_storage<F, R>(&self, call: F) -> CmdResult<R>
+        where
+            F: FnOnce(Option<Arc<ChainStorage>>) -> R,
+        {
+            let (tx, rx) = oneshot::channel();
+            self.cmd_sender
+                .send(Cmd::ChainStorage(tx))
+                .await
+                .map_err(|e| Error::MpscSend(e.to_string()))?;
+            let chain_storage = rx.await.map_err(|e| Error::OneshotRecv(e.to_string()))?;
+            Ok(call(chain_storage))
+        }
     }
 }

@@ -1,7 +1,12 @@
 pub mod keyfairy;
 mod master_key;
 
-use crate::{podr2, secret_channel::ecdh_serde, types::BlockDispatchContext, ExternalServiceMadeSender};
+use crate::{
+    expert::CesealExpertStub,
+    podr2,
+    secret_channel::ecdh_serde,
+    types::{BlockDispatchContext, ExternalServiceMadeSender},
+};
 use anyhow::Result;
 use core::fmt;
 use runtime::BlockNumber;
@@ -205,9 +210,9 @@ impl<Platform: pal::Platform> System<Platform> {
         self.block_number = block.block_number;
         self.now_ms = block.now_ms;
 
-        if let Some(keyfairy) = &mut self.keyfairy {
-            keyfairy.will_process_block(block);
-        }
+        // if let Some(keyfairy) = &mut self.keyfairy {
+        //     keyfairy.will_process_block(block);
+        // }
     }
 
     pub fn process_messages(&mut self, block: &mut BlockDispatchContext) {
@@ -222,15 +227,15 @@ impl<Platform: pal::Platform> System<Platform> {
                     },
             }
         }
-        if let Some(keyfairy) = &mut self.keyfairy {
-            keyfairy.process_messages(block);
-        }
+        // if let Some(keyfairy) = &mut self.keyfairy {
+        //     keyfairy.process_messages(block);
+        // }
     }
 
-    pub fn did_process_block(&mut self, block: &mut BlockDispatchContext) {
-        if let Some(keyfairy) = &mut self.keyfairy {
-            keyfairy.did_process_block(block);
-        }
+    pub fn did_process_block(&mut self, _block: &mut BlockDispatchContext) {
+        // if let Some(keyfairy) = &mut self.keyfairy {
+        //     keyfairy.did_process_block(block);
+        // }
     }
 
     fn process_system_event(&mut self, _block: &BlockDispatchContext, event: &SystemEvent) {
@@ -284,19 +289,23 @@ impl<Platform: pal::Platform> System<Platform> {
         );
         let keyfairy = keyfairy::Keyfairy::new(
             master_key_history,
-            block.recv_mq,
             block.send_mq.channel(MessageOrigin::Keyfairy, master_key.into()),
         );
         self.keyfairy = Some(keyfairy);
 
+        self.init_external_services();
+    }
+
+    fn init_external_services(&mut self) {
+        let (ce, rx) = CesealExpertStub::new();
         //TODO! TO BE REFACOTER HERE!
         let podr2_key = ces_pdp::gen_key(2048);
-        let s1 = podr2::new_podr2_api_server(podr2_key.clone(), block);
-        let s2 = podr2::new_podr2_verifier_api_server(podr2_key, block);
+        let s1 = podr2::new_podr2_api_server(podr2_key.clone(), ce.clone());
+        let s2 = podr2::new_podr2_verifier_api_server(podr2_key, ce);
         self.ext_srvs_made_sender
             .as_ref()
             .expect("ext_srvs_made_sender must be set")
-            .send((s1, s2))
+            .send((rx, s1, s2))
             .expect("must to be sent");
     }
 
@@ -348,7 +357,7 @@ impl<Platform: pal::Platform> System<Platform> {
         // thank god we only need to do this once for each blockchain
 
         // double check the first keyfairy is valid on chain
-        if !block.storage.lock().expect("ChainStorage lock").is_keyfairy(&event.pubkey) {
+        if !block.storage.is_keyfairy(&event.pubkey) {
             error!("Fatal error: Invalid first keyfairy registration {:?}", event);
             panic!("System state poisoned");
         }
@@ -439,7 +448,7 @@ impl<Platform: pal::Platform> System<Platform> {
         }
 
         // double check the registered keyfairy is valid on chain
-        if !block.storage.lock().expect("ChainStorage lock").is_keyfairy(&event.pubkey) {
+        if !block.storage.is_keyfairy(&event.pubkey) {
             error!("Fatal error: Invalid first keyfairy registration {:?}", event);
             panic!("System state poisoned");
         }
@@ -591,7 +600,7 @@ impl<Platform: pal::Platform> System<Platform> {
             return Err(TransactionError::BadSenderSignature)
         }
         // valid master key but from a non-gk
-        if !block.storage.lock().expect("ChainStorage lock").is_keyfairy(&event.sender) {
+        if !block.storage.is_keyfairy(&event.sender) {
             error!("Fatal error: Forged batch master key rotation {:?}", event);
             return Err(TransactionError::MasterKeyLeakage)
         }

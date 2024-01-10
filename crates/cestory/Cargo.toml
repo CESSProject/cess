@@ -59,7 +59,8 @@ ces-trie-storage = { workspace = true }
 ces-types = { workspace = true, features = ["enable_serde", "sgx"] }
 cestory-api = { workspace = true }
 cestory-pal = { workspace = true }
-pallet-tee-worker ={ workspace = true }
+pallet-tee-worker = { workspace = true }
+pallet-sminer ={ workspace = true }
 reqwest-env-proxy ={ workspace = true }
 runtime = { workspace = true, features = ["std"] }
 sgx-api-lite = { workspace = true }
