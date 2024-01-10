@@ -468,6 +468,36 @@ pub mod pallet {
 
             Ok(())
         }
+
+        // FOR TESTING
+        #[pallet::call_index(8)]
+        #[pallet::weight(Weight::zero())]
+        pub fn clear_service_space(origin: OriginFor<T>) -> DispatchResult {
+            let _ = ensure_root(origin)?;
+
+            TotalServiceSpace::<T>::try_mutate(|total_space| -> DispatchResult {
+                *total_space = 0;
+                Ok(())
+            })?;
+
+            Ok(())
+        }
+
+        // FOR TESTING
+        #[pallet::call_index(9)]
+        #[pallet::weight(Weight::zero())]
+        pub fn clear_user_used_space(origin: OriginFor<T>, user: AccountOf<T>) -> DispatchResult {
+            let _ = ensure_root(origin)?;
+
+            <UserOwnedSpace<T>>::try_mutate(&user, |space_info_opt| -> DispatchResult {
+                let space_info = space_info_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
+                space_info.used_space = 0;
+
+                Ok(())
+            })?;
+
+            Ok(())
+        }
     }
 }
 

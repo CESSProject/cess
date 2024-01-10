@@ -19,7 +19,7 @@ impl<T: Config> DealInfo<T> {
         Ok(())
     }
 
-    pub fn completed_all(&mut self) -> DispatchResult {
+    pub fn completed_all(&self) -> DispatchResult {
         for complete_info in self.complete_list.iter() {
             let replace_space = FRAGMENT_SIZE  
                     .checked_mul(self.segment_list.len() as u128)
