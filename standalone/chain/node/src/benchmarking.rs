@@ -1,5 +1,3 @@
-use crate::service::Client;
-
 use cess_node_runtime as runtime;
 use runtime::{AccountId, Balance, BalancesCall, SystemCall};
 use sc_cli::Result;

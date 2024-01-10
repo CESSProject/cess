@@ -117,7 +117,7 @@ pub mod pallet {
 		type FindAuthor: FindAuthor<Self::AccountId>;
 		// Used to find out whether the schedule exists
 		type TeeWorkerHandler: TeeWorkerHandler<Self::AccountId>;
-		// It is used to control the computing power and space of miners
+		// It is used to control the computing power and space of miners 
 		type MinerControl: MinerControl<Self::AccountId, BlockNumberFor<Self>>;
 		// Interface that can generate random seeds	
 		type MyRandomness: Randomness<Option<Self::Hash>, BlockNumberFor<Self>>;
