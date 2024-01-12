@@ -42,8 +42,8 @@ use cestory_api::{
 use ces_crypto::{
     aead,
     ecdh::EcdhKey,
-    sr25519::{Persistence as Persist, KDF, SEED_BYTES},
     rsa::{Persistence, RsaDer},
+    sr25519::{Persistence as Persist, KDF, SEED_BYTES},
 };
 use ces_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
 use ces_serde_more as more;
@@ -187,7 +187,8 @@ struct PersistentRuntimeData {
 impl PersistentRuntimeData {
     pub fn decode_keys(&self) -> (sr25519::Pair, EcdhKey) {
         // load identity
-        let podr2_key = rsa::RsaPrivateKey::restore_from_der(&self.sk).expect("Unable restore podr2 key from sk in PersistentRuntimeData");
+        let podr2_key = rsa::RsaPrivateKey::restore_from_der(&self.sk)
+            .expect("Unable restore podr2 key from sk in PersistentRuntimeData");
         let identity_sk = crate::get_sr25519_from_rsa_key(podr2_key);
         info!("Identity pubkey: {:?}", hex::encode(identity_sk.public()));
 
@@ -203,7 +204,7 @@ enum RuntimeDataSeal {
     V1(PersistentRuntimeData),
 }
 
-#[derive(Serialize, Deserialize, Clone, TypeInfo)]
+#[derive(Serialize, Deserialize, TypeInfo)]
 #[serde(bound(deserialize = "Platform: Deserialize<'de>"))]
 pub struct Ceseal<Platform> {
     platform: Platform,

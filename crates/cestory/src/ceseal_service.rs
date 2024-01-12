@@ -1,10 +1,6 @@
 use super::*;
 use crate::system::System;
-use ces_crypto::{
-    key_share,
-    sr25519::KDF,
-    rsa::Persistence,
-};
+use ces_crypto::{key_share, rsa::Persistence, sr25519::KDF};
 use ces_types::{
     attestation::{validate as validate_attestation_report, IasFields},
     messaging::EncryptedKey,
@@ -173,35 +169,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
     async fn dispatch_blocks(&self, request: Request<pb::Blocks>) -> RpcResult<pb::SyncedTo> {
         let request = request.into_inner();
         let blocks = request.decode_blocks().map_err(to_status)?;
-        let mut cestory = {
-            let mut cestory = self.lock_ceseal(false, true)?;
-            if cestory.args.no_rcu {
-                // If RCU way is not suitable here, we do the traditional locked dispatch.
-                return Ok(Response::new(cestory.dispatch_blocks(self.req_id, blocks)?))
-            }
-            // Otherwise, we clone the cestory and execute/dispatch the events of the blocks with
-            // a cloned cestory without locking(the lock would be released in the end of this scope)
-            // the singleton cestory. This way, we can avoid blocking the RPC server.
-            info!("Cloning Ceseal to do RCU dispatch...");
-            let cloned = cestory.clone();
-            // We set rcu_dispatching = true to avoid a reentrant call to dispatch_blocks which
-            // would cause a state inconsistency.
-            cestory.rcu_dispatching = true;
-            cloned
-        };
-        // Start to dispatch the blocks with the cloned cestory without locking the singleton cestory.
-        info!("Unlocked Ceseal, dispatching blocks...");
-        let req_id = self.req_id;
-        let span = tracing::Span::current();
-        let (synced_to, cestory) = tokio::task::spawn_blocking(move || {
-            let _guard = span.enter();
-            let synced_to = cestory.dispatch_blocks(req_id, blocks);
-            (synced_to, cestory)
-        })
-        .await
-        .expect("Dispatch blocks failed");
-        let mut guard = self.lock_ceseal(true, true).unwrap();
-        **guard = cestory;
+        //FIXME: The RCU lock policy maybe not suitable for ceseal,
+        // because the chain storage state in ceseal need to share with other service readonly, we don't need a mutex
+        // unnecessary. But adding a long-period lock to the block dispatch process (which can take a long time)
+        // is a bad idea. So there may be a solution:
+        // 1. Use RwLock for the CESEAL instance;
+        // 2. Or refactor ceseal to reduce the granularity of CESEAL locks.
+        // However, now in order to avoid cloning the ceseal instance (as we do not want to use mutex on its internal
+        // state), we have simply locked it. Remember to optimize here!
+        let synced_to = self.lock_ceseal(false, true)?.dispatch_blocks(self.req_id, blocks);
         info!("Blocks are dispatched");
         Ok(Response::new(synced_to?))
     }
