@@ -1,3 +1,4 @@
+use crate::expert::CesealExpertStub;
 use anyhow::{anyhow, Result};
 use ces_pdp::{HashSelf, Keys, QElement, Tag as PdpTag};
 use cestory_api::podr2::{
@@ -18,35 +19,29 @@ use std::{
 use threadpool::ThreadPool;
 use tonic::{Request, Response, Status};
 
-use crate::{storage::ChainStorage, types::BlockDispatchContext};
-use ces_mq::{types::MessageOrigin, SignedMessageChannel, TypedReceiver};
-use ces_types::messaging::Podr2DemoEvent;
-
 pub type Podr2ApiServer = podr2_api_server::Podr2ApiServer<Podr2Server>;
 pub type Podr2VerifierApiServer = podr2_verifier_api_server::Podr2VerifierApiServer<Podr2VerifierServer>;
 
-pub fn new_podr2_api_server(master_key: Keys, ctx: &mut BlockDispatchContext) -> Podr2ApiServer {
+pub fn new_podr2_api_server(master_key: Keys, ceseal_expert: CesealExpertStub) -> Podr2ApiServer {
     //FIXME: HERE!
-    let (pair, _) = sp_core::sr25519::Pair::generate();
     let inner = Podr2Server {
         podr2_keys: master_key,
         threadpool: Arc::new(Mutex::new(threadpool::ThreadPool::new(8))),
         block_num: 1024,
         tee_controller_account: [0; 32],
-        chain_storage: ctx.storage.clone(),
-        egress: ctx.send_mq.channel(MessageOrigin::Keyfairy, pair.into()),
-        podr2_demo_events: ctx.recv_mq.subscribe_bound(),
+        ceseal_expert,
     };
     Podr2ApiServer::new(inner)
 }
 
-pub fn new_podr2_verifier_api_server(master_key: Keys, _ctx: &mut BlockDispatchContext) -> Podr2VerifierApiServer {
+pub fn new_podr2_verifier_api_server(master_key: Keys, ceseal_expert: CesealExpertStub) -> Podr2VerifierApiServer {
     //FIXME: HERE!
     let inner = Podr2VerifierServer {
         podr2_keys: master_key,
         threadpool: Arc::new(Mutex::new(threadpool::ThreadPool::new(8))),
         block_num: 1024,
         tee_controller_account: [0; 32],
+        ceseal_expert,
     };
     Podr2VerifierApiServer::new(inner)
 }
@@ -55,22 +50,22 @@ pub type Podr2Result<T> = Result<Response<T>, Status>;
 
 //TODO: REMOVE HERE!
 #[allow(dead_code)]
-#[derive(Clone)]
 pub struct Podr2Server {
     pub podr2_keys: Keys,
     pub threadpool: Arc<Mutex<ThreadPool>>,
     pub block_num: u64,
     pub tee_controller_account: [u8; 32],
-    chain_storage: Arc<Mutex<ChainStorage>>,
-    egress: SignedMessageChannel,
-    podr2_demo_events: TypedReceiver<Podr2DemoEvent>,
+    ceseal_expert: CesealExpertStub,
 }
 
+//TODO: REMOVE HERE!
+#[allow(dead_code)]
 pub struct Podr2VerifierServer {
     pub podr2_keys: Keys,
     pub tee_controller_account: [u8; 32],
     pub threadpool: Arc<Mutex<ThreadPool>>,
     pub block_num: u64,
+    ceseal_expert: CesealExpertStub,
 }
 
 struct Podr2Hash {

@@ -1,4 +1,4 @@
-use crate::verify_signature;
+use crate::{expert::CesealExpertStub, verify_signature};
 use anyhow::anyhow;
 use ces_pdp::Keys;
 use ces_pois::{
@@ -15,126 +15,117 @@ use cestory_api::pois::{
     ResponseMinerInitParam, ResponseSpaceProofVerify, ResponseSpaceProofVerifyTotal,
     ResponseVerifyCommitOrDeletionProof,
 };
-use chain_client::{MinerPoisInfo, PoISKey};
 use crypto::{digest::Digest, sha2::Sha256};
 use dashmap::DashMap;
 use log::{info, warn};
 use num_bigint_dig::BigUint;
 use parity_scale_codec::Encode;
 use prost::Message;
-use sp_core::crypto::AccountId32;
+use sp_core::{crypto::AccountId32, ByteArray};
 use std::{
     fmt::{Debug, Display, Formatter},
-    sync::Arc,
     time::Instant,
 };
 use tonic::{Request, Response, Status};
 
-pub mod chain_client {
-    use super::AccountId32;
-    use parity_scale_codec::Encode;
+#[derive(Encode)]
+pub struct MinerCommitProofInfo {
+    pub miner_id: AccountId32,
+    pub front: u64,
+    pub rear: u64,
+    pub pois_key: PoISKey,
+    pub accumulator: [u8; 256],
+}
+#[derive(Encode)]
+pub struct MinerPoisInfo {
+    pub miner_id: AccountId32,
+    pub front: u64,
+    pub rear: u64,
+    pub pois_key: PoISKey,
+    pub accumulator: [u8; 256],
+}
 
-    #[derive(Encode)]
-    pub struct MinerCommitProofInfo {
-        pub miner_id: AccountId32,
-        pub front: u64,
-        pub rear: u64,
-        pub pois_key: PoISKey,
-        pub accumulator: [u8; 256],
-    }
-    #[derive(Encode)]
-    pub struct MinerPoisInfo {
-        pub miner_id: AccountId32,
-        pub front: u64,
-        pub rear: u64,
-        pub pois_key: PoISKey,
-        pub accumulator: [u8; 256],
-    }
-
-    impl Default for MinerPoisInfo {
-        fn default() -> Self {
-            MinerPoisInfo {
-                miner_id: AccountId32::from([0u8; 32]),
-                front: 0,
-                rear: 0,
-                pois_key: PoISKey { g: [0u8; 256], n: [0u8; 256] },
-                accumulator: [0u8; 256],
-            }
+impl Default for MinerPoisInfo {
+    fn default() -> Self {
+        MinerPoisInfo {
+            miner_id: AccountId32::from([0u8; 32]),
+            front: 0,
+            rear: 0,
+            pois_key: PoISKey { g: [0u8; 256], n: [0u8; 256] },
+            accumulator: [0u8; 256],
         }
     }
+}
 
-    #[derive(Encode)]
-    pub struct PoISKey {
-        pub g: [u8; 256],
-        pub n: [u8; 256],
-    }
+#[derive(Encode)]
+pub struct PoISKey {
+    pub g: [u8; 256],
+    pub n: [u8; 256],
+}
 
-    pub struct MinerKeyInfo {
-        pub info: MinerPoisInfo,
-        pub signature: Vec<u8>,
-        pub is_register_key: bool,
-    }
+pub struct MinerKeyInfo {
+    pub info: MinerPoisInfo,
+    pub signature: Vec<u8>,
+    pub is_register_key: bool,
+}
 
-    #[derive(Encode)]
-    pub struct ResponseSpaceProofVerifyTotalSignatureMember {
-        pub miner_id: AccountId32,
-        pub total_proof_hash: Vec<u8>,
-        pub front: u64,
-        pub rear: u64,
-        pub acc: [u8; 256],
-        pub space_chals: [u64; 8],
-        pub result: bool,
-        pub tee_acc: AccountId32,
-    }
-
-    #[async_trait::async_trait]
-    pub trait PoisChainHelper: Send + Sync + 'static {
-        type Error: std::error::Error + Send;
-
-        async fn query_miner_key_info(&self, miner_id: Vec<u8>) -> Result<MinerKeyInfo, Self::Error>;
-    }
+#[derive(Encode)]
+pub struct ResponseSpaceProofVerifyTotalSignatureMember {
+    pub miner_id: AccountId32,
+    pub total_proof_hash: Vec<u8>,
+    pub front: u64,
+    pub rear: u64,
+    pub acc: [u8; 256],
+    pub space_chals: [u64; 8],
+    pub result: bool,
+    pub tee_acc: AccountId32,
 }
 
 type PoisResult<T> = Result<Response<T>, Status>;
 
-pub struct PoisCertifierServer<C> {
+pub struct PoisCertifierServer {
     pub podr2_keys: Keys,
     pub verifier: Verifier,
     pub commit_acc_proof_chals_map: DashMap<Vec<u8>, Vec<Vec<i64>>>,
-    pub chain_helper: Arc<C>,
     pub tee_controller_account: [u8; 32],
+    ceseal_expert: CesealExpertStub,
 }
 
-pub fn new_pois_certifier_server<C: chain_client::PoisChainHelper + Send + Sync + 'static>(
+pub fn new_pois_certifier_server(
     podr2_keys: Keys,
     pois_param: (i64, i64, i64),
     tee_controller_account: [u8; 32],
-    chain_api: C,
-) -> PoisCertifierServer<C> {
+    ceseal_expert: CesealExpertStub,
+) -> PoisCertifierServer {
     PoisCertifierServer {
         podr2_keys,
         verifier: Verifier::new(pois_param.0, pois_param.1, pois_param.2),
         commit_acc_proof_chals_map: DashMap::new(),
-        chain_helper: Arc::new(chain_api),
         tee_controller_account,
+        ceseal_expert,
     }
 }
 
+//FIXME: TO REMOVE BELOW LINE
+#[allow(dead_code)]
 pub struct PoisVerifierServer {
     pub podr2_keys: Keys,
     pub verifier: Verifier,
     pub tee_controller_account: [u8; 32],
+    ceseal_expert: CesealExpertStub,
 }
 
 pub fn new_pois_verifier_server(
     podr2_keys: Keys,
     pois_param: (i64, i64, i64),
     tee_controller_account: [u8; 32],
+    ceseal_expert: CesealExpertStub,
 ) -> PoisVerifierServer {
     PoisVerifierServer {
         podr2_keys,
         verifier: Verifier::new(pois_param.0, pois_param.1, pois_param.2),
         tee_controller_account,
+        ceseal_expert,
     }
 }
 
@@ -152,11 +143,10 @@ where
     Ok(proto_byte_hash)
 }
 
+const MINER_NOT_READY: &'static [u8] = b"not ready";
+
 #[tonic::async_trait]
-impl<C> PoisCertifierApi for PoisCertifierServer<C>
-where
-    C: chain_client::PoisChainHelper + Send + Sync + 'static,
-{
+impl PoisCertifierApi for PoisCertifierServer {
     async fn request_miner_get_new_key(
         &self,
         request: Request<RequestMinerInitParam>,
@@ -166,16 +156,20 @@ where
         let now = Instant::now();
         info!("[Pois Request New Key] miner {:?} request new key...", get_ss58_address(&miner_id).unwrap());
 
-        let miner_info = match self.chain_helper.query_miner_key_info(miner_id.clone()).await {
-            Ok(info) => info,
-            Err(e) =>
-                return Err(Status::internal(
-                    "Problems encountered while querying miner registration information : ".to_string() +
-                        &e.to_string(),
-                )),
-        };
-        if miner_info.is_register_key {
-            return Err(Status::invalid_argument("You have already registered the key!"))
+        //FIXME: TO OPTIMIZE
+        let miner_acc_id =
+            AccountId32::from_slice(&miner_id[..]).map_err(|_| Status::internal("invalid input account"))?;
+        let miner_info = self
+            .ceseal_expert
+            .using_chain_storage(
+                move |opt| if let Some(cs) = opt { cs.get_storage_miner_info(miner_acc_id) } else { None },
+            )
+            .await
+            .map_err(|e| Status::internal(format!("internal error: {}", e.to_string())))?;
+        let Some(miner_info) = miner_info else { return Err(Status::internal("the miner not exists")) };
+
+        if matches!(miner_info.state.as_slice(), MINER_NOT_READY) {
+            return Err(Status::invalid_argument("You have already registered the POIS key!"))
         }
         let key = rsa_keygen(2048);
         let acc = key.g.to_bytes_be();
@@ -296,7 +290,7 @@ where
             .pois_info
             .ok_or(Status::invalid_argument("Miner request data is invalid, loss parameter 'pois_info'"))?;
 
-        let mut miner_key_info = chain_client::MinerPoisInfo::default();
+        let mut miner_key_info = MinerPoisInfo::default();
         miner_key_info.miner_id = miner_id.clone()[..]
             .try_into()
             .map_err(|_| Status::invalid_argument("The length of miner_id should be 32!"))?;
@@ -461,7 +455,7 @@ where
             return Err(Status::invalid_argument("Miner send invalid parameter,loss 'pois_info'"))
         };
 
-        let mut miner_key_info = chain_client::MinerPoisInfo::default();
+        let mut miner_key_info = MinerPoisInfo::default();
         miner_key_info.miner_id = miner_id.clone()[..]
             .try_into()
             .map_err(|_| Status::invalid_argument("The length of miner_id should be 32!"))?;
@@ -681,7 +675,7 @@ impl PoisVerifierApi for PoisVerifierServer {
         total_proof_hasher.result(&mut total_proof_hash);
 
         //compute signature
-        let sig_struct = chain_client::ResponseSpaceProofVerifyTotalSignatureMember {
+        let sig_struct = ResponseSpaceProofVerifyTotalSignatureMember {
             miner_id: miner_id.clone().into(),
             total_proof_hash: total_proof_hash.to_vec(),
             front: front as u64,

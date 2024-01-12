@@ -4,12 +4,11 @@ mod pal_gramine;
 
 use anyhow::Result;
 use ces_sanitized_logger as logger;
-use cestory::{Ceseal, CesealSafeBox, RpcService};
-use cestory_api::{crpc::ceseal_api_server::CesealApiServer, ecall_args::InitArgs};
+use cestory::run_ceseal_server;
+use cestory_api::ecall_args::InitArgs;
 use clap::Parser;
 use pal_gramine::GraminePlatform;
 use std::{env, time::Duration};
-use tonic::transport::Server;
 use tracing::info;
 
 #[derive(Parser, Debug, Clone)]
@@ -173,58 +172,13 @@ async fn serve(sgx: bool) -> Result<()> {
         return Ok(());
     }
 
-    let cestory = CesealSafeBox::new(GraminePlatform);
-    if init_args.enable_checkpoint {
-        match Ceseal::restore_from_checkpoint(&GraminePlatform, &init_args) {
-            Ok(Some(factory)) => {
-                info!("Loaded checkpoint");
-                **cestory.lock(true, true).expect("Failed to lock Ceseal") = factory;
-                return Ok(());
-            }
-            Err(err) => {
-                anyhow::bail!("Failed to load checkpoint: {:?}", err);
-            }
-            Ok(None) => {
-                info!("No checkpoint found");
-            }
-        }
-    } else {
-        info!("Checkpoint disabled.");
-    }
-    let ext_srvs_made_rx = cestory
-        .lock(true, true)
-        .expect("Failed to lock Ceseal")
-        .init(init_args);
-    info!("Enclave init OK");
-
-    tokio::spawn(async move {
-        let (podr2, podr2v) = {
-            ext_srvs_made_rx
-                .recv()
-                .expect("external service made error")
-        };
-        info!(
-            "keyfairy ready, external server will listening on {}",
-            public_listener_addr
-        );
-        Server::builder()
-            .add_service(podr2)
-            .add_service(podr2v)
-            .serve(public_listener_addr)
-            .await
-            .expect("external service must be serve");
-
-        info!("external server exit!");
-    });
-
-    let ceseal_service = RpcService::new_with(cestory);
-    info!("Ceseal internal server will listening on {}", listener_addr);
-    Server::builder()
-        .add_service(CesealApiServer::new(ceseal_service))
-        .serve(listener_addr)
-        .await?;
-
-    info!("Ceseal quited");
+    run_ceseal_server(
+        init_args,
+        GraminePlatform,
+        listener_addr,
+        public_listener_addr,
+    )
+    .await?;
 
     Ok(())
 }
