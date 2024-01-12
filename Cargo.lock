@@ -1397,6 +1397,7 @@ dependencies = [
  "hex",
  "rand 0.8.5",
  "ring 0.16.20",
+ "rsa",
  "schnorrkel 0.9.1",
  "sp-application-crypto",
  "sp-core",
@@ -1538,6 +1539,7 @@ version = "0.1.0"
 dependencies = [
  "hex",
  "parity-scale-codec",
+ "rsa",
  "serde",
  "sp-core",
 ]
@@ -1927,6 +1929,7 @@ dependencies = [
  "ring 0.16.20",
  "rmp-serde",
  "ron",
+ "rsa",
  "rust-crypto",
  "scale-info",
  "scopeguard",

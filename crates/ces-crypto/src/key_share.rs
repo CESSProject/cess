@@ -1,18 +1,18 @@
 use crate::aead::{self, IV};
 use crate::ecdh::{self, EcdhKey, EcdhPublicKey};
-use crate::sr25519::{Sr25519SecretKey, KDF};
+use crate::sr25519::KDF;
+use crate::rsa::RsaDer;
 use crate::CryptoError;
 
 use alloc::borrow::ToOwned;
 use alloc::vec::Vec;
-use core::convert::TryInto;
 use sp_core::sr25519;
 
 pub fn encrypt_secret_to(
     my_key: &sr25519::Pair,
     key_derive_info: &[&[u8]],
     ecdh_pubkey: &EcdhPublicKey,
-    secret_key: &Sr25519SecretKey,
+    secret_key: &RsaDer,
     iv: &IV,
 ) -> Result<(EcdhPublicKey, Vec<u8>), CryptoError> {
     let derived_key = my_key.derive_sr25519_pair(key_derive_info)?;
@@ -29,11 +29,9 @@ pub fn decrypt_secret_from(
     ecdh_pubkey: &EcdhPublicKey,
     encrypted_key: &[u8],
     iv: &IV,
-) -> Result<Sr25519SecretKey, CryptoError> {
+) -> Result<RsaDer, CryptoError> {
     let secret = ecdh::agree(my_ecdh_key, ecdh_pubkey)?;
     let mut key_buff = encrypted_key.to_owned();
     let secret_key = aead::decrypt(iv, &secret, &mut key_buff[..])?;
-    secret_key
-        .try_into()
-        .map_err(|_| CryptoError::Sr25519InvalidSecret)
+    Ok(secret_key.to_vec())
 }
