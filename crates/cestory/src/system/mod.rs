@@ -299,8 +299,8 @@ impl<Platform: pal::Platform> System<Platform> {
         let (ce, rx) = CesealExpertStub::new();
         //TODO! TO BE REFACOTER HERE!
         let podr2_key = ces_pdp::gen_keypair_from_private_key(skey);
-        let s1 = podr2::new_podr2_api_server(podr2_key.clone(), block);
-        let s2 = podr2::new_podr2_verifier_api_server(podr2_key, block);
+        let s1 = podr2::new_podr2_api_server(podr2_key.clone(), ce.clone());
+        let s2 = podr2::new_podr2_verifier_api_server(podr2_key, ce);
         self.ext_srvs_made_sender
             .as_ref()
             .expect("ext_srvs_made_sender must be set")

@@ -45,7 +45,6 @@ where
 {
     pub fn new(
         master_key_history: Vec<RotatedMasterKey>,
-        _recv_mq: &mut MessageDispatcher,
         egress: MsgChan,
     ) -> (Self, rsa::RsaPrivateKey) {
         let rsa_key = rsa::RsaPrivateKey::restore_from_der(
