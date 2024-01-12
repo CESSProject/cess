@@ -2,7 +2,7 @@ use super::RotatedMasterKey;
 use crate::types::BlockDispatchContext;
 use ces_crypto::{
     aead, key_share,
-    sr25519::{Persistence, Sr25519SecretKey, KDF},
+    sr25519::{Persistence as persist, KDF}, rsa::{Persistence, RsaDer},
 };
 use ces_mq::{traits::MessageChannel, Sr25519Signer};
 use ces_serde_more as more;
@@ -26,6 +26,9 @@ pub(crate) struct Keyfairy<MsgChan> {
     #[serde(with = "more::key_bytes")]
     #[codec(skip)]
     master_key: sr25519::Pair,
+    #[serde(with = "more::rsa_key_bytes")]
+    #[codec(skip)]
+    rsa_key: rsa::RsaPrivateKey,
     /// This will be switched once when the first master key is uploaded
     master_pubkey_on_chain: bool,
     /// Unregistered GK will sync all the GK messages silently
@@ -40,20 +43,31 @@ impl<MsgChan> Keyfairy<MsgChan>
 where
     MsgChan: MessageChannel<Signer = Sr25519Signer> + Clone,
 {
-    pub fn new(master_key_history: Vec<RotatedMasterKey>, egress: MsgChan) -> Self {
-        let master_key = sr25519::Pair::restore_from_secret_key(
-            &master_key_history.first().expect("empty master key history").secret,
+    pub fn new(
+        master_key_history: Vec<RotatedMasterKey>,
+        _recv_mq: &mut MessageDispatcher,
+        egress: MsgChan,
+    ) -> (Self, rsa::RsaPrivateKey) {
+        let rsa_key = rsa::RsaPrivateKey::restore_from_der(
+            &master_key_history
+            .first()
+            .expect("empty master key history")
+            .secret
+        ).expect("fail convert sr25519 pair from rsa skey when process new event");
+        let master_key = crate::get_sr25519_from_rsa_key(
+            rsa_key.clone()
         );
         egress.set_dummy(true);
 
-        Self {
+        (Self {
             master_key,
+            rsa_key:rsa_key.clone(),
             master_pubkey_on_chain: false,
             registered_on_chain: false,
             master_key_history,
             egress: egress.clone(),
             iv_seq: 0,
-        }
+        },rsa_key)
     }
 
     fn generate_iv(&mut self, block_number: chain::BlockNumber) -> aead::IV {
@@ -137,7 +151,7 @@ where
             raw_key.rotation_id == rotation_id && raw_key.block_height == block_height,
             "Keyfairy Master key history corrupted"
         );
-        let new_master_key = sr25519::Pair::restore_from_secret_key(&raw_key.secret);
+        let new_master_key = crate::get_sr25519_from_rsa_key(rsa::RsaPrivateKey::restore_from_der(&raw_key.secret).expect("Failed to restore podr2 key from secret in switch_master_key"));
         // send the RotatedMasterPubkey event with old master key
         let master_pubkey = new_master_key.public();
         self.egress.push_message(&KeyfairyRegistryEvent::RotatedMasterPubkey {
@@ -170,10 +184,15 @@ where
         block_number: chain::BlockNumber,
     ) {
         info!("Keyfairy: try dispatch master key");
-        let master_key = self.master_key.dump_secret_key();
-        let encrypted_key = self.encrypt_key_to(&[MASTER_KEY_SHARING_SALT], ecdh_pubkey, &master_key, block_number);
-        self.egress
-            .push_message(&KeyDistribution::<chain::BlockNumber>::master_key_distribution(
+        let master_key = self.rsa_key.dump_secret_der();
+        let encrypted_key = self.encrypt_key_to(
+            &[MASTER_KEY_SHARING_SALT],
+            ecdh_pubkey,
+            &master_key,
+            block_number,
+        );
+        self.egress.push_message(
+            &KeyDistribution::<chain::BlockNumber>::master_key_distribution(
                 *pubkey,
                 encrypted_key.ecdh_pubkey,
                 encrypted_key.encrypted_key,
@@ -213,8 +232,8 @@ where
         event: RotateMasterKeyEvent,
         identity_key: sr25519::Pair,
     ) {
-        let new_master_key = crate::new_sr25519_key();
-        let secret_key = new_master_key.dump_secret_key();
+        let new_podr2_key = crate::new_podr2_key();
+        let secret_key = new_podr2_key.dump_secret_der();
         let secret_keys: BTreeMap<_, _> = event
             .gk_identities
             .into_iter()
@@ -251,7 +270,7 @@ where
         &mut self,
         key_derive_info: &[&[u8]],
         ecdh_pubkey: &EcdhPublicKey,
-        secret_key: &Sr25519SecretKey,
+        secret_key: &RsaDer,
         block_number: chain::BlockNumber,
     ) -> EncryptedKey {
         let iv = self.generate_iv(block_number);

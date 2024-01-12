@@ -130,7 +130,7 @@ pub struct Proof {
     pub sigma: String,
 }
 
-pub fn gen_key(bits: usize) -> Keys {
+pub fn gen_keypair(bits: usize) -> Keys {
     let mut rng = OsRng;
     // let skey =
     // RsaPrivateKey::from_pkcs8_der(&hex::decode("
@@ -142,6 +142,15 @@ pub fn gen_key(bits: usize) -> Keys {
 
     Keys { skey, pkey }
 }
+
+pub fn gen_keypair_from_private_key(skey: RsaPrivateKey) -> Keys {
+    let pkey = skey.to_public_key();
+    Keys{
+        skey,
+        pkey,
+    }
+}
+
 use rsa::{
     pkcs1v15::{Signature, SigningKey},
     signature::{RandomizedSigner, SignatureEncoding},
@@ -612,13 +621,13 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_key() {
-        let _ = gen_key(2048);
+    fn test_gen_keypair() {
+        let _ = gen_keypair(2048);
     }
 
     #[test]
     fn test_sig_gen() {
-        let keys = gen_key(2048);
+        let keys = gen_keypair(2048);
         let thread_num = 8_usize;
         let file_path = "./test.txt".to_string();
         let n_blocks = 2_u64;
@@ -647,7 +656,7 @@ mod tests {
     #[test]
     fn test_gen_proof() {
         //1st:gen key
-        let keys = gen_key(2048);
+        let keys = gen_keypair(2048);
 
         //2nd:get file tag
         let thread_num = 8_usize;
@@ -683,8 +692,8 @@ mod tests {
     #[test]
     fn test_verify() {
         //1st:gen key
-        println!("start run gen_key");
-        let keys = gen_key(2048);
+        println!("start run gen_keypair");
+        let keys = gen_keypair(2048);
 
         //2nd:get file tag
         println!("start run sig_gen_with_path");
@@ -729,8 +738,8 @@ mod tests {
 
     #[test]
     fn test_batch_verify() {
-        println!("start run gen_key");
-        let keys = gen_key(2048);
+        println!("start run gen_keypair");
+        let keys = gen_keypair(2048);
 
         //test.txt tag
         println!("start run sig_gen_with_path for test.txt");

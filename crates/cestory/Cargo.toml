@@ -49,6 +49,7 @@ sp-consensus-grandpa = { workspace = true }
 sp-core = { workspace = true }
 sp-trie = { workspace = true }
 tonic = { workspace = true }
+rsa = { workspace = true }
 
 # CESS specific
 ces-crypto = { workspace = true, features = ["getrandom", "stream", "full_crypto"] }

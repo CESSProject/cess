@@ -653,11 +653,11 @@ async fn init_runtime(
     let genesis_state = chain_client::fetch_genesis_storage(chain_api).await?;
     let mut debug_set_key = None;
     if !inject_key.is_empty() {
-        if inject_key.len() != 64 {
-            panic!("inject-key must be 32 bytes hex");
-        } else {
+        // if inject_key.len() != 64 {
+        //     panic!("inject-key must be 32 bytes hex");
+        // } else {
             info!("Inject key {}", inject_key);
-        }
+        // }
         debug_set_key = Some(hex::decode(inject_key).expect("Invalid dev key"));
     } else if use_dev_key {
         info!("Inject key {}", DEV_KEY);

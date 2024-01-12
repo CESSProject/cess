@@ -15,7 +15,7 @@ use crate::pal;
 use ces_crypto::{
     ecdh::EcdhKey,
     key_share,
-    sr25519::{Persistence, KDF},
+    rsa::Persistence, sr25519::KDF,
 };
 use ces_mq::{
     traits::MessageChannel, BadOrigin, MessageDispatcher, MessageOrigin, MessageSendQueue, SignedMessageChannel,
@@ -283,25 +283,24 @@ impl<Platform: pal::Platform> System<Platform> {
         if self.genesis_block != 0 {
             panic!("Keyfairy must be synced start from the first block");
         }
-
-        let master_key = sr25519::Pair::restore_from_secret_key(
+        let master_key = crate::get_sr25519_from_rsa_key(rsa::RsaPrivateKey::restore_from_der(
             &master_key_history.first().expect("empty master key history").secret,
-        );
-        let keyfairy = keyfairy::Keyfairy::new(
+        ).expect("Failed restore podr2 key from master_key_history in init_keyfairy"));
+        let (keyfairy,skey) = keyfairy::Keyfairy::new(
             master_key_history,
             block.send_mq.channel(MessageOrigin::Keyfairy, master_key.into()),
         );
         self.keyfairy = Some(keyfairy);
 
-        self.init_external_services();
+        self.init_external_services(skey);
     }
 
-    fn init_external_services(&mut self) {
+    fn init_external_services(&mut self, skey: rsa::RsaPrivateKey) {
         let (ce, rx) = CesealExpertStub::new();
         //TODO! TO BE REFACOTER HERE!
-        let podr2_key = ces_pdp::gen_key(2048);
-        let s1 = podr2::new_podr2_api_server(podr2_key.clone(), ce.clone());
-        let s2 = podr2::new_podr2_verifier_api_server(podr2_key, ce);
+        let podr2_key = ces_pdp::gen_keypair_from_private_key(skey);
+        let s1 = podr2::new_podr2_api_server(podr2_key.clone(), block);
+        let s2 = podr2::new_podr2_verifier_api_server(podr2_key, block);
         self.ext_srvs_made_sender
             .as_ref()
             .expect("ext_srvs_made_sender must be set")
@@ -370,18 +369,16 @@ impl<Platform: pal::Platform> System<Platform> {
             if master_key_history.is_empty() {
                 info!("Keyfairy: generate master key as the first keyfairy");
                 // generate master key as the first keyfairy, no need to restart
-                let master_key = crate::new_sr25519_key();
+                let podr2_key = crate::new_podr2_key();
                 master_key_history.push(RotatedMasterKey {
                     rotation_id: 0,
                     block_height: 0,
-                    secret: master_key.dump_secret_key(),
+                    secret: podr2_key.dump_secret_der(),
                 });
                 // manually seal the first master key for the first gk
                 master_key::seal(self.sealing_path.clone(), &master_key_history, &self.identity_key, &self.platform);
             }
-
-            let master_key =
-                sr25519::Pair::restore_from_secret_key(&master_key_history.first().expect("checked; qed.").secret);
+            let master_key = crate::get_sr25519_from_rsa_key(rsa::RsaPrivateKey::restore_from_der(&master_key_history.first().expect("checked; qed.").secret).expect("Failed to restore sr25519 from master key history in process_first_keyfairy_event"));
             // upload the master key on chain via worker egress
             info!("Keyfairy: upload master key {} on chain", hex::encode(master_key.public()));
             let master_pubkey = RegistryEvent::MasterPubkey { master_pubkey: master_key.public() };
@@ -512,14 +509,14 @@ impl<Platform: pal::Platform> System<Platform> {
     /// Decrypt the key encrypted by `encrypt_key_to()`
     ///
     /// This function could panic a lot, thus should only handle data from other ceseals.
-    fn decrypt_key_from(&self, ecdh_pubkey: &EcdhPublicKey, encrypted_key: &[u8], iv: &AeadIV) -> sr25519::Pair {
+    fn decrypt_key_from(&self, ecdh_pubkey: &EcdhPublicKey, encrypted_key: &[u8], iv: &AeadIV) -> (sr25519::Pair,Vec<u8>) {
         let my_ecdh_key = self
             .identity_key
             .derive_ecdh_key()
             .expect("Should never failed with valid identity key; qed.");
         let secret = key_share::decrypt_secret_from(&my_ecdh_key, &ecdh_pubkey.0, encrypted_key, iv)
             .expect("Failed to decrypt dispatched key");
-        sr25519::Pair::restore_from_secret_key(&secret)
+        (crate::get_sr25519_from_rsa_key(rsa::RsaPrivateKey::restore_from_der(&secret).expect("Failed restore sr25519 from rsa in decrypt_key_from")),secret)
     }
 
     /// Process encrypted master key from mq
@@ -540,7 +537,7 @@ impl<Platform: pal::Platform> System<Platform> {
             self.set_master_key_history(vec![RotatedMasterKey {
                 rotation_id: 0,
                 block_height: 0,
-                secret: master_pair.dump_secret_key(),
+                secret: master_pair.1,
             }]);
         }
         Ok(())
@@ -565,8 +562,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     rotation_id: *rotation_id,
                     block_height: *block_height,
                     secret: self
-                        .decrypt_key_from(&key.ecdh_pubkey, &key.encrypted_key, &key.iv)
-                        .dump_secret_key(),
+                        .decrypt_key_from(&key.ecdh_pubkey, &key.encrypted_key, &key.iv).1,
                 })
                 .collect();
             self.set_master_key_history(master_key_history);
@@ -624,7 +620,7 @@ impl<Platform: pal::Platform> System<Platform> {
             if keyfairy.append_master_key(RotatedMasterKey {
                 rotation_id: event.rotation_id,
                 block_height: self.block_number,
-                secret: new_master_key.dump_secret_key(),
+                secret: new_master_key.1,
             }) {
                 master_key::seal(
                     self.sealing_path.clone(),

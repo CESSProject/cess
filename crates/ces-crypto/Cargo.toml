@@ -6,6 +6,7 @@ resolver = "2"
 
 [dependencies]
 sp-core = { workspace = true }
+rsa = { workspace = true }
 sp-application-crypto = { workspace = true }
 
 ring = { workspace = true, features = ["alloc"] }

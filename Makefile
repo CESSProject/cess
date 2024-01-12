@@ -3,7 +3,7 @@
 all: node ceseal
 
 node:
-	cargo build --release
+	cargo build
 ceseal:
 	make -C standalone/teeworker/ceseal
 test:

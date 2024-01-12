@@ -7,6 +7,9 @@ pub mod scale_bytes;
 pub mod key_bytes;
 
 #[cfg(feature = "crypto")]
+pub mod rsa_key_bytes;
+
+#[cfg(feature = "crypto")]
 pub mod option_key_bytes;
 
 #[cfg(feature = "crypto")]

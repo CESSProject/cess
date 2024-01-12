@@ -5,7 +5,7 @@ use parity_scale_codec::{Decode, Encode};
 use ces_types::{wrap_content_to_sign, SignedContentType};
 use sp_core::sr25519;
 
-use ces_crypto::sr25519::{Signature, Signing, Sr25519SecretKey};
+use ces_crypto::{sr25519::{Signature, Signing}, rsa::RsaDer};
 
 use crate::pal::Sealing;
 
@@ -14,7 +14,7 @@ pub const MASTER_KEY_FILE: &str = "master_key.seal";
 
 #[derive(Debug, Encode, Decode, Clone)]
 struct PersistentMasterKey {
-    secret: Sr25519SecretKey,
+    secret: RsaDer,
     signature: Signature,
 }
 
@@ -22,7 +22,7 @@ struct PersistentMasterKey {
 pub struct RotatedMasterKey {
     pub rotation_id: u64,
     pub block_height: chain::BlockNumber,
-    pub secret: Sr25519SecretKey,
+    pub secret: RsaDer,
 }
 
 #[derive(Debug, Encode, Decode, Clone)]
