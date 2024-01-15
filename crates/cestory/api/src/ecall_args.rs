@@ -1,6 +1,7 @@
 use alloc::string::String;
-use parity_scale_codec::{Decode, Encode};
+use ces_types::WorkerRole;
 use core::time::Duration;
+use parity_scale_codec::{Decode, Encode};
 
 #[derive(Debug, Encode, Decode, Default, Clone)]
 pub struct InitArgs {
@@ -50,5 +51,6 @@ pub struct InitArgs {
     pub ra_max_retries: u32,
 
     pub pois_param: (i64, i64, i64),
-}
 
+    pub role: WorkerRole,
+}

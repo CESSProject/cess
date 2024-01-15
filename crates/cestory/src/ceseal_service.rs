@@ -868,6 +868,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
             genesis_block_hash,
             features: vec![cpu_core_num, cpu_feature_level],
             operator,
+            role: self.args.role.clone(),
         };
 
         let resp = pb::InitRuntimeResponse::new(runtime_info, genesis_block_hash, ecdsa_pk, ecdh_pubkey, None);

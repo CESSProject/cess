@@ -2,10 +2,11 @@ mod handover;
 mod ias;
 mod pal_gramine;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use ces_sanitized_logger as logger;
 use cestory::run_ceseal_server;
 use cestory_api::ecall_args::InitArgs;
+use ces_types::WorkerRole;
 use clap::Parser;
 use pal_gramine::GraminePlatform;
 use std::{env, time::Duration, str::FromStr};
@@ -88,7 +89,10 @@ struct Args {
     ra_max_retries: u32,
 
     #[arg(long, value_parser = parse_pois_param, default_value = "8,1048576,64")]
-    pois_param: (i64, i64, i64)
+    pois_param: (i64, i64, i64),
+
+    #[arg(long, value_parser = parse_worker_role, default_value = "full")]
+    role: WorkerRole,
 }
 
 #[tokio::main]
@@ -164,6 +168,7 @@ async fn serve(sgx: bool) -> Result<()> {
             ra_timeout: args.ra_timeout,
             ra_max_retries: args.ra_max_retries,
             pois_param: args.pois_param,
+            role: args.role,
         }
     };
     info!("init_args: {:#?}", init_args);
@@ -193,4 +198,13 @@ fn parse_pois_param(s: &str) -> Result<(i64, i64, i64)> {
     let n = i64::from_str(iter.next().ok_or(anyhow!("The pois-param parameter is a 3-tuple separated by comma"))?)?;
     let d = i64::from_str(iter.next().ok_or(anyhow!("The pois-param parameter is a 3-tuple separated by comma"))?)?;
     Ok((k, n, d))
+}
+
+fn parse_worker_role(s: &str) -> Result<WorkerRole> {
+    match s.to_lowercase().as_str() {
+        "full" => Ok(WorkerRole::Full),
+        "verifier" => Ok(WorkerRole::Verifier),
+        "marker" => Ok(WorkerRole::Marker),
+        _ => bail!("invalid WorkerRole value")
+    }
 }

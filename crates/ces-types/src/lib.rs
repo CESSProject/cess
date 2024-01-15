@@ -234,7 +234,7 @@ pub mod messaging {
 }
 
 // Types used in storage
-pub use attestation::{AttestationReport, AttestationProvider};
+pub use attestation::{AttestationProvider, AttestationReport};
 
 type MachineId = Vec<u8>;
 pub use sp_core::sr25519::{
@@ -281,6 +281,20 @@ pub struct WorkerRegistrationInfo<AccountId> {
 	pub genesis_block_hash: H256,
 	pub features: Vec<u32>,
 	pub operator: Option<AccountId>,
+	pub role: WorkerRole,
+}
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+pub enum WorkerRole {
+	Full,
+	Verifier,
+	Marker,
+}
+
+impl Default for WorkerRole {
+	fn default() -> Self {
+		WorkerRole::Full
+	}
 }
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]

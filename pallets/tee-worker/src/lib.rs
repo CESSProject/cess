@@ -53,7 +53,7 @@ pub mod pallet {
 		},
 		attestation::{self, Error as AttestationError},
 		wrap_content_to_sign, AttestationProvider, EcdhPublicKey, MasterPublicKey, SignedContentType,
-		VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerIdentity, WorkerPublicKey, WorkerRegistrationInfo,
+		VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerIdentity, WorkerPublicKey, WorkerRegistrationInfo, WorkerRole,
 	};
 
 	// Re-export
@@ -525,6 +525,7 @@ pub mod pallet {
 				attestation_provider: Some(AttestationProvider::Root),
 				confidence_level: 128u8,
 				features: vec![1, 4],
+				role: WorkerRole::Full,
 			};
 			Workers::<T>::insert(worker_info.pubkey, &worker_info);
 			WorkerAddedAt::<T>::insert(worker_info.pubkey, frame_system::Pallet::<T>::block_number());
@@ -660,6 +661,7 @@ pub mod pallet {
 						worker_info.version = ceseal_info.version;
 						worker_info.confidence_level = fields.confidence_level;
 						worker_info.features = ceseal_info.features;
+						worker_info.role = ceseal_info.role;
 
 						Self::push_message(SystemEvent::new_worker_event(
 							pubkey,
@@ -684,6 +686,7 @@ pub mod pallet {
 							attestation_provider: Some(AttestationProvider::Ias),
 							confidence_level: fields.confidence_level,
 							features: ceseal_info.features,
+							role: ceseal_info.role,
 						});
 						Self::push_message(SystemEvent::new_worker_event(
 							pubkey,
@@ -779,6 +782,7 @@ pub mod pallet {
 							attestation_provider: attestation_report.provider,
 							confidence_level: attestation_report.confidence_level,
 							features: ceseal_info.features,
+							role: ceseal_info.role,
 						});
 						Self::push_message(SystemEvent::new_worker_event(
 							pubkey,
@@ -1001,6 +1005,8 @@ pub mod pallet {
 		pub confidence_level: u8,
 		/// Deprecated
 		pub features: Vec<u32>,
+
+		pub role: WorkerRole,
 	}
 
 	impl<T: Config> From<AttestationError> for Error<T> {
