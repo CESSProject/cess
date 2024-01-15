@@ -42,8 +42,7 @@ use cestory_api::{
 use ces_crypto::{
     aead,
     ecdh::EcdhKey,
-    rsa::{Persistence, RsaDer},
-    sr25519::{Persistence as Persist, KDF, SEED_BYTES},
+    sr25519::{Persistence as Persist, Sr25519SecretKey, KDF, SEED_BYTES},
 };
 use ces_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
 use ces_serde_more as more;
@@ -179,7 +178,7 @@ fn remove_checkpoint(filename: &Path) -> Result<()> {
 #[derive(Encode, Decode, Clone, Debug)]
 struct PersistentRuntimeData {
     genesis_block_hash: H256,
-    sk: RsaDer,
+    sk: Sr25519SecretKey,
     trusted_sk: bool,
     dev_mode: bool,
 }
@@ -187,9 +186,7 @@ struct PersistentRuntimeData {
 impl PersistentRuntimeData {
     pub fn decode_keys(&self) -> (sr25519::Pair, EcdhKey) {
         // load identity
-        let podr2_key = rsa::RsaPrivateKey::restore_from_der(&self.sk)
-            .expect("Unable restore podr2 key from sk in PersistentRuntimeData");
-        let identity_sk = crate::get_sr25519_from_rsa_key(podr2_key);
+        let identity_sk = sr25519::Pair::restore_from_secret_key(&self.sk);
         info!("Identity pubkey: {:?}", hex::encode(identity_sk.public()));
 
         // derive ecdh key
@@ -324,7 +321,7 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
     fn init_runtime_data(
         &self,
         genesis_block_hash: H256,
-        predefined_identity_key: Option<rsa::RsaPrivateKey>,
+        predefined_identity_key: Option<sr25519::Pair>,
     ) -> Result<PersistentRuntimeData> {
         let data = if let Some(identity_sk) = predefined_identity_key {
             self.save_runtime_data(genesis_block_hash, identity_sk, false, true)?
@@ -333,7 +330,7 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
                 Ok(data) => data,
                 Err(Error::PersistentRuntimeNotFound) => {
                     warn!("Persistent data not found.");
-                    let identity_sk = new_podr2_key();
+                    let identity_sk = new_sr25519_key();
                     self.save_runtime_data(genesis_block_hash, identity_sk, true, false)?
                 },
                 Err(err) => return Err(anyhow!("Failed to load persistent data: {}", err)),
@@ -351,12 +348,12 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
     fn save_runtime_data(
         &self,
         genesis_block_hash: H256,
-        podr2_sk: rsa::RsaPrivateKey,
+        sr25519_sk: sr25519::Pair,
         trusted_sk: bool,
         dev_mode: bool,
     ) -> Result<PersistentRuntimeData> {
         // Put in PresistentRuntimeData
-        let sk = podr2_sk.dump_secret_der();
+        let sk = sr25519_sk.dump_secret_key();
 
         let data = PersistentRuntimeData { genesis_block_hash, sk, trusted_sk, dev_mode };
         {

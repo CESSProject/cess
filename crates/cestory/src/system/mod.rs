@@ -12,11 +12,7 @@ use core::fmt;
 use runtime::BlockNumber;
 
 use crate::pal;
-use ces_crypto::{
-    ecdh::EcdhKey,
-    key_share,
-    rsa::Persistence, sr25519::KDF,
-};
+use ces_crypto::{ecdh::EcdhKey, key_share, rsa::Persistence, sr25519::KDF, SecretKey};
 use ces_mq::{
     traits::MessageChannel, BadOrigin, MessageDispatcher, MessageOrigin, MessageSendQueue, SignedMessageChannel,
     TypedReceiver,
@@ -283,10 +279,11 @@ impl<Platform: pal::Platform> System<Platform> {
         if self.genesis_block != 0 {
             panic!("Keyfairy must be synced start from the first block");
         }
-        let master_key = crate::get_sr25519_from_rsa_key(rsa::RsaPrivateKey::restore_from_der(
-            &master_key_history.first().expect("empty master key history").secret,
-        ).expect("Failed restore podr2 key from master_key_history in init_keyfairy"));
-        let (keyfairy,skey) = keyfairy::Keyfairy::new(
+        let master_key = crate::get_sr25519_from_rsa_key(
+            rsa::RsaPrivateKey::restore_from_der(&master_key_history.first().expect("empty master key history").secret)
+                .expect("Failed restore podr2 key from master_key_history in init_keyfairy"),
+        );
+        let (keyfairy, skey) = keyfairy::Keyfairy::new(
             master_key_history,
             block.send_mq.channel(MessageOrigin::Keyfairy, master_key.into()),
         );
@@ -378,7 +375,10 @@ impl<Platform: pal::Platform> System<Platform> {
                 // manually seal the first master key for the first gk
                 master_key::seal(self.sealing_path.clone(), &master_key_history, &self.identity_key, &self.platform);
             }
-            let master_key = crate::get_sr25519_from_rsa_key(rsa::RsaPrivateKey::restore_from_der(&master_key_history.first().expect("checked; qed.").secret).expect("Failed to restore sr25519 from master key history in process_first_keyfairy_event"));
+            let master_key = crate::get_sr25519_from_rsa_key(
+                rsa::RsaPrivateKey::restore_from_der(&master_key_history.first().expect("checked; qed.").secret)
+                    .expect("Failed to restore sr25519 from master key history in process_first_keyfairy_event"),
+            );
             // upload the master key on chain via worker egress
             info!("Keyfairy: upload master key {} on chain", hex::encode(master_key.public()));
             let master_pubkey = RegistryEvent::MasterPubkey { master_pubkey: master_key.public() };
@@ -509,14 +509,29 @@ impl<Platform: pal::Platform> System<Platform> {
     /// Decrypt the key encrypted by `encrypt_key_to()`
     ///
     /// This function could panic a lot, thus should only handle data from other ceseals.
-    fn decrypt_key_from(&self, ecdh_pubkey: &EcdhPublicKey, encrypted_key: &[u8], iv: &AeadIV) -> (sr25519::Pair,Vec<u8>) {
+    fn decrypt_key_from(
+        &self,
+        ecdh_pubkey: &EcdhPublicKey,
+        encrypted_key: &[u8],
+        iv: &AeadIV,
+    ) -> (sr25519::Pair, Vec<u8>) {
         let my_ecdh_key = self
             .identity_key
             .derive_ecdh_key()
             .expect("Should never failed with valid identity key; qed.");
         let secret = key_share::decrypt_secret_from(&my_ecdh_key, &ecdh_pubkey.0, encrypted_key, iv)
             .expect("Failed to decrypt dispatched key");
-        (crate::get_sr25519_from_rsa_key(rsa::RsaPrivateKey::restore_from_der(&secret).expect("Failed restore sr25519 from rsa in decrypt_key_from")),secret)
+        let secret_data = match secret {
+            SecretKey::Rsa(key) => key,
+            _ => panic!("Expected rsa key, but got sr25519 key."),
+        };
+        (
+            crate::get_sr25519_from_rsa_key(
+                rsa::RsaPrivateKey::restore_from_der(&secret_data)
+                    .expect("Failed restore sr25519 from rsa in decrypt_key_from"),
+            ),
+            secret_data,
+        )
     }
 
     /// Process encrypted master key from mq
@@ -561,8 +576,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 .map(|(rotation_id, block_height, key)| RotatedMasterKey {
                     rotation_id: *rotation_id,
                     block_height: *block_height,
-                    secret: self
-                        .decrypt_key_from(&key.ecdh_pubkey, &key.encrypted_key, &key.iv).1,
+                    secret: self.decrypt_key_from(&key.ecdh_pubkey, &key.encrypted_key, &key.iv).1,
                 })
                 .collect();
             self.set_master_key_history(master_key_history);
