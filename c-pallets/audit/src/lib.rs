@@ -798,7 +798,7 @@ pub mod pallet {
 						// );
 						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 						//For Testing
-						if count >= 27 {
+						if count >= 42 {
 							let result = T::MinerControl::force_miner_exit(&miner);
 							weight = weight.saturating_add(T::DbWeight::get().reads_writes(5, 5));
 							if result.is_err() {
