@@ -24,7 +24,6 @@ once_cell = { workspace = true }
 parity-scale-codec   = { workspace = true, features = ["derive", "full", "chain-error"] }
 rand        = { workspace = true }
 regex       = { workspace = true }
-reqwest = { workspace = true, features = ["rustls-tls", "socks", "trust-dns"] }
 ring        = { workspace = true }
 scale-info = { workspace = true, features = ["derive"] }
 scopeguard   = { workspace = true }

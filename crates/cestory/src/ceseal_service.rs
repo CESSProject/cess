@@ -13,7 +13,7 @@ use cestory_api::{
     endpoints::EndpointType,
 };
 use parity_scale_codec::Error as ScaleDecodeError;
-use std::{fmt::Debug, str::FromStr, time::Duration};
+use std::{fmt::Debug, time::Duration};
 use thiserror::Error;
 use tonic::{Request, Response, Status};
 use tracing::{error, info};
@@ -501,66 +501,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
     async fn config_network(&self, request: Request<pb::NetworkConfig>) -> RpcResult<()> {
         self.lock_ceseal(false, false)?.set_netconfig(request.into_inner());
         Ok(Response::new(()))
-    }
-
-    /// Fetch resource from the internet.
-    async fn http_fetch(&self, request: Request<pb::HttpRequest>) -> RpcResult<pb::HttpResponse> {
-        use reqwest::{
-            header::{HeaderMap, HeaderName, HeaderValue},
-            Method,
-        };
-        use reqwest_env_proxy::EnvProxyBuilder;
-
-        let request = request.into_inner();
-        let url: reqwest::Url = request.url.parse().map_err(from_debug)?;
-
-        let client = reqwest::Client::builder()
-            .trust_dns(true)
-            .env_proxy(url.host_str().unwrap_or_default())
-            .build()
-            .map_err(from_debug)?;
-
-        let method: Method = FromStr::from_str(&request.method)
-            .or(Err("Invalid HTTP method"))
-            .map_err(from_display)?;
-        let mut headers = HeaderMap::new();
-        for header in &request.headers {
-            let name = HeaderName::from_str(&header.name)
-                .or(Err("Invalid HTTP header key"))
-                .map_err(from_display)?;
-            let value = HeaderValue::from_str(&header.value)
-                .or(Err("Invalid HTTP header value"))
-                .map_err(from_display)?;
-            headers.insert(name, value);
-        }
-
-        let response = client
-            .request(method, url)
-            .headers(headers)
-            .body(request.body)
-            .send()
-            .await
-            .map_err(from_debug)?;
-
-        let headers: Vec<_> = response
-            .headers()
-            .iter()
-            .map(|(name, value)| {
-                let name = name.to_string();
-                let value = value.to_str().unwrap_or_default().into();
-                pb::HttpHeader { name, value }
-            })
-            .collect();
-
-        let status_code = response.status().as_u16() as _;
-        let body = response
-            .bytes()
-            .await
-            .or(Err("Failed to copy response body"))
-            .map_err(from_display)?
-            .to_vec();
-
-        Ok(Response::new(pb::HttpResponse { status_code, body, headers }))
     }
 
     /// Get network configuration

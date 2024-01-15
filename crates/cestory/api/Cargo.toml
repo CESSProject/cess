@@ -20,7 +20,6 @@ prost = { workspace = true }
 async-trait = { workspace = true }
 anyhow = { workspace = true, optional = true }
 log = { workspace = true }
-reqwest = { workspace = true, optional = true, features = ["rustls-tls", "socks"] }
 primitive-types = { workspace = true, optional = true }
 im = { workspace = true }
 tonic = { workspace = true }
@@ -56,7 +55,6 @@ std = [
 sgx = []
 ceseal-client = [
     "anyhow",
-    "reqwest",
 ]
 
 derive_serde = [

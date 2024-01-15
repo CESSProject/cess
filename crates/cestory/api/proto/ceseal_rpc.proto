@@ -55,9 +55,6 @@ service CesealApi {
   // Config the ceSeal's network (currently, SOCKS5 proxy only)
   rpc ConfigNetwork (NetworkConfig) returns (google.protobuf.Empty) {}
 
-  // Fetch resource from the internet.
-  rpc HttpFetch (HttpRequest) returns (HttpResponse) {}
-  
   // Get network configuration
   rpc GetNetworkConfig (google.protobuf.Empty) returns (NetworkConfigResponse) {}
 
