@@ -2,10 +2,8 @@ pub mod keyfairy;
 mod master_key;
 
 use crate::{
-    expert::CesealExpertStub,
-    podr2,
     secret_channel::ecdh_serde,
-    types::{BlockDispatchContext, ExternalServiceMadeSender},
+    types::{BlockDispatchContext, KeyfairyReadySender},
 };
 use anyhow::Result;
 use core::fmt;
@@ -100,7 +98,7 @@ impl WorkerIdentityKey {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, ::scale_info::TypeInfo)]
+#[derive(Serialize, Deserialize, ::scale_info::TypeInfo)]
 pub struct System<Platform> {
     platform: Platform,
     // Configuration
@@ -122,7 +120,7 @@ pub struct System<Platform> {
     registered: bool,
 
     // Keyfairy
-    keyfairy: Option<keyfairy::Keyfairy<SignedMessageChannel>>,
+    pub(crate) keyfairy: Option<keyfairy::Keyfairy<SignedMessageChannel>>,
 
     // Cached for query
     /// The block number of the last block that the worker has synced.
@@ -137,7 +135,7 @@ pub struct System<Platform> {
 
     #[codec(skip)]
     #[serde(skip)]
-    ext_srvs_made_sender: Option<ExternalServiceMadeSender>,
+    keyfairy_ready_sender: Option<KeyfairyReadySender>,
 }
 
 impl<Platform: pal::Platform> System<Platform> {
@@ -151,7 +149,7 @@ impl<Platform: pal::Platform> System<Platform> {
         ecdh_key: EcdhKey,
         send_mq: &MessageSendQueue,
         recv_mq: &mut MessageDispatcher,
-        ext_srvs_made_sender: ExternalServiceMadeSender,
+        keyfairy_ready_sender: KeyfairyReadySender,
     ) -> Self {
         // Trigger panic early if platform is not properly implemented.
         let _ = Platform::app_version();
@@ -177,7 +175,7 @@ impl<Platform: pal::Platform> System<Platform> {
             block_number: 0,
             now_ms: 0,
             genesis_block: 0,
-            ext_srvs_made_sender: Some(ext_srvs_made_sender),
+            keyfairy_ready_sender: Some(keyfairy_ready_sender),
         }
     }
 
@@ -283,26 +281,18 @@ impl<Platform: pal::Platform> System<Platform> {
             rsa::RsaPrivateKey::restore_from_der(&master_key_history.first().expect("empty master key history").secret)
                 .expect("Failed restore podr2 key from master_key_history in init_keyfairy"),
         );
-        let (keyfairy, skey) = keyfairy::Keyfairy::new(
+        let keyfairy = keyfairy::Keyfairy::new(
             master_key_history,
             block.send_mq.channel(MessageOrigin::Keyfairy, master_key.into()),
         );
         self.keyfairy = Some(keyfairy);
 
-        self.init_external_services(skey);
-    }
-
-    fn init_external_services(&mut self, skey: rsa::RsaPrivateKey) {
-        let (ce, rx) = CesealExpertStub::new();
-        //TODO! TO BE REFACOTER HERE!
-        let podr2_key = ces_pdp::gen_keypair_from_private_key(skey);
-        let s1 = podr2::new_podr2_api_server(podr2_key.clone(), ce.clone());
-        let s2 = podr2::new_podr2_verifier_api_server(podr2_key, ce);
-        self.ext_srvs_made_sender
-            .as_ref()
-            .expect("ext_srvs_made_sender must be set")
-            .send((rx, s1, s2))
-            .expect("must to be sent");
+        let keyfairy_ready_sender = self.keyfairy_ready_sender.take();
+        if let Some(sender) = keyfairy_ready_sender {
+            let podr2_key =
+                ces_pdp::gen_keypair_from_private_key(self.keyfairy.as_ref().unwrap().rsa_private_key().clone());
+            sender.send(podr2_key).expect("expect send on keyfairy ready");
+        }
     }
 
     fn process_keyfairy_launch_event(

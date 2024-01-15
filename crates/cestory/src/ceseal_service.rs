@@ -762,7 +762,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         if self.system.is_some() {
             return Err(from_display("Runtime already initialized"))
         }
-        let ext_srvs_made_sender = self.ext_srvs_made_sender.take().expect("ext_srvs_made_sender must be set");
+        let keyfairy_ready_sender = self.keyfairy_ready_sender.take().expect("keyfairy_ready_sender must be set");
 
         info!("Initializing runtime");
         info!("operator      : {operator:?}");
@@ -856,7 +856,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
             ecdh_key,
             &runtime_state.send_mq,
             &mut runtime_state.recv_mq,
-            ext_srvs_made_sender,
+            keyfairy_ready_sender,
         );
 
         // Build WorkerRegistrationInfo

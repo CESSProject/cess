@@ -45,25 +45,22 @@ impl<MsgChan> Keyfairy<MsgChan>
 where
     MsgChan: MessageChannel<Signer = Sr25519Signer> + Clone,
 {
-    pub fn new(master_key_history: Vec<RotatedMasterKey>, egress: MsgChan) -> (Self, rsa::RsaPrivateKey) {
+    pub fn new(master_key_history: Vec<RotatedMasterKey>, egress: MsgChan) -> Self {
         let rsa_key =
             rsa::RsaPrivateKey::restore_from_der(&master_key_history.first().expect("empty master key history").secret)
                 .expect("fail convert sr25519 pair from rsa skey when process new event");
         let master_key = crate::get_sr25519_from_rsa_key(rsa_key.clone());
         egress.set_dummy(true);
 
-        (
-            Self {
-                master_key,
-                rsa_key: rsa_key.clone(),
-                master_pubkey_on_chain: false,
-                registered_on_chain: false,
-                master_key_history,
-                egress: egress.clone(),
-                iv_seq: 0,
-            },
+        Self {
+            master_key,
             rsa_key,
-        )
+            master_pubkey_on_chain: false,
+            registered_on_chain: false,
+            master_key_history,
+            egress: egress.clone(),
+            iv_seq: 0,
+        }
     }
 
     fn generate_iv(&mut self, block_number: chain::BlockNumber) -> aead::IV {
@@ -277,5 +274,9 @@ where
         )
         .expect("should never fail with valid master key; qed.");
         EncryptedKey { ecdh_pubkey: sr25519::Public(ecdh_pubkey), encrypted_key, iv }
+    }
+
+    pub fn rsa_private_key(&self) -> &rsa::RsaPrivateKey {
+        &self.rsa_key
     }
 }

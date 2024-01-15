@@ -40,7 +40,7 @@ impl std::fmt::Display for FailCode {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Keys {
     pub skey: RsaPrivateKey,
     pub pkey: RsaPublicKey,

@@ -16,7 +16,20 @@ use serde::{
 
 use crate::light_validation::LightValidation;
 use anyhow::{anyhow, Context as _, Result};
+use ces_crypto::{
+    aead,
+    ecdh::EcdhKey,
+    sr25519::{Persistence as Persist, Sr25519SecretKey, KDF, SEED_BYTES},
+};
+use ces_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
+use ces_serde_more as more;
 use ces_types::{AttestationProvider, HandoverChallenge};
+use cestory_api::{
+    crpc::{ceseal_api_server::CesealApiServer, GetEndpointResponse, InitRuntimeResponse, NetworkConfig},
+    ecall_args::InitArgs,
+    endpoints::EndpointType,
+    storage_sync::{StorageSynchronizer, Synchronizer},
+};
 use parity_scale_codec::{Decode, Encode};
 use ring::rand::SecureRandom;
 use scale_info::TypeInfo;
@@ -28,25 +41,11 @@ use std::{
     marker::PhantomData,
     path::{Path, PathBuf},
     str,
-    sync::{mpsc, Arc, Mutex, MutexGuard},
+    sync::{Arc, Mutex, MutexGuard},
+    time::Instant,
 };
 use thiserror::Error;
-
-use cestory_api::{
-    crpc::{ceseal_api_server::CesealApiServer, GetEndpointResponse, InitRuntimeResponse, NetworkConfig},
-    ecall_args::InitArgs,
-    endpoints::EndpointType,
-    storage_sync::{StorageSynchronizer, Synchronizer},
-};
-
-use ces_crypto::{
-    aead,
-    ecdh::EcdhKey,
-    sr25519::{Persistence as Persist, Sr25519SecretKey, KDF, SEED_BYTES},
-};
-use ces_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
-use ces_serde_more as more;
-use std::time::Instant;
+use tokio::sync::oneshot;
 use types::Error;
 
 pub use ceseal_service::RpcService;
@@ -257,7 +256,7 @@ pub struct Ceseal<Platform> {
 
     #[codec(skip)]
     #[serde(skip)]
-    pub(crate) ext_srvs_made_sender: Option<types::ExternalServiceMadeSender>,
+    pub(crate) keyfairy_ready_sender: Option<types::KeyfairyReadySender>,
 }
 
 #[test]
@@ -293,16 +292,16 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
             trusted_sk: false,
             rcu_dispatching: false,
             started_at: Instant::now(),
-            ext_srvs_made_sender: None,
+            keyfairy_ready_sender: None,
         }
     }
 
-    pub fn init(&mut self, args: InitArgs) -> types::ExternalServiceMadeReceiver {
+    pub fn init(&mut self, args: InitArgs) -> types::KeyfairyReadyReceiver {
         self.can_load_chain_state = !system::gk_master_key_exists(&args.sealing_path);
         self.args = Arc::new(args);
 
-        let (tx, rx) = mpsc::channel();
-        self.ext_srvs_made_sender = Some(tx);
+        let (tx, rx) = oneshot::channel();
+        self.keyfairy_ready_sender = Some(tx);
         rx
     }
 
@@ -316,6 +315,18 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
 
     pub fn start_at(&self) -> &Instant {
         &self.started_at
+    }
+
+    pub fn get_pdp_key(&self) -> Result<ces_pdp::Keys, types::Error> {
+        if let Some(ref system) = self.system {
+            if let Some(ref keyfariy) = system.keyfairy {
+                Ok(ces_pdp::gen_keypair_from_private_key(keyfariy.rsa_private_key().clone()))
+            } else {
+                return Err(types::Error::KeyfairyNotReady)
+            }
+        } else {
+            return Err(types::Error::SystemNotReady)
+        }
     }
 
     fn init_runtime_data(
@@ -781,21 +792,31 @@ where
         info!("Checkpoint disabled.");
         CesealSafeBox::new(platform)
     };
-    let ext_srvs_made_rx = cestory.lock(true, true).expect("Failed to lock Ceseal").init(init_args);
+    let pois_param = init_args.pois_param.clone();
+    let keyfairy_ready_rx = cestory.lock(true, true).expect("Failed to lock Ceseal").init(init_args);
     info!("Enclave init OK");
 
     let cestory_clone = cestory.clone();
     tokio::spawn(async move {
         let ceseal = cestory_clone;
-        let (expert_cmd_rx, podr2, podr2v) = { ext_srvs_made_rx.recv().expect("external service made error") };
+        let podr2_key = keyfairy_ready_rx.await.expect("expect keyfairy ready");
+
+        let (ceseal_expert, expert_cmd_rx) = expert::CesealExpertStub::new();
+        let podr2_srv = podr2::new_podr2_api_server(podr2_key.clone(), ceseal_expert.clone());
+        let podr2v_srv = podr2::new_podr2_verifier_api_server(podr2_key.clone(), ceseal_expert.clone());
+        let pois_srv =
+            pois::new_pois_certifier_api_server(podr2_key.clone(), pois_param.clone(), ceseal_expert.clone());
+        let poisv_srv = pois::new_pois_verifier_api_server(podr2_key, pois_param, ceseal_expert);
 
         let expert_handler = tokio::spawn(expert::run(ceseal, expert_cmd_rx));
 
         let ext_srv_handler = tokio::spawn(async move {
             info!("keyfairy ready, external server will listening on {}", public_listener_addr);
             let result = Server::builder()
-                .add_service(podr2)
-                .add_service(podr2v)
+                .add_service(podr2_srv)
+                .add_service(podr2v_srv)
+                .add_service(pois_srv)
+                .add_service(poisv_srv)
                 .serve(public_listener_addr)
                 .await;
             info!("external server shutdown!");

@@ -1,5 +1,4 @@
 use crate::{expert::CesealExpertStub, verify_signature};
-use anyhow::anyhow;
 use ces_pdp::Keys;
 use ces_pois::{
     acc::{multi_level_acc::WitnessNode, rsa_keygen, RsaKey},
@@ -9,10 +8,11 @@ use ces_pois::{
     },
 };
 use cestory_api::pois::{
-    pois_certifier_api_server::PoisCertifierApi, pois_verifier_api_server::PoisVerifierApi, AccWitnessNode, Challenge,
-    Int64Slice, PoisStatus, ProofHashAndLeftRight, RequestMinerCommitGenChall, RequestMinerInitParam,
-    RequestSpaceProofVerify, RequestSpaceProofVerifyTotal, RequestVerifyCommitAndAccProof, RequestVerifyDeletionProof,
-    ResponseMinerInitParam, ResponseSpaceProofVerify, ResponseSpaceProofVerifyTotal,
+    pois_certifier_api_server::{self, PoisCertifierApi},
+    pois_verifier_api_server::{self, PoisVerifierApi},
+    AccWitnessNode, Challenge, Int64Slice, PoisStatus, ProofHashAndLeftRight, RequestMinerCommitGenChall,
+    RequestMinerInitParam, RequestSpaceProofVerify, RequestSpaceProofVerifyTotal, RequestVerifyCommitAndAccProof,
+    RequestVerifyDeletionProof, ResponseMinerInitParam, ResponseSpaceProofVerify, ResponseSpaceProofVerifyTotal,
     ResponseVerifyCommitOrDeletionProof,
 };
 use crypto::{digest::Digest, sha2::Sha256};
@@ -27,6 +27,9 @@ use std::{
     time::Instant,
 };
 use tonic::{Request, Response, Status};
+
+pub type PoisCertifierApiServer = pois_certifier_api_server::PoisCertifierApiServer<PoisCertifierServer>;
+pub type PoisVerifierApiServer = pois_verifier_api_server::PoisVerifierApiServer<PoisVerifierServer>;
 
 #[derive(Encode)]
 pub struct MinerCommitProofInfo {
@@ -91,19 +94,19 @@ pub struct PoisCertifierServer {
     ceseal_expert: CesealExpertStub,
 }
 
-pub fn new_pois_certifier_server(
+pub fn new_pois_certifier_api_server(
     podr2_keys: Keys,
     pois_param: (i64, i64, i64),
-    tee_controller_account: [u8; 32],
     ceseal_expert: CesealExpertStub,
-) -> PoisCertifierServer {
-    PoisCertifierServer {
+) -> PoisCertifierApiServer {
+    let inner = PoisCertifierServer {
         podr2_keys,
         verifier: Verifier::new(pois_param.0, pois_param.1, pois_param.2),
         commit_acc_proof_chals_map: DashMap::new(),
-        tee_controller_account,
+        tee_controller_account: [0; 32], //FIXME: <- REMOVE HERE!
         ceseal_expert,
-    }
+    };
+    PoisCertifierApiServer::new(inner)
 }
 
 //FIXME: TO REMOVE BELOW LINE
@@ -115,18 +118,18 @@ pub struct PoisVerifierServer {
     ceseal_expert: CesealExpertStub,
 }
 
-pub fn new_pois_verifier_server(
+pub fn new_pois_verifier_api_server(
     podr2_keys: Keys,
     pois_param: (i64, i64, i64),
-    tee_controller_account: [u8; 32],
     ceseal_expert: CesealExpertStub,
-) -> PoisVerifierServer {
-    PoisVerifierServer {
+) -> PoisVerifierApiServer {
+    let inner = PoisVerifierServer {
         podr2_keys,
         verifier: Verifier::new(pois_param.0, pois_param.1, pois_param.2),
-        tee_controller_account,
+        tee_controller_account: [0; 32], //FIXME: <- REMOVE HERE!
         ceseal_expert,
-    }
+    };
+    PoisVerifierApiServer::new(inner)
 }
 
 fn try_into_proto_byte_hash<T>(data: &T) -> Result<Vec<u8>, Status>
@@ -154,7 +157,7 @@ impl PoisCertifierApi for PoisCertifierServer {
         //create key for miner
         let miner_id: Vec<u8> = request.into_inner().miner_id;
         let now = Instant::now();
-        info!("[Pois Request New Key] miner {:?} request new key...", get_ss58_address(&miner_id).unwrap());
+        info!("[Pois Request New Key] miner {:?} request new key...", get_ss58_address(&miner_id)?);
 
         //FIXME: TO OPTIMIZE
         let miner_acc_id =
@@ -187,7 +190,7 @@ impl PoisCertifierApi for PoisCertifierServer {
 
         info!(
             "[Pois Request New Key] success generate new key for miner :{:?} g length is {} . used time :{:.2?}",
-            get_ss58_address(&miner_id).unwrap(),
+            get_ss58_address(&miner_id)?,
             acc.len(),
             now.elapsed()
         );
@@ -215,7 +218,7 @@ impl PoisCertifierApi for PoisCertifierServer {
             commit: req.commit.clone(),
             miner_sign: Vec::new(),
         };
-        let miner_cess_address = get_ss58_address(&miner_req.miner_id).unwrap();
+        let miner_cess_address = get_ss58_address(&miner_req.miner_id)?;
         info!("[Pois Commit Chall] miner {:?} request for commit challenge...", miner_cess_address);
         let miner_req_hash = try_into_proto_byte_hash(&miner_req)?;
 
@@ -268,7 +271,7 @@ impl PoisCertifierApi for PoisCertifierServer {
         let mut commit_and_acc_proof = request.into_inner();
         let miner_sign = commit_and_acc_proof.miner_sign;
         let miner_id = commit_and_acc_proof.miner_id.clone();
-        let miner_cess_address = get_ss58_address(&miner_id).unwrap();
+        let miner_cess_address = get_ss58_address(&miner_id)?;
         info!("[Pois Verify Commit Proof] miner {:?} commit proof for verify...", miner_cess_address);
 
         //Check if the miner has logged out
@@ -436,7 +439,7 @@ impl PoisCertifierApi for PoisCertifierServer {
         let mut deletion_proof = request.into_inner();
         let miner_sign = deletion_proof.miner_sign;
         let miner_id = deletion_proof.miner_id.clone();
-        let miner_cess_address = get_ss58_address(&miner_id).unwrap();
+        let miner_cess_address = get_ss58_address(&miner_id)?;
         let now = Instant::now();
         info!("[Verify Deletion Proof] miner {:?} verify deletion proof...", miner_cess_address);
 
@@ -554,7 +557,7 @@ impl PoisVerifierApi for PoisVerifierServer {
         let proof = req.proof.ok_or(Status::invalid_argument("Error space proof missing proof"))?;
         let left = proof.left;
         let right = proof.right;
-        let miner_cess_address = get_ss58_address(&miner_id).unwrap();
+        let miner_cess_address = get_ss58_address(&miner_id)?;
         info!("[Pois Verify Single Space Proof] miner {:?} verify single space proof...", miner_cess_address);
         //first verify miner polkadot signature
         let miner_req_hash = try_into_proto_byte_hash(&proof)?;
@@ -622,7 +625,7 @@ impl PoisVerifierApi for PoisVerifierServer {
             .collect::<Vec<u64>>()
             .try_into()
             .map_err(|_| Status::invalid_argument("space_chals parameters passed incorrectly!"))?;
-        let miner_cess_address = get_ss58_address(&miner_id).unwrap();
+        let miner_cess_address = get_ss58_address(&miner_id)?;
         let now = Instant::now();
         info!("[Verify Space Total] miner {:?} verify space proof tatal...", miner_cess_address);
         //convert and sort
@@ -958,11 +961,27 @@ fn verify_pois_status_signature(pois_info: MinerPoisInfo, podr2_keys: &Keys, sig
     Ok(())
 }
 
+//TODO: to refactor these code below
 use sp_core::crypto::{Ss58AddressFormat, Ss58AddressFormatRegistry, Ss58Codec};
 
-fn get_ss58_address(account: &[u8]) -> anyhow::Result<String> {
-    let ss58_address: AccountId32 = account.try_into().map_err(|_| anyhow!("FIXME: temp code"))?;
+#[derive(thiserror::Error, Debug)]
+#[error("{0}")]
+struct AccountConvertError(String);
+
+fn get_ss58_address(account: &[u8]) -> std::result::Result<String, AccountConvertError> {
+    if account.len() != 32 {
+        return Err(AccountConvertError("The length of raw account bytes must be 32".to_string()))
+    }
+    let ss58_address: AccountId32 = account
+        .try_into()
+        .map_err(|_| AccountConvertError("account bytes invalid".to_string()))?;
     let address_type = Ss58AddressFormatRegistry::CessTestnetAccount as u16;
     let ss58_cess_address = ss58_address.to_ss58check_with_version(Ss58AddressFormat::custom(address_type));
     Ok(ss58_cess_address)
+}
+
+impl From<AccountConvertError> for Status {
+    fn from(value: AccountConvertError) -> Self {
+        Status::internal(value.0)
+    }
 }

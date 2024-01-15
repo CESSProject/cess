@@ -1,15 +1,12 @@
-use crate::{
-    expert::ExpertCmdReceiver,
-    podr2::{Podr2ApiServer, Podr2VerifierApiServer},
-};
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
-use std::{fmt::Debug, sync::mpsc};
+use std::fmt::Debug;
 use thiserror::Error;
+use tokio::sync::oneshot;
 
 extern crate runtime as chain;
 
-pub type ExternalServiceMadeSender = mpsc::Sender<(ExpertCmdReceiver, Podr2ApiServer, Podr2VerifierApiServer)>;
-pub type ExternalServiceMadeReceiver = mpsc::Receiver<(ExpertCmdReceiver, Podr2ApiServer, Podr2VerifierApiServer)>;
+pub type KeyfairyReadySender = oneshot::Sender<ces_pdp::Keys>;
+pub type KeyfairyReadyReceiver = oneshot::Receiver<ces_pdp::Keys>;
 
 // supportive
 
@@ -34,6 +31,12 @@ pub struct TxRef {
 #[derive(Debug, Error)]
 #[allow(clippy::enum_variant_names)]
 pub enum Error {
+    #[error("Ceseal system not ready")]
+    SystemNotReady,
+
+    #[error("Keyfairy not ready")]
+    KeyfairyNotReady,
+
     #[error(transparent)]
     TonicTransport(#[from] tonic::transport::Error),
 
