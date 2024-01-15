@@ -1,0 +1,61 @@
+[package]
+name = "pallet-evm-account-mapping"
+version = "0.0.1"
+description = "A Substrate pallet for compatible with EVM wallets."
+authors = ["Phala Network"]
+homepage = "https://github.com/phala-network/substrate-evm_account_mapping"
+repository = "https://github.com/phala-network/substrate-evm_account_mapping"
+license = "Apache-2.0"
+edition = "2021"
+publish = false
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "3.6.4", default-features = false, features = ["derive"] }
+scale-info = { version = "2.9.0", default-features = false, features = ["derive"] }
+sp-io = { workspace = true, default-features = false }
+sp-runtime = { workspace = true, default-features = false }
+sp-std = { workspace = true, default-features = false }
+sp-core = { workspace = true, default-features = false, features = ["serde"] }
+frame-benchmarking = { workspace = true, optional = true, default-features = false }
+frame-support = { workspace = true, default-features = false }
+frame-system = { workspace = true, default-features = false }
+pallet-transaction-payment = { workspace = true, default-features = false }
+
+hex = { workspace = true, features = ["alloc"] }
+log = { workspace = true }
+ethabi = { workspace = true }
+
+[dev-dependencies]
+pallet-balances = { workspace = true }
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"scale-info/std",
+	"sp-io/std",
+	"sp-runtime/std",
+	"sp-std/std",
+	"sp-core/std",
+	"frame-benchmarking?/std",
+	"frame-support/std",
+	"frame-system/std",
+	"pallet-transaction-payment/std",
+	"hex/std",
+	"log/std",
+	"ethabi/std",
+]
+runtime-benchmarks = [
+	"frame-benchmarking/runtime-benchmarks",
+	"frame-support/runtime-benchmarks",
+	"frame-system/runtime-benchmarks",
+	"sp-runtime/runtime-benchmarks"
+]
+try-runtime = [
+	"frame-support/try-runtime",
+	"frame-system/try-runtime",
+	"sp-runtime/try-runtime"
+]

@@ -1232,6 +1232,35 @@ impl pallet_oss::Config for Runtime {
 	type AuthorLimit = AuthorLimit;
 }
 
+pub struct DealWithServiceFee;
+impl OnUnbalanced<NegativeImbalance> for DealWithServiceFee {
+	fn on_nonzero_unbalanced(amount: NegativeImbalance) {
+		drop(amount);
+	}
+}
+
+parameter_types! {
+	pub EIP712Name: Vec<u8> = b"Substrate".to_vec();
+	pub EIP712Version: Vec<u8> = b"1".to_vec();
+	pub EIP712ChainID: pallet_evm_account_mapping::EIP712ChainID = sp_core::U256::from(0);
+	pub EIP712VerifyingContractAddress: pallet_evm_account_mapping::EIP712VerifyingContractAddress = sp_core::H160::from([0u8; 20]);
+}
+
+impl pallet_evm_account_mapping::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeCall = RuntimeCall;
+	type Currency = Balances;
+	type AddressConverter = pallet_evm_account_mapping::SubstrateAddressConverter;
+	type ServiceFee = ConstU128<10000000000>;
+	type OnUnbalancedForServiceFee = DealWithServiceFee;
+	type CallFilter = frame_support::traits::Everything;
+	type EIP712Name = EIP712Name;
+	type EIP712Version = EIP712Version;
+	type EIP712ChainID = EIP712ChainID;
+	type EIP712VerifyingContractAddress = EIP712VerifyingContractAddress;
+	type WeightInfo = pallet_evm_account_mapping::weights::SubstrateWeight<Runtime>;
+}
+
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 where
 	RuntimeCall: From<LocalCall>,
@@ -1664,6 +1693,7 @@ construct_runtime!(
 		EVMChainId: pallet_evm_chain_id = 53,
 		DynamicFee: pallet_dynamic_fee = 54,
 		BaseFee: pallet_base_fee = 55,
+		EvmAccountMapping: pallet_evm_account_mapping = 56,
 
 		// CESS pallets
 		FileBank: pallet_file_bank = 60,

@@ -268,6 +268,7 @@ async-trait = "0.1"
 base64 = { version = "0.12", default-features = false, features = ["alloc"] }
 bls12_381 = { version = "0.7", default-features = false, features = ["groups", "pairings", "alloc", "experimental"] }
 clap = { version = "4.0.32", features = ["derive"] }
+ethabi = { version = "18.0", default-features = false }
 futures = "0.3"
 getrandom = { version = "0.2.10", default-features = false, features = ["custom"] }
 hex-literal = "0.4.1"
@@ -305,6 +306,7 @@ cp-bloom-filter = { path = "crates/bloom-filter", default-features = false }
 pallet-audit = { path = "pallets/audit", default-features = false }
 pallet-cacher = { path = "pallets/cacher", default-features = false }
 pallet-cess-treasury = { path = "pallets/cess-treasury", default-features = false }
+pallet-evm-account-mapping = { path = "pallets/evm-account-mapping", default-features = false }
 pallet-file-bank = { path = "pallets/file-bank", default-features = false }
 pallet-oss = { path = "pallets/oss", default-features = false }
 pallet-scheduler-credit = { path = "pallets/scheduler-credit", default-features = false }

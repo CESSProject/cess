@@ -85,6 +85,7 @@ pallet-tee-worker = { workspace = true }
 pallet-storage-handler = { workspace = true }
 pallet-oss = { workspace = true }
 pallet-cacher = { workspace = true }
+pallet-evm-account-mapping = { workspace = true }
 
 # Frontier
 fp-account = { workspace = true, features = ["serde"] }
@@ -142,13 +143,14 @@ std = [
   "pallet-contracts-primitives/std",
   "pallet-contracts/std",
   "pallet-dynamic-fee/std",
+  "pallet-evm/std",
+  "pallet-evm-account-mapping/std",
+  "pallet-evm-chain-id/std",
   "pallet-election-provider-multi-phase/std",
   "pallet-ethereum/std",
-  "pallet-evm-chain-id/std",
   "pallet-evm-precompile-modexp/std",
   "pallet-evm-precompile-sha3fips/std",
   "pallet-evm-precompile-simple/std",
-  "pallet-evm/std",
   "pallet-file-bank/std",
   "pallet-grandpa/std",
   "pallet-im-online/std",
