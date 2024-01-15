@@ -72,7 +72,7 @@ use frame_support::{
 		EstimateNextSessionRotation, FindAuthor, Randomness, ReservableCurrency, StorageVersion,
 		ValidatorSetWithIdentification,
 	},
-	transactional, PalletId, WeakBoundedVec,
+	transactional, PalletId,
 };
 use frame_system::offchain::CreateSignedTransaction;
 use pallet_sminer::MinerControl;
@@ -911,6 +911,10 @@ pub mod pallet {
 
 			let one_day = T::OneDay::get();
 			if now < one_day.saturating_mul(3u32.saturated_into()) {
+				return weight;
+			}
+
+			if now % 10u32.saturated_into() != 0u32.saturated_into() {
 				return weight;
 			}
 

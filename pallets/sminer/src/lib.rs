@@ -986,7 +986,7 @@ pub mod pallet {
 		// FOR TESTING
 		#[pallet::call_index(19)]
 		#[transactional]
-		#[pallet::weight(0)]
+		#[pallet::weight(Weight::zero())]
 		pub fn clear_miner_service(origin: OriginFor<T>, miner: AccountOf<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
