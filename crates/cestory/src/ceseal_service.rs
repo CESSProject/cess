@@ -1,6 +1,6 @@
 use super::*;
 use crate::system::System;
-use ces_crypto::{key_share, rsa::Persistence, sr25519::KDF};
+use ces_crypto::{key_share, sr25519::KDF, SecretKey};
 use ces_types::{
     attestation::{validate as validate_attestation_report, IasFields},
     messaging::EncryptedKey,
@@ -261,7 +261,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
         Ok(Response::new(pb::HandoverChallenge::new(challenge)))
     }
 
-    /// Key Handover Server: Get worker key with RA report on challenge from another ceSeal
+    /// Key Handover Server: Get worker key with RA report on challenge from another Ceseal
     async fn handover_start(
         &self,
         request: Request<pb::HandoverChallengeResponse>,
@@ -369,7 +369,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
             &my_identity_key,
             &[b"worker_key_handover"],
             &ecdh_pubkey.0,
-            &runtime_data.sk,
+            &SecretKey::Sr25519(runtime_data.sk),
             &iv,
         )
         .map_err(from_debug)?;
@@ -482,7 +482,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
         cestory
             .save_runtime_data(
                 encrypted_worker_key.genesis_block_hash,
-                rsa::RsaPrivateKey::restore_from_der(&secret).map_err(from_debug)?,
+                sr25519::Pair::restore_from_secret_key(&match secret {
+                    SecretKey::Sr25519(key) => key,
+                    _ => panic!("Expected sr25519 key, but got rsa key."),
+                }),
                 false, // we are not sure whether this key is injected
                 dev_mode,
             )
@@ -776,7 +779,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
 
         // load identity
         let rt_data = if let Some(raw_key) = debug_set_key {
-            let priv_key = rsa::RsaPrivateKey::restore_from_der(&raw_key).map_err(from_debug)?;
+            let priv_key = sr25519::Pair::from_seed_slice(&raw_key).map_err(from_debug)?;
             self.init_runtime_data(genesis_block_hash, Some(priv_key)).map_err(from_debug)?
         } else {
             self.init_runtime_data(genesis_block_hash, None).map_err(from_debug)?

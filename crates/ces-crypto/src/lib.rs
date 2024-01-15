@@ -8,8 +8,8 @@ extern crate std;
 
 pub mod aead;
 pub mod ecdh;
-pub mod sr25519;
 pub mod rsa;
+pub mod sr25519;
 
 #[cfg(feature = "full_crypto")]
 pub mod key_share;
@@ -29,4 +29,9 @@ pub enum CryptoError {
     //rsa
     RsaSigningError,
     RsaInvalidDer,
+}
+
+pub enum SecretKey {
+    Rsa(rsa::RsaDer),
+    Sr25519(sr25519::Sr25519SecretKey),
 }
