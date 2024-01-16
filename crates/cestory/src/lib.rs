@@ -25,7 +25,7 @@ use ces_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
 use ces_serde_more as more;
 use ces_types::{AttestationProvider, HandoverChallenge};
 use cestory_api::{
-    crpc::{ceseal_api_server::CesealApiServer, GetEndpointResponse, InitRuntimeResponse, NetworkConfig},
+    crpc::{ceseal_api_server::CesealApiServer, GetEndpointResponse, InitRuntimeResponse},
     ecall_args::InitArgs,
     endpoints::EndpointType,
     storage_sync::{StorageSynchronizer, Synchronizer},
@@ -234,9 +234,6 @@ pub struct Ceseal<Platform> {
     #[serde(default = "Instant::now")]
     last_checkpoint: Instant,
 
-    #[serde(default)]
-    netconfig: Option<NetworkConfig>,
-
     #[codec(skip)]
     #[serde(skip)]
     can_load_chain_state: bool,
@@ -287,7 +284,6 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
             handover_ecdh_key: None,
             handover_last_challenge: None,
             last_checkpoint: Instant::now(),
-            netconfig: Default::default(),
             can_load_chain_state: false,
             trusted_sk: false,
             rcu_dispatching: false,
@@ -397,33 +393,12 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
             RuntimeDataSeal::V1(data) => Ok(data),
         }
     }
-
-    pub fn set_netconfig(&mut self, config: NetworkConfig) {
-        self.netconfig = Some(config);
-        self.reconfigure_network();
-    }
-
-    fn reconfigure_network(&self) {
-        let config = match &self.netconfig {
-            None => return,
-            Some(config) => config,
-        };
-        fn reconfig_one(name: &str, value: &str) {
-            if value.is_empty() {
-                std::env::remove_var(name);
-            } else {
-                std::env::set_var(name, value);
-            }
-        }
-        reconfig_one("all_proxy", &config.all_proxy);
-    }
 }
 
 impl<P: pal::Platform> Ceseal<P> {
     // Restored from checkpoint
     pub fn on_restored(&mut self) -> Result<()> {
         self.check_requirements();
-        self.reconfigure_network();
         self.update_runtime_info(|_| {});
         self.trusted_sk = Self::load_runtime_data(&self.platform, &self.args.sealing_path)?.trusted_sk;
         if let Some(system) = &mut self.system {

@@ -497,21 +497,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
         Ok(Response::new(()))
     }
 
-    /// Config the ceSeal's network (currently, SOCKS5 proxy only)
-    async fn config_network(&self, request: Request<pb::NetworkConfig>) -> RpcResult<()> {
-        self.lock_ceseal(false, false)?.set_netconfig(request.into_inner());
-        Ok(Response::new(()))
-    }
-
-    /// Get network configuration
-    async fn get_network_config(&self, _: Request<()>) -> RpcResult<pb::NetworkConfigResponse> {
-        let cestory = self.lock_ceseal(true, false)?;
-        Ok(Response::new(pb::NetworkConfigResponse {
-            public_rpc_port: cestory.args.public_port.map(Into::into),
-            config: cestory.netconfig.clone(),
-        }))
-    }
-
     /// Load given chain state into the ceseal
     async fn load_chain_state(&self, request: Request<pb::ChainState>) -> RpcResult<()> {
         let request = request.into_inner();
