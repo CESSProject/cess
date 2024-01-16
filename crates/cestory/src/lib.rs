@@ -27,7 +27,6 @@ use ces_types::{AttestationProvider, HandoverChallenge};
 use cestory_api::{
     crpc::{ceseal_api_server::CesealApiServer, GetEndpointResponse, InitRuntimeResponse},
     ecall_args::InitArgs,
-    endpoints::EndpointType,
     storage_sync::{StorageSynchronizer, Synchronizer},
 };
 use parity_scale_codec::{Decode, Encode};
@@ -35,7 +34,6 @@ use ring::rand::SecureRandom;
 use scale_info::TypeInfo;
 use sp_core::{crypto::Pair, sr25519, H256};
 use std::{
-    collections::BTreeMap,
     fs::File,
     io::{ErrorKind, Write},
     marker::PhantomData,
@@ -212,10 +210,10 @@ pub struct Ceseal<Platform> {
     machine_id: Vec<u8>,
     runtime_info: Option<InitRuntimeResponse>,
     runtime_state: Option<RuntimeState>,
-    endpoints: BTreeMap<EndpointType, String>,
+    endpoint: Option<String>,
     #[serde(skip)]
     #[codec(skip)]
-    signed_endpoints: Option<GetEndpointResponse>,
+    signed_endpoint: Option<GetEndpointResponse>,
     // The deserialzation of system requires the mq, which inside the runtime_state, to be ready.
     #[serde(skip)]
     system: Option<system::System<Platform>>,
@@ -279,8 +277,8 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
             runtime_info: None,
             runtime_state: None,
             system: None,
-            endpoints: Default::default(),
-            signed_endpoints: None,
+            endpoint: None,
+            signed_endpoint: None,
             handover_ecdh_key: None,
             handover_last_challenge: None,
             last_checkpoint: Instant::now(),

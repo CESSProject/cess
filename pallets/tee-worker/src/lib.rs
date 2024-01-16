@@ -26,6 +26,8 @@ use frame_system::{ensure_signed, pallet_prelude::*};
 pub use weights::WeightInfo;
 pub mod weights;
 
+extern crate alloc;
+
 #[cfg(feature = "native")]
 use sp_core::hashing;
 
@@ -48,12 +50,12 @@ pub mod pallet {
 
 	use ces_pallet_mq::MessageOriginInfo;
 	use ces_types::{
+		attestation::{self, Error as AttestationError},
 		messaging::{
 			self, bind_topic, DecodedMessage, KeyfairyChange, KeyfairyLaunch, MessageOrigin, SystemEvent, WorkerEvent,
 		},
-		attestation::{self, Error as AttestationError},
 		wrap_content_to_sign, AttestationProvider, EcdhPublicKey, MasterPublicKey, SignedContentType,
-		VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerIdentity, WorkerPublicKey, WorkerRegistrationInfo, WorkerRole,
+		WorkerEndpointPayload, WorkerIdentity, WorkerPublicKey, WorkerRegistrationInfo, WorkerRole,
 	};
 
 	// Re-export
@@ -210,11 +212,8 @@ pub mod pallet {
 		InvalidSignatureLength,
 		InvalidSignature,
 		// IAS related
-		
-		
 		WorkerNotFound,
-		 // Keyfairy related
-		
+		// Keyfairy related
 		InvalidKeyfairy,
 		InvalidMasterPubkey,
 		MasterKeyMismatch,
@@ -227,7 +226,8 @@ pub mod pallet {
 		CannotRemoveLastKeyfairy,
 		MasterKeyInRotation,
 		InvalidRotatedMasterPubkey,
-		// PRouter related
+		// Endpoint related
+		EmptyEndpoint,
 		InvalidEndpointSigningTime,
 	}
 
@@ -298,7 +298,7 @@ pub mod pallet {
 
 	/// Mapping from worker pubkey to CESS Network identity
 	#[pallet::storage]
-	pub type Endpoints<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, VersionedWorkerEndpoints>;
+	pub type Endpoints<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, alloc::string::String>;
 
 	/// Ceseals whoes version less than MinimumCesealVersion would be forced to quit.
 	#[pallet::storage]
@@ -832,11 +832,15 @@ pub mod pallet {
 				sp_core::sr25519::Signature::try_from(signature.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
 			let encoded_data = endpoint_payload.encode();
 			let data_to_sign = wrap_content_to_sign(&encoded_data, SignedContentType::EndpointInfo);
-
 			ensure!(
 				sp_io::crypto::sr25519_verify(&sig, &data_to_sign, &endpoint_payload.pubkey),
 				Error::<T>::InvalidSignature
 			);
+
+			let Some(endpoint) = endpoint_payload.endpoint else { return Err(Error::<T>::EmptyEndpoint.into()) };
+			if endpoint.is_empty() {
+				return Err(Error::<T>::EmptyEndpoint.into())
+			}
 
 			// Validate the time
 			let expiration = 4 * 60 * 60 * 1000; // 4 hours
@@ -849,7 +853,7 @@ pub mod pallet {
 			// Validate the public key
 			ensure!(Workers::<T>::contains_key(endpoint_payload.pubkey), Error::<T>::InvalidPubKey);
 
-			Endpoints::<T>::insert(endpoint_payload.pubkey, endpoint_payload.versioned_endpoints);
+			Endpoints::<T>::insert(endpoint_payload.pubkey, endpoint);
 
 			Ok(())
 		}

@@ -5,12 +5,11 @@ use ces_types::{
     attestation::{validate as validate_attestation_report, IasFields},
     messaging::EncryptedKey,
     wrap_content_to_sign, AttestationReport, ChallengeHandlerInfo, EncryptedWorkerKey, HandoverChallenge,
-    SignedContentType, VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerRegistrationInfo,
+    SignedContentType, WorkerEndpointPayload, WorkerRegistrationInfo,
 };
 use cestory_api::{
     blocks::{self, StorageState},
     crpc::{self as pb, ceseal_api_server::CesealApi},
-    endpoints::EndpointType,
 };
 use parity_scale_codec::Error as ScaleDecodeError;
 use std::{fmt::Debug, time::Duration};
@@ -217,34 +216,20 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
     }
 
     /// Init the endpoint
-    async fn add_endpoint(&self, request: Request<pb::AddEndpointRequest>) -> RpcResult<pb::GetEndpointResponse> {
+    async fn set_endpoint(&self, request: Request<pb::SetEndpointRequest>) -> RpcResult<pb::GetEndpointResponse> {
         let request = request.into_inner();
-        let resp = self
-            .lock_ceseal(false, false)?
-            .add_endpoint(request.decode_endpoint_type().map_err(to_status)?, request.endpoint)?;
+        let resp = self.lock_ceseal(false, false)?.set_endpoint(request.endpoint)?;
         Ok(Response::new(resp))
     }
 
     /// Refresh the endpoint signing time
     async fn refresh_endpoint_signing_time(&self, _: Request<()>) -> RpcResult<pb::GetEndpointResponse> {
-        Ok(Response::new(self.lock_ceseal(false, false)?.sign_endpoints()?))
+        Ok(Response::new(self.lock_ceseal(false, false)?.sign_endpoint()?))
     }
 
     /// Get endpoint info
     async fn get_endpoint_info(&self, _: Request<()>) -> RpcResult<pb::GetEndpointResponse> {
         Ok(Response::new(self.lock_ceseal(true, false)?.get_endpoint_info()?))
-    }
-
-    /// Sign the given endpoint info
-    async fn sign_endpoint_info(
-        &self,
-        request: Request<pb::SignEndpointsRequest>,
-    ) -> RpcResult<pb::GetEndpointResponse> {
-        let request = request.into_inner();
-        let resp = self
-            .lock_ceseal(true, false)?
-            .sign_endpoint_info(VersionedWorkerEndpoints::V1(request.decode_endpoints().map_err(to_status)?))?;
-        Ok(Response::new(resp))
     }
 
     /// A echo rpc to measure network RTT.
@@ -940,50 +925,36 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         Ok(())
     }
 
-    fn add_endpoint(&mut self, endpoint_type: EndpointType, endpoint: String) -> CesealResult<pb::GetEndpointResponse> {
-        self.endpoints.insert(endpoint_type, endpoint);
-        self.sign_endpoints()
+    fn set_endpoint(&mut self, endpoint: String) -> CesealResult<pb::GetEndpointResponse> {
+        self.endpoint = Some(endpoint);
+        self.sign_endpoint()
     }
 
-    fn sign_endpoints(&mut self) -> CesealResult<pb::GetEndpointResponse> {
+    fn sign_endpoint(&mut self) -> CesealResult<pb::GetEndpointResponse> {
         let system = self.system()?;
         let block_time: u64 = system.now_ms;
         let public_key = system.identity_key.public();
-        let versioned_endpoints = VersionedWorkerEndpoints::V1(self.endpoints.values().cloned().collect());
-        let endpoint_payload =
-            WorkerEndpointPayload { pubkey: public_key, versioned_endpoints, signing_time: block_time };
+        let endpoint = self.endpoint.clone();
+        let endpoint_payload = WorkerEndpointPayload { pubkey: public_key, endpoint, signing_time: block_time };
         let signature = self.sign_endpoint_payload(&endpoint_payload)?;
         let resp = pb::GetEndpointResponse::new(Some(endpoint_payload.clone()), Some(signature));
-        self.signed_endpoints = Some(resp.clone());
+        self.signed_endpoint = Some(resp.clone());
         Ok(resp)
     }
 
     fn get_endpoint_info(&mut self) -> CesealResult<pb::GetEndpointResponse> {
-        if self.endpoints.is_empty() {
+        if self.endpoint.is_none() {
             info!("Endpoint not found");
             return Ok(pb::GetEndpointResponse::new(None, None))
         }
-        match &self.signed_endpoints {
+        match &self.signed_endpoint {
             Some(response) => Ok(response.clone()),
-            None => self.sign_endpoints(),
+            None => self.sign_endpoint(),
         }
     }
 
-    fn sign_endpoint_info(
-        &mut self,
-        versioned_endpoints: VersionedWorkerEndpoints,
-    ) -> CesealResult<pb::GetEndpointResponse> {
-        let system = self.system()?;
-        let pubkey = system.identity_key.public();
-        let signing_time = system.now_ms;
-        let payload = WorkerEndpointPayload { pubkey, versioned_endpoints, signing_time };
-        let signature = self.sign_endpoint_payload(&payload)?;
-
-        Ok(pb::GetEndpointResponse::new(Some(payload), Some(signature)))
-    }
-
     fn sign_endpoint_payload(&mut self, payload: &WorkerEndpointPayload) -> CesealResult<Vec<u8>> {
-        const MAX_PAYLOAD_SIZE: usize = 2048;
+        const MAX_PAYLOAD_SIZE: usize = 512;
         let data_to_sign = payload.encode();
         if data_to_sign.len() > MAX_PAYLOAD_SIZE {
             return Err(from_display("Endpoints too large"))

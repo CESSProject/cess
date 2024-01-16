@@ -31,15 +31,15 @@ use crate::{
     error::Error,
     types::{
         Block, BlockNumber, CesealClient, ConvertTo, Hash, Header, NotifyReq, NumberOrHex, SrSigner,
-    }
+    },
 };
+use ces_types::{attestation::legacy::Attestation, AttestationProvider};
 use cestory_api::{
     blocks::{
-        self, AuthoritySet, AuthoritySetChange, BlockHeader, BlockHeaderWithChanges, HeaderToSync,    
+        self, AuthoritySet, AuthoritySetChange, BlockHeader, BlockHeaderWithChanges, HeaderToSync,
     },
     crpc::{self, InitRuntimeResponse},
 };
-use ces_types::{attestation::legacy::Attestation, AttestationProvider};
 use clap::Parser;
 use msg_sync::{Error as MsgSyncError, Receiver, Sender};
 use notify_client::NotifyClient;
@@ -72,9 +72,6 @@ pub struct Args {
     #[arg(long, help = "Skip registering the worker.")]
     no_register: bool,
 
-    #[arg(long, help = "Skip binding the worker endpoint.")]
-    no_bind: bool,
-
     #[arg(
         long,
         help = "Inject dev key (0x1) to Ceseal. Cannot be used with remote attestation enabled."
@@ -98,9 +95,15 @@ pub struct Args {
     #[arg(
         default_value = "http://localhost:8000",
         long,
-        help = "Ceseal http endpoint"
+        help = "The http endpoint to access Ceseal's internal service"
     )]
-    ceseal_endpoint: String,
+    internal_endpoint: String,
+
+    #[arg(
+        long,
+        help = "The http endpoint where Ceseal provides services to the outside world"
+    )]
+    public_endpoint: Option<String>,
 
     #[arg(
         long,
@@ -488,9 +491,9 @@ async fn batch_sync_block(
             };
         };
     }
-    
+
     sync_blocks_to!(hdr_synced_to);
-    
+
     while !block_buf.is_empty() {
         // Current authority set id
         let last_set = if let Some(set) = sync_state.authory_set_state {
@@ -747,7 +750,11 @@ async fn try_register_worker(
     }
 }
 
-async fn try_load_chain_state(pr: &mut CesealClient, chain_api: &ChainApi, args: &Args) -> Result<()> {
+async fn try_load_chain_state(
+    pr: &mut CesealClient,
+    chain_api: &ChainApi,
+    args: &Args,
+) -> Result<()> {
     let info = pr.get_info(()).await?.into_inner();
     info!("info: {info:#?}");
     if !info.can_load_chain_state {
@@ -806,7 +813,7 @@ async fn bridge(
     }
 
     // Other initialization
-    let mut cc = CesealClient::connect(args.ceseal_endpoint.clone()).await?;
+    let mut cc = CesealClient::connect(args.internal_endpoint.clone()).await?;
     let pair = <sr25519::Pair as Pair>::from_string(&args.mnemonic, None)
         .expect("Bad privkey derive path");
     let mut signer = SrSigner::new(pair);
@@ -883,9 +890,10 @@ async fn bridge(
             flags.worker_registered = registered;
         }
         // Try bind worker endpoint
-        if !args.no_bind && info.public_key().is_some() {
+        if args.public_endpoint.is_some() && info.public_key().is_some() {
             // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the cifrost initialization)
-            match endpoint::try_update_worker_endpoint(&mut cc, &chain_api, &mut signer, args).await {
+            match endpoint::try_update_worker_endpoint(&mut cc, &chain_api, &mut signer, args).await
+            {
                 Ok(registered) => {
                     flags.endpoint_registered = registered;
                 }
@@ -977,8 +985,14 @@ async fn bridge(
         }
 
         // send the blocks to Ceseal in batch
-        let synced_blocks =
-            batch_sync_block(&chain_api, &mut cc, &mut sync_state, args.sync_blocks, &info).await?;
+        let synced_blocks = batch_sync_block(
+            &chain_api,
+            &mut cc,
+            &mut sync_state,
+            args.sync_blocks,
+            &info,
+        )
+        .await?;
 
         // check if Ceseal has already reached the chain tip.
         if synced_blocks == 0 && !more_blocks {
@@ -993,9 +1007,13 @@ async fn bridge(
                         .await?;
             }
 
-            if !args.no_bind && !flags.endpoint_registered && info.public_key().is_some() {
+            if args.public_endpoint.is_some()
+                && !flags.endpoint_registered
+                && info.public_key().is_some()
+            {
                 // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the cifrost initialization)
-                match endpoint::try_update_worker_endpoint(&mut cc, &chain_api, &mut signer, args).await
+                match endpoint::try_update_worker_endpoint(&mut cc, &chain_api, &mut signer, args)
+                    .await
                 {
                     Ok(registered) => {
                         flags.endpoint_registered = registered;
@@ -1036,7 +1054,8 @@ async fn bridge(
 
             // Launch key handover if required only when the old Ceseal is up-to-date
             if args.next_ceseal_endpoint.is_some() {
-                let mut next_pr = CesealClient::connect(args.next_ceseal_endpoint.clone().unwrap()).await?;
+                let mut next_pr =
+                    CesealClient::connect(args.next_ceseal_endpoint.clone().unwrap()).await?;
                 handover_worker_key(&mut cc, &mut next_pr).await?;
             }
 
@@ -1128,7 +1147,10 @@ pub async fn run() {
 /// This function panics intentionally after the worker key handover finishes
 async fn handover_worker_key(server: &mut CesealClient, client: &mut CesealClient) -> Result<()> {
     let challenge = server.handover_create_challenge(()).await?.into_inner();
-    let response = client.handover_accept_challenge(challenge).await?.into_inner();
+    let response = client
+        .handover_accept_challenge(challenge)
+        .await?
+        .into_inner();
     let encrypted_key = server.handover_start(response).await?.into_inner();
     client.handover_receive(encrypted_key).await?;
     panic!("Worker key handover done, the new Ceseal is ready to go");

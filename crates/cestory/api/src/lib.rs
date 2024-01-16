@@ -3,7 +3,6 @@ extern crate alloc;
 pub mod blocks;
 pub mod crypto;
 pub mod ecall_args;
-pub mod endpoints;
 pub mod crpc;
 pub mod storage_sync;
 

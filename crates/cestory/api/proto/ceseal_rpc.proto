@@ -26,16 +26,13 @@ service CesealApi {
   rpc GetEgressMessages (google.protobuf.Empty) returns (GetEgressMessagesResponse) {}
 
   // Init the endpoint
-  rpc AddEndpoint (AddEndpointRequest) returns (GetEndpointResponse) {}
+  rpc SetEndpoint (SetEndpointRequest) returns (GetEndpointResponse) {}
 
   // Refresh the endpoint signing time
   rpc RefreshEndpointSigningTime (google.protobuf.Empty) returns (GetEndpointResponse) {}
 
   // Get endpoint info
   rpc GetEndpointInfo (google.protobuf.Empty) returns (GetEndpointResponse) {}
-
-  // Sign the given endpoint info
-  rpc SignEndpointInfo (SignEndpointsRequest) returns (GetEndpointResponse) {}
 
   // A echo rpc to measure network RTT.
   rpc Echo (EchoMessage) returns (EchoMessage) {}
@@ -284,21 +281,14 @@ message EchoMessage {
   bytes echo_msg = 1;
 }
 
-message AddEndpointRequest {
-  // @codec scale crate::endpoints::EndpointType
-  bytes encoded_endpoint_type = 1;
-  string endpoint = 2;
+message SetEndpointRequest {
+  string endpoint = 1;
 }
 
 message GetEndpointResponse {
   // @codec scale ces_types::WorkerEndpointPayload
   optional bytes encoded_endpoint_payload = 1;
   optional bytes signature = 2;
-}
-
-message SignEndpointsRequest {
-  // @codec scale Vec<String>
-  bytes encoded_endpoints = 1;
 }
 
 message ChainState {

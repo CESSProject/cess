@@ -1,6 +1,6 @@
 use crate::{rpc::ExtraRpcMethods, BlockNumber, Config, Hash, SubxtOnlineClient};
 use anyhow::{anyhow, Context, Result};
-use ces_types::{VersionedWorkerEndpoints, WorkerPublicKey};
+use ces_types::WorkerPublicKey;
 use jsonrpsee::{async_client::ClientBuilder, client_transport::ws::WsTransportClientBuilder};
 use parity_scale_codec::{Decode, Encode};
 use std::{ops::Deref, sync::Arc};
@@ -172,12 +172,12 @@ impl ChainApi {
         Ok(Some(Decode::decode(&mut &data.encoded()[..])?))
     }
 
-    pub async fn get_endpoints(&self, worker: &WorkerPublicKey) -> Result<Vec<String>> {
+    pub async fn get_endpoint(&self, worker: &WorkerPublicKey) -> Result<String> {
         let result = self.fetch("TeeWorker", "Endpoints", Some(worker)).await?;
-        let Some(VersionedWorkerEndpoints::V1(endpoints)) = result else {
-            return Ok(vec![]);
+        let Some(endpoint) = result else {
+            return Err(anyhow!("the worker's endpoint not set yet"));
         };
-        Ok(endpoints)
+        Ok(endpoint)
     }
 
     pub async fn storage_keys(&self, prefix: &[u8], hash: Option<Hash>) -> Result<Vec<Vec<u8>>> {
