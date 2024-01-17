@@ -75,7 +75,6 @@ use frame_support::{
 	transactional, PalletId, WeakBoundedVec,
 };
 use frame_system::offchain::CreateSignedTransaction;
-use pallet_file_bank::RandomFileList;
 use pallet_sminer::MinerControl;
 use pallet_storage_handler::StorageHandle;
 use pallet_tee_worker::TeeWorkerHandler;
@@ -178,8 +177,6 @@ pub mod pallet {
 		type MyRandomness: Randomness<Option<Self::Hash>, BlockNumberFor<Self>>;
 		//Find the consensus of the current block
 		type FindAuthor: FindAuthor<Self::AccountId>;
-		//Random files used to obtain this batch of challenges
-		type File: RandomFileList<Self::AccountId>;
 		//Judge whether it is the trait of the consensus node
 		type TeeWorkerHandler: TeeWorkerHandler<Self::AccountId>;
 		//It is used to increase or decrease the miners' computing power, space, and execute
@@ -283,25 +280,6 @@ pub mod pallet {
 		TeeNoPermission,
 	}
 
-	//Relevant time nodes for storage challenges
-	#[pallet::storage]
-	#[pallet::getter(fn verify_duration)]
-	pub(super) type VerifyDuration<T: Config> = StorageValue<_, BlockNumberFor<T>, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn cur_authority_index)]
-	pub(super) type CurAuthorityIndex<T: Config> = StorageValue<_, u16, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn keys)]
-	pub(super) type Keys<T: Config> =
-		StorageValue<_, WeakBoundedVec<T::AuthorityId, T::SessionKeyMax>, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn counted_idle_failed)]
-	pub(super) type CountedIdleFailed<T: Config> =
-		StorageMap<_, Blake2_128Concat, AccountOf<T>, u32, ValueQuery>;
-
 	#[pallet::storage]
 	#[pallet::getter(fn counted_service_failed)]
 	pub(super) type CountedServiceFailed<T: Config> =
@@ -311,19 +289,6 @@ pub mod pallet {
 	#[pallet::getter(fn counted_clear)]
 	pub(super) type CountedClear<T: Config> =
 		StorageMap<_, Blake2_128Concat, AccountOf<T>, u8, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn challenge_era)]
-	pub(super) type ChallengeEra<T: Config> = StorageValue<_, u32, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn verify_result)]
-	pub(super) type VerifyResult<T: Config> =
-		StorageMap<_, Blake2_128Concat, AccountOf<T>, (Option<bool>, Option<bool>)>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn verify_reassign_count)]
-	pub(super) type VerifyReassignCount<T: Config> = StorageValue<_, u8, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn challenge_snap_shot)]
@@ -405,6 +370,9 @@ pub mod pallet {
 					};
 
 					challenge_info.prove_info.idle_prove = Some(idle_prove_info);
+					if challenge_info.prove_info.service_prove.is_some() {
+						<CountedClear<T>>::insert(&sender, u8::MIN);
+					}
 				} else {
 					return Err(Error::<T>::Submitted)?
 				}
@@ -454,6 +422,9 @@ pub mod pallet {
 					};
 
 					challenge_info.prove_info.service_prove = Some(service_prove_info);
+					if challenge_info.prove_info.idle_prove.is_some() {
+						<CountedClear<T>>::insert(&sender, u8::MIN);
+					}
 				} else {
 					return Err(Error::<T>::Submitted)?
 				}

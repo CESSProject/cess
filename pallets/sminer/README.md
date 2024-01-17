@@ -1,4 +1,4 @@
-# Cess Treasury Module
+# Sminer Module
 
 One of the core pallets of CESS, used to manage storage nodes.
 

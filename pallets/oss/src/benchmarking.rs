@@ -31,30 +31,49 @@ benchmarks! {
 
 	register {
 		let oss: AccountOf<T> = account("oss", 100, SEED);
-		let peer_id = [5u8; 38];
-	}: _(RawOrigin::Signed(oss.clone()), peer_id.clone())
+		let domain: BoundedVec<u8, ConstU32<50>> = Default::default();
+		let peer_id = [0u8; 38];
+	}: _(RawOrigin::Signed(oss.clone()), peer_id.clone(), domain.clone())
 	verify {
 		assert!(<Oss<T>>::contains_key(&oss));
-		let oss_ip = <Oss<T>>::get(&oss).unwrap();
-		assert_eq!(oss_ip, peer_id);
+		let oss_info_right = <Oss<T>>::get(&oss).unwrap();
+		let oss_info = OssInfo {
+			peer_id: peer_id,
+			domain: domain,
+		};
+		assert_eq!(oss_info_right, oss_info);
 	}
 
 	update {
 		let oss: AccountOf<T> = account("oss", 100, SEED);
 		let peer_id = [5u8; 38];
-		<Oss<T>>::insert(&oss, peer_id);
+		let domain: BoundedVec<u8, ConstU32<50>> = Default::default();
+		let oss_info = OssInfo {
+			peer_id: peer_id.clone(),
+			domain: domain.clone(),
+		};
+		<Oss<T>>::insert(&oss, oss_info);
 		let new_peer_id = [6u8; 38];
-	}: _(RawOrigin::Signed(oss.clone()), new_peer_id.clone())
+	}: _(RawOrigin::Signed(oss.clone()), new_peer_id.clone(), domain.clone())
 	verify {
 		assert!(<Oss<T>>::contains_key(&oss));
-		let oss_peer_id = <Oss<T>>::get(&oss).unwrap();
-		assert_eq!(new_peer_id, oss_peer_id);
+		let oss_info = OssInfo {
+			peer_id: new_peer_id,
+			domain: domain,
+		};
+		let cur_oss_info = <Oss<T>>::get(&oss).unwrap();
+		assert_eq!(cur_oss_info, oss_info);
 	}
 
 	destroy {
 		let oss: AccountOf<T> = account("oss", 100, SEED);
         let peer_id = [5u8; 38];
-		<Oss<T>>::insert(&oss, peer_id.clone());
+		let domain: BoundedVec<u8, ConstU32<50>> = Default::default();
+		let oss_info = OssInfo {
+			peer_id: peer_id.clone(),
+			domain: domain.clone(),
+		};
+		<Oss<T>>::insert(&oss, oss_info);
 	}: _(RawOrigin::Signed(oss.clone()))
 	verify {
 		assert!(!<Oss<T>>::contains_key(&oss));
