@@ -958,7 +958,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node-runtime"
-version = "0.7.5"
+version = "0.7.6"
 dependencies = [
  "ces-pallet-mq",
  "ces-pallet-mq-runtime-api",
@@ -1041,6 +1041,7 @@ dependencies = [
  "sp-session",
  "sp-staking",
  "sp-std",
+ "sp-storage",
  "sp-transaction-pool",
  "sp-version",
  "substrate-wasm-builder",
@@ -3784,7 +3785,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-audit"
-version = "0.7.0"
+version = "0.7.6"
 dependencies = [
  "cp-bloom-filter",
  "cp-cess-common",
@@ -3948,7 +3949,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-cess-treasury"
-version = "0.7.4"
+version = "0.7.6"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4192,7 +4193,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-file-bank"
-version = "0.7.0"
+version = "0.7.6"
 dependencies = [
  "cp-cess-common",
  "cp-enclave-verify",
@@ -4489,7 +4490,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-sminer"
-version = "0.7.0"
+version = "0.7.6"
 dependencies = [
  "cp-bloom-filter",
  "cp-cess-common",
@@ -4551,7 +4552,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-tee-worker"
-version = "0.7.0"
+version = "0.7.6"
 dependencies = [
  "base64 0.13.1",
  "ces-pallet-mq",
