@@ -92,13 +92,14 @@ pub struct PoisCertifierServer {
     pub master_key: sr25519::Pair,
     pub verifier: Verifier,
     pub commit_acc_proof_chals_map: DashMap<Vec<u8>, Vec<Vec<i64>>>,
-    pub tee_controller_account: [u8; 32],
+    pub ceseal_identity_key: [u8; 32],
     ceseal_expert: CesealExpertStub,
 }
 
 pub fn new_pois_certifier_api_server(
     podr2_keys: Keys,
     pois_param: (i64, i64, i64),
+    ceseal_identity_key: [u8; 32],
     ceseal_expert: CesealExpertStub,
 ) -> PoisCertifierApiServer {
     let master_key = crate::get_sr25519_from_rsa_key(podr2_keys.clone().skey);
@@ -107,7 +108,7 @@ pub fn new_pois_certifier_api_server(
         master_key,
         verifier: Verifier::new(pois_param.0, pois_param.1, pois_param.2),
         commit_acc_proof_chals_map: DashMap::new(),
-        tee_controller_account: [0; 32], //FIXME: <- REMOVE HERE!
+        ceseal_identity_key,
         ceseal_expert,
     };
     PoisCertifierApiServer::new(inner)
@@ -119,13 +120,14 @@ pub struct PoisVerifierServer {
     pub podr2_keys: Keys,
     pub master_key: sr25519::Pair,
     pub verifier: Verifier,
-    pub tee_controller_account: [u8; 32],
+    pub ceseal_identity_key: [u8; 32],
     ceseal_expert: CesealExpertStub,
 }
 
 pub fn new_pois_verifier_api_server(
     podr2_keys: Keys,
     pois_param: (i64, i64, i64),
+    ceseal_identity_key: [u8; 32],
     ceseal_expert: CesealExpertStub,
 ) -> PoisVerifierApiServer {
     let master_key = crate::get_sr25519_from_rsa_key(podr2_keys.clone().skey);
@@ -133,7 +135,7 @@ pub fn new_pois_verifier_api_server(
         podr2_keys,
         master_key,
         verifier: Verifier::new(pois_param.0, pois_param.1, pois_param.2),
-        tee_controller_account: [0; 32], //FIXME: <- REMOVE HERE!
+        ceseal_identity_key,
         ceseal_expert,
     };
     PoisVerifierApiServer::new(inner)
@@ -192,7 +194,7 @@ impl PoisCertifierApi for PoisCertifierServer {
             key.g.to_bytes_be(),
             miner_id.clone(),
             &self.master_key,
-            self.tee_controller_account.clone(),
+            self.ceseal_identity_key.clone(),
         )?;
 
         info!(
@@ -426,7 +428,7 @@ impl PoisCertifierApi for PoisCertifierServer {
             miner_pois_info.key_g,
             miner_id,
             &self.master_key,
-            self.tee_controller_account.clone(),
+            self.ceseal_identity_key.clone(),
         )?;
         info!(
             "[Pois Verify Commit Proof] miner {:?} Pois Verify Commit Proof in: {:.2?}",
@@ -526,7 +528,7 @@ impl PoisCertifierApi for PoisCertifierServer {
             miner_pois_info.key_g,
             miner_id.clone(),
             &self.master_key,
-            self.tee_controller_account.clone(),
+            self.ceseal_identity_key.clone(),
         )?;
         info!(
             "[Verify Deletion Proof] miner {:?} finish verify deletion proof in {:.2?}",
@@ -578,7 +580,7 @@ impl PoisVerifierApi for PoisVerifierServer {
             space_proof_hash: miner_req_hash,
             left,
             right,
-            tee_id: self.tee_controller_account.to_vec(),
+            tee_id: self.ceseal_identity_key.to_vec(),
         };
         let proof_hash_and_left_right_hash = try_into_proto_byte_hash(&proof_hash_and_left_right)?;
 
@@ -650,7 +652,7 @@ impl PoisVerifierApi for PoisVerifierServer {
 
         let mut total_proof_hasher = Sha256::new();
         for proof in &blocks_proof {
-            if !is_valid_proof(proof, &self.podr2_keys, self.tee_controller_account.to_vec())? {
+            if !is_valid_proof(proof, &self.podr2_keys, self.ceseal_identity_key.to_vec())? {
                 result = false;
                 break
             };
@@ -693,7 +695,7 @@ impl PoisVerifierApi for PoisVerifierServer {
             acc,
             space_chals,
             result,
-            tee_acc: self.tee_controller_account.clone().into(),
+            tee_acc: self.ceseal_identity_key.clone().into(),
         };
 
         let mut sig_struct_hasher = Sha256::new();

@@ -35,12 +35,19 @@ message RequestGenTag {
   string custom_data = 3;
   string file_name = 4;
   bytes miner_id = 5;
+  repeated DigestInfo tee_digest_list = 6;
+  bytes last_tee_signature = 7;
+}
+
+message DigestInfo {
+  bytes fragment_name = 1;
+  bytes tee_account_id = 2;
 }
 
 message ResponseGenTag {
   Tag tag = 1;
   bytes u_sig = 2;
-  bytes tag_sig_info = 3;
+  bytes signature = 3;
 }
 
 message RequestBatchVerify {
@@ -55,14 +62,9 @@ message RequestBatchVerify {
     string sigma = 4;
   }
   BatchVerifyParam agg_proof = 1;
-  // 38 bytes raw multihash
-  bytes peer_id = 2;
-  // 32 bytes public key
-  bytes miner_pbk = 3;
-  // 64 bytes sign content
-  bytes miner_peer_id_sign = 4;
-  Qslice qslices = 5;
-  repeated bytes u_sigs = 6;
+  Qslice qslices = 2;
+  repeated bytes u_sigs = 3;
+  bytes miner_id = 4;
 }
 
 message ResponseBatchVerify {
