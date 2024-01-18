@@ -1,9 +1,9 @@
 extern crate alloc;
 
 pub mod blocks;
+pub mod crpc;
 pub mod crypto;
 pub mod ecall_args;
-pub mod crpc;
 pub mod storage_sync;
 
 mod proto_generated;
@@ -19,5 +19,8 @@ pub mod pois {
 }
 
 pub mod podr2 {
+    use parity_scale_codec::Encode;
+
     tonic::include_proto!("podr2");
+    impl Encode for DigestInfo {}
 }

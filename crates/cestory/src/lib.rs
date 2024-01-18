@@ -773,13 +773,31 @@ where
     tokio::spawn(async move {
         let ceseal = cestory_clone;
         let podr2_key = keyfairy_ready_rx.await.expect("expect keyfairy ready");
+        let identity_key = ceseal
+            .lock(true, true)
+            .expect("Failed to lock Ceseal")
+            .system
+            .as_ref()
+            .unwrap()
+            .identity_key
+            .clone();
 
         let (ceseal_expert, expert_cmd_rx) = expert::CesealExpertStub::new();
-        let podr2_srv = podr2::new_podr2_api_server(podr2_key.clone(), ceseal_expert.clone());
-        let podr2v_srv = podr2::new_podr2_verifier_api_server(podr2_key.clone(), ceseal_expert.clone());
-        let pois_srv =
-            pois::new_pois_certifier_api_server(podr2_key.clone(), pois_param.clone(), ceseal_expert.clone());
-        let poisv_srv = pois::new_pois_verifier_api_server(podr2_key, pois_param, ceseal_expert);
+        let podr2_srv =
+            podr2::new_podr2_api_server(podr2_key.clone(), identity_key.clone().public().0, ceseal_expert.clone());
+        let podr2v_srv = podr2::new_podr2_verifier_api_server(
+            podr2_key.clone(),
+            identity_key.clone().public().0,
+            ceseal_expert.clone(),
+        );
+        let pois_srv = pois::new_pois_certifier_api_server(
+            podr2_key.clone(),
+            pois_param.clone(),
+            identity_key.clone().public().0,
+            ceseal_expert.clone(),
+        );
+        let poisv_srv =
+            pois::new_pois_verifier_api_server(podr2_key, pois_param, identity_key.public().0, ceseal_expert);
 
         let expert_handler = tokio::spawn(expert::run(ceseal, expert_cmd_rx));
 
