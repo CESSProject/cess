@@ -929,9 +929,9 @@ pub mod pallet {
 		pub fn register_pois_key(
 			origin: OriginFor<T>, 
 			pois_key: PoISKey,
-			tee_sig_need_verify: TeeRsaSignature,
-			tee_sig: TeeRsaSignature,
-			tee_acc: AccountOf<T>, 
+			tee_sig_need_verify: BoundedVec<u8, ConstU32<64>>,
+			tee_sig: BoundedVec<u8, ConstU32<64>>,
+			tee_puk: WorkerPublicKey, 
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			// Because the next operation consumes system resources, make a judgment in advance.
@@ -946,13 +946,23 @@ pub mod pallet {
 			};
 
 			let encoding = space_proof_info.encode();
-			let tee_acc_encode = tee_acc.encode();
+			let tee_puk_encode = tee_puk.encode();
 			let mut original = Vec::new();
 			original.extend_from_slice(&encoding);
-			original.extend_from_slice(&tee_acc_encode);
+			original.extend_from_slice(&tee_puk_encode);
 			let original_text = sp_io::hashing::sha2_256(&original);
-			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
-			ensure!(verify_rsa(&tee_puk, &original_text, &tee_sig_need_verify), Error::<T>::VerifyTeeSigFailed);
+			let master_puk = T::TeeWorkerHandler::get_master_publickey()?;
+
+			let sig = 
+				sp_core::sr25519::Signature::try_from(tee_sig_need_verify.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
+
+			ensure!(
+				sp_io::crypto::sr25519_verify(&sig, &original, &master_puk),
+				Error::<T>::VerifyTeeSigFailed
+			);
+
+			let sig = 
+				sp_core::sr25519::Signature::try_from(tee_sig.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
 
 			MinerPublicKey::<T>::insert(&original_text, sender.clone());
 
@@ -968,7 +978,7 @@ pub mod pallet {
 				} else {
 					miner_info.state = Self::str_to_bound(STATE_FROZEN)?;
 				}
-				miner_info.tee_signature = tee_sig;
+				miner_info.tee_signature = sig;
 
 				Ok(())
 			})?;
