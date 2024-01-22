@@ -1,11 +1,13 @@
 use crate::expert::CesealExpertStub;
 use anyhow::{anyhow, Result};
+use ces_crypto::sr25519::Signing;
 use ces_pdp::{HashSelf, Keys, QElement, Tag as PdpTag};
 use cestory_api::podr2::{
     podr2_api_server::{self, Podr2Api},
     podr2_verifier_api_server::{self, Podr2VerifierApi},
     request_batch_verify::Qslice,
-    tag, EchoMessage, RequestBatchVerify, RequestGenTag, ResponseBatchVerify, ResponseGenTag, Tag as ApiTag,
+    tag, DigestInfo, EchoMessage, RequestBatchVerify, RequestGenTag, ResponseBatchVerify, ResponseGenTag,
+    Tag as ApiTag,
 };
 use cp_bloom_filter::{binary, BloomFilter};
 use crypto::{digest::Digest, sha2::Sha256};
@@ -22,25 +24,37 @@ use tonic::{Request, Response, Status};
 pub type Podr2ApiServer = podr2_api_server::Podr2ApiServer<Podr2Server>;
 pub type Podr2VerifierApiServer = podr2_verifier_api_server::Podr2VerifierApiServer<Podr2VerifierServer>;
 
-pub fn new_podr2_api_server(master_key: Keys, ceseal_expert: CesealExpertStub) -> Podr2ApiServer {
+pub fn new_podr2_api_server(
+    podr2_keys: Keys,
+    ceseal_identity_key: [u8; 32],
+    ceseal_expert: CesealExpertStub,
+) -> Podr2ApiServer {
+    let master_key = crate::get_sr25519_from_rsa_key(podr2_keys.clone().skey);
     //FIXME: HERE!
     let inner = Podr2Server {
-        podr2_keys: master_key,
+        podr2_keys,
+        master_key,
         threadpool: Arc::new(Mutex::new(threadpool::ThreadPool::new(8))),
         block_num: 1024,
-        tee_controller_account: [0; 32],
+        ceseal_identity_key,
         ceseal_expert,
     };
     Podr2ApiServer::new(inner)
 }
 
-pub fn new_podr2_verifier_api_server(master_key: Keys, ceseal_expert: CesealExpertStub) -> Podr2VerifierApiServer {
+pub fn new_podr2_verifier_api_server(
+    podr2_keys: Keys,
+    ceseal_identity_key: [u8; 32],
+    ceseal_expert: CesealExpertStub,
+) -> Podr2VerifierApiServer {
+    let master_key = crate::get_sr25519_from_rsa_key(podr2_keys.clone().skey);
     //FIXME: HERE!
     let inner = Podr2VerifierServer {
-        podr2_keys: master_key,
+        podr2_keys,
+        master_key,
         threadpool: Arc::new(Mutex::new(threadpool::ThreadPool::new(8))),
         block_num: 1024,
-        tee_controller_account: [0; 32],
+        ceseal_identity_key,
         ceseal_expert,
     };
     Podr2VerifierApiServer::new(inner)
@@ -52,17 +66,18 @@ pub type Podr2Result<T> = Result<Response<T>, Status>;
 #[allow(dead_code)]
 pub struct Podr2Server {
     pub podr2_keys: Keys,
+    pub master_key: sr25519::Pair,
     pub threadpool: Arc<Mutex<ThreadPool>>,
     pub block_num: u64,
-    pub tee_controller_account: [u8; 32],
+    pub ceseal_identity_key: [u8; 32],
     ceseal_expert: CesealExpertStub,
 }
 
-//TODO: REMOVE HERE!
 #[allow(dead_code)]
 pub struct Podr2VerifierServer {
     pub podr2_keys: Keys,
-    pub tee_controller_account: [u8; 32],
+    pub master_key: sr25519::Pair,
+    pub ceseal_identity_key: [u8; 32],
     pub threadpool: Arc<Mutex<ThreadPool>>,
     pub block_num: u64,
     ceseal_expert: CesealExpertStub,
@@ -89,12 +104,6 @@ impl HashSelf for Podr2Hash {
 
 #[derive(Encode)]
 pub struct Hash(pub [u8; 64]);
-#[derive(Encode)]
-struct TagSigInfo {
-    pub miner: AccountId32,
-    pub file_hash: Hash,
-    pub tee_acc: AccountId32,
-}
 
 #[derive(Encode)]
 struct VerifyServiceResultInfo {
@@ -149,30 +158,32 @@ impl Podr2Api for Podr2Server {
         let u_sig = self.podr2_keys.sign_data_with_sha256(tag.t.u.as_bytes()).map_err(|e| {
             Status::invalid_argument(format!("Failed to calculate u's signature {:?}", e.error_code.to_string()))
         })?;
-        let tag_sig_info = TagSigInfo {
-            miner: request.miner_id.clone()[..].try_into().map_err(|_| {
-                Status::invalid_argument(format!(
-                    "request generate tag fail,length of miner id should be 32,but now is {}",
-                    request.miner_id.len()
-                ))
-            })?,
-            file_hash: Hash(request.file_name.clone().into_bytes().try_into().map_err(|_| {
-                Status::invalid_argument(format!(
-                    "request generate tag fail,length of file_name id should be 64,but now is {}",
-                    request.file_name
-                ))
-            })?),
-            tee_acc: self.tee_controller_account.into(),
+        let mut new_tee_digest_list = Vec::new();
+        if !request.tee_digest_list.is_empty() {
+            if !self.master_key.verify_data(
+                &sr25519::Signature(request.last_tee_signature.try_into().map_err(|_| {
+                    Status::invalid_argument("The last_tee_signature you provided is length is not 64".to_string())
+                })?),
+                &calculate_hash(&request.tee_digest_list.encode()),
+            ) {
+                return Err(Status::invalid_argument("The last_tee_signature you provided is incorrect".to_string()))
+            };
+            new_tee_digest_list.extend(request.tee_digest_list);
         };
-        let tag_sig_info = self
-            .podr2_keys
-            .sign_data(&calculate_hash(&tag_sig_info.encode()))
-            .map_err(|e| {
-                Status::invalid_argument(format!("Failed to calculate tag_sig_info {:?}", e.error_code.to_string()))
-            })?;
+        let fragment_name_bytes = hex::decode(request.fragment_name)
+            .map_err(|_| Status::invalid_argument("Decode fragment name to bytes fail".to_string()))?;
+        let new_work_record =
+            DigestInfo { fragment_name: fragment_name_bytes, tee_account_id: self.ceseal_identity_key.to_vec() };
+        new_tee_digest_list.push(new_work_record);
+
+        let signature = self
+            .master_key
+            .sign_data(&calculate_hash(&new_tee_digest_list.encode()))
+            .0
+            .to_vec();
         info!("[🚀Generate tag] PoDR2 Sig Gen Completed in: {:.2?}. file name is {:?}", now.elapsed(), &tag.t.name);
 
-        Ok(Response::new(ResponseGenTag { tag: Some(convert_to_tag(tag)), u_sig, tag_sig_info }))
+        Ok(Response::new(ResponseGenTag { tag: Some(convert_to_tag(tag)), u_sig, signature }))
     }
 
     /// A echo rpc to measure network RTT.
@@ -203,21 +214,13 @@ impl Podr2VerifierApi for Podr2VerifierServer {
             return Err(Status::invalid_argument("Lack of request parameter qslices"))
         };
         let q_elements = convert_to_q_elements(qslices.clone())?;
-
         let mut service_bloom_filter = BloomFilter([0u64; 256]);
-        let miner_pbk: [u8; 32] = request
-            .miner_pbk
+        let miner_id: [u8; 32] = request
+            .miner_id
             .clone()
             .try_into()
-            .map_err(|_| Status::internal("There is a problem with the format of miner_pbk"))?;
-        let miner_pbk = AccountId32::from(miner_pbk);
-
-        //verify signature
-        if !verify_signature(request.miner_pbk.clone(), request.miner_peer_id_sign, request.peer_id.as_ref())
-            .map_err(|e| Status::internal(format!("verify miner signature error: {}", e.to_string())))?
-        {
-            return Err(Status::invalid_argument("invalid signature"))
-        }
+            .map_err(|_| Status::internal("There is a problem with the format of miner_id"))?;
+        let miner_id = AccountId32::from(miner_id);
 
         //compute bloom
         for name in agg_proof.names.clone() {
@@ -247,14 +250,12 @@ impl Podr2VerifierApi for Podr2VerifierServer {
                 .iter()
                 .zip(agg_proof.names.iter())
                 .take((request.u_sigs.len() as f64 * 0.049).ceil() as usize);
-            if !iterator.all(|(u_sig, name)| {
-                match self.podr2_keys.verify_data(&calculate_hash(name.as_bytes()), &u_sig) {
-                    Ok(_) => true,
-                    Err(_) => {
-                        info!("[Batch verify] u_sig is:{:?} name is:{:?} is inconsistent!", u_sig, name);
-                        false
-                    },
-                }
+            if !iterator.all(|(u_sig, u)| match self.podr2_keys.verify_data(&calculate_hash(u.as_bytes()), &u_sig) {
+                Ok(_) => true,
+                Err(_) => {
+                    info!("[Batch verify] u_sig is:{:?} name is:{:?} is inconsistent!", u_sig, u);
+                    false
+                },
             }) {
                 return Err(Status::internal("The u_sig passed in is inconsistent with the u in the corresponding tag."))
             }
@@ -278,23 +279,17 @@ impl Podr2VerifierApi for Podr2VerifierServer {
         }
 
         let raw = VerifyServiceResultInfo {
-            miner_pbk,
-            tee_account_id: self.tee_controller_account.clone().into(),
+            miner_pbk: miner_id,
+            tee_account_id: self.ceseal_identity_key.into(),
             result: result.batch_verify_result,
             sigma: agg_proof.sigma.into_bytes(),
             chal: q_elements.1,
             service_bloom_filter: service_bloom_filter.clone(),
         };
-        let raw_hash = calculate_hash(&raw.encode());
         //using podr2 keypair sign
-        let podr2_sign = self.podr2_keys.sign_data(&raw_hash).map_err(|e| {
-            Status::internal(format!(
-                "Error thrown when signing with the podr2 key when submitting the verify result: {:?}",
-                e.error_code.to_string()
-            ))
-        })?;
+        let podr2_sign = self.master_key.sign_data(&calculate_hash(&raw.encode())).0.to_vec();
 
-        result.tee_account_id = self.tee_controller_account.to_vec();
+        result.tee_account_id = self.ceseal_identity_key.to_vec();
         result.service_bloom_filter = service_bloom_filter.0.to_vec();
         result.signature = podr2_sign;
         info!("[Batch verify] Batch Verify Completed in: {:.2?}.", now.elapsed());

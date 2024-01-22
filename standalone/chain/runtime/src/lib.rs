@@ -176,7 +176,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 100,
+	spec_version: 102,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -1130,7 +1130,6 @@ impl pallet_audit::Config for Runtime {
 	type VerifyMissionMax = VerifyMissionMax;
 	type OneDay = OneDay;
 	type OneHours = OneHours;
-	type File = FileBank;
 	type TeeWorkerHandler = TeeWorker;
 	type MinerControl = Sminer;
 	type StorageHandle = StorageHandler;
@@ -1770,14 +1769,14 @@ mod benches {
 		[frame_benchmarking, BaselineBench::<Runtime>]
 		[frame_system, SystemBench::<Runtime>]
 		[pallet_contracts, Contracts]
-		[pallet_sminer, SminerBench::<Runtime>]
-		// [pallet_oss, Oss]
-		[pallet_cacher, Cacher]
-		[pallet_storage_handler, StorageHandler]
-		[pallet_audit, AuditBench::<Runtime>]
-		[pallet_file_bank, FileBankBench::<Runtime>]
-		[pallet_tee_worker, TeeWorkerBench::<Runtime>]
 		[pallet_oss, Oss]
+		[pallet_cacher, Cacher]
+		// [pallet_storage_handler, StorageHandler]
+		// [pallet_sminer, SminerBench::<Runtime>]
+		// [pallet_audit, AuditBench::<Runtime>]
+		// [pallet_file_bank, FileBankBench::<Runtime>]
+		// [pallet_tee_worker, TeeWorkerBench::<Runtime>]
+		// [pallet_oss, Oss]
 		// [pallet_audit, Audit]
 		[pallet_collective::<Instance1>, Council]
 		[pallet_collective::<Instance2>, TechnicalCommittee]
@@ -2332,11 +2331,11 @@ impl_runtime_apis! {
 			use frame_benchmarking::{baseline, Benchmarking, BenchmarkList};
 			use frame_support::traits::StorageInfoTrait;
 			use frame_system_benchmarking::Pallet as SystemBench;
-			use pallet_tee_worker::benchmarking::Pallet as TeeWorkerBench;
-			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
+			// use pallet_tee_worker::benchmarking::Pallet as TeeWorkerBench;
+			// use pallet_file_bank::benchmarking::Pallet as FileBankBench;
+			// use pallet_sminer::benchmarking::Pallet as SminerBench;
+			// use pallet_audit::benchmarking::Pallet as AuditBench;
 			use pallet_evm::Pallet as PalletEvmBench;
-			use pallet_sminer::benchmarking::Pallet as SminerBench;
-			use pallet_audit::benchmarking::Pallet as AuditBench;
 			use baseline::Pallet as BaselineBench;
 
 			let mut list = Vec::<BenchmarkList>::new();
@@ -2350,24 +2349,26 @@ impl_runtime_apis! {
 		fn dispatch_benchmark(
 			config: frame_benchmarking::BenchmarkConfig
 		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, sp_runtime::RuntimeString> {
-			use frame_benchmarking::{baseline, Benchmarking, BenchmarkBatch,  TrackedStorageKey};
+			use frame_benchmarking::{baseline, Benchmarking, BenchmarkBatch};
+			use sp_storage::TrackedStorageKey;
 			use pallet_evm::Pallet as PalletEvmBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
-			use pallet_tee_worker::benchmarking::Pallet as TeeWorkerBench;
-			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
-			use pallet_sminer::benchmarking::Pallet as SminerBench;
+			// use pallet_tee_worker::benchmarking::Pallet as TeeWorkerBench;
+			// use pallet_file_bank::benchmarking::Pallet as FileBankBench;
+			// use pallet_sminer::benchmarking::Pallet as SminerBench;
+			// use pallet_audit::benchmarking::Pallet as AuditBench;
 			use baseline::Pallet as BaselineBench;
-			use pallet_audit::benchmarking::Pallet as AuditBench;
 			use frame_support::traits::WhitelistedStorageKeys;
 			impl frame_system_benchmarking::Config for Runtime {}
-			impl pallet_tee_worker::benchmarking::Config for Runtime{}
-			impl pallet_sminer::benchmarking::Config for Runtime{}
-			impl pallet_file_bank::benchmarking::Config for Runtime{}
-			impl pallet_audit::benchmarking::Config for Runtime{}
+			// impl pallet_tee_worker::benchmarking::Config for Runtime{}
+			// impl pallet_sminer::benchmarking::Config for Runtime{}
 			// impl pallet_file_bank::benchmarking::Config for Runtime{}
+			// impl pallet_audit::benchmarking::Config for Runtime{}
 			impl baseline::Config for Runtime {}
 
-			let whitelist: Vec<TrackedStorageKey> = AllPalletsWithSystem::whitelisted_storage_keys();
+			let mut whitelist: Vec<TrackedStorageKey> = AllPalletsWithSystem::whitelisted_storage_keys();
+			let treasury_key = frame_system::Account::<Runtime>::hashed_key_for(Treasury::account_id());
+			whitelist.push(treasury_key.to_vec().into());
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);

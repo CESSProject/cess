@@ -53,7 +53,6 @@ impl CesealInfo {
 }
 
 use crate::crpc::*;
-use ::alloc::string::String;
 use ::alloc::vec::Vec;
 use ::parity_scale_codec::{Decode, Encode, Error as ScaleDecodeError};
 
@@ -241,20 +240,17 @@ impl crate::crpc::HandoverWorkerKey {
         }
     }
 }
-impl crate::crpc::AddEndpointRequest {
-    pub fn decode_endpoint_type(&self) -> Result<crate::endpoints::EndpointType, ScaleDecodeError> {
-        Decode::decode(&mut &self.encoded_endpoint_type[..])
-    }
+
+impl crate::crpc::SetEndpointRequest {
     pub fn new(
-        endpoint_type: crate::endpoints::EndpointType,
         endpoint: ::prost::alloc::string::String,
     ) -> Self {
         Self {
-            encoded_endpoint_type: endpoint_type.encode(),
             endpoint,
         }
     }
 }
+
 impl crate::crpc::GetEndpointResponse {
     pub fn decode_endpoint_payload(
         &self,
@@ -274,16 +270,7 @@ impl crate::crpc::GetEndpointResponse {
         }
     }
 }
-impl crate::crpc::SignEndpointsRequest {
-    pub fn decode_endpoints(&self) -> Result<Vec<String>, ScaleDecodeError> {
-        Decode::decode(&mut &self.encoded_endpoints[..])
-    }
-    pub fn new(endpoints: Vec<String>) -> Self {
-        Self {
-            encoded_endpoints: endpoints.encode(),
-        }
-    }
-}
+
 impl crate::crpc::ChainState {
     pub fn decode_state(&self) -> Result<crate::blocks::StorageState, ScaleDecodeError> {
         Decode::decode(&mut &self.encoded_state[..])

@@ -27,6 +27,8 @@ use frame_system::{ensure_signed, pallet_prelude::*};
 pub use weights::WeightInfo;
 pub mod weights;
 
+extern crate alloc;
+
 #[cfg(feature = "native")]
 use sp_core::hashing;
 
@@ -49,6 +51,7 @@ pub mod pallet {
 
 	use ces_pallet_mq::MessageOriginInfo;
 	use ces_types::{
+		attestation::{self, Error as AttestationError},
 		messaging::{
 			self, bind_topic, DecodedMessage, KeyfairyChange, KeyfairyLaunch, MessageOrigin, SystemEvent, WorkerEvent,
 		},
@@ -213,11 +216,8 @@ pub mod pallet {
 		InvalidSignatureLength,
 		InvalidSignature,
 		// IAS related
-		
-		
 		WorkerNotFound,
-		 // Keyfairy related
-		
+		// Keyfairy related
 		InvalidKeyfairy,
 		InvalidMasterPubkey,
 		MasterKeyMismatch,
@@ -230,7 +230,8 @@ pub mod pallet {
 		CannotRemoveLastKeyfairy,
 		MasterKeyInRotation,
 		InvalidRotatedMasterPubkey,
-		// PRouter related
+		// Endpoint related
+		EmptyEndpoint,
 		InvalidEndpointSigningTime,
 	}
 
@@ -301,7 +302,7 @@ pub mod pallet {
 
 	/// Mapping from worker pubkey to CESS Network identity
 	#[pallet::storage]
-	pub type Endpoints<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, VersionedWorkerEndpoints>;
+	pub type Endpoints<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, alloc::string::String>;
 
 	/// Ceseals whoes version less than MinimumCesealVersion would be forced to quit.
 	#[pallet::storage]
@@ -319,6 +320,95 @@ pub mod pallet {
 	where
 		T: ces_pallet_mq::Config,
 	{
+		/// Register a TEE Worker
+		///
+		/// This function allows a user to register a Trusted Execution Environment (TEE) worker by providing necessary
+		/// information, including the TEE worker's public keys, Peer ID, and other details.
+		///
+		/// Parameters:
+		/// - `origin`: The origin from which the function is called, representing the user's account.
+		/// - `stash_account`: The stash account associated with the TEE worker, used for staking and governance.
+		/// - `node_key`: The public key of the TEE node.
+		/// - `peer_id`: The Peer ID of the TEE worker.
+		/// - `podr2_pbk`: The public key used for Proofs of Data Replication 2 (PoDR2) operations.
+		/// - `sgx_attestation_report`: The attestation report from the Intel Software Guard Extensions (SGX) enclave.
+		#[pallet::call_index(0)]
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::registration_scheduler())]
+		pub fn register(
+			origin: OriginFor<T>,
+			worker_account: AccountOf<T>,
+			stash_account: Option<AccountOf<T>>,
+			peer_id: PeerId,
+			podr2_pbk: Podr2Key,
+			sgx_attestation_report: SgxAttestationReport,
+			end_point: EndPoint,
+			tee_type: TeeType,
+		) -> DispatchResult {
+			let _sender = ensure_signed(origin)?;
+			//Even if the primary key is not present here, panic will not be caused
+			match &stash_account {
+				Some(acc) => {
+					let _ = <pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond)?;
+					ensure!(tee_type == TeeType::Verifier || tee_type == TeeType::Full, Error::<T>::WrongTeeType);
+				},
+				None => ensure!(tee_type == TeeType::Marker, Error::<T>::WrongTeeType),
+			};
+
+			ensure!(!TeeWorkerMap::<T>::contains_key(&worker_account), Error::<T>::AlreadyRegistration);
+
+			let attestation = Attestation::SgxIas {
+				ra_report: sgx_attestation_report.report_json_raw.to_vec(),
+				signature: base64::decode(sgx_attestation_report.sign).map_err(|_| Error::<T>::InvalidReport)?,
+				raw_signing_cert: base64::decode(sgx_attestation_report.cert_der)
+					.map_err(|_| Error::<T>::InvalidReport)?,
+			};
+
+			// Validate RA report & embedded user data
+			let worker_account_encode = worker_account.encode();
+			let mut identity = Vec::new();
+			identity.extend_from_slice(&peer_id);
+			identity.extend_from_slice(&podr2_pbk);
+			identity.extend_from_slice(&end_point);
+			identity.extend_from_slice(&worker_account_encode);
+			let now = T::UnixTime::now().as_secs();
+
+			let _ = IasValidator::validate(
+				&attestation,
+				&sp_io::hashing::sha2_256(&identity),
+				now,
+				false, //TODO: to implement the ceseal verify
+				vec![],
+			)
+			.map_err(Into::<Error<T>>::into)?;
+
+			let tee_worker_info = TeeWorkerInfo::<T> {
+				worker_account: worker_account.clone(),
+				peer_id: peer_id.clone(),
+				bond_stash: stash_account,
+				end_point,
+				tee_type: tee_type.clone(),
+			};
+
+			if tee_type == TeeType::Full || tee_type == TeeType::Verifier {
+				ValidationTypeList::<T>::mutate(|tee_list| -> DispatchResult {
+					tee_list
+						.try_push(worker_account.clone())
+						.map_err(|_| Error::<T>::BoundedVecError)?;
+					Ok(())
+				})?;
+			}
+
+			if TeeWorkerMap::<T>::count() == 0 {
+				<TeePodr2Pk<T>>::put(podr2_pbk);
+			}
+
+			TeeWorkerMap::<T>::insert(&worker_account, tee_worker_info);
+
+			Self::deposit_event(Event::<T>::RegistrationTeeWorker { acc: worker_account, peer_id });
+
+			Ok(())
+		}
 		/// Update the TEE Worker MR Enclave Whitelist
 		///
 		/// This function allows the root or superuser to update the whitelist of Trusted Execution Environment (TEE)
@@ -735,11 +825,15 @@ pub mod pallet {
 				sp_core::sr25519::Signature::try_from(signature.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
 			let encoded_data = endpoint_payload.encode();
 			let data_to_sign = wrap_content_to_sign(&encoded_data, SignedContentType::EndpointInfo);
-
 			ensure!(
 				sp_io::crypto::sr25519_verify(&sig, &data_to_sign, &endpoint_payload.pubkey),
 				Error::<T>::InvalidSignature
 			);
+
+			let Some(endpoint) = endpoint_payload.endpoint else { return Err(Error::<T>::EmptyEndpoint.into()) };
+			if endpoint.is_empty() {
+				return Err(Error::<T>::EmptyEndpoint.into())
+			}
 
 			// Validate the time
 			let expiration = 4 * 60 * 60 * 1000; // 4 hours
@@ -752,7 +846,7 @@ pub mod pallet {
 			// Validate the public key
 			ensure!(Workers::<T>::contains_key(endpoint_payload.pubkey), Error::<T>::InvalidPubKey);
 
-			Endpoints::<T>::insert(endpoint_payload.pubkey, endpoint_payload.versioned_endpoints);
+			Endpoints::<T>::insert(endpoint_payload.pubkey, endpoint);
 
 			Ok(())
 		}

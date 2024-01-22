@@ -201,7 +201,6 @@ impl<T: Config> Pallet<T> {
 			.try_into().map_err(|_| Error::<T>::Overflow)?;
 		let miner_reward = <RewardMap<T>>::try_get(&miner).map_err(|_| Error::<T>::NotMiner)?;
 			
-		// FOR TESTING
 		let reward: u128 = miner_reward.total_reward.try_into().map_err(|_| Error::<T>::Overflow)?;
 		let punish_amount = match reward {
 			0 => 100u128.try_into().map_err(|_| Error::<T>::Overflow)?,
@@ -238,7 +237,6 @@ impl<T: Config> Pallet<T> {
 	}
     // Note: that it is necessary to determine whether the state meets the exit conditions before use.
 	pub(super) fn force_miner_exit(acc: &AccountOf<T>) -> DispatchResult {
-		
 		let mut miner_list = AllMiner::<T>::get();
 		miner_list.retain(|s| s != acc);
 		AllMiner::<T>::put(miner_list);
@@ -247,9 +245,22 @@ impl<T: Config> Pallet<T> {
 			let miner = miner_opt.as_mut().ok_or(Error::<T>::Unexpected)?;
 			if let Ok(reward_info) = <RewardMap<T>>::try_get(acc).map_err(|_| Error::<T>::NotExisted) {
 				T::RewardPool::send_reward_to_miner(miner.beneficiary.clone(), reward_info.total_reward)?;
+				if reward_info.total_reward == BalanceOf::<T>::zero() {
+					T::Currency::unreserve(&miner.staking_account, miner.collaterals);
+				} else {
+					let start_block = <StakingStartBlock<T>>::try_get(&acc).map_err(|_| Error::<T>::BugInvalid)?;
+					let staking_lock_block = T::StakingLockBlock::get();
+					let exec_block = start_block.checked_add(&staking_lock_block).ok_or(Error::<T>::Overflow)?;
+					<ReturnStakingSchedule<T>>::try_mutate(&exec_block, |miner_list| -> DispatchResult {
+						miner_list
+							.try_push((miner.staking_account.clone(), miner.collaterals.clone()))
+							.map_err(|_| Error::<T>::BoundedVecError)?;
+
+						Ok(())
+					})?;
+				}
 			}
 			T::StorageHandle::sub_total_idle_space(miner.idle_space + miner.lock_space)?;
-			T::Currency::unreserve(&miner.staking_account, miner.collaterals);
 			Self::create_restoral_target(acc, miner.service_space + miner.lock_space)?;
 			miner.state = Self::str_to_bound(STATE_OFFLINE)?;
 			let space_proof_info = miner.space_proof_info.clone().ok_or(Error::<T>::NotpositiveState)?;

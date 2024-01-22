@@ -300,14 +300,9 @@ impl Default for WorkerRole {
 }
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
-pub enum VersionedWorkerEndpoints {
-	V1(Vec<String>),
-}
-
-#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
 pub struct WorkerEndpointPayload {
 	pub pubkey: WorkerPublicKey,
-	pub versioned_endpoints: VersionedWorkerEndpoints,
+	pub endpoint: Option<String>,
 	pub signing_time: u64,
 }
 

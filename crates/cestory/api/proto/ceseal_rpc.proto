@@ -26,16 +26,13 @@ service CesealApi {
   rpc GetEgressMessages (google.protobuf.Empty) returns (GetEgressMessagesResponse) {}
 
   // Init the endpoint
-  rpc AddEndpoint (AddEndpointRequest) returns (GetEndpointResponse) {}
+  rpc SetEndpoint (SetEndpointRequest) returns (GetEndpointResponse) {}
 
   // Refresh the endpoint signing time
   rpc RefreshEndpointSigningTime (google.protobuf.Empty) returns (GetEndpointResponse) {}
 
   // Get endpoint info
   rpc GetEndpointInfo (google.protobuf.Empty) returns (GetEndpointResponse) {}
-
-  // Sign the given endpoint info
-  rpc SignEndpointInfo (SignEndpointsRequest) returns (GetEndpointResponse) {}
 
   // A echo rpc to measure network RTT.
   rpc Echo (EchoMessage) returns (EchoMessage) {}
@@ -51,12 +48,6 @@ service CesealApi {
 
   // Key Handover Client: Receive encrypted worker key
   rpc HandoverReceive (HandoverWorkerKey) returns (google.protobuf.Empty) {}
-
-  // Config the ceSeal's network (currently, SOCKS5 proxy only)
-  rpc ConfigNetwork (NetworkConfig) returns (google.protobuf.Empty) {}
-
-  // Get network configuration
-  rpc GetNetworkConfig (google.protobuf.Empty) returns (NetworkConfigResponse) {}
 
   // Load given chain state into the ceseal
   rpc LoadChainState (ChainState) returns (google.protobuf.Empty) {}
@@ -156,12 +147,6 @@ message HeadersToSync {
   bytes encoded_headers = 1;
   // @codec scale crate::blocks::AuthoritySetChange
   optional bytes encoded_authority_set_change = 2;
-}
-
-// Response to SyncCombinedHeaders.
-message HeadersSyncedTo {
-  uint32 relaychain_synced_to = 1;
-  uint32 parachain_synced_to = 2;
 }
 
 // Request parameters for DispatchBlocks.
@@ -296,62 +281,14 @@ message EchoMessage {
   bytes echo_msg = 1;
 }
 
-message AddEndpointRequest {
-  // @codec scale crate::endpoints::EndpointType
-  bytes encoded_endpoint_type = 1;
-  string endpoint = 2;
+message SetEndpointRequest {
+  string endpoint = 1;
 }
 
 message GetEndpointResponse {
   // @codec scale ces_types::WorkerEndpointPayload
   optional bytes encoded_endpoint_payload = 1;
   optional bytes signature = 2;
-}
-
-message SignEndpointsRequest {
-  // @codec scale Vec<String>
-  bytes encoded_endpoints = 1;
-}
-
-// Network config
-message NetworkConfigResponse {
-  // The public rpc port with ACL enabled. This is the port serving Ceseal external service.
-  optional uint32 public_rpc_port = 1;
-  // The current config set by The RPC ConfigNetwork. Nil if the ConfigNetwork hasn't been called.
-  optional NetworkConfig config = 2;
-}
-
-// Parameters for the RPC ConfigNetwork
-message NetworkConfig {
-  // The SOCKS5 proxy for outbound tcp connections.
-  string all_proxy = 1;
-}
-
-message HttpHeader {
-  string name = 1;
-  string value = 2;
-}
-
-// Parameters for the RPC HttpFetch
-message HttpRequest {
-  // The destination URL to request to
-  string url = 1;
-  // The HTTP method
-  string method = 2;
-  // A list of raw headers
-  repeated HttpHeader headers = 3;
-  // The body payload
-  bytes body = 4;
-}
-
-// Return type for HttpFetch
-message HttpResponse {
-  // The HTTP status code
-  uint32 status_code = 1;
-  // A list of raw headers
-  repeated HttpHeader headers = 2;
-  // The body payload
-  bytes body = 3;
 }
 
 message ChainState {

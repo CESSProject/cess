@@ -39,15 +39,12 @@ RUN curl -fsSL 'https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gn
 ARG IAS_API_KEY
 ARG IAS_SPID
 
-ENV IAS_API_KEY=${IAS_API_KEY} \
-    IAS_SPID=${IAS_SPID}
-
-RUN mkdir ces-blockchain
-ADD . ces-blockchain
-
-RUN mkdir prebuilt
-
-RUN cd ces-blockchain/standalone/teeworker/ceseal/gramine-build && \
+RUN : "${IAS_API_KEY:?IAS_API_KEY needs to be set and non-empty.}" \
+    && : "${IAS_SPID:?IAS_SPID needs to be set and non-empty.}" \
+    && mkdir to_build_source \
+    && mkdir prebuilt
+ADD . to_build_source
+RUN cd to_build_source/standalone/teeworker/ceseal/gramine-build && \
     PATH=$PATH:/root/.cargo/bin make dist PREFIX=/root/prebuilt && \
     make clean && \
     rm -rf /root/.cargo/registry && \
@@ -62,10 +59,8 @@ ARG http_proxy
 ARG DEBIAN_FRONTEND=noninteractive
 ARG TZ=Etc/UTC
 
-WORKDIR /opt/ceseal
-
 RUN apt-get update && \
-    apt-get install -y curl gnupg2 tini libprotobuf-c1 && \
+    apt-get install -y curl gnupg2 tini libprotobuf-c1 unzip && \
     curl -fsSLo /usr/share/keyrings/intel-sgx-deb.asc https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key && \
     echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-sgx-deb.asc] https://download.01.org/intel-sgx/sgx_repo/ubuntu focal main" | tee /etc/apt/sources.list.d/intel-sgx.list && \
     apt-get update && \
@@ -73,14 +68,39 @@ RUN apt-get update && \
     apt-get clean -y && \
     apt-get autoremove  
 
-COPY --from=builder /root/prebuilt/ .
-ADD ./scripts/docker/ceseal/gramine/start.sh ./start.sh
+ARG CESEAL_VERSION
+RUN : "${CESEAL_VERSION:?CESEAL_VERSION needs to be set and a long integer.}"
+ARG CESEAL_HOME=/opt/ceseal
+ARG CESEAL_DIR=${CESEAL_HOME}/releases/${CESEAL_VERSION}
+ARG CESEAL_DATA_DIR=${CESEAL_HOME}/${CESEAL_VERSION}/data
+ARG REAL_CESEAL_DATA_DIR=${CESEAL_HOME}/data/${CESEAL_VERSION}
+
+COPY --from=builder /root/prebuilt/ ${CESEAL_DIR}
+ADD --chmod=0755 ./scripts/docker/ceseal/gramine/start.sh ${CESEAL_DIR}/start.sh
+ADD --chmod=0755 ./scripts/docker/ceseal/gramine/start-with-handover.sh ${CESEAL_HOME}/start.sh
+ADD ./scripts/docker/ceseal/gramine/handover.ts ${CESEAL_HOME}/handover.ts
+
+RUN ln -s ${CESEAL_DIR} ${CESEAL_HOME}/releases/current \
+    && mkdir -p ${REAL_CESEAL_DATA_DIR} \
+    && rm -rf ${CESEAL_DIR}/data \
+    && ln -s ${REAL_CESEAL_DATA_DIR} ${CESEAL_DIR}/data
+
+RUN curl -fsSL https://deno.land/x/install/install.sh | sh
+ENV DENO_INSTALL=/root/.deno
+ENV PATH=/root/.deno/bin:${PATH}
+
+RUN deno cache --reload ${CESEAL_HOME}/handover.ts
+
+WORKDIR ${CESEAL_HOME}/releases/current
 
 ENV SGX=1
 ENV SKIP_AESMD=0
 ENV SLEEP_BEFORE_START=6
 ENV RUST_LOG=info
 ENV EXTRA_OPTS=
+ENV CESEAL_HOME=${CESEAL_HOME}
+
 EXPOSE 8000
+SHELL ["/bin/bash", "-c"]
 ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["/bin/bash", "./start.sh"]
+CMD ${CESEAL_HOME}/start.sh

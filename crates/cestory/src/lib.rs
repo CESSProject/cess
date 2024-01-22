@@ -25,9 +25,8 @@ use ces_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
 use ces_serde_more as more;
 use ces_types::{AttestationProvider, HandoverChallenge};
 use cestory_api::{
-    crpc::{ceseal_api_server::CesealApiServer, GetEndpointResponse, InitRuntimeResponse, NetworkConfig},
+    crpc::{ceseal_api_server::CesealApiServer, GetEndpointResponse, InitRuntimeResponse},
     ecall_args::InitArgs,
-    endpoints::EndpointType,
     storage_sync::{StorageSynchronizer, Synchronizer},
 };
 use parity_scale_codec::{Decode, Encode};
@@ -35,7 +34,6 @@ use ring::rand::SecureRandom;
 use scale_info::TypeInfo;
 use sp_core::{crypto::Pair, sr25519, H256};
 use std::{
-    collections::BTreeMap,
     fs::File,
     io::{ErrorKind, Write},
     marker::PhantomData,
@@ -212,10 +210,10 @@ pub struct Ceseal<Platform> {
     machine_id: Vec<u8>,
     runtime_info: Option<InitRuntimeResponse>,
     runtime_state: Option<RuntimeState>,
-    endpoints: BTreeMap<EndpointType, String>,
+    endpoint: Option<String>,
     #[serde(skip)]
     #[codec(skip)]
-    signed_endpoints: Option<GetEndpointResponse>,
+    signed_endpoint: Option<GetEndpointResponse>,
     // The deserialzation of system requires the mq, which inside the runtime_state, to be ready.
     #[serde(skip)]
     system: Option<system::System<Platform>>,
@@ -233,9 +231,6 @@ pub struct Ceseal<Platform> {
     #[serde(skip)]
     #[serde(default = "Instant::now")]
     last_checkpoint: Instant,
-
-    #[serde(default)]
-    netconfig: Option<NetworkConfig>,
 
     #[codec(skip)]
     #[serde(skip)]
@@ -282,12 +277,11 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
             runtime_info: None,
             runtime_state: None,
             system: None,
-            endpoints: Default::default(),
-            signed_endpoints: None,
+            endpoint: None,
+            signed_endpoint: None,
             handover_ecdh_key: None,
             handover_last_challenge: None,
             last_checkpoint: Instant::now(),
-            netconfig: Default::default(),
             can_load_chain_state: false,
             trusted_sk: false,
             rcu_dispatching: false,
@@ -397,33 +391,12 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
             RuntimeDataSeal::V1(data) => Ok(data),
         }
     }
-
-    pub fn set_netconfig(&mut self, config: NetworkConfig) {
-        self.netconfig = Some(config);
-        self.reconfigure_network();
-    }
-
-    fn reconfigure_network(&self) {
-        let config = match &self.netconfig {
-            None => return,
-            Some(config) => config,
-        };
-        fn reconfig_one(name: &str, value: &str) {
-            if value.is_empty() {
-                std::env::remove_var(name);
-            } else {
-                std::env::set_var(name, value);
-            }
-        }
-        reconfig_one("all_proxy", &config.all_proxy);
-    }
 }
 
 impl<P: pal::Platform> Ceseal<P> {
     // Restored from checkpoint
     pub fn on_restored(&mut self) -> Result<()> {
         self.check_requirements();
-        self.reconfigure_network();
         self.update_runtime_info(|_| {});
         self.trusted_sk = Self::load_runtime_data(&self.platform, &self.args.sealing_path)?.trusted_sk;
         if let Some(system) = &mut self.system {
@@ -800,13 +773,31 @@ where
     tokio::spawn(async move {
         let ceseal = cestory_clone;
         let podr2_key = keyfairy_ready_rx.await.expect("expect keyfairy ready");
+        let identity_key = ceseal
+            .lock(true, true)
+            .expect("Failed to lock Ceseal")
+            .system
+            .as_ref()
+            .unwrap()
+            .identity_key
+            .clone();
 
         let (ceseal_expert, expert_cmd_rx) = expert::CesealExpertStub::new();
-        let podr2_srv = podr2::new_podr2_api_server(podr2_key.clone(), ceseal_expert.clone());
-        let podr2v_srv = podr2::new_podr2_verifier_api_server(podr2_key.clone(), ceseal_expert.clone());
-        let pois_srv =
-            pois::new_pois_certifier_api_server(podr2_key.clone(), pois_param.clone(), ceseal_expert.clone());
-        let poisv_srv = pois::new_pois_verifier_api_server(podr2_key, pois_param, ceseal_expert);
+        let podr2_srv =
+            podr2::new_podr2_api_server(podr2_key.clone(), identity_key.clone().public().0, ceseal_expert.clone());
+        let podr2v_srv = podr2::new_podr2_verifier_api_server(
+            podr2_key.clone(),
+            identity_key.clone().public().0,
+            ceseal_expert.clone(),
+        );
+        let pois_srv = pois::new_pois_certifier_api_server(
+            podr2_key.clone(),
+            pois_param.clone(),
+            identity_key.clone().public().0,
+            ceseal_expert.clone(),
+        );
+        let poisv_srv =
+            pois::new_pois_verifier_api_server(podr2_key, pois_param, identity_key.public().0, ceseal_expert);
 
         let expert_handler = tokio::spawn(expert::run(ceseal, expert_cmd_rx));
 

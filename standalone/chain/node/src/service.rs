@@ -345,7 +345,7 @@ where
 		pending_create_inherent_data_providers,
 	};
 
-	let (rpc_extensions_builder, _rpc_setup) = {
+	let (rpc_extensions_builder, rpc_setup) = {
 		let grandpa_link= &grandpa_link;
 
 		let justification_stream = grandpa_link.justification_stream();
@@ -550,7 +550,7 @@ where
 				sync: sync_service,
 				voting_rule: grandpa::VotingRulesBuilder::default().build(),
 				prometheus_registry,
-				shared_voter_state: grandpa::SharedVoterState::empty(),
+				shared_voter_state: rpc_setup,
 				telemetry: telemetry.as_ref().map(|x| x.handle()),
 				offchain_tx_pool_factory: OffchainTransactionPoolFactory::new(transaction_pool),
 			})?;
