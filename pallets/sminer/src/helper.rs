@@ -6,7 +6,7 @@ impl<T: Config> Pallet<T> {
 		accumulator: Accumulator,
 		check_front: u64,
 		rear: u64, 
-		tee_sig: TeeRsaSignature,
+		tee_sig: TeeSig,
 	) -> Result<u128, DispatchError> {
 		MinerItems::<T>::try_mutate(acc, |miner_info_opt| -> Result<u128, DispatchError> {
 			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
@@ -48,7 +48,7 @@ impl<T: Config> Pallet<T> {
 		accumulator: Accumulator, 
 		front: u64,
 		check_rear: u64,
-		tee_sig: TeeRsaSignature,
+		tee_sig: TeeSig,
 	) -> Result<u64, DispatchError> {
 		MinerItems::<T>::try_mutate(acc, |miner_info_opt| -> Result<u64, DispatchError> {
 			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotMiner)?;

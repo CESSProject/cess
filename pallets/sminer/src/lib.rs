@@ -39,8 +39,9 @@ use sp_runtime::{
 	RuntimeDebug, Perbill
 };
 use sp_std::{convert::TryInto, prelude::*, marker::PhantomData};
-use sp_core::ConstU32;
-use cp_enclave_verify::verify_rsa;
+use sp_core::{
+	ConstU32, sr25519::{Signature as TeeSig}
+};
 use pallet_tee_worker::TeeWorkerHandler;
 use cp_bloom_filter::BloomFilter;
 use pallet_storage_handler::StorageHandle;
@@ -233,6 +234,8 @@ pub mod pallet {
 		ExceedingDeclarationSpace,
 
 		InsufficientReplaceable,
+
+		MalformedSignature,
 	}
 
 	/// The hashmap for info of storage miners.
@@ -372,7 +375,7 @@ pub mod pallet {
 					lock_space: u128::MIN,
 					space_proof_info: Option::None,			
 					service_bloom_filter: Default::default(),
-					tee_signature: [0u8; 256],
+					tee_signature:  TeeSig([0u8; 64]),
 				},
 			);
 
@@ -390,64 +393,6 @@ pub mod pallet {
 				acc: sender,
 			});
 			
-			Ok(())
-		}
-
-		#[pallet::call_index(16)]
-		#[transactional]
-		#[pallet::weight(Weight::zero())]
-		pub fn register_pois_key(
-			origin: OriginFor<T>, 
-			pois_key: PoISKey, 
-			tee_sig: TeeRsaSignature
-		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			// Because the next operation consumes system resources, make a judgment in advance.
-			ensure!(<MinerItems<T>>::contains_key(&sender), Error::<T>::NotMiner);
-
-			let space_proof_info = SpaceProofInfo::<AccountOf<T>> {
-				miner: sender.clone(),
-				front: u64::MIN,
-				rear: u64::MIN,
-				pois_key: pois_key.clone(),
-				accumulator: pois_key.g,
-			};
-
-			let encoding = space_proof_info.encode();
-			let original_text = sp_io::hashing::sha2_256(&encoding);
-			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
-			ensure!(verify_rsa(&tee_puk, &original_text, &tee_sig), Error::<T>::VerifyTeeSigFailed);
-
-			MinerPublicKey::<T>::insert(&original_text, sender.clone());
-
-			<MinerItems<T>>::try_mutate(&sender, |info_opt| -> DispatchResult {
-				let miner_info = info_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
-				ensure!(STATE_NOT_READY.as_bytes().to_vec() == miner_info.state.to_vec(), Error::<T>::StateError);
-
-				miner_info.space_proof_info = Some(space_proof_info);
-				let base_limit: BalanceOf<T> = Self::calculate_limit_by_space(miner_info.declaration_space)?
-					.try_into().map_err(|_| Error::<T>::Overflow)?;
-				if miner_info.collaterals >= base_limit {
-					miner_info.state = Self::str_to_bound(STATE_POSITIVE)?;
-				} else {
-					miner_info.state = Self::str_to_bound(STATE_FROZEN)?;
-				}
-				miner_info.tee_signature = tee_sig;
-
-				Ok(())
-			})?;
-
-			AllMiner::<T>::try_mutate(|all_miner| -> DispatchResult {
-				all_miner
-					.try_push(sender.clone())
-					.map_err(|_e| Error::<T>::StorageLimitReached)?;
-				Ok(())
-			})?;
-
-			Self::deposit_event(Event::<T>::RegisterPoisKey {
-				miner: sender,
-			});
-
 			Ok(())
 		}
 
@@ -480,7 +425,7 @@ pub mod pallet {
 					lock_space: u128::MIN,
 					space_proof_info: Option::None,	
 					service_bloom_filter: Default::default(),
-					tee_signature: [0u8; 256],
+					tee_signature: TeeSig([0u8; 64]),
 				},
 			);
 
@@ -589,7 +534,7 @@ pub mod pallet {
 				}
 
 				let now = <frame_system::Pallet<T>>::block_number();
-				<StakingStartBlock<T>>::insert(&sender, now);
+				<StakingStartBlock<T>>::insert(&miner, now);
 
 				T::Currency::reserve(&sender, remaining)?;
 
@@ -954,9 +899,9 @@ pub mod pallet {
 }
 
 pub trait MinerControl<AccountId, BlockNumber> {
-	fn add_miner_idle_space(acc: &AccountId, accumulator: Accumulator, check_front: u64, rear: u64, tee_sig: TeeRsaSignature) -> Result<u128, DispatchError>;
+	fn add_miner_idle_space(acc: &AccountId, accumulator: Accumulator, check_front: u64, rear: u64, tee_sig: TeeSig) -> Result<u128, DispatchError>;
 	// fn sub_miner_idle_space(acc: &AccountId, accumulator: Accumulator, rear: u64) -> DispatchResult;
-	fn delete_idle_update_accu(acc: &AccountId, accumulator: Accumulator, front: u64, check_rear: u64, tee_sig: TeeRsaSignature) -> Result<u64, DispatchError>;
+	fn delete_idle_update_accu(acc: &AccountId, accumulator: Accumulator, front: u64, check_rear: u64, tee_sig: TeeSig) -> Result<u64, DispatchError>;
 	fn delete_idle_update_space(acc: &AccountId, idle_space: u128) -> DispatchResult;
 	fn add_miner_service_space(acc: &AccountId, power: u128) -> DispatchResult;
 	fn sub_miner_service_space(acc: &AccountId, power: u128) -> DispatchResult;
@@ -996,7 +941,7 @@ pub trait MinerControl<AccountId, BlockNumber> {
 	fn is_lock(miner: &AccountId) -> Result<bool, DispatchError>;
 	fn update_miner_state(miner: &AccountId, state: &str) -> DispatchResult;
 	fn get_expenders() -> Result<(u64, u64, u64), DispatchError>;
-	fn get_miner_snapshot(miner: &AccountId) -> Result<(u128, u128, BloomFilter, SpaceProofInfo<AccountId>, TeeRsaSignature), DispatchError>;
+	fn get_miner_snapshot(miner: &AccountId) -> Result<(u128, u128, BloomFilter, SpaceProofInfo<AccountId>, TeeSig), DispatchError>;
 
 	fn increase_replace_space(miner: &AccountId, space: u128) -> DispatchResult;
 	fn decrease_replace_space(miner: &AccountId, space: u128) -> DispatchResult;
@@ -1008,7 +953,7 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 		accumulator: Accumulator,  
 		check_front: u64,
 		rear: u64, 
-		tee_sig: TeeRsaSignature
+		tee_sig: TeeSig,
 	) -> Result<u128, DispatchError> {
 		let idle_space = Pallet::<T>::add_miner_idle_space(
 			acc, 
@@ -1025,7 +970,7 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 		accumulator: Accumulator, 
 		front: u64,
 		check_rear: u64,
-		tee_sig: TeeRsaSignature
+		tee_sig: TeeSig,
 	) -> Result<u64, DispatchError> {
 		let count = Self::delete_idle_update_accu(
 			acc, 
@@ -1208,7 +1153,7 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 		Ok(expenders)
 	}
 
-	fn get_miner_snapshot(miner: &AccountOf<T>) -> Result<(u128, u128, BloomFilter, SpaceProofInfo<AccountOf<T>>, TeeRsaSignature), DispatchError> {
+	fn get_miner_snapshot(miner: &AccountOf<T>) -> Result<(u128, u128, BloomFilter, SpaceProofInfo<AccountOf<T>>, TeeSig), DispatchError> {
 		if !<MinerItems<T>>::contains_key(miner) {
 			Err(Error::<T>::NotMiner)?;
 		}

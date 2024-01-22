@@ -48,7 +48,7 @@ pub struct MinerSnapShot<T: pallet::Config> {
 	pub(super) service_space: u128,
 	pub(super) service_bloom_filter: BloomFilter,
 	pub(super) space_proof_info: SpaceProofInfo<AccountOf<T>>,
-	pub(super) tee_signature: TeeRsaSignature,
+	pub(super) tee_signature: TeeSig,
 }
 
 // Structure for storing miner certificates
@@ -56,7 +56,7 @@ pub struct MinerSnapShot<T: pallet::Config> {
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct IdleProveInfo<T: pallet::Config> {
-	pub(super) tee_acc: AccountOf<T>,
+	pub(super) tee_puk: WorkerPublicKey,
 	pub(super) idle_prove: BoundedVec<u8, T::IdleTotalHashLength>,
 	pub(super) verify_result: Option<bool>,
 }
@@ -65,7 +65,7 @@ pub struct IdleProveInfo<T: pallet::Config> {
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct ServiceProveInfo<T: pallet::Config> {
-	pub(super) tee_acc: AccountOf<T>,
+	pub(super) tee_puk: WorkerPublicKey,
 	pub(super) service_prove: BoundedVec<u8, T::SigmaMax>,
 	pub(super) verify_result: Option<bool>,
 }
@@ -81,7 +81,7 @@ pub struct VerifyIdleResultInfo<T: pallet::Config> {
 	pub(super) accumulator: Accumulator,
 	pub(super) space_challenge_param: SpaceChallengeParam,
 	pub(super) result: bool,
-	pub(super) tee_acc: AccountOf<T>,
+	pub(super) tee_puk: WorkerPublicKey,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
@@ -89,7 +89,7 @@ pub struct VerifyIdleResultInfo<T: pallet::Config> {
 #[codec(mel_bound())]
 pub struct VerifyServiceResultInfo<T: pallet::Config> {
 	pub(super) miner: AccountOf<T>,
-	pub(super) tee_acc: AccountOf<T>,
+	pub(super) tee_puk: WorkerPublicKey,
 	pub(super) miner_prove: BoundedVec<u8, T::SigmaMax>,
 	pub(super) result: bool,
 	pub(super) chal: QElement,

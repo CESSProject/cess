@@ -79,6 +79,7 @@ use pallet_sminer::MinerControl;
 use pallet_tee_worker::TeeWorkerHandler;
 use pallet_oss::OssFindAuthor;
 use cp_enclave_verify::verify_rsa;
+use ces_types::WorkerPublicKey;
 
 pub use weights::WeightInfo;
 
@@ -263,6 +264,10 @@ pub mod pallet {
 		VerifyTeeSigFailed,
 
 		TeeNoPermission,
+
+		DigestError,
+
+		MalformedSignature,
 	}
 
 	#[pallet::storage]
@@ -558,45 +563,91 @@ pub mod pallet {
 		#[pallet::weight(Weight::zero())]
 		pub fn calculate_report(
 			origin: OriginFor<T>,
-			tee_sig: TeeRsaSignature,
+			tee_sig: BoundedVec<u8, ConstU32<64>>,
 			tag_sig_info: TagSigInfo<AccountOf<T>>,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
-			ensure!(
-				T::TeeWorkerHandler::can_tag(&tag_sig_info.tee_acc),
-				Error::<T>::TeeNoPermission
-			);
+
 			let idle_sig_info_encode = tag_sig_info.encode();
 			let original = sp_io::hashing::sha2_256(&idle_sig_info_encode);
-			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
+			let master_puk = T::TeeWorkerHandler::get_master_publickey()?;
 
-			ensure!(verify_rsa(&tee_puk, &original, &tee_sig), Error::<T>::VerifyTeeSigFailed);
+			let sig = 
+				sp_core::sr25519::Signature::try_from(tee_sig.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
+
+			ensure!(
+				sp_io::crypto::sr25519_verify(&sig, &original, &master_puk),
+				Error::<T>::VerifyTeeSigFailed
+			);
 			ensure!(tag_sig_info.miner == sender, Error::<T>::VerifyTeeSigFailed);
+
+			let mut tee_tag_counter: BTreeMap<WorkerPublicKey, u8> = Default::default();
+			let mut calculate_details: BTreeMap<Hash, Vec<WorkerPublicKey>> = Default::default();
+			for digest in tag_sig_info.digest {
+				ensure!(
+					T::TeeWorkerHandler::can_tag(&digest.tee_puk),
+					Error::<T>::TeeNoPermission
+				);
+				let res = calculate_details.get_mut(&digest.fragment);
+				match res {
+					Some(value) => value.push(digest.tee_puk),
+					None => {
+						let value: Vec<WorkerPublicKey> = vec![digest.tee_puk];
+						calculate_details.insert(digest.fragment, value);
+					},
+				};
+
+				let res = tee_tag_counter.get_mut(&digest.tee_puk);
+				match res {
+					Some(value) => *value = *value + 1,
+					None => { tee_tag_counter.insert(digest.tee_puk, 1); },
+				};
+			}
 
 			<File<T>>::try_mutate(&tag_sig_info.file_hash, |file_info_opt| -> DispatchResult {
 				let file_info = file_info_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
 				let now = <frame_system::Pallet<T>>::block_number();
-				let mut count: u128 = 0;
+				let mut fcount: u128 = 0;
 				let mut hash_list: Vec<Box<[u8; 256]>> = Default::default();
+				let mut fragment_counter: BTreeMap<Hash, u8> = Default::default();
 				for segment in file_info.segment_list.iter_mut() {
 					for fragment in segment.fragment_list.iter_mut() {
 						if fragment.miner == sender {
+							let res = fragment_counter.get_mut(&fragment.hash);
+							match res {
+								Some(value) => *value = *value + 1,
+								None => {
+									fragment_counter.insert(fragment.hash, 1);
+								},
+							};
 							fragment.tag = Some(now);
-							count = count + 1;
+							fcount = fcount + 1;
 							let hash_temp = fragment.hash.binary().map_err(|_| Error::<T>::BugInvalid)?;
 							hash_list.push(hash_temp);
 						}
 					}
 				}
 
-				let unlock_space = FRAGMENT_SIZE.checked_mul(count as u128).ok_or(Error::<T>::Overflow)?;
+				for (hash, count) in fragment_counter.iter() {
+					let res = calculate_details.get_mut(hash);
+					match res {
+						Some(value) => {
+							ensure!(value.len() == (*count as usize), Error::<T>::DigestError)
+						},
+						None => Err(Error::<T>::DigestError)?,
+					};
+				}
+
+				let unlock_space = FRAGMENT_SIZE.checked_mul(fcount as u128).ok_or(Error::<T>::Overflow)?;
 				T::MinerControl::unlock_space_to_service(&sender, unlock_space)?;
 				T::MinerControl::insert_service_bloom(&sender, hash_list)?;
 
-				if T::TeeWorkerHandler::is_bonded(&tag_sig_info.tee_acc) {
-					let bond_stash = T::TeeWorkerHandler::get_stash(&tag_sig_info.tee_acc)?;
-					T::CreditCounter::increase_point_for_tag(&bond_stash, unlock_space)?;
+				for (puk, count) in tee_tag_counter.iter() {
+					if T::TeeWorkerHandler::is_bonded(&puk) {
+						let bond_stash = T::TeeWorkerHandler::get_stash(&puk)?;
+						T::CreditCounter::increase_point_for_tag(&bond_stash, FRAGMENT_SIZE * (*count as u128))?;
+					}
 				}
 
 				Self::deposit_event(Event::<T>::CalculateReport{ miner: sender, file_hash: tag_sig_info.file_hash});
@@ -623,37 +674,43 @@ pub mod pallet {
 		pub fn replace_idle_space(
 			origin: OriginFor<T>,
 			idle_sig_info: SpaceProofInfo<AccountOf<T>>,
-			tee_sig: TeeRsaSignature,
-			tee_acc: AccountOf<T>,
+			tee_sig: BoundedVec<u8, ConstU32<64>>,
+			tee_puk: WorkerPublicKey,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
 			ensure!(
-				T::TeeWorkerHandler::can_cert(&tee_acc),
+				T::TeeWorkerHandler::can_cert(&tee_puk),
 				Error::<T>::TeeNoPermission
 			);
 			let idle_sig_info_encode = idle_sig_info.encode();
-			let tee_acc_encode = tee_acc.encode();
+			let tee_puk_encode = tee_puk.encode();
 			let mut original = Vec::new();
 			original.extend_from_slice(&idle_sig_info_encode);
-			original.extend_from_slice(&tee_acc_encode);
+			original.extend_from_slice(&tee_puk_encode);
 			let original = sp_io::hashing::sha2_256(&original);
-			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
+			let master_puk = T::TeeWorkerHandler::get_master_publickey()?;
 
-			ensure!(verify_rsa(&tee_puk, &original, &tee_sig), Error::<T>::VerifyTeeSigFailed);
+			let sig = 
+				sp_core::sr25519::Signature::try_from(tee_sig.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
+
+			ensure!(
+				sp_io::crypto::sr25519_verify(&sig, &original, &master_puk),
+				Error::<T>::VerifyTeeSigFailed
+			);
 
 			let count = T::MinerControl::delete_idle_update_accu(
 				&sender, 
 				idle_sig_info.accumulator,
 				idle_sig_info.front,
 				idle_sig_info.rear,
-				tee_sig,
+				sig,
 			)?;
 			let replace_space = IDLE_SEG_SIZE.checked_mul(count.into()).ok_or(Error::<T>::Overflow)?;
 			T::MinerControl::decrease_replace_space(&sender, replace_space)?;
 
-			if T::TeeWorkerHandler::is_bonded(&tee_acc) {
-				let bond_stash = T::TeeWorkerHandler::get_stash(&tee_acc)?;
+			if T::TeeWorkerHandler::is_bonded(&tee_puk) {
+				let bond_stash = T::TeeWorkerHandler::get_stash(&tee_puk)?;
 				T::CreditCounter::increase_point_for_replace(&bond_stash, replace_space)?;
 			}
 			
@@ -706,36 +763,44 @@ pub mod pallet {
 		pub fn cert_idle_space(
 			origin: OriginFor<T>,
 			idle_sig_info: SpaceProofInfo<AccountOf<T>>,
-			tee_sig: TeeRsaSignature,
-			tee_acc: AccountOf<T>,
+			tee_sig: BoundedVec<u8, ConstU32<64>>,
+			tee_puk: WorkerPublicKey,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
 			ensure!(
-				T::TeeWorkerHandler::can_cert(&tee_acc),
+				T::TeeWorkerHandler::can_cert(&tee_puk),
 				Error::<T>::TeeNoPermission
 			);
 			let idle_sig_info_encode = idle_sig_info.encode();
-			let tee_acc_encode = tee_acc.encode();
+			let tee_puk_encode = tee_puk.encode();
 			let mut original = Vec::new();
 			original.extend_from_slice(&idle_sig_info_encode);
-			original.extend_from_slice(&tee_acc_encode);
+			original.extend_from_slice(&tee_puk_encode);
 			let original = sp_io::hashing::sha2_256(&original);
 
-			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
+			let master_puk = T::TeeWorkerHandler::get_master_publickey()?;
 
-			ensure!(verify_rsa(&tee_puk, &original, &tee_sig), Error::<T>::VerifyTeeSigFailed);
+			let sig = 
+				sp_core::sr25519::Signature::try_from(tee_sig.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
+
+			ensure!(
+				sp_io::crypto::sr25519_verify(&sig, &original, &master_puk),
+				Error::<T>::VerifyTeeSigFailed
+			);
+
+			ensure!(verify_rsa(&master_puk, &original, &tee_sig), Error::<T>::VerifyTeeSigFailed);
 
 			let idle_space = T::MinerControl::add_miner_idle_space(
 				&sender, 
 				idle_sig_info.accumulator, 
 				idle_sig_info.front,
 				idle_sig_info.rear,
-				tee_sig,
+				sig,
 			)?;
 
-			if T::TeeWorkerHandler::is_bonded(&tee_acc) {
-				let bond_stash = T::TeeWorkerHandler::get_stash(&tee_acc)?;
+			if T::TeeWorkerHandler::is_bonded(&tee_puk) {
+				let bond_stash = T::TeeWorkerHandler::get_stash(&tee_puk)?;
 				T::CreditCounter::increase_point_for_cert(&bond_stash, idle_space)?;
 			}
 

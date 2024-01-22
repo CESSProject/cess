@@ -20,7 +20,7 @@ pub struct MinerInfo<T: Config> {
 	pub lock_space: u128,
 	pub space_proof_info: Option<SpaceProofInfo<AccountOf<T>>>,
 	pub service_bloom_filter: BloomFilter,
-    pub tee_signature: TeeRsaSignature,
+    pub tee_signature: TeeSig,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]

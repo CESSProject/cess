@@ -19,6 +19,7 @@ pallet-cess-staking = { workspace = true }
 pallet-preimage = { workspace = true }
 
 # local pallet
+ces-types = { workspace = true, features = ["enable_serde"] }
 cp-bloom-filter = { workspace = true }
 cp-scheduler-credit = { workspace = true }
 cp-cess-common = { workspace = true }

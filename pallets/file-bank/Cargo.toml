@@ -30,6 +30,7 @@ frame-support = { workspace = true }
 frame-system = { workspace = true }
 
 # local dependencies
+ces-types = { workspace = true, features = ["enable_serde"] }
 cp-scheduler-credit = { workspace = true }
 cp-cess-common = { workspace = true }
 cp-enclave-verify = { workspace = true }
