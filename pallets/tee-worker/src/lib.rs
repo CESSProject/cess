@@ -55,9 +55,8 @@ pub mod pallet {
 		messaging::{
 			self, bind_topic, DecodedMessage, KeyfairyChange, KeyfairyLaunch, MessageOrigin, SystemEvent, WorkerEvent,
 		},
-		attestation::{self, Error as AttestationError},
 		wrap_content_to_sign, AttestationProvider, EcdhPublicKey,  SignedContentType,
-		VersionedWorkerEndpoints, WorkerEndpointPayload, WorkerIdentity, WorkerRegistrationInfo,
+		WorkerEndpointPayload, WorkerIdentity, WorkerRegistrationInfo,
 	};
 
 	// Re-export
