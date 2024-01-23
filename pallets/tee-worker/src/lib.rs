@@ -22,6 +22,7 @@ use sp_std::{convert::TryInto, prelude::*};
 
 use cp_cess_common::*;
 use cp_scheduler_credit::SchedulerCreditCounter;
+use ces_types::{WorkerPublicKey, MasterPublicKey, WorkerRole};
 use frame_system::{ensure_signed, pallet_prelude::*};
 pub use weights::WeightInfo;
 pub mod weights;
@@ -54,8 +55,8 @@ pub mod pallet {
 		messaging::{
 			self, bind_topic, DecodedMessage, KeyfairyChange, KeyfairyLaunch, MessageOrigin, SystemEvent, WorkerEvent,
 		},
-		wrap_content_to_sign, AttestationProvider, EcdhPublicKey, MasterPublicKey, SignedContentType,
-		WorkerEndpointPayload, WorkerIdentity, WorkerPublicKey, WorkerRegistrationInfo, WorkerRole,
+		wrap_content_to_sign, AttestationProvider, EcdhPublicKey,  SignedContentType,
+		WorkerEndpointPayload, WorkerIdentity, WorkerRegistrationInfo,
 	};
 
 	// Re-export
@@ -178,6 +179,8 @@ pub mod pallet {
 
 		NotBond,
 
+		NotController,
+
 		NonTeeWorker,
 
 		VerifyCertFailed,
@@ -250,7 +253,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn validation_type_list)]
 	pub(super) type ValidationTypeList<T: Config> =
-		StorageValue<_, BoundedVec<AccountOf<T>, T::SchedulerMaximum>, ValueQuery>;
+		StorageValue<_, BoundedVec<WorkerPublicKey, T::SchedulerMaximum>, ValueQuery>;
 
 	/// Keyfairy pubkey list
 	#[pallet::storage]
@@ -279,7 +282,7 @@ pub mod pallet {
 
 	/// Mapping from worker pubkey to WorkerInfo
 	#[pallet::storage]
-	pub type Workers<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfo<T::AccountId>>;
+	pub type Workers<T: Config> = CountedStorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfo<T::AccountId>>;
 
 	/// The first time registered block number for each worker.
 	#[pallet::storage]
@@ -316,96 +319,6 @@ pub mod pallet {
 	where
 		T: ces_pallet_mq::Config,
 	{
-		/// Register a TEE Worker
-		///
-		/// This function allows a user to register a Trusted Execution Environment (TEE) worker by providing necessary
-		/// information, including the TEE worker's public keys, Peer ID, and other details.
-		///
-		/// Parameters:
-		/// - `origin`: The origin from which the function is called, representing the user's account.
-		/// - `stash_account`: The stash account associated with the TEE worker, used for staking and governance.
-		/// - `node_key`: The public key of the TEE node.
-		/// - `peer_id`: The Peer ID of the TEE worker.
-		/// - `podr2_pbk`: The public key used for Proofs of Data Replication 2 (PoDR2) operations.
-		/// - `sgx_attestation_report`: The attestation report from the Intel Software Guard Extensions (SGX) enclave.
-		#[pallet::call_index(0)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::registration_scheduler())]
-		pub fn register(
-			origin: OriginFor<T>,
-			worker_account: AccountOf<T>,
-			stash_account: Option<AccountOf<T>>,
-			peer_id: PeerId,
-			podr2_pbk: Podr2Key,
-			sgx_attestation_report: SgxAttestationReport,
-			end_point: EndPoint,
-			tee_type: TeeType,
-		) -> DispatchResult {
-			let _sender = ensure_signed(origin)?;
-			//Even if the primary key is not present here, panic will not be caused
-			match &stash_account {
-				Some(acc) => {
-					let _ = <pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond)?;
-					ensure!(tee_type == TeeType::Verifier || tee_type == TeeType::Full, Error::<T>::WrongTeeType);
-				},
-				None => ensure!(tee_type == TeeType::Marker, Error::<T>::WrongTeeType),
-			};
-
-			ensure!(!TeeWorkerMap::<T>::contains_key(&worker_account), Error::<T>::AlreadyRegistration);
-
-			let attestation = Attestation::SgxIas {
-				ra_report: sgx_attestation_report.report_json_raw.to_vec(),
-				signature: base64::decode(sgx_attestation_report.sign).map_err(|_| Error::<T>::InvalidReport)?,
-				raw_signing_cert: base64::decode(sgx_attestation_report.cert_der)
-					.map_err(|_| Error::<T>::InvalidReport)?,
-			};
-
-			// Validate RA report & embedded user data
-			let worker_account_encode = worker_account.encode();
-			let mut identity = Vec::new();
-			identity.extend_from_slice(&peer_id);
-			identity.extend_from_slice(&podr2_pbk);
-			identity.extend_from_slice(&end_point);
-			identity.extend_from_slice(&worker_account_encode);
-			let now = T::UnixTime::now().as_secs();
-
-			let _ = IasValidator::validate(
-				&attestation,
-				&sp_io::hashing::sha2_256(&identity),
-				now,
-				false, //TODO: to implement the ceseal verify
-				vec![],
-			)
-			.map_err(Into::<Error<T>>::into)?;
-
-			let tee_worker_info = TeeWorkerInfo::<T> {
-				worker_account: worker_account.clone(),
-				peer_id: peer_id.clone(),
-				bond_stash: stash_account,
-				end_point,
-				tee_type: tee_type.clone(),
-			};
-
-			if tee_type == TeeType::Full || tee_type == TeeType::Verifier {
-				ValidationTypeList::<T>::mutate(|tee_list| -> DispatchResult {
-					tee_list
-						.try_push(worker_account.clone())
-						.map_err(|_| Error::<T>::BoundedVecError)?;
-					Ok(())
-				})?;
-			}
-
-			if TeeWorkerMap::<T>::count() == 0 {
-				<TeePodr2Pk<T>>::put(podr2_pbk);
-			}
-
-			TeeWorkerMap::<T>::insert(&worker_account, tee_worker_info);
-
-			Self::deposit_event(Event::<T>::RegistrationTeeWorker { acc: worker_account, peer_id });
-
-			Ok(())
-		}
-
 		/// Update the TEE Worker MR Enclave Whitelist
 		///
 		/// This function allows the root or superuser to update the whitelist of Trusted Execution Environment (TEE)
@@ -441,29 +354,30 @@ pub mod pallet {
 		/// Parameters:
 		/// - `origin`: The origin from which the function is called, representing the account of the TEE Worker. This
 		///   should be the controller account of the TEE Worker.
-		#[pallet::call_index(2)]
-		#[transactional]
-		#[pallet::weight(Weight::zero())]
-		pub fn exit(origin: OriginFor<T>) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
+		// #[pallet::call_index(2)]
+		// #[transactional]
+		// #[pallet::weight(Weight::zero())]
+		// pub fn exit(origin: OriginFor<T>, pbk: WorkerPublicKey) -> DispatchResult {
+		// 	let sender = ensure_signed(origin)?;
 
-			let tee_info = TeeWorkerMap::<T>::try_get(&sender).map_err(|_| Error::<T>::Overflow)?;
-			if tee_info.tee_type == TeeType::Full || tee_info.tee_type == TeeType::Verifier {
-				ValidationTypeList::<T>::mutate(|tee_list| {
-					tee_list.retain(|tee_acc| *tee_acc != sender.clone());
-				});
-			}
+		// 	let tee_info = Workers::<T>::try_get(&pbk).map_err(|_| Error::<T>::Overflow)?;
+		// 	ensure!(tee_info.controller_account == sender.clone(), Error::<T>::NotController);
+		// 	if tee_info.role == WorkerRole::Full || tee_info.role == WorkerRole::Verifier {
+		// 		ValidationTypeList::<T>::mutate(|tee_list| {
+		// 			tee_list.retain(|tee_puk| *tee_puk != pbk);
+		// 		});
+		// 	}
 
-			TeeWorkerMap::<T>::remove(&sender);
+		// 	Workers::<T>::remove(&pbk);
 
-			if TeeWorkerMap::<T>::count() == 0 {
-				<TeePodr2Pk<T>>::kill();
-			}
+		// 	if Workers::<T>::count() == 0 {
+		// 		<TeePodr2Pk<T>>::kill();
+		// 	}
 
-			Self::deposit_event(Event::<T>::Exit { acc: sender });
+		// 	Self::deposit_event(Event::<T>::Exit { acc: sender });
 
-			Ok(())
-		}
+		// 	Ok(())
+		// }
 		// FOR TESTING
 		#[pallet::call_index(3)]
 		#[transactional]
@@ -512,7 +426,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			pubkey: WorkerPublicKey,
 			ecdh_pubkey: EcdhPublicKey,
-			operator: Option<T::AccountId>,
+			stash_account: Option<AccountOf<T>>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			let worker_info = WorkerInfo {
@@ -520,7 +434,7 @@ pub mod pallet {
 				ecdh_pubkey,
 				version: 0,
 				last_updated: 1,
-				operator,
+				stash_account: stash_account,
 				attestation_provider: Some(AttestationProvider::Root),
 				confidence_level: 128u8,
 				features: vec![1, 4],
@@ -651,72 +565,67 @@ pub mod pallet {
 
 			// Update the registry
 			let pubkey = ceseal_info.pubkey;
-			Workers::<T>::mutate(pubkey, |v| {
-				match v {
-					Some(worker_info) => {
-						// Case 1 - Refresh the RA report, optionally update the operator, and redo benchmark
-						worker_info.last_updated = now;
-						worker_info.operator = ceseal_info.operator;
-						worker_info.version = ceseal_info.version;
-						worker_info.confidence_level = fields.confidence_level;
-						worker_info.features = ceseal_info.features;
-						worker_info.role = ceseal_info.role;
 
-						Self::push_message(SystemEvent::new_worker_event(
-							pubkey,
-							WorkerEvent::Registered(messaging::WorkerInfo {
-								confidence_level: fields.confidence_level,
-							}),
-						));
-						Self::deposit_event(Event::<T>::WorkerUpdated {
-							pubkey,
-							attestation_provider: Some(AttestationProvider::Ias),
-							confidence_level: fields.confidence_level,
-						});
-					},
-					None => {
-						// Case 2 - New worker register
-						*v = Some(WorkerInfo {
-							pubkey,
-							ecdh_pubkey: ceseal_info.ecdh_pubkey,
-							version: ceseal_info.version,
-							last_updated: now,
-							operator: ceseal_info.operator,
-							attestation_provider: Some(AttestationProvider::Ias),
-							confidence_level: fields.confidence_level,
-							features: ceseal_info.features,
-							role: ceseal_info.role,
-						});
-						Self::push_message(SystemEvent::new_worker_event(
-							pubkey,
-							WorkerEvent::Registered(messaging::WorkerInfo {
-								confidence_level: fields.confidence_level,
-							}),
-						));
-						Self::deposit_event(Event::<T>::WorkerAdded {
-							pubkey,
-							attestation_provider: Some(AttestationProvider::Ias),
-							confidence_level: fields.confidence_level,
-						});
-						WorkerAddedAt::<T>::insert(pubkey, frame_system::Pallet::<T>::block_number());
+			ensure!(!Workers::<T>::contains_key(&pubkey), Error::<T>::CesealAlreadyExists);
+			match &ceseal_info.operator {
+				Some(acc) => {
+					let _ = <pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond)?;
+					ensure!(ceseal_info.role == WorkerRole::Verifier || ceseal_info.role == WorkerRole::Full, Error::<T>::WrongTeeType);
+				},
+				None => ensure!(ceseal_info.role == WorkerRole::Marker, Error::<T>::WrongTeeType),
+			};
 
-						// If the master key has been created, register immediately as Keyfair
-						if MasterPubkey::<T>::get().is_some() {
-							let mut keyfairys = Keyfairies::<T>::get();
-							if !keyfairys.contains(&pubkey) {
-								keyfairys.push(pubkey);
-								Keyfairies::<T>::put(keyfairys);
+			let worker_info = WorkerInfo {
+				pubkey,
+				ecdh_pubkey: ceseal_info.ecdh_pubkey,
+				version: ceseal_info.version,
+				last_updated: now,
+				stash_account: ceseal_info.operator,
+				attestation_provider: Some(AttestationProvider::Ias),
+				confidence_level: fields.confidence_level,
+				features: ceseal_info.features,
+				role: ceseal_info.role.clone(),
+			};
 
-								Self::push_message(KeyfairyChange::keyfairy_registered(
-									pubkey,
-									ceseal_info.ecdh_pubkey,
-								));
-								Self::deposit_event(Event::<T>::KeyfairyAdded { pubkey });
-							}
-						}
-					},
-				}
+			Workers::<T>::insert(&pubkey, worker_info);
+
+			if ceseal_info.role == WorkerRole::Full || ceseal_info.role == WorkerRole::Verifier {
+				ValidationTypeList::<T>::mutate(|puk_list| -> DispatchResult {
+					puk_list
+						.try_push(pubkey)
+						.map_err(|_| Error::<T>::BoundedVecError)?;
+					Ok(())
+				})?;
+			}
+
+			Self::push_message(SystemEvent::new_worker_event(
+				pubkey,
+				WorkerEvent::Registered(messaging::WorkerInfo {
+					confidence_level: fields.confidence_level,
+				}),
+			));
+			Self::deposit_event(Event::<T>::WorkerAdded {
+				pubkey,
+				attestation_provider: Some(AttestationProvider::Ias),
+				confidence_level: fields.confidence_level,
 			});
+			WorkerAddedAt::<T>::insert(pubkey, frame_system::Pallet::<T>::block_number());
+
+			// If the master key has been created, register immediately as Keyfair
+			if MasterPubkey::<T>::get().is_some() {
+				let mut keyfairys = Keyfairies::<T>::get();
+				if !keyfairys.contains(&pubkey) {
+					keyfairys.push(pubkey);
+					Keyfairies::<T>::put(keyfairys);
+
+					Self::push_message(KeyfairyChange::keyfairy_registered(
+						pubkey,
+						ceseal_info.ecdh_pubkey,
+					));
+					Self::deposit_event(Event::<T>::KeyfairyAdded { pubkey });
+				}
+			}
+			
 			Ok(())
 		}
 
@@ -748,71 +657,66 @@ pub mod pallet {
 
 			// Update the registry
 			let pubkey = ceseal_info.pubkey;
-			Workers::<T>::mutate(pubkey, |v| {
-				match v {
-					Some(worker_info) => {
-						// Case 1 - Refresh the RA report, optionally update the operator, and redo benchmark
-						worker_info.last_updated = now;
-						worker_info.operator = ceseal_info.operator;
-						worker_info.version = ceseal_info.version;
-						worker_info.confidence_level = attestation_report.confidence_level;
-						worker_info.features = ceseal_info.features;
 
-						Self::push_message(SystemEvent::new_worker_event(
-							pubkey,
-							WorkerEvent::Registered(messaging::WorkerInfo {
-								confidence_level: attestation_report.confidence_level,
-							}),
-						));
-						Self::deposit_event(Event::<T>::WorkerUpdated {
-							pubkey,
-							attestation_provider: attestation_report.provider,
-							confidence_level: attestation_report.confidence_level,
-						});
-					},
-					None => {
-						// Case 2 - New worker register
-						*v = Some(WorkerInfo {
-							pubkey,
-							ecdh_pubkey: ceseal_info.ecdh_pubkey,
-							version: ceseal_info.version,
-							last_updated: now,
-							operator: ceseal_info.operator,
-							attestation_provider: attestation_report.provider,
-							confidence_level: attestation_report.confidence_level,
-							features: ceseal_info.features,
-							role: ceseal_info.role,
-						});
-						Self::push_message(SystemEvent::new_worker_event(
-							pubkey,
-							WorkerEvent::Registered(messaging::WorkerInfo {
-								confidence_level: attestation_report.confidence_level,
-							}),
-						));
-						Self::deposit_event(Event::<T>::WorkerAdded {
-							pubkey,
-							attestation_provider: attestation_report.provider,
-							confidence_level: attestation_report.confidence_level,
-						});
-						WorkerAddedAt::<T>::insert(pubkey, frame_system::Pallet::<T>::block_number());
+			ensure!(!Workers::<T>::contains_key(&pubkey), Error::<T>::CesealAlreadyExists);
+			match &ceseal_info.operator {
+				Some(acc) => {
+					let _ = <pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond)?;
+					ensure!(ceseal_info.role == WorkerRole::Verifier || ceseal_info.role == WorkerRole::Full, Error::<T>::WrongTeeType);
+				},
+				None => ensure!(ceseal_info.role == WorkerRole::Marker, Error::<T>::WrongTeeType),
+			};
 
-						// If the master key has been created, register immediately as Keyfair
-						if MasterPubkey::<T>::get().is_some() {
-							let mut keyfairys = Keyfairies::<T>::get();
-							if !keyfairys.contains(&pubkey) {
-								keyfairys.push(pubkey);
-								Keyfairies::<T>::put(keyfairys);
+			let worker_info = WorkerInfo {
+				pubkey,
+				ecdh_pubkey: ceseal_info.ecdh_pubkey,
+				version: ceseal_info.version,
+				last_updated: now,
+				stash_account: ceseal_info.operator,
+				attestation_provider: attestation_report.provider,
+				confidence_level: attestation_report.confidence_level,
+				features: ceseal_info.features,
+				role: ceseal_info.role.clone(),
+			};
 
-								Self::push_message(KeyfairyChange::keyfairy_registered(
-									pubkey,
-									ceseal_info.ecdh_pubkey,
-								));
-								Self::deposit_event(Event::<T>::KeyfairyAdded { pubkey });
-							}
-						}
-					},
-				}
+			Workers::<T>::insert(&pubkey, worker_info);
+
+			if ceseal_info.role == WorkerRole::Full || ceseal_info.role == WorkerRole::Verifier {
+				ValidationTypeList::<T>::mutate(|puk_list| -> DispatchResult {
+					puk_list
+						.try_push(pubkey)
+						.map_err(|_| Error::<T>::BoundedVecError)?;
+					Ok(())
+				})?;
+			}
+
+			Self::push_message(SystemEvent::new_worker_event(
+				pubkey,
+				WorkerEvent::Registered(messaging::WorkerInfo {
+					confidence_level: attestation_report.confidence_level,
+				}),
+			));
+			Self::deposit_event(Event::<T>::WorkerAdded {
+				pubkey,
+				attestation_provider: attestation_report.provider,
+				confidence_level: attestation_report.confidence_level,
 			});
+			WorkerAddedAt::<T>::insert(pubkey, frame_system::Pallet::<T>::block_number());
+
+			// If the master key has been created, register immediately as Keyfair
+			if MasterPubkey::<T>::get().is_some() {
+				let mut keyfairys = Keyfairies::<T>::get();
+				if !keyfairys.contains(&pubkey) {
+					keyfairys.push(pubkey);
+					Keyfairies::<T>::put(keyfairys);
+
+					Self::push_message(KeyfairyChange::keyfairy_registered(
+						pubkey,
+						ceseal_info.ecdh_pubkey,
+					));
+					Self::deposit_event(Event::<T>::KeyfairyAdded { pubkey });
+				}
+			}
 			Ok(())
 		}
 
@@ -1001,7 +905,7 @@ pub mod pallet {
 		/// will be updated when the worker is being registered on the blockchain. Once it's set,
 		/// the worker can only be added to a stake pool if the pool owner is the same as the
 		/// operator. It ensures only the trusted person can control the worker.
-		pub operator: Option<AccountId>,
+		pub stash_account: Option<AccountId>,
 		/// Who issues the attestation
 		pub attestation_provider: Option<AttestationProvider>,
 		/// The confidence level of the worker
@@ -1029,21 +933,21 @@ pub mod pallet {
 	}
 }
 pub trait TeeWorkerHandler<AccountId> {
-	fn can_tag(acc: &AccountId) -> bool;
-	fn can_verify(acc: &AccountId) -> bool;
-	fn can_cert(acc: &AccountId) -> bool;
-	fn contains_scheduler(acc: AccountId) -> bool;
-	fn is_bonded(acc: &AccountId) -> bool;
-	fn get_stash(acc: &AccountId) -> Result<AccountId, DispatchError>;
-	fn punish_scheduler(acc: AccountId) -> DispatchResult;
-	fn get_controller_list() -> Vec<AccountId>;
-	fn get_tee_publickey() -> Result<Podr2Key, DispatchError>;
+	fn can_tag(pbk: &WorkerPublicKey) -> bool;
+	fn can_verify(pbk: &WorkerPublicKey) -> bool;
+	fn can_cert(pbk: &WorkerPublicKey) -> bool;
+	fn contains_scheduler(pbk: WorkerPublicKey) -> bool;
+	fn is_bonded(pbk: &WorkerPublicKey) -> bool;
+	fn get_stash(pbk: &WorkerPublicKey) -> Result<AccountId, DispatchError>;
+	fn punish_scheduler(pbk: WorkerPublicKey) -> DispatchResult;
+	fn get_pubkey_list() -> Vec<WorkerPublicKey>; // get_controller_list
+	fn get_master_publickey() -> Result<MasterPublicKey, DispatchError>;
 }
 
-impl<T: Config> TeeWorkerHandler<<T as frame_system::Config>::AccountId> for Pallet<T> {
-	fn can_tag(acc: &AccountOf<T>) -> bool {
-		if let Ok(tee_info) = TeeWorkerMap::<T>::try_get(&acc) {
-			if TeeType::Marker == tee_info.tee_type || TeeType::Full == tee_info.tee_type {
+impl<T: Config> TeeWorkerHandler<AccountOf<T>> for Pallet<T> {
+	fn can_tag(pbk: &WorkerPublicKey) -> bool {
+		if let Ok(tee_info) = Workers::<T>::try_get(pbk) {
+			if WorkerRole::Marker == tee_info.role || WorkerRole::Full == tee_info.role {
 				return true
 			}
 		}
@@ -1051,9 +955,9 @@ impl<T: Config> TeeWorkerHandler<<T as frame_system::Config>::AccountId> for Pal
 		false
 	}
 
-	fn can_verify(acc: &AccountOf<T>) -> bool {
-		if let Ok(tee_info) = TeeWorkerMap::<T>::try_get(acc) {
-			if TeeType::Verifier == tee_info.tee_type || TeeType::Full == tee_info.tee_type {
+	fn can_verify(pbk: &WorkerPublicKey) -> bool {
+		if let Ok(tee_info) = Workers::<T>::try_get(pbk) {
+			if WorkerRole::Verifier == tee_info.role || WorkerRole::Full == tee_info.role {
 				return true
 			}
 		}
@@ -1061,9 +965,9 @@ impl<T: Config> TeeWorkerHandler<<T as frame_system::Config>::AccountId> for Pal
 		false
 	}
 
-	fn can_cert(acc: &AccountOf<T>) -> bool {
-		if let Ok(tee_info) = TeeWorkerMap::<T>::try_get(acc) {
-			if TeeType::Marker == tee_info.tee_type || TeeType::Full == tee_info.tee_type {
+	fn can_cert(pbk: &WorkerPublicKey) -> bool {
+		if let Ok(tee_info) = Workers::<T>::try_get(pbk) {
+			if WorkerRole::Marker == tee_info.role || WorkerRole::Full == tee_info.role {
 				return true
 			}
 		}
@@ -1071,32 +975,32 @@ impl<T: Config> TeeWorkerHandler<<T as frame_system::Config>::AccountId> for Pal
 		false
 	}
 
-	fn contains_scheduler(acc: <T as frame_system::Config>::AccountId) -> bool {
-		TeeWorkerMap::<T>::contains_key(&acc)
+	fn contains_scheduler(pbk: WorkerPublicKey) -> bool {
+		Workers::<T>::contains_key(&pbk)
 	}
 
-	fn is_bonded(acc: &AccountOf<T>) -> bool {
-		if let Ok(tee_info) = TeeWorkerMap::<T>::try_get(acc) {
-			let result = tee_info.bond_stash.is_some();
+	fn is_bonded(pbk: &WorkerPublicKey) -> bool {
+		if let Ok(tee_info) = Workers::<T>::try_get(pbk) {
+			let result = tee_info.stash_account.is_some();
 			return result
 		}
 
 		false
 	}
 
-	fn get_stash(acc: &AccountOf<T>) -> Result<AccountOf<T>, DispatchError> {
-		let tee_info = TeeWorkerMap::<T>::try_get(acc).map_err(|_| Error::<T>::NonTeeWorker)?;
+	fn get_stash(pbk: &WorkerPublicKey) -> Result<AccountOf<T>, DispatchError> {
+		let tee_info = Workers::<T>::try_get(pbk).map_err(|_| Error::<T>::NonTeeWorker)?;
 
-		if let Some(bond_stash) = tee_info.bond_stash {
-			return Ok(bond_stash)
+		if let Some(stash_account) = tee_info.stash_account {
+			return Ok(stash_account)
 		}
 
 		Err(Error::<T>::NonTeeWorker.into())
 	}
 
-	fn punish_scheduler(acc: <T as frame_system::Config>::AccountId) -> DispatchResult {
-		let tee_worker = TeeWorkerMap::<T>::try_get(&acc).map_err(|_| Error::<T>::NonTeeWorker)?;
-		if let Some(stash_account) = tee_worker.bond_stash {
+	fn punish_scheduler(pbk: WorkerPublicKey) -> DispatchResult {
+		let tee_worker = Workers::<T>::try_get(&pbk).map_err(|_| Error::<T>::NonTeeWorker)?;
+		if let Some(stash_account) = tee_worker.stash_account {
 			pallet_cess_staking::slashing::slash_scheduler::<T>(&stash_account);
 			T::CreditCounter::record_punishment(&stash_account)?;
 		}
@@ -1104,14 +1008,14 @@ impl<T: Config> TeeWorkerHandler<<T as frame_system::Config>::AccountId> for Pal
 		Ok(())
 	}
 
-	fn get_controller_list() -> Vec<AccountOf<T>> {
+	fn get_pubkey_list() -> Vec<WorkerPublicKey> {
 		let acc_list = <ValidationTypeList<T>>::get().to_vec();
 
 		acc_list
 	}
 
-	fn get_tee_publickey() -> Result<Podr2Key, DispatchError> {
-		let pk = TeePodr2Pk::<T>::try_get().map_err(|_| Error::<T>::TeePodr2PkNotInitialized)?;
+	fn get_master_publickey() -> Result<MasterPublicKey, DispatchError> {
+		let pk = MasterPubkey::<T>::try_get().map_err(|_| Error::<T>::TeePodr2PkNotInitialized)?;
 
 		Ok(pk)
 	}

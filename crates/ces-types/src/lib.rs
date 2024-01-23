@@ -236,6 +236,8 @@ pub mod messaging {
 // Types used in storage
 pub use attestation::{AttestationProvider, AttestationReport};
 
+pub type TeeSig = sp_core::sr25519::Signature;
+
 type MachineId = Vec<u8>;
 pub use sp_core::sr25519::{
 	Public as WorkerPublicKey, Public as MasterPublicKey, Public as EcdhPublicKey, Signature as Sr25519Signature,
@@ -278,9 +280,9 @@ pub struct WorkerRegistrationInfo<AccountId> {
 	pub machine_id: MachineId,
 	pub pubkey: WorkerPublicKey,
 	pub ecdh_pubkey: EcdhPublicKey,
+	pub operator: Option<AccountId>,
 	pub genesis_block_hash: H256,
 	pub features: Vec<u32>,
-	pub operator: Option<AccountId>,
 	pub role: WorkerRole,
 }
 

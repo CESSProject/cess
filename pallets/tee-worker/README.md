@@ -25,7 +25,7 @@ A series of methods for finding consensus scheduling.
  * `contains_scheduler` - Judge whether the controller account exists.
  * `get_controller_list` - Get the list of controller accounts of currently registered tee workers.
  * `get_first_controller` - Get the first consensus in the list.
- * `get_tee_publickey` - Get the network-wide unique public key of the tee worker to verify the signature of sgx.
+ * `get_master_publickey` - Get the network-wide unique public key of the tee worker to verify the signature of sgx.
  * `punish_scheduler` - Punish tee workers and deduct credibility points.
 
 #### Usage
