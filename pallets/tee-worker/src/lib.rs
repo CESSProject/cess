@@ -14,10 +14,11 @@ pub mod benchmarking;
 use codec::{Decode, Encode};
 use frame_support::{
 	dispatch::DispatchResult, pallet_prelude::*, traits::ReservableCurrency, transactional, BoundedVec, PalletId,
+	traits::{Get, StorageVersion, UnixTime},
 };
 pub use pallet::*;
 use scale_info::TypeInfo;
-use sp_runtime::{DispatchError, RuntimeDebug};
+use sp_runtime::{DispatchError, RuntimeDebug, SaturatedConversion};
 use sp_std::{convert::TryInto, prelude::*};
 
 use cp_cess_common::*;
@@ -26,6 +27,8 @@ use ces_types::{WorkerPublicKey, MasterPublicKey, WorkerRole};
 use frame_system::{ensure_signed, pallet_prelude::*};
 pub use weights::WeightInfo;
 pub mod weights;
+
+mod functions;
 
 extern crate alloc;
 
@@ -43,11 +46,10 @@ pub mod pallet {
 	use codec::{Decode, Encode};
 	use frame_support::{
 		dispatch::DispatchResult,
-		traits::{Get, StorageVersion, UnixTime},
 		Blake2_128Concat,
 	};
 	use scale_info::TypeInfo;
-	use sp_runtime::SaturatedConversion;
+
 
 	use ces_pallet_mq::MessageOriginInfo;
 	use ces_types::{
@@ -56,7 +58,7 @@ pub mod pallet {
 			self, bind_topic, DecodedMessage, KeyfairyChange, KeyfairyLaunch, MessageOrigin, SystemEvent, WorkerEvent,
 		},
 		wrap_content_to_sign, AttestationProvider, EcdhPublicKey,  SignedContentType,
-		WorkerEndpointPayload, WorkerIdentity, WorkerRegistrationInfo,
+		WorkerAction, WorkerIdentity, WorkerRegistrationInfo,
 	};
 
 	// Re-export
@@ -119,18 +121,8 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		//Scheduling registration method
-		RegistrationTeeWorker {
-			acc: AccountOf<T>,
-			peer_id: PeerId,
-		},
-
 		Exit {
-			acc: AccountOf<T>,
-		},
-
-		UpdatePeerId {
-			acc: AccountOf<T>,
+			tee: WorkerPublicKey,
 		},
 
 		MasterKeyLaunched,
@@ -232,23 +224,11 @@ pub mod pallet {
 		// Endpoint related
 		EmptyEndpoint,
 		InvalidEndpointSigningTime,
+
+		PayloadError,
+
+		LastWorker,
 	}
-
-	#[pallet::storage]
-	#[pallet::getter(fn tee_worker_map)]
-	pub(super) type TeeWorkerMap<T: Config> = CountedStorageMap<_, Blake2_128Concat, AccountOf<T>, TeeWorkerInfo<T>>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn bond_acc)]
-	pub(super) type BondAcc<T: Config> = StorageValue<_, BoundedVec<AccountOf<T>, T::SchedulerMaximum>, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn tee_podr2_pk)]
-	pub(super) type TeePodr2Pk<T: Config> = StorageValue<_, Podr2Key>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn mr_enclave_whitelist)]
-	pub(super) type MrEnclaveWhitelist<T: Config> = StorageValue<_, BoundedVec<[u8; 64], T::MaxWhitelist>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn validation_type_list)]
@@ -331,19 +311,6 @@ pub mod pallet {
 		///   user is authorized to call this function.
 		/// - `mr_enclave`: A fixed-size array of 64 bytes representing the MR Enclave of the TEE worker to be added to
 		///   the whitelist.
-		#[pallet::call_index(1)]
-		#[transactional]
-		#[pallet::weight(Weight::zero())]
-		pub fn update_whitelist(origin: OriginFor<T>, mr_enclave: [u8; 64]) -> DispatchResult {
-			let _ = ensure_root(origin)?;
-			<MrEnclaveWhitelist<T>>::mutate(|list| -> DispatchResult {
-				ensure!(!list.contains(&mr_enclave), Error::<T>::Existed);
-				list.try_push(mr_enclave).unwrap();
-				Ok(())
-			})?;
-
-			Ok(())
-		}
 
 		/// Exit a TEE Worker from the Network
 		///
@@ -354,65 +321,38 @@ pub mod pallet {
 		/// Parameters:
 		/// - `origin`: The origin from which the function is called, representing the account of the TEE Worker. This
 		///   should be the controller account of the TEE Worker.
-		// #[pallet::call_index(2)]
-		// #[transactional]
-		// #[pallet::weight(Weight::zero())]
-		// pub fn exit(origin: OriginFor<T>, pbk: WorkerPublicKey) -> DispatchResult {
-		// 	let sender = ensure_signed(origin)?;
-
-		// 	let tee_info = Workers::<T>::try_get(&pbk).map_err(|_| Error::<T>::Overflow)?;
-		// 	ensure!(tee_info.controller_account == sender.clone(), Error::<T>::NotController);
-		// 	if tee_info.role == WorkerRole::Full || tee_info.role == WorkerRole::Verifier {
-		// 		ValidationTypeList::<T>::mutate(|tee_list| {
-		// 			tee_list.retain(|tee_puk| *tee_puk != pbk);
-		// 		});
-		// 	}
-
-		// 	Workers::<T>::remove(&pbk);
-
-		// 	if Workers::<T>::count() == 0 {
-		// 		<TeePodr2Pk<T>>::kill();
-		// 	}
-
-		// 	Self::deposit_event(Event::<T>::Exit { acc: sender });
-
-		// 	Ok(())
-		// }
-		// FOR TESTING
-		#[pallet::call_index(3)]
-		#[transactional]
+		#[pallet::call_index(2)]
 		#[pallet::weight(Weight::zero())]
-		pub fn update_podr2_pk(origin: OriginFor<T>, podr2_pbk: Podr2Key) -> DispatchResult {
-			let _sender = ensure_root(origin)?;
-
-			<TeePodr2Pk<T>>::put(podr2_pbk);
-
-			Ok(())
-		}
-
-		// FOR TESTING
-		#[pallet::call_index(4)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::registration_scheduler())]
-		pub fn force_register(
-			origin: OriginFor<T>,
-			stash_account: Option<AccountOf<T>>,
-			controller_account: AccountOf<T>,
-			peer_id: PeerId,
-			end_point: EndPoint,
-			tee_type: TeeType,
+		pub fn exit(
+			origin: OriginFor<T>, 
+			payload: WorkerAction, 
+			sig: BoundedVec<u8, ConstU32<64>>
 		) -> DispatchResult {
-			let _ = ensure_root(origin)?;
+			ensure_signed(origin)?;
 
-			let tee_worker_info = TeeWorkerInfo::<T> {
-				worker_account: controller_account.clone(),
-				peer_id: peer_id.clone(),
-				bond_stash: stash_account,
-				end_point,
-				tee_type,
-			};
+			if let WorkerAction::Exit(payload) = payload {
+				ensure!(<Workers<T>>::count() > 1, Error::<T>::LastWorker);
+				ensure!(<Workers<T>>::contains_key(&payload.pubkey), Error::<T>::WorkerNotFound);
+				
+				Workers::<T>::remove(&payload.pubkey);
+				WorkerAddedAt::<T>::remove(&payload.pubkey);
+				Endpoints::<T>::remove(&payload.pubkey);
 
-			TeeWorkerMap::<T>::insert(&controller_account, tee_worker_info);
+				let mut keyfairys = Keyfairies::<T>::get();
+				ensure!(keyfairys.len() > 1, Error::<T>::CannotRemoveLastKeyfairy);
+				keyfairys.retain(|g| *g != payload.pubkey);
+				Keyfairies::<T>::put(keyfairys);
+
+				ensure!(
+					Self::check_time_unix(&payload.signing_time),
+					Error::<T>::InvalidEndpointSigningTime
+				);
+	
+				Self::deposit_event(Event::<T>::Exit { tee: payload.pubkey });
+			} else {
+				return Err(Error::<T>::PayloadError)?
+			}
+			
 
 			Ok(())
 		}
@@ -719,44 +659,46 @@ pub mod pallet {
 			}
 			Ok(())
 		}
-
+		
 		#[pallet::call_index(18)]
 		#[pallet::weight({0})]
 		pub fn update_worker_endpoint(
 			origin: OriginFor<T>,
-			endpoint_payload: WorkerEndpointPayload,
+			endpoint_payload: WorkerAction,
 			signature: Vec<u8>,
 		) -> DispatchResult {
 			ensure_signed(origin)?;
 
-			// Validate the signature
-			ensure!(signature.len() == 64, Error::<T>::InvalidSignatureLength);
-			let sig =
-				sp_core::sr25519::Signature::try_from(signature.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
-			let encoded_data = endpoint_payload.encode();
-			let data_to_sign = wrap_content_to_sign(&encoded_data, SignedContentType::EndpointInfo);
-			ensure!(
-				sp_io::crypto::sr25519_verify(&sig, &data_to_sign, &endpoint_payload.pubkey),
-				Error::<T>::InvalidSignature
-			);
+			if let WorkerAction::UpdateEndpoint(endpoint_payload) = endpoint_payload {
+				// Validate the signature
+				ensure!(signature.len() == 64, Error::<T>::InvalidSignatureLength);
+				let sig =
+					sp_core::sr25519::Signature::try_from(signature.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
+				let encoded_data = endpoint_payload.encode();
+				let data_to_sign = wrap_content_to_sign(&encoded_data, SignedContentType::EndpointInfo);
+				ensure!(
+					sp_io::crypto::sr25519_verify(&sig, &data_to_sign, &endpoint_payload.base.pubkey),
+					Error::<T>::InvalidSignature
+				);
 
-			let Some(endpoint) = endpoint_payload.endpoint else { return Err(Error::<T>::EmptyEndpoint.into()) };
-			if endpoint.is_empty() {
-				return Err(Error::<T>::EmptyEndpoint.into())
+				let Some(endpoint) = endpoint_payload.endpoint else { return Err(Error::<T>::EmptyEndpoint.into()) };
+				if endpoint.is_empty() {
+					return Err(Error::<T>::EmptyEndpoint.into())
+				}
+
+				ensure!(
+					Self::check_time_unix(&endpoint_payload.base.signing_time),
+					Error::<T>::InvalidEndpointSigningTime
+				);
+
+				// Validate the public key
+				ensure!(Workers::<T>::contains_key(endpoint_payload.base.pubkey), Error::<T>::InvalidPubKey);
+
+				Endpoints::<T>::insert(endpoint_payload.base.pubkey, endpoint);
+			} else {
+				return Err(Error::<T>::PayloadError)?
 			}
-
-			// Validate the time
-			let expiration = 4 * 60 * 60 * 1000; // 4 hours
-			let now = T::UnixTime::now().as_millis().saturated_into::<u64>();
-			ensure!(
-				endpoint_payload.signing_time < now && now <= endpoint_payload.signing_time + expiration,
-				Error::<T>::InvalidEndpointSigningTime
-			);
-
-			// Validate the public key
-			ensure!(Workers::<T>::contains_key(endpoint_payload.pubkey), Error::<T>::InvalidPubKey);
-
-			Endpoints::<T>::insert(endpoint_payload.pubkey, endpoint);
+			
 
 			Ok(())
 		}
