@@ -781,35 +781,52 @@ where
             .unwrap()
             .identity_key
             .clone();
+        let tee_role = ceseal.lock(true, true).expect("Failed to lock Ceseal").args.role.clone();
 
         let (ceseal_expert, expert_cmd_rx) = expert::CesealExpertStub::new();
         let podr2_srv =
-            podr2::new_podr2_api_server(podr2_key.clone(), identity_key.clone().public().0, ceseal_expert.clone());
+            podr2::new_podr2_api_server(podr2_key.clone(), identity_key.clone().public().0, ceseal_expert.clone())
+                .max_decoding_message_size(104857600)
+                .max_encoding_message_size(104857600);
         let podr2v_srv = podr2::new_podr2_verifier_api_server(
             podr2_key.clone(),
             identity_key.clone().public().0,
             ceseal_expert.clone(),
-        );
+        )
+        .max_decoding_message_size(104857600)
+        .max_encoding_message_size(104857600);
         let pois_srv = pois::new_pois_certifier_api_server(
             podr2_key.clone(),
             pois_param.clone(),
             identity_key.clone().public().0,
             ceseal_expert.clone(),
-        );
+        )
+        .max_decoding_message_size(104857600)
+        .max_encoding_message_size(104857600);
         let poisv_srv =
-            pois::new_pois_verifier_api_server(podr2_key, pois_param, identity_key.public().0, ceseal_expert);
+            pois::new_pois_verifier_api_server(podr2_key, pois_param, identity_key.public().0, ceseal_expert)
+                .max_decoding_message_size(104857600)
+                .max_encoding_message_size(104857600);
 
         let expert_handler = tokio::spawn(expert::run(ceseal, expert_cmd_rx));
 
         let ext_srv_handler = tokio::spawn(async move {
-            info!("keyfairy ready, external server will listening on {}", public_listener_addr);
-            let result = Server::builder()
-                .add_service(podr2_srv)
-                .add_service(podr2v_srv)
-                .add_service(pois_srv)
-                .add_service(poisv_srv)
-                .serve(public_listener_addr)
-                .await;
+            info!(
+                "keyfairy ready, external server will listening on {} run with {:?} role",
+                public_listener_addr,
+                tee_role.clone()
+            );
+            let mut server = Server::builder();
+            let router = match tee_role {
+                ces_types::WorkerRole::Full => server
+                    .add_service(podr2_srv)
+                    .add_service(podr2v_srv)
+                    .add_service(pois_srv)
+                    .add_service(poisv_srv),
+                ces_types::WorkerRole::Verifier => server.add_service(podr2v_srv).add_service(poisv_srv),
+                ces_types::WorkerRole::Marker => server.add_service(podr2_srv).add_service(pois_srv),
+            };
+            let result = router.serve(public_listener_addr).await;
             info!("external server shutdown!");
             result
         });
