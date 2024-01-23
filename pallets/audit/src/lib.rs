@@ -71,7 +71,7 @@ use frame_support::{
 		EstimateNextSessionRotation, FindAuthor, Randomness, ReservableCurrency, StorageVersion,
 		ValidatorSetWithIdentification,
 	},
-	transactional, PalletId, WeakBoundedVec,
+	transactional, PalletId,
 };
 use frame_system::offchain::CreateSignedTransaction;
 use pallet_sminer::MinerControl;

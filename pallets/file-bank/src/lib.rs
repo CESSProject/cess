@@ -78,7 +78,6 @@ use sp_std::{
 use pallet_sminer::MinerControl;
 use pallet_tee_worker::TeeWorkerHandler;
 use pallet_oss::OssFindAuthor;
-use cp_enclave_verify::verify_rsa;
 use ces_types::WorkerPublicKey;
 
 pub use weights::WeightInfo;

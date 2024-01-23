@@ -40,12 +40,13 @@ use sp_runtime::{
 };
 use sp_std::{convert::TryInto, prelude::*, marker::PhantomData};
 use sp_core::{
-	ConstU32, sr25519::{Signature as TeeSig}
+	ConstU32,
 };
 use pallet_tee_worker::TeeWorkerHandler;
 use cp_bloom_filter::BloomFilter;
 use pallet_storage_handler::StorageHandle;
 use pallet_cess_treasury::{RewardPool, TreasuryHandle};
+use ces_types::{WorkerPublicKey, TeeSig};
 
 pub use pallet::*;
 
@@ -402,7 +403,7 @@ pub mod pallet {
 					lock_space: u128::MIN,
 					space_proof_info: Option::None,			
 					service_bloom_filter: Default::default(),
-					tee_signature:  TeeSig([0u8; 64]),
+					tee_signature: sp_core::sr25519::Signature([0u8; 64]),
 				},
 			);
 
@@ -420,88 +421,6 @@ pub mod pallet {
 				acc: sender,
 			});
 			
-			Ok(())
-		}
-
-		#[pallet::call_index(17)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
-		pub fn regnstk_assign_staking(
-			origin: OriginFor<T>,
-			beneficiary: AccountOf<T>,
-			peer_id: PeerId,
-			staking_account: AccountOf<T>,
-			tib_count: u32,
-		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			ensure!(!(<MinerItems<T>>::contains_key(&sender)), Error::<T>::AlreadyRegistered);
-			let declaration_space = T_BYTE.checked_mul(tib_count as u128).ok_or(Error::<T>::Overflow)?;
-
-			<MinerItems<T>>::insert(
-				&sender,
-				MinerInfo::<T> {
-					beneficiary: beneficiary.clone(),
-					staking_account: staking_account.clone(),
-					peer_id: peer_id,
-					collaterals: BalanceOf::<T>::zero(),
-					debt: BalanceOf::<T>::zero(),
-					state: Self::str_to_bound(STATE_NOT_READY)?,
-					declaration_space: declaration_space,
-					idle_space: u128::MIN,
-					service_space: u128::MIN,
-					lock_space: u128::MIN,
-					space_proof_info: Option::None,	
-					service_bloom_filter: Default::default(),
-					tee_signature: TeeSig([0u8; 64]),
-				},
-			);
-
-			RewardMap::<T>::insert(
-				&sender,
-				Reward::<T>{
-					total_reward: 0u32.saturated_into(),
-					reward_issued: 0u32.saturated_into(),
-					currently_available_reward: 0u32.saturated_into(),
-					order_list: Default::default()
-				},
-			);
-
-			Self::deposit_event(Event::<T>::Registered {
-				acc: sender,
-			});
-			
-			Ok(())
-		}
-
-		#[pallet::call_index(18)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::increase_collateral())]
-		pub fn increase_declaration_space(origin: OriginFor<T>, tib_count: u32) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-
-			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
-			let increase_space = T_BYTE.checked_mul(tib_count as u128).ok_or(Error::<T>::Overflow)?;
-
-			<MinerItems<T>>::try_mutate(&sender, |miner_info_opt| -> DispatchResult {
-				let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
-
-				ensure!(miner_info.state.to_vec() == STATE_POSITIVE.as_bytes().to_vec(), Error::<T>::StateError);
-				miner_info.declaration_space = miner_info.declaration_space
-					.checked_add(increase_space).ok_or(Error::<T>::Overflow)?;
-				let base_limit: BalanceOf<T> = Self::calculate_limit_by_space(miner_info.declaration_space)?
-					.try_into().map_err(|_| Error::<T>::Overflow)?;
-				if base_limit > miner_info.collaterals {
-					miner_info.state = Self::str_to_bound(STATE_FROZEN)?;
-				}
-				
-				Ok(())
-			})?;
-
-			Self::deposit_event(Event::<T>::IncreaseDeclarationSpace {
-				miner: sender,
-				space: increase_space,
-			});
-
 			Ok(())
 		}
 
@@ -1026,7 +945,7 @@ pub mod pallet {
 					lock_space: u128::MIN,
 					space_proof_info: Option::None,	
 					service_bloom_filter: Default::default(),
-					tee_signature: [0u8; 256],
+					tee_signature: sp_core::sr25519::Signature([0u8; 64]),
 				},
 			);
 
@@ -1082,7 +1001,7 @@ pub mod pallet {
 		// FOR TESTING
 		#[pallet::call_index(19)]
 		#[transactional]
-		#[pallet::weight(0)]
+		#[pallet::weight(Weight::zero())]
 		pub fn clear_miner_service(origin: OriginFor<T>, miner: AccountOf<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
