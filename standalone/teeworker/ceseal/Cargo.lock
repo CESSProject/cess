@@ -3787,6 +3787,7 @@ dependencies = [
 name = "pallet-audit"
 version = "0.7.6"
 dependencies = [
+ "ces-types",
  "cp-bloom-filter",
  "cp-cess-common",
  "cp-enclave-verify",
@@ -4195,6 +4196,7 @@ dependencies = [
 name = "pallet-file-bank"
 version = "0.7.6"
 dependencies = [
+ "ces-types",
  "cp-cess-common",
  "cp-enclave-verify",
  "cp-scheduler-credit",
@@ -4492,6 +4494,7 @@ dependencies = [
 name = "pallet-sminer"
 version = "0.7.6"
 dependencies = [
+ "ces-types",
  "cp-bloom-filter",
  "cp-cess-common",
  "cp-enclave-verify",
