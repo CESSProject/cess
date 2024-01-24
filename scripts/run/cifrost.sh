@@ -17,4 +17,5 @@ $bin \
     --use-dev-key \
     --mnemonic=//Ferdie \
     --attestation-provider none \
+    --operator cXfg2SYcq85nyZ1U4ccx6QnAgSeLQB8aXZ2jstbw9CPGSmhXY \
 |& tee $log_file
