@@ -13,7 +13,7 @@ pub mod benchmarking;
 
 use codec::{Decode, Encode};
 use frame_support::{
-	dispatch::DispatchResult, pallet_prelude::*, traits::ReservableCurrency, transactional, BoundedVec, PalletId,
+	dispatch::DispatchResult, pallet_prelude::*, traits::ReservableCurrency, BoundedVec, PalletId,
 	traits::{Get, StorageVersion, UnixTime},
 };
 pub use pallet::*;
@@ -46,7 +46,6 @@ pub mod pallet {
 	use codec::{Decode, Encode};
 	use frame_support::{
 		dispatch::DispatchResult,
-		Blake2_128Concat,
 	};
 	use scale_info::TypeInfo;
 
@@ -331,6 +330,16 @@ pub mod pallet {
 			ensure_signed(origin)?;
 
 			if let WorkerAction::Exit(payload) = payload {
+				ensure!(sig.len() == 64, Error::<T>::InvalidSignatureLength);
+				let sig =
+					sp_core::sr25519::Signature::try_from(sig.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
+				let encoded_data = payload.encode();
+				let data_to_sign = wrap_content_to_sign(&encoded_data, SignedContentType::EndpointInfo);
+				ensure!(
+					sp_io::crypto::sr25519_verify(&sig, &data_to_sign, &payload.pubkey),
+					Error::<T>::InvalidSignature
+				);
+
 				ensure!(<Workers<T>>::count() > 1, Error::<T>::LastWorker);
 				ensure!(<Workers<T>>::contains_key(&payload.pubkey), Error::<T>::WorkerNotFound);
 				

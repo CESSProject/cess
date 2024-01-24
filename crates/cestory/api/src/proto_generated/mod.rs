@@ -254,14 +254,14 @@ impl crate::crpc::SetEndpointRequest {
 impl crate::crpc::GetEndpointResponse {
     pub fn decode_endpoint_payload(
         &self,
-    ) -> Result<Option<ces_types::WorkerEndpointPayload>, ScaleDecodeError> {
+    ) -> Result<Option<ces_types::WorkerAction>, ScaleDecodeError> {
         self.encoded_endpoint_payload
             .as_ref()
             .map(|v| Decode::decode(&mut &v[..]))
             .transpose()
     }
     pub fn new(
-        endpoint_payload: Option<ces_types::WorkerEndpointPayload>,
+        endpoint_payload: Option<ces_types::WorkerAction>,
         signature: Option<::prost::alloc::vec::Vec<u8>>,
     ) -> Self {
         Self {

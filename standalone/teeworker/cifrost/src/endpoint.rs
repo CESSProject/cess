@@ -4,7 +4,7 @@ use crate::{
     Args,
 };
 use anyhow::{anyhow, Context, Result};
-use ces_types::WorkerEndpointPayload;
+use ces_types::{WorkerAction};
 use cestory_api::crpc::SetEndpointRequest;
 use cesxt::subxt::config::polkadot::PolkadotExtrinsicParamsBuilder as Params;
 use log::{error, info};
@@ -69,29 +69,34 @@ pub async fn try_update_worker_endpoint(
         }
         Some(payload) => {
             // update endpoint if the public_endpoint arg changed
-            let former: WorkerEndpointPayload =
+            let former: WorkerAction =
                 Decode::decode(&mut &payload[..]).context("decode payload error")?;
-            match args.public_endpoint.clone() {
-                Some(endpoint) => {
-                    if former.endpoint != Some(endpoint.clone()) || former.endpoint.is_none() {
-                        match cc
-                            .set_endpoint(Request::new(SetEndpointRequest::new(endpoint)))
-                            .await
-                        {
-                            Ok(resp) => resp
-                                .into_inner()
-                                .encoded_endpoint_payload
-                                .ok_or(anyhow!("BUG: can't be None"))?,
-                            Err(e) => {
-                                error!("call ceseal.set_endpoint() response error: {:?}", e);
-                                return Ok(false);
+            if let WorkerAction::UpdateEndpoint(former) = former {
+                match args.public_endpoint.clone() {
+                    Some(endpoint) => {
+                        if former.endpoint != Some(endpoint.clone()) || former.endpoint.is_none() {
+                            match cc
+                                .set_endpoint(Request::new(SetEndpointRequest::new(endpoint)))
+                                .await
+                            {
+                                Ok(resp) => resp
+                                    .into_inner()
+                                    .encoded_endpoint_payload
+                                    .ok_or(anyhow!("BUG: can't be None"))?,
+                                Err(e) => {
+                                    error!("call ceseal.set_endpoint() response error: {:?}", e);
+                                    return Ok(false);
+                                }
                             }
+                        } else {
+                            payload
                         }
-                    } else {
-                        payload
                     }
+                    None => payload,
                 }
-                None => payload,
+            } else {
+                error!("call ceseal.set_endpoint() payload type error");
+                return Ok(false);
             }
         }
     };
