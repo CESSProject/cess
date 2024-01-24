@@ -13,17 +13,18 @@ RUN curl -fsSL https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.k
 
 RUN apt-get update && \
     apt-get upgrade -y
-RUN apt-get install -y gcc llvm clang cmake make git rsync
+RUN apt-get install -y gcc llvm clang cmake make git rsync libssl-dev pkg-config wget unzip
 
 WORKDIR /root
 
 # Use new protobuf version instead of the default on gramine image, since we need the feature that supporting 'optional' keyword in proto3
-RUN git clone --depth 1 --branch v25.0 --recurse-submodules https://github.com/protocolbuffers/protobuf.git
-RUN cd protobuf && \
-    cmake -Dprotobuf_BUILD_TESTS=OFF -DCMAKE_CXX_STANDARD=14 --config Release . && \
-    cmake --build . && \
-    cmake --install . && \
-    protoc --version
+RUN wget --show-progress -q https://github.com/protocolbuffers/protobuf/releases/download/v25.2/protoc-25.2-linux-x86_64.zip \
+  && unzip protoc-25.2-linux-x86_64.zip \
+  && cp bin/protoc /usr/local/bin/protoc \
+  && chmod +x /usr/local/bin/protoc \
+  && cp -r include/* /usr/local/include \
+  && rm -rf ./* \
+  && protoc --version
 
 RUN curl -fsSL 'https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init' --output rustup-init && \
     chmod +x ./rustup-init && \
