@@ -36,4 +36,5 @@ $bin \
     --allow-cors \
     --address 0.0.0.0 \
     --port $port \
+    --role full \
 |& tee $log_file

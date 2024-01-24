@@ -2,7 +2,10 @@ use super::*;
 use crate::system::System;
 use ces_crypto::{key_share, sr25519::KDF, SecretKey};
 use ces_types::{
-    attestation::{validate as validate_attestation_report, IasFields}, messaging::EncryptedKey, wrap_content_to_sign, AttestationReport, BasePayload, ChallengeHandlerInfo, EncryptedWorkerKey, HandoverChallenge, SignedContentType, WorkerAction, WorkerEndpointPayload, WorkerRegistrationInfo
+    attestation::{validate as validate_attestation_report, IasFields},
+    messaging::EncryptedKey,
+    wrap_content_to_sign, AttestationReport, BasePayload, ChallengeHandlerInfo, EncryptedWorkerKey, HandoverChallenge,
+    SignedContentType, WorkerAction, WorkerEndpointPayload, WorkerRegistrationInfo,
 };
 use cestory_api::{
     blocks::{self, StorageState},
@@ -933,7 +936,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         let public_key = system.identity_key.public();
         let endpoint = self.endpoint.clone();
         let base_payload = BasePayload { pubkey: public_key, signing_time: block_time };
-        let endpoint_payload = WorkerEndpointPayload {  endpoint, base: base_payload };
+        let endpoint_payload = WorkerEndpointPayload { endpoint, base: base_payload };
         let endpoint_payload = WorkerAction::UpdateEndpoint(endpoint_payload);
         let signature = self.sign_endpoint_payload(&endpoint_payload)?;
         let resp = pb::GetEndpointResponse::new(Some(endpoint_payload.clone()), Some(signature));

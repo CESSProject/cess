@@ -4,7 +4,7 @@ use crate::{
     Args,
 };
 use anyhow::{anyhow, Context, Result};
-use ces_types::{WorkerAction};
+use ces_types::WorkerAction;
 use cestory_api::crpc::SetEndpointRequest;
 use cesxt::subxt::config::polkadot::PolkadotExtrinsicParamsBuilder as Params;
 use log::{error, info};
@@ -45,7 +45,7 @@ pub async fn try_update_worker_endpoint(
     signer: &mut SrSigner,
     args: &Args,
 ) -> Result<bool> {
-    let info = cc.get_endpoint_info(()).await?.into_inner();
+    let mut info = cc.get_endpoint_info(()).await?.into_inner();
     let encoded_endpoint_payload = match info.encoded_endpoint_payload {
         None => {
             // set endpoint if public_endpoint arg configed
@@ -54,10 +54,13 @@ pub async fn try_update_worker_endpoint(
                     .set_endpoint(Request::new(SetEndpointRequest::new(endpoint)))
                     .await
                 {
-                    Ok(resp) => resp
-                        .into_inner()
-                        .encoded_endpoint_payload
-                        .ok_or(anyhow!("BUG: can't be None"))?,
+                    Ok(resp) => {
+                        let response = resp.into_inner();
+                        info.signature = response.signature;
+                        response
+                            .encoded_endpoint_payload
+                            .ok_or(anyhow!("BUG: can't be None"))?
+                    }
                     Err(e) => {
                         error!("call ceseal.set_endpoint() response error: {:?}", e);
                         return Ok(false);
