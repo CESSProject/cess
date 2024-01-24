@@ -189,7 +189,7 @@ pallet-tips = { git = "https://github.com/paritytech/polkadot-sdk.git", branch =
 pallet-utility = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0", default-features = false }
 pallet-vesting = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0", default-features = false }
 
-#	client dependencies
+#   client dependencies
 sc-client-api = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
 sc-transaction-pool-api = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
 sc-rpc = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.1.0" }
@@ -293,6 +293,7 @@ derive_more = { version = "1.0.0-beta.6", default-features = false, features = [
 derive_wrapper = "0.1.7"
 either = "1.6.1"
 env_logger = "0.10.0"
+ethabi = { version = "18.0", default-features = false }
 environmental = { version = "1.1.3", default-features = false }
 finality-grandpa = { version = "0.16.1", default-features = false, features = ["derive-codec"] }
 futures = "0.3"
@@ -410,6 +411,7 @@ pallet-audit = { path = "pallets/audit", default-features = false }
 pallet-cacher = { path = "pallets/cacher", default-features = false }
 pallet-cess-staking = { path = "pallets/staking", default-features = false }
 pallet-cess-treasury = { path = "pallets/cess-treasury", default-features = false }
+pallet-evm-account-mapping = { path = "pallets/evm-account-mapping", default-features = false }
 pallet-file-bank = { path = "pallets/file-bank", default-features = false }
 pallet-oss = { path = "pallets/oss", default-features = false }
 pallet-scheduler-credit = { path = "pallets/scheduler-credit", default-features = false }

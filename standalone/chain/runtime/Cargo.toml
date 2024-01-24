@@ -79,6 +79,7 @@ cp-scheduler-credit = { workspace = true }
 pallet-scheduler-credit = { workspace = true }
 pallet-sminer = { workspace = true }
 pallet-cess-treasury = { workspace = true }
+pallet-evm-account-mapping = { workspace = true }
 pallet-audit = { workspace = true }
 pallet-file-bank = { workspace = true }
 pallet-tee-worker = { workspace = true }
@@ -152,6 +153,7 @@ std = [
   "pallet-evm-precompile-sha3fips/std",
   "pallet-evm-precompile-simple/std",
   "pallet-evm/std",
+  "pallet-evm-account-mapping/std",
   "pallet-file-bank/std",
   "pallet-grandpa/std",
   "pallet-im-online/std",
