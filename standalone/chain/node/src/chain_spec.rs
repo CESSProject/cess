@@ -364,7 +364,7 @@ pub fn cess_testnet_generate_config() -> ChainSpec {
 		// Properties
 		Some(
 			serde_json::from_str(
-				"{\"tokenDecimals\": 12, \"tokenSymbol\": \"TCESS\", \"SS58Prefix\": 11330}",
+				"{\"tokenDecimals\": 18, \"tokenSymbol\": \"TCESS\", \"SS58Prefix\": 11330}",
 			)
 			.expect("Provided valid json map"),
 		),
@@ -395,7 +395,7 @@ pub fn cess_main() -> ChainSpec {
 		// Properties
 		Some(
 			serde_json::from_str(
-				"{\"tokenDecimals\": 12, \"tokenSymbol\": \"TCESS\", \"SS58Prefix\": 11330}",
+				"{\"tokenDecimals\": 18, \"tokenSymbol\": \"TCESS\", \"SS58Prefix\": 11330}",
 			)
 				.expect("Provided valid json map"),
 		),
@@ -431,7 +431,7 @@ pub fn development_config() -> ChainSpec {
 		// Properties
 		Some(
 			serde_json::from_str(
-				"{\"tokenDecimals\": 12, \"tokenSymbol\": \"TCESS\", \"SS58Prefix\": 11330}",
+				"{\"tokenDecimals\": 18, \"tokenSymbol\": \"TCESS\", \"SS58Prefix\": 11330}",
 			)
 				.expect("Provided valid json map"),
 		),
