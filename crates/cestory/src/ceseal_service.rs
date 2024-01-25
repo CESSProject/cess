@@ -4,8 +4,8 @@ use ces_crypto::{key_share, sr25519::KDF, SecretKey};
 use ces_types::{
     attestation::{validate as validate_attestation_report, IasFields},
     messaging::EncryptedKey,
-    wrap_content_to_sign, AttestationReport, BasePayload, ChallengeHandlerInfo, EncryptedWorkerKey, HandoverChallenge,
-    SignedContentType, WorkerAction, WorkerEndpointPayload, WorkerRegistrationInfo,
+    wrap_content_to_sign, AttestationReport, ChallengeHandlerInfo, EncryptedWorkerKey, HandoverChallenge,
+    SignedContentType, WorkerEndpointPayload, WorkerRegistrationInfo,
 };
 use cestory_api::{
     blocks::{self, StorageState},
@@ -935,9 +935,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         let block_time: u64 = system.now_ms;
         let public_key = system.identity_key.public();
         let endpoint = self.endpoint.clone();
-        let base_payload = BasePayload { pubkey: public_key, signing_time: block_time };
-        let endpoint_payload = WorkerEndpointPayload { endpoint, base: base_payload };
-        let endpoint_payload = WorkerAction::UpdateEndpoint(endpoint_payload);
+        let endpoint_payload = WorkerEndpointPayload { pubkey: public_key, endpoint, signing_time: block_time };
         let signature = self.sign_endpoint_payload(&endpoint_payload)?;
         let resp = pb::GetEndpointResponse::new(Some(endpoint_payload.clone()), Some(signature));
         self.signed_endpoint = Some(resp.clone());
@@ -955,7 +953,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         }
     }
 
-    fn sign_endpoint_payload(&mut self, payload: &WorkerAction) -> CesealResult<Vec<u8>> {
+    fn sign_endpoint_payload(&mut self, payload: &WorkerEndpointPayload) -> CesealResult<Vec<u8>> {
         const MAX_PAYLOAD_SIZE: usize = 512;
         let data_to_sign = payload.encode();
         if data_to_sign.len() > MAX_PAYLOAD_SIZE {

@@ -57,7 +57,7 @@ pub mod pallet {
 			self, bind_topic, DecodedMessage, KeyfairyChange, KeyfairyLaunch, MessageOrigin, SystemEvent, WorkerEvent,
 		},
 		wrap_content_to_sign, AttestationProvider, EcdhPublicKey,  SignedContentType,
-		WorkerAction, WorkerIdentity, WorkerRegistrationInfo,
+		WorkerEndpointPayload, WorkerIdentity, WorkerRegistrationInfo,
 	};
 
 	// Re-export
@@ -320,51 +320,51 @@ pub mod pallet {
 		/// Parameters:
 		/// - `origin`: The origin from which the function is called, representing the account of the TEE Worker. This
 		///   should be the controller account of the TEE Worker.
-		#[pallet::call_index(2)]
-		#[pallet::weight(Weight::zero())]
-		pub fn exit(
-			origin: OriginFor<T>, 
-			payload: WorkerAction, 
-			sig: BoundedVec<u8, ConstU32<64>>
-		) -> DispatchResult {
-			ensure_signed(origin)?;
+		// #[pallet::call_index(2)]
+		// #[pallet::weight(Weight::zero())]
+		// pub fn exit(
+		// 	origin: OriginFor<T>, 
+		// 	payload: WorkerAction, 
+		// 	sig: BoundedVec<u8, ConstU32<64>>
+		// ) -> DispatchResult {
+		// 	ensure_signed(origin)?;
 
-			if let WorkerAction::Exit(payload) = payload {
-				ensure!(sig.len() == 64, Error::<T>::InvalidSignatureLength);
-				let sig =
-					sp_core::sr25519::Signature::try_from(sig.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
-				let encoded_data = payload.encode();
-				let data_to_sign = wrap_content_to_sign(&encoded_data, SignedContentType::EndpointInfo);
-				ensure!(
-					sp_io::crypto::sr25519_verify(&sig, &data_to_sign, &payload.pubkey),
-					Error::<T>::InvalidSignature
-				);
+		// 	if let WorkerAction::Exit(payload) = payload {
+		// 		ensure!(sig.len() == 64, Error::<T>::InvalidSignatureLength);
+		// 		let sig =
+		// 			sp_core::sr25519::Signature::try_from(sig.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
+		// 		let encoded_data = payload.encode();
+		// 		let data_to_sign = wrap_content_to_sign(&encoded_data, SignedContentType::EndpointInfo);
+		// 		ensure!(
+		// 			sp_io::crypto::sr25519_verify(&sig, &data_to_sign, &payload.pubkey),
+		// 			Error::<T>::InvalidSignature
+		// 		);
 
-				ensure!(<Workers<T>>::count() > 1, Error::<T>::LastWorker);
-				ensure!(<Workers<T>>::contains_key(&payload.pubkey), Error::<T>::WorkerNotFound);
+		// 		ensure!(<Workers<T>>::count() > 1, Error::<T>::LastWorker);
+		// 		ensure!(<Workers<T>>::contains_key(&payload.pubkey), Error::<T>::WorkerNotFound);
 				
-				Workers::<T>::remove(&payload.pubkey);
-				WorkerAddedAt::<T>::remove(&payload.pubkey);
-				Endpoints::<T>::remove(&payload.pubkey);
+		// 		Workers::<T>::remove(&payload.pubkey);
+		// 		WorkerAddedAt::<T>::remove(&payload.pubkey);
+		// 		Endpoints::<T>::remove(&payload.pubkey);
 
-				let mut keyfairys = Keyfairies::<T>::get();
-				ensure!(keyfairys.len() > 1, Error::<T>::CannotRemoveLastKeyfairy);
-				keyfairys.retain(|g| *g != payload.pubkey);
-				Keyfairies::<T>::put(keyfairys);
+		// 		let mut keyfairys = Keyfairies::<T>::get();
+		// 		ensure!(keyfairys.len() > 1, Error::<T>::CannotRemoveLastKeyfairy);
+		// 		keyfairys.retain(|g| *g != payload.pubkey);
+		// 		Keyfairies::<T>::put(keyfairys);
 
-				ensure!(
-					Self::check_time_unix(&payload.signing_time),
-					Error::<T>::InvalidEndpointSigningTime
-				);
+		// 		ensure!(
+		// 			Self::check_time_unix(&payload.signing_time),
+		// 			Error::<T>::InvalidEndpointSigningTime
+		// 		);
 	
-				Self::deposit_event(Event::<T>::Exit { tee: payload.pubkey });
-			} else {
-				return Err(Error::<T>::PayloadError)?
-			}
+		// 		Self::deposit_event(Event::<T>::Exit { tee: payload.pubkey });
+		// 	} else {
+		// 		return Err(Error::<T>::PayloadError)?
+		// 	}
 			
 
-			Ok(())
-		}
+		// 	Ok(())
+		// }
 
 		/// Force register a worker with the given pubkey with sudo permission
 		///
@@ -673,42 +673,40 @@ pub mod pallet {
 		#[pallet::weight({0})]
 		pub fn update_worker_endpoint(
 			origin: OriginFor<T>,
-			endpoint_payload: WorkerAction,
+			endpoint_payload: WorkerEndpointPayload,
 			signature: Vec<u8>,
 		) -> DispatchResult {
 			ensure_signed(origin)?;
 
-			if let WorkerAction::UpdateEndpoint(endpoint_payload) = endpoint_payload {
-				// Validate the signature
-				ensure!(signature.len() == 64, Error::<T>::InvalidSignatureLength);
-				let sig =
-					sp_core::sr25519::Signature::try_from(signature.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
-				let encoded_data = endpoint_payload.encode();
-				let data_to_sign = wrap_content_to_sign(&encoded_data, SignedContentType::EndpointInfo);
-				ensure!(
-					sp_io::crypto::sr25519_verify(&sig, &data_to_sign, &endpoint_payload.base.pubkey),
-					Error::<T>::InvalidSignature
-				);
+			// Validate the signature
+			ensure!(signature.len() == 64, Error::<T>::InvalidSignatureLength);
+			let sig =
+				sp_core::sr25519::Signature::try_from(signature.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
+			let encoded_data = endpoint_payload.encode();
+			let data_to_sign = wrap_content_to_sign(&encoded_data, SignedContentType::EndpointInfo);
+			ensure!(
+				sp_io::crypto::sr25519_verify(&sig, &data_to_sign, &endpoint_payload.pubkey),
+				Error::<T>::InvalidSignature
+			);
 
-				let Some(endpoint) = endpoint_payload.endpoint else { return Err(Error::<T>::EmptyEndpoint.into()) };
-				if endpoint.is_empty() {
-					return Err(Error::<T>::EmptyEndpoint.into())
-				}
-
-				ensure!(
-					Self::check_time_unix(&endpoint_payload.base.signing_time),
-					Error::<T>::InvalidEndpointSigningTime
-				);
-
-				// Validate the public key
-				ensure!(Workers::<T>::contains_key(endpoint_payload.base.pubkey), Error::<T>::InvalidPubKey);
-
-				Endpoints::<T>::insert(endpoint_payload.base.pubkey, endpoint);
-			} else {
-				return Err(Error::<T>::PayloadError)?
+			let Some(endpoint) = endpoint_payload.endpoint else { return Err(Error::<T>::EmptyEndpoint.into()) };
+			if endpoint.is_empty() {
+				return Err(Error::<T>::EmptyEndpoint.into())
 			}
-			
 
+			// Validate the time
+			let expiration = 4 * 60 * 60 * 1000; // 4 hours
+			let now = T::UnixTime::now().as_millis().saturated_into::<u64>();
+			ensure!(
+				endpoint_payload.signing_time < now && now <= endpoint_payload.signing_time + expiration,
+				Error::<T>::InvalidEndpointSigningTime
+			);
+
+			// Validate the public key
+			ensure!(Workers::<T>::contains_key(endpoint_payload.pubkey), Error::<T>::InvalidPubKey);
+
+			Endpoints::<T>::insert(endpoint_payload.pubkey, endpoint);
+			
 			Ok(())
 		}
 

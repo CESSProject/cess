@@ -300,26 +300,10 @@ impl Default for WorkerRole {
 }
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
-pub enum WorkerAction {
-	Exit(BasePayload),
-	UpdateEndpoint(WorkerEndpointPayload),
-}
-
-#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
-pub struct BasePayload {
-	pub pubkey: WorkerPublicKey,
-	pub signing_time: u64,
-}
-
-// #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
-// pub struct ExitPayload {
-
-// }
-
-#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
 pub struct WorkerEndpointPayload {
-	pub base: BasePayload,
+	pub pubkey: WorkerPublicKey,
 	pub endpoint: Option<String>,
+	pub signing_time: u64,
 }
 
 #[repr(u8)]
