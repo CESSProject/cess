@@ -42,7 +42,7 @@ use sp_runtime::{
 	impl_opaque_keys,
 	generic::Era,
 	traits::{
-		BlakeTwo256, Block as BlockT, Bounded, ConvertInto, DispatchInfoOf, Dispatchable,
+		BlakeTwo256, Block as BlockT, ConvertInto, DispatchInfoOf, Dispatchable,
 		IdentifyAccount, NumberFor, OpaqueKeys, PostDispatchInfoOf, SaturatedConversion,
 		StaticLookup, Verify, UniqueSaturatedInto,
 	},
@@ -72,13 +72,13 @@ pub use frame_support::{
 	},
 	weights::{
 		constants::{
-			BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_REF_TIME_PER_SECOND,
+			BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_REF_TIME_PER_SECOND, 
 		},
-		ConstantMultiplier, IdentityFee, Weight,
+		ConstantMultiplier, IdentityFee, Weight, WeightToFeeCoefficient, WeightToFeeCoefficients, WeightToFeePolynomial,
 	},
 	PalletId, StorageValue,
 };
-
+use smallvec::smallvec;
 use frame_system::{
 	limits::{BlockLength, BlockWeights},
 	EnsureRoot, EnsureSigned, EnsureWithSuccess,
@@ -176,7 +176,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 105,
+	spec_version: 107,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -213,8 +213,11 @@ pub const MILLICENTS: Balance = 10_000_000_000_000;
 pub const CENTS: Balance = 1_000 * MILLICENTS; // assume this is worth about a cent.
 pub const DOLLARS: Balance = 100 * CENTS;
 
+pub const WEIGHT_FEE: Balance = 50 * 100_000;
+pub const STORAGE_BYTE_FEE: Balance = 10_000_000_000_000_000;
 pub const fn deposit(items: u32, bytes: u32) -> Balance {
-	items as Balance * 15 * CENTS + (bytes as Balance) * 100 * MILLICENTS * 100
+	// Reference Moonbeam
+	items as Balance * 100 * 1_000_000_000_000_000 * 100 + (bytes as Balance) * STORAGE_BYTE_FEE
 }
 
 /// Type used for expressing timestamp.
@@ -912,13 +915,36 @@ impl pallet_balances::Config for Runtime {
 	type MaxHolds = ConstU32<1>;
 }
 
+pub const TRANSACTION_BYTE_FEE: Balance = 100_000_000_000;
+pub struct LengthToFee;
+impl WeightToFeePolynomial for LengthToFee {
+	type Balance = Balance;
+
+	fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
+		smallvec![
+			WeightToFeeCoefficient {
+				degree: 1,
+				coeff_frac: Perbill::zero(),
+				coeff_integer: TRANSACTION_BYTE_FEE,
+				negative: false,
+			},
+			WeightToFeeCoefficient {
+				degree: 3,
+				coeff_frac: Perbill::zero(),
+				coeff_integer: 100,
+				negative: false,
+			},
+		]
+	}
+}
+
 parameter_types! {
 	pub const TransactionByteFee: Balance = MILLICENTS;
 	pub const OperationalFeeMultiplier: u8 = 5;
 	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
-	pub AdjustmentVariable: Multiplier = Multiplier::saturating_from_rational(1, 100_000);
-	pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_rational(1, 1_000_000_000u128);
-	pub MaximumMultiplier: Multiplier = Bounded::max_value();
+	pub AdjustmentVariable: Multiplier = Multiplier::saturating_from_rational(4, 1_000);
+	pub MinimumMultiplier: Multiplier = Multiplier::from(1u128);
+	pub MaximumMultiplier: Multiplier = Multiplier::from(100_000u128);
 }
 
 impl pallet_transaction_payment::Config for Runtime {
@@ -926,8 +952,8 @@ impl pallet_transaction_payment::Config for Runtime {
 	type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees>;
 	// type TransactionByteFee = TransactionByteFee;
 	type OperationalFeeMultiplier = OperationalFeeMultiplier;
-	type WeightToFee = IdentityFee<Balance>;
-	type LengthToFee = ConstantMultiplier<Balance, TransactionByteFee>;
+	type WeightToFee = ConstantMultiplier<Balance, ConstU128<{ WEIGHT_FEE }>>;
+	type LengthToFee = LengthToFee;
 	type FeeMultiplierUpdate = TargetedFeeAdjustment<
 		Self,
 		TargetBlockFullness,
