@@ -876,7 +876,7 @@ pub mod pallet {
 				sp_core::sr25519::Signature::try_from(tee_sig_need_verify.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
 
 			ensure!(
-				sp_io::crypto::sr25519_verify(&sig, &original, &master_puk),
+				sp_io::crypto::sr25519_verify(&sig, &original_text, &master_puk),
 				Error::<T>::VerifyTeeSigFailed
 			);
 
