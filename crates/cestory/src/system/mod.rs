@@ -135,7 +135,7 @@ pub struct System<Platform> {
 
     #[codec(skip)]
     #[serde(skip)]
-    keyfairy_ready_sender: Option<KeyfairyReadySender>,
+    pub(crate) keyfairy_ready_sender: Option<KeyfairyReadySender>,
 }
 
 impl<Platform: pal::Platform> System<Platform> {
@@ -287,11 +287,17 @@ impl<Platform: pal::Platform> System<Platform> {
         );
         self.keyfairy = Some(keyfairy);
 
+        self.send_keyfairy_ready();
+    }
+
+    pub(crate) fn send_keyfairy_ready(&mut self) {
         let keyfairy_ready_sender = self.keyfairy_ready_sender.take();
         if let Some(sender) = keyfairy_ready_sender {
             let podr2_key =
                 ces_pdp::gen_keypair_from_private_key(self.keyfairy.as_ref().unwrap().rsa_private_key().clone());
             sender.send(podr2_key).expect("expect send on keyfairy ready");
+        } else {
+            panic!("Duplicated keyfairy ready send");
         }
     }
 

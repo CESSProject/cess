@@ -295,7 +295,16 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
         self.args = Arc::new(args);
 
         let (tx, rx) = oneshot::channel();
-        self.keyfairy_ready_sender = Some(tx);
+        self.keyfairy_ready_sender = if let Some(ref mut system) = self.system {
+            if system.keyfairy.is_some() {
+                system.keyfairy_ready_sender = Some(tx);
+                None
+            } else {
+                Some(tx)
+            }
+        } else {
+            Some(tx)
+        };
         rx
     }
 
@@ -747,15 +756,25 @@ pub async fn run_ceseal_server<Platform>(
 where
     Platform: pal::Platform + Serialize + DeserializeOwned,
 {
-    let cestory = if init_args.enable_checkpoint {
+    let (cestory, keyfairy_ready_by_restore) = if init_args.enable_checkpoint {
         match Ceseal::restore_from_checkpoint(&platform, &init_args) {
             Ok(Some(factory)) => {
                 info!("Loaded checkpoint");
-                CesealSafeBox::new_with(factory)
+                let keyfairy_ready_by_restore = if let Some(ref system) = factory.system {
+                    if system.keyfairy.is_some() {
+                        info!("keyfairy is ready by restore");
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+                (CesealSafeBox::new_with(factory), keyfairy_ready_by_restore)
             },
             Ok(None) => {
                 info!("No checkpoint found");
-                CesealSafeBox::new(platform)
+                (CesealSafeBox::new(platform), false)
             },
             Err(err) => {
                 anyhow::bail!("Failed to load checkpoint: {:?}", err);
@@ -763,88 +782,118 @@ where
         }
     } else {
         info!("Checkpoint disabled.");
-        CesealSafeBox::new(platform)
+        (CesealSafeBox::new(platform), false)
     };
-    let pois_param = init_args.pois_param.clone();
-    let keyfairy_ready_rx = cestory.lock(true, true).expect("Failed to lock Ceseal").init(init_args);
+
+    let keyfairy_ready_rx = cestory.lock(true, true).expect("Failed to lock Ceseal").init(init_args.clone());
     info!("Enclave init OK");
 
-    let cestory_clone = cestory.clone();
-    tokio::spawn(async move {
-        let ceseal = cestory_clone;
-        let podr2_key = keyfairy_ready_rx.await.expect("expect keyfairy ready");
-        let identity_key = ceseal
-            .lock(true, true)
-            .expect("Failed to lock Ceseal")
-            .system
-            .as_ref()
-            .unwrap()
-            .identity_key
-            .clone();
-        let tee_role = ceseal.lock(true, true).expect("Failed to lock Ceseal").args.role.clone();
-
-        let (ceseal_expert, expert_cmd_rx) = expert::CesealExpertStub::new();
-        let podr2_srv =
-            podr2::new_podr2_api_server(podr2_key.clone(), identity_key.clone().public().0, ceseal_expert.clone())
-                .max_decoding_message_size(104857600)
-                .max_encoding_message_size(104857600);
-        let podr2v_srv = podr2::new_podr2_verifier_api_server(
-            podr2_key.clone(),
-            identity_key.clone().public().0,
-            ceseal_expert.clone(),
-        )
-        .max_decoding_message_size(104857600)
-        .max_encoding_message_size(104857600);
-        let pois_srv = pois::new_pois_certifier_api_server(
-            podr2_key.clone(),
-            pois_param.clone(),
-            identity_key.clone().public().0,
-            ceseal_expert.clone(),
-        )
-        .max_decoding_message_size(104857600)
-        .max_encoding_message_size(104857600);
-        let poisv_srv =
-            pois::new_pois_verifier_api_server(podr2_key, pois_param, identity_key.public().0, ceseal_expert)
-                .max_decoding_message_size(104857600)
-                .max_encoding_message_size(104857600);
-
-        let expert_handler = tokio::spawn(expert::run(ceseal, expert_cmd_rx));
-
-        let ext_srv_handler = tokio::spawn(async move {
-            info!(
-                "keyfairy ready, external server will listening on {} run with {:?} role",
-                public_listener_addr,
-                tee_role.clone()
-            );
-            let mut server = Server::builder();
-            let router = match tee_role {
-                ces_types::WorkerRole::Full => server
-                    .add_service(podr2_srv)
-                    .add_service(podr2v_srv)
-                    .add_service(pois_srv)
-                    .add_service(poisv_srv),
-                ces_types::WorkerRole::Verifier => server.add_service(podr2v_srv).add_service(poisv_srv),
-                ces_types::WorkerRole::Marker => server.add_service(podr2_srv).add_service(pois_srv),
-            };
-            let result = router.serve(public_listener_addr).await;
-            info!("external server shutdown!");
-            result
-        });
-        let result = tokio::try_join!(expert_handler, ext_srv_handler);
-        if let Err(e) = result {
-            panic!("Error in tokio::try_join!: {:?}", e)
-        }
+    let external_server_handler =
+        tokio::spawn(run_external_server(cestory.clone(), keyfairy_ready_rx, init_args, public_listener_addr));
+    let restored_keyfairy_ready_handler =
+        tokio::spawn(maybe_keyfairy_ready_by_restore(cestory.clone(), keyfairy_ready_by_restore));
+    let ceseal_server_handler = tokio::spawn(async move {
+        let ceseal_service = RpcService::new_with(cestory);
+        info!("Ceseal internal server will listening on {}", inner_listener_addr);
+        Server::builder()
+            .add_service(CesealApiServer::new(ceseal_service))
+            .serve(inner_listener_addr)
+            .await
+            .expect("Ceseal server catch panic");
     });
-
-    let ceseal_service = RpcService::new_with(cestory);
-    info!("Ceseal internal server will listening on {}", inner_listener_addr);
-    Server::builder()
-        .add_service(CesealApiServer::new(ceseal_service))
-        .serve(inner_listener_addr)
-        .await?;
+    let result = tokio::try_join!(ceseal_server_handler, external_server_handler, restored_keyfairy_ready_handler);
+    if let Err(e) = result {
+        panic!("Error in run_ceseal_server() tokio::try_join!: {:?}", e)
+    }
 
     info!("Ceseal quited");
     Ok(())
+}
+
+async fn run_external_server<Platform>(
+    ceseal: CesealSafeBox<Platform>,
+    keyfairy_ready_rx: types::KeyfairyReadyReceiver,
+    init_args: InitArgs,
+    public_listener_addr: SocketAddr,
+) where
+    Platform: pal::Platform + Serialize + DeserializeOwned,
+{
+    let pois_param = init_args.pois_param.clone();
+    let podr2_key = keyfairy_ready_rx.await.expect("expect keyfairy ready");
+    let identity_key = ceseal
+        .lock(true, true)
+        .expect("Failed to lock Ceseal")
+        .system
+        .as_ref()
+        .unwrap()
+        .identity_key
+        .clone();
+    let tee_role = ceseal.lock(true, true).expect("Failed to lock Ceseal").args.role.clone();
+
+    let (ceseal_expert, expert_cmd_rx) = expert::CesealExpertStub::new();
+    let podr2_srv =
+        podr2::new_podr2_api_server(podr2_key.clone(), identity_key.clone().public().0, ceseal_expert.clone())
+            .max_decoding_message_size(104857600)
+            .max_encoding_message_size(104857600);
+    let podr2v_srv =
+        podr2::new_podr2_verifier_api_server(podr2_key.clone(), identity_key.clone().public().0, ceseal_expert.clone())
+            .max_decoding_message_size(104857600)
+            .max_encoding_message_size(104857600);
+    let pois_srv = pois::new_pois_certifier_api_server(
+        podr2_key.clone(),
+        pois_param.clone(),
+        identity_key.clone().public().0,
+        ceseal_expert.clone(),
+    )
+    .max_decoding_message_size(104857600)
+    .max_encoding_message_size(104857600);
+    let poisv_srv = pois::new_pois_verifier_api_server(podr2_key, pois_param, identity_key.public().0, ceseal_expert)
+        .max_decoding_message_size(104857600)
+        .max_encoding_message_size(104857600);
+
+    let expert_handler = tokio::spawn(expert::run(ceseal, expert_cmd_rx));
+
+    let ext_srv_handler = tokio::spawn(async move {
+        info!(
+            "keyfairy ready, external server will listening on {} run with {:?} role",
+            public_listener_addr,
+            tee_role.clone()
+        );
+        let mut server = Server::builder();
+        let router = match tee_role {
+            ces_types::WorkerRole::Full => server
+                .add_service(podr2_srv)
+                .add_service(podr2v_srv)
+                .add_service(pois_srv)
+                .add_service(poisv_srv),
+            ces_types::WorkerRole::Verifier => server.add_service(podr2v_srv).add_service(poisv_srv),
+            ces_types::WorkerRole::Marker => server.add_service(podr2_srv).add_service(pois_srv),
+        };
+        let result = router.serve(public_listener_addr).await;
+        info!("external server shutdown!");
+        result
+    });
+    let result = tokio::try_join!(expert_handler, ext_srv_handler);
+    if let Err(e) = result {
+        panic!("Error in run_external_server() tokio::try_join!: {:?}", e)
+    }
+}
+
+async fn maybe_keyfairy_ready_by_restore<Platform>(ceseal: CesealSafeBox<Platform>, keyfairy_ready_by_restore: bool)
+where
+    Platform: pal::Platform + Serialize + DeserializeOwned,
+{
+    if keyfairy_ready_by_restore {
+        //FIXME: The ideal solution is to wait for the ceseal service to start and complete
+        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+        ceseal
+            .lock(true, true)
+            .expect("Failed to lock Ceseal")
+            .system
+            .as_mut()
+            .expect("the checkpoint restore bug: system field must not be empty")
+            .send_keyfairy_ready();
+    }
 }
 
 pub mod expert {
