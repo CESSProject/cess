@@ -1,11 +1,16 @@
-.PHONY: all node ceseal ciforst test clippy
+BUILD?=release
+ifeq ($(BUILD),release)
+	XARGS=--release
+endif
 
-all: node ceseal
+.PHONY: all node ceseal test clippy
 
+all: ceseal
+	cargo build ${XARGS}
 node:
-	cargo build
-ciforst:
-	cargo build -p cifrost
+	cargo build -p cess-node ${XARGS}
+cifrost:
+	cargo build -p cifrost ${XARGS}
 ceseal:
 	make -C standalone/teeworker/ceseal
 test:

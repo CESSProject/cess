@@ -47,9 +47,9 @@ struct Args {
     #[arg(long)]
     disable_checkpoint: bool,
 
-    /// Checkpoint interval in seconds, default to 30 minutes
+    /// Checkpoint interval in seconds, default to 15 minutes
     #[arg(long)]
-    #[arg(default_value_t = 1800)]
+    #[arg(default_value_t = 900)]
     checkpoint_interval: u64,
 
     /// Remove corrupted checkpoint so that ceseal can restart to continue to load others.
