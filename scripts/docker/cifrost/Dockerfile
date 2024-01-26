@@ -14,7 +14,6 @@ FROM chef AS builder
 ARG DEBIAN_FRONTEND='noninteractive'
 ARG https_proxy
 ARG http_proxy
-ARG git_proxy=${https_proxy}
 
 # Use new protobuf version instead of the default on gramine image, since we need the feature that supporting 'optional' keyword in proto3
 RUN apt-get update && apt-get install -y gcc llvm clang cmake make git libssl-dev pkg-config wget unzip
