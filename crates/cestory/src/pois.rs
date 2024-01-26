@@ -22,6 +22,7 @@ use log::{info, warn};
 use num_bigint_dig::BigUint;
 use parity_scale_codec::Encode;
 use prost::Message;
+use rsa::pkcs1::EncodeRsaPublicKey;
 use sp_core::{crypto::AccountId32, sr25519, ByteArray};
 use std::{
     fmt::{Debug, Display, Formatter},
@@ -180,7 +181,7 @@ impl PoisCertifierApi for PoisCertifierServer {
             .map_err(|e| Status::internal(format!("internal error: {}", e.to_string())))?;
         let Some(miner_info) = miner_info else { return Err(Status::internal("the miner not exists")) };
 
-        if matches!(miner_info.state.as_slice(), MINER_NOT_READY) {
+        if !matches!(miner_info.state.as_slice(), MINER_NOT_READY) {
             return Err(Status::invalid_argument("You have already registered the POIS key!"))
         }
         let key = rsa_keygen(2048);
@@ -212,6 +213,7 @@ impl PoisCertifierApi for PoisCertifierServer {
             miner_id,
             status_tee_sign,
             signature_with_tee_controller,
+            podr2_pbk: self.podr2_keys.pkey.to_pkcs1_der().unwrap().to_vec(),
         };
         Ok(Response::new(reply))
     }
@@ -344,7 +346,7 @@ impl PoisCertifierApi for PoisCertifierServer {
             "[Pois Commit Verify] miner : {:?} ,Tee signature is {:?}",
             miner_cess_address, &miner_pois_info.status_tee_sign
         );
-        verify_pois_status_signature(miner_key_info, &self.podr2_keys, miner_pois_info.status_tee_sign)?;
+        verify_pois_status_signature(miner_key_info, &self.master_key, miner_pois_info.status_tee_sign)?;
 
         let commit_proof_group_inner = if let Some(commit_proof_group) = commit_and_acc_proof.commit_proof_group {
             commit_proof_group.commit_proof_group_inner
@@ -493,7 +495,7 @@ impl PoisCertifierApi for PoisCertifierServer {
             miner_cess_address, &miner_pois_info.status_tee_sign
         );
 
-        verify_pois_status_signature(miner_key_info, &self.podr2_keys, miner_pois_info.status_tee_sign)?;
+        verify_pois_status_signature(miner_key_info, &self.master_key, miner_pois_info.status_tee_sign)?;
 
         //register in verifier obj
         let key = RsaKey {
@@ -939,17 +941,28 @@ fn get_pois_status_and_signature(
     Ok((pois_status, signature_pois_info, signature_with_tee_controller))
 }
 
-fn verify_pois_status_signature(pois_info: MinerPoisInfo, podr2_keys: &Keys, signature: Vec<u8>) -> Result<(), Status> {
+fn verify_pois_status_signature(
+    pois_info: MinerPoisInfo,
+    master_key: &sr25519::Pair,
+    signature: Vec<u8>,
+) -> Result<(), Status> {
     let mut hash_raw = vec![0u8; 32];
     let mut hasher = Sha256::new();
     hasher.input(&pois_info.encode());
     hasher.result(&mut hash_raw);
 
-    podr2_keys
-        .verify_data(&hash_raw, &signature)
-        .map_err(|e| Status::unauthenticated(e.error_code.to_string()))?;
-
-    Ok(())
+    if !master_key.verify_data(
+        &sr25519::Signature(
+            signature
+                .try_into()
+                .map_err(|_| Status::invalid_argument("signature length must be 64"))?,
+        ),
+        &hash_raw,
+    ) {
+        return Err(Status::unauthenticated("The miner provided the wrong signature!"))
+    } else {
+        return Ok(())
+    };
 }
 
 //TODO: to refactor these code below
