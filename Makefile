@@ -1,9 +1,11 @@
-.PHONY: all node ceseal test clippy
+.PHONY: all node ceseal ciforst test clippy
 
 all: node ceseal
 
 node:
 	cargo build
+ciforst:
+	cargo build -p cifrost
 ceseal:
 	make -C standalone/teeworker/ceseal
 test:

@@ -34,6 +34,7 @@ message ResponseMinerInitParam{
   bytes miner_id = 6;//miner id
   bytes status_tee_sign = 7;
   bytes signature_with_tee_controller = 8;//sig all
+  bytes podr2_pbk = 9;
 }
 
 message RequestMinerCommitGenChall {
