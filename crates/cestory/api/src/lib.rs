@@ -19,8 +19,5 @@ pub mod pois {
 }
 
 pub mod podr2 {
-    use parity_scale_codec::Encode;
-
     tonic::include_proto!("podr2");
-    impl Encode for DigestInfo {}
 }

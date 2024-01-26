@@ -6,14 +6,13 @@ use cestory_api::podr2::{
     podr2_api_server::{self, Podr2Api},
     podr2_verifier_api_server::{self, Podr2VerifierApi},
     request_batch_verify::Qslice,
-    tag, DigestInfo, EchoMessage, RequestBatchVerify, RequestGenTag, ResponseBatchVerify, ResponseGenTag,
-    Tag as ApiTag,
+    tag, EchoMessage, RequestBatchVerify, RequestGenTag, ResponseBatchVerify, ResponseGenTag, Tag as ApiTag,
 };
 use cp_bloom_filter::{binary, BloomFilter};
 use crypto::{digest::Digest, sha2::Sha256};
 use log::info;
 use parity_scale_codec::Encode;
-use sp_core::{bounded::BoundedVec, crypto::AccountId32, sr25519, ConstU32, Pair};
+use sp_core::{bounded::BoundedVec, crypto::AccountId32, sr25519, ByteArray, ConstU32, Pair};
 use std::{
     sync::{Arc, Mutex},
     time::Instant,
@@ -120,6 +119,17 @@ pub struct Challenge {
     pub random_index_list: BoundedVec<u32, ConstU32<1024>>,
     pub random_list: BoundedVec<[u8; 20], ConstU32<1024>>,
 }
+#[derive(Encode)]
+pub struct TagSigInfo {
+    pub miner: AccountId32,
+    pub digest: BoundedVec<DigestInfo, ConstU32<1000>>,
+    pub file_hash: Hash,
+}
+#[derive(Encode)]
+pub struct DigestInfo {
+    pub fragment: Hash,
+    pub tee_puk: sr25519::Public,
+}
 
 #[tonic::async_trait]
 impl Podr2Api for Podr2Server {
@@ -142,13 +152,14 @@ impl Podr2Api for Podr2Server {
             .lock()
             .map_err(|e| Status::internal("lock global threadpool fail:".to_string() + &e.to_string()))?;
         //check fragement data is equal to fragement name
-        let mut check_file_hash = Podr2Hash::new();
-        check_file_hash.load_field(&request.fragment_data);
-        let fragment_data_hash = hex::encode(check_file_hash.c_hash());
-        if !fragment_data_hash.eq(&request.fragment_name) {
+        let mut check_fragment_hash = Podr2Hash::new();
+        check_fragment_hash.load_field(&request.fragment_data);
+        let fragment_data_hash_byte = check_fragment_hash.c_hash();
+        let fragment_data_hash_string = hex::encode(&fragment_data_hash_byte);
+        if !fragment_data_hash_string.eq(&request.fragment_name) {
             return Err(Status::invalid_argument(format!(
-                "file: {:?} hash is :{:?}",
-                &request.fragment_name, &fragment_data_hash
+                "fragment: {:?} hash is :{:?}",
+                &request.fragment_name, &fragment_data_hash_string
             )))
         }
         let tag = self
@@ -158,27 +169,58 @@ impl Podr2Api for Podr2Server {
         let u_sig = self.podr2_keys.sign_data_with_sha256(tag.t.u.as_bytes()).map_err(|e| {
             Status::invalid_argument(format!("Failed to calculate u's signature {:?}", e.error_code.to_string()))
         })?;
-        let mut new_tee_digest_list = Vec::new();
-        if !request.tee_digest_list.is_empty() {
-            if !self.master_key.verify_data(
-                &sr25519::Signature(request.last_tee_signature.try_into().map_err(|_| {
-                    Status::invalid_argument("The last_tee_signature you provided is length is not 64".to_string())
-                })?),
-                &calculate_hash(&request.tee_digest_list.encode()),
-            ) {
-                return Err(Status::invalid_argument("The last_tee_signature you provided is incorrect".to_string()))
-            };
-            new_tee_digest_list.extend(request.tee_digest_list);
+
+        let mut tag_sig_info_history = TagSigInfo {
+            miner: AccountId32::from_slice(&request.miner_id[..])
+                .map_err(|_| Status::internal("invalid miner account"))?,
+            digest: BoundedVec::new(),
+            file_hash: Hash(
+                hex::decode(request.file_name)
+                    .map_err(|_| Status::invalid_argument("Decode file name to bytes fail".to_string()))?
+                    .try_into()
+                    .map_err(|_| Status::invalid_argument("file_name hash bytes length should be 64".to_string()))?,
+            ),
         };
-        let fragment_name_bytes = hex::decode(request.fragment_name)
-            .map_err(|_| Status::invalid_argument("Decode fragment name to bytes fail".to_string()))?;
-        let new_work_record =
-            DigestInfo { fragment_name: fragment_name_bytes, tee_account_id: self.ceseal_identity_key.to_vec() };
-        new_tee_digest_list.push(new_work_record);
+        if !request.tee_digest_list.is_empty() {
+            for tdl in request.tee_digest_list {
+                let digest_info_history = DigestInfo {
+                    fragment: Hash(tdl.fragment_name.try_into().map_err(|_| {
+                        Status::invalid_argument(
+                            "The length of fragment name in tee_digest_list should be 64".to_string(),
+                        )
+                    })?),
+                    tee_puk: sr25519::Public(tdl.tee_account_id.try_into().map_err(|_| {
+                        Status::invalid_argument(
+                            "The length of tee worker id in tee_digest_list should be 64".to_string(),
+                        )
+                    })?),
+                };
+                tag_sig_info_history
+                    .digest
+                    .try_push(digest_info_history)
+                    .map_err(|_| Status::internal("Fail to conver tee_digest_list from miner into".to_string()))?;
+            }
+        };
+        if !self.master_key.verify_data(
+            &sr25519::Signature(request.last_tee_signature.try_into().map_err(|_| {
+                Status::invalid_argument("The last_tee_signature you provided is length is not 64".to_string())
+            })?),
+            &calculate_hash(&tag_sig_info_history.encode()),
+        ) {
+            return Err(Status::invalid_argument("The last_tee_signature you provided is incorrect".to_string()))
+        };
+
+        let new_tee_record = DigestInfo {
+            fragment: Hash(fragment_data_hash_byte.try_into().unwrap()),
+            tee_puk: self.master_key.public(),
+        };
+        tag_sig_info_history.digest.try_push(new_tee_record).map_err(|_| {
+            Status::invalid_argument("Can not push the new tee record into tag_sig_info_history".to_string())
+        })?;
 
         let signature = self
             .master_key
-            .sign_data(&calculate_hash(&new_tee_digest_list.encode()))
+            .sign_data(&calculate_hash(&tag_sig_info_history.encode()))
             .0
             .to_vec();
         info!("[🚀Generate tag] PoDR2 Sig Gen Completed in: {:.2?}. file name is {:?}", now.elapsed(), &tag.t.name);

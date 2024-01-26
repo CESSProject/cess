@@ -633,7 +633,7 @@ fn new_sr25519_key() -> sr25519::Pair {
     sr25519::Pair::from_seed(&seed)
 }
 use crypto::digest::Digest;
-use rsa::pkcs8::EncodePrivateKey;
+use rsa::{pkcs1::EncodeRsaPublicKey, pkcs8::EncodePrivateKey};
 fn new_podr2_key() -> rsa::RsaPrivateKey {
     let rsa_key = ces_pdp::gen_keypair(2048);
     rsa_key.skey
@@ -781,6 +781,7 @@ where
             .unwrap()
             .identity_key
             .clone();
+        info!("Successfully load podr2 key public key is :{:?}", &podr2_key.pkey.to_pkcs1_der().unwrap().as_bytes());
         let tee_role = ceseal.lock(true, true).expect("Failed to lock Ceseal").args.role.clone();
 
         let (ceseal_expert, expert_cmd_rx) = expert::CesealExpertStub::new();
