@@ -144,7 +144,7 @@ impl Podr2Api for Podr2Server {
         info!(
             "[🚀Generate tag] Request to generate tag for file hash [{:?}] bytes length is {}",
             request.file_name,
-            request.file_name.len()
+            request.file_name.as_bytes().len()
         );
 
         let pool = self
@@ -170,17 +170,17 @@ impl Podr2Api for Podr2Server {
             Status::invalid_argument(format!("Failed to calculate u's signature {:?}", e.error_code.to_string()))
         })?;
 
-        let mut tag_sig_info_history = TagSigInfo {
-            miner: AccountId32::from_slice(&request.miner_id[..])
-                .map_err(|_| Status::internal("invalid miner account"))?,
-            digest: BoundedVec::new(),
-            file_hash: Hash(
-                hex::decode(request.file_name)
-                    .map_err(|_| Status::invalid_argument("Decode file name to bytes fail".to_string()))?
-                    .try_into()
-                    .map_err(|_| Status::invalid_argument("file_name hash bytes length should be 64".to_string()))?,
-            ),
-        };
+        let mut tag_sig_info_history =
+            TagSigInfo {
+                miner: AccountId32::from_slice(&request.miner_id[..])
+                    .map_err(|_| Status::internal("invalid miner account"))?,
+                digest: BoundedVec::new(),
+                file_hash: Hash(
+                    request.file_name.as_bytes().try_into().map_err(|_| {
+                        Status::invalid_argument("file_name hash bytes length should be 64".to_string())
+                    })?,
+                ),
+            };
         if !request.tee_digest_list.is_empty() {
             for tdl in request.tee_digest_list {
                 let digest_info_history = DigestInfo {
@@ -200,18 +200,18 @@ impl Podr2Api for Podr2Server {
                     .try_push(digest_info_history)
                     .map_err(|_| Status::internal("Fail to conver tee_digest_list from miner into".to_string()))?;
             }
-        };
-        if !self.master_key.verify_data(
-            &sr25519::Signature(request.last_tee_signature.try_into().map_err(|_| {
-                Status::invalid_argument("The last_tee_signature you provided is length is not 64".to_string())
-            })?),
-            &calculate_hash(&tag_sig_info_history.encode()),
-        ) {
-            return Err(Status::invalid_argument("The last_tee_signature you provided is incorrect".to_string()))
+            if !self.master_key.verify_data(
+                &sr25519::Signature(request.last_tee_signature.try_into().map_err(|_| {
+                    Status::invalid_argument("The last_tee_signature you provided is length is not 64".to_string())
+                })?),
+                &calculate_hash(&tag_sig_info_history.encode()),
+            ) {
+                return Err(Status::invalid_argument("The last_tee_signature you provided is incorrect".to_string()))
+            };
         };
 
         let new_tee_record = DigestInfo {
-            fragment: Hash(fragment_data_hash_byte.try_into().unwrap()),
+            fragment: Hash(request.fragment_name.as_bytes().try_into().unwrap()),
             tee_puk: self.master_key.public(),
         };
         tag_sig_info_history.digest.try_push(new_tee_record).map_err(|_| {
