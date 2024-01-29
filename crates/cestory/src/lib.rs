@@ -64,7 +64,7 @@ mod types;
 
 pub use podr2::{verify_signature, Podr2ApiServer, Podr2VerifierApiServer};
 
-// TODO: Completely remove the reference to Ces/Khala runtime. Instead we can create a minimal
+// TODO: Completely remove the reference to cess-node-runtime. Instead we can create a minimal
 // runtime definition locally.
 type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
 

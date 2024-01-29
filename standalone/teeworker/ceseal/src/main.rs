@@ -19,17 +19,9 @@ struct Args {
     #[arg(short, long)]
     cores: Option<u32>,
 
-    /// Run benchmark at startup.
-    #[arg(long)]
-    init_bench: bool,
-
     /// Allow CORS for HTTP
     #[arg(long)]
     allow_cors: bool,
-
-    /// Turn on /kick API
-    #[arg(long)]
-    enable_kick_api: bool,
 
     /// Listening IP address of HTTP
     #[arg(long)]
@@ -147,7 +139,6 @@ async fn serve(sgx: bool) -> Result<()> {
         InitArgs {
             sealing_path: sealing_path.into(),
             storage_path: storage_path.into(),
-            init_bench: args.init_bench,
             version: env!("CARGO_PKG_VERSION").into(),
             git_revision: format!(
                 "{}-{}",

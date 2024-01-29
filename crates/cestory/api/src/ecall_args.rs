@@ -11,9 +11,6 @@ pub struct InitArgs {
     /// The Ceseal persistent data storing path
     pub storage_path: String,
 
-    /// Whether start to benchmark at start.
-    pub init_bench: bool,
-
     /// The App version.
     pub version: String,
 
