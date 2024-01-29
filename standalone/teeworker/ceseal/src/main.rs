@@ -2,14 +2,14 @@ mod handover;
 mod ias;
 mod pal_gramine;
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use ces_sanitized_logger as logger;
 use ces_types::WorkerRole;
 use cestory::run_ceseal_server;
 use cestory_api::ecall_args::InitArgs;
 use clap::Parser;
 use pal_gramine::GraminePlatform;
-use std::{env, str::FromStr, time::Duration};
+use std::{env, time::Duration};
 use tracing::info;
 
 #[derive(Parser, Debug, Clone)]
@@ -88,9 +88,6 @@ struct Args {
     #[arg(long, default_value = "1")]
     ra_max_retries: u32,
 
-    #[arg(long, value_parser = parse_pois_param, default_value = "8,1048576,64")]
-    pois_param: (i64, i64, i64),
-
     #[arg(long, value_parser = parse_worker_role, default_value = "full")]
     role: WorkerRole,
 }
@@ -167,7 +164,6 @@ async fn serve(sgx: bool) -> Result<()> {
             no_rcu: args.no_rcu,
             ra_timeout: args.ra_timeout,
             ra_max_retries: args.ra_max_retries,
-            pois_param: args.pois_param,
             role: args.role,
         }
     };
@@ -190,20 +186,6 @@ async fn serve(sgx: bool) -> Result<()> {
     .await?;
 
     Ok(())
-}
-
-fn parse_pois_param(s: &str) -> Result<(i64, i64, i64)> {
-    let mut iter = s.split(',');
-    let k = i64::from_str(iter.next().ok_or(anyhow!(
-        "The pois-param parameter is a 3-tuple separated by comma"
-    ))?)?;
-    let n = i64::from_str(iter.next().ok_or(anyhow!(
-        "The pois-param parameter is a 3-tuple separated by comma"
-    ))?)?;
-    let d = i64::from_str(iter.next().ok_or(anyhow!(
-        "The pois-param parameter is a 3-tuple separated by comma"
-    ))?)?;
-    Ok((k, n, d))
 }
 
 fn parse_worker_role(s: &str) -> Result<WorkerRole> {

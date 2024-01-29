@@ -50,7 +50,5 @@ pub struct InitArgs {
     /// The max retry times of getting the attestation report.
     pub ra_max_retries: u32,
 
-    pub pois_param: (i64, i64, i64),
-
     pub role: WorkerRole,
 }
