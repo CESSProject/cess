@@ -841,7 +841,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		
 		#[pallet::call_index(16)]
 		#[transactional]
 		#[pallet::weight(Weight::zero())]
