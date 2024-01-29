@@ -169,7 +169,7 @@ impl Podr2Api for Podr2Server {
             .podr2_keys
             .sig_gen_with_data(request.fragment_data, self.block_num, &request.fragment_name, h, pool.clone())
             .map_err(|e| Status::internal(format!("AlgorithmError: {}", e.error_code.to_string())))?;
-        let u_sig = self.podr2_keys.sign_data_with_sha256(tag.t.u.as_bytes()).map_err(|e| {
+        let u_sig = self.podr2_keys.sign_data(tag.t.u.as_bytes()).map_err(|e| {
             Status::invalid_argument(format!("Failed to calculate u's signature {:?}", e.error_code.to_string()))
         })?;
 
@@ -221,6 +221,7 @@ impl Podr2Api for Podr2Server {
             .sign_data(&calculate_hash(&tag_sig_info_history.encode()))
             .0
             .to_vec();
+        info!("u is :{:?} , u_sig is {:?}", tag.t.u.clone(), u_sig.clone());
         info!("[🚀Generate tag] PoDR2 Sig Gen Completed in: {:.2?}. file name is {:?}", now.elapsed(), &tag.t.name);
 
         Ok(Response::new(ResponseGenTag { tag: Some(convert_to_tag(tag)), u_sig, signature }))
@@ -285,10 +286,14 @@ impl Podr2VerifierApi for Podr2VerifierServer {
             result.batch_verify_result = true;
         } else {
             //Check the u is from teeworker or not
+            info!(
+                "[Batch verify] start to verify u_sigs is:{:?} us is:{:?} is inconsistent!",
+                request.u_sigs, agg_proof.us
+            );
             let mut iterator = request
                 .u_sigs
                 .iter()
-                .zip(agg_proof.names.iter())
+                .zip(agg_proof.us.iter())
                 .take((request.u_sigs.len() as f64 * 0.049).ceil() as usize);
             if !iterator.all(|(u_sig, u)| match self.podr2_keys.verify_data(&calculate_hash(u.as_bytes()), &u_sig) {
                 Ok(_) => true,
