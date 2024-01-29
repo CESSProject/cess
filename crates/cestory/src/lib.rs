@@ -822,6 +822,9 @@ async fn run_external_server<Platform>(
 ) where
     Platform: pal::Platform + Serialize + DeserializeOwned,
 {
+    const MAX_ENCODED_MSG_SIZE: usize = 104857600; // 100MiB
+    const MAX_DECODED_MSG_SIZE: usize = MAX_ENCODED_MSG_SIZE;
+
     let podr2_key = keyfairy_ready_rx.await.expect("expect keyfairy ready");
     //FIXME: SHOULD BE DISABLE LOG KEY ON PRODUCTION !!!
     debug!("Successfully load podr2 key public key is: {:?}", &podr2_key.pkey.to_pkcs1_der().unwrap().as_bytes());
@@ -852,27 +855,27 @@ async fn run_external_server<Platform>(
         let pois_param = on_chain_cfg.pois_param.clone();
         let podr2_srv =
             podr2::new_podr2_api_server(podr2_key.clone(), identity_key.clone().public().0, ceseal_expert.clone())
-                .max_decoding_message_size(104857600)
-                .max_encoding_message_size(104857600);
+                .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
+                .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
         let podr2v_srv = podr2::new_podr2_verifier_api_server(
             podr2_key.clone(),
             identity_key.clone().public().0,
             ceseal_expert.clone(),
         )
-        .max_decoding_message_size(104857600)
-        .max_encoding_message_size(104857600);
+        .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
+        .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
         let pois_srv = pois::new_pois_certifier_api_server(
             podr2_key.clone(),
             pois_param.clone(),
             identity_key.clone().public().0,
             ceseal_expert.clone(),
         )
-        .max_decoding_message_size(104857600)
-        .max_encoding_message_size(104857600);
+        .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
+        .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
         let poisv_srv =
             pois::new_pois_verifier_api_server(podr2_key, pois_param, identity_key.public().0, ceseal_expert)
-                .max_decoding_message_size(104857600)
-                .max_encoding_message_size(104857600);
+                .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
+                .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
 
         info!(
             "keyfairy ready, external server will listening on {} run with {:?} role",
