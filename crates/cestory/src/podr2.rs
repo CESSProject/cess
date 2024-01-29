@@ -146,6 +146,9 @@ impl Podr2Api for Podr2Server {
             request.file_name,
             request.file_name.as_bytes().len()
         );
+        let file_hash: [u8; 64] = (*(request.file_name.as_bytes()))
+            .try_into()
+            .map_err(|_| Status::invalid_argument("file_name hash bytes length should be 64".to_string()))?;
 
         let pool = self
             .threadpool
@@ -170,17 +173,12 @@ impl Podr2Api for Podr2Server {
             Status::invalid_argument(format!("Failed to calculate u's signature {:?}", e.error_code.to_string()))
         })?;
 
-        let mut tag_sig_info_history =
-            TagSigInfo {
-                miner: AccountId32::from_slice(&request.miner_id[..])
-                    .map_err(|_| Status::internal("invalid miner account"))?,
-                digest: BoundedVec::new(),
-                file_hash: Hash(
-                    request.file_name.as_bytes().try_into().map_err(|_| {
-                        Status::invalid_argument("file_name hash bytes length should be 64".to_string())
-                    })?,
-                ),
-            };
+        let mut tag_sig_info_history = TagSigInfo {
+            miner: AccountId32::from_slice(&request.miner_id[..])
+                .map_err(|_| Status::internal("invalid miner account"))?,
+            digest: BoundedVec::new(),
+            file_hash: Hash(file_hash),
+        };
         if !request.tee_digest_list.is_empty() {
             for tdl in request.tee_digest_list {
                 let digest_info_history = DigestInfo {
@@ -212,7 +210,7 @@ impl Podr2Api for Podr2Server {
 
         let new_tee_record = DigestInfo {
             fragment: Hash(request.fragment_name.as_bytes().try_into().unwrap()),
-            tee_puk: self.master_key.public(),
+            tee_puk: sr25519::Public(self.ceseal_identity_key.clone()),
         };
         tag_sig_info_history.digest.try_push(new_tee_record).map_err(|_| {
             Status::invalid_argument("Can not push the new tee record into tag_sig_info_history".to_string())
