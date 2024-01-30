@@ -778,15 +778,18 @@ pub mod pallet {
 				if let Ok(challenge_info) = <ChallengeSnapShot<T>>::try_get(&miner) {
 					weight = weight.saturating_add(T::DbWeight::get().reads(1));
 					if challenge_info.prove_info.service_prove.is_none() {
-						let count = <CountedClear<T>>::get(&miner).checked_add(1).unwrap_or(6);
+						let count = <CountedClear<T>>::get(&miner).checked_add(1).unwrap_or(3);
 						weight = weight.saturating_add(T::DbWeight::get().reads(1));
 
-						let _ = T::MinerControl::clear_punish(
-							&miner,
-							challenge_info.miner_snapshot.idle_space,
-							challenge_info.miner_snapshot.service_space,
-						);
-						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+						if count > 1 {
+							let _ = T::MinerControl::clear_punish(
+								&miner,
+								challenge_info.miner_snapshot.idle_space,
+								challenge_info.miner_snapshot.service_space,
+								count,
+							);
+							weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+						}
 
 						if count >= 3 {
 							let result = T::MinerControl::force_miner_exit(&miner);

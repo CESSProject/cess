@@ -31,15 +31,18 @@ pub struct Reward<T: pallet::Config> {
     pub(super) total_reward: BalanceOf<T>,
 	//Rewards issued at present
 	pub(super) reward_issued: BalanceOf<T>,
-	//Currently available reward
-	pub(super) currently_available_reward: BalanceOf<T>,
 	//Reward order list, up to 180 reward orders can be accumulated
-	pub(super) order_list: BoundedVec<RewardOrder<BalanceOf<T>>, ConstU32<{RELEASE_NUMBER as u32}>>,
+	pub(super) order_list: BoundedVec<RewardOrder<BalanceOf<T>, BlockNumberFor<T>>, ConstU32<{RELEASE_NUMBER as u32}>>,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-pub struct RewardOrder<Balance> {
+pub struct RewardOrder<Balance, Block> {
+	pub(super) receive_count: u8,
+	pub(super) max_count: u8,
+	pub(super) atonce: bool,
 	pub(super) order_reward: Balance,
+	pub(super) each_amount: Balance,
+	pub(super) last_receive_block: Block,
 }
 
 /// The custom struct for storing info of storage FaucetRecord.

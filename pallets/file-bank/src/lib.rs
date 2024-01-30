@@ -614,6 +614,7 @@ pub mod pallet {
 									fragment_counter.insert(fragment.hash, 1);
 								},
 							};
+
 							fragment.tag = Some(now);
 							fcount = fcount + 1;
 							let hash_temp = fragment.hash.binary().map_err(|_| Error::<T>::BugInvalid)?;
