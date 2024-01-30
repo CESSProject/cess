@@ -3,8 +3,8 @@ syntax = "proto3";
 package podr2;
 
 service Podr2Api {
-  rpc request_gen_tag(RequestGenTag)
-      returns (ResponseGenTag) {}
+  rpc request_gen_tag(stream RequestGenTag)
+      returns (stream ResponseGenTag) {}
 
   // A echo rpc to measure network RTT.
   rpc Echo (EchoMessage) returns (EchoMessage) {}
@@ -45,6 +45,11 @@ message DigestInfo {
 }
 
 message ResponseGenTag {
+  bool processing = 1;
+  GenTagMsg msg = 2;
+}
+
+message GenTagMsg {
   Tag tag = 1;
   bytes u_sig = 2;
   bytes signature = 3;
