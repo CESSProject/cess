@@ -204,7 +204,7 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	pub(super) fn clear_punish(miner: &AccountOf<T>, idle_space: u128, service_space: u128) -> DispatchResult {
+	pub(super) fn clear_punish(miner: &AccountOf<T>, idle_space: u128, service_space: u128, count: u8) -> DispatchResult {
 		let power = Self::calculate_power(idle_space, service_space);
 		let limit: BalanceOf<T> = Self::calculate_limit_by_space(power)?
 			.try_into().map_err(|_| Error::<T>::Overflow)?;
@@ -213,7 +213,15 @@ impl<T: Config> Pallet<T> {
 		let reward: u128 = miner_reward.total_reward.try_into().map_err(|_| Error::<T>::Overflow)?;
 		let punish_amount = match reward {
 			0 => 100u128.try_into().map_err(|_| Error::<T>::Overflow)?,
-			_ => Perbill::from_percent(5).mul_floor(limit),
+			_ => {
+				let punish_amount = match count {
+					1 => BalanceOf::<T>::zero(),
+					2 => Perbill::from_percent(5).mul_floor(limit),
+					3 => Perbill::from_percent(15).mul_floor(limit),
+					_ => Perbill::from_percent(15).mul_floor(limit),
+				};
+				punish_amount
+			},
 		};
 
 		Self::deposit_punish(miner, punish_amount)?;
@@ -253,10 +261,12 @@ impl<T: Config> Pallet<T> {
 		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
 			let miner = miner_opt.as_mut().ok_or(Error::<T>::Unexpected)?;
 			if let Ok(reward_info) = <RewardMap<T>>::try_get(acc).map_err(|_| Error::<T>::NotExisted) {
-				T::RewardPool::send_reward_to_miner(miner.beneficiary.clone(), reward_info.total_reward)?;
+				// T::RewardPool::send_reward_to_miner(miner.beneficiary.clone(), reward_info.total_reward)?;
 				if reward_info.total_reward == BalanceOf::<T>::zero() {
 					T::Currency::unreserve(&miner.staking_account, miner.collaterals);
 				} else {
+					let residue_reward = reward_info.total_reward.checked_sub(&reward_info.reward_issued).ok_or(Error::<T>::Overflow)?;
+					T::RewardPool::add_reward(residue_reward)?;
 					let start_block = <StakingStartBlock<T>>::try_get(&acc).map_err(|_| Error::<T>::BugInvalid)?;
 					let staking_lock_block = T::StakingLockBlock::get();
 					let exec_block = start_block.checked_add(&staking_lock_block).ok_or(Error::<T>::Overflow)?;

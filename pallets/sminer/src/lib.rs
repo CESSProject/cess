@@ -412,7 +412,6 @@ pub mod pallet {
 				Reward::<T>{
 					total_reward: 0u32.saturated_into(),
 					reward_issued: 0u32.saturated_into(),
-					currently_available_reward: 0u32.saturated_into(),
 					order_list: Default::default()
 				},
 			);
@@ -561,7 +560,7 @@ pub mod pallet {
 
 			if let Ok(miner) = <MinerItems<T>>::try_get(&sender) {
 				ensure!(
-					miner.state == STATE_POSITIVE.as_bytes().to_vec(),
+					miner.state == STATE_POSITIVE.as_bytes().to_vec() || miner.state == STATE_EXIT.as_bytes().to_vec(),
 					Error::<T>::NotpositiveState
 				);
 
@@ -575,12 +574,34 @@ pub mod pallet {
 						let diff = now.checked_sub(&order.last_receive_block).ok_or(Error::<T>::Overflow)?;
 						if diff >= one_day {
 							let count = diff.checked_div(&one_day).ok_or(Error::<T>::Overflow)?;
-							let mut avail_count = 0;
-							if order.receive_count.saturating_add(count) > order.max_count {
-								
+							let mut avail_count: u8 = 0;
+							if order.receive_count.saturating_add(count.saturated_into()) > order.max_count {
+								avail_count = order.max_count.checked_sub(order.receive_count).ok_or(Error::<T>::Unexpected)?;
+							} else {
+								avail_count = count.saturated_into();
+							}
+
+							if avail_count > 0 {
+								let order_avail_reward = order.each_amount.checked_mul(&avail_count.into()).ok_or(Error::<T>::Overflow)?;
+								avail_reward = avail_reward.checked_add(&order_avail_reward).ok_or(Error::<T>::Overflow)?;
+								order.receive_count = order.receive_count.checked_add(avail_count).ok_or(Error::<T>::Overflow)?;
+								order.last_receive_block = now;
 							}
 						}
+
+						if !order.atonce {
+							avail_reward = avail_reward.checked_add(
+								&(AOIR_PERCENT.mul_floor(order.order_reward))
+							).ok_or(Error::<T>::Overflow)?;
+							order.atonce = true;
+						}
 					}
+
+					reward.order_list.retain(|order| order.max_count != order.receive_count);
+
+					reward.reward_issued.checked_add(&avail_reward).ok_or(Error::<T>::Overflow)?;
+
+					T::RewardPool::send_reward_to_miner(miner.beneficiary, avail_reward)?;
 
 					Ok(())
 				})?;
@@ -616,7 +637,7 @@ pub mod pallet {
 			ensure!(now > staking_start_block + staking_lock_block, Error::<T>::InsufficientStakingPeriod);
 
 			<MinerItems<T>>::try_mutate(&sender, |miner_info_opt| -> DispatchResult {
-			
+
 				let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotExisted)?;
 				if (&sender != &miner) && (&sender != &miner_info.staking_account) {
 					Err(Error::<T>::NotStakingAcc)?;
@@ -1049,7 +1070,7 @@ pub trait MinerControl<AccountId, BlockNumber> {
 		miner_service_space: u128,
 	) -> DispatchResult;
 
-	fn clear_punish(miner: &AccountId, idle_space: u128, service_space: u128) -> DispatchResult;
+	fn clear_punish(miner: &AccountId, idle_space: u128, service_space: u128, count: u8) -> DispatchResult;
 	fn idle_punish(miner: &AccountId, idle_space: u128, service_space: u128) -> DispatchResult;
 	fn service_punish(miner: &AccountId, idle_space: u128, service_space: u128) -> DispatchResult;
 
@@ -1218,9 +1239,10 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 	fn clear_punish(
 		miner: &AccountOf<T>, 
 		idle_space: u128, 
-		service_space: u128
+		service_space: u128,
+		count: u8,
 	) -> DispatchResult {
-		Self::clear_punish(miner, idle_space, service_space)
+		Self::clear_punish(miner, idle_space, service_space, count)
 	}
 
 	fn idle_punish(
