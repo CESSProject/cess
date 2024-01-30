@@ -30,8 +30,53 @@ use std::{
 };
 use tonic::{Request, Response, Status};
 
-pub type PoisCertifierApiServer = pois_certifier_api_server::PoisCertifierApiServer<PoisCertifierServer>;
-pub type PoisVerifierApiServer = pois_verifier_api_server::PoisVerifierApiServer<PoisVerifierServer>;
+mod proxy;
+
+pub type PoisCertifierApiServer =
+    pois_certifier_api_server::PoisCertifierApiServer<PoisCertifierApiServerProxy<PoisCertifierServer>>;
+pub type PoisVerifierApiServer =
+    pois_verifier_api_server::PoisVerifierApiServer<PoisVerifierApiServerProxy<PoisVerifierServer>>;
+pub type PoisResult<T> = Result<Response<T>, Status>;
+
+pub use proxy::{PoisCertifierApiServerProxy, PoisVerifierApiServerProxy};
+
+pub fn new_pois_certifier_api_server(
+    pois_param: (i64, i64, i64),
+    ceseal_expert: CesealExpertStub,
+) -> PoisCertifierApiServer {
+    let podr2_keys = ceseal_expert.podr2_key().clone();
+    let master_key = crate::get_sr25519_from_rsa_key(podr2_keys.clone().skey);
+    let inner = PoisCertifierApiServerProxy {
+        inner: PoisCertifierServer {
+            podr2_keys,
+            master_key,
+            verifier: Verifier::new(pois_param.0, pois_param.1, pois_param.2),
+            commit_acc_proof_chals_map: DashMap::new(),
+            ceseal_identity_key: ceseal_expert.identify_public_key().0,
+            ceseal_expert: ceseal_expert.clone(),
+        },
+        ceseal_expert,
+    };
+    PoisCertifierApiServer::new(inner)
+}
+
+pub fn new_pois_verifier_api_server(
+    pois_param: (i64, i64, i64),
+    ceseal_expert: CesealExpertStub,
+) -> PoisVerifierApiServer {
+    let podr2_keys = ceseal_expert.podr2_key().clone();
+    let master_key = crate::get_sr25519_from_rsa_key(podr2_keys.clone().skey);
+    let inner = PoisVerifierApiServerProxy {
+        inner: PoisVerifierServer {
+            podr2_keys,
+            master_key,
+            verifier: Verifier::new(pois_param.0, pois_param.1, pois_param.2),
+            ceseal_identity_key: ceseal_expert.identify_public_key().0,
+        },
+        ceseal_expert,
+    };
+    PoisVerifierApiServer::new(inner)
+}
 
 #[derive(Encode)]
 pub struct MinerCommitProofInfo {
@@ -86,8 +131,6 @@ pub struct ResponseSpaceProofVerifyTotalSignatureMember {
     pub tee_acc: AccountId32,
 }
 
-type PoisResult<T> = Result<Response<T>, Status>;
-
 pub struct PoisCertifierServer {
     pub podr2_keys: Keys,
     pub master_key: sr25519::Pair,
@@ -97,49 +140,11 @@ pub struct PoisCertifierServer {
     ceseal_expert: CesealExpertStub,
 }
 
-pub fn new_pois_certifier_api_server(
-    podr2_keys: Keys,
-    pois_param: (i64, i64, i64),
-    ceseal_identity_key: [u8; 32],
-    ceseal_expert: CesealExpertStub,
-) -> PoisCertifierApiServer {
-    let master_key = crate::get_sr25519_from_rsa_key(podr2_keys.clone().skey);
-    let inner = PoisCertifierServer {
-        podr2_keys,
-        master_key,
-        verifier: Verifier::new(pois_param.0, pois_param.1, pois_param.2),
-        commit_acc_proof_chals_map: DashMap::new(),
-        ceseal_identity_key,
-        ceseal_expert,
-    };
-    PoisCertifierApiServer::new(inner)
-}
-
-//FIXME: TO REMOVE BELOW LINE
-#[allow(dead_code)]
 pub struct PoisVerifierServer {
     pub podr2_keys: Keys,
     pub master_key: sr25519::Pair,
     pub verifier: Verifier,
     pub ceseal_identity_key: [u8; 32],
-    ceseal_expert: CesealExpertStub,
-}
-
-pub fn new_pois_verifier_api_server(
-    podr2_keys: Keys,
-    pois_param: (i64, i64, i64),
-    ceseal_identity_key: [u8; 32],
-    ceseal_expert: CesealExpertStub,
-) -> PoisVerifierApiServer {
-    let master_key = crate::get_sr25519_from_rsa_key(podr2_keys.clone().skey);
-    let inner = PoisVerifierServer {
-        podr2_keys,
-        master_key,
-        verifier: Verifier::new(pois_param.0, pois_param.1, pois_param.2),
-        ceseal_identity_key,
-        ceseal_expert,
-    };
-    PoisVerifierApiServer::new(inner)
 }
 
 fn try_into_proto_byte_hash<T>(data: &T) -> Result<Vec<u8>, Status>

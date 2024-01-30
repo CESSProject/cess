@@ -20,66 +20,61 @@ use std::{
 use threadpool::ThreadPool;
 use tonic::{Request, Response, Status};
 
-pub type Podr2ApiServer = podr2_api_server::Podr2ApiServer<Podr2Server>;
-pub type Podr2VerifierApiServer = podr2_verifier_api_server::Podr2VerifierApiServer<Podr2VerifierServer>;
+mod proxy;
 
-pub fn new_podr2_api_server(
-    podr2_keys: Keys,
-    ceseal_identity_key: [u8; 32],
-    ceseal_expert: CesealExpertStub,
-) -> Podr2ApiServer {
+pub type Podr2ApiServer = podr2_api_server::Podr2ApiServer<Podr2ApiServerProxy<Podr2Server>>;
+pub type Podr2VerifierApiServer =
+    podr2_verifier_api_server::Podr2VerifierApiServer<Podr2VerifierApiServerProxy<Podr2VerifierServer>>;
+pub type Podr2Result<T> = Result<Response<T>, Status>;
+
+pub use proxy::{Podr2ApiServerProxy, Podr2VerifierApiServerProxy};
+
+pub fn new_podr2_api_server(ceseal_expert: CesealExpertStub) -> Podr2ApiServer {
+    let podr2_keys = ceseal_expert.podr2_key().clone();
     let master_key = crate::get_sr25519_from_rsa_key(podr2_keys.clone().skey);
-    //FIXME: HERE!
-    let inner = Podr2Server {
-        podr2_keys,
-        master_key,
-        threadpool: Arc::new(Mutex::new(threadpool::ThreadPool::new(8))),
-        block_num: 1024,
-        ceseal_identity_key,
+    let inner = Podr2ApiServerProxy {
+        inner: Podr2Server {
+            podr2_keys,
+            master_key,
+            threadpool: Arc::new(Mutex::new(threadpool::ThreadPool::new(8))), //FIXME: thread pool init!
+            block_num: 1024,
+            ceseal_identity_key: ceseal_expert.identify_public_key().0,
+        },
         ceseal_expert,
     };
     Podr2ApiServer::new(inner)
 }
 
-pub fn new_podr2_verifier_api_server(
-    podr2_keys: Keys,
-    ceseal_identity_key: [u8; 32],
-    ceseal_expert: CesealExpertStub,
-) -> Podr2VerifierApiServer {
+pub fn new_podr2_verifier_api_server(ceseal_expert: CesealExpertStub) -> Podr2VerifierApiServer {
+    let podr2_keys = ceseal_expert.podr2_key().clone();
     let master_key = crate::get_sr25519_from_rsa_key(podr2_keys.clone().skey);
-    //FIXME: HERE!
-    let inner = Podr2VerifierServer {
-        podr2_keys,
-        master_key,
-        threadpool: Arc::new(Mutex::new(threadpool::ThreadPool::new(8))),
-        block_num: 1024,
-        ceseal_identity_key,
+    let inner = Podr2VerifierApiServerProxy {
+        inner: Podr2VerifierServer {
+            podr2_keys,
+            master_key,
+            threadpool: Arc::new(Mutex::new(threadpool::ThreadPool::new(8))), //FIXME: thread pool init!
+            block_num: 1024,
+            ceseal_identity_key: ceseal_expert.identify_public_key().0,
+        },
         ceseal_expert,
     };
     Podr2VerifierApiServer::new(inner)
 }
 
-pub type Podr2Result<T> = Result<Response<T>, Status>;
-
-//TODO: REMOVE HERE!
-#[allow(dead_code)]
 pub struct Podr2Server {
     pub podr2_keys: Keys,
     pub master_key: sr25519::Pair,
     pub threadpool: Arc<Mutex<ThreadPool>>,
     pub block_num: u64,
     pub ceseal_identity_key: [u8; 32],
-    ceseal_expert: CesealExpertStub,
 }
 
-#[allow(dead_code)]
 pub struct Podr2VerifierServer {
     pub podr2_keys: Keys,
     pub master_key: sr25519::Pair,
     pub ceseal_identity_key: [u8; 32],
     pub threadpool: Arc<Mutex<ThreadPool>>,
     pub block_num: u64,
-    ceseal_expert: CesealExpertStub,
 }
 
 struct Podr2Hash {

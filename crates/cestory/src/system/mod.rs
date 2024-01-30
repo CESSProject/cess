@@ -4,6 +4,7 @@ mod master_key;
 use crate::{
     secret_channel::ecdh_serde,
     types::{BlockDispatchContext, KeyfairyReadySender},
+    CesealProperties,
 };
 use anyhow::Result;
 use core::fmt;
@@ -24,13 +25,16 @@ use ces_types::{
     },
     wrap_content_to_sign, EcdhPublicKey, SignedContentType,
 };
-pub use cestory_api::crpc::{KeyfairyRole, KeyfairyStatus, SystemInfo};
+pub use cestory_api::{
+    crpc::{KeyfairyRole, KeyfairyStatus, SystemInfo},
+    ecall_args::InitArgs,
+};
 pub use master_key::{gk_master_key_exists, RotatedMasterKey};
 use pallet_tee_worker::RegistryEvent;
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use sp_core::{sr25519, Pair};
-use std::convert::TryFrom;
+use std::{convert::TryFrom, sync::Arc};
 use tracing::{error, info};
 
 #[derive(Encode, Decode, Debug, Clone, thiserror::Error)]
@@ -86,13 +90,13 @@ impl From<String> for TransactionError {
 
 #[derive(Serialize, Deserialize, Clone, derive_more::Deref, derive_more::DerefMut, derive_more::From)]
 #[serde(transparent)]
-pub(crate) struct WorkerIdentityKey(#[serde(with = "more::key_bytes")] sr25519::Pair);
+pub struct WorkerIdentityKey(#[serde(with = "more::key_bytes")] pub sr25519::Pair);
 
 // By mocking the public key of the identity key pair, we can pretend to be the first Keyfairy on Khala
 // for "shadow-gk" simulation.
 #[cfg(feature = "shadow-gk")]
 impl WorkerIdentityKey {
-    pub(crate) fn public(&self) -> sr25519::Public {
+    pub fn public(&self) -> sr25519::Public {
         // The pubkey of the first GK on khala
         sr25519::Public(hex_literal::hex!("60067697c486c809737e50d30a67480c5f0cede44be181b96f7d59bc2116a850"))
     }
@@ -136,6 +140,9 @@ pub struct System<Platform> {
     #[codec(skip)]
     #[serde(skip)]
     pub(crate) keyfairy_ready_sender: Option<KeyfairyReadySender>,
+    #[serde(skip)]
+    #[codec(skip)]
+    pub(crate) args: Arc<InitArgs>,
 }
 
 impl<Platform: pal::Platform> System<Platform> {
@@ -150,6 +157,7 @@ impl<Platform: pal::Platform> System<Platform> {
         send_mq: &MessageSendQueue,
         recv_mq: &mut MessageDispatcher,
         keyfairy_ready_sender: KeyfairyReadySender,
+        args: Arc<InitArgs>,
     ) -> Self {
         // Trigger panic early if platform is not properly implemented.
         let _ = Platform::app_version();
@@ -176,6 +184,7 @@ impl<Platform: pal::Platform> System<Platform> {
             now_ms: 0,
             genesis_block: 0,
             keyfairy_ready_sender: Some(keyfairy_ready_sender),
+            args,
         }
     }
 
@@ -293,9 +302,14 @@ impl<Platform: pal::Platform> System<Platform> {
     pub(crate) fn send_keyfairy_ready(&mut self) {
         let keyfairy_ready_sender = self.keyfairy_ready_sender.take();
         if let Some(sender) = keyfairy_ready_sender {
-            let podr2_key =
-                ces_pdp::gen_keypair_from_private_key(self.keyfairy.as_ref().unwrap().rsa_private_key().clone());
-            sender.send(podr2_key).expect("expect send on keyfairy ready");
+            let ceseal_props = CesealProperties {
+                role: self.args.role.clone(),
+                podr2_key: ces_pdp::gen_keypair_from_private_key(
+                    self.keyfairy.as_ref().expect("keyfairy not ready").rsa_private_key().clone(),
+                ),
+                identity_key: self.identity_key.clone(),
+            };
+            sender.send(ceseal_props).expect("expect send on keyfairy ready");
         } else {
             panic!("Duplicated keyfairy ready send");
         }

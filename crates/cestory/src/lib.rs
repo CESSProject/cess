@@ -14,7 +14,7 @@ use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
 };
 
-use crate::light_validation::LightValidation;
+use crate::{light_validation::LightValidation, system::System};
 use anyhow::{anyhow, Context as _, Result};
 use ces_crypto::{
     aead,
@@ -49,11 +49,12 @@ use types::Error;
 pub use ceseal_service::RpcService;
 pub use chain::BlockNumber;
 pub use storage::ChainStorage;
-pub use types::BlockDispatchContext;
+pub use types::{BlockDispatchContext, CesealProperties};
 pub type CesealLightValidation = LightValidation<chain::Runtime>;
 
 mod ceseal_service;
 mod cryptography;
+pub mod expert;
 mod light_validation;
 pub mod podr2;
 pub mod pois;
@@ -62,7 +63,7 @@ mod storage;
 mod system;
 mod types;
 
-pub use podr2::{verify_signature, Podr2ApiServer, Podr2VerifierApiServer};
+pub use podr2::verify_signature;
 
 // TODO: Completely remove the reference to cess-node-runtime. Instead we can create a minimal
 // runtime definition locally.
@@ -598,11 +599,14 @@ impl<Platform: Serialize + DeserializeOwned> Ceseal<Platform> {
                         let recv_mq = &mut runtime_state.recv_mq;
                         let send_mq = &mut runtime_state.send_mq;
                         let seq = &mut seq;
-                        ces_mq::checkpoint_helper::using_dispatcher(recv_mq, move || {
-                            ces_mq::checkpoint_helper::using_send_mq(send_mq, || {
-                                seq.next_element()?.ok_or_else(|| de::Error::custom("Missing System"))
-                            })
-                        })?
+                        let mut system: System<Platform> =
+                            ces_mq::checkpoint_helper::using_dispatcher(recv_mq, move || {
+                                ces_mq::checkpoint_helper::using_send_mq(send_mq, || {
+                                    seq.next_element()?.ok_or_else(|| de::Error::custom("Missing System"))
+                                })
+                            })?;
+                        system.args = factory.args.clone();
+                        Some(system)
                     };
                 } else {
                     let _: Option<serde::de::IgnoredAny> = seq.next_element()?;
@@ -635,7 +639,7 @@ where
     Ok(())
 }
 
-fn new_sr25519_key() -> sr25519::Pair {
+pub(crate) fn new_sr25519_key() -> sr25519::Pair {
     let mut rng = rand::thread_rng();
     let mut seed = [0_u8; SEED_BYTES];
     rng.fill_bytes(&mut seed);
@@ -825,11 +829,14 @@ async fn run_external_server<Platform>(
     const MAX_ENCODED_MSG_SIZE: usize = 104857600; // 100MiB
     const MAX_DECODED_MSG_SIZE: usize = MAX_ENCODED_MSG_SIZE;
 
-    let podr2_key = keyfairy_ready_rx.await.expect("expect keyfairy ready");
+    let ceseal_props = keyfairy_ready_rx.await.expect("expect keyfairy ready");
     //FIXME: SHOULD BE DISABLE LOG KEY ON PRODUCTION !!!
-    debug!("Successfully load podr2 key public key is: {:?}", &podr2_key.pkey.to_pkcs1_der().unwrap().as_bytes());
+    debug!(
+        "Successfully load podr2 key public key is: {:?}",
+        &ceseal_props.podr2_key.pkey.to_pkcs1_der().unwrap().as_bytes()
+    );
 
-    let (ceseal_expert, expert_cmd_rx) = expert::CesealExpertStub::new();
+    let (ceseal_expert, expert_cmd_rx) = expert::CesealExpertStub::new(ceseal_props.clone());
     tokio::spawn(expert::run(ceseal.clone(), expert_cmd_rx));
 
     let (on_chain_cfg_tx, on_chain_cfg_rx) = oneshot::channel();
@@ -840,49 +847,31 @@ async fn run_external_server<Platform>(
         let _ = on_chain_cfg_tx.send(OnChainConfigs { pois_param });
     });
 
-    let (identity_key, tee_role) = {
-        let guard = ceseal.lock(true, true).expect("Failed to lock Ceseal");
-        let identity_key = guard.system.as_ref().expect("ceseal.system not init").identity_key.clone();
-        let tee_role = guard.args.role.clone();
-        (identity_key, tee_role)
-    };
-
     let (ext_srv_quit_tx, ext_srv_quit_rx) = oneshot::channel();
     let ceseal_expert_clone = ceseal_expert.clone();
     tokio::spawn(async move {
         let on_chain_cfg = on_chain_cfg_rx.await.expect("on chain config fetch failed");
         let ceseal_expert = ceseal_expert_clone;
         let pois_param = on_chain_cfg.pois_param.clone();
-        let podr2_srv =
-            podr2::new_podr2_api_server(podr2_key.clone(), identity_key.clone().public().0, ceseal_expert.clone())
-                .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
-                .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
-        let podr2v_srv = podr2::new_podr2_verifier_api_server(
-            podr2_key.clone(),
-            identity_key.clone().public().0,
-            ceseal_expert.clone(),
-        )
-        .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
-        .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
-        let pois_srv = pois::new_pois_certifier_api_server(
-            podr2_key.clone(),
-            pois_param.clone(),
-            identity_key.clone().public().0,
-            ceseal_expert.clone(),
-        )
-        .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
-        .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
-        let poisv_srv =
-            pois::new_pois_verifier_api_server(podr2_key, pois_param, identity_key.public().0, ceseal_expert)
-                .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
-                .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
+        let podr2_srv = podr2::new_podr2_api_server(ceseal_expert.clone())
+            .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
+            .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
+        let podr2v_srv = podr2::new_podr2_verifier_api_server(ceseal_expert.clone())
+            .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
+            .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
+        let pois_srv = pois::new_pois_certifier_api_server(pois_param.clone(), ceseal_expert.clone())
+            .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
+            .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
+        let poisv_srv = pois::new_pois_verifier_api_server(pois_param, ceseal_expert)
+            .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
+            .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
 
         info!(
             "keyfairy ready, external server will listening on {} run with {:?} role",
-            public_listener_addr, tee_role
+            public_listener_addr, ceseal_props.role
         );
         let mut server = Server::builder();
-        let router = match tee_role {
+        let router = match ceseal_props.role {
             ces_types::WorkerRole::Full => server
                 .add_service(podr2_srv)
                 .add_service(podr2v_srv)
@@ -929,85 +918,4 @@ async fn panic_if_no_pois_expender_param(ceseal_expert: expert::CesealExpertStub
         .await
         .map(|r| (r.0 as i64, r.1 as i64, r.2 as i64)) //FIXME: It is best to unify the type with POIS Verifier
         .expect("chain storage not ready")
-}
-
-pub mod expert {
-    use super::{pal::Platform, CesealSafeBox, ChainStorage};
-    use std::sync::Arc;
-    use tokio::sync::{mpsc, oneshot};
-
-    pub type ExpertCmdSender = mpsc::Sender<Cmd>;
-    pub type ExpertCmdReceiver = mpsc::Receiver<Cmd>;
-
-    #[derive(thiserror::Error, Debug)]
-    pub enum Error {
-        #[error("{0}")]
-        MpscSend(String),
-        #[error("{0}")]
-        OneshotRecv(String),
-    }
-
-    pub type MasterKey = [u8; 32];
-    pub type CmdResult<T> = Result<T, Error>;
-
-    pub enum Cmd {
-        MasterKey(oneshot::Sender<MasterKey>),
-        ChainStorage(oneshot::Sender<Option<Arc<ChainStorage>>>),
-        EgressMessage,
-    }
-
-    #[allow(dead_code)]
-    pub async fn run<P: Platform>(ceseal: CesealSafeBox<P>, mut expert_cmd_rx: ExpertCmdReceiver) -> CmdResult<()> {
-        loop {
-            match expert_cmd_rx.recv().await {
-                Some(cmd) => match cmd {
-                    Cmd::MasterKey(_resp_sender) => {
-                        //ceseal.lock(false, false)?
-                    },
-                    Cmd::ChainStorage(resp_sender) => {
-                        let guard = ceseal.lock(false, false).expect("ceseal lock failed");
-                        let chain_storage = guard.runtime_state.as_ref().map(|s| s.chain_storage.clone());
-                        let _ = resp_sender.send(chain_storage);
-                    },
-                    Cmd::EgressMessage => {},
-                },
-                None => break,
-            }
-        }
-        Ok(())
-    }
-
-    #[derive(Clone)]
-    pub struct CesealExpertStub {
-        cmd_sender: mpsc::Sender<Cmd>,
-    }
-
-    impl CesealExpertStub {
-        pub fn new() -> (Self, ExpertCmdReceiver) {
-            let (tx, rx) = mpsc::channel(16);
-            (Self { cmd_sender: tx }, rx)
-        }
-
-        pub async fn get_master_key(&self) -> CmdResult<MasterKey> {
-            let (tx, rx) = oneshot::channel();
-            self.cmd_sender
-                .send(Cmd::MasterKey(tx))
-                .await
-                .map_err(|e| Error::MpscSend(e.to_string()))?;
-            Ok(rx.await.map_err(|e| Error::OneshotRecv(e.to_string()))?)
-        }
-
-        pub async fn using_chain_storage<F, R>(&self, call: F) -> CmdResult<R>
-        where
-            F: FnOnce(Option<Arc<ChainStorage>>) -> R,
-        {
-            let (tx, rx) = oneshot::channel();
-            self.cmd_sender
-                .send(Cmd::ChainStorage(tx))
-                .await
-                .map_err(|e| Error::MpscSend(e.to_string()))?;
-            let chain_storage = rx.await.map_err(|e| Error::OneshotRecv(e.to_string()))?;
-            Ok(call(chain_storage))
-        }
-    }
 }
