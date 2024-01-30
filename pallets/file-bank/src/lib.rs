@@ -602,6 +602,11 @@ pub mod pallet {
 				for segment in file_info.segment_list.iter_mut() {
 					for fragment in segment.fragment_list.iter_mut() {
 						if fragment.miner == sender {
+							
+							if fragment.tag.is_some() {
+								continue;
+							}
+
 							let res = fragment_counter.get_mut(&fragment.hash);
 							match res {
 								Some(value) => *value = *value + 1,
