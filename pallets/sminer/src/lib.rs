@@ -35,7 +35,7 @@ use sp_runtime::traits::Zero;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::{AccountIdConversion, CheckedAdd, CheckedSub, CheckedMul, Dispatchable, SaturatedConversion},
+	traits::{AccountIdConversion, CheckedAdd, CheckedSub, CheckedMul, CheckedDiv, Dispatchable, SaturatedConversion},
 	RuntimeDebug, Perbill
 };
 use sp_std::{convert::TryInto, prelude::*, marker::PhantomData};
@@ -567,19 +567,20 @@ pub mod pallet {
 
 				<RewardMap<T>>::try_mutate(&sender, |opt_reward| -> DispatchResult {
 					let reward = opt_reward.as_mut().ok_or(Error::<T>::Unexpected)?;
-					ensure!(reward.currently_available_reward != 0u32.saturated_into(), Error::<T>::NoReward);
+					let one_day = T::OneDayBlock::get();
+					let now = <frame_system::Pallet<T>>::block_number();
+					let mut avail_reward: BalanceOf<T> = BalanceOf::<T>::zero(); 
 
-					T::RewardPool::send_reward_to_miner(miner.beneficiary, reward.currently_available_reward.clone())?;
-
-					reward.reward_issued = reward.reward_issued
-						.checked_add(&reward.currently_available_reward).ok_or(Error::<T>::Overflow)?;
-
-					Self::deposit_event(Event::<T>::Receive {
-						acc: sender.clone(),
-						reward: reward.currently_available_reward,
-					});
-
-					reward.currently_available_reward = 0u32.saturated_into();
+					for order in reward.order_list.iter_mut() {
+						let diff = now.checked_sub(&order.last_receive_block).ok_or(Error::<T>::Overflow)?;
+						if diff >= one_day {
+							let count = diff.checked_div(&one_day).ok_or(Error::<T>::Overflow)?;
+							let mut avail_count = 0;
+							if order.receive_count.saturating_add(count) > order.max_count {
+								
+							}
+						}
+					}
 
 					Ok(())
 				})?;
@@ -951,10 +952,10 @@ pub mod pallet {
 
 			RewardMap::<T>::insert(
 				&sender,
-				Reward::<T>{
+				Reward::<T> {
 					total_reward: 0u32.saturated_into(),
 					reward_issued: 0u32.saturated_into(),
-					currently_available_reward: 0u32.saturated_into(),
+					
 					order_list: Default::default()
 				},
 			);

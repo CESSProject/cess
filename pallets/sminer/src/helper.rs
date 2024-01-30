@@ -1,3 +1,5 @@
+use sp_runtime::traits::CheckedDiv;
+
 use super::*;
 
 impl<T: Config> Pallet<T> {
@@ -169,28 +171,35 @@ impl<T: Config> Pallet<T> {
 
 		let miner_prop = Perbill::from_rational(miner_power, total_power);
 		let this_round_reward = miner_prop.mul_floor(total_reward);
+		let each_reward = this_round_reward.checked_div(&RELEASE_NUMBER.into()).ok_or(Error::<T>::Overflow)?;
+		let now = <frame_system::Pallet<T>>::block_number();
 
-		let order = RewardOrder::<BalanceOf<T>>{
+		let order = RewardOrder::<BalanceOf<T>, BlockNumberFor<T>> {
+			receive_count: u8::MIN,
+			max_count: RELEASE_NUMBER,
+			atonce: false,
 			order_reward: this_round_reward.try_into().map_err(|_| Error::<T>::Overflow)?,
+			each_amount: each_reward,
+			last_receive_block: now,
 		};
+		
 		// calculate available reward
 		RewardMap::<T>::try_mutate(miner, |opt_reward_info| -> DispatchResult {
 			let reward_info = opt_reward_info.as_mut().ok_or(Error::<T>::Unexpected)?;
 			// traverse the order list
-			reward_info.currently_available_reward = reward_info.currently_available_reward
-					.checked_add(&this_round_reward).ok_or(Error::<T>::Overflow)?;
 
 			if reward_info.order_list.len() == RELEASE_NUMBER as usize {
-				reward_info.order_list.remove(0);
+				return Ok(());
 			}
+
 			reward_info.total_reward = reward_info.total_reward
 				.checked_add(&this_round_reward).ok_or(Error::<T>::Overflow)?;
 			reward_info.order_list.try_push(order.clone()).map_err(|_| Error::<T>::BoundedVecError)?;
 
+			T::RewardPool::sub_reward(order.order_reward)?;
+
 			Ok(())
 		})?;
-
-		T::RewardPool::sub_reward(order.order_reward)?;
 		
 		Ok(())
 	}
