@@ -767,6 +767,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
             &runtime_state.send_mq,
             &mut runtime_state.recv_mq,
             keyfairy_ready_sender,
+            self.args.clone(),
         );
 
         // Build WorkerRegistrationInfo

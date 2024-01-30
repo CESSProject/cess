@@ -11,9 +11,6 @@ pub struct InitArgs {
     /// The Ceseal persistent data storing path
     pub storage_path: String,
 
-    /// Whether start to benchmark at start.
-    pub init_bench: bool,
-
     /// The App version.
     pub version: String,
 
@@ -49,8 +46,6 @@ pub struct InitArgs {
 
     /// The max retry times of getting the attestation report.
     pub ra_max_retries: u32,
-
-    pub pois_param: (i64, i64, i64),
 
     pub role: WorkerRole,
 }

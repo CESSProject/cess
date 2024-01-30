@@ -265,6 +265,8 @@ pub mod pallet {
 		DigestError,
 
 		MalformedSignature,
+
+		MinerError,
 	}
 
 	#[pallet::storage]
@@ -555,7 +557,6 @@ pub mod pallet {
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
-
 			let idle_sig_info_encode = tag_sig_info.encode();
 			let original = sp_io::hashing::sha2_256(&idle_sig_info_encode);
 			let master_puk = T::TeeWorkerHandler::get_master_publickey()?;
@@ -567,7 +568,7 @@ pub mod pallet {
 				sp_io::crypto::sr25519_verify(&sig, &original, &master_puk),
 				Error::<T>::VerifyTeeSigFailed
 			);
-			ensure!(tag_sig_info.miner == sender, Error::<T>::VerifyTeeSigFailed);
+			ensure!(tag_sig_info.miner == sender, Error::<T>::MinerError);
 
 			let mut tee_tag_counter: BTreeMap<WorkerPublicKey, u8> = Default::default();
 			let mut calculate_details: BTreeMap<Hash, Vec<WorkerPublicKey>> = Default::default();
@@ -601,6 +602,11 @@ pub mod pallet {
 				for segment in file_info.segment_list.iter_mut() {
 					for fragment in segment.fragment_list.iter_mut() {
 						if fragment.miner == sender {
+							
+							if fragment.tag.is_some() {
+								continue;
+							}
+
 							let res = fragment_counter.get_mut(&fragment.hash);
 							match res {
 								Some(value) => *value = *value + 1,

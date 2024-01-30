@@ -7771,6 +7771,7 @@ dependencies = [
  "frame-support",
  "frame-support-test",
  "frame-system",
+ "hex",
  "log",
  "pallet-bags-list",
  "pallet-balances",

@@ -22,6 +22,7 @@ use log::{info, warn};
 use num_bigint_dig::BigUint;
 use parity_scale_codec::Encode;
 use prost::Message;
+use rsa::pkcs1::EncodeRsaPublicKey;
 use sp_core::{crypto::AccountId32, sr25519, ByteArray};
 use std::{
     fmt::{Debug, Display, Formatter},
@@ -29,8 +30,53 @@ use std::{
 };
 use tonic::{Request, Response, Status};
 
-pub type PoisCertifierApiServer = pois_certifier_api_server::PoisCertifierApiServer<PoisCertifierServer>;
-pub type PoisVerifierApiServer = pois_verifier_api_server::PoisVerifierApiServer<PoisVerifierServer>;
+mod proxy;
+
+pub type PoisCertifierApiServer =
+    pois_certifier_api_server::PoisCertifierApiServer<PoisCertifierApiServerProxy<PoisCertifierServer>>;
+pub type PoisVerifierApiServer =
+    pois_verifier_api_server::PoisVerifierApiServer<PoisVerifierApiServerProxy<PoisVerifierServer>>;
+pub type PoisResult<T> = Result<Response<T>, Status>;
+
+pub use proxy::{PoisCertifierApiServerProxy, PoisVerifierApiServerProxy};
+
+pub fn new_pois_certifier_api_server(
+    pois_param: (i64, i64, i64),
+    ceseal_expert: CesealExpertStub,
+) -> PoisCertifierApiServer {
+    let podr2_keys = ceseal_expert.podr2_key().clone();
+    let master_key = crate::get_sr25519_from_rsa_key(podr2_keys.clone().skey);
+    let inner = PoisCertifierApiServerProxy {
+        inner: PoisCertifierServer {
+            podr2_keys,
+            master_key,
+            verifier: Verifier::new(pois_param.0, pois_param.1, pois_param.2),
+            commit_acc_proof_chals_map: DashMap::new(),
+            ceseal_identity_key: ceseal_expert.identify_public_key().0,
+            ceseal_expert: ceseal_expert.clone(),
+        },
+        ceseal_expert,
+    };
+    PoisCertifierApiServer::new(inner)
+}
+
+pub fn new_pois_verifier_api_server(
+    pois_param: (i64, i64, i64),
+    ceseal_expert: CesealExpertStub,
+) -> PoisVerifierApiServer {
+    let podr2_keys = ceseal_expert.podr2_key().clone();
+    let master_key = crate::get_sr25519_from_rsa_key(podr2_keys.clone().skey);
+    let inner = PoisVerifierApiServerProxy {
+        inner: PoisVerifierServer {
+            podr2_keys,
+            master_key,
+            verifier: Verifier::new(pois_param.0, pois_param.1, pois_param.2),
+            ceseal_identity_key: ceseal_expert.identify_public_key().0,
+        },
+        ceseal_expert,
+    };
+    PoisVerifierApiServer::new(inner)
+}
 
 #[derive(Encode)]
 pub struct MinerCommitProofInfo {
@@ -85,8 +131,6 @@ pub struct ResponseSpaceProofVerifyTotalSignatureMember {
     pub tee_acc: AccountId32,
 }
 
-type PoisResult<T> = Result<Response<T>, Status>;
-
 pub struct PoisCertifierServer {
     pub podr2_keys: Keys,
     pub master_key: sr25519::Pair,
@@ -96,49 +140,11 @@ pub struct PoisCertifierServer {
     ceseal_expert: CesealExpertStub,
 }
 
-pub fn new_pois_certifier_api_server(
-    podr2_keys: Keys,
-    pois_param: (i64, i64, i64),
-    ceseal_identity_key: [u8; 32],
-    ceseal_expert: CesealExpertStub,
-) -> PoisCertifierApiServer {
-    let master_key = crate::get_sr25519_from_rsa_key(podr2_keys.clone().skey);
-    let inner = PoisCertifierServer {
-        podr2_keys,
-        master_key,
-        verifier: Verifier::new(pois_param.0, pois_param.1, pois_param.2),
-        commit_acc_proof_chals_map: DashMap::new(),
-        ceseal_identity_key,
-        ceseal_expert,
-    };
-    PoisCertifierApiServer::new(inner)
-}
-
-//FIXME: TO REMOVE BELOW LINE
-#[allow(dead_code)]
 pub struct PoisVerifierServer {
     pub podr2_keys: Keys,
     pub master_key: sr25519::Pair,
     pub verifier: Verifier,
     pub ceseal_identity_key: [u8; 32],
-    ceseal_expert: CesealExpertStub,
-}
-
-pub fn new_pois_verifier_api_server(
-    podr2_keys: Keys,
-    pois_param: (i64, i64, i64),
-    ceseal_identity_key: [u8; 32],
-    ceseal_expert: CesealExpertStub,
-) -> PoisVerifierApiServer {
-    let master_key = crate::get_sr25519_from_rsa_key(podr2_keys.clone().skey);
-    let inner = PoisVerifierServer {
-        podr2_keys,
-        master_key,
-        verifier: Verifier::new(pois_param.0, pois_param.1, pois_param.2),
-        ceseal_identity_key,
-        ceseal_expert,
-    };
-    PoisVerifierApiServer::new(inner)
 }
 
 fn try_into_proto_byte_hash<T>(data: &T) -> Result<Vec<u8>, Status>
@@ -180,7 +186,7 @@ impl PoisCertifierApi for PoisCertifierServer {
             .map_err(|e| Status::internal(format!("internal error: {}", e.to_string())))?;
         let Some(miner_info) = miner_info else { return Err(Status::internal("the miner not exists")) };
 
-        if matches!(miner_info.state.as_slice(), MINER_NOT_READY) {
+        if !matches!(miner_info.state.as_slice(), MINER_NOT_READY) {
             return Err(Status::invalid_argument("You have already registered the POIS key!"))
         }
         let key = rsa_keygen(2048);
@@ -212,6 +218,7 @@ impl PoisCertifierApi for PoisCertifierServer {
             miner_id,
             status_tee_sign,
             signature_with_tee_controller,
+            podr2_pbk: self.podr2_keys.pkey.to_pkcs1_der().unwrap().to_vec(),
         };
         Ok(Response::new(reply))
     }
@@ -344,7 +351,7 @@ impl PoisCertifierApi for PoisCertifierServer {
             "[Pois Commit Verify] miner : {:?} ,Tee signature is {:?}",
             miner_cess_address, &miner_pois_info.status_tee_sign
         );
-        verify_pois_status_signature(miner_key_info, &self.podr2_keys, miner_pois_info.status_tee_sign)?;
+        verify_pois_status_signature(miner_key_info, &self.master_key, miner_pois_info.status_tee_sign)?;
 
         let commit_proof_group_inner = if let Some(commit_proof_group) = commit_and_acc_proof.commit_proof_group {
             commit_proof_group.commit_proof_group_inner
@@ -493,7 +500,7 @@ impl PoisCertifierApi for PoisCertifierServer {
             miner_cess_address, &miner_pois_info.status_tee_sign
         );
 
-        verify_pois_status_signature(miner_key_info, &self.podr2_keys, miner_pois_info.status_tee_sign)?;
+        verify_pois_status_signature(miner_key_info, &self.master_key, miner_pois_info.status_tee_sign)?;
 
         //register in verifier obj
         let key = RsaKey {
@@ -939,17 +946,28 @@ fn get_pois_status_and_signature(
     Ok((pois_status, signature_pois_info, signature_with_tee_controller))
 }
 
-fn verify_pois_status_signature(pois_info: MinerPoisInfo, podr2_keys: &Keys, signature: Vec<u8>) -> Result<(), Status> {
+fn verify_pois_status_signature(
+    pois_info: MinerPoisInfo,
+    master_key: &sr25519::Pair,
+    signature: Vec<u8>,
+) -> Result<(), Status> {
     let mut hash_raw = vec![0u8; 32];
     let mut hasher = Sha256::new();
     hasher.input(&pois_info.encode());
     hasher.result(&mut hash_raw);
 
-    podr2_keys
-        .verify_data(&hash_raw, &signature)
-        .map_err(|e| Status::unauthenticated(e.error_code.to_string()))?;
-
-    Ok(())
+    if !master_key.verify_data(
+        &sr25519::Signature(
+            signature
+                .try_into()
+                .map_err(|_| Status::invalid_argument("signature length must be 64"))?,
+        ),
+        &hash_raw,
+    ) {
+        return Err(Status::unauthenticated("The miner provided the wrong signature!"))
+    } else {
+        return Ok(())
+    };
 }
 
 //TODO: to refactor these code below

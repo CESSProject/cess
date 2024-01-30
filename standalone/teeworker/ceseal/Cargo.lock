@@ -4238,6 +4238,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "hex",
  "log",
  "pallet-balances",
  "pallet-cess-staking",

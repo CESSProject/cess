@@ -6,14 +6,13 @@ use cestory_api::podr2::{
     podr2_api_server::{self, Podr2Api},
     podr2_verifier_api_server::{self, Podr2VerifierApi},
     request_batch_verify::Qslice,
-    tag, DigestInfo, EchoMessage, RequestBatchVerify, RequestGenTag, ResponseBatchVerify, ResponseGenTag,
-    Tag as ApiTag,
+    tag, EchoMessage, RequestBatchVerify, RequestGenTag, ResponseBatchVerify, ResponseGenTag, Tag as ApiTag,
 };
 use cp_bloom_filter::{binary, BloomFilter};
 use crypto::{digest::Digest, sha2::Sha256};
 use log::info;
 use parity_scale_codec::Encode;
-use sp_core::{bounded::BoundedVec, crypto::AccountId32, sr25519, ConstU32, Pair};
+use sp_core::{bounded::BoundedVec, crypto::AccountId32, sr25519, ByteArray, ConstU32, Pair};
 use std::{
     sync::{Arc, Mutex},
     time::Instant,
@@ -21,66 +20,61 @@ use std::{
 use threadpool::ThreadPool;
 use tonic::{Request, Response, Status};
 
-pub type Podr2ApiServer = podr2_api_server::Podr2ApiServer<Podr2Server>;
-pub type Podr2VerifierApiServer = podr2_verifier_api_server::Podr2VerifierApiServer<Podr2VerifierServer>;
+mod proxy;
 
-pub fn new_podr2_api_server(
-    podr2_keys: Keys,
-    ceseal_identity_key: [u8; 32],
-    ceseal_expert: CesealExpertStub,
-) -> Podr2ApiServer {
+pub type Podr2ApiServer = podr2_api_server::Podr2ApiServer<Podr2ApiServerProxy<Podr2Server>>;
+pub type Podr2VerifierApiServer =
+    podr2_verifier_api_server::Podr2VerifierApiServer<Podr2VerifierApiServerProxy<Podr2VerifierServer>>;
+pub type Podr2Result<T> = Result<Response<T>, Status>;
+
+pub use proxy::{Podr2ApiServerProxy, Podr2VerifierApiServerProxy};
+
+pub fn new_podr2_api_server(ceseal_expert: CesealExpertStub) -> Podr2ApiServer {
+    let podr2_keys = ceseal_expert.podr2_key().clone();
     let master_key = crate::get_sr25519_from_rsa_key(podr2_keys.clone().skey);
-    //FIXME: HERE!
-    let inner = Podr2Server {
-        podr2_keys,
-        master_key,
-        threadpool: Arc::new(Mutex::new(threadpool::ThreadPool::new(8))),
-        block_num: 1024,
-        ceseal_identity_key,
+    let inner = Podr2ApiServerProxy {
+        inner: Podr2Server {
+            podr2_keys,
+            master_key,
+            threadpool: Arc::new(Mutex::new(threadpool::ThreadPool::new(8))), //FIXME: thread pool init!
+            block_num: 1024,
+            ceseal_identity_key: ceseal_expert.identify_public_key().0,
+        },
         ceseal_expert,
     };
     Podr2ApiServer::new(inner)
 }
 
-pub fn new_podr2_verifier_api_server(
-    podr2_keys: Keys,
-    ceseal_identity_key: [u8; 32],
-    ceseal_expert: CesealExpertStub,
-) -> Podr2VerifierApiServer {
+pub fn new_podr2_verifier_api_server(ceseal_expert: CesealExpertStub) -> Podr2VerifierApiServer {
+    let podr2_keys = ceseal_expert.podr2_key().clone();
     let master_key = crate::get_sr25519_from_rsa_key(podr2_keys.clone().skey);
-    //FIXME: HERE!
-    let inner = Podr2VerifierServer {
-        podr2_keys,
-        master_key,
-        threadpool: Arc::new(Mutex::new(threadpool::ThreadPool::new(8))),
-        block_num: 1024,
-        ceseal_identity_key,
+    let inner = Podr2VerifierApiServerProxy {
+        inner: Podr2VerifierServer {
+            podr2_keys,
+            master_key,
+            threadpool: Arc::new(Mutex::new(threadpool::ThreadPool::new(8))), //FIXME: thread pool init!
+            block_num: 1024,
+            ceseal_identity_key: ceseal_expert.identify_public_key().0,
+        },
         ceseal_expert,
     };
     Podr2VerifierApiServer::new(inner)
 }
 
-pub type Podr2Result<T> = Result<Response<T>, Status>;
-
-//TODO: REMOVE HERE!
-#[allow(dead_code)]
 pub struct Podr2Server {
     pub podr2_keys: Keys,
     pub master_key: sr25519::Pair,
     pub threadpool: Arc<Mutex<ThreadPool>>,
     pub block_num: u64,
     pub ceseal_identity_key: [u8; 32],
-    ceseal_expert: CesealExpertStub,
 }
 
-#[allow(dead_code)]
 pub struct Podr2VerifierServer {
     pub podr2_keys: Keys,
     pub master_key: sr25519::Pair,
     pub ceseal_identity_key: [u8; 32],
     pub threadpool: Arc<Mutex<ThreadPool>>,
     pub block_num: u64,
-    ceseal_expert: CesealExpertStub,
 }
 
 struct Podr2Hash {
@@ -120,6 +114,17 @@ pub struct Challenge {
     pub random_index_list: BoundedVec<u32, ConstU32<1024>>,
     pub random_list: BoundedVec<[u8; 20], ConstU32<1024>>,
 }
+#[derive(Encode)]
+pub struct TagSigInfo {
+    pub miner: AccountId32,
+    pub digest: BoundedVec<DigestInfo, ConstU32<1000>>,
+    pub file_hash: Hash,
+}
+#[derive(Encode)]
+pub struct DigestInfo {
+    pub fragment: Hash,
+    pub tee_puk: sr25519::Public,
+}
 
 #[tonic::async_trait]
 impl Podr2Api for Podr2Server {
@@ -134,51 +139,81 @@ impl Podr2Api for Podr2Server {
         info!(
             "[🚀Generate tag] Request to generate tag for file hash [{:?}] bytes length is {}",
             request.file_name,
-            request.file_name.len()
+            request.file_name.as_bytes().len()
         );
+        let file_hash: [u8; 64] = (*(request.file_name.as_bytes()))
+            .try_into()
+            .map_err(|_| Status::invalid_argument("file_name hash bytes length should be 64".to_string()))?;
 
         let pool = self
             .threadpool
             .lock()
             .map_err(|e| Status::internal("lock global threadpool fail:".to_string() + &e.to_string()))?;
         //check fragement data is equal to fragement name
-        let mut check_file_hash = Podr2Hash::new();
-        check_file_hash.load_field(&request.fragment_data);
-        let fragment_data_hash = hex::encode(check_file_hash.c_hash());
-        if !fragment_data_hash.eq(&request.fragment_name) {
+        let mut check_fragment_hash = Podr2Hash::new();
+        check_fragment_hash.load_field(&request.fragment_data);
+        let fragment_data_hash_byte = check_fragment_hash.c_hash();
+        let fragment_data_hash_string = hex::encode(&fragment_data_hash_byte);
+        if !fragment_data_hash_string.eq(&request.fragment_name) {
             return Err(Status::invalid_argument(format!(
-                "file: {:?} hash is :{:?}",
-                &request.fragment_name, &fragment_data_hash
+                "fragment: {:?} hash is :{:?}",
+                &request.fragment_name, &fragment_data_hash_string
             )))
         }
         let tag = self
             .podr2_keys
             .sig_gen_with_data(request.fragment_data, self.block_num, &request.fragment_name, h, pool.clone())
             .map_err(|e| Status::internal(format!("AlgorithmError: {}", e.error_code.to_string())))?;
-        let u_sig = self.podr2_keys.sign_data_with_sha256(tag.t.u.as_bytes()).map_err(|e| {
+        let u_sig = self.podr2_keys.sign_data(&calculate_hash(tag.t.u.as_bytes())).map_err(|e| {
             Status::invalid_argument(format!("Failed to calculate u's signature {:?}", e.error_code.to_string()))
         })?;
-        let mut new_tee_digest_list = Vec::new();
+
+        let mut tag_sig_info_history = TagSigInfo {
+            miner: AccountId32::from_slice(&request.miner_id[..])
+                .map_err(|_| Status::internal("invalid miner account"))?,
+            digest: BoundedVec::new(),
+            file_hash: Hash(file_hash),
+        };
         if !request.tee_digest_list.is_empty() {
+            for tdl in request.tee_digest_list {
+                let digest_info_history = DigestInfo {
+                    fragment: Hash(tdl.fragment_name.try_into().map_err(|_| {
+                        Status::invalid_argument(
+                            "The length of fragment name in tee_digest_list should be 64".to_string(),
+                        )
+                    })?),
+                    tee_puk: sr25519::Public(tdl.tee_account_id.try_into().map_err(|_| {
+                        Status::invalid_argument(
+                            "The length of tee worker id in tee_digest_list should be 64".to_string(),
+                        )
+                    })?),
+                };
+                tag_sig_info_history
+                    .digest
+                    .try_push(digest_info_history)
+                    .map_err(|_| Status::internal("Fail to conver tee_digest_list from miner into".to_string()))?;
+            }
             if !self.master_key.verify_data(
                 &sr25519::Signature(request.last_tee_signature.try_into().map_err(|_| {
                     Status::invalid_argument("The last_tee_signature you provided is length is not 64".to_string())
                 })?),
-                &calculate_hash(&request.tee_digest_list.encode()),
+                &calculate_hash(&tag_sig_info_history.encode()),
             ) {
                 return Err(Status::invalid_argument("The last_tee_signature you provided is incorrect".to_string()))
             };
-            new_tee_digest_list.extend(request.tee_digest_list);
         };
-        let fragment_name_bytes = hex::decode(request.fragment_name)
-            .map_err(|_| Status::invalid_argument("Decode fragment name to bytes fail".to_string()))?;
-        let new_work_record =
-            DigestInfo { fragment_name: fragment_name_bytes, tee_account_id: self.ceseal_identity_key.to_vec() };
-        new_tee_digest_list.push(new_work_record);
+
+        let new_tee_record = DigestInfo {
+            fragment: Hash(request.fragment_name.as_bytes().try_into().unwrap()),
+            tee_puk: sr25519::Public(self.ceseal_identity_key.clone()),
+        };
+        tag_sig_info_history.digest.try_push(new_tee_record).map_err(|_| {
+            Status::invalid_argument("Can not push the new tee record into tag_sig_info_history".to_string())
+        })?;
 
         let signature = self
             .master_key
-            .sign_data(&calculate_hash(&new_tee_digest_list.encode()))
+            .sign_data(&calculate_hash(&tag_sig_info_history.encode()))
             .0
             .to_vec();
         info!("[🚀Generate tag] PoDR2 Sig Gen Completed in: {:.2?}. file name is {:?}", now.elapsed(), &tag.t.name);
@@ -248,7 +283,7 @@ impl Podr2VerifierApi for Podr2VerifierServer {
             let mut iterator = request
                 .u_sigs
                 .iter()
-                .zip(agg_proof.names.iter())
+                .zip(agg_proof.us.iter())
                 .take((request.u_sigs.len() as f64 * 0.049).ceil() as usize);
             if !iterator.all(|(u_sig, u)| match self.podr2_keys.verify_data(&calculate_hash(u.as_bytes()), &u_sig) {
                 Ok(_) => true,

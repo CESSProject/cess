@@ -141,6 +141,10 @@ mod storage_ext {
             self.execute_with(|| pallet_tee_worker::CesealBinAddedAt::<chain::Runtime>::get(runtime_hash))
         }
 
+        pub fn get_pois_expender_param(&self) -> Option<(u64, u64, u64)> {
+            self.execute_with(|| pallet_sminer::pallet::Pallet::<chain::Runtime>::expenders())
+        }
+
         pub fn is_keyfairy(&self, pubkey: &ces_types::WorkerPublicKey) -> bool {
             self.keyfairys().contains(pubkey)
         }
