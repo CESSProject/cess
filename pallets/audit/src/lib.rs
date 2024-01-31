@@ -926,10 +926,10 @@ pub mod pallet {
 		fn generate_challenge(now: BlockNumberFor<T>) -> Weight {
 			let mut weight: Weight = Weight::zero();
 
-			// let one_day = T::OneDay::get();
-			// if now < one_day.saturating_mul(3u32.saturated_into()) {
-			// 	return weight;
-			// }
+			let one_day = T::OneDay::get();
+			if now < one_day.saturating_mul(3u32.saturated_into()) {
+				return weight;
+			}
 
 			if now % 10u32.saturated_into() != 0u32.saturated_into() {
 				return weight;
