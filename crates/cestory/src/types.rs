@@ -1,25 +1,35 @@
 use crate::system::WorkerIdentityKey;
 use ces_types::WorkerRole;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
-use std::fmt::{self, Debug};
+use std::{
+    fmt::{self, Debug},
+    sync::{Arc, Mutex},
+};
 use thiserror::Error;
+use threadpool::ThreadPool;
 use tokio::sync::oneshot;
 
 extern crate runtime as chain;
 
 pub type KeyfairyReadySender = oneshot::Sender<CesealProperties>;
 pub type KeyfairyReadyReceiver = oneshot::Receiver<CesealProperties>;
+pub type ThreadPoolSafeBox = Arc<Mutex<ThreadPool>>;
 
 #[derive(Clone)]
 pub struct CesealProperties {
     pub role: WorkerRole,
     pub podr2_key: ces_pdp::Keys,
     pub identity_key: WorkerIdentityKey,
+    pub cores: u32,
 }
 
 impl fmt::Debug for CesealProperties {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CesealProperties {{ role: {:?}, podr2_key: <omitted>, identity_key: <omitted> }}", self.role)
+        write!(
+            f,
+            "CesealProperties {{ role: {:?}, podr2_key: <omitted>, identity_key: <omitted>, cores: {} }}",
+            self.role, self.cores
+        )
     }
 }
 

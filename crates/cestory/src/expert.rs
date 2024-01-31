@@ -1,7 +1,12 @@
-use super::{pal::Platform, system::WorkerIdentityKey, CesealProperties, CesealSafeBox, ChainStorage};
+use super::{
+    pal::Platform, system::WorkerIdentityKey, types::ThreadPoolSafeBox, CesealProperties, CesealSafeBox, ChainStorage,
+};
 use ces_types::{WorkerPublicKey, WorkerRole};
 use sp_core::Pair;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 use tokio::sync::{mpsc, oneshot, Semaphore, SemaphorePermit, TryAcquireError};
 use tonic::Status;
 
@@ -65,17 +70,22 @@ pub struct CesealExpertStub {
     ceseal_props: Arc<CesealProperties>,
     cmd_sender: mpsc::Sender<Cmd>,
     ext_res_semaphores: HashMap<ExternalResourceKind, Arc<Semaphore>>,
+    thread_pool: ThreadPoolSafeBox,
 }
 
 impl CesealExpertStub {
     pub fn new(ceseal_props: CesealProperties) -> (Self, ExpertCmdReceiver) {
         let (tx, rx) = mpsc::channel(16);
+        let thread_pool_cap = std::cmp::max(ceseal_props.cores - 1, 1);
+        let thread_pool = threadpool::ThreadPool::new(thread_pool_cap as usize);
+        info!("PODR2 compute thread pool capacity: {}", thread_pool.max_count());
         let role = ceseal_props.role.clone();
         (
             Self {
                 ceseal_props: Arc::new(ceseal_props),
                 cmd_sender: tx,
                 ext_res_semaphores: make_resource_quotas_by_role(role),
+                thread_pool: Arc::new(Mutex::new(thread_pool)),
             },
             rx,
         )
@@ -95,6 +105,10 @@ impl CesealExpertStub {
 
     pub fn role(&self) -> &WorkerRole {
         &self.ceseal_props.role
+    }
+
+    pub fn thread_pool(&self) -> ThreadPoolSafeBox {
+        self.thread_pool.clone()
     }
 
     pub async fn using_chain_storage<F, R>(&self, call: F) -> CmdResult<R>
@@ -163,8 +177,12 @@ mod test {
 
     #[tokio::test]
     async fn permit_acquire_ok_on_full_role() {
-        let ceseal_props =
-            CesealProperties { role: WorkerRole::Full, podr2_key: any_podr2_key(), identity_key: any_identity_key() };
+        let ceseal_props = CesealProperties {
+            role: WorkerRole::Full,
+            podr2_key: any_podr2_key(),
+            identity_key: any_identity_key(),
+            cores: 2,
+        };
         let (expert, _) = CesealExpertStub::new(ceseal_props);
         {
             let p = expert.try_acquire_permit(Pord2Service).await;

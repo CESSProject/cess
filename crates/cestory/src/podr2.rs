@@ -1,4 +1,4 @@
-use crate::expert::CesealExpertStub;
+use crate::{expert::CesealExpertStub, types::ThreadPoolSafeBox};
 use anyhow::{anyhow, Result};
 use ces_crypto::sr25519::Signing;
 use ces_pdp::{HashSelf, Keys, QElement, Tag as PdpTag};
@@ -13,11 +13,7 @@ use crypto::{digest::Digest, sha2::Sha256};
 use log::info;
 use parity_scale_codec::Encode;
 use sp_core::{bounded::BoundedVec, crypto::AccountId32, sr25519, ByteArray, ConstU32, Pair};
-use std::{
-    sync::{Arc, Mutex},
-    time::Instant,
-};
-use threadpool::ThreadPool;
+use std::time::Instant;
 use tonic::{Request, Response, Status};
 
 mod proxy;
@@ -36,7 +32,7 @@ pub fn new_podr2_api_server(ceseal_expert: CesealExpertStub) -> Podr2ApiServer {
         inner: Podr2Server {
             podr2_keys,
             master_key,
-            threadpool: Arc::new(Mutex::new(threadpool::ThreadPool::new(8))), //FIXME: thread pool init!
+            threadpool: ceseal_expert.thread_pool(),
             block_num: 1024,
             ceseal_identity_key: ceseal_expert.identify_public_key().0,
         },
@@ -52,7 +48,7 @@ pub fn new_podr2_verifier_api_server(ceseal_expert: CesealExpertStub) -> Podr2Ve
         inner: Podr2VerifierServer {
             podr2_keys,
             master_key,
-            threadpool: Arc::new(Mutex::new(threadpool::ThreadPool::new(8))), //FIXME: thread pool init!
+            threadpool: ceseal_expert.thread_pool(),
             block_num: 1024,
             ceseal_identity_key: ceseal_expert.identify_public_key().0,
         },
@@ -64,7 +60,7 @@ pub fn new_podr2_verifier_api_server(ceseal_expert: CesealExpertStub) -> Podr2Ve
 pub struct Podr2Server {
     pub podr2_keys: Keys,
     pub master_key: sr25519::Pair,
-    pub threadpool: Arc<Mutex<ThreadPool>>,
+    pub threadpool: ThreadPoolSafeBox,
     pub block_num: u64,
     pub ceseal_identity_key: [u8; 32],
 }
@@ -73,7 +69,7 @@ pub struct Podr2VerifierServer {
     pub podr2_keys: Keys,
     pub master_key: sr25519::Pair,
     pub ceseal_identity_key: [u8; 32],
-    pub threadpool: Arc<Mutex<ThreadPool>>,
+    pub threadpool: ThreadPoolSafeBox,
     pub block_num: u64,
 }
 

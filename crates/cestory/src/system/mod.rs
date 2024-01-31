@@ -308,6 +308,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     self.keyfairy.as_ref().expect("keyfairy not ready").rsa_private_key().clone(),
                 ),
                 identity_key: self.identity_key.clone(),
+                cores: self.args.cores,
             };
             sender.send(ceseal_props).expect("expect send on keyfairy ready");
         } else {
