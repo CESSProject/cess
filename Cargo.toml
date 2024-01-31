@@ -407,7 +407,6 @@ cp-scheduler-credit = { path = "crates/scheduler-credit", default-features = fal
 ext-types = { path = "crates/ces-node-rpc-ext/types", default-features = false, package = "ces-node-rpc-ext-types" }
 node-executor = { path = "standalone/chain/executor" }
 node-rpc = { path = "standalone/chain/rpc" }
-node-runtime = { path = "standalone/chain/runtime", package = "cess-node-runtime", default-features = false }
 pallet-audit = { path = "pallets/audit", default-features = false }
 pallet-cacher = { path = "pallets/cacher", default-features = false }
 pallet-cess-staking = { path = "pallets/staking", default-features = false }

@@ -41,3 +41,11 @@ ces-mq = { workspace = true }
 cestory-api = { workspace = true, features = ["ceseal-client", "std"] }
 cesxt = { workspace = true }
 
+
+[features]
+only-attestation = [
+	"cestory-api/only-attestation"
+]
+verify-cesealbin = [
+	"cestory-api/verify-cesealbin"
+]

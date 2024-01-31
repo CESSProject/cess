@@ -88,3 +88,10 @@ default = [
     "sp-io/disable_oom",
 ]
 shadow-gk = []
+
+only-attestation = [
+	"runtime/only-attestation"
+]
+verify-cesealbin = [
+	"runtime/verify-cesealbin"
+]

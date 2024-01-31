@@ -152,3 +152,9 @@ try-runtime = [
 	"cess-node-runtime/try-runtime", 
 	"try-runtime-cli/try-runtime"
 ]
+only-attestation = [
+	"cess-node-runtime/only-attestation"
+]
+verify-cesealbin = [
+	"cess-node-runtime/verify-cesealbin"
+]

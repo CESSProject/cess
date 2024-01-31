@@ -3,6 +3,12 @@ BUILD?=release
 ifeq ($(BUILD),release)
 	XARGS=--release
 endif
+ifeq ($(OA),1)
+	XARGS += --features only-attestation
+endif
+ifeq ($(VC),1)
+	XARGS += --features verify-cesealbin
+endif
 
 .PHONY: all clean run app 
 

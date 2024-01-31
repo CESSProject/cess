@@ -253,3 +253,5 @@ try-runtime = [
   "pallet-transaction-payment/try-runtime",
   "pallet-treasury/try-runtime",
 ]
+only-attestation = []
+verify-cesealbin = []

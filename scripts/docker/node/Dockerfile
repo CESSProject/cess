@@ -14,6 +14,9 @@ FROM chef AS builder
 ARG DEBIAN_FRONTEND='noninteractive'
 ARG https_proxy
 ARG http_proxy
+ARG BUILD=release
+ARG OA
+ARG VC
 
 # Use new protobuf version instead of the default on gramine image, since we need the feature that supporting 'optional' keyword in proto3
 RUN apt-get update && apt-get install -y gcc llvm clang cmake make git libssl-dev pkg-config wget unzip
@@ -34,7 +37,7 @@ RUN cargo chef cook --release --recipe-path recipe.json
 # Build application
 COPY . .
 
-RUN cargo build --release -p cess-node
+RUN make node
 
 ## We do not need the Rust toolchain to run the binary!
 FROM ubuntu:20.04 AS runtime

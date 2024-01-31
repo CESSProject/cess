@@ -61,3 +61,10 @@ derive_serde = [
     "ces-trie-storage/serde",
     "primitive-types/serde",
 ]
+
+only-attestation = [
+	"chain/only-attestation"
+]
+verify-cesealbin = [
+	"chain/verify-cesealbin"
+]

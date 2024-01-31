@@ -39,6 +39,9 @@ RUN curl -fsSL 'https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gn
 
 ARG IAS_API_KEY
 ARG IAS_SPID
+ARG BUILD=release
+ARG OA
+ARG VC
 
 RUN : "${IAS_API_KEY:?IAS_API_KEY needs to be set and non-empty.}" \
     && : "${IAS_SPID:?IAS_SPID needs to be set and non-empty.}" \

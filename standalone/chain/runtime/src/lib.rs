@@ -1260,8 +1260,8 @@ parameter_types! {
 	pub const SchedulerMaximum: u32 = 10000;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const MaxWhitelist: u32 = 200;
-	pub const NoneAttestationEnabled: bool = true;
-	pub const VerifyCeseal: bool = false;
+	pub const NoneAttestationEnabled: bool = if cfg!(not(feature = "only-attestation")) { true } else { false };
+	pub const VerifyCeseal: bool = if cfg!(not(feature = "verify-cesealbin")) { false } else { true };
 }
 
 impl pallet_tee_worker::Config for Runtime {
