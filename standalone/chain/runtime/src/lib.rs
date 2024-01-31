@@ -42,7 +42,7 @@ use sp_runtime::{
 	impl_opaque_keys,
 	generic::Era,
 	traits::{
-		BlakeTwo256, Block as BlockT, Bounded, ConvertInto, DispatchInfoOf, Dispatchable,
+		BlakeTwo256, Block as BlockT, ConvertInto, DispatchInfoOf, Dispatchable,
 		IdentifyAccount, NumberFor, OpaqueKeys, PostDispatchInfoOf, SaturatedConversion,
 		StaticLookup, Verify, UniqueSaturatedInto,
 	},
@@ -72,13 +72,13 @@ pub use frame_support::{
 	},
 	weights::{
 		constants::{
-			BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_REF_TIME_PER_SECOND,
+			BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_REF_TIME_PER_SECOND, 
 		},
-		ConstantMultiplier, IdentityFee, Weight,
+		ConstantMultiplier, IdentityFee, Weight, WeightToFeeCoefficient, WeightToFeeCoefficients, WeightToFeePolynomial,
 	},
 	PalletId, StorageValue,
 };
-
+use smallvec::smallvec;
 use frame_system::{
 	limits::{BlockLength, BlockWeights},
 	EnsureRoot, EnsureSigned, EnsureWithSuccess,
@@ -111,6 +111,7 @@ pub use pallet_cess_staking::StakerStatus;
 pub use sp_runtime::BuildStorage;
 
 mod voter_bags;
+mod msg_routing;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -175,11 +176,11 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 102,
+	spec_version: 100,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
-	state_version: 1,
+	state_version: 0,
 };
 
 /// The Babe epoch configuration at genesis.
@@ -208,12 +209,15 @@ impl OnUnbalanced<NegativeImbalance> for DealWithFees {
 	}
 }
 
-pub const MILLICENTS: Balance = 10_000_000;
+pub const MILLICENTS: Balance = 10_000_000_000_000;
 pub const CENTS: Balance = 1_000 * MILLICENTS; // assume this is worth about a cent.
 pub const DOLLARS: Balance = 100 * CENTS;
 
+pub const WEIGHT_FEE: Balance = 50 * 100_000;
+pub const STORAGE_BYTE_FEE: Balance = 10_000_000_000_000_000;
 pub const fn deposit(items: u32, bytes: u32) -> Balance {
-	items as Balance * 15 * CENTS + (bytes as Balance) * 100 * MILLICENTS
+	// Reference Moonbeam
+	items as Balance * 100 * 1_000_000_000_000_000 * 100 + (bytes as Balance) * STORAGE_BYTE_FEE
 }
 
 /// Type used for expressing timestamp.
@@ -911,13 +915,36 @@ impl pallet_balances::Config for Runtime {
 	type MaxHolds = ConstU32<1>;
 }
 
+pub const TRANSACTION_BYTE_FEE: Balance = 100_000_000_000;
+pub struct LengthToFee;
+impl WeightToFeePolynomial for LengthToFee {
+	type Balance = Balance;
+
+	fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
+		smallvec![
+			WeightToFeeCoefficient {
+				degree: 1,
+				coeff_frac: Perbill::zero(),
+				coeff_integer: TRANSACTION_BYTE_FEE,
+				negative: false,
+			},
+			WeightToFeeCoefficient {
+				degree: 3,
+				coeff_frac: Perbill::zero(),
+				coeff_integer: 100,
+				negative: false,
+			},
+		]
+	}
+}
+
 parameter_types! {
-	pub const TransactionByteFee: Balance = MILLICENTS / 1_000;
+	pub const TransactionByteFee: Balance = MILLICENTS;
 	pub const OperationalFeeMultiplier: u8 = 5;
 	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
-	pub AdjustmentVariable: Multiplier = Multiplier::saturating_from_rational(1, 100_000);
-	pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_rational(1, 1_000_000_000u128);
-	pub MaximumMultiplier: Multiplier = Bounded::max_value();
+	pub AdjustmentVariable: Multiplier = Multiplier::saturating_from_rational(4, 1_000);
+	pub MinimumMultiplier: Multiplier = Multiplier::from(1u128);
+	pub MaximumMultiplier: Multiplier = Multiplier::from(100_000u128);
 }
 
 impl pallet_transaction_payment::Config for Runtime {
@@ -925,8 +952,8 @@ impl pallet_transaction_payment::Config for Runtime {
 	type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees>;
 	// type TransactionByteFee = TransactionByteFee;
 	type OperationalFeeMultiplier = OperationalFeeMultiplier;
-	type WeightToFee = IdentityFee<Balance>;
-	type LengthToFee = ConstantMultiplier<Balance, TransactionByteFee>;
+	type WeightToFee = ConstantMultiplier<Balance, ConstU128<{ WEIGHT_FEE }>>;
+	type LengthToFee = LengthToFee;
 	type FeeMultiplierUpdate = TargetedFeeAdjustment<
 		Self,
 		TargetBlockFullness,
@@ -1033,6 +1060,35 @@ impl pallet_proxy::Config for Runtime {
 /***
  * Add This Block
  */
+pub struct DealWithServiceFee;
+impl OnUnbalanced<NegativeImbalance> for DealWithServiceFee {
+	fn on_nonzero_unbalanced(amount: NegativeImbalance) {
+		drop(amount);
+	}
+}
+
+parameter_types! {
+	pub EIP712Name: Vec<u8> = b"Substrate".to_vec();
+	pub EIP712Version: Vec<u8> = b"1".to_vec();
+	pub EIP712ChainID: pallet_evm_account_mapping::EIP712ChainID = sp_core::U256::from(0);
+	pub EIP712VerifyingContractAddress: pallet_evm_account_mapping::EIP712VerifyingContractAddress = sp_core::H160::from([0u8; 20]);
+}
+
+impl pallet_evm_account_mapping::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeCall = RuntimeCall;
+	type Currency = Balances;
+	type AddressConverter = pallet_evm_account_mapping::SubstrateAddressConverter;
+	type ServiceFee = ConstU128<10000000000>;
+	type OnUnbalancedForServiceFee = DealWithServiceFee;
+	type CallFilter = frame_support::traits::Everything;
+	type EIP712Name = EIP712Name;
+	type EIP712Version = EIP712Version;
+	type EIP712ChainID = EIP712ChainID;
+	type EIP712VerifyingContractAddress = EIP712VerifyingContractAddress;
+	type WeightInfo = pallet_evm_account_mapping::weights::SubstrateWeight<Runtime>;
+}
+
 parameter_types! {
 	pub const FaucetId: PalletId = PalletId(*b"facuetid");
 	#[derive(Clone, Eq, PartialEq)]
@@ -1204,6 +1260,8 @@ parameter_types! {
 	pub const SchedulerMaximum: u32 = 10000;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const MaxWhitelist: u32 = 200;
+	pub const NoneAttestationEnabled: bool = if cfg!(not(feature = "only-attestation")) { true } else { false };
+	pub const VerifyCeseal: bool = if cfg!(not(feature = "verify-cesealbin")) { false } else { true };
 }
 
 impl pallet_tee_worker::Config for Runtime {
@@ -1216,6 +1274,10 @@ impl pallet_tee_worker::Config for Runtime {
 	type CreditCounter = SchedulerCredit;
 	type MaxWhitelist = MaxWhitelist;
 	// type AuthorityId = pallet_tee_worker::ed25519::AuthorityId;
+	type LegacyAttestationValidator = pallet_tee_worker::IasValidator;
+    type NoneAttestationEnabled = NoneAttestationEnabled;
+    type VerifyCeseal = VerifyCeseal;
+    type GovernanceOrigin = EnsureRootOrHalfCouncil;
 }
 
 parameter_types! {
@@ -1263,6 +1325,7 @@ where
 			frame_system::CheckEra::<Runtime>::from(era),
 			frame_system::CheckNonce::<Runtime>::from(nonce),
 			frame_system::CheckWeight::<Runtime>::new(),
+			ces_pallet_mq::CheckMqSequence::<Runtime>::new(),
 			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 		);
 		let raw_payload = SignedPayload::new(call, extra)
@@ -1596,6 +1659,22 @@ impl fp_self_contained::SelfContainedCall for RuntimeCall {
 /***
  * Frontier End--------------------------------------------------------------------
  */
+
+pub struct MqCallMatcher;
+impl ces_pallet_mq::CallMatcher<Runtime> for MqCallMatcher {
+    fn match_call(call: &RuntimeCall) -> Option<&ces_pallet_mq::Call<Runtime>> {
+        match call {
+            RuntimeCall::CesMq(mq_call) => Some(mq_call),
+            _ => None,
+        }
+    }
+}
+impl ces_pallet_mq::Config for Runtime {
+    type QueueNotifyConfig = msg_routing::MessageRouteConfig;
+    type CallMatcher = MqCallMatcher;
+	type MasterPubkeySupplier = pallet_tee_worker::Pallet<Runtime>;
+}
+
 parameter_types! {
 	pub const PeriodDuration: BlockNumber = EPOCH_DURATION_IN_BLOCKS * SessionsPerEra::get();
 }
@@ -1664,6 +1743,7 @@ construct_runtime!(
 		EVMChainId: pallet_evm_chain_id = 53,
 		DynamicFee: pallet_dynamic_fee = 54,
 		BaseFee: pallet_base_fee = 55,
+		EvmAccountMapping: pallet_evm_account_mapping = 56,
 
 		// CESS pallets
 		FileBank: pallet_file_bank = 60,
@@ -1675,6 +1755,7 @@ construct_runtime!(
 		Oss: pallet_oss = 66,
 		Cacher: pallet_cacher = 67,
 		CessTreasury: pallet_cess_treasury = 68,
+		CesMq: ces_pallet_mq = 69,
 	}
 );
 
@@ -1711,6 +1792,7 @@ pub type SignedExtra = (
 	frame_system::CheckEra<Runtime>,
 	frame_system::CheckNonce<Runtime>,
 	frame_system::CheckWeight<Runtime>,
+	ces_pallet_mq::CheckMqSequence<Runtime>,
 	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
@@ -2351,4 +2433,10 @@ impl_runtime_apis! {
 			Ok(batches)
 		}
 	}
+
+	impl ces_pallet_mq_runtime_api::MqApi<Block> for Runtime {
+        fn sender_sequence(sender: &ces_types::messaging::MessageOrigin) -> Option<u64> {
+            CesMq::offchain_ingress(sender)
+        }
+    }
 }

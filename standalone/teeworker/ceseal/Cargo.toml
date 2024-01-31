@@ -1,0 +1,57 @@
+[package]
+edition = "2021"
+name = "ceseal"
+version = "0.1.0"
+build = "build.rs"
+
+[profile.release]
+panic = "abort"
+
+[dependencies]
+anyhow = { version = "1" }
+base64 = { version = "0.13", default-features = false, features = ["alloc"] }
+clap = { version = "4.0.32", features = ["derive"] }
+hex_fmt = "0.3.0"
+humantime = "2.1.0"
+lazy_static = { version = "1.4.0", default-features = false }
+num_cpus = "1.13"
+parity-scale-codec = { version = "3.6.1", default-features = false }
+reqwest = { version = "0.11", default-features = false, features = ["rustls-tls", "socks", "blocking"] }
+serde_json = "1.0"
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+tracing = "0.1"
+urlencoding = "2.1.0"
+version = "3.0.0"
+tokio = { version = "1.24", features = ["rt-multi-thread", "macros", "time"] }
+tower ={ version = "0.4", features = ["limit", "load-shed"]}
+tonic = { version = "0.9.2" }
+
+reqwest-env-proxy = { path = "../../../crates/reqwest-env-proxy" }
+ces-sanitized-logger = { path = "../../../crates/ces-sanitized-logger" }
+cestory = { path = "../../../crates/cestory" }
+cestory-api = { path = "../../../crates/cestory/api", features = ["ceseal-client"] }
+cestory-pal = { path = "../../../crates/cestory/pal" }
+ces-allocator = { path = "../../../crates/ces-allocator" }
+ces-types = { path = "../../../crates/ces-types", default-features = false, features = ["enable_serde", "sgx"] }
+sgx-api-lite = { path = "../../../crates/sgx-api-lite" }
+# PODR2
+threadpool = "1.8.1"
+ces-pdp = { path = "../../../crates/ces-pdp" }
+
+[build-dependencies]
+vergen = { version = "8.2.6", features = ["build", "git", "gitcl"] }
+
+
+[patch.crates-io]
+ring = { git = "https://github.com/jasl/ring-xous", branch = "better-wasm32-support" }
+
+
+[features]
+only-attestation = [
+	"cestory/only-attestation",
+    "cestory-api/only-attestation"
+]
+verify-cesealbin = [
+	"cestory/verify-cesealbin",
+    "cestory-api/verify-cesealbin"
+]

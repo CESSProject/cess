@@ -35,16 +35,18 @@ use sp_runtime::traits::Zero;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::{AccountIdConversion, CheckedAdd, CheckedSub, CheckedMul, Dispatchable, SaturatedConversion},
+	traits::{AccountIdConversion, CheckedAdd, CheckedSub, CheckedMul, CheckedDiv, Dispatchable, SaturatedConversion},
 	RuntimeDebug, Perbill
 };
 use sp_std::{convert::TryInto, prelude::*, marker::PhantomData};
-use sp_core::ConstU32;
-use cp_enclave_verify::verify_rsa;
+use sp_core::{
+	ConstU32,
+};
 use pallet_tee_worker::TeeWorkerHandler;
 use cp_bloom_filter::BloomFilter;
 use pallet_storage_handler::StorageHandle;
 use pallet_cess_treasury::{RewardPool, TreasuryHandle};
+use ces_types::{WorkerPublicKey, TeeSig};
 
 pub use pallet::*;
 
@@ -234,6 +236,8 @@ pub mod pallet {
 		ExceedingDeclarationSpace,
 
 		InsufficientReplaceable,
+
+		MalformedSignature,
 	}
 
 	/// The hashmap for info of storage miners.
@@ -320,7 +324,7 @@ pub mod pallet {
 		fn default() -> Self {
 			Self {
 				// FOR TESTING
-				expenders: (8, 1024*1024, 64),
+				expenders: (80, 1024*1024, 64),
 				_marker: PhantomData,
 			}
 		}
@@ -399,7 +403,7 @@ pub mod pallet {
 					lock_space: u128::MIN,
 					space_proof_info: Option::None,			
 					service_bloom_filter: Default::default(),
-					tee_signature: [0u8; 256],
+					tee_signature: sp_core::sr25519::Signature([0u8; 64]),
 				},
 			);
 
@@ -408,7 +412,6 @@ pub mod pallet {
 				Reward::<T>{
 					total_reward: 0u32.saturated_into(),
 					reward_issued: 0u32.saturated_into(),
-					currently_available_reward: 0u32.saturated_into(),
 					order_list: Default::default()
 				},
 			);
@@ -419,6 +422,7 @@ pub mod pallet {
 			
 			Ok(())
 		}
+
 		/// Increase Collateral and Update Miner's State
 		///
 		/// This function allows a registered Miner to increase their staked collateral. 
@@ -474,7 +478,7 @@ pub mod pallet {
 				}
 
 				let now = <frame_system::Pallet<T>>::block_number();
-				<StakingStartBlock<T>>::insert(&sender, now);
+				<StakingStartBlock<T>>::insert(&miner, now);
 
 				T::Currency::reserve(&sender, remaining)?;
 
@@ -556,25 +560,48 @@ pub mod pallet {
 
 			if let Ok(miner) = <MinerItems<T>>::try_get(&sender) {
 				ensure!(
-					miner.state == STATE_POSITIVE.as_bytes().to_vec(),
+					miner.state == STATE_POSITIVE.as_bytes().to_vec() || miner.state == STATE_EXIT.as_bytes().to_vec(),
 					Error::<T>::NotpositiveState
 				);
 
 				<RewardMap<T>>::try_mutate(&sender, |opt_reward| -> DispatchResult {
 					let reward = opt_reward.as_mut().ok_or(Error::<T>::Unexpected)?;
-					ensure!(reward.currently_available_reward != 0u32.saturated_into(), Error::<T>::NoReward);
+					let one_day = T::OneDayBlock::get();
+					let now = <frame_system::Pallet<T>>::block_number();
+					let mut avail_reward: BalanceOf<T> = BalanceOf::<T>::zero(); 
 
-					T::RewardPool::send_reward_to_miner(miner.beneficiary, reward.currently_available_reward.clone())?;
+					for order in reward.order_list.iter_mut() {
+						let diff = now.checked_sub(&order.last_receive_block).ok_or(Error::<T>::Overflow)?;
+						if diff >= one_day {
+							let count = diff.checked_div(&one_day).ok_or(Error::<T>::Overflow)?;
+							let avail_count: u8;
+							if order.receive_count.saturating_add(count.saturated_into()) > order.max_count {
+								avail_count = order.max_count.checked_sub(order.receive_count).ok_or(Error::<T>::Unexpected)?;
+							} else {
+								avail_count = count.saturated_into();
+							}
 
-					reward.reward_issued = reward.reward_issued
-						.checked_add(&reward.currently_available_reward).ok_or(Error::<T>::Overflow)?;
+							if avail_count > 0 {
+								let order_avail_reward = order.each_amount.checked_mul(&avail_count.into()).ok_or(Error::<T>::Overflow)?;
+								avail_reward = avail_reward.checked_add(&order_avail_reward).ok_or(Error::<T>::Overflow)?;
+								order.receive_count = order.receive_count.checked_add(avail_count).ok_or(Error::<T>::Overflow)?;
+								order.last_receive_block = now;
+							}
+						}
 
-					Self::deposit_event(Event::<T>::Receive {
-						acc: sender.clone(),
-						reward: reward.currently_available_reward,
-					});
+						if !order.atonce {
+							avail_reward = avail_reward.checked_add(
+								&(AOIR_PERCENT.mul_floor(order.order_reward))
+							).ok_or(Error::<T>::Overflow)?;
+							order.atonce = true;
+						}
+					}
 
-					reward.currently_available_reward = 0u32.saturated_into();
+					reward.order_list.retain(|order| order.max_count != order.receive_count);
+
+					reward.reward_issued.checked_add(&avail_reward).ok_or(Error::<T>::Overflow)?;
+
+					T::RewardPool::send_reward_to_miner(miner.beneficiary, avail_reward)?;
 
 					Ok(())
 				})?;
@@ -610,7 +637,7 @@ pub mod pallet {
 			ensure!(now > staking_start_block + staking_lock_block, Error::<T>::InsufficientStakingPeriod);
 
 			<MinerItems<T>>::try_mutate(&sender, |miner_info_opt| -> DispatchResult {
-			
+
 				let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotExisted)?;
 				if (&sender != &miner) && (&sender != &miner_info.staking_account) {
 					Err(Error::<T>::NotStakingAcc)?;
@@ -836,16 +863,15 @@ pub mod pallet {
 			Ok(())
 		}
 
-		
 		#[pallet::call_index(16)]
 		#[transactional]
 		#[pallet::weight(Weight::zero())]
 		pub fn register_pois_key(
 			origin: OriginFor<T>, 
 			pois_key: PoISKey,
-			tee_sig_need_verify: TeeRsaSignature,
-			tee_sig: TeeRsaSignature,
-			tee_acc: AccountOf<T>, 
+			tee_sig_need_verify: BoundedVec<u8, ConstU32<64>>,
+			tee_sig: BoundedVec<u8, ConstU32<64>>,
+			tee_puk: WorkerPublicKey, 
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			// Because the next operation consumes system resources, make a judgment in advance.
@@ -860,13 +886,23 @@ pub mod pallet {
 			};
 
 			let encoding = space_proof_info.encode();
-			let tee_acc_encode = tee_acc.encode();
+			let tee_puk_encode = tee_puk.encode();
 			let mut original = Vec::new();
 			original.extend_from_slice(&encoding);
-			original.extend_from_slice(&tee_acc_encode);
+			original.extend_from_slice(&tee_puk_encode);
 			let original_text = sp_io::hashing::sha2_256(&original);
-			let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
-			ensure!(verify_rsa(&tee_puk, &original_text, &tee_sig_need_verify), Error::<T>::VerifyTeeSigFailed);
+			let master_puk = T::TeeWorkerHandler::get_master_publickey()?;
+
+			let sig = 
+				sp_core::sr25519::Signature::try_from(tee_sig_need_verify.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
+
+			ensure!(
+				sp_io::crypto::sr25519_verify(&sig, &original_text, &master_puk),
+				Error::<T>::VerifyTeeSigFailed
+			);
+
+			let sig = 
+				sp_core::sr25519::Signature::try_from(tee_sig.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
 
 			MinerPublicKey::<T>::insert(&original_text, sender.clone());
 
@@ -882,7 +918,7 @@ pub mod pallet {
 				} else {
 					miner_info.state = Self::str_to_bound(STATE_FROZEN)?;
 				}
-				miner_info.tee_signature = tee_sig;
+				miner_info.tee_signature = sig;
 
 				Ok(())
 			})?;
@@ -930,16 +966,16 @@ pub mod pallet {
 					lock_space: u128::MIN,
 					space_proof_info: Option::None,	
 					service_bloom_filter: Default::default(),
-					tee_signature: [0u8; 256],
+					tee_signature: sp_core::sr25519::Signature([0u8; 64]),
 				},
 			);
 
 			RewardMap::<T>::insert(
 				&sender,
-				Reward::<T>{
+				Reward::<T> {
 					total_reward: 0u32.saturated_into(),
 					reward_issued: 0u32.saturated_into(),
-					currently_available_reward: 0u32.saturated_into(),
+					
 					order_list: Default::default()
 				},
 			);
@@ -986,7 +1022,7 @@ pub mod pallet {
 		// FOR TESTING
 		#[pallet::call_index(19)]
 		#[transactional]
-		#[pallet::weight(0)]
+		#[pallet::weight(Weight::zero())]
 		pub fn clear_miner_service(origin: OriginFor<T>, miner: AccountOf<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
@@ -1004,9 +1040,9 @@ pub mod pallet {
 }
 
 pub trait MinerControl<AccountId, BlockNumber> {
-	fn add_miner_idle_space(acc: &AccountId, accumulator: Accumulator, check_front: u64, rear: u64, tee_sig: TeeRsaSignature) -> Result<u128, DispatchError>;
+	fn add_miner_idle_space(acc: &AccountId, accumulator: Accumulator, check_front: u64, rear: u64, tee_sig: TeeSig) -> Result<u128, DispatchError>;
 	// fn sub_miner_idle_space(acc: &AccountId, accumulator: Accumulator, rear: u64) -> DispatchResult;
-	fn delete_idle_update_accu(acc: &AccountId, accumulator: Accumulator, front: u64, check_rear: u64, tee_sig: TeeRsaSignature) -> Result<u64, DispatchError>;
+	fn delete_idle_update_accu(acc: &AccountId, accumulator: Accumulator, front: u64, check_rear: u64, tee_sig: TeeSig) -> Result<u64, DispatchError>;
 	fn delete_idle_update_space(acc: &AccountId, idle_space: u128) -> DispatchResult;
 	fn add_miner_service_space(acc: &AccountId, power: u128) -> DispatchResult;
 	fn sub_miner_service_space(acc: &AccountId, power: u128) -> DispatchResult;
@@ -1033,7 +1069,7 @@ pub trait MinerControl<AccountId, BlockNumber> {
 		miner_service_space: u128,
 	) -> DispatchResult;
 
-	fn clear_punish(miner: &AccountId, idle_space: u128, service_space: u128) -> DispatchResult;
+	fn clear_punish(miner: &AccountId, idle_space: u128, service_space: u128, count: u8) -> DispatchResult;
 	fn idle_punish(miner: &AccountId, idle_space: u128, service_space: u128) -> DispatchResult;
 	fn service_punish(miner: &AccountId, idle_space: u128, service_space: u128) -> DispatchResult;
 
@@ -1046,7 +1082,7 @@ pub trait MinerControl<AccountId, BlockNumber> {
 	fn is_lock(miner: &AccountId) -> Result<bool, DispatchError>;
 	fn update_miner_state(miner: &AccountId, state: &str) -> DispatchResult;
 	fn get_expenders() -> Result<(u64, u64, u64), DispatchError>;
-	fn get_miner_snapshot(miner: &AccountId) -> Result<(u128, u128, BloomFilter, SpaceProofInfo<AccountId>, TeeRsaSignature), DispatchError>;
+	fn get_miner_snapshot(miner: &AccountId) -> Result<(u128, u128, BloomFilter, SpaceProofInfo<AccountId>, TeeSig), DispatchError>;
 
 	fn increase_replace_space(miner: &AccountId, space: u128) -> DispatchResult;
 	fn decrease_replace_space(miner: &AccountId, space: u128) -> DispatchResult;
@@ -1058,7 +1094,7 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 		accumulator: Accumulator,  
 		check_front: u64,
 		rear: u64, 
-		tee_sig: TeeRsaSignature
+		tee_sig: TeeSig,
 	) -> Result<u128, DispatchError> {
 		let idle_space = Pallet::<T>::add_miner_idle_space(
 			acc, 
@@ -1075,7 +1111,7 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 		accumulator: Accumulator, 
 		front: u64,
 		check_rear: u64,
-		tee_sig: TeeRsaSignature
+		tee_sig: TeeSig,
 	) -> Result<u64, DispatchError> {
 		let count = Self::delete_idle_update_accu(
 			acc, 
@@ -1202,9 +1238,10 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 	fn clear_punish(
 		miner: &AccountOf<T>, 
 		idle_space: u128, 
-		service_space: u128
+		service_space: u128,
+		count: u8,
 	) -> DispatchResult {
-		Self::clear_punish(miner, idle_space, service_space)
+		Self::clear_punish(miner, idle_space, service_space, count)
 	}
 
 	fn idle_punish(
@@ -1258,7 +1295,7 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 		Ok(expenders)
 	}
 
-	fn get_miner_snapshot(miner: &AccountOf<T>) -> Result<(u128, u128, BloomFilter, SpaceProofInfo<AccountOf<T>>, TeeRsaSignature), DispatchError> {
+	fn get_miner_snapshot(miner: &AccountOf<T>) -> Result<(u128, u128, BloomFilter, SpaceProofInfo<AccountOf<T>>, TeeSig), DispatchError> {
 		if !<MinerItems<T>>::contains_key(miner) {
 			Err(Error::<T>::NotMiner)?;
 		}

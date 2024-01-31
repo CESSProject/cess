@@ -1,0 +1,10 @@
+/*.o
+/OUTPUT
+/ceseal
+/ceseal.manifest
+/ceseal.manifest.sgx
+/ceseal.sig
+/ceseal.token
+/bin
+/data
+/cruntime

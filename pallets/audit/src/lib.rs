@@ -63,7 +63,6 @@ use sp_runtime::RuntimeDebug;
 use codec::{Decode, Encode};
 use cp_bloom_filter::BloomFilter;
 use cp_cess_common::*;
-use cp_enclave_verify::verify_rsa;
 use cp_scheduler_credit::SchedulerCreditCounter;
 use frame_support::{
 	pallet_prelude::*,
@@ -72,7 +71,7 @@ use frame_support::{
 		EstimateNextSessionRotation, FindAuthor, Randomness, ReservableCurrency, StorageVersion,
 		ValidatorSetWithIdentification,
 	},
-	transactional, PalletId, WeakBoundedVec,
+	transactional, PalletId,
 };
 use frame_system::offchain::CreateSignedTransaction;
 use pallet_sminer::MinerControl;
@@ -85,6 +84,7 @@ use sp_std::{
 	convert::{TryFrom, TryInto},
 	prelude::*,
 };
+use ces_types::{TeeSig, WorkerPublicKey};
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -220,11 +220,11 @@ pub mod pallet {
 
 		SubmitServiceProof { miner: AccountOf<T> },
 
-		SubmitIdleVerifyResult { tee: AccountOf<T>, miner: AccountOf<T>, result: bool },
+		SubmitIdleVerifyResult { tee: WorkerPublicKey, miner: AccountOf<T>, result: bool },
 
-		SubmitServiceVerifyResult { tee: AccountOf<T>, miner: AccountOf<T>, result: bool },
+		SubmitServiceVerifyResult { tee: WorkerPublicKey, miner: AccountOf<T>, result: bool },
 
-		VerifyProof { tee_worker: AccountOf<T>, miner: AccountOf<T> },
+		VerifyProof { tee_worker: WorkerPublicKey, miner: AccountOf<T> },
 	}
 
 	/// Error for the audit pallet.
@@ -278,6 +278,8 @@ pub mod pallet {
 		UnSubmitted,
 
 		TeeNoPermission,
+
+		MalformedSignature,
 	}
 
 	#[pallet::storage]
@@ -361,10 +363,10 @@ pub mod pallet {
 				}
 
 				if challenge_info.prove_info.idle_prove.is_none() {
-					let tee_acc = Self::random_select_tee_acc(0)?;
+					let tee_puk = Self::random_select_tee_acc(0)?;
 
 					let idle_prove_info = IdleProveInfo::<T> {
-						tee_acc: tee_acc.clone(),
+						tee_puk: tee_puk.clone(),
 						idle_prove,
 						verify_result: None,
 					};
@@ -413,10 +415,10 @@ pub mod pallet {
 				}
 
 				if challenge_info.prove_info.service_prove.is_none() {
-					let tee_acc = Self::random_select_tee_acc(0)?;
+					let tee_puk = Self::random_select_tee_acc(0)?;
 
 					let service_prove_info = ServiceProveInfo::<T> {
-						tee_acc: tee_acc.clone(),
+						tee_puk: tee_puk.clone(),
 						service_prove,
 						verify_result: None,
 					};
@@ -464,8 +466,8 @@ pub mod pallet {
 			rear: u64,
 			accumulator: Accumulator,
 			idle_result: bool,
-			signature: TeeRsaSignature,
-			tee_acc: AccountOf<T>,
+			signature: BoundedVec<u8, ConstU32<4096>>,
+			tee_puk: WorkerPublicKey,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
@@ -475,7 +477,7 @@ pub mod pallet {
 				let idle_prove =
 					challenge_info.prove_info.idle_prove.as_mut().ok_or(Error::<T>::UnSubmitted)?;
 
-				if tee_acc != idle_prove.tee_acc {
+				if tee_puk != idle_prove.tee_puk {
 					return Err(Error::<T>::NonExistentMission)?
 				}
 
@@ -492,7 +494,7 @@ pub mod pallet {
 				} = &challenge_info.miner_snapshot;
 
 				ensure!(
-					T::TeeWorkerHandler::can_verify(&tee_acc),
+					T::TeeWorkerHandler::can_verify(&tee_puk),
 					Error::<T>::TeeNoPermission
 				);
 				let verify_idle_info = VerifyIdleResultInfo::<T> {
@@ -503,13 +505,19 @@ pub mod pallet {
 					accumulator: space_proof_info.accumulator,
 					space_challenge_param: challenge_info.challenge_element.space_param,
 					result: idle_result,
-					tee_acc: tee_acc.clone(),
+					tee_puk: tee_puk.clone(),
 				};
 
-				let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
+				let master_puk = T::TeeWorkerHandler::get_master_publickey()?;
 				let encoding = verify_idle_info.encode();
 				let hashing = sp_io::hashing::sha2_256(&encoding);
-				ensure!(verify_rsa(&tee_puk, &hashing, &signature), Error::<T>::VerifyTeeSigFailed);
+				let sig = 
+					sp_core::sr25519::Signature::try_from(signature.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
+
+				ensure!(
+					sp_io::crypto::sr25519_verify(&sig, &hashing, &master_puk),
+					Error::<T>::VerifyTeeSigFailed
+				);
 
 				let idle_result = Self::check_idle_verify_param(
 					idle_result,
@@ -548,11 +556,11 @@ pub mod pallet {
 					.ok_or(Error::<T>::Overflow)?;
 				
 				let space = IDLE_SEG_SIZE.checked_mul(count as u128).ok_or(Error::<T>::Overflow)?;
-				let bond_stash = T::TeeWorkerHandler::get_stash(&tee_acc)?;
+				let bond_stash = T::TeeWorkerHandler::get_stash(&tee_puk)?;
 				T::CreditCounter::increase_point_for_idle_verify(&bond_stash, space)?;
 
 				Self::deposit_event(Event::<T>::SubmitIdleVerifyResult {
-					tee: tee_acc.clone(),
+					tee: tee_puk.clone(),
 					miner: sender.clone(),
 					result: idle_result,
 				});
@@ -580,9 +588,9 @@ pub mod pallet {
 		pub fn submit_verify_service_result(
 			origin: OriginFor<T>,
 			service_result: bool,
-			signature: TeeRsaSignature,
+			signature: BoundedVec<u8, ConstU32<64>>,
 			service_bloom_filter: BloomFilter,
-			tee_acc: AccountOf<T>,
+			tee_puk: WorkerPublicKey,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
@@ -594,7 +602,7 @@ pub mod pallet {
 					.service_prove
 					.as_mut()
 					.ok_or(Error::<T>::UnSubmitted)?;
-				if tee_acc != service_prove.tee_acc {
+				if tee_puk != service_prove.tee_puk {
 					return Err(Error::<T>::NonExistentMission)?
 				}
 
@@ -611,12 +619,12 @@ pub mod pallet {
 				} = challenge_info.miner_snapshot;
 
 				ensure!(
-					T::TeeWorkerHandler::can_verify(&tee_acc),
+					T::TeeWorkerHandler::can_verify(&tee_puk),
 					Error::<T>::TeeNoPermission
 				);
 				let verify_service_info = VerifyServiceResultInfo::<T> {
 					miner: sender.clone(),
-					tee_acc: tee_acc.clone(),
+					tee_puk: tee_puk.clone(),
 					miner_prove: service_prove.service_prove.clone(),
 					result: service_result,
 					chal: QElement {
@@ -634,10 +642,16 @@ pub mod pallet {
 					service_bloom_filter: s_service_bloom_filter,
 				};
 
-				let tee_puk = T::TeeWorkerHandler::get_tee_publickey()?;
+				let master_puk = T::TeeWorkerHandler::get_master_publickey()?;
 				let encoding = verify_service_info.encode();
 				let hashing = sp_io::hashing::sha2_256(&encoding);
-				ensure!(verify_rsa(&tee_puk, &hashing, &signature), Error::<T>::VerifyTeeSigFailed);
+				let sig = 
+					sp_core::sr25519::Signature::try_from(signature.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
+
+				ensure!(
+					sp_io::crypto::sr25519_verify(&sig, &hashing, &master_puk),
+					Error::<T>::VerifyTeeSigFailed
+				);
 
 				ensure!(
 					service_bloom_filter == s_service_bloom_filter,
@@ -675,11 +689,11 @@ pub mod pallet {
 					<CountedServiceFailed<T>>::insert(&sender, count);
 				}
 
-				let bond_stash = T::TeeWorkerHandler::get_stash(&tee_acc)?;
+				let bond_stash = T::TeeWorkerHandler::get_stash(&tee_puk)?;
 				T::CreditCounter::increase_point_for_idle_verify(&bond_stash, challenge_info.miner_snapshot.service_space)?;
 
 				Self::deposit_event(Event::<T>::SubmitServiceVerifyResult {
-					tee: tee_acc.clone(),
+					tee: tee_puk.clone(),
 					miner: sender.clone(),
 					result: service_result,
 				});
@@ -764,15 +778,18 @@ pub mod pallet {
 				if let Ok(challenge_info) = <ChallengeSnapShot<T>>::try_get(&miner) {
 					weight = weight.saturating_add(T::DbWeight::get().reads(1));
 					if challenge_info.prove_info.service_prove.is_none() {
-						let count = <CountedClear<T>>::get(&miner).checked_add(1).unwrap_or(6);
+						let count = <CountedClear<T>>::get(&miner).checked_add(1).unwrap_or(3);
 						weight = weight.saturating_add(T::DbWeight::get().reads(1));
 
-						let _ = T::MinerControl::clear_punish(
-							&miner,
-							challenge_info.miner_snapshot.idle_space,
-							challenge_info.miner_snapshot.service_space,
-						);
-						weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+						if count > 1 {
+							let _ = T::MinerControl::clear_punish(
+								&miner,
+								challenge_info.miner_snapshot.idle_space,
+								challenge_info.miner_snapshot.service_space,
+								count,
+							);
+							weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+						}
 
 						if count >= 3 {
 							let result = T::MinerControl::force_miner_exit(&miner);
@@ -850,18 +867,18 @@ pub mod pallet {
 					if let Ok(mut challenge_info) = <ChallengeSnapShot<T>>::try_get(&miner) {
 						challenge_info.prove_info.assign += 1;
 						if challenge_info.prove_info.idle_prove.is_some() {
-							if let Ok(new_tee) = Self::random_select_tee_acc(0) {
+							if let Ok(tee_puk) = Self::random_select_tee_acc(0) {
 								let idle_prove =
 									challenge_info.prove_info.idle_prove.as_mut().unwrap();
-								idle_prove.tee_acc = new_tee;
+								idle_prove.tee_puk = tee_puk;
 							}
 						}
 
 						if challenge_info.prove_info.service_prove.is_some() {
-							if let Ok(new_tee) = Self::random_select_tee_acc(0) {
+							if let Ok(tee_puk) = Self::random_select_tee_acc(0) {
 								let service_prove =
 									challenge_info.prove_info.service_prove.as_mut().unwrap();
-								service_prove.tee_acc = new_tee;
+								service_prove.tee_puk = tee_puk;
 							}
 						}
 
@@ -911,6 +928,10 @@ pub mod pallet {
 
 			let one_day = T::OneDay::get();
 			if now < one_day.saturating_mul(3u32.saturated_into()) {
+				return weight;
+			}
+
+			if now % 10u32.saturated_into() != 0u32.saturated_into() {
 				return weight;
 			}
 
@@ -982,7 +1003,7 @@ pub mod pallet {
 
 			let one_hour = T::OneHours::get();
 			weight = weight.saturating_add(T::DbWeight::get().reads(1));
-			let tee_length = T::TeeWorkerHandler::get_controller_list().len();
+			let tee_length = T::TeeWorkerHandler::get_pubkey_list().len();
 			if tee_length == 0 {
 				return weight;
 			}
@@ -1038,16 +1059,16 @@ pub mod pallet {
 		/// Returns:
 		/// - A `Result` containing the selected TEE account if successful, or a `DispatchError` if
 		///   there are no available TEE accounts or if random number generation fails.
-		fn random_select_tee_acc(mask: u32) -> Result<AccountOf<T>, DispatchError> {
-			let tee_list = T::TeeWorkerHandler::get_controller_list();
+		fn random_select_tee_acc(mask: u32) -> Result<WorkerPublicKey, DispatchError> {
+			let tee_list = T::TeeWorkerHandler::get_pubkey_list();
 			ensure!(tee_list.len() > 0, Error::<T>::SystemError);
 
 			let seed: u32 = <frame_system::Pallet<T>>::block_number().saturated_into();
 			let index = Self::random_number(seed + mask).map_err(|_| Error::<T>::RandomErr)? as u32;
 			let index: u32 = index % (tee_list.len() as u32);
-			let tee_acc = &tee_list[index as usize];
+			let tee_puk = &tee_list[index as usize];
 
-			Ok(tee_acc.clone())
+			Ok(tee_puk.clone())
 		}
 
 		/// Generate Miner QElement

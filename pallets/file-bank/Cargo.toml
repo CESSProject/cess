@@ -17,6 +17,7 @@ scale-info = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ['alloc'] }
 log = { workspace = true }
 rand_chacha = { workspace = true, optional = true }
+hex = { workspace = true }
 
 sp-io = { workspace = true }
 sp-std = { workspace = true }
@@ -30,6 +31,7 @@ frame-support = { workspace = true }
 frame-system = { workspace = true }
 
 # local dependencies
+ces-types = { workspace = true, features = ["enable_serde"] }
 cp-scheduler-credit = { workspace = true }
 cp-cess-common = { workspace = true }
 cp-enclave-verify = { workspace = true }

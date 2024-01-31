@@ -68,7 +68,7 @@ pub struct FullDeps<C, P, SC, B> {
 	/// RRSC specific dependencies.
 	pub rrsc: RRSCDeps,
 	/// GRANDPA specific dependencies.
-	pub grandpa: GrandpaDeps<B>,	
+	pub grandpa: GrandpaDeps<B>,
 	/// The backend used by the node.
 	pub backend: Arc<B>,
 }
@@ -109,11 +109,13 @@ where
 	C: CallApiAt<Block> + ProvideRuntimeApi<Block>,
 	C: ProvideRuntimeApi<Block> + sc_client_api::BlockBackend<Block> + AuxStore + Sync + Send,
 	C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
+	C::Api: sp_api::Metadata<Block>,
 	C::Api: sp_block_builder::BlockBuilder<Block>,
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
 	C::Api: fp_rpc::ConvertTransactionRuntimeApi<Block>,
 	C::Api: fp_rpc::EthereumRuntimeRPCApi<Block>,
 	C::Api: RRSCApi<Block>,
+	C::Api: ces_pallet_mq_runtime_api::MqApi<Block>,
 	C: BlockchainEvents<Block> + 'static,
 	C: HeaderBackend<Block> + HeaderMetadata<Block, Error = BlockChainError> + 'static,
 	C: AuxStore + UsageProvider<Block> + StorageProvider<Block, B>,
@@ -125,10 +127,10 @@ where
 	CIDP: CreateInherentDataProviders<Block, ()> + Send + 'static,
 	CT: fp_rpc::ConvertTransaction<<Block as BlockT>::Extrinsic> + Send + Sync + 'static,
 {
+	use ces_node_rpc_ext::{NodeRpcExt, NodeRpcExtApiServer};
 	use cessc_sync_state_rpc::{SyncState, SyncStateApiServer};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
 	use sc_consensus_grandpa_rpc::{Grandpa, GrandpaApiServer};
-	use sc_rpc::dev::{Dev, DevApiServer};
 	use sc_rpc_spec_v2::chain_spec::{ChainSpec, ChainSpecApiServer};
 	use substrate_frame_rpc_system::{System, SystemApiServer};
 	use substrate_state_trie_migration_rpc::{StateMigration, StateMigrationApiServer};
@@ -148,7 +150,7 @@ where
 	let properties = chain_spec.properties();
 	io.merge(ChainSpec::new(chain_name, genesis_hash, properties).into_rpc())?;
 
-	io.merge(System::new(client.clone(), pool, deny_unsafe).into_rpc())?;
+	io.merge(System::new(client.clone(), pool.clone(), deny_unsafe).into_rpc())?;
 	// Making synchronous calls in light client freezes the browser currently,
 	// more context: https://github.com/paritytech/substrate/pull/3480
 	// These RPCs should use an asynchronous caller instead.
@@ -173,8 +175,8 @@ where
 			.into_rpc(),
 	)?;
 
-	io.merge(StateMigration::new(client.clone(), backend, deny_unsafe).into_rpc())?;
-	io.merge(Dev::new(client, deny_unsafe).into_rpc())?;
+	io.merge(StateMigration::new(client.clone(), backend.clone(), deny_unsafe).into_rpc())?;
+	io.merge(NodeRpcExt::new(client, backend, pool).into_rpc()).expect("Initialize CESS node RPC ext failed.");
 
 	// Ethereum compatibility RPCs
 	let io = create_eth::<_, _, _, _, _, _, _, DefaultEthConfig<C, B>>(

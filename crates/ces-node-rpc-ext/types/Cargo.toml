@@ -1,0 +1,10 @@
+[package]
+name = "ces-node-rpc-ext-types"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+impl-serde = { workspace = true }
+scale-info = { workspace = true }
+parity-scale-codec = { workspace = true }

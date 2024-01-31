@@ -1,0 +1,19 @@
+[package]
+name = "ces-serde-more"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { workspace = true, features = ["derive", "alloc"] }
+sp-core = { workspace = true }
+parity-scale-codec = { workspace = true }
+hex = { workspace = true, features = ["alloc"] }
+# ces-pdp = { workspace = true }
+rsa = { workspace = true }
+
+[features]
+default = ["std"]
+crypto = ["sp-core/full_crypto"]
+std = [
+    "sp-core/std",
+]

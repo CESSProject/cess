@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package podr2;
+
+service Podr2Api {
+  rpc request_gen_tag(RequestGenTag)
+      returns (ResponseGenTag) {}
+
+  // A echo rpc to measure network RTT.
+  rpc Echo (EchoMessage) returns (EchoMessage) {}
+}
+
+message EchoMessage {
+  bytes echo_msg = 1;
+}
+
+service Podr2VerifierApi {
+    rpc request_batch_verify(RequestBatchVerify) returns (ResponseBatchVerify) {}
+}
+
+message Tag {
+  message T {
+    string name = 1;
+    string u = 2;
+    repeated string phi = 3;
+  }
+  T t = 1;
+  string phi_hash = 2;
+  string attest = 3;
+}
+
+message RequestGenTag {
+  bytes fragment_data = 1;
+  string fragment_name = 2;
+  string custom_data = 3;
+  string file_name = 4;
+  bytes miner_id = 5;
+  repeated DigestInfo tee_digest_list = 6;
+  bytes last_tee_signature = 7;
+}
+
+message DigestInfo {
+  bytes fragment_name = 1;
+  bytes tee_account_id = 2;
+}
+
+message ResponseGenTag {
+  Tag tag = 1;
+  bytes u_sig = 2;
+  bytes signature = 3;
+}
+
+message RequestBatchVerify {
+  message Qslice {
+    repeated uint32 random_index_list = 1;
+    repeated bytes random_list = 2;
+  }
+  message BatchVerifyParam {
+    repeated string names = 1;
+    repeated string us = 2;
+    repeated string mus = 3;
+    string sigma = 4;
+  }
+  BatchVerifyParam agg_proof = 1;
+  Qslice qslices = 2;
+  repeated bytes u_sigs = 3;
+  bytes miner_id = 4;
+}
+
+message ResponseBatchVerify {
+  bool batch_verify_result = 1;
+  bytes tee_account_id = 2;
+  repeated uint64 service_bloom_filter = 3;
+  bytes signature = 4;
+}
+
+enum StatusCode {
+  Success = 0;
+  Processing = 1;
+  InvalidParameters = 10001;
+  InvalidPath = 10002;
+  InternalError = 10003;
+  OutOfMemory = 10004;
+  AlgorithmError = 10005;
+  UnknownError = 10006;
+}

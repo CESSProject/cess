@@ -1,3 +1,5 @@
+use sp_runtime::traits::CheckedDiv;
+
 use super::*;
 
 impl<T: Config> Pallet<T> {
@@ -6,7 +8,7 @@ impl<T: Config> Pallet<T> {
 		accumulator: Accumulator,
 		check_front: u64,
 		rear: u64, 
-		tee_sig: TeeRsaSignature,
+		tee_sig: TeeSig,
 	) -> Result<u128, DispatchError> {
 		MinerItems::<T>::try_mutate(acc, |miner_info_opt| -> Result<u128, DispatchError> {
 			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
@@ -48,7 +50,7 @@ impl<T: Config> Pallet<T> {
 		accumulator: Accumulator, 
 		front: u64,
 		check_rear: u64,
-		tee_sig: TeeRsaSignature,
+		tee_sig: TeeSig,
 	) -> Result<u64, DispatchError> {
 		MinerItems::<T>::try_mutate(acc, |miner_info_opt| -> Result<u64, DispatchError> {
 			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
@@ -169,33 +171,42 @@ impl<T: Config> Pallet<T> {
 
 		let miner_prop = Perbill::from_rational(miner_power, total_power);
 		let this_round_reward = miner_prop.mul_floor(total_reward);
+		let each_reward = AOIR_PERCENT
+			.mul_floor(this_round_reward)
+			.checked_div(&RELEASE_NUMBER.into()).ok_or(Error::<T>::Overflow)?;
+		let now = <frame_system::Pallet<T>>::block_number();
 
-		let order = RewardOrder::<BalanceOf<T>>{
+		let order = RewardOrder::<BalanceOf<T>, BlockNumberFor<T>> {
+			receive_count: u8::MIN,
+			max_count: RELEASE_NUMBER,
+			atonce: false,
 			order_reward: this_round_reward.try_into().map_err(|_| Error::<T>::Overflow)?,
+			each_amount: each_reward,
+			last_receive_block: now,
 		};
+		
 		// calculate available reward
 		RewardMap::<T>::try_mutate(miner, |opt_reward_info| -> DispatchResult {
 			let reward_info = opt_reward_info.as_mut().ok_or(Error::<T>::Unexpected)?;
 			// traverse the order list
-			reward_info.currently_available_reward = reward_info.currently_available_reward
-					.checked_add(&this_round_reward).ok_or(Error::<T>::Overflow)?;
 
 			if reward_info.order_list.len() == RELEASE_NUMBER as usize {
-				reward_info.order_list.remove(0);
+				return Ok(());
 			}
+
 			reward_info.total_reward = reward_info.total_reward
 				.checked_add(&this_round_reward).ok_or(Error::<T>::Overflow)?;
 			reward_info.order_list.try_push(order.clone()).map_err(|_| Error::<T>::BoundedVecError)?;
 
+			T::RewardPool::sub_reward(order.order_reward)?;
+
 			Ok(())
 		})?;
-
-		T::RewardPool::sub_reward(order.order_reward)?;
 		
 		Ok(())
 	}
 
-	pub(super) fn clear_punish(miner: &AccountOf<T>, idle_space: u128, service_space: u128) -> DispatchResult {
+	pub(super) fn clear_punish(miner: &AccountOf<T>, idle_space: u128, service_space: u128, count: u8) -> DispatchResult {
 		let power = Self::calculate_power(idle_space, service_space);
 		let limit: BalanceOf<T> = Self::calculate_limit_by_space(power)?
 			.try_into().map_err(|_| Error::<T>::Overflow)?;
@@ -204,7 +215,15 @@ impl<T: Config> Pallet<T> {
 		let reward: u128 = miner_reward.total_reward.try_into().map_err(|_| Error::<T>::Overflow)?;
 		let punish_amount = match reward {
 			0 => 100u128.try_into().map_err(|_| Error::<T>::Overflow)?,
-			_ => Perbill::from_percent(5).mul_floor(limit),
+			_ => {
+				let punish_amount = match count {
+					1 => BalanceOf::<T>::zero(),
+					2 => Perbill::from_percent(5).mul_floor(limit),
+					3 => Perbill::from_percent(15).mul_floor(limit),
+					_ => Perbill::from_percent(15).mul_floor(limit),
+				};
+				punish_amount
+			},
 		};
 
 		Self::deposit_punish(miner, punish_amount)?;
@@ -244,10 +263,12 @@ impl<T: Config> Pallet<T> {
 		<MinerItems<T>>::try_mutate(acc, |miner_opt| -> DispatchResult {
 			let miner = miner_opt.as_mut().ok_or(Error::<T>::Unexpected)?;
 			if let Ok(reward_info) = <RewardMap<T>>::try_get(acc).map_err(|_| Error::<T>::NotExisted) {
-				T::RewardPool::send_reward_to_miner(miner.beneficiary.clone(), reward_info.total_reward)?;
+				// T::RewardPool::send_reward_to_miner(miner.beneficiary.clone(), reward_info.total_reward)?;
 				if reward_info.total_reward == BalanceOf::<T>::zero() {
 					T::Currency::unreserve(&miner.staking_account, miner.collaterals);
 				} else {
+					let residue_reward = reward_info.total_reward.checked_sub(&reward_info.reward_issued).ok_or(Error::<T>::Overflow)?;
+					T::RewardPool::add_reward(residue_reward)?;
 					let start_block = <StakingStartBlock<T>>::try_get(&acc).map_err(|_| Error::<T>::BugInvalid)?;
 					let staking_lock_block = T::StakingLockBlock::get();
 					let exec_block = start_block.checked_add(&staking_lock_block).ok_or(Error::<T>::Overflow)?;

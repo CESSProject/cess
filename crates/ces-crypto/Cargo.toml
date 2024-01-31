@@ -1,0 +1,39 @@
+[package]
+name = "ces-crypto"
+version = "0.1.0"
+edition = "2021"
+resolver = "2"
+
+[dependencies]
+sp-core = { workspace = true }
+rsa = { workspace = true }
+sp-application-crypto = { workspace = true }
+
+ring = { workspace = true, features = ["alloc"] }
+curve25519-dalek = { workspace = true }
+schnorrkel = { workspace = true, features = ["preaudit_deprecated", "u64_backend"] }
+aead = { workspace = true, optional = true }
+typenum = { workspace = true, optional = true }
+aead-io = { workspace = true, optional = true }
+
+[dev-dependencies]
+rand = "0.8.5"
+hex = "0.4"
+schnorrkel = { workspace = true, features = ["preaudit_deprecated", "u64_backend", "getrandom"] }
+
+[features]
+default = [ "full_crypto" ]
+std = [ "aead/std" ]
+getrandom = [ "schnorrkel/getrandom" ]
+full_crypto = [
+    "sp-core/full_crypto",
+    "sp-application-crypto/full_crypto",
+]
+
+stream = [
+    "std",
+    "aead/stream",
+    "aead-io",
+    "typenum",
+]
+

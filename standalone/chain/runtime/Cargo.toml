@@ -13,6 +13,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive", "max-encoded-len"] }
 scale-info = { workspace = true, features = ["derive"] }
 log = { workspace = true }
+smallvec = { workspace = true }
 
 # primitives
 cessp-consensus-rrsc = { workspace = true }
@@ -79,12 +80,16 @@ cp-scheduler-credit = { workspace = true }
 pallet-scheduler-credit = { workspace = true }
 pallet-sminer = { workspace = true }
 pallet-cess-treasury = { workspace = true }
+pallet-evm-account-mapping = { workspace = true }
 pallet-audit = { workspace = true }
 pallet-file-bank = { workspace = true }
 pallet-tee-worker = { workspace = true }
 pallet-storage-handler = { workspace = true }
 pallet-oss = { workspace = true }
 pallet-cacher = { workspace = true }
+ces-types = { workspace = true }
+ces-pallet-mq ={ workspace = true }
+ces-pallet-mq-runtime-api = { workspace = true }
 
 # Frontier
 fp-account = { workspace = true, features = ["serde"] }
@@ -149,6 +154,7 @@ std = [
   "pallet-evm-precompile-sha3fips/std",
   "pallet-evm-precompile-simple/std",
   "pallet-evm/std",
+  "pallet-evm-account-mapping/std",
   "pallet-file-bank/std",
   "pallet-grandpa/std",
   "pallet-im-online/std",
@@ -188,6 +194,9 @@ std = [
   "sp-transaction-pool/std",
   "sp-version/std",
   "substrate-wasm-builder",
+  "ces-types/std",
+  "ces-pallet-mq/std",
+	"ces-pallet-mq-runtime-api/std",
 ]
 runtime-benchmarks = [
   "frame-benchmarking/runtime-benchmarks",
@@ -244,3 +253,5 @@ try-runtime = [
   "pallet-transaction-payment/try-runtime",
   "pallet-treasury/try-runtime",
 ]
+only-attestation = []
+verify-cesealbin = []

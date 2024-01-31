@@ -7,20 +7,20 @@ use frame_support::pallet_prelude::MaxEncodedLen;
 #[codec(mel_bound())]
 pub struct MinerInfo<T: Config> {
 	//Income account
-	pub(super) beneficiary: AccountOf<T>,
-	pub(super) staking_account: AccountOf<T>,
-	pub(super) peer_id: PeerId,
-	pub(super) collaterals: BalanceOf<T>,
-	pub(super) debt: BalanceOf<T>,
+	pub beneficiary: AccountOf<T>,
+	pub staking_account: AccountOf<T>,
+	pub peer_id: PeerId,
+	pub collaterals: BalanceOf<T>,
+	pub debt: BalanceOf<T>,
 	//nomal, exit, frozen, e_frozen
-	pub(super) state: BoundedVec<u8, T::ItemLimit>,
-	pub(super) declaration_space: u128,
-	pub(super) idle_space: u128,
-	pub(super) service_space: u128,
-	pub(super) lock_space: u128,
-	pub(super) space_proof_info: Option<SpaceProofInfo<AccountOf<T>>>,
-	pub(super) service_bloom_filter: BloomFilter,
-    pub(super) tee_signature: TeeRsaSignature,
+	pub state: BoundedVec<u8, T::ItemLimit>,
+	pub declaration_space: u128,
+	pub idle_space: u128,
+	pub service_space: u128,
+	pub lock_space: u128,
+	pub space_proof_info: Option<SpaceProofInfo<AccountOf<T>>>,
+	pub service_bloom_filter: BloomFilter,
+    pub tee_signature: TeeSig,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
@@ -31,15 +31,18 @@ pub struct Reward<T: pallet::Config> {
     pub(super) total_reward: BalanceOf<T>,
 	//Rewards issued at present
 	pub(super) reward_issued: BalanceOf<T>,
-	//Currently available reward
-	pub(super) currently_available_reward: BalanceOf<T>,
 	//Reward order list, up to 180 reward orders can be accumulated
-	pub(super) order_list: BoundedVec<RewardOrder<BalanceOf<T>>, ConstU32<{RELEASE_NUMBER as u32}>>,
+	pub(super) order_list: BoundedVec<RewardOrder<BalanceOf<T>, BlockNumberFor<T>>, ConstU32<{RELEASE_NUMBER as u32}>>,
 }
 
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-pub struct RewardOrder<Balance> {
+pub struct RewardOrder<Balance, Block> {
+	pub(super) receive_count: u8,
+	pub(super) max_count: u8,
+	pub(super) atonce: bool,
 	pub(super) order_reward: Balance,
+	pub(super) each_amount: Balance,
+	pub(super) last_receive_block: Block,
 }
 
 /// The custom struct for storing info of storage FaucetRecord.
