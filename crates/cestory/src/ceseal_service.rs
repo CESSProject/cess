@@ -679,11 +679,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         info!("ra_provider   : {attestation_provider:?}");
         info!("debug_set_key : {debug_set_key:?}");
 
-        debug!("genesis block: {genesis:?}");
+        trace!("genesis block: {genesis:?}");
         debug!("genesis state len: {:?}", genesis_state.len());
 
         // load chain genesis
         let genesis_block_hash = genesis.block_header.hash();
+        info!("genesis block hash: {genesis_block_hash:?}");
         let chain_storage = ChainStorage::from_pairs(genesis_state.into_iter());
         info!("Genesis state loaded: root={:?}", chain_storage.root());
 

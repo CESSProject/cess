@@ -132,7 +132,7 @@ async fn serve(sgx: bool) -> Result<()> {
     };
 
     let cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
-    info!(bench_cores = cores);
+    info!(cores = cores);
 
     let init_args = {
         let args = args.clone();
