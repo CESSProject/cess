@@ -574,7 +574,7 @@ pub mod pallet {
 						let diff = now.checked_sub(&order.last_receive_block).ok_or(Error::<T>::Overflow)?;
 						if diff >= one_day {
 							let count = diff.checked_div(&one_day).ok_or(Error::<T>::Overflow)?;
-							let mut avail_count: u8 = 0;
+							let avail_count: u8;
 							if order.receive_count.saturating_add(count.saturated_into()) > order.max_count {
 								avail_count = order.max_count.checked_sub(order.receive_count).ok_or(Error::<T>::Unexpected)?;
 							} else {

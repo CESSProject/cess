@@ -171,7 +171,9 @@ impl<T: Config> Pallet<T> {
 
 		let miner_prop = Perbill::from_rational(miner_power, total_power);
 		let this_round_reward = miner_prop.mul_floor(total_reward);
-		let each_reward = this_round_reward.checked_div(&RELEASE_NUMBER.into()).ok_or(Error::<T>::Overflow)?;
+		let each_reward = AOIR_PERCENT
+			.mul_floor(this_round_reward)
+			.checked_div(&RELEASE_NUMBER.into()).ok_or(Error::<T>::Overflow)?;
 		let now = <frame_system::Pallet<T>>::block_number();
 
 		let order = RewardOrder::<BalanceOf<T>, BlockNumberFor<T>> {
