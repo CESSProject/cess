@@ -8,6 +8,7 @@ ARG https_proxy
 ARG http_proxy
 ARG IAS_API_KEY
 ARG IAS_SPID
+ARG IAS_ENV
 ARG BUILD=release
 ARG OA
 ARG VC
