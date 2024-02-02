@@ -18,6 +18,7 @@ pub mod pois {
     tonic::include_proto!("pois");
 }
 
+#[allow(non_camel_case_types)]
 pub mod podr2 {
     tonic::include_proto!("podr2");
 }

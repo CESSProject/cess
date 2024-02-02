@@ -13,13 +13,7 @@ use crypto::{digest::Digest, sha2::Sha256};
 use log::info;
 use parity_scale_codec::Encode;
 use sp_core::{bounded::BoundedVec, crypto::AccountId32, sr25519, ByteArray, ConstU32, Pair};
-use std::{
-    error::Error,
-    io::ErrorKind,
-    sync::{Arc, Mutex},
-    time::Instant,
-};
-use threadpool::ThreadPool;
+use std::{error::Error, io::ErrorKind, time::Instant};
 use tokio::sync::mpsc;
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::{Request, Response, Status, Streaming};
