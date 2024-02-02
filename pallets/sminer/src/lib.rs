@@ -91,7 +91,7 @@ pub mod pallet {
 		/// The currency trait.
 		type Currency: ReservableCurrency<Self::AccountId>;
 
-		type TeeWorkerHandler: TeeWorkerHandler<Self::AccountId>;
+		type TeeWorkerHandler: TeeWorkerHandler<Self::AccountId, BlockNumberFor<Self>>;
 		/// The treasury's pallet id, used for deriving its sovereign account ID.
 		#[pallet::constant]
 		type FaucetId: Get<PalletId>;
@@ -900,6 +900,9 @@ pub mod pallet {
 				sp_io::crypto::sr25519_verify(&sig, &original_text, &master_puk),
 				Error::<T>::VerifyTeeSigFailed
 			);
+
+			let now = <frame_system::Pallet<T>>::block_number();
+			T::TeeWorkerHandler::update_work_block(now, &tee_puk)?;
 
 			let sig = 
 				sp_core::sr25519::Signature::try_from(tee_sig.as_slice()).or(Err(Error::<T>::MalformedSignature))?;

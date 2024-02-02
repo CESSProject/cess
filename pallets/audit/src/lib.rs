@@ -178,7 +178,7 @@ pub mod pallet {
 		//Find the consensus of the current block
 		type FindAuthor: FindAuthor<Self::AccountId>;
 		//Judge whether it is the trait of the consensus node
-		type TeeWorkerHandler: TeeWorkerHandler<Self::AccountId>;
+		type TeeWorkerHandler: TeeWorkerHandler<Self::AccountId, BlockNumberFor<Self>>;
 		//It is used to increase or decrease the miners' computing power, space, and execute
 		// punishment
 		type MinerControl: MinerControl<Self::AccountId, BlockNumberFor<Self>>;
@@ -519,6 +519,9 @@ pub mod pallet {
 					Error::<T>::VerifyTeeSigFailed
 				);
 
+				let now = <frame_system::Pallet<T>>::block_number();
+				T::TeeWorkerHandler::update_work_block(now, &tee_puk)?;
+
 				let idle_result = Self::check_idle_verify_param(
 					idle_result,
 					front,
@@ -657,6 +660,9 @@ pub mod pallet {
 					service_bloom_filter == s_service_bloom_filter,
 					Error::<T>::BloomFilterError,
 				);
+
+				let now = <frame_system::Pallet<T>>::block_number();
+				T::TeeWorkerHandler::update_work_block(now, &tee_puk)?;
 
 				service_prove.verify_result = Some(service_result);
 
