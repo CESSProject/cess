@@ -1909,6 +1909,7 @@ dependencies = [
  "finality-grandpa",
  "frame-system",
  "glob",
+ "h2",
  "hash-db 0.16.0",
  "hex",
  "hex-literal",
@@ -1952,6 +1953,7 @@ dependencies = [
  "thiserror",
  "threadpool",
  "tokio",
+ "tokio-stream",
  "tonic",
  "tracing",
 ]
