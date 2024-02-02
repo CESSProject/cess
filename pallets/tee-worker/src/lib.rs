@@ -303,8 +303,14 @@ pub mod pallet {
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(now: BlockNumberFor<T>) -> Weight {
 			let weight: Weight = Weight::zero();
+
+			let least = T::AtLeastWorkBlock::get();
+			if now % least == 0u32.saturated_into() {
+				weight
+				.saturating_add(Self::clear_mission(now));
+			}
+
 			weight
-				.saturating_add(Self::clear_mission(now))
 		}
 	}
 
