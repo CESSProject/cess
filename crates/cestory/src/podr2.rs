@@ -16,15 +16,14 @@ use sp_core::{bounded::BoundedVec, crypto::AccountId32, sr25519, ByteArray, Cons
 use std::{
     error::Error,
     io::ErrorKind,
-    pin::Pin,
     sync::{Arc, Mutex},
     time::Instant,
 };
 use threadpool::ThreadPool;
 use tokio::sync::mpsc;
-use tokio_stream::{wrappers::ReceiverStream, Stream, StreamExt};
+use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::{Request, Response, Status, Streaming};
-type ResponseStream = Pin<Box<dyn Stream<Item = Result<ResponseGenTag, Status>> + Send>>;
+// type ResponseStream = Pin<Box<dyn Stream<Item = Result<ResponseGenTag, Status>> + Send>>;
 
 mod proxy;
 
@@ -134,16 +133,24 @@ pub struct DigestInfo {
 
 #[tonic::async_trait]
 impl Podr2Api for Podr2Server {
-    type request_gen_tagStream = ResponseStream;
+    #[allow(non_camel_case_types)]
+    type request_gen_tagStream = proxy::ResponseStream;
     #[must_use]
-    async fn request_gen_tag(
-        &self,
+    async fn request_gen_tag<'life0>(
+        &'life0 self,
         request: Request<Streaming<RequestGenTag>>,
     ) -> Podr2Result<Self::request_gen_tagStream> {
-        let now = Instant::now();
-        let in_stream = request.into_inner();
+        let mut in_stream = request.into_inner();
         let mut stream_rec_times = 0;
         let (resp_tx, resp_rx) = mpsc::channel(128);
+
+        let new_self = Podr2Server {
+            podr2_keys: self.podr2_keys.clone(),
+            master_key: self.master_key.clone(),
+            threadpool: self.threadpool.clone(),
+            block_num: self.block_num.clone(),
+            ceseal_identity_key: self.ceseal_identity_key.clone(),
+        };
         //start receive
         tokio::spawn(async move {
             while let Some(result) = in_stream.next().await {
@@ -164,8 +171,8 @@ impl Podr2Api for Podr2Server {
                             stream_rec_times += 1;
                             continue
                         };
-                        if !v.fragment_data.is_empty() && stream_rec_times == 0 {
-                            match self.process_gen_tag_request(v) {
+                        if !v.fragment_data.is_empty() && stream_rec_times == 1 {
+                            match new_self.process_gen_tag_request(v) {
                                 Ok(response) => resp_tx
                                     .send(Ok(response))
                                     .await
@@ -353,7 +360,7 @@ fn convert_to_q_elements(qslices: Qslice) -> Result<(Vec<QElement>, Challenge), 
 }
 
 impl Podr2Server {
-    fn process_gen_tag_request(&self, request: RequestGenTag) -> Result<ResponseGenTag, Status> {
+    fn process_gen_tag_request<'life0>(&'life0 self, request: RequestGenTag) -> Result<ResponseGenTag, Status> {
         let now = Instant::now();
         let mut h = Podr2Hash::new();
         h.load_field(request.custom_data.as_bytes());
