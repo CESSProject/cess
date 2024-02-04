@@ -35,7 +35,7 @@ pub trait Config:
 		frame_system::Config + sp_std::fmt::Debug
     {
         //...
-        type TeeWorkerHandler: TeeWorkerHandler<Self::AccountId>;
+        type TeeWorkerHandler: TeeWorkerHandler<Self::AccountId, BlockNumberFor<Self>>;
         //...
     }
 ```

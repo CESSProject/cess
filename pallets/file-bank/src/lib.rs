@@ -116,7 +116,7 @@ pub mod pallet {
 		// Find the consensus of the current block
 		type FindAuthor: FindAuthor<Self::AccountId>;
 		// Used to find out whether the schedule exists
-		type TeeWorkerHandler: TeeWorkerHandler<Self::AccountId>;
+		type TeeWorkerHandler: TeeWorkerHandler<Self::AccountId, BlockNumberFor<Self>>;
 		// It is used to control the computing power and space of miners 
 		type MinerControl: MinerControl<Self::AccountId, BlockNumberFor<Self>>;
 		// Interface that can generate random seeds	
@@ -642,6 +642,8 @@ pub mod pallet {
 						let bond_stash = T::TeeWorkerHandler::get_stash(&puk)?;
 						T::CreditCounter::increase_point_for_tag(&bond_stash, FRAGMENT_SIZE * (*count as u128))?;
 					}
+					let now = <frame_system::Pallet<T>>::block_number();
+					T::TeeWorkerHandler::update_work_block(now, &puk)?;
 				}
 
 				Self::deposit_event(Event::<T>::CalculateReport{ miner: sender, file_hash: tag_sig_info.file_hash});
@@ -693,6 +695,9 @@ pub mod pallet {
 				sp_io::crypto::sr25519_verify(&sig, &original, &master_puk),
 				Error::<T>::VerifyTeeSigFailed
 			);
+
+			let now = <frame_system::Pallet<T>>::block_number();
+			T::TeeWorkerHandler::update_work_block(now, &tee_puk)?;
 
 			let sig = 
 				sp_core::sr25519::Signature::try_from(tee_sig.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
@@ -787,6 +792,9 @@ pub mod pallet {
 				sp_io::crypto::sr25519_verify(&sig, &original, &master_puk),
 				Error::<T>::VerifyTeeSigFailed
 			);
+
+			let now = <frame_system::Pallet<T>>::block_number();
+			T::TeeWorkerHandler::update_work_block(now, &tee_puk)?;
 
 			let sig = 
 				sp_core::sr25519::Signature::try_from(tee_sig.as_slice()).or(Err(Error::<T>::MalformedSignature))?;

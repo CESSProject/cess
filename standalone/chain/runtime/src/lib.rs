@@ -176,7 +176,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 102,
+	spec_version: 104,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -1262,6 +1262,7 @@ parameter_types! {
 	pub const MaxWhitelist: u32 = 200;
 	pub const NoneAttestationEnabled: bool = if cfg!(not(feature = "only-attestation")) { true } else { false };
 	pub const VerifyCeseal: bool = if cfg!(not(feature = "verify-cesealbin")) { false } else { true };
+	pub const AtLeastWorkBlock: BlockNumber = DAYS;
 }
 
 impl pallet_tee_worker::Config for Runtime {
@@ -1273,6 +1274,7 @@ impl pallet_tee_worker::Config for Runtime {
 	type WeightInfo = pallet_tee_worker::weights::SubstrateWeight<Runtime>;
 	type CreditCounter = SchedulerCredit;
 	type MaxWhitelist = MaxWhitelist;
+	type AtLeastWorkBlock = AtLeastWorkBlock;
 	// type AuthorityId = pallet_tee_worker::ed25519::AuthorityId;
 	type LegacyAttestationValidator = pallet_tee_worker::IasValidator;
     type NoneAttestationEnabled = NoneAttestationEnabled;

@@ -20,7 +20,7 @@ pub use pallet::*;
 use scale_info::TypeInfo;
 use sp_runtime::{DispatchError, RuntimeDebug, SaturatedConversion};
 use sp_std::{convert::TryInto, prelude::*};
-
+use sp_runtime::Saturating;
 use cp_cess_common::*;
 use cp_scheduler_credit::SchedulerCreditCounter;
 use ces_types::{WorkerPublicKey, MasterPublicKey, WorkerRole};
@@ -106,6 +106,9 @@ pub mod pallet {
 		/// Enable None Attestation, SHOULD BE SET TO FALSE ON PRODUCTION !!!
 		#[pallet::constant]
 		type NoneAttestationEnabled: Get<bool>;
+
+		#[pallet::constant]
+		type AtLeastWorkBlock: Get<BlockNumberFor<Self>>;
 
 		/// Verify attestation
 		///
@@ -282,6 +285,9 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type Endpoints<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, alloc::string::String>;
 
+	#[pallet::storage]
+	pub type LastWork<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, BlockNumberFor<T>, ValueQuery>;
+
 	/// Ceseals whoes version less than MinimumCesealVersion would be forced to quit.
 	#[pallet::storage]
 	pub type MinimumCesealVersion<T: Config> = StorageValue<_, (u32, u32, u32), ValueQuery>;
@@ -292,6 +298,21 @@ pub mod pallet {
 	#[pallet::storage_version(STORAGE_VERSION)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn on_initialize(now: BlockNumberFor<T>) -> Weight {
+			let weight: Weight = Weight::zero();
+
+			let least = T::AtLeastWorkBlock::get();
+			if now % least == 0u32.saturated_into() {
+				weight
+				.saturating_add(Self::clear_mission(now));
+			}
+
+			weight
+		}
+	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T>
@@ -760,6 +781,18 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::MinimumCesealVersionChangedTo(major, minor, patch));
 			Ok(())
 		}
+
+		#[pallet::call_index(114)]
+		#[pallet::weight({0})]
+		pub fn migration_last_work(origin: OriginFor<T>) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+			let now = <frame_system::Pallet<T>>::block_number();
+			for (puk, _) in Workers::<T>::iter() {
+				<LastWork<T>>::insert(&puk, now);
+			}
+
+			Ok(())
+		}
 	}
 
 	impl<T: Config> ces_pallet_mq::MasterPubkeySupplier for Pallet<T> {
@@ -881,7 +914,7 @@ pub mod pallet {
 		}
 	}
 }
-pub trait TeeWorkerHandler<AccountId> {
+pub trait TeeWorkerHandler<AccountId, Block> {
 	fn can_tag(pbk: &WorkerPublicKey) -> bool;
 	fn can_verify(pbk: &WorkerPublicKey) -> bool;
 	fn can_cert(pbk: &WorkerPublicKey) -> bool;
@@ -891,9 +924,10 @@ pub trait TeeWorkerHandler<AccountId> {
 	fn punish_scheduler(pbk: WorkerPublicKey) -> DispatchResult;
 	fn get_pubkey_list() -> Vec<WorkerPublicKey>; // get_controller_list
 	fn get_master_publickey() -> Result<MasterPublicKey, DispatchError>;
+	fn update_work_block(now: Block, pbk: &WorkerPublicKey) -> DispatchResult;
 }
 
-impl<T: Config> TeeWorkerHandler<AccountOf<T>> for Pallet<T> {
+impl<T: Config> TeeWorkerHandler<AccountOf<T>, BlockNumberFor<T>> for Pallet<T> {
 	fn can_tag(pbk: &WorkerPublicKey) -> bool {
 		if let Ok(tee_info) = Workers::<T>::try_get(pbk) {
 			if WorkerRole::Marker == tee_info.role || WorkerRole::Full == tee_info.role {
@@ -967,5 +1001,13 @@ impl<T: Config> TeeWorkerHandler<AccountOf<T>> for Pallet<T> {
 		let pk = MasterPubkey::<T>::try_get().map_err(|_| Error::<T>::TeePodr2PkNotInitialized)?;
 
 		Ok(pk)
+	}
+
+	fn update_work_block(now: BlockNumberFor<T>, pbk: &WorkerPublicKey) -> DispatchResult {
+		<LastWork<T>>::try_mutate(pbk, |last_block| {
+			*last_block = now;
+
+			Ok(())
+		})
 	}
 }
