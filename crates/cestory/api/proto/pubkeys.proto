@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package ceseal.pubkeys;
+
+// Provide the storage miners with Ceseal's various public key queries
+service CesealPubkeysProvider {
+    // Get the Ceseal identity public key
+    rpc get_identity_pubkey(Request) returns (IdentityPubkeyResponse) {}
+    // Get the master public key
+    rpc get_master_pubkey(Request) returns (MasterPubkeyResponse) {}
+    // Get the PORD2 public key
+    rpc get_podr2_pubkey(Request) returns (Podr2PubkeyResponse) {}
+}
+
+message Request {
+    // The account id that the storage miner registered on the chain
+    bytes storage_miner_account_id = 1;
+}
+
+message IdentityPubkeyResponse {
+    // the identity public key
+    bytes pubkey = 1;
+    // The timestamp for the processing of the request
+    int64 timestamp = 2;
+    // Use the sr25519 algorithm to sign the timestamp fields above (use it's Big-Endian bytes)
+    bytes signature = 3;
+}
+
+message MasterPubkeyResponse {
+    // the master public key
+    bytes pubkey = 1;
+    // The timestamp for the processing of the request
+    int64 timestamp = 2;
+    // Use the sr25519 algorithm to sign the timestamp fields above (use it's Big-Endian bytes)
+    bytes signature = 3;
+}
+
+message Podr2PubkeyResponse {
+    // the PODR2 public key
+    bytes pubkey = 1;
+    // The timestamp for the processing of the request
+    int64 timestamp = 2;
+    // Use the RSA algorithm to sign the timestamp fields above (use it's Big-Endian bytes)
+    bytes signature = 3;
+}

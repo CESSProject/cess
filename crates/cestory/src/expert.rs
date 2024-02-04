@@ -1,3 +1,5 @@
+use crate::types::MasterKey;
+
 use super::{
     pal::Platform, system::WorkerIdentityKey, types::ThreadPoolSafeBox, CesealProperties, CesealSafeBox, ChainStorage,
 };
@@ -99,6 +101,10 @@ impl CesealExpertStub {
         self.ceseal_props.identity_key.public()
     }
 
+    pub fn master_key(&self) -> &MasterKey {
+        &self.ceseal_props.master_key
+    }
+
     pub fn podr2_key(&self) -> &ces_pdp::Keys {
         &self.ceseal_props.podr2_key
     }
@@ -180,6 +186,7 @@ mod test {
         let ceseal_props = CesealProperties {
             role: WorkerRole::Full,
             podr2_key: any_podr2_key(),
+            master_key: new_sr25519_key(),
             identity_key: any_identity_key(),
             cores: 2,
         };

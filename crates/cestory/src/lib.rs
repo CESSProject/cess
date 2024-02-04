@@ -58,6 +58,7 @@ pub mod expert;
 mod light_validation;
 pub mod podr2;
 pub mod pois;
+mod pubkeys;
 mod secret_channel;
 mod storage;
 mod system;
@@ -862,15 +863,17 @@ async fn run_external_server<Platform>(
         let pois_srv = pois::new_pois_certifier_api_server(pois_param.clone(), ceseal_expert.clone())
             .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
             .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
-        let poisv_srv = pois::new_pois_verifier_api_server(pois_param, ceseal_expert)
+        let poisv_srv = pois::new_pois_verifier_api_server(pois_param, ceseal_expert.clone())
             .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
             .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
+        let pubkeys = pubkeys::new_pubkeys_provider_server(ceseal_expert);
 
         info!(
             "keyfairy ready, external server will listening on {} run with {:?} role",
             public_listener_addr, ceseal_props.role
         );
         let mut server = Server::builder();
+        server.add_service(pubkeys);
         let router = match ceseal_props.role {
             ces_types::WorkerRole::Full => server
                 .add_service(podr2_srv)

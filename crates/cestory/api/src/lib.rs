@@ -22,3 +22,7 @@ pub mod pois {
 pub mod podr2 {
     tonic::include_proto!("podr2");
 }
+
+pub mod pubkeys {
+    tonic::include_proto!("ceseal.pubkeys");
+}
