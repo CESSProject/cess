@@ -52,7 +52,10 @@ signed-sgx-artifacts: ${BIN_NAME}.manifest ${BIN_NAME}.manifest.sgx ${BIN_NAME}.
 .PHONY: ${BIN_FILE}
 ${BIN_FILE}:
 	@echo "IAS_SPID: ${IAS_SPID}"
-	make BUILD=${BUILD} -C ..
+	@echo "BUILD: ${BUILD}"
+	@echo "OA: ${OA}"
+	@echo "VC: ${VC}"
+	make BUILD=${BUILD} OA=${OA} VC=${VC} -C ..
 
 ${BIN_NAME}: ${BIN_FILE}
 	cp ${BIN_FILE} ${BIN_NAME}	

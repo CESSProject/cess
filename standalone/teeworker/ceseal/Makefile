@@ -1,4 +1,3 @@
-SGX_MODE ?= SW
 BUILD?=release
 ifeq ($(BUILD),release)
 	XARGS=--release
