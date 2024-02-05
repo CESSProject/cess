@@ -15,23 +15,19 @@ use tracing::info;
 #[derive(Parser, Debug, Clone)]
 #[clap(about = "The CESS TEE worker app.", version, author)]
 struct Args {
-    /// Number of CPU cores to be used for mining.
+    /// Number of CPU cores to be used for PODR2 thread-pool.
     #[arg(short, long)]
     cores: Option<u32>,
 
-    /// Allow CORS for HTTP
-    #[arg(long)]
-    allow_cors: bool,
-
-    /// Listening IP address of HTTP
+    /// Listening IP address of internal H2 server
     #[arg(long)]
     address: Option<String>,
 
-    /// Listening port of HTTP
+    /// Listening port of internal H2 server
     #[arg(long)]
     port: Option<u16>,
 
-    /// Listening port of HTTP (with access control)
+    /// Listening port of public H2 server
     #[arg(long)]
     public_port: Option<u16>,
 
