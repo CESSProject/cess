@@ -138,17 +138,14 @@ pub fn gen_keypair(bits: usize) -> Keys {
     // ).unwrap()).unwrap();
     let skey = RsaPrivateKey::new(&mut rng, bits).expect("failed to generate a key");
     let pkey = RsaPublicKey::from(&skey);
-    println!("{:?}", hex::encode(pkey.to_pkcs1_der().unwrap().to_vec()));
+    println!("Podr2 public key is {:?}", hex::encode(pkey.to_pkcs1_der().unwrap().to_vec()));
 
     Keys { skey, pkey }
 }
 
 pub fn gen_keypair_from_private_key(skey: RsaPrivateKey) -> Keys {
     let pkey = skey.to_public_key();
-    Keys{
-        skey,
-        pkey,
-    }
+    Keys { skey, pkey }
 }
 
 use rsa::{
@@ -169,7 +166,7 @@ impl Keys {
             .sign(Pkcs1v15Sign::new_raw(), data)
             .map_err(|e| PDPError { error_code: FailCode::ParameterError(e.to_string()) })
     }
-    
+
     pub fn verify_data(&self, hashed: &[u8], sig: &[u8]) -> Result<(), PDPError> {
         self.pkey
             .verify(Pkcs1v15Sign::new_raw(), hashed, sig)

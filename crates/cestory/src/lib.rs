@@ -834,7 +834,7 @@ async fn run_external_server<Platform>(
     //FIXME: SHOULD BE DISABLE LOG KEY ON PRODUCTION !!!
     debug!(
         "Successfully load podr2 key public key is: {:?}",
-        &ceseal_props.podr2_key.pkey.to_pkcs1_der().unwrap().as_bytes()
+        hex::encode(&ceseal_props.podr2_key.pkey.to_pkcs1_der().unwrap().as_bytes())
     );
 
     let (ceseal_expert, expert_cmd_rx) = expert::CesealExpertStub::new(ceseal_props.clone());
