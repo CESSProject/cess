@@ -11,20 +11,21 @@ pub use types::*;
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 
+use ces_types::{MasterPublicKey, WorkerPublicKey, WorkerRole};
 use codec::{Decode, Encode};
-use frame_support::{
-	dispatch::DispatchResult, pallet_prelude::*, traits::ReservableCurrency, BoundedVec, PalletId,
-	traits::{Get, StorageVersion, UnixTime},
-};
-pub use pallet::*;
-use scale_info::TypeInfo;
-use sp_runtime::{DispatchError, RuntimeDebug, SaturatedConversion};
-use sp_std::{convert::TryInto, prelude::*};
-use sp_runtime::Saturating;
 use cp_cess_common::*;
 use cp_scheduler_credit::SchedulerCreditCounter;
-use ces_types::{WorkerPublicKey, MasterPublicKey, WorkerRole};
+use frame_support::{
+	dispatch::DispatchResult,
+	pallet_prelude::*,
+	traits::{Get, ReservableCurrency, StorageVersion, UnixTime},
+	BoundedVec, PalletId,
+};
 use frame_system::{ensure_signed, pallet_prelude::*};
+pub use pallet::*;
+use scale_info::TypeInfo;
+use sp_runtime::{DispatchError, RuntimeDebug, SaturatedConversion, Saturating};
+use sp_std::{convert::TryInto, prelude::*};
 pub use weights::WeightInfo;
 pub mod weights;
 
@@ -44,11 +45,9 @@ type AccountOf<T> = <T as frame_system::Config>::AccountId;
 pub mod pallet {
 	use super::*;
 	use codec::{Decode, Encode};
-	use frame_support::{
-		dispatch::DispatchResult,
-	};
+	use frame_support::dispatch::DispatchResult;
 	use scale_info::TypeInfo;
-
+	use sp_core::H256;
 
 	use ces_pallet_mq::MessageOriginInfo;
 	use ces_types::{
@@ -56,8 +55,8 @@ pub mod pallet {
 		messaging::{
 			self, bind_topic, DecodedMessage, KeyfairyChange, KeyfairyLaunch, MessageOrigin, SystemEvent, WorkerEvent,
 		},
-		wrap_content_to_sign, AttestationProvider, EcdhPublicKey,  SignedContentType,
-		WorkerEndpointPayload, WorkerIdentity, WorkerRegistrationInfo,
+		wrap_content_to_sign, AttestationProvider, EcdhPublicKey, SignedContentType, WorkerEndpointPayload,
+		WorkerIdentity, WorkerRegistrationInfo,
 	};
 
 	// Re-export
@@ -275,11 +274,11 @@ pub mod pallet {
 	/// Only ceseal within the list can register.
 	#[pallet::storage]
 	#[pallet::getter(fn ceseal_bin_allowlist)]
-	pub type CesealBinAllowList<T: Config> = StorageValue<_, Vec<Vec<u8>>, ValueQuery>;
+	pub type CesealBinAllowList<T: Config> = StorageValue<_, Vec<H256>, ValueQuery>;
 
 	/// The effective height of ceseal binary
 	#[pallet::storage]
-	pub type CesealBinAddedAt<T: Config> = StorageMap<_, Twox64Concat, Vec<u8>, BlockNumberFor<T>>;
+	pub type CesealBinAddedAt<T: Config> = StorageMap<_, Twox64Concat, H256, BlockNumberFor<T>>;
 
 	/// Mapping from worker pubkey to CESS Network identity
 	#[pallet::storage]
@@ -306,8 +305,7 @@ pub mod pallet {
 
 			let least = T::AtLeastWorkBlock::get();
 			if now % least == 0u32.saturated_into() {
-				weight
-				.saturating_add(Self::clear_mission(now));
+				weight.saturating_add(Self::clear_mission(now));
 			}
 
 			weight
@@ -344,8 +342,8 @@ pub mod pallet {
 		// #[pallet::call_index(2)]
 		// #[pallet::weight(Weight::zero())]
 		// pub fn exit(
-		// 	origin: OriginFor<T>, 
-		// 	payload: WorkerAction, 
+		// 	origin: OriginFor<T>,
+		// 	payload: WorkerAction,
 		// 	sig: BoundedVec<u8, ConstU32<64>>
 		// ) -> DispatchResult {
 		// 	ensure_signed(origin)?;
@@ -363,7 +361,7 @@ pub mod pallet {
 
 		// 		ensure!(<Workers<T>>::count() > 1, Error::<T>::LastWorker);
 		// 		ensure!(<Workers<T>>::contains_key(&payload.pubkey), Error::<T>::WorkerNotFound);
-				
+
 		// 		Workers::<T>::remove(&payload.pubkey);
 		// 		WorkerAddedAt::<T>::remove(&payload.pubkey);
 		// 		Endpoints::<T>::remove(&payload.pubkey);
@@ -377,12 +375,11 @@ pub mod pallet {
 		// 			Self::check_time_unix(&payload.signing_time),
 		// 			Error::<T>::InvalidEndpointSigningTime
 		// 		);
-	
+
 		// 		Self::deposit_event(Event::<T>::Exit { tee: payload.pubkey });
 		// 	} else {
 		// 		return Err(Error::<T>::PayloadError)?
 		// 	}
-			
 
 		// 	Ok(())
 		// }
@@ -404,7 +401,7 @@ pub mod pallet {
 				ecdh_pubkey,
 				version: 0,
 				last_updated: 1,
-				stash_account: stash_account,
+				stash_account,
 				attestation_provider: Some(AttestationProvider::Root),
 				confidence_level: 128u8,
 				features: vec![1, 4],
@@ -540,7 +537,10 @@ pub mod pallet {
 			match &ceseal_info.operator {
 				Some(acc) => {
 					let _ = <pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond)?;
-					ensure!(ceseal_info.role == WorkerRole::Verifier || ceseal_info.role == WorkerRole::Full, Error::<T>::WrongTeeType);
+					ensure!(
+						ceseal_info.role == WorkerRole::Verifier || ceseal_info.role == WorkerRole::Full,
+						Error::<T>::WrongTeeType
+					);
 				},
 				None => ensure!(ceseal_info.role == WorkerRole::Marker, Error::<T>::WrongTeeType),
 			};
@@ -561,18 +561,14 @@ pub mod pallet {
 
 			if ceseal_info.role == WorkerRole::Full || ceseal_info.role == WorkerRole::Verifier {
 				ValidationTypeList::<T>::mutate(|puk_list| -> DispatchResult {
-					puk_list
-						.try_push(pubkey)
-						.map_err(|_| Error::<T>::BoundedVecError)?;
+					puk_list.try_push(pubkey).map_err(|_| Error::<T>::BoundedVecError)?;
 					Ok(())
 				})?;
 			}
 
 			Self::push_message(SystemEvent::new_worker_event(
 				pubkey,
-				WorkerEvent::Registered(messaging::WorkerInfo {
-					confidence_level: fields.confidence_level,
-				}),
+				WorkerEvent::Registered(messaging::WorkerInfo { confidence_level: fields.confidence_level }),
 			));
 			Self::deposit_event(Event::<T>::WorkerAdded {
 				pubkey,
@@ -588,14 +584,11 @@ pub mod pallet {
 					keyfairys.push(pubkey);
 					Keyfairies::<T>::put(keyfairys);
 
-					Self::push_message(KeyfairyChange::keyfairy_registered(
-						pubkey,
-						ceseal_info.ecdh_pubkey,
-					));
+					Self::push_message(KeyfairyChange::keyfairy_registered(pubkey, ceseal_info.ecdh_pubkey));
 					Self::deposit_event(Event::<T>::KeyfairyAdded { pubkey });
 				}
 			}
-			
+
 			Ok(())
 		}
 
@@ -632,7 +625,10 @@ pub mod pallet {
 			match &ceseal_info.operator {
 				Some(acc) => {
 					let _ = <pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond)?;
-					ensure!(ceseal_info.role == WorkerRole::Verifier || ceseal_info.role == WorkerRole::Full, Error::<T>::WrongTeeType);
+					ensure!(
+						ceseal_info.role == WorkerRole::Verifier || ceseal_info.role == WorkerRole::Full,
+						Error::<T>::WrongTeeType
+					);
 				},
 				None => ensure!(ceseal_info.role == WorkerRole::Marker, Error::<T>::WrongTeeType),
 			};
@@ -653,9 +649,7 @@ pub mod pallet {
 
 			if ceseal_info.role == WorkerRole::Full || ceseal_info.role == WorkerRole::Verifier {
 				ValidationTypeList::<T>::mutate(|puk_list| -> DispatchResult {
-					puk_list
-						.try_push(pubkey)
-						.map_err(|_| Error::<T>::BoundedVecError)?;
+					puk_list.try_push(pubkey).map_err(|_| Error::<T>::BoundedVecError)?;
 					Ok(())
 				})?;
 			}
@@ -680,16 +674,13 @@ pub mod pallet {
 					keyfairys.push(pubkey);
 					Keyfairies::<T>::put(keyfairys);
 
-					Self::push_message(KeyfairyChange::keyfairy_registered(
-						pubkey,
-						ceseal_info.ecdh_pubkey,
-					));
+					Self::push_message(KeyfairyChange::keyfairy_registered(pubkey, ceseal_info.ecdh_pubkey));
 					Self::deposit_event(Event::<T>::KeyfairyAdded { pubkey });
 				}
 			}
 			Ok(())
 		}
-		
+
 		#[pallet::call_index(18)]
 		#[pallet::weight({0})]
 		pub fn update_worker_endpoint(
@@ -727,7 +718,7 @@ pub mod pallet {
 			ensure!(Workers::<T>::contains_key(endpoint_payload.pubkey), Error::<T>::InvalidPubKey);
 
 			Endpoints::<T>::insert(endpoint_payload.pubkey, endpoint);
-			
+
 			Ok(())
 		}
 
@@ -736,7 +727,7 @@ pub mod pallet {
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::call_index(19)]
 		#[pallet::weight({0})]
-		pub fn add_ceseal(origin: OriginFor<T>, ceseal_hash: Vec<u8>) -> DispatchResult {
+		pub fn add_ceseal(origin: OriginFor<T>, ceseal_hash: H256) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
 			let mut allowlist = CesealBinAllowList::<T>::get();
@@ -756,7 +747,7 @@ pub mod pallet {
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::call_index(110)]
 		#[pallet::weight({0})]
-		pub fn remove_ceseal(origin: OriginFor<T>, ceseal_hash: Vec<u8>) -> DispatchResult {
+		pub fn remove_ceseal(origin: OriginFor<T>, ceseal_hash: H256) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
 			let mut allowlist = CesealBinAllowList::<T>::get();

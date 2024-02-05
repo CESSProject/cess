@@ -3,8 +3,10 @@ use parity_scale_codec::Encode;
 use std::alloc::System;
 use tracing::info;
 
-use cestory_pal::{AppInfo, AppVersion, Machine, MemoryStats, MemoryUsage, Sealing, RA};
 use ces_allocator::StatSizeAllocator;
+use cestory_pal::{
+    AppInfo, AppVersion, ExtendMeasurement, Machine, MemoryStats, MemoryUsage, Sealing, RA,
+};
 use std::io::ErrorKind;
 use std::str::FromStr as _;
 use std::time::Duration;
@@ -77,13 +79,21 @@ impl RA for GraminePlatform {
         }
     }
 
-    fn measurement(&self) -> Option<Vec<u8>> {
+    fn mr_enclave(&self) -> Option<Vec<u8>> {
         if is_gramine() {
             sgx_api_lite::target_info()
                 .map(|info| info.mr_enclave.m.to_vec())
                 .ok()
         } else {
             None
+        }
+    }
+
+    fn extend_measurement(&self) -> Result<ExtendMeasurement, Self::Error> {
+        if is_gramine() {
+            Ok(get_extend_measurement()?.expect("must in gramine enviroment"))
+        } else {
+            Err(anyhow!("no measurement in native mode"))
         }
     }
 }
@@ -180,21 +190,34 @@ pub(crate) fn print_target_info() {
     use hex_fmt::HexFmt;
     if is_gramine() {
         println!("Running in Gramine-SGX");
-        let target_info = sgx_api_lite::target_info().expect("Failed to get target info");
-        let report =
-            sgx_api_lite::report(&target_info, &[0; 64]).expect("Failed to get sgx report");
-        println!("mr_enclave  : 0x{}", HexFmt(&report.body.mr_enclave.m));
-        println!("mr_signer   : 0x{}", HexFmt(&report.body.mr_signer.m));
-        println!(
-            "isv_svn     : 0x{:?}",
-            HexFmt(report.body.isv_svn.to_ne_bytes())
-        );
-        println!(
-            "isv_prod_id : 0x{:?}",
-            HexFmt(report.body.isv_prod_id.to_ne_bytes())
-        );
+        let em = get_extend_measurement()
+            .expect("Failed to get extend measurement")
+            .expect("must in gramine enviroment");
+        println!("mr_enclave       : 0x{}", HexFmt(&em.mr_enclave));
+        println!("mr_signer        : 0x{}", HexFmt(&em.mr_signer));
+        println!("isv_svn          : 0x{:?}", HexFmt(em.isv_svn));
+        println!("isv_prod_id      : 0x{:?}", HexFmt(em.isv_prod_id));
+        println!("measurement      : 0x{:?}", HexFmt(em.measurement()));
+        println!("measurement hash : {:?}", em.measurement_hash());
     } else {
         println!("Running in Native mode");
     }
     println!("git revision: {}", env!("VERGEN_GIT_DESCRIBE"));
+}
+
+pub(crate) fn get_extend_measurement() -> anyhow::Result<Option<ExtendMeasurement>> {
+    if !is_gramine() {
+        return Ok(None);
+    }
+    let target_info =
+        sgx_api_lite::target_info().map_err(|e| anyhow!("Failed to get target info: {:?}", e))?;
+    let report_body = sgx_api_lite::report(&target_info, &[0; 64])
+        .map_err(|e| anyhow!("Failed to get sgx report: {:?}", e))?
+        .body;
+    Ok(Some(ExtendMeasurement {
+        mr_enclave: report_body.mr_enclave.m,
+        mr_signer: report_body.mr_signer.m,
+        isv_prod_id: report_body.isv_prod_id.to_ne_bytes(),
+        isv_svn: report_body.isv_svn.to_ne_bytes(),
+    }))
 }

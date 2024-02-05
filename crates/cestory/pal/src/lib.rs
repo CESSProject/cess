@@ -1,11 +1,10 @@
 //! Platform abstraction layer for Trusted Execution Environments
 
-use std::fmt::Debug;
-use std::path::Path;
-use core::time::Duration;
-
 use ces_types::AttestationProvider;
+use core::time::Duration;
+use std::{fmt::Debug, path::Path};
 
+pub use ces_types::attestation::ExtendMeasurement;
 pub use cestory_api::crpc::MemoryUsage;
 
 pub trait ErrorType: Debug + Into<anyhow::Error> {}
@@ -28,7 +27,8 @@ pub trait RA {
         timeout: Duration,
     ) -> Result<Vec<u8>, Self::Error>;
     fn quote_test(&self, provider: Option<AttestationProvider>) -> Result<(), Self::Error>;
-    fn measurement(&self) -> Option<Vec<u8>>;
+    fn mr_enclave(&self) -> Option<Vec<u8>>;
+    fn extend_measurement(&self) -> Result<ExtendMeasurement, Self::Error>;
 }
 
 pub trait MemoryStats {
@@ -51,8 +51,5 @@ pub trait AppInfo {
     fn app_version() -> AppVersion;
 }
 
-pub trait Platform:
-    Sealing + RA + Machine + MemoryStats + AppInfo + Clone + Send + 'static
-{
-}
+pub trait Platform: Sealing + RA + Machine + MemoryStats + AppInfo + Clone + Send + 'static {}
 impl<T: Sealing + RA + Machine + MemoryStats + AppInfo + Clone + Send + 'static> Platform for T {}

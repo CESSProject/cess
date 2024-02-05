@@ -7,13 +7,20 @@ use ces_sanitized_logger as logger;
 use ces_types::WorkerRole;
 use cestory::run_ceseal_server;
 use cestory_api::ecall_args::InitArgs;
-use clap::Parser;
+use clap::{crate_version, Parser, Subcommand};
 use pal_gramine::GraminePlatform;
 use std::{env, time::Duration};
 use tracing::info;
 
+const VERSION: &str = const_str::format!(
+    "{}-{}-{}",
+    crate_version!(),
+    env!("VERGEN_GIT_DESCRIBE"),
+    env!("VERGEN_BUILD_TIMESTAMP")
+);
+
 #[derive(Parser, Debug, Clone)]
-#[clap(about = "The CESS TEE worker app.", version, author)]
+#[clap(about = "The CESS TEE worker app.", version = VERSION, author)]
 struct Args {
     /// Number of CPU cores to be used for PODR2 thread-pool.
     #[arg(short, long)]
@@ -78,21 +85,48 @@ struct Args {
 
     #[arg(long, value_parser = parse_worker_role, default_value = "full")]
     role: WorkerRole,
+
+    #[command(subcommand)]
+    command: Option<Commands>,
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    pal_gramine::print_target_info();
+#[derive(Subcommand, Debug, Clone)]
+enum Commands {
+    /// Show Ceseal version details
+    Version,
+    /// Show Ceseal target infomation
+    TargetInfo,
+}
 
+fn main() -> Result<()> {
+    let args = Args::parse();
+    if let Some(cmd) = args.command {
+        match cmd {
+            Commands::Version => {
+                if let Some(em) = pal_gramine::get_extend_measurement().unwrap() {
+                    println!("{} {:?}", VERSION, em.measurement_hash());
+                } else {
+                    println!("{} [No measurement in non-SGX environments]", VERSION);
+                }
+            }
+            Commands::TargetInfo => {
+                pal_gramine::print_target_info();
+            }
+        }
+        return Ok(());
+    }
+
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()?;
     let sgx = pal_gramine::is_gramine();
     logger::init_subscriber(sgx);
-    serve(sgx).await
+    pal_gramine::print_target_info();
+    rt.block_on(serve(sgx, args))
 }
 
 #[tracing::instrument(name = "main", skip_all)]
-async fn serve(sgx: bool) -> Result<()> {
-    let args = Args::parse();
-
+async fn serve(sgx: bool, args: Args) -> Result<()> {
     info!(sgx, "Starting ceseal...");
 
     let sealing_path;

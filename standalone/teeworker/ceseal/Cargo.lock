@@ -913,6 +913,7 @@ dependencies = [
  "ces-mq",
  "chrono",
  "hex",
+ "log",
  "parity-scale-codec",
  "scale-info",
  "serde",
@@ -924,7 +925,7 @@ dependencies = [
 
 [[package]]
 name = "ceseal"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "base64 0.13.1",
@@ -936,6 +937,7 @@ dependencies = [
  "cestory-api",
  "cestory-pal",
  "clap",
+ "const-str",
  "hex_fmt",
  "humantime",
  "lazy_static",
@@ -1335,6 +1337,26 @@ dependencies = [
  "getrandom 0.2.11",
  "once_cell",
  "tiny-keccak",
+]
+
+[[package]]
+name = "const-str"
+version = "0.5.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aca749d3d3f5b87a0d6100509879f9cf486ab510803a4a4e1001da1ff61c2bd6"
+dependencies = [
+ "const-str-proc-macro",
+]
+
+[[package]]
+name = "const-str-proc-macro"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51a6bdde073d75ff29c639a6bfcee435483f73f9a7426249825e2542e089727c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.39",
 ]
 
 [[package]]

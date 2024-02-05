@@ -1576,6 +1576,7 @@ dependencies = [
  "chrono",
  "frame-support",
  "hex",
+ "log",
  "parity-scale-codec",
  "scale-info",
  "serde",
