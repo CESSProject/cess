@@ -873,15 +873,15 @@ async fn run_external_server<Platform>(
             public_listener_addr, ceseal_props.role
         );
         let mut server = Server::builder();
-        server.add_service(pubkeys);
         let router = match ceseal_props.role {
             ces_types::WorkerRole::Full => server
+                .add_service(pubkeys)
                 .add_service(podr2_srv)
                 .add_service(podr2v_srv)
                 .add_service(pois_srv)
                 .add_service(poisv_srv),
-            ces_types::WorkerRole::Verifier => server.add_service(podr2v_srv).add_service(poisv_srv),
-            ces_types::WorkerRole::Marker => server.add_service(podr2_srv).add_service(pois_srv),
+            ces_types::WorkerRole::Verifier => server.add_service(pubkeys).add_service(podr2v_srv).add_service(poisv_srv),
+            ces_types::WorkerRole::Marker => server.add_service(pubkeys).add_service(podr2_srv).add_service(pois_srv),
         };
         let result = router.serve(public_listener_addr).await;
         let _ = ext_srv_quit_tx.send(result);
