@@ -227,6 +227,8 @@ pub mod pallet {
 		EmptyEndpoint,
 		InvalidEndpointSigningTime,
 
+		InvalidHash,
+
 		PayloadError,
 
 		LastWorker,
@@ -275,11 +277,11 @@ pub mod pallet {
 	/// Only ceseal within the list can register.
 	#[pallet::storage]
 	#[pallet::getter(fn ceseal_bin_allowlist)]
-	pub type CesealBinAllowList<T: Config> = StorageValue<_, Vec<Vec<u8>>, ValueQuery>;
+	pub type CesealBinAllowList<T: Config> = StorageValue<_, Vec<sp_core::H256>, ValueQuery>;
 
 	/// The effective height of ceseal binary
 	#[pallet::storage]
-	pub type CesealBinAddedAt<T: Config> = StorageMap<_, Twox64Concat, Vec<u8>, BlockNumberFor<T>>;
+	pub type CesealBinAddedAt<T: Config> = StorageMap<_, Twox64Concat, sp_core::H256, BlockNumberFor<T>>;
 
 	/// Mapping from worker pubkey to CESS Network identity
 	#[pallet::storage]
@@ -524,12 +526,17 @@ pub mod pallet {
 			// Validate RA report & embedded user data
 			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
 			let runtime_info_hash = crate::hashing::blake2_256(&Encode::encode(&ceseal_info));
+			let ceseal_list_origin = CesealBinAllowList::<T>::get();
+			let mut ceseal_list: Vec<Vec<u8>> = Default::default();
+			for value in ceseal_list_origin.iter() {
+				ceseal_list.push(value.0.to_vec());
+			}
 			let fields = T::LegacyAttestationValidator::validate(
 				&attestation,
 				&runtime_info_hash,
 				now,
 				T::VerifyCeseal::get(),
-				CesealBinAllowList::<T>::get(),
+				ceseal_list,
 			)
 			.map_err(Into::<Error<T>>::into)?;
 
@@ -615,12 +622,18 @@ pub mod pallet {
 			// Validate RA report & embedded user data
 			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
 			let runtime_info_hash = crate::hashing::blake2_256(&Encode::encode(&ceseal_info));
+			let ceseal_list_origin = CesealBinAllowList::<T>::get();
+			let mut ceseal_list: Vec<Vec<u8>> = Default::default();
+			for value in ceseal_list_origin.iter() {
+				ceseal_list.push(value.0.to_vec());
+			}
+
 			let attestation_report = attestation::validate(
 				*attestation,
 				&runtime_info_hash,
 				now,
 				T::VerifyCeseal::get(),
-				CesealBinAllowList::<T>::get(),
+				ceseal_list,
 				T::NoneAttestationEnabled::get(),
 			)
 			.map_err(Into::<Error<T>>::into)?;
@@ -740,6 +753,8 @@ pub mod pallet {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
 			let mut allowlist = CesealBinAllowList::<T>::get();
+			let ceseal_hash: [u8; 32] = ceseal_hash.try_into().map_err(|_e| Error::<T>::InvalidHash)?;
+			let ceseal_hash = sp_core::H256::from(ceseal_hash);
 			ensure!(!allowlist.contains(&ceseal_hash), Error::<T>::CesealAlreadyExists);
 
 			allowlist.push(ceseal_hash.clone());
@@ -759,6 +774,8 @@ pub mod pallet {
 		pub fn remove_ceseal(origin: OriginFor<T>, ceseal_hash: Vec<u8>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
+			let ceseal_hash: [u8; 32] = ceseal_hash.try_into().map_err(|_e| Error::<T>::InvalidHash)?;
+			let ceseal_hash = sp_core::H256::from(ceseal_hash);
 			let mut allowlist = CesealBinAllowList::<T>::get();
 			ensure!(allowlist.contains(&ceseal_hash), Error::<T>::CesealNotFound);
 
