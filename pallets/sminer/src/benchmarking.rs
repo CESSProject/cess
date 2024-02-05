@@ -1,9 +1,9 @@
-// use super::*;
-// use crate::{Pallet as Sminer};
+use super::*;
+use crate::{Pallet as Sminer};
 // use codec::{alloc::string::ToString, Decode};
-// pub use frame_benchmarking::{
-// 	account, benchmarks, impl_benchmark_test_suite, whitelist_account, whitelisted_caller,
-// };
+pub use frame_benchmarking::{
+	account, benchmarks, impl_benchmark_test_suite, whitelist_account, whitelisted_caller,
+};
 // use frame_support::{
 // 	traits::{Currency, Get},
 // };
@@ -20,6 +20,8 @@
 // {
 // }
 // // const MAX_SPANS: u32 = 100;
+
+
 
 // pub fn increase_reward<T: Config>(b_reward: u128) -> Result<(), &'static str> {
 //     let acc = T::FaucetId::get().into_account_truncating();
@@ -127,7 +129,9 @@
 
 //     Ok(())
 // }
+benchmarks! {
 
+}
 // benchmarks! {
 //     regnstk {
 //         let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
