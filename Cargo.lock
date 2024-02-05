@@ -1592,6 +1592,7 @@ dependencies = [
  "array-bytes 4.2.0",
  "async-trait",
  "ces-node-rpc-ext",
+ "ces-pallet-mq",
  "ces-pallet-mq-runtime-api",
  "cess-node-runtime",
  "cessc-consensus-rrsc",

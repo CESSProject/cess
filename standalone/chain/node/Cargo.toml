@@ -45,6 +45,7 @@ sp-session = { workspace = true, features = ["default"] }
 sp-trie = { workspace = true, features = ["default"] }
 
 # client dependencies
+ces-pallet-mq = { workspace = true }
 cessc-consensus-rrsc = { workspace = true }
 cessc-sync-state-rpc = { workspace = true }
 grandpa = { workspace = true }
