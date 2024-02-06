@@ -14,7 +14,7 @@ use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
 };
 
-use crate::{light_validation::LightValidation, system::System};
+use crate::light_validation::LightValidation;
 use anyhow::{anyhow, Context as _, Result};
 use ces_crypto::{
     aead,
@@ -314,6 +314,7 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
         if let Some(system) = &mut self.system {
             system.sealing_path = self.args.sealing_path.clone();
             system.storage_path = self.args.storage_path.clone();
+            system.args = self.args.clone();
         }
     }
 
@@ -599,14 +600,11 @@ impl<Platform: Serialize + DeserializeOwned> Ceseal<Platform> {
                         let recv_mq = &mut runtime_state.recv_mq;
                         let send_mq = &mut runtime_state.send_mq;
                         let seq = &mut seq;
-                        let mut system: System<Platform> =
-                            ces_mq::checkpoint_helper::using_dispatcher(recv_mq, move || {
-                                ces_mq::checkpoint_helper::using_send_mq(send_mq, || {
-                                    seq.next_element()?.ok_or_else(|| de::Error::custom("Missing System"))
-                                })
-                            })?;
-                        system.args = factory.args.clone();
-                        Some(system)
+                        ces_mq::checkpoint_helper::using_dispatcher(recv_mq, move || {
+                            ces_mq::checkpoint_helper::using_send_mq(send_mq, || {
+                                seq.next_element()?.ok_or_else(|| de::Error::custom("Missing System"))
+                            })
+                        })?
                     };
                 } else {
                     let _: Option<serde::de::IgnoredAny> = seq.next_element()?;
