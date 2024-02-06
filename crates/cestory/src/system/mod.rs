@@ -302,11 +302,11 @@ impl<Platform: pal::Platform> System<Platform> {
     pub(crate) fn send_keyfairy_ready(&mut self) {
         let keyfairy_ready_sender = self.keyfairy_ready_sender.take();
         if let Some(sender) = keyfairy_ready_sender {
+            let keyfairy = self.keyfairy.as_ref().expect("keyfairy not ready");
             let ceseal_props = CesealProperties {
                 role: self.args.role.clone(),
-                podr2_key: ces_pdp::gen_keypair_from_private_key(
-                    self.keyfairy.as_ref().expect("keyfairy not ready").rsa_private_key().clone(),
-                ),
+                podr2_key: keyfairy.podr2_key_pair(),
+                master_key: keyfairy.master_key().clone(),
                 identity_key: self.identity_key.clone(),
                 cores: self.args.cores,
             };

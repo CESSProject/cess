@@ -136,6 +136,10 @@ mod storage_ext {
             self.execute_with(|| pallet_sminer::pallet::Pallet::miner_items(miner_account_id))
         }
 
+        pub fn is_storage_miner_registered_ignore_state(&self, miner_account_id: AccountId) -> bool {
+            self.get_storage_miner_info(miner_account_id).is_some()
+        }
+
         /// Return `None` if given ceseal hash is not allowed on-chain
         pub(crate) fn get_ceseal_bin_added_at(&self, runtime_hash: &[u8]) -> Option<chain::BlockNumber> {
             self.execute_with(|| pallet_tee_worker::CesealBinAddedAt::<chain::Runtime>::get(runtime_hash))

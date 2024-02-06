@@ -58,6 +58,7 @@ pub mod expert;
 mod light_validation;
 pub mod podr2;
 pub mod pois;
+mod pubkeys;
 mod secret_channel;
 mod storage;
 mod system;
@@ -833,7 +834,7 @@ async fn run_external_server<Platform>(
     //FIXME: SHOULD BE DISABLE LOG KEY ON PRODUCTION !!!
     debug!(
         "Successfully load podr2 key public key is: {:?}",
-        &ceseal_props.podr2_key.pkey.to_pkcs1_der().unwrap().as_bytes()
+        hex::encode(&ceseal_props.podr2_key.pkey.to_pkcs1_der().unwrap().as_bytes())
     );
 
     let (ceseal_expert, expert_cmd_rx) = expert::CesealExpertStub::new(ceseal_props.clone());
@@ -862,9 +863,10 @@ async fn run_external_server<Platform>(
         let pois_srv = pois::new_pois_certifier_api_server(pois_param.clone(), ceseal_expert.clone())
             .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
             .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
-        let poisv_srv = pois::new_pois_verifier_api_server(pois_param, ceseal_expert)
+        let poisv_srv = pois::new_pois_verifier_api_server(pois_param, ceseal_expert.clone())
             .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
             .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
+        let pubkeys = pubkeys::new_pubkeys_provider_server(ceseal_expert);
 
         info!(
             "keyfairy ready, external server will listening on {} run with {:?} role",
@@ -873,12 +875,13 @@ async fn run_external_server<Platform>(
         let mut server = Server::builder();
         let router = match ceseal_props.role {
             ces_types::WorkerRole::Full => server
+                .add_service(pubkeys)
                 .add_service(podr2_srv)
                 .add_service(podr2v_srv)
                 .add_service(pois_srv)
                 .add_service(poisv_srv),
-            ces_types::WorkerRole::Verifier => server.add_service(podr2v_srv).add_service(poisv_srv),
-            ces_types::WorkerRole::Marker => server.add_service(podr2_srv).add_service(pois_srv),
+            ces_types::WorkerRole::Verifier => server.add_service(pubkeys).add_service(podr2v_srv).add_service(poisv_srv),
+            ces_types::WorkerRole::Marker => server.add_service(pubkeys).add_service(podr2_srv).add_service(pois_srv),
         };
         let result = router.serve(public_listener_addr).await;
         let _ = ext_srv_quit_tx.send(result);

@@ -1,4 +1,7 @@
-use crate::{expert::CesealExpertStub, types::ThreadPoolSafeBox};
+use crate::{
+    expert::{CesealExpertStub, ExternalResourceKind},
+    types::ThreadPoolSafeBox,
+};
 use anyhow::{anyhow, Result};
 use ces_crypto::sr25519::Signing;
 use ces_pdp::{HashSelf, Keys, QElement, Tag as PdpTag};
@@ -38,6 +41,7 @@ pub fn new_podr2_api_server(ceseal_expert: CesealExpertStub) -> Podr2ApiServer {
             threadpool: ceseal_expert.thread_pool(),
             block_num: 1024,
             ceseal_identity_key: ceseal_expert.identify_public_key().0,
+            ceseal_expert: ceseal_expert.clone(),
         },
         ceseal_expert,
     };
@@ -66,6 +70,7 @@ pub struct Podr2Server {
     pub threadpool: ThreadPoolSafeBox,
     pub block_num: u64,
     pub ceseal_identity_key: [u8; 32],
+    pub ceseal_expert: CesealExpertStub,
 }
 
 pub struct Podr2VerifierServer {
@@ -144,10 +149,25 @@ impl Podr2Api for Podr2Server {
             threadpool: self.threadpool.clone(),
             block_num: self.block_num.clone(),
             ceseal_identity_key: self.ceseal_identity_key.clone(),
+            ceseal_expert: self.ceseal_expert.clone(),
         };
         //start receive
         tokio::spawn(async move {
             while let Some(result) = in_stream.next().await {
+                let _permit = match new_self
+                    .ceseal_expert
+                    .try_acquire_permit(ExternalResourceKind::Pord2Service)
+                    .await
+                {
+                    Ok(p) => p,
+                    Err(err) => {
+                        resp_tx
+                            .send(Err(Status::internal(err.to_string())))
+                            .await
+                            .expect("send failure of permit locking msg fail");
+                        return
+                    },
+                };
                 match result {
                     Ok(v) => {
                         if v.fragment_data.is_empty() && stream_rec_times == 0 {
@@ -166,7 +186,7 @@ impl Podr2Api for Podr2Server {
                             continue
                         };
                         if !v.fragment_data.is_empty() && stream_rec_times == 1 {
-                            match new_self.process_gen_tag_request(v) {
+                            match new_self.process_gen_tag_request(v).await {
                                 Ok(response) => resp_tx
                                     .send(Ok(response))
                                     .await
@@ -354,7 +374,7 @@ fn convert_to_q_elements(qslices: Qslice) -> Result<(Vec<QElement>, Challenge), 
 }
 
 impl Podr2Server {
-    fn process_gen_tag_request<'life0>(&'life0 self, request: RequestGenTag) -> Result<ResponseGenTag, Status> {
+    async fn process_gen_tag_request<'life0>(&'life0 self, request: RequestGenTag) -> Result<ResponseGenTag, Status> {
         let now = Instant::now();
         let mut h = Podr2Hash::new();
         h.load_field(request.custom_data.as_bytes());
@@ -369,10 +389,6 @@ impl Podr2Server {
             .try_into()
             .map_err(|_| Status::invalid_argument("file_name hash bytes length should be 64".to_string()))?;
 
-        let pool = self
-            .threadpool
-            .lock()
-            .map_err(|e| Status::internal("lock global threadpool fail:".to_string() + &e.to_string()))?;
         //check fragement data is equal to fragement name
         let mut check_fragment_hash = Podr2Hash::new();
         check_fragment_hash.load_field(&request.fragment_data);
@@ -384,13 +400,6 @@ impl Podr2Server {
                 &request.fragment_name, &fragment_data_hash_string
             )))
         }
-        let tag = self
-            .podr2_keys
-            .sig_gen_with_data(request.fragment_data, self.block_num, &request.fragment_name, h, pool.clone())
-            .map_err(|e| Status::internal(format!("AlgorithmError: {}", e.error_code.to_string())))?;
-        let u_sig = self.podr2_keys.sign_data(&calculate_hash(tag.t.u.as_bytes())).map_err(|e| {
-            Status::invalid_argument(format!("Failed to calculate u's signature {:?}", e.error_code.to_string()))
-        })?;
 
         let mut tag_sig_info_history = TagSigInfo {
             miner: AccountId32::from_slice(&request.miner_id[..])
@@ -440,6 +449,32 @@ impl Podr2Server {
             .sign_data(&calculate_hash(&tag_sig_info_history.encode()))
             .0
             .to_vec();
+        let new_self = Podr2Server {
+            podr2_keys: self.podr2_keys.clone(),
+            master_key: self.master_key.clone(),
+            threadpool: self.threadpool.clone(),
+            block_num: self.block_num.clone(),
+            ceseal_identity_key: self.ceseal_identity_key.clone(),
+            ceseal_expert: self.ceseal_expert.clone(),
+        };
+        let tag = tokio::task::spawn_blocking(move || {
+            let pool = new_self
+                .threadpool
+                .lock()
+                .map_err(|e| Status::internal("lock global threadpool fail:".to_string() + &e.to_string()))?;
+            new_self
+                .podr2_keys
+                .sig_gen_with_data(request.fragment_data, new_self.block_num, &request.fragment_name, h, pool.clone())
+                .map_err(|_| Status::invalid_argument("Algorithm error".to_string()))
+        })
+        .await
+        .map_err(|_| Status::invalid_argument("Waiting for tag generate fail".to_string()))??;
+
+        //compute u signature
+        let u_sig = self.podr2_keys.sign_data(&calculate_hash(tag.t.u.as_bytes())).map_err(|e| {
+            Status::invalid_argument(format!("Failed to calculate u's signature {:?}", e.error_code.to_string()))
+        })?;
+
         info!("[🚀Generate tag] PoDR2 Sig Gen Completed in: {:.2?}. file name is {:?}", now.elapsed(), &tag.t.name);
         Ok(ResponseGenTag {
             processing: true,
