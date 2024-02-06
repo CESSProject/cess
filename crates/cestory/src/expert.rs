@@ -78,7 +78,7 @@ pub struct CesealExpertStub {
 impl CesealExpertStub {
     pub fn new(ceseal_props: CesealProperties) -> (Self, ExpertCmdReceiver) {
         let (tx, rx) = mpsc::channel(16);
-        let thread_pool_cap = std::cmp::max(ceseal_props.cores - 1, 1);
+        let thread_pool_cap = ceseal_props.cores.saturating_sub(1).max(1);
         let thread_pool = threadpool::ThreadPool::new(thread_pool_cap as usize);
         info!("PODR2 compute thread pool capacity: {}", thread_pool.max_count());
         let role = ceseal_props.role.clone();
