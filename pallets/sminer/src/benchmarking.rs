@@ -130,8 +130,26 @@ pub use frame_benchmarking::{
 //     Ok(())
 // }
 benchmarks! {
+    regnstk {
+        pallet_tee_worker::benchmarking::generate_workers();
+        let caller = account("user1", 100, SEED);
+        let peer_id: PeerId = [5u8; 38];
+        <T as crate::Config>::Currency::make_free_balance_be(
+            &caller,
+            BalanceOf::<T>::max_value(),
+        );
 
+        let staking_val: BalanceOf<T> = 4_000_000_000_000_000_000_000u128.try_into().unwrap();
+        let tib_count = 1;
+        
+    }: _(RawOrigin::Signed(caller), peer_id, staking_val, tib_count)
+    verify {
+        assert!(<MinerItems<T>>::contains_key(&caller))
+    }
+
+    
 }
+
 // benchmarks! {
 //     regnstk {
 //         let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;

@@ -43,7 +43,6 @@ pallet-bags-list = { workspace = true }
 pallet-scheduler-credit = { workspace = true }
 hex ={ workspace = true }
 
-
 [features]
 default = ["std"]
 std = [
