@@ -599,7 +599,7 @@ pub mod pallet {
 
 					reward.order_list.retain(|order| order.max_count != order.receive_count);
 
-					reward.reward_issued.checked_add(&avail_reward).ok_or(Error::<T>::Overflow)?;
+					reward.reward_issued = reward.reward_issued.checked_add(&avail_reward).ok_or(Error::<T>::Overflow)?;
 
 					T::RewardPool::send_reward_to_miner(miner.beneficiary, avail_reward)?;
 
