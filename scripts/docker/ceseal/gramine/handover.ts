@@ -1,14 +1,22 @@
 import * as path from "https://deno.land/std/path/mod.ts";
 import { readStringDelim } from "https://deno.land/std/io/mod.ts";
 import { copySync } from "https://deno.land/std/fs/copy.ts";
+import { sortBy } from "https://deno.land/std@0.214.0/collections/sort_by.ts";
+import { ensureDir, exists } from "https://deno.land/std@0.214.0/fs/mod.ts";
 // import { sleep } from "https://deno.land/x/sleep/mod.ts";
+
+const LOG_PREFIX = "[Handover🤝]"
+
+function log(...args: any[]) {
+  args.unshift(LOG_PREFIX + " ");
+  console.log(...args);
+}
 
 async function startCeseal(basePath: string, port: string | number, tmpPath = "/tmp", extra_args = []) {
   const logPath = path.join(tmpPath, "ceseal.log");
 
   const args = [
-      '--cores=0',  // Disable benchmark
-      '--port', port.toString(),
+    '--port', port.toString(),
   ];
   args.push(...extra_args);
 
@@ -24,7 +32,7 @@ async function startCeseal(basePath: string, port: string | number, tmpPath = "/
   const child = bin.spawn();
 
   child.stdout.pipeTo(Deno.openSync(logPath, { read: true, write: true, create: true }).writable);
-  
+
   return child;
 }
 
@@ -36,7 +44,7 @@ async function waitCesealStarted(logFile: string) {
     if (event.kind !== "modify") continue;
     for await (const line of readStringDelim(fileReader, "\n")) {
       if (!line) break;
-      console.log(line);
+      log(line);
       if (line.includes("Ceseal internal server will listening on")) {
         return true;
       }
@@ -46,53 +54,64 @@ async function waitCesealStarted(logFile: string) {
   return true
 }
 
-const exists = async (filename: string): Promise<boolean> => {
-  try {
-    await Deno.stat(filename);
-    // successful, file or directory must exist
-    return true;
-  } catch (error) {
-    if (error instanceof Deno.errors.NotFound) {
-      // file or directory does not exist
-      return false;
-    } else {
-      // unexpected error, maybe permissions, pass it along
-      throw error;
+async function confirmPreviousVersion(): Promise<number | undefined> {
+  let versions: number[] = [];
+  for await (const dirEntry of Deno.readDir('/opt/ceseal/backups')) {
+    versions.push(parseInt(dirEntry.name));
+  }
+  const sortedByDesc = sortBy(versions, (it) => it, { order: "desc" });
+  let previousVersion: number | undefined = undefined;
+  for (const version of sortedByDesc) {
+    if (!previousVersion || previousVersion < version) {
+      if (version >= currentVersion) {
+        continue;
+      } else if (!await exists(`/opt/ceseal/backups/${version}/data/protected_files/runtime-data.seal`)) {
+        console.log(`no runtime-data.seal found in ${version}, skip`)
+        continue
+      }
+      previousVersion = version;
+      break;
     }
   }
-};
+  return previousVersion;
+}
+
+async function killPreviousCeseal(version: number) {
+  const cmd = ["bash", "-c", `ps -eaf | grep "backups/${version}/cruntime/sgx/loader" | grep -v "grep" | awk '{print $2}'`];
+  const p = Deno.run({ cmd, stdout: "piped", stderr: "piped" });
+
+  // Reading the outputs closes their pipes
+  const [{ code }, rawOutput, rawError] = await Promise.all([
+    p.status(),
+    p.output(),
+    p.stderrOutput(),
+  ]);
+
+  if (code === 0) {
+    const pid = new TextDecoder().decode(rawOutput);
+    log(`the previous version ${version} ceseal pid: ${pid}`);
+    const p = Deno.run({ cmd: ["bash", "-c", `kill -9 ${pid}`] });
+    await p.status();
+  } else {
+    const errorString = new TextDecoder().decode(rawError);
+    log(errorString);
+  }
+}
 
 const currentPath = await Deno.realPath("/opt/ceseal/releases/current");
 const currentVersion = currentPath.split("/").pop();
-console.log(`Current ${currentPath}`)
+log(`Current ${currentPath}`)
 
 // Check current (the image contains) has initialized
 if (await exists(path.join(currentPath, "data/protected_files/runtime-data.seal"))) {
-  console.log("runtime-data.seal exists, no need to handover")
+  log("runtime-data.seal exists, no need to handover")
   Deno.exit(0);
 }
 
-// TODO: descending sort folders and find the latest handoverable ceseal
-let previousVersion: number | undefined = undefined;
-for await (const dirEntry of Deno.readDir('/opt/ceseal/backups')) {
-  // console.log(dirEntry);
-
-  // TODO: check handoverable (initialized && synced && version). Q: how to deal with not synced?
-  const version = parseInt(dirEntry.name);
-  if (!previousVersion || previousVersion < version) {
-    if (version >= currentVersion) {
-      continue;
-    } else if (!await exists(`/opt/ceseal/backups/${version}/data/protected_files/runtime-data.seal`)) {
-      console.log(`no runtime-data.seal found in ${version}, skip`)
-      continue
-    }
-    
-    previousVersion = version;
-  }
-}
+let previousVersion: number | undefined = await confirmPreviousVersion();
 
 if (previousVersion === undefined) {
-  console.log("No previous version, no need to handover!");
+  log("No previous version, no need to handover!");
 
   // Copy current to backups
   try { copySync(currentPath, `/opt/ceseal/backups/${currentVersion}`) } catch (err) { console.error(err.message) }
@@ -101,49 +120,71 @@ if (previousVersion === undefined) {
 }
 
 if (currentVersion == previousVersion) {
-  console.log("same version, no need to handover")
+  log("same version, no need to handover")
   Deno.exit(0);
 }
 
 const previousPath = `/opt/ceseal/backups/${previousVersion}`;
-console.log(`Previous ${previousPath}`);
+log(`Previous ${previousPath}`);
 
-console.log("starting");
-try { Deno.removeSync("/tmp/ceseal.log") } catch (_err) {}
+const previousStoragePath = path.join(previousPath, "data/storage_files");
+const currentProtectedPath = path.join(currentPath, "data/protected_files");
+const currentStoragePath = path.join(currentPath, "data/storage_files");
+
+log("starting");
+try { Deno.removeSync("/tmp/ceseal.log") } catch (_err) { }
+if (previousVersion == 24013112) {
+  log(`skip the storage files of version ${previousVersion}`);
+  const cmd = ["bash", "-c", `rm -rf ${previousStoragePath}/*`];
+  const p = Deno.run({ cmd });
+  await p.status();
+}
 let oldProcess = await startCeseal(previousPath, "1888");
-await waitCesealStarted("/tmp/ceseal.log");
-console.log("started");
+try {
+  await waitCesealStarted("/tmp/ceseal.log");
+  log("started");
 
-// Waiting old bin start, I'm thinking it's good to not get from api but just dump a file then pass to the new one?
-// await sleep(30)
+  // Waiting old bin start, I'm thinking it's good to not get from api but just dump a file then pass to the new one?
+  // await sleep(30)  
+  try {
+    await ensureDir(currentProtectedPath);
+  } catch (err) {
+    console.error(err.message)
+  }
+  try {
+    await ensureDir(currentStoragePath);
+  } catch (err) {
+    console.error(err.message)
+  }
 
-const command = new Deno.Command(`/opt/ceseal/releases/current/gramine-sgx`, {
-  args: [
-    "ceseal",
-    "--request-handover-from=http://localhost:1888",
-  ],
-  cwd: "/opt/ceseal/releases/current"
-});
-const { code, stdout, stderr } = command.outputSync();
+  const command = new Deno.Command(`/opt/ceseal/releases/current/gramine-sgx`, {
+    args: [
+      "ceseal",
+      "--request-handover-from=http://localhost:1888",
+    ],
+    cwd: "/opt/ceseal/releases/current"
+  });
+  const { code, stdout, stderr } = command.outputSync();
 
-console.log(code);
-console.log(new TextDecoder().decode(stdout));
-console.log(new TextDecoder().decode(stderr));
+  log(code);
+  log(new TextDecoder().decode(stdout));
+  log(new TextDecoder().decode(stderr));
 
-// oldProcess.kill("SIGKILL");
+  if (code != 0) {
+    log("Handover failed");
+    Deno.exit(1);
+  }
 
-if (code != 0) {
-  console.log("Handover failed");
-  Deno.exit(1);
+} finally {
+  oldProcess.kill();  //the kill() method not to kill the ceseal process due to it's running use exec
+  await killPreviousCeseal(previousVersion as number);
 }
 
-console.log("Handover completed");
+log("Handover completed");
 
 // Copy checkpoint from previous
-const previousStoragePath = path.join(previousPath, "data/storage_files")
-const storagePath = path.join(currentPath, "data/storage_files")
-try { Deno.removeSync(storagePath) } catch (err) { console.error(err.message) }
-try { copySync(previousStoragePath, storagePath) } catch (err) { console.error(err.message) }
+try { Deno.removeSync(currentStoragePath) } catch (err) { console.error(err.message) }
+try { copySync(previousStoragePath, currentStoragePath) } catch (err) { console.error(err.message) }
 
 // Copy current to backups
 try { copySync(currentPath, `/opt/ceseal/backups/${currentVersion}`) } catch (err) { console.error(err.message) }

@@ -51,7 +51,9 @@ signed-sgx-artifacts: ${BIN_NAME}.manifest ${BIN_NAME}.manifest.sgx ${BIN_NAME}.
 
 .PHONY: ${BIN_FILE}
 ${BIN_FILE}:
+	@echo "IAS_ENV: ${IAS_ENV}"
 	@echo "IAS_SPID: ${IAS_SPID}"
+	@echo "IAS_API_KEY: ${IAS_API_KEY}"
 	make BUILD=${BUILD} -C ..
 
 ${BIN_NAME}: ${BIN_FILE}
