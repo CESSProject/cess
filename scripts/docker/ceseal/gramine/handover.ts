@@ -88,10 +88,9 @@ async function killPreviousCeseal(version: number) {
   ]);
 
   if (code === 0) {
-    const pid = new TextDecoder().decode(rawOutput);
-    log(`the previous version ${version} ceseal pid: ${pid}`);
-    const p = Deno.run({ cmd: ["bash", "-c", `kill -9 ${pid}`] });
-    await p.status();
+    const pid = parseInt(new TextDecoder().decode(rawOutput));
+    log(`kill the previous version ${version} ceseal pid: ${pid}`);
+    Deno.kill(pid, "SIGKILL");
   } else {
     const errorString = new TextDecoder().decode(rawError);
     log(errorString);
