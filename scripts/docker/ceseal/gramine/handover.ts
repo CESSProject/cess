@@ -2,7 +2,7 @@ import * as path from "https://deno.land/std/path/mod.ts";
 import { readStringDelim } from "https://deno.land/std/io/mod.ts";
 import { copySync } from "https://deno.land/std/fs/copy.ts";
 import { sortBy } from "https://deno.land/std@0.214.0/collections/sort_by.ts";
-import { ensureDir, exists } from "https://deno.land/std@0.214.0/fs/mod.ts";
+import { exists } from "https://deno.land/std@0.214.0/fs/mod.ts";
 // import { sleep } from "https://deno.land/x/sleep/mod.ts";
 
 const LOG_PREFIX = "[Handover🤝]"
@@ -98,6 +98,24 @@ async function killPreviousCeseal(version: number) {
   }
 }
 
+function ensureDataDir(dataDir: string) {
+  try {
+    const fileInfo = Deno.lstatSync(dataDir);
+    if (fileInfo.isSymlink) {
+      const target = Deno.readLinkSync(dataDir);
+      Deno.mkdirSync(target, { recursive: true });
+    }
+  } catch (err) {
+    if (err.name === "NotFound") {
+      Deno.mkdirSync(dataDir, { recursive: true });
+    } else {
+      throw err;
+    }
+  }
+  try { Deno.mkdirSync(path.join(dataDir, "protected_files"), { recursive: true }) } catch (err) { console.log(err) }
+  try { Deno.mkdirSync(path.join(dataDir, "storage_files"), { recursive: true }) } catch (err) { console.log(err) }
+}
+
 const currentPath = await Deno.realPath("/opt/ceseal/releases/current");
 const currentVersion = currentPath.split("/").pop();
 log(`Current ${currentPath}`)
@@ -128,8 +146,8 @@ const previousPath = `/opt/ceseal/backups/${previousVersion}`;
 log(`Previous ${previousPath}`);
 
 const previousStoragePath = path.join(previousPath, "data/storage_files");
-const currentProtectedPath = path.join(currentPath, "data/protected_files");
-const currentStoragePath = path.join(currentPath, "data/storage_files");
+const currentDataDir = path.join(currentPath, "data");
+const currentStoragePath = path.join(currentDataDir, "storage_files");
 
 log("starting");
 try { Deno.removeSync("/tmp/ceseal.log") } catch (_err) { }
@@ -146,16 +164,8 @@ try {
 
   // Waiting old bin start, I'm thinking it's good to not get from api but just dump a file then pass to the new one?
   // await sleep(30)  
-  try {
-    await ensureDir(currentProtectedPath);
-  } catch (err) {
-    console.error(err.message)
-  }
-  try {
-    await ensureDir(currentStoragePath);
-  } catch (err) {
-    console.error(err.message)
-  }
+
+  ensureDataDir(currentDataDir);
 
   const command = new Deno.Command(`/opt/ceseal/releases/current/gramine-sgx`, {
     args: [
