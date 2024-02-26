@@ -55,11 +55,11 @@
 // 		127, 154, 815, 651, 397, 576, 697, 358, 880, 73, 629, 66,
 // 	];
 // 	let random_list = [[55u8; 20]; 48];
-pub fn generate_pair_key() {
-    let pair = sp_core::sr25519::Pair::from_string(&format!("{}//Alice", DEV_PHRASE), None).unwrap();
-    let pubkey = pair.public().unwrap();
+// pub fn generate_pair_key() {
+//     let pair = sp_core::sr25519::Pair::from_string(&format!("{}//Alice", DEV_PHRASE), None).unwrap();
+//     let pubkey = pair.public().unwrap();
     
-}
+// }
 
 // 	let mut miner_snapshot_list: BoundedVec<
 // 		MinerSnapShot<AccountOf<T>, BlockNumberOf<T>>,

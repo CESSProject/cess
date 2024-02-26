@@ -1830,10 +1830,10 @@ mod benches {
 		[pallet_oss, Oss]
 		[pallet_cacher, Cacher]
 		// [pallet_storage_handler, StorageHandler]
-		[pallet_sminer, Sminer]
+		[pallet_sminer, SminerBench<Runtime>]
 		// [pallet_audit, AuditBench::<Runtime>]
 		// [pallet_file_bank, FileBankBench::<Runtime>]
-		[pallet_tee_worker, TeeWorker]
+		// [pallet_tee_worker, TeeWorker]
 		// [pallet_oss, Oss]
 		// [pallet_audit, Audit]
 		[pallet_collective::<Instance1>, Council]
@@ -2391,7 +2391,7 @@ impl_runtime_apis! {
 			use frame_system_benchmarking::Pallet as SystemBench;
 			// use pallet_tee_worker::benchmarking::Pallet as TeeWorkerBench;
 			// use pallet_file_bank::benchmarking::Pallet as FileBankBench;
-			// use pallet_sminer::benchmarking::Pallet as SminerBench;
+			use pallet_sminer::benchmarking::Pallet as SminerBench;
 			// use pallet_audit::benchmarking::Pallet as AuditBench;
 			use pallet_evm::Pallet as PalletEvmBench;
 			use baseline::Pallet as BaselineBench;
@@ -2413,13 +2413,13 @@ impl_runtime_apis! {
 			use frame_system_benchmarking::Pallet as SystemBench;
 			// use pallet_tee_worker::benchmarking::Pallet as TeeWorkerBench;
 			// use pallet_file_bank::benchmarking::Pallet as FileBankBench;
-			// use pallet_sminer::benchmarking::Pallet as SminerBench;
+			use pallet_sminer::benchmarking::Pallet as SminerBench;
 			// use pallet_audit::benchmarking::Pallet as AuditBench;
 			use baseline::Pallet as BaselineBench;
 			use frame_support::traits::WhitelistedStorageKeys;
 			impl frame_system_benchmarking::Config for Runtime {}
 			// impl pallet_tee_worker::benchmarking::Config for Runtime{}
-			// impl pallet_sminer::benchmarking::Config for Runtime{}
+			impl pallet_sminer::benchmarking::Config for Runtime{}
 			// impl pallet_file_bank::benchmarking::Config for Runtime{}
 			// impl pallet_audit::benchmarking::Config for Runtime{}
 			impl baseline::Config for Runtime {}

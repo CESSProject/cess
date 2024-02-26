@@ -7500,6 +7500,7 @@ dependencies = [
 name = "pallet-cess-treasury"
 version = "0.7.6"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "log",
@@ -8194,6 +8195,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "hex",
+ "log",
  "pallet-bags-list",
  "pallet-balances",
  "pallet-cess-staking",
