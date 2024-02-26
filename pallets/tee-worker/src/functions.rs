@@ -45,6 +45,12 @@ impl<T: Config> Pallet<T> {
         weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 		Keyfairies::<T>::put(keyfairys);
 
+        ValidationTypeList::<T>::mutate(|puk_list| -> DispatchResult {
+            puk_list.retain(|g| *g != pbk);
+            Ok(())
+        })?;
+        weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+
         Ok(weight)
     }
 }
