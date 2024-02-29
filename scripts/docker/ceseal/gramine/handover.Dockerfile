@@ -13,16 +13,29 @@ ARG BUILD=release
 ARG OA
 ARG VC
 
-RUN : "${IAS_API_KEY:?IAS_API_KEY needs to be set and non-empty.}" \
-    && : "${IAS_SPID:?IAS_SPID needs to be set and non-empty.}" \
-    && mkdir to_build_source \
-    && mkdir prebuilt
-ADD . to_build_source
-RUN cd to_build_source/standalone/teeworker/ceseal/gramine-build && \
-    PATH=$PATH:/root/.cargo/bin make dist PREFIX=/root/prebuilt && \
-    make clean && \
-    rm -rf /root/.cargo/registry && \
-    rm -rf /root/.cargo/git
+RUN <<EOF
+  set -e
+  : "${IAS_API_KEY:?IAS_API_KEY needs to be set and non-empty.}"
+  : "${IAS_SPID:?IAS_SPID needs to be set and non-empty.}"
+  mkdir cess-code
+  mkdir prebuilt
+EOF
+
+COPY ./scripts/docker/cargo-config.toml /usr/local/cargo/config
+COPY pallets ./cess-code/pallets
+COPY crates ./cess-code/crates
+COPY standalone ./cess-code/standalone
+COPY Cargo.toml Cargo.lock rustfmt.toml rust-toolchain.toml Makefile ./cess-code/
+
+RUN <<EOF
+  set -e
+  cd cess-code/standalone/teeworker/ceseal/gramine-build
+  PATH=$PATH:/root/.cargo/bin
+  make dist PREFIX=/root/prebuilt
+  make clean
+  rm -rf /root/.cargo/registry
+  rm -rf /root/.cargo/git
+EOF
 
 # ====== runtime ======
 
@@ -42,11 +55,14 @@ ADD --chmod=0755 ./scripts/docker/ceseal/gramine/start.sh ${CESEAL_DIR}/start.sh
 ADD --chmod=0755 ./scripts/docker/ceseal/gramine/start-with-handover.sh ${CESEAL_HOME}/start.sh
 ADD ./scripts/docker/ceseal/gramine/handover.ts ${CESEAL_HOME}/handover.ts
 
-RUN ln -s ${CESEAL_DIR} ${CESEAL_HOME}/releases/current \
-    && mkdir -p ${REAL_CESEAL_DATA_DIR} \
-    && rm -rf ${CESEAL_DIR}/data \
-    && ln -s ${REAL_CESEAL_DATA_DIR} ${CESEAL_DIR}/data \
-    && deno cache --reload ${CESEAL_HOME}/handover.ts
+RUN <<EOF
+  set -e
+  ln -s ${CESEAL_DIR} ${CESEAL_HOME}/releases/current
+  mkdir -p ${REAL_CESEAL_DATA_DIR}
+  rm -rf ${CESEAL_DIR}/data
+  ln -s ${REAL_CESEAL_DATA_DIR} ${CESEAL_DIR}/data
+  deno cache --reload ${CESEAL_HOME}/handover.ts
+EOF
 
 WORKDIR ${CESEAL_HOME}/releases/current
 

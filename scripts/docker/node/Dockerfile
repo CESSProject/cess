@@ -1,10 +1,15 @@
 FROM cesslab/rust-chef-protoc-env:latest as chef
 WORKDIR /node
+COPY ./scripts/docker/cargo-config.toml /usr/local/cargo/config
 
 FROM chef AS planner
-COPY ./scripts/docker/cargo-config.toml /usr/local/cargo/config
-COPY . .
-RUN cargo chef prepare --recipe-path recipe.json
+
+COPY pallets pallets
+COPY crates crates
+COPY standalone standalone
+COPY Cargo.toml Cargo.lock rustfmt.toml rust-toolchain.toml Makefile ./
+
+RUN --mount=type=cache,target=/usr/local/cargo/registry cargo chef prepare --recipe-path recipe.json
 
 ## build Rust project use caching manner
 FROM chef AS builder
@@ -14,14 +19,15 @@ ARG BUILD=release
 ARG OA
 ARG VC
 
-COPY ./scripts/docker/cargo-config.toml /usr/local/cargo/config
 COPY --from=planner /node/recipe.json recipe.json
-
 # Build dependencies - this is the caching Docker layer!
-RUN cargo chef cook --release --recipe-path recipe.json
+RUN --mount=type=cache,target=/usr/local/cargo/registry cargo chef cook --release --recipe-path recipe.json
 
 # Build application
-COPY . .
+COPY pallets pallets
+COPY crates crates
+COPY standalone standalone
+COPY Cargo.toml Cargo.lock rustfmt.toml rust-toolchain.toml Makefile ./
 
 RUN make node
 
