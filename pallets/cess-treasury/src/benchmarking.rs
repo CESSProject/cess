@@ -1,7 +1,6 @@
 #![cfg(feature = "runtime-benchmarks")]
 
 use super::*;
-use crate::{Pallet as CessTreasury};
 
 pub fn initialize_reward<T: Config>() {
     let era_reward: BalanceOf<T> = 365_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");

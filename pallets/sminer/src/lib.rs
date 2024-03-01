@@ -574,6 +574,7 @@ pub mod pallet {
 						let diff = now.checked_sub(&order.last_receive_block).ok_or(Error::<T>::Overflow)?;
 						if diff >= one_day {
 							let count = diff.checked_div(&one_day).ok_or(Error::<T>::Overflow)?;
+
 							let avail_count: u8;
 							if order.receive_count.saturating_add(count.saturated_into()) > order.max_count {
 								avail_count = order.max_count.checked_sub(order.receive_count).ok_or(Error::<T>::Unexpected)?;
@@ -599,7 +600,7 @@ pub mod pallet {
 
 					reward.order_list.retain(|order| order.max_count != order.receive_count);
 
-					reward.reward_issued.checked_add(&avail_reward).ok_or(Error::<T>::Overflow)?;
+					reward.reward_issued = reward.reward_issued.checked_add(&avail_reward).ok_or(Error::<T>::Overflow)?;
 
 					T::RewardPool::send_reward_to_miner(miner.beneficiary, avail_reward)?;
 
@@ -629,7 +630,7 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 
 			let now = <frame_system::Pallet<T>>::block_number();
-			if let Ok(lock_time) = <MinerLock<T>>::try_get(&sender) {
+			if let Ok(lock_time) = <MinerLock<T>>::try_get(&miner) {
 				ensure!(now > lock_time, Error::<T>::StateError);
 			}
 			let staking_start_block = <StakingStartBlock<T>>::try_get(&miner).map_err(|_| Error::<T>::BugInvalid)?;

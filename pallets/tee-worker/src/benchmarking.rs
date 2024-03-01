@@ -30,8 +30,6 @@ const KEY_ID: KeyTypeId = KeyTypeId(*b"xyjj");
 pub fn generate_workers<T: Config>() -> DispatchResult {
     let (stash_account, _) = pallet_cess_staking::testing_utils::create_stash_controller::<T>(USER_SEED, 100, Default::default())?;
     let pubkey = sr25519_generate(KEY_ID, None);
-    log::info!("pubkey1: {:?}", pubkey);
-    log::info!("pubkey1: {:?}", pubkey.0);
     <MasterPubkey<T>>::put(pubkey);
     let worker_info = WorkerInfo::<AccountOf<T>> {
         pubkey,
