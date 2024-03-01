@@ -761,6 +761,106 @@ pub mod pallet {
 
 			Ok(())
 		}
+		// FOR TEST
+		#[pallet::call_index(11)]
+		#[transactional]
+		#[pallet::weight(Weight::zero())]
+		pub fn point_miner_challenge(
+			origin: OriginFor<T>,
+			miner: AccountOf<T>,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			let miner = &miner;
+			let now = <frame_system::Pallet<T>>::block_number();
+			if <ChallengeSnapShot<T>>::contains_key(miner) {
+				return Ok(())
+			}
+
+			let miner_snapshot = match T::MinerControl::get_miner_snapshot(miner) {
+				Ok(miner_snapshot) => miner_snapshot,
+				Err(_) => return Ok(()),
+			};
+
+			let (idle_space, service_space, service_bloom_filter, space_proof_info, tee_signature) =
+				miner_snapshot;
+
+			if idle_space + service_space == 0 {
+				return Ok(())
+			}
+
+			let service_param = match Self::generate_miner_qelement(now.saturated_into()) {
+				Ok(service_param) => service_param,
+				Err(e) => {
+					log::info!("audit: {:?}", e);
+					return Ok(())
+				},
+			};
+			let space_param = match Self::generate_miner_space_param(now.saturated_into()) {
+				Ok(space_param) => space_param,
+				Err(e) => {
+					log::info!("audit: {:?}", e);
+					return Ok(())
+				},
+			};
+
+			let idle_life: u32 =
+				(idle_space.saturating_div(IDLE_PROVE_RATE).saturating_add(50)) as u32;
+			let idle_slip = now.saturating_add(idle_life.saturated_into());
+
+			let service_life: u32 =
+				(service_space.saturating_div(SERVICE_PROVE_RATE).saturating_add(50)) as u32;
+			let service_slip = now.saturating_add(service_life.saturated_into());
+
+			let max_slip = {
+				if idle_slip > service_slip {
+					idle_slip
+				} else {
+					service_slip
+				}
+			};
+
+			let one_hour = T::OneHours::get();
+			let tee_length = T::TeeWorkerHandler::get_pubkey_list().len();
+			if tee_length == 0 {
+				return Ok(());
+			}
+			let verify_life: u32 = (idle_space
+				.saturating_add(service_space)
+				.saturating_div(IDLE_VERIFY_RATE)
+				.saturating_div(tee_length as u128)) as u32;
+			let verify_slip =
+				max_slip.saturating_add(verify_life.saturated_into()).saturating_add(one_hour);
+
+			let challenge_info = ChallengeInfo::<T> {
+				miner_snapshot: MinerSnapShot::<T> {
+					idle_space,
+					service_space,
+					service_bloom_filter,
+					space_proof_info,
+					tee_signature,
+				},
+				challenge_element: ChallengeElement::<T> {
+					start: now,
+					idle_slip,
+					service_slip,
+					verify_slip,
+					space_param,
+					service_param,
+				},
+				prove_info: ProveInfo::<T> {
+					assign: u8::MIN,
+					idle_prove: None,
+					service_prove: None,
+				},
+			};
+
+			<ChallengeSnapShot<T>>::insert(&miner, challenge_info);
+			<ChallengeSlip<T>>::insert(&max_slip, &miner, true);
+			<VerifySlip<T>>::insert(&verify_slip, &miner, true);
+
+			Ok(())
+		}
 	}
 
 	impl<T: Config> Pallet<T> {
@@ -797,7 +897,7 @@ pub mod pallet {
 							weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 						}
 
-						if count >= 3 {
+						if count >= 20 {
 							let result = T::MinerControl::force_miner_exit(&miner);
 							weight = weight.saturating_add(T::DbWeight::get().reads_writes(5, 5));
 							if result.is_err() {

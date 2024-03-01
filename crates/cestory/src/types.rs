@@ -14,11 +14,13 @@ extern crate runtime as chain;
 pub type KeyfairyReadySender = oneshot::Sender<CesealProperties>;
 pub type KeyfairyReadyReceiver = oneshot::Receiver<CesealProperties>;
 pub type ThreadPoolSafeBox = Arc<Mutex<ThreadPool>>;
+pub type MasterKey = sp_core::sr25519::Pair;
 
 #[derive(Clone)]
 pub struct CesealProperties {
     pub role: WorkerRole,
     pub podr2_key: ces_pdp::Keys,
+    pub master_key: MasterKey,
     pub identity_key: WorkerIdentityKey,
     pub cores: u32,
 }

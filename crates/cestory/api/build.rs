@@ -35,4 +35,5 @@ fn main() {
 
     tonic_build::compile_protos("proto/pois-api.proto").unwrap();
     tonic_build::compile_protos("proto/podr2-api.proto").unwrap();
+    tonic_build::compile_protos("proto/pubkeys.proto").unwrap();
 }

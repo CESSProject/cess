@@ -793,6 +793,18 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		#[pallet::call_index(115)]
+		#[pallet::weight({0})]
+		pub fn patch_clear_invalid_tee(origin: OriginFor<T>) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+			ValidationTypeList::<T>::mutate(|puk_list| -> DispatchResult {
+				puk_list.retain(|g| Endpoints::<T>::contains_key(g));
+				Ok(())
+			})?;
+			
+			Ok(())
+		}
 	}
 
 	impl<T: Config> ces_pallet_mq::MasterPubkeySupplier for Pallet<T> {

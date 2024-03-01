@@ -279,4 +279,12 @@ where
     pub fn rsa_private_key(&self) -> &rsa::RsaPrivateKey {
         &self.rsa_key
     }
+
+    pub fn master_key(&self) -> &sr25519::Pair {
+        &self.master_key
+    }
+
+    pub fn podr2_key_pair(&self) -> ces_pdp::Keys {
+        ces_pdp::gen_keypair_from_private_key(self.rsa_key.clone())
+    }
 }
