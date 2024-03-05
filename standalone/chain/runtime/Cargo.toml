@@ -214,7 +214,7 @@ runtime-benchmarks = [
   # "pallet-file-bank/runtime-benchmarks",
   "pallet-oss/runtime-benchmarks",
   "pallet-sminer/runtime-benchmarks",
-  # "pallet-storage-handler/runtime-benchmarks",
+  "pallet-storage-handler/runtime-benchmarks",
   "pallet-tee-worker/runtime-benchmarks",
   "pallet-cess-treasury/runtime-benchmarks",
   "pallet-timestamp/runtime-benchmarks",

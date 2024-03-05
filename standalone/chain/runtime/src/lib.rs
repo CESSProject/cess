@@ -1829,7 +1829,7 @@ mod benches {
 		[pallet_contracts, Contracts]
 		[pallet_oss, Oss]
 		[pallet_cacher, Cacher]
-		// [pallet_storage_handler, StorageHandler]
+		[pallet_storage_handler, StorageHandler]
 		[pallet_sminer, SminerBench<Runtime>]
 		// [pallet_audit, AuditBench::<Runtime>]
 		// [pallet_file_bank, FileBankBench::<Runtime>]
