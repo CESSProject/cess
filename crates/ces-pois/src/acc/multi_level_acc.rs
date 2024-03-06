@@ -81,7 +81,12 @@ pub fn verify_mutilevel_acc(key: &RsaKey, wits: Option<&mut WitnessNode>, acc: &
     current_wit.elem.eq(acc)
 }
 
-pub fn verify_mutilevel_acc_for_batch(key: &RsaKey, base_idx: i64, wits: Vec<WitnessNode>, acc: &[u8]) -> bool {
+pub fn verify_mutilevel_acc_for_batch(
+    key: &RsaKey,
+    base_idx: i64,
+    wits: Vec<WitnessNode>,
+    acc: &[u8],
+) -> bool {
     let mut sub_acc: Option<Vec<u8>> = None;
     let default_elems_num = DEFAULT_ELEMS_NUM as i64;
     for (i, witness) in wits.iter().enumerate() {
@@ -101,7 +106,12 @@ pub fn verify_mutilevel_acc_for_batch(key: &RsaKey, base_idx: i64, wits: Vec<Wit
 
         let mut rng = rand::thread_rng();
         if rng.gen_range(0..100) < 25
-            && !verify_acc(key, &witness.acc.clone().unwrap().elem, &witness.elem, &witness.wit)
+            && !verify_acc(
+                key,
+                &witness.acc.clone().unwrap().elem,
+                &witness.elem,
+                &witness.wit,
+            )
         {
             return false;
         }
