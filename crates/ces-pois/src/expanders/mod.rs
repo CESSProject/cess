@@ -108,14 +108,14 @@ pub fn get_bytes<T: ToPrimitive>(v: T) -> Vec<u8> {
     bytes
 }
 
-pub fn get_bytes_slice<T: ToPrimitive>(v: &[T]) -> Vec<u8> {
+pub fn get_bytes_slice<T: ToPrimitive>(values: &[T]) -> Vec<u8> {
     let size = mem::size_of::<T>();
-    let mut bytes = Vec::with_capacity(std::mem::size_of_val(v) * size);
+    let mut bytes = Vec::with_capacity(size * values.len());
 
-    for value in v {
-        let value = value.to_i64().unwrap();
+    for v in values {
+        let value = v.to_i64().unwrap();
         for i in 0..size {
-            bytes.push(((value >> (8 * i)) & 0xFF) as u8);
+            bytes.push(((value >> (8 * (size - 1 - i))) & 0xFF) as u8);
         }
     }
 
@@ -123,7 +123,7 @@ pub fn get_bytes_slice<T: ToPrimitive>(v: &[T]) -> Vec<u8> {
 }
 
 pub fn bytes_to_node_value(data: &[u8], max: i64) -> NodeType {
-    let value = BigInt::from_bytes_be(num_bigint_dig::Sign::Plus,data);
+    let value = BigInt::from_bytes_be(num_bigint_dig::Sign::Plus, data);
     let big_max = BigInt::from(max);
 
     let value = value % &big_max;
