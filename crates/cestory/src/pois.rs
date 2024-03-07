@@ -4,6 +4,7 @@ use ces_pdp::Keys;
 use ces_pois::{
     acc::{multi_level_acc::WitnessNode, rsa_keygen, RsaKey},
     pois::{
+        challenge,
         prove::{AccProof, CommitProof, Commits, DeletionProof, MhtProof, SpaceProof},
         verify::{ProverNode, Verifier},
     },
@@ -641,6 +642,8 @@ impl PoisVerifierApi for PoisVerifierServer {
             .collect::<Vec<u64>>()
             .try_into()
             .map_err(|_| Status::invalid_argument("space_chals parameters passed incorrectly!"))?;
+        let front: i64 = req.front;
+        let rear: i64 = req.rear;
         let miner_cess_address = get_ss58_address(&miner_id)?;
         let now = Instant::now();
         info!("[Verify Space Total] miner {:?} verify space proof tatal...", miner_cess_address);
@@ -656,39 +659,55 @@ impl PoisVerifierApi for PoisVerifierServer {
 
         //check proof list validity,simultaneously set it in haser
         let mut result = true;
-
         let mut total_proof_hasher = Sha256::new();
-        for proof in &blocks_proof {
-            if !is_valid_proof(proof, &self.podr2_keys, self.ceseal_identity_key.to_vec())? {
-                result = false;
-                break
-            };
-            total_proof_hasher.input(&proof.space_proof_hash);
-        }
 
-        //check whether the left and right in the proof are continuous in the entire [front, rear] interval
-        //The rule:
-        //left = front + 1
-        //right = rear + 1
-        let front: i64 = req.front;
-        let rear: i64 = req.rear;
-        if result {
-            let mut prev_right = front + 1;
+        /*check whether the left and right in the proof are continuous in the entire [front, rear] interval
+            The rule is:
+            left = front + 1
+            right = rear + 1
+        if pois chanllenge will check all blocks , uncomment this
+        */
+        // if result {
+        //     let mut prev_right = front + 1;
+        //     for proof in &blocks_proof {
+        //         if proof.left == prev_right {
+        //             //do nothing
+        //         } else {
+        //             warn!("Provide a complete sequence of blocks for verification! the previous block right: {}, the
+        // left of this block is {}", prev_right, proof.left);             result = false;
+        //             break
+        //         }
+        //         prev_right = proof.right;
+        //     }
+        //     if prev_right != rear + 1 {
+        //         warn!("The right({}) and rear({}) numbers of the last block do not equal", prev_right, rear);
+        //         result = false;
+        //     }
+        // }
+
+        if let Some(mut call) = challenge::new_challenge_handle(
+            &miner_id,
+            &self.ceseal_identity_key,
+            &req.space_chals,
+            front,
+            rear,
+            proof_list.len() as i64,
+        ) {
             for proof in &blocks_proof {
-                if proof.left == prev_right {
-                    //do nothing
+                if call(&proof.space_proof_hash, proof.left, proof.right) {
+                    if !is_valid_proof(proof, &self.podr2_keys, self.ceseal_identity_key.to_vec())? {
+                        result = false;
+                        break
+                    };
+                    total_proof_hasher.input(&proof.space_proof_hash);
                 } else {
-                    warn!("Provide a complete sequence of blocks for verification! the previous block right: {}, the left of this block is {}", prev_right, proof.left);
-                    result = false;
-                    break
+                    break;
                 }
-                prev_right = proof.right;
             }
-            if prev_right != rear + 1 {
-                warn!("The right({}) and rear({}) numbers of the last block do not equal", prev_right, rear);
-                result = false;
-            }
-        }
+        } else {
+            return Err(Status::unauthenticated("Verify miner challenge failed, challenge handle create fail!"))
+        };
+
         //Concatenate all hashes to calculate the total hash
         let mut total_proof_hash = vec![0u8; 32];
         total_proof_hasher.result(&mut total_proof_hash);
