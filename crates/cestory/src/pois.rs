@@ -693,16 +693,18 @@ impl PoisVerifierApi for PoisVerifierServer {
             rear,
             proof_list.len() as i64,
         ) {
-            for proof in &blocks_proof {
-                if call(&proof.space_proof_hash, proof.left, proof.right) {
-                    if !is_valid_proof(proof, &self.podr2_keys, self.ceseal_identity_key.to_vec())? {
+            let mut space_proof_hash = Vec::new();
+            for serial in 0..blocks_proof.len() {
+                if call(&space_proof_hash, blocks_proof[serial].left, blocks_proof[serial].right) {
+                    if !is_valid_proof(&blocks_proof[serial], &self.podr2_keys, self.ceseal_identity_key.to_vec())? {
                         result = false;
                         break
                     };
-                    total_proof_hasher.input(&proof.space_proof_hash);
+                    total_proof_hasher.input(&blocks_proof[serial].space_proof_hash);
                 } else {
-                    break;
+                    break
                 }
+                space_proof_hash = blocks_proof[serial].space_proof_hash.clone()
             }
         } else {
             return Err(Status::unauthenticated("Verify miner challenge failed, challenge handle create fail!"))
