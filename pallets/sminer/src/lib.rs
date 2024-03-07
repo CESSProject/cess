@@ -310,6 +310,28 @@ pub mod pallet {
 				BoundedVec<(AccountOf<T>, BalanceOf<T>), T::ItemLimit>,
 				ValueQuery,
 			>;
+	
+	#[pallet::storage]
+	#[pallet::getter(fn complete_snap_shot)]
+		pub(super) type CompleteSnapShot<T: Config> = 
+			StorageMap<
+				_,
+				Blake2_128Concat,
+				u32,
+				CompleteInfo,
+				ValueQuery,
+			>;
+	
+	#[pallet::storage]
+	#[pallet::getter(fn complete_miner_snap_shot)]
+		pub(super) type CompleteMinerSnapShot<T: Config> = 
+			StorageMap<
+				_,
+				Blake2_128Concat,
+				AccountOf<T>,
+				BoundedVec<MinerCompleteInfo<BlockNumberFor<T>>, ConstU32<{RELEASE_NUMBER as u32}>>,
+				ValueQuery,
+			>;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -563,6 +585,8 @@ pub mod pallet {
 					miner.state == STATE_POSITIVE.as_bytes().to_vec() || miner.state == STATE_EXIT.as_bytes().to_vec(),
 					Error::<T>::NotpositiveState
 				);
+
+				Self::calculate_miner_reward(&sender)?;
 
 				<RewardMap<T>>::try_mutate(&sender, |opt_reward| -> DispatchResult {
 					let reward = opt_reward.as_mut().ok_or(Error::<T>::Unexpected)?;
@@ -1064,10 +1088,8 @@ pub trait MinerControl<AccountId, BlockNumber> {
 
 	fn get_miner_idle_space(acc: &AccountId) -> Result<u128, DispatchError>;
 	fn get_miner_count() -> u32;
-	fn calculate_miner_reward(
-		miner: &AccountId, 
-		total_idle_space: u128,
-		total_service_space: u128,
+	fn record_snap_shot(
+		miner: &AccountId,
 		miner_idle_space: u128,
 		miner_service_space: u128,
 	) -> DispatchResult;
@@ -1221,21 +1243,43 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 	fn get_miner_count() -> u32 {
 		<MinerItems<T>>::count()
 	}
-
-	fn calculate_miner_reward(
-		miner: &AccountOf<T>, 
-		total_idle_space: u128,
-		total_service_space: u128,
+	
+	fn record_snap_shot(
+		miner: &AccountOf<T>,
 		miner_idle_space: u128,
 		miner_service_space: u128,
 	) -> DispatchResult {
-		Self::calculate_miner_reward(
-			miner, 
-			total_idle_space, 
-			total_service_space, 
-			miner_idle_space, 
-			miner_service_space
-		)
+		let now = frame_system::Pallet::<T>::block_number();
+		let one_day = T::OneDayBlock::get();
+		let round: u32 = now
+			.checked_div(&one_day).ok_or(Error::<T>::Overflow)?
+			.try_into().map_err(|_| Error::<T>::Overflow)?;
+		let power = Self::calculate_power(miner_idle_space, miner_service_space);
+
+		<CompleteMinerSnapShot<T>>::mutate(miner, |miner_info_list| -> DispatchResult {
+			let snap_shot = MinerCompleteInfo::<BlockNumberFor<T>> {
+				issued: false,
+				finsh_block: now,
+				power: power,
+			};
+
+			if miner_info_list.len() == RELEASE_NUMBER as usize {
+				return Ok(())
+			}
+
+			<CompleteSnapShot<T>>::mutate(&round, |complete_info| -> DispatchResult {
+				complete_info.miner_count = complete_info.miner_count.checked_add(1).ok_or(Error::<T>::Overflow)?;
+				complete_info.total_power = complete_info.total_power.checked_add(power).ok_or(Error::<T>::Overflow)?;
+	
+				Ok(())
+			})?;
+
+			miner_info_list.try_push(snap_shot).map_err(|_| Error::<T>::Overflow)?;
+
+			Ok(())
+		})?;
+
+		Ok(())
 	}
 
 	fn clear_punish(

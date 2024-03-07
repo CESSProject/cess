@@ -1,3 +1,5 @@
+use core::f64::consts::E;
+
 use sp_runtime::traits::CheckedDiv;
 
 use super::*;
@@ -160,45 +162,84 @@ impl<T: Config> Pallet<T> {
 
     pub(super) fn calculate_miner_reward(
 		miner: &AccountOf<T>,
-		total_idle_space: u128,
-		total_service_space: u128,
-		miner_idle_space: u128,
-		miner_service_space: u128,
 	) -> DispatchResult {
-		let total_reward = T::RewardPool::get_reward_base();
-		let total_power = Self::calculate_power(total_idle_space, total_service_space);
-		let miner_power = Self::calculate_power(miner_idle_space, miner_service_space);
+		let now = frame_system::Pallet::<T>::block_number();
+		let one_day = T::OneDayBlock::get();
+		let order_list = <CompleteMinerSnapShot<T>>::mutate(&miner, |snap_shot_list| -> Result<Vec<RewardOrder::<BalanceOf<T>, BlockNumberFor<T>>>, DispatchError> {
+			if snap_shot_list.len() == 0 {
+				return Ok(Default::default());
+			}
 
-		let miner_prop = Perbill::from_rational(miner_power, total_power);
-		let this_round_reward = miner_prop.mul_floor(total_reward);
-		let each_reward = AOIR_PERCENT
-			.mul_floor(this_round_reward)
-			.checked_div(&RELEASE_NUMBER.into()).ok_or(Error::<T>::Overflow)?;
-		let now = <frame_system::Pallet<T>>::block_number();
+			let mut order_list: Vec<RewardOrder::<BalanceOf<T>, BlockNumberFor<T>>> = Default::default();
 
-		let order = RewardOrder::<BalanceOf<T>, BlockNumberFor<T>> {
-			receive_count: u8::MIN,
-			max_count: RELEASE_NUMBER,
-			atonce: false,
-			order_reward: this_round_reward.try_into().map_err(|_| Error::<T>::Overflow)?,
-			each_amount: each_reward,
-			last_receive_block: now,
-		};
+			for snap_shot in snap_shot_list.into_iter() {
+				if snap_shot.issued == false {
+					let lock_block = snap_shot.finsh_block.checked_add(&one_day).ok_or(Error::<T>::Overflow)?;
+					if lock_block < now {
+						continue;
+					}
+
+					let round: u32 = snap_shot.finsh_block
+						.checked_div(&one_day).ok_or(Error::<T>::Overflow)?
+						.try_into().map_err(|_| Error::<T>::Overflow)?;
+
+					let total_power = <CompleteSnapShot<T>>::get(round).total_power;
+					let total_reward = T::RewardPool::get_round_reward(round);
+					if total_reward == BalanceOf::<T>::zero() {
+						Err(Error::<T>::Unexpected)?;
+					}
+					let miner_prop = Perbill::from_rational(snap_shot.power, total_power);
+					let this_round_reward = miner_prop.mul_floor(total_reward);
+					T::RewardPool::sub_round_reward(round, this_round_reward)?;
+					let each_reward = AOIR_PERCENT
+						.mul_floor(this_round_reward)
+						.checked_div(&RELEASE_NUMBER.into()).ok_or(Error::<T>::Overflow)?;
+					let order = RewardOrder::<BalanceOf<T>, BlockNumberFor<T>> {
+						receive_count: 0,
+						max_count: RELEASE_NUMBER,
+						atonce: false,
+						order_reward: this_round_reward,
+						each_amount: each_reward,
+						last_receive_block: snap_shot.finsh_block,
+					};
+					order_list.push(order);
+					snap_shot.issued = true;
+				}
+			}
+
+			snap_shot_list.retain(|snap_shot| snap_shot.issued == false);
+
+			Ok(order_list)
+		})?;
+
+		if order_list.len() == 0 {
+			return Ok(());
+		}
 		
 		// calculate available reward
 		RewardMap::<T>::try_mutate(miner, |opt_reward_info| -> DispatchResult {
 			let reward_info = opt_reward_info.as_mut().ok_or(Error::<T>::Unexpected)?;
 			// traverse the order list
 
+			let mut flag = true;
 			if reward_info.order_list.len() == RELEASE_NUMBER as usize {
-				return Ok(());
+				flag = false;
 			}
 
-			reward_info.total_reward = reward_info.total_reward
-				.checked_add(&this_round_reward).ok_or(Error::<T>::Overflow)?;
-			reward_info.order_list.try_push(order.clone()).map_err(|_| Error::<T>::BoundedVecError)?;
-
-			T::RewardPool::sub_reward(order.order_reward)?;
+			let mut new_reward = BalanceOf::<T>::zero();
+			for order in order_list {
+				if flag {
+					reward_info.total_reward = reward_info.total_reward
+						.checked_add(&order.order_reward).ok_or(Error::<T>::Overflow)?;
+					new_reward = new_reward.checked_add(&order.order_reward).ok_or(Error::<T>::Overflow)?;
+					reward_info.order_list.try_push(order.clone()).map_err(|_| Error::<T>::BoundedVecError)?;
+				} else {
+					new_reward = new_reward.checked_add(&order.order_reward).ok_or(Error::<T>::Overflow)?;
+					T::RewardPool::reward_reserve(order.order_reward)?;
+				}
+			}
+			
+			T::RewardPool::sub_reward(new_reward)?;
 
 			Ok(())
 		})?;

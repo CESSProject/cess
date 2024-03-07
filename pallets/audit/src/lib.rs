@@ -537,13 +537,8 @@ pub mod pallet {
 				if let Some(service_prove) = &challenge_info.prove_info.service_prove {
 					if let Some(service_result) = service_prove.verify_result {
 						if idle_result && service_result {
-							let total_idle_space = T::StorageHandle::get_total_idle_space();
-							let total_service_space = T::StorageHandle::get_total_service_space();
-
-							T::MinerControl::calculate_miner_reward(
+							T::MinerControl::record_snap_shot(
 								&sender,
-								total_idle_space,
-								total_service_space,
 								*idle_space,
 								*service_space,
 							)?;
@@ -669,13 +664,8 @@ pub mod pallet {
 				if let Some(idle_prove) = &challenge_info.prove_info.idle_prove {
 					if let Some(idle_result) = idle_prove.verify_result {
 						if idle_result && service_result {
-							let total_idle_space = T::StorageHandle::get_total_idle_space();
-							let total_service_space = T::StorageHandle::get_total_service_space();
-
-							T::MinerControl::calculate_miner_reward(
+							T::MinerControl::record_snap_shot(
 								&sender,
-								total_idle_space,
-								total_service_space,
 								idle_space,
 								service_space,
 							)?;
