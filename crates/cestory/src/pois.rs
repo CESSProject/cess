@@ -695,6 +695,7 @@ impl PoisVerifierApi for PoisVerifierServer {
         ) {
             let mut space_proof_hash = Vec::new();
             for serial in 0..blocks_proof.len() {
+                info!("block proof index is:{},left is:{},right is:{},space_proof_hash is:{:?}",serial,blocks_proof[serial].left,blocks_proof[serial].right,blocks_proof[serial].space_proof_hash.clone());
                 if call(&space_proof_hash, blocks_proof[serial].left, blocks_proof[serial].right) {
                     if !is_valid_proof(&blocks_proof[serial], &self.podr2_keys, self.ceseal_identity_key.to_vec())? {
                         result = false;
@@ -713,6 +714,12 @@ impl PoisVerifierApi for PoisVerifierServer {
         //Concatenate all hashes to calculate the total hash
         let mut total_proof_hash = vec![0u8; 32];
         total_proof_hasher.result(&mut total_proof_hash);
+        info!("-----------------------total_proof_hash:{:?}",total_proof_hash.clone());
+        info!("-----------------------front:{}",front);
+        info!("-----------------------rear:{}",rear);
+        info!("-----------------------acc:{:?}",acc.clone());
+        info!("-----------------------space_chals:{:?}",space_chals.clone());
+        info!("-----------------------result:{}",result);
 
         //compute signature
         let sig_struct = ResponseSpaceProofVerifyTotalSignatureMember {
