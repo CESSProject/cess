@@ -1025,3 +1025,17 @@ impl From<AccountConvertError> for Status {
         Status::internal(value.0)
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_hash256(){
+        let mut total_proof_hasher = Sha256::new();
+        total_proof_hasher.input(&vec![81, 64, 6, 253, 142, 97, 167, 41, 81, 81, 79, 79, 234, 10, 45, 183, 213, 117, 255, 197, 252, 145, 122, 123, 74, 214, 1, 22, 84, 230, 86, 45]);
+        let mut total_proof_hash = vec![0u8; 32];
+        total_proof_hasher.result(&mut total_proof_hash);
+        println!("total proof hash is :{:?}",total_proof_hash);
+    }
+}
