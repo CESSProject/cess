@@ -21,7 +21,7 @@ pub fn new_challenge_handle(
 
     let start = front / file_num;
     let mut count: i64 = 0;
-    let total = (rear - front + front % file_num) / (file_num * group_size);
+    let total = (rear - front + front % file_num - 1) / (file_num * group_size) + 1;
 
     if total > proof_num {
         return None;
@@ -31,10 +31,14 @@ pub fn new_challenge_handle(
         if !prior_hash.is_empty() {
             source[front_size..].copy_from_slice(prior_hash);
         }
+        let mut max = group_size - 1;
+        if count == total - 1 {
+            max = rear / file_num - (start + count * group_size)
+        }
         let hash = get_hash(&source);
-        let v = expanders::bytes_to_node_value(&hash, group_size - 1) as i64;
+        let v = expanders::bytes_to_node_value(&hash, max) as i64;
         let mut l = (start + count * group_size + v) * file_num + 1;
-        let r = (l / file_num) * file_num + 256;
+        let r = (l / file_num + 1) * file_num;
         if l < front {
             l = front + 1;
         }
