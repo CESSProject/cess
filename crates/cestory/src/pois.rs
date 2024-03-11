@@ -685,6 +685,12 @@ impl PoisVerifierApi for PoisVerifierServer {
         //     }
         // }
 
+        info!("miner id :{:?}",miner_id.clone());
+        info!("req.space_chals is :{:?}",req.space_chals.clone());
+        info!("front is :{}",front);
+        info!("rear is :{}",rear);
+        info!("proof_list.len() is :{}",proof_list.len() as i64);
+
         if let Some(mut call) = challenge::new_challenge_handle(
             &miner_id,
             &[0u8; 32],
