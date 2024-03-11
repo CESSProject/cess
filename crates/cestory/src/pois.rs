@@ -687,7 +687,7 @@ impl PoisVerifierApi for PoisVerifierServer {
 
         if let Some(mut call) = challenge::new_challenge_handle(
             &miner_id,
-            &self.ceseal_identity_key,
+            &[0u8; 32],
             &req.space_chals,
             front,
             rear,
