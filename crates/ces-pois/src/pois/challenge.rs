@@ -10,11 +10,11 @@ pub fn new_challenge_handle(
 ) -> Option<impl FnMut(&[u8], i64, i64) -> bool> {
     let bytes_chal = expanders::get_bytes_slice(chal);
     let front_size = miner_id.len() + tee_id.len() + bytes_chal.len();
-    let mut source = Vec::with_capacity(front_size + 64);
+    let mut source = Vec::with_capacity(front_size + 32);
     source.extend_from_slice(miner_id);
     source.extend_from_slice(tee_id);
     source.extend_from_slice(&bytes_chal);
-    source.extend_from_slice(&vec![0; 64]);
+    source.extend_from_slice(&vec![0; 32]);
     println!("------------------------challenge inside:{:?}",source.clone());
 
     let file_num: i64 = 256;
