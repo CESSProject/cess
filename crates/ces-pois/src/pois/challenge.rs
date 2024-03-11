@@ -15,6 +15,7 @@ pub fn new_challenge_handle(
     source.extend_from_slice(tee_id);
     source.extend_from_slice(&bytes_chal);
     source.extend_from_slice(&vec![0; 64]);
+    println!("------------------------challenge inside:{:?}",source.clone());
 
     let file_num: i64 = 256;
     let group_size: i64 = 16;
@@ -28,6 +29,7 @@ pub fn new_challenge_handle(
     }
 
     Some(move |prior_hash: &[u8], left: i64, right: i64| -> bool {
+        println!("prior hash is :{:?} is empty{}",prior_hash,prior_hash.is_empty());
         if !prior_hash.is_empty() {
             source[front_size..].copy_from_slice(prior_hash);
         }
@@ -39,6 +41,7 @@ pub fn new_challenge_handle(
         let v = expanders::bytes_to_node_value(&hash, max) as i64;
         let mut l = (start + count * group_size + v) * file_num + 1;
         let r = ((l - 1) / file_num + 1) * file_num + 1;
+        println!("v:{},l:{},r:{}",v,l,r);
         if l < front {
             l = front + 1;
         }
