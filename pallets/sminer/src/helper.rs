@@ -175,7 +175,7 @@ impl<T: Config> Pallet<T> {
 			for snap_shot in snap_shot_list.into_iter() {
 				if snap_shot.issued == false {
 					let lock_block = snap_shot.finsh_block.checked_add(&one_day).ok_or(Error::<T>::Overflow)?;
-					if lock_block < now {
+					if lock_block > now {
 						continue;
 					}
 
