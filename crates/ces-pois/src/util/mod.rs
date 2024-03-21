@@ -36,3 +36,21 @@ fn get_key_from_bytes(data: &[u8]) -> RsaKey {
     let g = BigUint::from_bytes_be(&data[16 + nl as usize..]);
     RsaKey::new(n, g)
 }
+
+pub fn add_data(target: &mut [u8], src: &[&[u8]]) {
+    let target_len = target.len();
+    for s in src {
+        if s.len() < target_len {
+            continue;
+        }
+        for (i, elem) in target.iter_mut().enumerate() {
+            *elem ^= s[i];
+        }
+    }
+}
+
+pub fn clear_data(target: &mut [u8]) {
+    for element in target.iter_mut() {
+        *element = 0;
+    }
+}

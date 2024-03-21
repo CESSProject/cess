@@ -18,7 +18,7 @@ use crate::expanders::{
 };
 use crate::expanders::{get_bytes, NodeType};
 use crate::tree::{check_index_path, verify_path_proof, PathProof, DEFAULT_HASH_SIZE};
-use crate::util::copy_data;
+use crate::util::{add_data, copy_data};
 use crate::{acc, expanders};
 
 pub const CLUSTER_SIZE: i64 = 8;
@@ -269,18 +269,9 @@ impl Verifier {
 
         let front_size = (mem::size_of::<NodeType>() + id.len() + 8 + 8) as i32;
         let hash_size = HASH_SIZE;
-        let mut label = vec![
-            0;
-            front_size as usize
-                + (self.expanders.d + 1) as usize * hash_size as usize
-                + (self.expanders.k / 2) as usize * hash_size as usize
-        ];
+        let mut label = vec![0; front_size as usize + 2 * hash_size as usize];
 
-        let zero = vec![
-            0;
-            (self.expanders.d + 1) as usize * hash_size as usize
-                + (self.expanders.k / 2) as usize * hash_size as usize
-        ];
+        let zero = vec![0; 2 * hash_size as usize];
 
         let cluster_size = self.cluster_size;
         let mut hash: Vec<u8>;
@@ -334,7 +325,6 @@ impl Verifier {
                 );
 
                 if layer > 0 {
-                    let mut size = front_size;
                     let mut logical_layer = layer;
                     if logical_layer > self.expanders.k {
                         logical_layer = self.expanders.k;
@@ -359,9 +349,10 @@ impl Verifier {
                                 bail!("verify commit proofs error: {}", err);
                             }
                         }
-                        label[(size as usize)..(size + HASH_SIZE) as usize]
-                            .copy_from_slice(&p.label);
-                        size += HASH_SIZE
+                        add_data(
+                            &mut label[front_size as usize..(front_size + hash_size) as usize],
+                            &[&p.label],
+                        );
                     }
 
                     let mut l = 1;
@@ -384,11 +375,11 @@ impl Verifier {
                             let err = anyhow!("verify elder node path proof error");
                             bail!("verify commit proofs error: {}", err);
                         }
-                        copy_data(
-                            &mut label[size as usize..(size + hash_size) as usize],
+                        add_data(
+                            &mut label[(front_size + hash_size) as usize
+                                ..(front_size + 2 * hash_size) as usize],
                             &[&proofs[i][j - 1].elders[l].label.as_slice()],
                         );
-                        size += hash_size;
                         l += 1;
                     }
                 }
@@ -453,13 +444,24 @@ impl Verifier {
             let index = r2;
             let proof = &proofs[r1][index];
             let mut node = expanders::Node::new(proof.node.index);
+            let layer = proof.node.index as i64 / self.expanders.n;
             let cluster_size = self.cluster_size;
             if index < cluster_size as usize {
-                let mut data = clusters.clone();
-                data.push(index as i64 + 1);
-                generate_expanders_calc_parents(&self.expanders, &mut node, id, &data);
+                generate_expanders_calc_parents(
+                    &self.expanders,
+                    &mut node,
+                    id,
+                    chals[r1][0],
+                    self.expanders.k + index as i64,
+                );
             } else {
-                generate_expanders_calc_parents(&self.expanders, &mut node, id, &clusters);
+                generate_expanders_calc_parents(
+                    &self.expanders,
+                    &mut node,
+                    id,
+                    chals[r1][0],
+                    layer,
+                );
             }
 
             for j in 0..node.parents.len() {
