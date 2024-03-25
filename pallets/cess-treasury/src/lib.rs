@@ -71,6 +71,7 @@ pub mod pallet {
 
     #[pallet::error]
 	pub enum Error<T> {
+		/// Data operation overflow
         Overflow,
     }
 

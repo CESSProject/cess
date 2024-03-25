@@ -196,47 +196,39 @@ pub mod pallet {
 		LessThan24Hours,
 		/// Numerical conversion error.
 		ConversionError,
-		//The account has been frozen
+		/// The account has been frozen
 		AlreadyFrozen,
-
-		LockInNotOver,
-
+		/// The miner is not in a positive state and cannot perform this operation
 		NotpositiveState,
-
+		/// The capacity of Vec has reached the upper limit, making it impossible to register new miners. In theory, this error should not occur
 		StorageLimitReached,
-
+		/// Convert bounded vec error 
 		BoundedVecError,
-
+		/// The recording error of the faucet does not occur under normal circumstances
 		DataNotExist,
-		//haven't bought space at all
-		NotPurchasedPackage,
-
+		/// According to business logic, errors that should not occur
 		Unexpected,
-
-		NoReward,
-
+		/// Verify tee signature error
 		VerifyTeeSigFailed,
-
+		/// Count error in spatial proof related data
 		CountError,
-
-		LowerOperationBlock,
-
+		/// The status of the miner cannot call the current transaction
 		StateError,
-
+		/// Bloom filter update error
 		BloomElemPushError,
-
+		/// Insufficient pledged amount
 		CollateralNotUp,
-
+		/// Not the pledgor
 		NotStakingAcc,
-
+		/// System method errors that should not occur
 		BugInvalid,
-
+		/// The pledge period is insufficient and needs to reach 180 days
 		InsufficientStakingPeriod,
-
+		/// The certified space exceeds the declared space
 		ExceedingDeclarationSpace,
-
+		/// Insufficient idle space for replacement
 		InsufficientReplaceable,
-
+		/// Conversion tee signature error
 		MalformedSignature,
 	}
 

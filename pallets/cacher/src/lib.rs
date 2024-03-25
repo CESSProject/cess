@@ -68,11 +68,11 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		//Registered Error
+		/// Registered Error
 		AlreadyRegistered,
-		//Unregistered Error
+		/// Unregistered Error
 		UnRegistered,
-		//Option parse Error
+		/// Option parse Error
 		OptionParseError,
 	}
 

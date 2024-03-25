@@ -61,17 +61,17 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		//No errors authorizing any use
+		/// No errors authorizing any use
 		NoAuthorization,
-		//Registered Error
+		/// Registered Error
 		Registered,
-		//Unregistered Error
+		/// Unregistered Error
 		UnRegister,
-		//Option parse Error
+		/// Option parse Error
 		OptionParseError,
-		//Bounded Vector Error
+		/// Convert bounded vector Error
 		BoundedVecError,
-		//Already Exists Error
+		/// Already Exists Error
 		Existed,
 	}
 
