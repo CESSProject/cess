@@ -107,9 +107,9 @@ pub mod pallet {
         BugInvalid,
 
         BoundedVecError,
-        
+        /// Space not enough
         InsufficientAvailableSpace,
-        // Balance not enough
+        /// Balance not enough
         InsufficientBalance,
 
         InsufficientStorage,
@@ -121,7 +121,7 @@ pub mod pallet {
         PurchasedSpace,
 
         NotPurchasedSpace,
-        // storage space frozen
+        /// storage space frozen
         LeaseFreeze,
 
         LeaseExpired,

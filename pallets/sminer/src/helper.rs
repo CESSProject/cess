@@ -1,5 +1,3 @@
-use core::f64::consts::E;
-
 use sp_runtime::traits::CheckedDiv;
 
 use super::*;
@@ -247,6 +245,50 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
+	pub(super) fn distribute_rewards(miner: &AccountOf<T>, beneficiary: AccountOf<T>) -> DispatchResult {
+		<RewardMap<T>>::try_mutate(miner, |opt_reward| -> DispatchResult {
+			let reward = opt_reward.as_mut().ok_or(Error::<T>::Unexpected)?;
+			let one_day = T::OneDayBlock::get();
+			let now = <frame_system::Pallet<T>>::block_number();
+			let mut avail_reward: BalanceOf<T> = BalanceOf::<T>::zero(); 
+
+			for order in reward.order_list.iter_mut() {
+				let diff = now.checked_sub(&order.last_receive_block).ok_or(Error::<T>::Overflow)?;
+				if diff >= one_day {
+					let count = diff.checked_div(&one_day).ok_or(Error::<T>::Overflow)?;
+					let avail_count: u8;
+					if order.receive_count.saturating_add(count.saturated_into()) > order.max_count {
+						avail_count = order.max_count.checked_sub(order.receive_count).ok_or(Error::<T>::Unexpected)?;
+					} else {
+						avail_count = count.saturated_into();
+					}
+
+					if avail_count > 0 {
+						let order_avail_reward = order.each_amount.checked_mul(&avail_count.into()).ok_or(Error::<T>::Overflow)?;
+						avail_reward = avail_reward.checked_add(&order_avail_reward).ok_or(Error::<T>::Overflow)?;
+						order.receive_count = order.receive_count.checked_add(avail_count).ok_or(Error::<T>::Overflow)?;
+						order.last_receive_block = now;
+					}
+				}
+
+				if !order.atonce {
+					avail_reward = avail_reward.checked_add(
+						&(AOIR_PERCENT.mul_floor(order.order_reward))
+					).ok_or(Error::<T>::Overflow)?;
+					order.atonce = true;
+				}
+			}
+
+			reward.order_list.retain(|order| order.max_count != order.receive_count);
+
+			reward.reward_issued = reward.reward_issued.checked_add(&avail_reward).ok_or(Error::<T>::Overflow)?;
+
+			T::RewardPool::send_reward_to_miner(beneficiary, avail_reward)?;
+
+			Ok(())
+		})
+	}
+
 	pub(super) fn clear_punish(miner: &AccountOf<T>, idle_space: u128, service_space: u128, count: u8) -> DispatchResult {
 		let power = Self::calculate_power(idle_space, service_space);
 		let limit: BalanceOf<T> = Self::calculate_limit_by_space(power)?
@@ -308,6 +350,8 @@ impl<T: Config> Pallet<T> {
 				if reward_info.total_reward == BalanceOf::<T>::zero() {
 					T::Currency::unreserve(&miner.staking_account, miner.collaterals);
 				} else {
+					Self::calculate_miner_reward(acc)?;
+					Self::distribute_rewards(acc, miner.beneficiary.clone())?;
 					let residue_reward = reward_info.total_reward.checked_sub(&reward_info.reward_issued).ok_or(Error::<T>::Overflow)?;
 					T::RewardPool::add_reward(residue_reward)?;
 					let start_block = <StakingStartBlock<T>>::try_get(&acc).map_err(|_| Error::<T>::BugInvalid)?;
@@ -332,6 +376,7 @@ impl<T: Config> Pallet<T> {
 			Ok(())
 		})?;
 
+		<CompleteMinerSnapShot<T>>::remove(acc);
 		<RewardMap<T>>::remove(acc);
 		<PendingReplacements<T>>::remove(acc);
 

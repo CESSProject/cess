@@ -585,50 +585,8 @@ pub mod pallet {
 					miner.state == STATE_POSITIVE.as_bytes().to_vec() || miner.state == STATE_EXIT.as_bytes().to_vec(),
 					Error::<T>::NotpositiveState
 				);
-
 				Self::calculate_miner_reward(&sender)?;
-
-				<RewardMap<T>>::try_mutate(&sender, |opt_reward| -> DispatchResult {
-					let reward = opt_reward.as_mut().ok_or(Error::<T>::Unexpected)?;
-					let one_day = T::OneDayBlock::get();
-					let now = <frame_system::Pallet<T>>::block_number();
-					let mut avail_reward: BalanceOf<T> = BalanceOf::<T>::zero(); 
-
-					for order in reward.order_list.iter_mut() {
-						let diff = now.checked_sub(&order.last_receive_block).ok_or(Error::<T>::Overflow)?;
-						if diff >= one_day {
-							let count = diff.checked_div(&one_day).ok_or(Error::<T>::Overflow)?;
-							let avail_count: u8;
-							if order.receive_count.saturating_add(count.saturated_into()) > order.max_count {
-								avail_count = order.max_count.checked_sub(order.receive_count).ok_or(Error::<T>::Unexpected)?;
-							} else {
-								avail_count = count.saturated_into();
-							}
-
-							if avail_count > 0 {
-								let order_avail_reward = order.each_amount.checked_mul(&avail_count.into()).ok_or(Error::<T>::Overflow)?;
-								avail_reward = avail_reward.checked_add(&order_avail_reward).ok_or(Error::<T>::Overflow)?;
-								order.receive_count = order.receive_count.checked_add(avail_count).ok_or(Error::<T>::Overflow)?;
-								order.last_receive_block = now;
-							}
-						}
-
-						if !order.atonce {
-							avail_reward = avail_reward.checked_add(
-								&(AOIR_PERCENT.mul_floor(order.order_reward))
-							).ok_or(Error::<T>::Overflow)?;
-							order.atonce = true;
-						}
-					}
-
-					reward.order_list.retain(|order| order.max_count != order.receive_count);
-
-					reward.reward_issued = reward.reward_issued.checked_add(&avail_reward).ok_or(Error::<T>::Overflow)?;
-
-					T::RewardPool::send_reward_to_miner(miner.beneficiary, avail_reward)?;
-
-					Ok(())
-				})?;
+				Self::distribute_rewards(&sender, miner.beneficiary)?;
 			}
 
 			Ok(())
