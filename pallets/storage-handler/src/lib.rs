@@ -122,7 +122,7 @@ pub mod pallet {
         PurchasedSpace,
         /// Space not purchased, please purchase space first before calling this transaction
         NotPurchasedSpace,
-        /// Storage space frozen
+        /// storage space frozen
         LeaseFreeze,
         /// Space has expired
         LeaseExpired,
