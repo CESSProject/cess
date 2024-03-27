@@ -232,7 +232,7 @@ pub mod pallet {
 	pub enum Error<T> {
 		/// Vec to BoundedVec Error
 		BoundedVecError,
-		/// Error that the storage has reached the upper LIMIT
+		/// Error indicating that the storage has reached its limit
 		StorageLimitReached,
 		/// Data overflow
 		Overflow,
@@ -240,15 +240,13 @@ pub mod pallet {
 		NoChallenge,
 		/// Not a consensus node or not registered
 		ScheduleNonExistent,
-		/// The certificate does not exist or the certificate is not verified by this dispatcher
-		NonProof,
 		/// filetype error
 		FileTypeError,
 		/// The user does not have permission to call this method
 		NotQualified,
 		/// Error recording time
 		RecordTimeError,
-		/// Offchain worker signature transaction error
+		/// Offchain worker: Error Signing the transaction
 		OffchainSignedTxError,
 		/// There is no local account that can be used for signing
 		NoLocalAcctForSigning,
@@ -258,7 +256,7 @@ pub mod pallet {
 		SystemError,
 		/// The verification task does not exist
 		NonExistentMission,
-		/// Errors that should not occur
+		/// Unexpected Error
 		UnexpectedError,
 		/// Challenge has expired
 		Expired,

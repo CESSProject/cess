@@ -166,7 +166,7 @@ pub mod pallet {
 		AlreadyReport,
 		/// Boundedvec conversion error
 		BoundedVecError,
-		/// Storage reaches upper limit error
+		/// Error indicating that the storage has reached its limit
 		StorageLimitReached,
 		/// data overrun error
 		Overflow,

@@ -209,7 +209,7 @@ pub mod pallet {
 		ScheduleNonExistent,
 		/// Error reporting when boundedvec is converted to VEC
 		BoundedVecError,
-		/// Error that the storage has reached the upper limit.
+		/// Error indicating that the storage has reached its limit
 		StorageLimitReached,
 		/// The miner's calculation power is insufficient, resulting in an error that cannot be replaced
 		MinerPowerInsufficient,
