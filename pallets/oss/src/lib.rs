@@ -13,11 +13,13 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+use sp_core::H256;
 use frame_system::pallet_prelude::*;
 use frame_support::{
 	pallet_prelude::*, transactional,
 };
 use cp_cess_common::*;
+use sp_runtime::traits::TrailingZeroInput;
 
 pub use pallet::*;
 
@@ -28,7 +30,8 @@ type AccountOf<T> = <T as frame_system::Config>::AccountId;
 #[frame_support::pallet]
 pub mod pallet {
 	use crate::*;
-	use frame_system::ensure_signed;
+	use frame_support::Hashable;
+use frame_system::{ensure_signed, Origin};
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + sp_std::fmt::Debug {
@@ -42,6 +45,8 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type AuthorLimit: Get<u32> + Clone;
+
+		// type AccountIdConvertor: AccountIdConvertor<Self::AccountId>;
 	}
 
 	#[pallet::event]
@@ -73,6 +78,10 @@ pub mod pallet {
 		BoundedVecError,
 		//Already Exists Error
 		Existed,
+
+		MalformedSignature,
+
+		VerifySigFailed,
 	}
 
 	#[pallet::storage]
@@ -223,6 +232,37 @@ pub mod pallet {
 			<Oss<T>>::remove(&sender);
 
 			Self::deposit_event(Event::<T>::OssDestroy { acc: sender });
+
+			Ok(())
+		}
+
+		#[pallet::call_index(5)]
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::destroy())]
+		pub fn proxy_authorzie(origin: OriginFor<T>, auth_puk: sp_core::sr25519::Public, sig: BoundedVec<u8, ConstU32<64>>, payload: ProxyAuthPayload<T>) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+
+			// let auth_acc32 = T::AccountIdConvertor::to_u32(auth_acc);
+			let payload_encode = payload.encode();
+
+			let account = (0u8, auth_puk).using_encoded(|entropy| {
+				AccountOf::<T>::decode(&mut TrailingZeroInput::new(entropy))
+					.expect("infinite input; no invalid input; qed")
+			});
+
+			let sig = 
+				sp_core::sr25519::Signature::try_from(sig.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
+
+			ensure!(
+				sp_io::crypto::sr25519_verify(&sig, &payload_encode, &auth_puk),
+				Error::<T>::VerifySigFailed
+			);
+
+			// ensure!(auth_acc.to_string().len() == 32, Error::<T>::OptionParseError);
+			// let pub_key = sp_core::sr25519::Public::from_raw(auth_acc.to_string().as_bytes().try_into().unwrap());
+			// let a22 = H256::from(auth_acc.into());
+			// let pub_key = sp_core::sr25519::Public::from_();
+			// let auth_accid: AccountOf<T> = pub_key;
 
 			Ok(())
 		}
