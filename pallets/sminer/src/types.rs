@@ -58,3 +58,38 @@ pub struct RestoralTargetInfo<Account, Block> {
 	pub(super) restored_space: u128,
 	pub(super) cooling_block: Block,
 }
+
+/// audit -> sminer -> cess-treasury
+/// way 1:
+/// sminer.round_snapshot  key u128
+/// {
+/// 	pub total_power: u128
+/// 	pub count: u32
+/// }
+/// sminer.snapshot  key account, value vec
+/// {
+/// 	pub finsh_block: Block
+/// 	pub power: u128
+/// 	pub issued: bool
+/// }
+/// cess-treasury.record  key u128
+/// {
+/// 	reward: Balance
+/// }
+/// 1. round_reward = now / one_day  
+///	2. round = now / one_day
+/// 3. finsh_block / one_day = which_day && which_day * one_day < now;
+/// 4. according which_day, calculate reward. change vec[index].issued = true.
+/// 5. delete sminer.snapshot vec[index].issued = true.
+#[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+pub struct CompleteInfo {
+	pub(super) miner_count: u32,
+	pub(super) total_power: u128,
+}
+
+#[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+pub struct MinerCompleteInfo<Block> {
+	pub(super) issued: bool,
+	pub(super) finsh_block: Block,
+	pub(super) power: u128,
+}

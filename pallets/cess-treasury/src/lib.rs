@@ -4,13 +4,13 @@ use frame_support::{
 		Currency, ReservableCurrency, WithdrawReasons, Imbalance,
 		ExistenceRequirement::KeepAlive, OnUnbalanced,
 	},
-	dispatch::{DispatchResult}, PalletId,
-    pallet_prelude::{Weight, StorageValue, ValueQuery, Get, IsType},
+	dispatch::{DispatchResult}, PalletId, Blake2_128Concat, ensure,
+    pallet_prelude::{Weight, StorageValue, StorageMap, ValueQuery, Get, IsType},
 };
 // use sp_std::prelude::*;
 use sp_runtime::{
     SaturatedConversion, Perbill,
-	traits::{CheckedAdd, CheckedSub, AccountIdConversion, Zero},
+	traits::{CheckedAdd, CheckedSub, CheckedDiv, AccountIdConversion},
 };
 use frame_system::{
 	pallet_prelude::OriginFor,
@@ -37,6 +37,8 @@ type NegativeImbalanceOf<T> = <<T as pallet::Config>::Currency as Currency<
 
 #[frame_support::pallet]
 pub mod pallet {
+    use frame_system::pallet_prelude::BlockNumberFor;
+
     use super::*;
 
     #[pallet::pallet]
@@ -59,6 +61,8 @@ pub mod pallet {
 		type ReserveRewardId: Get<PalletId>;
 
 		type BurnDestination: OnUnbalanced<NegativeImbalanceOf<Self>>;
+
+		type OneDay: Get<BlockNumberFor<Self>>;
     }
 	
 	#[pallet::event]
@@ -71,7 +75,10 @@ pub mod pallet {
 
     #[pallet::error]
 	pub enum Error<T> {
+		/// Data operation overflow
         Overflow,
+
+		Unexpected,
     }
 
     #[pallet::storage]
@@ -85,6 +92,10 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn reserve_reward)]
 	pub(super) type ReserveReward<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn round_reward)]
+	pub(super) type RoundReward<T: Config> = StorageMap<_, Blake2_128Concat, u32, (BalanceOf<T>, BalanceOf<T>), ValueQuery>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
@@ -219,23 +230,23 @@ impl<T: Config> Pallet<T> {
 
 	pub fn add_miner_reward_pool(amount: BalanceOf<T>) -> DispatchResult {
 		<EraReward<T>>::put(amount);
-		let base_reward = REWARD_BASE_MUTI.mul_floor(amount);
-		let mut reserve_output: BalanceOf<T> = BalanceOf::<T>::zero();
+		let now = frame_system::Pallet::<T>::block_number();
+		let one_day = T::OneDay::get();
+		let round: u32 = now
+			.checked_div(&one_day).ok_or(Error::<T>::Overflow)?
+			.try_into().map_err(|_| Error::<T>::Overflow)?;
 
-		<CurrencyReward<T>>::mutate(|v| -> DispatchResult {
-			if *v > base_reward {
-				reserve_output = v.checked_sub(&base_reward).ok_or(Error::<T>::Overflow)?;
-				*v = v.checked_sub(&reserve_output).ok_or(Error::<T>::Overflow)?;
-			}
-			// The total issuance amount will not exceed u128::Max, so there is no overflow risk
-			*v = v.checked_add(&amount).ok_or(Error::<T>::Overflow)?;
+		<RoundReward<T>>::mutate(round, |v| -> DispatchResult {
+			v.0 = v.0.checked_add(&amount).ok_or(Error::<T>::Overflow)?;
 
 			Ok(())
 		})?;
 
-		if reserve_output != BalanceOf::<T>::zero() {
-			Self::reward_reserve(reserve_output)?;
-		}
+		<CurrencyReward<T>>::mutate(|v| -> DispatchResult {
+			*v = v.checked_add(&amount).ok_or(Error::<T>::Overflow)?;
+
+			Ok(())
+		})?;
 
 		Ok(())
 	} 
@@ -285,6 +296,9 @@ pub trait RewardPool<AccountId, Balance> {
 	fn get_reward_base() -> Balance;
     fn get_reward() -> Balance;
     fn get_reward_128() -> u128;
+	fn get_round_reward(round: u32) -> Balance;
+	fn sub_round_reward(round: u32, reward: Balance) -> DispatchResult;
+	fn reward_reserve(amount: Balance) -> DispatchResult;
 	fn add_reward(amount: Balance) -> DispatchResult;
     fn sub_reward(amount: Balance) -> DispatchResult;
 	fn send_reward_to_miner(miner: AccountId, amount: Balance) -> DispatchResult;
@@ -301,6 +315,25 @@ impl<T: Config> RewardPool<AccountOf<T>, BalanceOf<T>> for Pallet<T> {
 
 	fn get_reward_128() -> u128 {
 		<CurrencyReward<T>>::get().saturated_into()
+	}
+
+	fn get_round_reward(round: u32) -> BalanceOf<T> {
+		<RoundReward<T>>::get(&round).0
+	}
+
+	fn sub_round_reward(round: u32, reward: BalanceOf<T>) -> DispatchResult {
+		ensure!(<RoundReward<T>>::contains_key(round), Error::<T>::Unexpected);
+		<RoundReward<T>>::mutate(round, |round_info| -> DispatchResult {
+			round_info.1 = round_info.1.checked_add(&reward).ok_or(Error::<T>::Overflow)?;
+			ensure!(round_info.1 <= round_info.0, Error::<T>::Unexpected);
+			Ok(())
+		})?;
+
+		Ok(())
+	}
+
+	fn reward_reserve(amount: BalanceOf<T>) -> DispatchResult {
+		Self::reward_reserve(amount)
 	}
 
     fn add_reward(amount: BalanceOf<T>) -> DispatchResult {

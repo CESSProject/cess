@@ -158,17 +158,17 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		//Already registered
+		/// Already registered
 		AlreadyRegistration,
-		//Not a controller account
+		/// Not a controller account
 		NotStash,
-		//The scheduled error report has been reported once
+		/// The scheduled error report has been reported once
 		AlreadyReport,
-		//Boundedvec conversion error
+		/// Boundedvec conversion error
 		BoundedVecError,
-		//Storage reaches upper limit error
+		/// Error indicating that the storage has reached its limit
 		StorageLimitReached,
-		//data overrun error
+		/// data overrun error
 		Overflow,
 
 		NotBond,
@@ -208,22 +208,22 @@ pub mod pallet {
 		MalformedSignature,
 		InvalidSignatureLength,
 		InvalidSignature,
-		// IAS related
+		/// IAS related
 		WorkerNotFound,
-		// Keyfairy related
+		/// Keyfairy related
 		InvalidKeyfairy,
 		InvalidMasterPubkey,
 		MasterKeyMismatch,
 		MasterKeyUninitialized,
-		// Ceseal related
+		/// Ceseal related
 		CesealAlreadyExists,
 		CesealNotFound,
-		// Additional
+		/// Additional
 		NotImplemented,
 		CannotRemoveLastKeyfairy,
 		MasterKeyInRotation,
 		InvalidRotatedMasterPubkey,
-		// Endpoint related
+		/// Endpoint related
 		EmptyEndpoint,
 		InvalidEndpointSigningTime,
 
