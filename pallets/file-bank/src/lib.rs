@@ -197,75 +197,67 @@ pub mod pallet {
 	#[pallet::error]
 	pub enum Error<T> {
 		Existed,
-
+		/// File already exists
 		FileExistent,
-		//file doesn't exist.
+		/// file doesn't exist
 		FileNonExistent,
-		//overflow.
+		/// Data operation overflow
 		Overflow,
-
+		/// Not the owner of the file
 		NotOwner,
-
-		NotQualified,
-		//It is not an error message for scheduling operation
+		/// It is not an error message for scheduling operation
 		ScheduleNonExistent,
-		//Error reporting when boundedvec is converted to VEC
+		/// Error reporting when boundedvec is converted to VEC
 		BoundedVecError,
-		//Error that the storage has reached the upper limit.
+		/// Error indicating that the storage has reached its limit
 		StorageLimitReached,
-		//The miner's calculation power is insufficient, resulting in an error that cannot be
-		// replaced
+		/// The miner's calculation power is insufficient, resulting in an error that cannot be replaced
 		MinerPowerInsufficient,
-
+		/// The bucket is not empty
 		NotEmpty,
-		//Multi consensus query restriction of off chain workers
+		/// Multi consensus query restriction of off chain workers
 		Locked,
-
+		/// Length exceeds limit, maximum of 42 bytes
 		LengthExceedsLimit,
-
-		Declarated,
-
+		/// Some operations that should not have errors
 		BugInvalid,
-
+		/// Error encountered when converting Hash
 		ConvertHashError,
-		//No operation permission
+		/// No operation permission. Perhaps it was not authorized
 		NoPermission,
-		//user had same name bucket
+		/// User had same name bucket
 		SameBucketName,
-		//Bucket, file, and scheduling errors do not exist
+		/// Bucket, file, and scheduling errors do not exist
 		NonExistent,
-		//Unexpected error
+		/// Logically speaking, errors that should not occur
 		Unexpected,
-		//Less than minimum length
+		/// Less than minimum length
 		LessMinLength,
-		//The file is in an unprepared state
+		/// The file is in an unprepared state
 		Unprepared,
-		//Transfer target acc already have this file
+		/// Transfer target acc already have this file
 		IsOwned,
-		//The file does not meet the specification
+		/// The file does not meet the specification
 		SpecError,
-
-		NodesInsufficient,
-		// This is a bug that is reported only when the most undesirable 
-		// situation occurs during a transaction execution process.
+		/// This is a bug that is reported only when the most undesirable situation occurs during a transaction execution process
 		PanicOverflow,
-
+		/// The user currently has insufficient available storage space
 		InsufficientAvailableSpace,
-		// The file is in a calculated tag state and cannot be deleted
+		/// The file is in a calculated tag state and cannot be deleted
 		Calculate,
-
+		/// Miners need to be in a positive state
 		MinerStateError,
-
+		/// The deadline for restoring files has expired
 		Expired,
-
+		/// Failed to verify the signature of tee
 		VerifyTeeSigFailed,
-
+		/// The type of tee does not have permission to execute this function
 		TeeNoPermission,
-
+		/// Validation digest error during file tag calculation process
 		DigestError,
-
+		/// Error converting tee signature
 		MalformedSignature,
-
+		/// Error in comparing miner account information
 		MinerError,
 	}
 
