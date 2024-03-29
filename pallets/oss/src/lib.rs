@@ -13,12 +13,14 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+use codec::alloc::string::ToString;
 use sp_core::H256;
 use frame_system::pallet_prelude::*;
 use frame_support::{
 	pallet_prelude::*, transactional,
 };
 use cp_cess_common::*;
+use sp_std::vec::Vec;
 use sp_runtime::traits::TrailingZeroInput;
 
 pub use pallet::*;
@@ -91,6 +93,10 @@ use frame_system::{ensure_signed, Origin};
 	#[pallet::storage]
 	#[pallet::getter(fn oss)]
 	pub(super) type Oss<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, OssInfo>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn test_storage)]
+	pub(super) type TestStorage<T: Config> = StorageValue<_, AccountOf<T>>;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(PhantomData<T>);
@@ -242,10 +248,16 @@ use frame_system::{ensure_signed, Origin};
 		pub fn proxy_authorzie(origin: OriginFor<T>, auth_puk: sp_core::sr25519::Public, sig: BoundedVec<u8, ConstU32<64>>, payload: ProxyAuthPayload<T>) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 
-			// let auth_acc32 = T::AccountIdConvertor::to_u32(auth_acc);
-			let payload_encode = payload.encode();
+			let mut payload_encode = payload.encode();
+			let mut b1 = "<Bytes>".to_string().as_bytes().to_vec();
+			let mut b2 = "</Bytes>".to_string().as_bytes().to_vec();
 
-			let account = (0u8, auth_puk).using_encoded(|entropy| {
+			let mut origin: Vec<u8> = Default::default();
+			origin.append(&mut b1);
+			origin.append(&mut payload_encode);
+			origin.append(&mut b2);
+
+			let account = auth_puk.using_encoded(|entropy| {
 				AccountOf::<T>::decode(&mut TrailingZeroInput::new(entropy))
 					.expect("infinite input; no invalid input; qed")
 			});
@@ -254,15 +266,17 @@ use frame_system::{ensure_signed, Origin};
 				sp_core::sr25519::Signature::try_from(sig.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
 
 			ensure!(
-				sp_io::crypto::sr25519_verify(&sig, &payload_encode, &auth_puk),
+				sp_io::crypto::sr25519_verify(&sig, &origin, &auth_puk),
 				Error::<T>::VerifySigFailed
 			);
 
-			// ensure!(auth_acc.to_string().len() == 32, Error::<T>::OptionParseError);
-			// let pub_key = sp_core::sr25519::Public::from_raw(auth_acc.to_string().as_bytes().try_into().unwrap());
-			// let a22 = H256::from(auth_acc.into());
-			// let pub_key = sp_core::sr25519::Public::from_();
-			// let auth_accid: AccountOf<T> = pub_key;
+			AuthorityList::<T>::try_mutate(&account, |list| -> DispatchResult {
+				ensure!(!list.contains(&payload.oss), Error::<T>::Existed);
+
+				list.try_push(payload.oss).map_err(|_| Error::<T>::BoundedVecError)?;
+
+				Ok(())
+			})?; 
 
 			Ok(())
 		}
