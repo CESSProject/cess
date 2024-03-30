@@ -849,7 +849,7 @@ dependencies = [
 
 [[package]]
 name = "ces-pois"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "anyhow",
  "bigdecimal",
@@ -924,7 +924,7 @@ dependencies = [
 
 [[package]]
 name = "ceseal"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "base64 0.13.1",
@@ -1069,7 +1069,7 @@ dependencies = [
 
 [[package]]
 name = "cestory"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4408,9 +4408,12 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "hex",
  "log",
  "parity-scale-codec",
  "scale-info",
+ "sp-core",
+ "sp-io",
  "sp-runtime",
  "sp-std",
 ]

@@ -1503,7 +1503,7 @@ dependencies = [
 
 [[package]]
 name = "ces-pois"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "anyhow",
  "bigdecimal",
@@ -1883,7 +1883,7 @@ dependencies = [
 
 [[package]]
 name = "cestory"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "anyhow",
  "async-trait",
