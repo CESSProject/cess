@@ -33,7 +33,6 @@ if [[ $purge_data -eq 1 && -e $data_dir ]]; then
 fi
 
 $bin \
-    --allow-cors \
     --address 0.0.0.0 \
     --port $port \
     --role full \
