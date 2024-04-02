@@ -79,8 +79,8 @@ type BalanceOf<T> =
 pub mod pallet {
 	use super::*;
 	use frame_support::{
-		pallet_prelude::{ValueQuery, *},
-		traits::Get,
+		pallet_prelude::{StorageValue, ValueQuery, *},
+		traits::Get, Blake2_128Concat,
 	};
 	use frame_system::{ensure_signed, pallet_prelude::*};
 
@@ -104,6 +104,9 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type StakingLockBlock: Get<BlockNumberFor<Self>>;
+
+		#[pallet::constant]
+		type MaximumRelease: Get<u128>;
 
 		/// The WeightInfo.
 		type WeightInfo: WeightInfo;
@@ -230,6 +233,13 @@ pub mod pallet {
 		InsufficientReplaceable,
 		/// Conversion tee signature error
 		MalformedSignature,
+		/// Chain does not initialize whitelist
+		NotSetWhite,
+		/// Wrong signature source
+		WrongOrigin,
+		/// Exceeding the maximum release volume of the faucet in one day
+		ExceedRelease,
+		
 	}
 
 	/// The hashmap for info of storage miners.
@@ -291,6 +301,10 @@ pub mod pallet {
 	#[pallet::getter(fn pending_replacements)]
 		pub(super) type PendingReplacements<T: Config> = 
 			StorageMap<_, Blake2_128Concat, AccountOf<T>, u128, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn facuet_release_record)]
+		pub(super) type FacuetReleaseRecord<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 	
 	#[pallet::storage]
 	#[pallet::getter(fn return_staking_schedule)]
@@ -324,6 +338,10 @@ pub mod pallet {
 				BoundedVec<MinerCompleteInfo<BlockNumberFor<T>>, ConstU32<{RELEASE_NUMBER as u32}>>,
 				ValueQuery,
 			>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn facuet_whitelist)]
+		pub(super) type FacuetWhitelist<T: Config> = StorageValue<_, AccountOf<T>>;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -748,7 +766,12 @@ pub mod pallet {
 		#[transactional]
 		#[pallet::weight(Weight::zero())]
 		pub fn faucet(origin: OriginFor<T>, to: AccountOf<T>) -> DispatchResult {
-			let _ = ensure_signed(origin)?;
+			let sender = ensure_signed(origin)?;
+			
+			let white = <FacuetWhitelist<T>>::try_get().map_err(|_| Error::<T>::NotSetWhite)?;
+			ensure!(sender == white, Error::<T>::WrongOrigin);
+
+			let facuet_value: BalanceOf<T> = FAUCET_VALUE.try_into().map_err(|_e| Error::<T>::ConversionError)?;
 
 			if !<FaucetRecordMap<T>>::contains_key(&to) {
 				<FaucetRecordMap<T>>::insert(
@@ -764,7 +787,7 @@ pub mod pallet {
 				<T as pallet::Config>::Currency::transfer(
 					&reward_pot,
 					&to,
-					FAUCET_VALUE.try_into().map_err(|_e| Error::<T>::ConversionError)?,
+					facuet_value,
 					KeepAlive,
 				)?;
 				<FaucetRecordMap<T>>::insert(
@@ -780,7 +803,7 @@ pub mod pallet {
 				let now = <frame_system::Pallet<T>>::block_number();
 
 				let mut flag: bool = true;
-				if now >= BlockNumberFor::<T>::from(one_day) {
+				if now >= one_day.into() {
 					if !(faucet_record.last_claim_time
 						<= now
 							.checked_sub(&BlockNumberFor::<T>::from(one_day))
@@ -804,12 +827,21 @@ pub mod pallet {
 				ensure!(flag, Error::<T>::LessThan24Hours);
 
 				let reward_pot = T::FaucetId::get().into_account_truncating();
+				<FacuetReleaseRecord<T>>::try_mutate(|release_amount| -> DispatchResult {
+					let max: BalanceOf<T> = T::MaximumRelease::get().try_into().map_err(|_| Error::<T>::ConversionError)?;
+					*release_amount = release_amount.checked_add(&facuet_value).ok_or(Error::<T>::Overflow)?;
+					ensure!(*release_amount <= max, Error::<T>::ExceedRelease);
+
+					Ok(())
+				})?;
+
 				<T as pallet::Config>::Currency::transfer(
 					&reward_pot,
 					&to,
-					FAUCET_VALUE.try_into().map_err(|_e| Error::<T>::ConversionError)?,
+					facuet_value,
 					KeepAlive,
 				)?;
+
 				<FaucetRecordMap<T>>::insert(
 					&to,
 					FaucetRecord::<BlockNumberFor<T>> { last_claim_time: now },
@@ -1010,6 +1042,17 @@ pub mod pallet {
 
 				Ok(())
 			})?;
+
+			Ok(())
+		}
+
+		#[pallet::call_index(20)]
+		#[transactional]
+		#[pallet::weight(Weight::zero())]
+		pub fn set_facuet_whitelist(origin: OriginFor<T>, acc: AccountOf<T>) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			<FacuetWhitelist<T>>::put(acc);
 
 			Ok(())
 		}
