@@ -80,6 +80,12 @@ impl<T: Config> Pallet<T> {
 		let mut miner_list = AllMiner::<T>::get();
 		miner_list.retain(|s| s != acc);
 		AllMiner::<T>::put(miner_list);
+		MinerItems::<T>::try_mutate(acc, |miner_opt| -> DispatchResult {
+			let miner = miner_opt.as_mut().ok_or(Error::<T>::Unexpected)?;
+			miner.state = Self::str_to_bound(STATE_EXIT)?;
+
+			Ok(())
+		})?;
 		
 		Ok(())
 	}

@@ -230,55 +230,49 @@ pub mod pallet {
 	/// Error for the audit pallet.
 	#[pallet::error]
 	pub enum Error<T> {
-		//Vec to BoundedVec Error.
+		/// Vec to BoundedVec Error
 		BoundedVecError,
-		//Error that the storage has reached the upper LIMIT.
+		/// Error indicating that the storage has reached its limit
 		StorageLimitReached,
-
+		/// Data overflow
 		Overflow,
-		//The miner submits a certificate, but there is no error in the challenge list
+		/// The miner submits a certificate, but there is no error in the challenge list
 		NoChallenge,
-		//Not a consensus node or not registered
+		/// Not a consensus node or not registered
 		ScheduleNonExistent,
-		//The certificate does not exist or the certificate is not verified by this dispatcher
-		NonProof,
-		//filetype error
+		/// filetype error
 		FileTypeError,
-		//The user does not have permission to call this method
+		/// The user does not have permission to call this method
 		NotQualified,
-		//Error recording time
+		/// Error recording time
 		RecordTimeError,
-
+		/// Offchain worker: Error Signing the transaction
 		OffchainSignedTxError,
-
+		/// There is no local account that can be used for signing
 		NoLocalAcctForSigning,
-
+		/// Length exceeds limit
 		LengthExceedsLimit,
-
-		Locked,
-
+		/// An error that will not occur by design will be prompted after an error occurs during the random number generation process
 		SystemError,
-
+		/// The verification task does not exist
 		NonExistentMission,
-
+		/// Unexpected Error
 		UnexpectedError,
-
+		/// Challenge has expired
 		Expired,
-
+		/// Verification of tee signature failed
 		VerifyTeeSigFailed,
-
+		/// Bloom filter validation failed
 		BloomFilterError,
-
+		/// The certificate has been submitted and cannot be submitted again
 		Submitted,
-
-		Challenging,
-
+		/// Random number generation failed
 		RandomErr,
-
+		/// No proof submitted
 		UnSubmitted,
-
+		/// The tee does not have permission
 		TeeNoPermission,
-
+		/// Signature format conversion failed
 		MalformedSignature,
 	}
 
@@ -537,13 +531,8 @@ pub mod pallet {
 				if let Some(service_prove) = &challenge_info.prove_info.service_prove {
 					if let Some(service_result) = service_prove.verify_result {
 						if idle_result && service_result {
-							let total_idle_space = T::StorageHandle::get_total_idle_space();
-							let total_service_space = T::StorageHandle::get_total_service_space();
-
-							T::MinerControl::calculate_miner_reward(
+							T::MinerControl::record_snap_shot(
 								&sender,
-								total_idle_space,
-								total_service_space,
 								*idle_space,
 								*service_space,
 							)?;
@@ -669,13 +658,8 @@ pub mod pallet {
 				if let Some(idle_prove) = &challenge_info.prove_info.idle_prove {
 					if let Some(idle_result) = idle_prove.verify_result {
 						if idle_result && service_result {
-							let total_idle_space = T::StorageHandle::get_total_idle_space();
-							let total_service_space = T::StorageHandle::get_total_service_space();
-
-							T::MinerControl::calculate_miner_reward(
+							T::MinerControl::record_snap_shot(
 								&sender,
-								total_idle_space,
-								total_service_space,
 								idle_space,
 								service_space,
 							)?;

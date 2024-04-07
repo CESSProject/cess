@@ -196,47 +196,39 @@ pub mod pallet {
 		LessThan24Hours,
 		/// Numerical conversion error.
 		ConversionError,
-		//The account has been frozen
+		/// The account has been frozen
 		AlreadyFrozen,
-
-		LockInNotOver,
-
+		/// The miner is not in a positive state and cannot perform this operation
 		NotpositiveState,
-
+		/// The capacity of Vec has reached the upper limit, making it impossible to register new miners. In theory, this error should not occur
 		StorageLimitReached,
-
+		/// Convert bounded vec error 
 		BoundedVecError,
-
+		/// The recording error of the faucet does not occur under normal circumstances
 		DataNotExist,
-		//haven't bought space at all
-		NotPurchasedPackage,
-
+		/// According to business logic, errors that should not occur
 		Unexpected,
-
-		NoReward,
-
+		/// Verify tee signature error
 		VerifyTeeSigFailed,
-
+		/// Count error in spatial proof related data
 		CountError,
-
-		LowerOperationBlock,
-
+		/// The status of the miner cannot call the current transaction
 		StateError,
-
+		/// Bloom filter update error
 		BloomElemPushError,
-
+		/// Insufficient pledged amount
 		CollateralNotUp,
-
+		/// Not the pledgor
 		NotStakingAcc,
-
+		/// System method errors that should not occur
 		BugInvalid,
-
+		/// The pledge period is insufficient and needs to reach 180 days
 		InsufficientStakingPeriod,
-
+		/// The certified space exceeds the declared space
 		ExceedingDeclarationSpace,
-
+		/// Insufficient idle space for replacement
 		InsufficientReplaceable,
-
+		/// Conversion tee signature error
 		MalformedSignature,
 	}
 
@@ -308,6 +300,28 @@ pub mod pallet {
 				Blake2_128Concat,
 				BlockNumberFor<T>,
 				BoundedVec<(AccountOf<T>, BalanceOf<T>), T::ItemLimit>,
+				ValueQuery,
+			>;
+	
+	#[pallet::storage]
+	#[pallet::getter(fn complete_snap_shot)]
+		pub(super) type CompleteSnapShot<T: Config> = 
+			StorageMap<
+				_,
+				Blake2_128Concat,
+				u32,
+				CompleteInfo,
+				ValueQuery,
+			>;
+	
+	#[pallet::storage]
+	#[pallet::getter(fn complete_miner_snap_shot)]
+		pub(super) type CompleteMinerSnapShot<T: Config> = 
+			StorageMap<
+				_,
+				Blake2_128Concat,
+				AccountOf<T>,
+				BoundedVec<MinerCompleteInfo<BlockNumberFor<T>>, ConstU32<{RELEASE_NUMBER as u32}>>,
 				ValueQuery,
 			>;
 
@@ -563,49 +577,8 @@ pub mod pallet {
 					miner.state == STATE_POSITIVE.as_bytes().to_vec() || miner.state == STATE_EXIT.as_bytes().to_vec(),
 					Error::<T>::NotpositiveState
 				);
-
-				<RewardMap<T>>::try_mutate(&sender, |opt_reward| -> DispatchResult {
-					let reward = opt_reward.as_mut().ok_or(Error::<T>::Unexpected)?;
-					let one_day = T::OneDayBlock::get();
-					let now = <frame_system::Pallet<T>>::block_number();
-					let mut avail_reward: BalanceOf<T> = BalanceOf::<T>::zero(); 
-
-					for order in reward.order_list.iter_mut() {
-						let diff = now.checked_sub(&order.last_receive_block).ok_or(Error::<T>::Overflow)?;
-						if diff >= one_day {
-							let count = diff.checked_div(&one_day).ok_or(Error::<T>::Overflow)?;
-
-							let avail_count: u8;
-							if order.receive_count.saturating_add(count.saturated_into()) > order.max_count {
-								avail_count = order.max_count.checked_sub(order.receive_count).ok_or(Error::<T>::Unexpected)?;
-							} else {
-								avail_count = count.saturated_into();
-							}
-
-							if avail_count > 0 {
-								let order_avail_reward = order.each_amount.checked_mul(&avail_count.into()).ok_or(Error::<T>::Overflow)?;
-								avail_reward = avail_reward.checked_add(&order_avail_reward).ok_or(Error::<T>::Overflow)?;
-								order.receive_count = order.receive_count.checked_add(avail_count).ok_or(Error::<T>::Overflow)?;
-								order.last_receive_block = now;
-							}
-						}
-
-						if !order.atonce {
-							avail_reward = avail_reward.checked_add(
-								&(AOIR_PERCENT.mul_floor(order.order_reward))
-							).ok_or(Error::<T>::Overflow)?;
-							order.atonce = true;
-						}
-					}
-
-					reward.order_list.retain(|order| order.max_count != order.receive_count);
-
-					reward.reward_issued = reward.reward_issued.checked_add(&avail_reward).ok_or(Error::<T>::Overflow)?;
-
-					T::RewardPool::send_reward_to_miner(miner.beneficiary, avail_reward)?;
-
-					Ok(())
-				})?;
+				Self::calculate_miner_reward(&sender)?;
+				Self::distribute_rewards(&sender, miner.beneficiary)?;
 			}
 
 			Ok(())
@@ -1065,10 +1038,8 @@ pub trait MinerControl<AccountId, BlockNumber> {
 
 	fn get_miner_idle_space(acc: &AccountId) -> Result<u128, DispatchError>;
 	fn get_miner_count() -> u32;
-	fn calculate_miner_reward(
-		miner: &AccountId, 
-		total_idle_space: u128,
-		total_service_space: u128,
+	fn record_snap_shot(
+		miner: &AccountId,
 		miner_idle_space: u128,
 		miner_service_space: u128,
 	) -> DispatchResult;
@@ -1222,21 +1193,43 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 	fn get_miner_count() -> u32 {
 		<MinerItems<T>>::count()
 	}
-
-	fn calculate_miner_reward(
-		miner: &AccountOf<T>, 
-		total_idle_space: u128,
-		total_service_space: u128,
+	
+	fn record_snap_shot(
+		miner: &AccountOf<T>,
 		miner_idle_space: u128,
 		miner_service_space: u128,
 	) -> DispatchResult {
-		Self::calculate_miner_reward(
-			miner, 
-			total_idle_space, 
-			total_service_space, 
-			miner_idle_space, 
-			miner_service_space
-		)
+		let now = frame_system::Pallet::<T>::block_number();
+		let one_day = T::OneDayBlock::get();
+		let round: u32 = now
+			.checked_div(&one_day).ok_or(Error::<T>::Overflow)?
+			.try_into().map_err(|_| Error::<T>::Overflow)?;
+		let power = Self::calculate_power(miner_idle_space, miner_service_space);
+
+		<CompleteMinerSnapShot<T>>::mutate(miner, |miner_info_list| -> DispatchResult {
+			let snap_shot = MinerCompleteInfo::<BlockNumberFor<T>> {
+				issued: false,
+				finsh_block: now,
+				power: power,
+			};
+
+			if miner_info_list.len() == RELEASE_NUMBER as usize {
+				return Ok(())
+			}
+
+			<CompleteSnapShot<T>>::mutate(&round, |complete_info| -> DispatchResult {
+				complete_info.miner_count = complete_info.miner_count.checked_add(1).ok_or(Error::<T>::Overflow)?;
+				complete_info.total_power = complete_info.total_power.checked_add(power).ok_or(Error::<T>::Overflow)?;
+	
+				Ok(())
+			})?;
+
+			miner_info_list.try_push(snap_shot).map_err(|_| Error::<T>::Overflow)?;
+
+			Ok(())
+		})?;
+
+		Ok(())
 	}
 
 	fn clear_punish(

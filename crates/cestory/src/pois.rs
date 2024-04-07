@@ -255,14 +255,16 @@ impl PoisCertifierApi for PoisCertifierServer {
 
         //verify received commit
         if !self.verifier.receive_commits(&miner_id, &mut commits) {
-            self.verifier.logout_prover_node(&miner_id).unwrap();
+            self.verifier.logout_prover_node(&miner_id)
+                .map_err(|e| Status::invalid_argument(format!("logout_prover_node() error: {}", e.to_string())))?;
             return Err(Status::invalid_argument("The commit submitted by the miner is wrong".to_string()))
         };
         //gen commit chals for this miner and save it in verifier
         let chals = match self.verifier.commit_challenges(&miner_id) {
             Ok(chals) => chals,
             Err(e) => {
-                self.verifier.logout_prover_node(&miner_id).unwrap();
+                self.verifier.logout_prover_node(&miner_id)
+                    .map_err(|e| Status::internal(format!("logout_prover_node() error: {}", e.to_string())))?;
                 return Err(Status::internal(e.to_string()))
             },
         };

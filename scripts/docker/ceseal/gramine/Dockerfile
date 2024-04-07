@@ -13,19 +13,30 @@ ARG BUILD=release
 ARG OA
 ARG VC
 
-RUN : "${IAS_API_KEY:?IAS_API_KEY needs to be set and non-empty.}" \
-    && : "${IAS_SPID:?IAS_SPID needs to be set and non-empty.}"
-    
-RUN mkdir ces-blockchain
-ADD . ces-blockchain
+RUN <<EOF
+  set -e
+  : "${IAS_API_KEY:?IAS_API_KEY needs to be set and non-empty.}"
+  : "${IAS_SPID:?IAS_SPID needs to be set and non-empty.}"
+  mkdir cess-code
+EOF
+
+COPY ./scripts/docker/cargo-config.toml /usr/local/cargo/config
+COPY pallets ./cess-code/pallets
+COPY crates ./cess-code/crates
+COPY standalone ./cess-code/standalone
+COPY Cargo.toml Cargo.lock rustfmt.toml rust-toolchain.toml Makefile ./cess-code/
 
 RUN mkdir prebuilt
 
-RUN cd ces-blockchain/standalone/teeworker/ceseal/gramine-build && \
-    PATH=$PATH:/root/.cargo/bin make dist PREFIX=/root/prebuilt && \
-    make clean && \
-    rm -rf /root/.cargo/registry && \
-    rm -rf /root/.cargo/git
+RUN <<EOF
+  set -e
+  cd cess-code/standalone/teeworker/ceseal/gramine-build
+  PATH=$PATH:/root/.cargo/bin
+  make dist PREFIX=/root/prebuilt
+  make clean
+  rm -rf /root/.cargo/registry
+  rm -rf /root/.cargo/git
+EOF
 
 # ====== runtime ======
 

@@ -158,17 +158,17 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		//Already registered
+		/// Already registered
 		AlreadyRegistration,
-		//Not a controller account
+		/// Not a controller account
 		NotStash,
-		//The scheduled error report has been reported once
+		/// The scheduled error report has been reported once
 		AlreadyReport,
-		//Boundedvec conversion error
+		/// Boundedvec conversion error
 		BoundedVecError,
-		//Storage reaches upper limit error
+		/// Error indicating that the storage has reached its limit
 		StorageLimitReached,
-		//data overrun error
+		/// data overrun error
 		Overflow,
 
 		NotBond,
@@ -208,22 +208,22 @@ pub mod pallet {
 		MalformedSignature,
 		InvalidSignatureLength,
 		InvalidSignature,
-		// IAS related
+		/// IAS related
 		WorkerNotFound,
-		// Keyfairy related
+		/// Keyfairy related
 		InvalidKeyfairy,
 		InvalidMasterPubkey,
 		MasterKeyMismatch,
 		MasterKeyUninitialized,
-		// Ceseal related
+		/// Ceseal related
 		CesealAlreadyExists,
 		CesealNotFound,
-		// Additional
+		/// Additional
 		NotImplemented,
 		CannotRemoveLastKeyfairy,
 		MasterKeyInRotation,
 		InvalidRotatedMasterPubkey,
-		// Endpoint related
+		/// Endpoint related
 		EmptyEndpoint,
 		InvalidEndpointSigningTime,
 
@@ -558,6 +558,8 @@ pub mod pallet {
 			};
 
 			Workers::<T>::insert(&pubkey, worker_info);
+			let now = <frame_system::Pallet<T>>::block_number();
+			<LastWork<T>>::insert(&pubkey, now);
 
 			if ceseal_info.role == WorkerRole::Full || ceseal_info.role == WorkerRole::Verifier {
 				ValidationTypeList::<T>::mutate(|puk_list| -> DispatchResult {
@@ -650,6 +652,8 @@ pub mod pallet {
 			};
 
 			Workers::<T>::insert(&pubkey, worker_info);
+			let now = <frame_system::Pallet<T>>::block_number();
+			<LastWork<T>>::insert(&pubkey, now);
 
 			if ceseal_info.role == WorkerRole::Full || ceseal_info.role == WorkerRole::Verifier {
 				ValidationTypeList::<T>::mutate(|puk_list| -> DispatchResult {
@@ -793,7 +797,7 @@ pub mod pallet {
 
 			Ok(())
 		}
-
+		// FOR TEST
 		#[pallet::call_index(115)]
 		#[pallet::weight({0})]
 		pub fn patch_clear_invalid_tee(origin: OriginFor<T>) -> DispatchResult {
@@ -803,6 +807,19 @@ pub mod pallet {
 				Ok(())
 			})?;
 			
+			Ok(())
+		}
+		// FOR TEST
+		#[pallet::call_index(116)]
+		#[pallet::weight({0})]
+		pub fn patch_clear_not_work_tee(origin: OriginFor<T>) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+			for (puk, _) in Workers::<T>::iter() {
+				if !<LastWork<T>>::contains_key(&puk) {
+					Self::execute_exit(puk)?;
+				}
+			}
+
 			Ok(())
 		}
 	}
