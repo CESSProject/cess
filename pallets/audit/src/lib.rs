@@ -1037,7 +1037,7 @@ pub mod pallet {
 				return weight;
 			}
 
-			if now % 10u32.saturated_into() != 0u32.saturated_into() {
+			if now % 3u32.saturated_into() != 0u32.saturated_into() {
 				return weight;
 			}
 
