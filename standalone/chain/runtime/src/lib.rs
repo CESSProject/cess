@@ -1288,6 +1288,8 @@ parameter_types! {
 	pub const P2PLength: u32 = 200;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const AuthorLimit: u32 = 20;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const PayloadExpired: u32 = 100;
 }
 
 impl pallet_oss::Config for Runtime {
@@ -1295,6 +1297,7 @@ impl pallet_oss::Config for Runtime {
 	type WeightInfo = pallet_oss::weights::SubstrateWeight<Runtime>;
 	type P2PLength = P2PLength;
 	type AuthorLimit = AuthorLimit;
+	type PayloadExpired = PayloadExpired;
 }
 
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
