@@ -259,6 +259,8 @@ pub mod pallet {
 		MalformedSignature,
 		/// Error in comparing miner account information
 		MinerError,
+		/// Does not comply with the rules: fragments of a segment need to be stored on different miners
+		RulesNotAllowed,
 	}
 
 	#[pallet::storage]
@@ -1088,6 +1090,9 @@ pub mod pallet {
 					for segment in &mut file.segment_list {
 						for fragment in &mut segment.fragment_list {
 							if &fragment.hash == &fragment_hash {
+								if &fragment.miner ==  &sender {
+									Err(Error::<T>::RulesNotAllowed)?
+								}
 								if &fragment.miner == &order.origin_miner {
 									let binary = fragment.hash.binary().map_err(|_| Error::<T>::BugInvalid)?;
 									T::MinerControl::insert_service_bloom(&sender, vec![binary.clone()])?;
