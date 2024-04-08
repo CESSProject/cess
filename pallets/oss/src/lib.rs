@@ -94,10 +94,6 @@ use frame_system::{ensure_signed, Origin};
 	#[pallet::getter(fn oss)]
 	pub(super) type Oss<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, OssInfo>;
 
-	#[pallet::storage]
-	#[pallet::getter(fn test_storage)]
-	pub(super) type TestStorage<T: Config> = StorageValue<_, AccountOf<T>>;
-
 	#[pallet::pallet]
 	pub struct Pallet<T>(PhantomData<T>);
 

@@ -1093,6 +1093,7 @@ parameter_types! {
 	pub const FaucetId: PalletId = PalletId(*b"facuetid");
 	#[derive(Clone, Eq, PartialEq)]
 	pub const StakingLockBlock: BlockNumber = DAYS * 180;
+	pub const MaximumRelease: u128 = 5_000_000_000_000_000_000_000_000;
 }
 
 impl pallet_sminer::Config for Runtime {
@@ -1112,6 +1113,7 @@ impl pallet_sminer::Config for Runtime {
 	type StorageHandle = StorageHandler;
 	type RewardPool = CessTreasury;
 	type CessTreasuryHandle = CessTreasury;
+	type MaximumRelease = MaximumRelease;
 }
 
 parameter_types! {
