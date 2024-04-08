@@ -1,10 +1,10 @@
-// use super::*;
-// use crate::{Pallet as FileBank, *};
+use super::*;
+use crate::{Pallet as FileBank, *};
 // use cp_cess_common::{Hash, IpAddress};
 // use codec::{alloc::string::ToString, Decode};
-// pub use frame_benchmarking::{
-// 	account, benchmarks, impl_benchmark_test_suite, whitelist_account, whitelisted_caller,
-// };
+pub use frame_benchmarking::{
+	account, benchmarks, impl_benchmark_test_suite, whitelist_account, whitelisted_caller,
+};
 // use frame_support::{
 // 	dispatch::UnfilteredDispatchable,
 // 	pallet_prelude::*,
@@ -23,24 +23,24 @@
 // };
 // use sp_std::prelude::*;
 // use scale_info::prelude::format;
-// use frame_system::RawOrigin;
+use frame_system::RawOrigin;
 // use sp_runtime::traits::BlakeTwo256;
 // use cessp_consensus_rrsc::{Slot, RRSC_ENGINE_ID};
-// pub struct Pallet<T: Config>(FileBank<T>);
-// pub trait Config:
-// 	crate::Config + pallet_sminer::benchmarking::Config + pallet_storage_handler::Config + pallet_rrsc::Config + pallet_grandpa::Config + pallet_session::Config
-// {
-// }
+pub struct Pallet<T: Config>(FileBank<T>);
+pub trait Config:
+	crate::Config + pallet_sminer::benchmarking::Config + pallet_storage_handler::Config + pallet_tee_worker::Config
+{
+}
 // type SminerBalanceOf<T> = <<T as pallet_storage_handler::Config>::Currency as Currency<
 // 	<T as frame_system::Config>::AccountId,
 // >>::Balance;
 
-// const SEED: u32 = 2190502;
-// const miner_list: [&'static str; 30] = [
-// 	"miner1", "miner2", "miner3", "miner4", "miner5", "miner6", "miner7", "miner8", "miner9", "miner10",
-// 	"miner11", "miner12", "miner13", "miner14", "miner15", "miner16", "miner17", "miner18", "miner19", "miner20",
-// 	"miner21", "miner22", "miner23", "miner24", "miner25", "miner26", "miner27", "miner28", "miner29", "miner30",
-// ];
+const SEED: u32 = 2190502;
+const miner_list: [&'static str; 30] = [
+	"miner1", "miner2", "miner3", "miner4", "miner5", "miner6", "miner7", "miner8", "miner9", "miner10",
+	"miner11", "miner12", "miner13", "miner14", "miner15", "miner16", "miner17", "miner18", "miner19", "miner20",
+	"miner21", "miner22", "miner23", "miner24", "miner25", "miner26", "miner27", "miner28", "miner29", "miner30",
+];
 // // const MAX_SPANS: u32 = 100;
 // pub struct DealSubmitInfo<T: Config> {
 // 	file_hash: Hash,
@@ -49,29 +49,43 @@
 // 	file_size: u128,
 // }
 
-// pub fn add_idle_space<T: Config>(miner: T::AccountId) -> Result<(), &'static str> {
-// 	let idle_space = <T as crate::Config>::MinerControl::add_miner_idle_space(
-// 		&miner,
-// 		[8u8; 256], 
-// 		10000,
-// 		[8u8; 256],
-// 	).expect("add idle space failed, func add_miner_idle_space()");
+pub fn cert_idle_for_miner<T: Config>(miner: T::AccountId) -> Result<(), &'static str> {
+	let pois_key = PoISKey {
+		g: [2u8; 256],
+		n: [3u8; 256],
+	};
 
-// 	<T as crate::Config>::StorageHandle::add_total_idle_space(idle_space).expect("add idle space failed, func add_total_idle_space()");
+	let space_proof_info = SpaceProofInfo::<AccountOf<T>> {
+		miner: miner.clone(),
+		front: u64::MIN,
+		rear: 1000,
+		pois_key: pois_key.clone(),
+		accumulator: pois_key.g,
+	};
 
-// 	Ok(())
-// }
+	let tee_puk = pallet_tee_worker::benchmarking::get_pubkey::<T>();
+	let tee_puk_encode = tee_puk.encode();
+	let idle_sig_info_encode = space_proof_info.encode();
+	let mut original = Vec::new();
+	original.extend_from_slice(&idle_sig_info_encode);
+	original.extend_from_slice(&tee_puk_encode);
+	let original = sp_io::hashing::sha2_256(&original);
+	let sig = pallet_tee_worker::benchmarking::sign_message::<T>(&original);
+	let sig: BoundedVec<u8, ConstU32<64>> = sig.0.to_vec().try_into().map_err(|_| "bounded convert error")?;
 
-// pub fn buy_space<T: Config>(user: T::AccountId) -> Result<(), &'static str> {
-// 	<T as pallet_storage_handler::Config>::Currency::make_free_balance_be(
-// 		&user,
-// 		SminerBalanceOf::<T>::max_value(),
-// 	);
+	Pallet::<T>::cert_idle_space(RawOrigin::Signed(miner.clone()).into(), space_proof_info, sig.clone(), sig, tee_puk)?;
 
-// 	StorageHandler::<T>::buy_space(RawOrigin::Signed(user).into(), 10)?;
+	Ok(())
+}
 
-// 	Ok(())
-// }
+pub fn buy_space<T: Config>(user: T::AccountId) -> Result<(), &'static str> {
+	let free: BalanceOf<T> = 365_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
+    T::Currency::make_free_balance_be(&user, free);
+
+	StorageHandler::<T>::buy_space(RawOrigin::Signed(user).into(), 10)?;
+
+	Ok(())
+}
 
 // pub fn create_deal_info<T: Config>(acc: AccountOf<T>, length: u32, hash_seed: u8) -> Result<DealSubmitInfo<T>, &'static str> {
 // 	let mut deal_info: BoundedVec<SegmentList<T>, T::SegmentCount> = Default::default();
@@ -112,37 +126,81 @@
 // 	Ok(())
 // }
 
-// benchmarks! {
-// 	cert_idle_space {
-// 		log::info!("start cert_idle_space");
-// 		let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
-// 		let miner = pallet_sminer::benchmarking::add_miner::<T>("miner1")?;
+benchmarks! {
+	cert_idle_space {
+    	log::info!("start cert_idle_space");
+        pallet_tee_worker::benchmarking::generate_workers::<T>();
+		let miner: AccountOf<T> = account("miner1", 100, SEED);
+		let _ = pallet_sminer::benchmarking::register_positive_miner::<T>(miner.clone())?;
 
-// 		let pois_key = PoISKey {
-//             g: [2u8; 256],
-//             n: [3u8; 256],
-//         };
+		let pois_key = PoISKey {
+            g: [2u8; 256],
+            n: [3u8; 256],
+        };
 
-// 		let space_proof_info = SpaceProofInfo::<AccountOf<T>> {
-//             miner: miner.clone(),
-//             front: u64::MIN,
-//             rear: 1000,
-//             pois_key: pois_key.clone(),
-//             accumulator: pois_key.g,
-//         };
+		let space_proof_info = SpaceProofInfo::<AccountOf<T>> {
+            miner: miner.clone(),
+            front: u64::MIN,
+            rear: 1000,
+            pois_key: pois_key.clone(),
+            accumulator: pois_key.g,
+        };
 
-// 		let original = space_proof_info.encode();
-// 		let original = sp_io::hashing::sha2_256(&original);
+		let tee_puk = pallet_tee_worker::benchmarking::get_pubkey::<T>();
+		let tee_puk_encode = tee_puk.encode();
+		let idle_sig_info_encode = space_proof_info.encode();
+		let mut original = Vec::new();
+		original.extend_from_slice(&idle_sig_info_encode);
+		original.extend_from_slice(&tee_puk_encode);
+		let original = sp_io::hashing::sha2_256(&original);
+        let sig = pallet_tee_worker::benchmarking::sign_message::<T>(&original);
+        let sig: BoundedVec<u8, ConstU32<64>> = sig.0.to_vec().try_into().map_err(|_| "bounded convert error")?;
+	}: _(RawOrigin::Signed(miner.clone()), space_proof_info, sig.clone(), sig, tee_puk)
+	verify {
+		let (idle, service) = T::MinerControl::get_power(&miner)?;
+		assert_eq!(idle, 1000 * IDLE_SEG_SIZE);
+	}
 
-// 		log::info!("original: {:?}", original);
+	upload_declaration {
+		let user: AccountOf<T> = account("user1", 100, SEED);
+		let miner: AccountOf<T> = account("miner1", 100, SEED);
+		let _ = pallet_sminer::benchmarking::register_positive_miner::<T>(miner.clone())?;
+		let _ = cert_idle_for_miner::<T>(miner)?;
 
-// 		let tee_sig = [19, 66, 60, 64, 120, 225, 105, 244, 158, 246, 90, 112, 6, 239, 63, 152, 116, 41, 57, 4, 4, 217, 206, 100, 138, 168, 193, 247, 62, 155, 76, 164, 179, 117, 202, 77, 182, 109, 223, 103, 50, 197, 214, 153, 233, 158, 124, 138, 64, 252, 54, 62, 250, 128, 177, 239, 248, 98, 31, 77, 208, 8, 91, 241, 66, 205, 89, 240, 211, 84, 250, 194, 206, 106, 35, 25, 154, 82, 174, 156, 14, 10, 201, 1, 45, 70, 50, 89, 202, 96, 42, 93, 227, 71, 119, 211, 11, 210, 192, 113, 249, 221, 217, 116, 181, 116, 206, 56, 43, 238, 147, 157, 38, 95, 79, 73, 221, 41, 87, 203, 162, 172, 32, 9, 173, 190, 225, 160, 118, 34, 77, 121, 73, 79, 199, 66, 32, 131, 174, 158, 210, 97, 172, 72, 251, 183, 247, 74, 207, 46, 201, 97, 90, 171, 251, 245, 202, 155, 8, 168, 199, 206, 64, 97, 66, 215, 6, 251, 111, 32, 37, 56, 60, 178, 2, 155, 167, 207, 224, 56, 20, 196, 162, 9, 188, 137, 225, 48, 117, 217, 229, 183, 122, 157, 93, 12, 142, 131, 239, 44, 12, 157, 55, 246, 59, 22, 216, 112, 84, 42, 54, 226, 99, 46, 246, 5, 110, 15, 122, 247, 46, 244, 132, 195, 60, 54, 98, 232, 53, 162, 82, 107, 134, 218, 70, 71, 148, 75, 31, 65, 33, 193, 221, 20, 124, 128, 42, 9, 116, 181, 125, 77, 33, 202, 152, 179];
+		let mut deal_info: BoundedVec<SegmentList<T>, T::SegmentCount> = Default::default();
+		let segment_list = SegmentList::<T> {
+			hash: Hash([1u8; 64]),
+			fragment_list: [
+				Hash([2u8; 64]),
+				Hash([3u8; 64]),
+				Hash([4u8; 64]),
+			].to_vec().try_into().unwrap(),
+		};
+		deal_info.try_push(segment_list).unwrap();
+		let segment_list = SegmentList::<T> {
+			hash: Hash([2u8; 64]),
+			fragment_list: [
+				Hash([2u8; 64]),
+				Hash([3u8; 64]),
+				Hash([4u8; 64]),
+			].to_vec().try_into().unwrap(),
+		};
+		deal_info.try_push(segment_list).unwrap();
+		let segment_list = SegmentList::<T> {
+			hash: Hash([3u8; 64]),
+			fragment_list: [
+				Hash([2u8; 64]),
+				Hash([3u8; 64]),
+				Hash([4u8; 64]),
+			].to_vec().try_into().unwrap(),
+		};
+		deal_info.try_push(segment_list).unwrap();
+		
+	}: _{}
+	verify {
 
-// 	}: _(RawOrigin::Signed(miner.clone()), space_proof_info, tee_sig)
-// 	verify {
-// 		let (idle, service) = T::MinerControl::get_power(&miner)?;
-// 		assert_eq!(idle, 1000 * IDLE_SEG_SIZE);
-// 	}
+	}
+}
 
 // 	upload_declaration {
 // 		let v in 1 .. 30;
@@ -157,7 +215,7 @@
 // 			add_idle_space::<T>(miner.clone())?;
 // 		}
 // 		buy_space::<T>(caller.clone())?;
-// 		let mut deal_info: BoundedVec<SegmentList<T>, T::SegmentCount> = Default::default();
+
 // 		let file_name = "test-file".as_bytes().to_vec();
 // 		let bucket_name = "test-bucket1".as_bytes().to_vec();
 // 		let file_hash: Hash = Hash([4u8; 64]);

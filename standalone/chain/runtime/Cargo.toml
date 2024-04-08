@@ -211,7 +211,7 @@ runtime-benchmarks = [
   "pallet-contracts/runtime-benchmarks",
   "pallet-ethereum/runtime-benchmarks",
   "pallet-evm/runtime-benchmarks",
-  # "pallet-file-bank/runtime-benchmarks",
+  "pallet-file-bank/runtime-benchmarks",
   "pallet-oss/runtime-benchmarks",
   "pallet-sminer/runtime-benchmarks",
   "pallet-storage-handler/runtime-benchmarks",
