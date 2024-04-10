@@ -432,7 +432,7 @@ pub mod pallet {
 				Receptionist::<T>::fly_upload_file(file_hash, user_brief.clone())?;
 			} else {
 				let needed_space = SEGMENT_SIZE
-					.checked_mul(15).ok_or(Error::<T>::Overflow)?
+					.checked_mul(30).ok_or(Error::<T>::Overflow)?
 					.checked_div(10).ok_or(Error::<T>::Overflow)?
 					.checked_mul(deal_info.len() as u128).ok_or(Error::<T>::Overflow)?;
             	ensure!(T::StorageHandle::get_user_avail_space(&user_brief.user)? > needed_space, Error::<T>::InsufficientAvailableSpace);
@@ -739,7 +739,6 @@ pub mod pallet {
 			let _ = Self::delete_user_file(&file_hash, &owner, &file)?;
 			Self::bucket_remove_file(&file_hash, &owner, &file)?;
 			Self::remove_user_hold_file_list(&file_hash, &owner)?;
-			
 			Self::deposit_event(Event::<T>::DeleteFile{ operator: sender, owner, file_hash });
 
 			Ok(())

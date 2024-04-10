@@ -22,6 +22,10 @@ pub trait Config:
 {
 }
 
+pub fn get_replace_space<T: Config>(account: AccountOf<T>) -> Result<u128, &'static str> {
+    Ok(<PendingReplacements<T>>::get(&account))
+}
+
 pub fn register_miner<T: Config>(account: AccountOf<T>) -> Result<(), &'static str> {
     <T as crate::Config>::Currency::make_free_balance_be(
         &account,

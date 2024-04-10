@@ -5,6 +5,7 @@ use crate::{Pallet as FileBank, *};
 pub use frame_benchmarking::{
 	account, benchmarks, impl_benchmark_test_suite, whitelist_account, whitelisted_caller,
 };
+use frame_support::traits::Currency;
 // use frame_support::{
 // 	dispatch::UnfilteredDispatchable,
 // 	pallet_prelude::*,
@@ -15,7 +16,7 @@ pub use frame_benchmarking::{
 // 	testing_utils, Config as StakingConfig, Pallet as Staking, RewardDestination,
 // };
 // use pallet_tee_worker::{Config as TeeWorkerConfig, Pallet as TeeWorker};
-// use pallet_sminer::{Config as SminerConfig, Pallet as Sminer};
+use pallet_sminer::{Config as SminerConfig, Pallet as Sminer};
 // use pallet_storage_handler::{Pallet as StorageHandler};
 // use sp_runtime::{
 // 	traits::{Bounded, One, StaticLookup, TrailingZeroInput, Zero},
@@ -73,16 +74,69 @@ pub fn cert_idle_for_miner<T: Config>(miner: T::AccountId) -> Result<(), &'stati
 	let sig = pallet_tee_worker::benchmarking::sign_message::<T>(&original);
 	let sig: BoundedVec<u8, ConstU32<64>> = sig.0.to_vec().try_into().map_err(|_| "bounded convert error")?;
 
-	Pallet::<T>::cert_idle_space(RawOrigin::Signed(miner.clone()).into(), space_proof_info, sig.clone(), sig, tee_puk)?;
+	FileBank::<T>::cert_idle_space(RawOrigin::Signed(miner.clone()).into(), space_proof_info, sig.clone(), sig, tee_puk)?;
 
 	Ok(())
 }
 
 pub fn buy_space<T: Config>(user: T::AccountId) -> Result<(), &'static str> {
-	let free: BalanceOf<T> = 365_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
-    T::Currency::make_free_balance_be(&user, free);
+    <T as pallet_sminer::Config>::Currency::make_free_balance_be(
+		&user, 
+		365_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!"),
+	);
 
-	StorageHandler::<T>::buy_space(RawOrigin::Signed(user).into(), 10)?;
+	pallet_storage_handler::Pallet::<T>::buy_space(RawOrigin::Signed(user).into(), 10)?;
+
+	Ok(())
+}
+
+pub fn initialize_file_from_scratch<T: Config>() -> Result<(), &'static str> {
+	pallet_tee_worker::benchmarking::generate_workers::<T>();
+	let user: AccountOf<T> = account("user1", 100, SEED);
+	let mut positive_miner: Vec<AccountOf<T>> = Default::default();
+	for i in 0 .. 12 {
+		let miner: AccountOf<T> = account(miner_list[i as usize], 100, SEED);
+		positive_miner.push(miner.clone());
+		let _ = pallet_sminer::benchmarking::register_positive_miner::<T>(miner.clone())?;
+		let _ = cert_idle_for_miner::<T>(miner)?;
+	}
+
+	let _ = buy_space::<T>(user.clone())?;
+	
+	let file_name = "test-file".as_bytes().to_vec();
+	let bucket_name = "test-bucket1".as_bytes().to_vec();
+	let file_hash: Hash = Hash([80u8; 64]);
+	let file_size: u128 = SEGMENT_SIZE * 3;
+	let user_brief = UserBrief::<T> {
+		user: user.clone(),
+		file_name: file_name.try_into().map_err(|_e| "file name convert err")?,
+		bucket_name: bucket_name.try_into().map_err(|_e| "bucket name convert err")?,
+	};
+
+	let mut deal_info: BoundedVec<SegmentList<T>, T::SegmentCount> = Default::default();
+	let segment_list = SegmentList::<T> {
+		hash: Hash([65u8; 64]),
+		fragment_list: [
+			Hash([97u8; 64]),
+			Hash([97u8; 64]),
+			Hash([97u8; 64]),
+			Hash([97u8; 64]),
+			Hash([97u8; 64]),
+			Hash([97u8; 64]),
+			Hash([97u8; 64]),
+			Hash([97u8; 64]),
+			Hash([97u8; 64]),
+			Hash([97u8; 64]),
+			Hash([97u8; 64]),
+			Hash([97u8; 64]),
+		].to_vec().try_into().unwrap(),
+	};
+	deal_info.try_push(segment_list).unwrap();
+	FileBank::<T>::upload_declaration(RawOrigin::Signed(user.clone()).into(), file_hash.clone(), deal_info, user_brief, file_size)?;
+
+	for i in 0 .. 12 {
+		FileBank::<T>::transfer_report(RawOrigin::Signed(positive_miner[i as usize].clone()).into(), i + 1, file_hash.clone())?;
+	}
 
 	Ok(())
 }
@@ -162,523 +216,460 @@ benchmarks! {
 	}
 
 	upload_declaration {
+		let v in 1 .. 30;
+		log::info!("start upload_declaration");
+        pallet_tee_worker::benchmarking::generate_workers::<T>();
 		let user: AccountOf<T> = account("user1", 100, SEED);
 		let miner: AccountOf<T> = account("miner1", 100, SEED);
 		let _ = pallet_sminer::benchmarking::register_positive_miner::<T>(miner.clone())?;
 		let _ = cert_idle_for_miner::<T>(miner)?;
+		let _ = buy_space::<T>(user.clone())?;
+
+		let file_name = "test-file".as_bytes().to_vec();
+		let bucket_name = "test-bucket1".as_bytes().to_vec();
+		let file_hash: Hash = Hash([80u8; 64]);
+		let file_size: u128 = SEGMENT_SIZE * 3;
+		let user_brief = UserBrief::<T> {
+			user: user.clone(),
+			file_name: file_name.try_into().map_err(|_e| "file name convert err")?,
+			bucket_name: bucket_name.try_into().map_err(|_e| "bucket name convert err")?,
+		};
+		
+		let mut deal_info: BoundedVec<SegmentList<T>, T::SegmentCount> = Default::default();
+		for i in 0 .. v {
+			let segment_list = SegmentList::<T> {
+				hash: Hash([65u8; 64]),
+				fragment_list: [
+					Hash([66u8; 64]),
+					Hash([67u8; 64]),
+					Hash([68u8; 64]),
+					Hash([69u8; 64]),
+					Hash([70u8; 64]),
+					Hash([71u8; 64]),
+					Hash([72u8; 64]),
+					Hash([73u8; 64]),
+					Hash([74u8; 64]),
+					Hash([75u8; 64]),
+					Hash([76u8; 64]),
+					Hash([77u8; 64]),
+				].to_vec().try_into().unwrap(),
+			};
+			deal_info.try_push(segment_list).unwrap();
+		}
+	}: _(RawOrigin::Signed(user), file_hash.clone(), deal_info, user_brief, file_size)
+	verify {
+		assert!(DealMap::<T>::contains_key(&file_hash));
+	}
+
+	transfer_report {
+		let v in 1 .. 30;
+		log::info!("start transfer_report");
+        pallet_tee_worker::benchmarking::generate_workers::<T>();
+		let user: AccountOf<T> = account("user1", 100, SEED);
+		let mut positive_miner: Vec<AccountOf<T>> = Default::default();
+		for i in 0 .. 12 {
+			let miner: AccountOf<T> = account(miner_list[i as usize], 100, SEED);
+			positive_miner.push(miner.clone());
+			let _ = pallet_sminer::benchmarking::register_positive_miner::<T>(miner.clone())?;
+			let _ = cert_idle_for_miner::<T>(miner)?;
+		}
+
+		let _ = buy_space::<T>(user.clone())?;
+		
+		let file_name = "test-file".as_bytes().to_vec();
+		let bucket_name = "test-bucket1".as_bytes().to_vec();
+		let file_hash: Hash = Hash([80u8; 64]);
+		let file_size: u128 = SEGMENT_SIZE * 3;
+		let user_brief = UserBrief::<T> {
+			user: user.clone(),
+			file_name: file_name.try_into().map_err(|_e| "file name convert err")?,
+			bucket_name: bucket_name.try_into().map_err(|_e| "bucket name convert err")?,
+		};
+		
+		let mut deal_info: BoundedVec<SegmentList<T>, T::SegmentCount> = Default::default();
+		for i in 0 .. v {
+			let segment_list = SegmentList::<T> {
+				hash: Hash([65u8; 64]),
+				fragment_list: [
+					Hash([66u8; 64]),
+					Hash([67u8; 64]),
+					Hash([68u8; 64]),
+					Hash([69u8; 64]),
+					Hash([70u8; 64]),
+					Hash([71u8; 64]),
+					Hash([72u8; 64]),
+					Hash([73u8; 64]),
+					Hash([74u8; 64]),
+					Hash([75u8; 64]),
+					Hash([76u8; 64]),
+					Hash([77u8; 64]),
+				].to_vec().try_into().unwrap(),
+			};
+			deal_info.try_push(segment_list).unwrap();
+		}
+
+		FileBank::<T>::upload_declaration(RawOrigin::Signed(user).into(), file_hash.clone(), deal_info, user_brief, file_size)?;
+
+		for i in 0 .. 11 {
+			FileBank::<T>::transfer_report(RawOrigin::Signed(positive_miner[i as usize].clone()).into(), i + 1, file_hash.clone())?;
+		}
+	}: _(RawOrigin::Signed(positive_miner[11].clone()), 12, file_hash.clone())
+	verify {
+		assert!(<File<T>>::contains_key(&file_hash));
+	}
+
+	calculate_report {
+		log::info!("start calculate_report");
+        pallet_tee_worker::benchmarking::generate_workers::<T>();
+		let user: AccountOf<T> = account("user1", 100, SEED);
+		let mut positive_miner: Vec<AccountOf<T>> = Default::default();
+		for i in 0 .. 12 {
+			let miner: AccountOf<T> = account(miner_list[i as usize], 100, SEED);
+			positive_miner.push(miner.clone());
+			let _ = pallet_sminer::benchmarking::register_positive_miner::<T>(miner.clone())?;
+			let _ = cert_idle_for_miner::<T>(miner)?;
+		}
+
+		let _ = buy_space::<T>(user.clone())?;
+		
+		let file_name = "test-file".as_bytes().to_vec();
+		let bucket_name = "test-bucket1".as_bytes().to_vec();
+		let file_hash: Hash = Hash([80u8; 64]);
+		let file_size: u128 = SEGMENT_SIZE * 3;
+		let user_brief = UserBrief::<T> {
+			user: user.clone(),
+			file_name: file_name.try_into().map_err(|_e| "file name convert err")?,
+			bucket_name: bucket_name.try_into().map_err(|_e| "bucket name convert err")?,
+		};
+		
+		let mut deal_info: BoundedVec<SegmentList<T>, T::SegmentCount> = Default::default();
+
+		let segment_list = SegmentList::<T> {
+			hash: Hash([65u8; 64]),
+			fragment_list: [
+				Hash([97u8; 64]),
+				Hash([97u8; 64]),
+				Hash([97u8; 64]),
+				Hash([97u8; 64]),
+				Hash([97u8; 64]),
+				Hash([97u8; 64]),
+				Hash([97u8; 64]),
+				Hash([97u8; 64]),
+				Hash([97u8; 64]),
+				Hash([97u8; 64]),
+				Hash([97u8; 64]),
+				Hash([97u8; 64]),
+			].to_vec().try_into().unwrap(),
+		};
+		deal_info.try_push(segment_list).unwrap();
+
+		FileBank::<T>::upload_declaration(RawOrigin::Signed(user).into(), file_hash.clone(), deal_info, user_brief, file_size)?;
+
+		for i in 0 .. 12 {
+			FileBank::<T>::transfer_report(RawOrigin::Signed(positive_miner[i as usize].clone()).into(), i + 1, file_hash.clone())?;
+		}
+
+		let tee_puk = pallet_tee_worker::benchmarking::get_pubkey::<T>();
+		let mut digest_list: BoundedVec<DigestInfo, ConstU32<1000>> = Default::default();
+		let digest_info = DigestInfo {
+			fragment: Hash([97u8; 64]),
+			tee_puk : tee_puk,
+		};
+		digest_list.try_push(digest_info).unwrap();
+		let tag_sig_info = TagSigInfo::<AccountOf<T>> {
+			miner: positive_miner[0].clone(),
+			digest: digest_list,
+			file_hash: file_hash.clone(),
+		};
+
+		let idle_sig_info_encode = tag_sig_info.encode();
+		let original = sp_io::hashing::sha2_256(&idle_sig_info_encode);
+		let sig = pallet_tee_worker::benchmarking::sign_message::<T>(&original);
+        let sig: BoundedVec<u8, ConstU32<64>> = sig.0.to_vec().try_into().map_err(|_| "bounded convert error")?;
+		assert!(<File<T>>::contains_key(&file_hash));
+		let (_, service) = T::MinerControl::get_power(&positive_miner[0]).unwrap();
+		assert_eq!(service, 0);
+	}: _(RawOrigin::Signed(positive_miner[0].clone()), sig, tag_sig_info)
+	verify {
+		let (_, service) = T::MinerControl::get_power(&positive_miner[0]).unwrap();
+		assert_eq!(service, FRAGMENT_SIZE * 1);
+	}
+
+	replace_idle_space {
+		let v in 8 .. 30;
+		log::info!("start replace_idle_space");
+		pallet_tee_worker::benchmarking::generate_workers::<T>();
+		let user: AccountOf<T> = account("user1", 100, SEED);
+		let mut positive_miner: Vec<AccountOf<T>> = Default::default();
+		for i in 0 .. 12 {
+			let miner: AccountOf<T> = account(miner_list[i as usize], 100, SEED);
+			positive_miner.push(miner.clone());
+			let _ = pallet_sminer::benchmarking::register_positive_miner::<T>(miner.clone())?;
+			let _ = cert_idle_for_miner::<T>(miner)?;
+		}
+
+		let _ = buy_space::<T>(user.clone())?;
+		
+		let file_name = "test-file".as_bytes().to_vec();
+		let bucket_name = "test-bucket1".as_bytes().to_vec();
+		let file_hash: Hash = Hash([80u8; 64]);
+		let file_size: u128 = SEGMENT_SIZE * 3;
+		let user_brief = UserBrief::<T> {
+			user: user.clone(),
+			file_name: file_name.try_into().map_err(|_e| "file name convert err")?,
+			bucket_name: bucket_name.try_into().map_err(|_e| "bucket name convert err")?,
+		};
+
+		let mut deal_info: BoundedVec<SegmentList<T>, T::SegmentCount> = Default::default();
+		for i in 0 .. v {
+			let segment_list = SegmentList::<T> {
+				hash: Hash([65u8; 64]),
+				fragment_list: [
+					Hash([97u8; 64]),
+					Hash([97u8; 64]),
+					Hash([97u8; 64]),
+					Hash([97u8; 64]),
+					Hash([97u8; 64]),
+					Hash([97u8; 64]),
+					Hash([97u8; 64]),
+					Hash([97u8; 64]),
+					Hash([97u8; 64]),
+					Hash([97u8; 64]),
+					Hash([97u8; 64]),
+					Hash([97u8; 64]),
+				].to_vec().try_into().unwrap(),
+			};
+			deal_info.try_push(segment_list).unwrap();
+		}
+
+		FileBank::<T>::upload_declaration(RawOrigin::Signed(user).into(), file_hash.clone(), deal_info, user_brief, file_size)?;
+
+		for i in 0 .. 12 {
+			FileBank::<T>::transfer_report(RawOrigin::Signed(positive_miner[i as usize].clone()).into(), i + 1, file_hash.clone())?;
+		}
+
+		let tee_puk = pallet_tee_worker::benchmarking::get_pubkey::<T>();
+		let mut digest_list: BoundedVec<DigestInfo, ConstU32<1000>> = Default::default();
+		for i in 0 .. v {
+			let digest_info = DigestInfo {
+				fragment: Hash([97u8; 64]),
+				tee_puk : tee_puk,
+			};
+			digest_list.try_push(digest_info).unwrap();
+		}
+		let tag_sig_info = TagSigInfo::<AccountOf<T>> {
+			miner: positive_miner[0].clone(),
+			digest: digest_list,
+			file_hash: file_hash.clone(),
+		};
+		let idle_sig_info_encode = tag_sig_info.encode();
+		let original = sp_io::hashing::sha2_256(&idle_sig_info_encode);
+		let sig = pallet_tee_worker::benchmarking::sign_message::<T>(&original);
+        let sig: BoundedVec<u8, ConstU32<64>> = sig.0.to_vec().try_into().map_err(|_| "bounded convert error")?;
+		FileBank::<T>::calculate_report(RawOrigin::Signed(positive_miner[0].clone()).into(), sig, tag_sig_info)?;
+
+		let pois_key = PoISKey {
+            g: [2u8; 256],
+            n: [3u8; 256],
+        };
+
+		let space_proof_info = SpaceProofInfo::<AccountOf<T>> {
+            miner: positive_miner[0].clone(),
+            front: 1,
+            rear: 1000,
+            pois_key: pois_key.clone(),
+            accumulator: pois_key.g,
+        };
+
+		let idle_sig_info_encode = space_proof_info.encode();
+		let tee_puk_encode = tee_puk.encode();
+		let mut original = Vec::new();
+		original.extend_from_slice(&idle_sig_info_encode);
+		original.extend_from_slice(&tee_puk_encode);
+		let original = sp_io::hashing::sha2_256(&original);
+
+		let sig = pallet_tee_worker::benchmarking::sign_message::<T>(&original);
+        let sig: BoundedVec<u8, ConstU32<64>> = sig.0.to_vec().try_into().map_err(|_| "bounded convert error")?;
+		let replace_space = pallet_sminer::benchmarking::get_replace_space::<T>(positive_miner[0].clone()).unwrap();
+		assert_eq!(replace_space, FRAGMENT_SIZE * v as u128);
+	}: _(RawOrigin::Signed(positive_miner[0].clone()), space_proof_info, sig.clone(), sig, tee_puk)
+	verify {
+		let replace_space = pallet_sminer::benchmarking::get_replace_space::<T>(positive_miner[0].clone()).unwrap();
+		assert_eq!(replace_space, FRAGMENT_SIZE * v as u128 - IDLE_SEG_SIZE);
+	}
+
+	delete_file {
+		log::info!("start delete_file");
+		pallet_tee_worker::benchmarking::generate_workers::<T>();
+		let user: AccountOf<T> = account("user1", 100, SEED);
+		let mut positive_miner: Vec<AccountOf<T>> = Default::default();
+		for i in 0 .. 12 {
+			let miner: AccountOf<T> = account(miner_list[i as usize], 100, SEED);
+			positive_miner.push(miner.clone());
+			let _ = pallet_sminer::benchmarking::register_positive_miner::<T>(miner.clone())?;
+			let _ = cert_idle_for_miner::<T>(miner)?;
+		}
+
+		let _ = buy_space::<T>(user.clone())?;
+		
+		let file_name = "test-file".as_bytes().to_vec();
+		let bucket_name = "test-bucket1".as_bytes().to_vec();
+		let file_hash: Hash = Hash([80u8; 64]);
+		let file_size: u128 = SEGMENT_SIZE * 3;
+		let user_brief = UserBrief::<T> {
+			user: user.clone(),
+			file_name: file_name.try_into().map_err(|_e| "file name convert err")?,
+			bucket_name: bucket_name.try_into().map_err(|_e| "bucket name convert err")?,
+		};
 
 		let mut deal_info: BoundedVec<SegmentList<T>, T::SegmentCount> = Default::default();
 		let segment_list = SegmentList::<T> {
-			hash: Hash([1u8; 64]),
+			hash: Hash([65u8; 64]),
 			fragment_list: [
-				Hash([2u8; 64]),
-				Hash([3u8; 64]),
-				Hash([4u8; 64]),
+				Hash([97u8; 64]),
+				Hash([97u8; 64]),
+				Hash([97u8; 64]),
+				Hash([97u8; 64]),
+				Hash([97u8; 64]),
+				Hash([97u8; 64]),
+				Hash([97u8; 64]),
+				Hash([97u8; 64]),
+				Hash([97u8; 64]),
+				Hash([97u8; 64]),
+				Hash([97u8; 64]),
+				Hash([97u8; 64]),
 			].to_vec().try_into().unwrap(),
 		};
 		deal_info.try_push(segment_list).unwrap();
-		let segment_list = SegmentList::<T> {
-			hash: Hash([2u8; 64]),
-			fragment_list: [
-				Hash([2u8; 64]),
-				Hash([3u8; 64]),
-				Hash([4u8; 64]),
-			].to_vec().try_into().unwrap(),
-		};
-		deal_info.try_push(segment_list).unwrap();
-		let segment_list = SegmentList::<T> {
-			hash: Hash([3u8; 64]),
-			fragment_list: [
-				Hash([2u8; 64]),
-				Hash([3u8; 64]),
-				Hash([4u8; 64]),
-			].to_vec().try_into().unwrap(),
-		};
-		deal_info.try_push(segment_list).unwrap();
-		
-	}: _{}
-	verify {
+		FileBank::<T>::upload_declaration(RawOrigin::Signed(user.clone()).into(), file_hash.clone(), deal_info, user_brief, file_size)?;
 
+		for i in 0 .. 12 {
+			FileBank::<T>::transfer_report(RawOrigin::Signed(positive_miner[i as usize].clone()).into(), i + 1, file_hash.clone())?;
+		}
+	}: _(RawOrigin::Signed(user.clone()), user.clone(), file_hash.clone())
+	verify {
+		assert!(!<File<T>>::contains_key(&file_hash));
+	}
+
+	create_bucket {
+		log::info!("start create_bucket");
+		let caller: AccountOf<T> = account("user1", 100, SEED);
+		let name: Vec<u8> = "test-bucket1".as_bytes().to_vec();
+		let name: BoundedVec<u8, T::NameStrLimit> = name.try_into().map_err(|_| "name convert error")?;
+	}: _(RawOrigin::Signed(caller.clone()), caller.clone(), name.clone())
+	verify {
+		assert!(Bucket::<T>::contains_key(&caller, name));
+	}
+
+	delete_bucket {
+		log::info!("start delete_bucket");
+		let caller: AccountOf<T> = account("user1", 100, SEED);
+		let name: Vec<u8> = "test-bucket1".as_bytes().to_vec();
+		let name_bound: BoundedVec<u8, T::NameStrLimit> = name.clone().try_into().map_err(|_| "bounded_vec convert err!")?;
+		FileBank::<T>::create_bucket(RawOrigin::Signed(caller.clone()).into(), caller.clone(), name_bound.clone())?;
+		Bucket::<T>::contains_key(&caller, name_bound.clone());
+	}: _(RawOrigin::Signed(caller.clone()), caller.clone(), name_bound.clone())
+	verify {
+		assert!(!Bucket::<T>::contains_key(&caller, name_bound));
+	}
+
+	generate_restoral_order {
+		log::info!("start generate_restoral_order");
+		initialize_file_from_scratch::<T>()?;
+		let miner = account(miner_list[0], 100, SEED);
+	}: _(RawOrigin::Signed(miner), Hash([80u8; 64]), Hash([97u8; 64]))
+	verify {
+		assert!(<RestoralOrder<T>>::contains_key(&Hash([97u8; 64])));
+	}
+
+	claim_restoral_order {
+		log::info!("start claim_restoral_order");
+		initialize_file_from_scratch::<T>()?;
+		let miner: AccountOf<T> = account(miner_list[0], 100, SEED);
+		FileBank::<T>::generate_restoral_order(RawOrigin::Signed(miner.clone()).into(), Hash([80u8; 64]), Hash([97u8; 64]))?;
+		assert!(<RestoralOrder<T>>::contains_key(&Hash([97u8; 64])));
+		let miner2: AccountOf<T> = account(miner_list[12], 100, SEED);
+		let _ = pallet_sminer::benchmarking::register_positive_miner::<T>(miner2.clone())?;
+		let _ = cert_idle_for_miner::<T>(miner2.clone())?;
+	}: _(RawOrigin::Signed(miner2.clone()), Hash([97u8; 64]))
+	verify {
+		let info = <RestoralOrder<T>>::try_get(&Hash([97u8; 64])).unwrap();
+		assert_eq!(info.miner, miner2);
+	}
+
+	claim_restoral_noexist_order {
+		log::info!("start claim_restoral_noexist_order");
+		initialize_file_from_scratch::<T>()?;
+		let miner: AccountOf<T> = account(miner_list[0], 100, SEED);
+
+		let tee_puk = pallet_tee_worker::benchmarking::get_pubkey::<T>();
+		let mut digest_list: BoundedVec<DigestInfo, ConstU32<1000>> = Default::default();
+		let digest_info = DigestInfo {
+			fragment: Hash([97u8; 64]),
+			tee_puk : tee_puk,
+		};
+		digest_list.try_push(digest_info).unwrap();
+		let tag_sig_info = TagSigInfo::<AccountOf<T>> {
+			miner: miner.clone(),
+			digest: digest_list,
+			file_hash: Hash([80u8; 64]),
+		};
+		let idle_sig_info_encode = tag_sig_info.encode();
+		let original = sp_io::hashing::sha2_256(&idle_sig_info_encode);
+		let sig = pallet_tee_worker::benchmarking::sign_message::<T>(&original);
+        let sig: BoundedVec<u8, ConstU32<64>> = sig.0.to_vec().try_into().map_err(|_| "bounded convert error")?;
+		FileBank::<T>::calculate_report(RawOrigin::Signed(miner.clone()).into(), sig, tag_sig_info)?;
+
+		frame_system::Pallet::<T>::set_block_number(28805001u32.into());
+        Sminer::<T>::miner_exit_prep(RawOrigin::Signed(miner.clone()).into(), miner.clone())?;
+		Sminer::<T>::miner_exit(RawOrigin::Root.into(), miner.clone())?;
+
+		let miner2: AccountOf<T> = account(miner_list[12], 100, SEED);
+		let _ = pallet_sminer::benchmarking::register_positive_miner::<T>(miner2.clone())?;
+		let _ = cert_idle_for_miner::<T>(miner2.clone())?;
+	}: _(RawOrigin::Signed(miner2.clone()), miner.clone(), Hash([80u8; 64]), Hash([97u8; 64]))
+	verify {
+		assert!(<RestoralOrder<T>>::contains_key(&Hash([97u8; 64])));
+	}
+
+	restoral_order_complete {
+		log::info!("start restoral_order_complete");
+		initialize_file_from_scratch::<T>()?;
+		let miner: AccountOf<T> = account(miner_list[0], 100, SEED);
+		FileBank::<T>::generate_restoral_order(RawOrigin::Signed(miner.clone()).into(), Hash([80u8; 64]), Hash([97u8; 64]))?;
+		assert!(<RestoralOrder<T>>::contains_key(&Hash([97u8; 64])));
+		let miner2: AccountOf<T> = account(miner_list[12], 100, SEED);
+		let _ = pallet_sminer::benchmarking::register_positive_miner::<T>(miner2.clone())?;
+		let _ = cert_idle_for_miner::<T>(miner2.clone())?;
+		frame_system::Pallet::<T>::set_block_number(100u32.into());
+		FileBank::<T>::claim_restoral_order(RawOrigin::Signed(miner2.clone()).into(), Hash([97u8; 64]))?;
+		assert!(<RestoralOrder<T>>::contains_key(&Hash([97u8; 64])));
+	}: _(RawOrigin::Signed(miner2.clone()), Hash([97u8; 64]))
+	verify {
+		assert!(!<RestoralOrder<T>>::contains_key(&Hash([97u8; 64])));
+		let (_, space) = T::MinerControl::get_power(&miner2)?;
+		assert_eq!(space, FRAGMENT_SIZE);
+	}
+
+	ownership_transfer {
+		log::info!("start ownership_transfer");
+		initialize_file_from_scratch::<T>()?;
+		let user: AccountOf<T> = account("user1", 100, SEED);
+		let user2: AccountOf<T> = account("user2", 100, SEED);
+		buy_space::<T>(user2.clone())?;
+		let file_name = "test-file".as_bytes().to_vec();
+		let bucket_name = "test-bucket1".as_bytes().to_vec();
+		let bucket_name: BoundedVec<u8, T::NameStrLimit> = bucket_name.try_into().unwrap();
+		FileBank::<T>::create_bucket(RawOrigin::Signed(user2.clone()).into(), user2.clone(), bucket_name.clone())?;
+		let user_brief = UserBrief::<T> {
+			user: user2.clone(),
+			file_name: file_name.try_into().map_err(|_e| "file name convert err")?,
+			bucket_name: bucket_name.clone(),
+		};
+	}: _(RawOrigin::Signed(user.clone()), user_brief, Hash([80u8; 64]))
+	verify {
+		assert!(<Bucket<T>>::contains_key(&user2, &bucket_name));
+		let info = <Bucket<T>>::try_get(&user2, &bucket_name).unwrap();
+		assert!(info.object_list.contains(&Hash([80u8; 64])));
 	}
 }
-
-// 	upload_declaration {
-// 		let v in 1 .. 30;
-// 		log::info!("start upload_declaration");
-// 		// <pallet_rrsc::Pallet<T> as Hooks<T::BlockNumber>>::on_initialize(1u32.saturated_into());
-// 		// <frame_system::Pallet<T>>::set_block_number(1u32.saturated_into());
-// 		let caller: AccountOf<T> = account("user1", 100, SEED);
-// 		let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
-
-// 		for i in 0 .. v {
-// 			let miner = pallet_sminer::benchmarking::add_miner::<T>(miner_list[i as usize])?;
-// 			add_idle_space::<T>(miner.clone())?;
-// 		}
-// 		buy_space::<T>(caller.clone())?;
-
-// 		let file_name = "test-file".as_bytes().to_vec();
-// 		let bucket_name = "test-bucket1".as_bytes().to_vec();
-// 		let file_hash: Hash = Hash([4u8; 64]);
-// 		let user_brief = UserBrief::<T>{
-// 			user: caller.clone(),
-// 			file_name: file_name.try_into().map_err(|_e| "file name convert err")?,
-// 			bucket_name: bucket_name.try_into().map_err(|_e| "bucket name convert err")?,
-// 		};
-// 		let segment_list = SegmentList::<T> {
-// 			hash: Hash([1u8; 64]),
-// 			fragment_list: [
-// 				Hash([2u8; 64]),
-// 				Hash([3u8; 64]),
-// 				Hash([4u8; 64]),
-// 			].to_vec().try_into().unwrap(),
-// 		};
-// 		deal_info.try_push(segment_list).unwrap();
-// 		let segment_list = SegmentList::<T> {
-// 			hash: Hash([2u8; 64]),
-// 			fragment_list: [
-// 				Hash([2u8; 64]),
-// 				Hash([3u8; 64]),
-// 				Hash([4u8; 64]),
-// 			].to_vec().try_into().unwrap(),
-// 		};
-// 		deal_info.try_push(segment_list).unwrap();
-// 		let segment_list = SegmentList::<T> {
-// 			hash: Hash([3u8; 64]),
-// 			fragment_list: [
-// 				Hash([2u8; 64]),
-// 				Hash([3u8; 64]),
-// 				Hash([4u8; 64]),
-// 			].to_vec().try_into().unwrap(),
-// 		};
-// 		deal_info.try_push(segment_list).unwrap();
-// 	}: _(RawOrigin::Signed(caller), file_hash.clone(), deal_info, user_brief, 123)
-// 	verify {
-// 		assert!(DealMap::<T>::contains_key(&file_hash));
-// 	}
-
-// 	upload_declaration_expected_max {
-// 		let v in 1 .. 30;
-// 		log::info!("start upload_declaration_expected_max");
-// 		let caller: AccountOf<T> = account("user1", 100, SEED);
-// 		let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
-// 		for i in 0 .. 30 {
-// 			let miner = pallet_sminer::benchmarking::add_miner::<T>(miner_list[i as usize])?;
-// 			add_idle_space::<T>(miner.clone())?;
-// 			if i < 27 {
-// 				pallet_sminer::benchmarking::freeze_miner::<T>(miner.clone())?;
-// 			}
-// 		}
-// 		buy_space::<T>(caller.clone())?;
-
-// 		let deal_info = create_deal_info::<T>(caller.clone(), v, 4)?;
-// 	}: upload_declaration(RawOrigin::Signed(caller), deal_info.file_hash.clone(), deal_info.segment_list, deal_info.user_brief, deal_info.file_size)
-// 	verify {
-// 		assert!(DealMap::<T>::contains_key(&deal_info.file_hash));
-// 	}
-
-// 	transfer_report {
-// 		let v in 1 .. 30;
-// 		log::info!("start transfer_report");
-// 		let caller: AccountOf<T> = account("user1", 100, SEED);
-// 		let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
-// 		for i in 0 .. 3 {
-// 			let miner = pallet_sminer::benchmarking::add_miner::<T>(miner_list[i as usize])?;
-// 			add_idle_space::<T>(miner.clone())?;
-// 		}
-// 		buy_space::<T>(caller.clone())?;
-
-// 		let deal_submit_info = create_deal_info::<T>(caller.clone(), v, 4)?;
-// 		FileBank::<T>::upload_declaration(
-// 			RawOrigin::Signed(caller).into(),
-// 			deal_submit_info.file_hash.clone(),
-// 			deal_submit_info.segment_list,
-// 			deal_submit_info.user_brief,
-// 			deal_submit_info.file_size,
-// 		)?;
-// 		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
-
-// 	}: _(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()), deal_submit_info.file_hash)
-// 	verify {
-// 		let deal_info = DealMap::<T>::get(deal_submit_info.file_hash).unwrap();
-// 		assert_eq!(deal_info.complete_list.len(), 1);
-// 	}
-
-// 	transfer_report_last {
-// 		let v in 1 .. 30;
-// 		log::info!("start transfer_report_last");
-// 		let caller: AccountOf<T> = account("user1", 100, SEED);
-// 		let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
-// 		for i in 0 .. 15 {
-// 			let miner = pallet_sminer::benchmarking::add_miner::<T>(miner_list[i as usize])?;
-// 			add_idle_space::<T>(miner.clone())?;
-// 			if i < 12 {
-// 				pallet_sminer::benchmarking::freeze_miner::<T>(miner.clone())?;
-// 			}
-// 		}
-// 		buy_space::<T>(caller.clone())?;
-
-// 		let deal_submit_info = create_deal_info::<T>(caller.clone(), v, 4)?;
-// 		FileBank::<T>::upload_declaration(
-// 			RawOrigin::Signed(caller).into(),
-// 			deal_submit_info.file_hash.clone(),
-// 			deal_submit_info.segment_list,
-// 			deal_submit_info.user_brief,
-// 			deal_submit_info.file_size,
-// 		)?;
-
-// 		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 	}: transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()), deal_submit_info.file_hash)
-// 	verify {
-// 		assert!(File::<T>::contains_key(&deal_submit_info.file_hash));
-// 	}
-
-// 	upload_declaration_fly_upload {
-// 		let v in 1 .. 30;
-// 		log::info!("start upload_declaration_fly_upload");
-// 		let caller: AccountOf<T> = account("user1", 100, SEED);
-// 		let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
-// 		for i in 0 .. 15 {
-// 			let miner = pallet_sminer::benchmarking::add_miner::<T>(miner_list[i as usize])?;
-// 			add_idle_space::<T>(miner.clone())?;
-// 			if i < 12 {
-// 				pallet_sminer::benchmarking::freeze_miner::<T>(miner.clone())?;
-// 			}
-// 		}
-// 		buy_space::<T>(caller.clone())?;
-
-// 		let deal_submit_info = create_deal_info::<T>(caller.clone(), v, 4)?;
-// 		FileBank::<T>::upload_declaration(
-// 			RawOrigin::Signed(caller).into(),
-// 			deal_submit_info.file_hash.clone(),
-// 			deal_submit_info.segment_list,
-// 			deal_submit_info.user_brief,
-// 			deal_submit_info.file_size,
-// 		)?;
-
-// 		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		let caller: AccountOf<T> = account("user2", 100, SEED);
-// 		buy_space::<T>(caller.clone())?;
-// 		let deal_submit_info = create_deal_info::<T>(caller.clone(), v, 4)?;
-// 	}: upload_declaration(RawOrigin::Signed(caller.clone()), deal_submit_info.file_hash.clone(), deal_submit_info.segment_list, deal_submit_info.user_brief.clone(), deal_submit_info.file_size)
-// 	verify {
-// 		let file = File::<T>::get(deal_submit_info.file_hash.clone()).unwrap();
-// 		assert!(file.owner.contains(&deal_submit_info.user_brief))
-// 	}
-
-// 	deal_reassign_miner {
-// 		let v in 0 ..30;
-// 		log::info!("start deal_reassign_miner");
-// 		let caller: AccountOf<T> = account("user1", 100, SEED);
-// 		let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
-// 		for i in 0 .. 30 {
-// 			let miner = pallet_sminer::benchmarking::add_miner::<T>(miner_list[i as usize])?;
-// 			add_idle_space::<T>(miner.clone())?;
-// 			if i < 24 {
-// 				pallet_sminer::benchmarking::freeze_miner::<T>(miner.clone())?;
-// 			}
-// 		}
-// 		buy_space::<T>(caller.clone())?;
-
-// 		let deal_submit_info = create_deal_info::<T>(caller.clone(), v, 4)?;
-// 		FileBank::<T>::upload_declaration(
-// 			RawOrigin::Signed(caller.clone()).into(),
-// 			deal_submit_info.file_hash.clone(),
-// 			deal_submit_info.segment_list,
-// 			deal_submit_info.user_brief,
-// 			deal_submit_info.file_size,
-// 		)?;
-
-// 		<T as crate::Config>::FScheduler::cancel_named([4u8; 64].to_vec()).expect("cancel scheduler failed");
-// 	}: _(RawOrigin::Root, deal_submit_info.file_hash.clone(), 1, 200)
-// 	verify {
-// 		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
-// 		assert_eq!(deal_info.count, 1);
-// 	}
-
-// 	deal_reassign_miner_exceed_limit {
-// 		let v in 0 ..30;
-// 		log::info!("start deal_reassign_miner_exceed_limit");
-// 		let caller: AccountOf<T> = account("user1", 100, SEED);
-// 		let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
-// 		for i in 0 .. 30 {
-// 			let miner = pallet_sminer::benchmarking::add_miner::<T>(miner_list[i as usize])?;
-// 			add_idle_space::<T>(miner.clone())?;
-// 			if i < 24 {
-// 				pallet_sminer::benchmarking::freeze_miner::<T>(miner.clone())?;
-// 			}
-// 		}
-// 		buy_space::<T>(caller.clone())?;
-
-// 		let deal_submit_info = create_deal_info::<T>(caller.clone(), v, 4)?;
-// 		FileBank::<T>::upload_declaration(
-// 			RawOrigin::Signed(caller.clone()).into(),
-// 			deal_submit_info.file_hash.clone(),
-// 			deal_submit_info.segment_list,
-// 			deal_submit_info.user_brief,
-// 			deal_submit_info.file_size,
-// 		)?;
-// 	}: deal_reassign_miner(RawOrigin::Root, deal_submit_info.file_hash.clone(), 20, 200)
-// 	verify {
-// 		assert!(!DealMap::<T>::contains_key(&deal_submit_info.file_hash));
-// 	}
-
-// 	calculate_end {
-// 		let v in 1 .. 30;
-// 		log::info!("start calculate_end");
-// 		let caller: AccountOf<T> = account("user1", 100, SEED);
-// 		let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
-// 		for i in 0 .. 5 {
-// 			let miner = pallet_sminer::benchmarking::add_miner::<T>(miner_list[i as usize])?;
-// 			add_idle_space::<T>(miner.clone())?;
-// 		}
-// 		buy_space::<T>(caller.clone())?;
-
-// 		let deal_submit_info = create_deal_info::<T>(caller.clone(), v, 4)?;
-// 		FileBank::<T>::upload_declaration(
-// 			RawOrigin::Signed(caller).into(),
-// 			deal_submit_info.file_hash.clone(),
-// 			deal_submit_info.segment_list,
-// 			deal_submit_info.user_brief,
-// 			deal_submit_info.file_size,
-// 		)?;
-
-// 		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		let file_info = File::<T>::get(&deal_submit_info.file_hash).unwrap();
-// 	}: _(RawOrigin::Root, deal_submit_info.file_hash)
-// 	verify {
-// 		let file_info = File::<T>::get(&deal_submit_info.file_hash).unwrap();
-// 		assert_eq!(FileState::Active, file_info.stat);
-// 	}
-
-// 	replace_idle_space {
-// 		log::info!("start replace_idle_space");
-// 		let caller: AccountOf<T> = account("user1", 100, SEED);
-// 		let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
-// 		for i in 0 .. 3 {
-// 			let miner = pallet_sminer::benchmarking::add_miner::<T>(miner_list[i as usize])?;
-// 			add_idle_space::<T>(miner.clone())?;
-// 		}
-// 		buy_space::<T>(caller.clone())?;
-
-// 		let deal_submit_info = create_deal_info::<T>(caller.clone(), 50, 4)?;
-// 		FileBank::<T>::upload_declaration(
-// 			RawOrigin::Signed(caller).into(),
-// 			deal_submit_info.file_hash.clone(),
-// 			deal_submit_info.segment_list,
-// 			deal_submit_info.user_brief,
-// 			deal_submit_info.file_size,
-// 		)?;
-// 		let miner: AccountOf<T> = account("miner1", 100, SEED);
-// 		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), deal_submit_info.file_hash)?;
-
-// 		let avail_replace_space = deal_info.assigned_miner[0].fragment_list.len() as u128 * FRAGMENT_SIZE;
-// 		let front = avail_replace_space / IDLE_SEG_SIZE;
-
-// 		let pois_key = PoISKey {
-// 			g: [2u8; 256],
-// 			n: [3u8; 256],
-// 		};
-
-// 		let space_proof_info = SpaceProofInfo::<AccountOf<T>> {
-// 			miner: miner.clone(),
-// 			front: front as u64,
-// 			rear: 10000,
-// 			pois_key: pois_key.clone(),
-// 			accumulator: pois_key.g,
-// 		};
-// 		let encoding = space_proof_info.encode();
-// 		let hashing = sp_io::hashing::sha2_256(&encoding);
-// 		log::info!("replace_idle_space hashing: {:?}", hashing);
-
-// 		let tee_sig = [11, 155, 78, 85, 105, 233, 219, 127, 241, 166, 154, 21, 185, 76, 67, 196, 13, 233, 94, 42, 83, 110, 93, 124, 132, 244, 5, 233, 254, 238, 160, 73, 24, 130, 215, 13, 120, 203, 172, 10, 186, 82, 142, 3, 51, 151, 242, 175, 14, 77, 93, 167, 181, 105, 32, 108, 16, 44, 185, 159, 53, 38, 102, 134, 81, 3, 57, 100, 32, 117, 35, 157, 78, 215, 88, 41, 201, 102, 63, 28, 190, 206, 116, 140, 101, 3, 136, 177, 201, 188, 32, 56, 195, 36, 217, 238, 111, 54, 119, 70, 199, 55, 183, 252, 210, 204, 33, 29, 88, 253, 15, 29, 194, 18, 93, 170, 144, 25, 66, 120, 210, 253, 203, 236, 74, 191, 234, 84, 130, 164, 22, 142, 251, 105, 178, 69, 80, 111, 115, 54, 71, 67, 48, 215, 5, 132, 234, 26, 207, 102, 18, 62, 185, 184, 78, 9, 159, 158, 180, 78, 78, 242, 219, 229, 234, 238, 211, 103, 158, 132, 62, 219, 34, 242, 32, 254, 104, 136, 114, 210, 180, 52, 17, 17, 0, 119, 35, 129, 25, 175, 99, 37, 55, 195, 159, 157, 120, 82, 6, 38, 47, 105, 111, 114, 51, 47, 170, 123, 196, 78, 98, 128, 220, 246, 159, 237, 101, 111, 213, 219, 5, 177, 76, 150, 22, 34, 82, 59, 70, 204, 219, 38, 78, 50, 179, 36, 93, 132, 84, 24, 69, 176, 93, 230, 11, 1, 140, 53, 108, 72, 107, 200, 238, 197, 28, 59];
-// 	}: _(RawOrigin::Signed(miner.clone()), space_proof_info, tee_sig)
-// 	verify {
-// 		let space = PendingReplacements::<T>::get(&miner);
-// 		assert_eq!(space, avail_replace_space - (front * IDLE_SEG_SIZE));
-// 	}
-
-// 	delete_file {
-// 		let v in 0 .. 30;
-// 		log::info!("start delete_file");
-// 		let caller: AccountOf<T> = account("user1", 100, SEED);
-// 		let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
-// 		for i in 0 .. 3 {
-// 			let miner = pallet_sminer::benchmarking::add_miner::<T>(miner_list[i as usize])?;
-// 			add_idle_space::<T>(miner.clone())?;
-// 		}
-// 		buy_space::<T>(caller.clone())?;
-
-// 		let deal_submit_info = create_deal_info::<T>(caller.clone(), v, 4)?;
-// 		FileBank::<T>::upload_declaration(
-// 			RawOrigin::Signed(caller.clone()).into(),
-// 			deal_submit_info.file_hash.clone(),
-// 			deal_submit_info.segment_list,
-// 			deal_submit_info.user_brief,
-// 			deal_submit_info.file_size,
-// 		)?;
-
-// 		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::calculate_end(RawOrigin::Root.into(), deal_submit_info.file_hash.clone());
-// 	}: _(RawOrigin::Signed(caller.clone()), caller.clone(), vec![deal_submit_info.file_hash.clone()])
-// 	verify {
-// 		assert!(!<File<T>>::contains_key(&deal_submit_info.file_hash.clone()));
-// 	}
-
-// 	create_bucket {
-// 		log::info!("start create_bucket");
-// 		let caller: AccountOf<T> = account("user1", 100, SEED);
-// 		let name: Vec<u8> = "test-bucket1".as_bytes().to_vec();
-// 		let name: BoundedVec<u8, T::NameStrLimit> = name.try_into().map_err(|_| "name convert error")?;
-// 	}: _(RawOrigin::Signed(caller.clone()), caller.clone(), name.clone())
-// 	verify {
-// 		assert!(Bucket::<T>::contains_key(&caller, name));
-// 	}
-
-// 	delete_bucket {
-// 		log::info!("start delete_bucket");
-// 		let caller: AccountOf<T> = account("user1", 100, SEED);
-// 		let name: Vec<u8> = "test-bucket1".as_bytes().to_vec();
-// 		let name_bound: BoundedVec<u8, T::NameStrLimit> = name.clone().try_into().map_err(|_| "bounded_vec convert err!")?;
-// 		create_new_bucket::<T>(caller.clone(), name.clone())?;
-// 		Bucket::<T>::contains_key(&caller, name_bound.clone());
-// 	}: _(RawOrigin::Signed(caller.clone()), caller.clone(), name_bound.clone())
-// 	verify {
-// 		assert!(!Bucket::<T>::contains_key(&caller, name_bound));
-// 	}
-
-// 	generate_restoral_order {
-// 		log::info!("start generate_restoral_order");
-// 		let caller: AccountOf<T> = account("user1", 100, SEED);
-// 		let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
-// 		for i in 0 .. 4 {
-// 			let miner = pallet_sminer::benchmarking::add_miner::<T>(miner_list[i as usize])?;
-// 			add_idle_space::<T>(miner.clone())?;
-// 		}
-// 		buy_space::<T>(caller.clone())?;
-
-// 		let deal_submit_info = create_deal_info::<T>(caller.clone(), 50, 4)?;
-// 		FileBank::<T>::upload_declaration(
-// 			RawOrigin::Signed(caller.clone()).into(),
-// 			deal_submit_info.file_hash.clone(),
-// 			deal_submit_info.segment_list,
-// 			deal_submit_info.user_brief,
-// 			deal_submit_info.file_size,
-// 		)?;
-
-// 		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::calculate_end(RawOrigin::Root.into(), deal_submit_info.file_hash.clone());
-// 	}: _(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()), deal_submit_info.file_hash, Hash([99u8; 64]))
-// 	verify {
-// 		assert!(<RestoralOrder<T>>::contains_key(&Hash([99u8; 64])))
-// 	}
-
-// 	claim_restoral_order {
-// 		log::info!("start claim_restoral_order");
-// 		let caller: AccountOf<T> = account("user1", 100, SEED);
-// 		let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
-// 		for i in 0 .. 3 {
-// 			let miner = pallet_sminer::benchmarking::add_miner::<T>(miner_list[i as usize])?;
-// 			add_idle_space::<T>(miner.clone())?;
-// 		}
-// 		buy_space::<T>(caller.clone())?;
-
-// 		let deal_submit_info = create_deal_info::<T>(caller.clone(), 50, 4)?;
-// 		FileBank::<T>::upload_declaration(
-// 			RawOrigin::Signed(caller).into(),
-// 			deal_submit_info.file_hash.clone(),
-// 			deal_submit_info.segment_list,
-// 			deal_submit_info.user_brief,
-// 			deal_submit_info.file_size,
-// 		)?;
-
-// 		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::calculate_end(RawOrigin::Root.into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::generate_restoral_order(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), deal_submit_info.file_hash, Hash([99u8; 64]))?;
-// 	}: _(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()), Hash([99u8; 64]))
-// 	verify {
-// 		let restoral_info = <RestoralOrder<T>>::try_get(&Hash([99u8; 64])).unwrap();
-// 		assert_eq!(restoral_info.miner, deal_info.assigned_miner[1].miner);
-// 	}
-
-// 	restoral_order_complete {
-// 		log::info!("start restoral_order_complete");
-// 		let caller: AccountOf<T> = account("user1", 100, SEED);
-// 		let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
-// 		for i in 0 .. 3 {
-// 			let miner = pallet_sminer::benchmarking::add_miner::<T>(miner_list[i as usize])?;
-// 			add_idle_space::<T>(miner.clone())?;
-// 		}
-// 		buy_space::<T>(caller.clone())?;
-
-// 		let deal_submit_info = create_deal_info::<T>(caller.clone(), 50, 4)?;
-// 		FileBank::<T>::upload_declaration(
-// 			RawOrigin::Signed(caller).into(),
-// 			deal_submit_info.file_hash.clone(),
-// 			deal_submit_info.segment_list,
-// 			deal_submit_info.user_brief,
-// 			deal_submit_info.file_size,
-// 		)?;
-
-// 		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::calculate_end(RawOrigin::Root.into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::generate_restoral_order(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), deal_submit_info.file_hash, Hash([99u8; 64]))?;
-// 		frame_system::pallet::Pallet::<T>::set_block_number(2u32.saturated_into());
-// 		FileBank::<T>::claim_restoral_order(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), Hash([99u8; 64]))?;
-// 	}: _(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()), Hash([99u8; 64]))
-// 	verify {
-// 		assert!(!<RestoralOrder<T>>::contains_key(Hash([97u8; 64])))
-// 	}
-
-// 	claim_restoral_noexist_order {
-// 		log::info!("start claim_restoral_noexist_order");
-// 		let caller: AccountOf<T> = account("user1", 100, SEED);
-// 		let _ = pallet_tee_worker::benchmarking::tee_register::<T>()?;
-// 		for i in 0 .. 3 {
-// 			let miner = pallet_sminer::benchmarking::add_miner::<T>(miner_list[i as usize])?;
-// 			add_idle_space::<T>(miner.clone())?;
-// 		}
-// 		buy_space::<T>(caller.clone())?;
-
-// 		let deal_submit_info = create_deal_info::<T>(caller.clone(), 50, 4)?;
-// 		FileBank::<T>::upload_declaration(
-// 			RawOrigin::Signed(caller).into(),
-// 			deal_submit_info.file_hash.clone(),
-// 			deal_submit_info.segment_list,
-// 			deal_submit_info.user_brief,
-// 			deal_submit_info.file_size,
-// 		)?;
-
-// 		let deal_info = DealMap::<T>::get(&deal_submit_info.file_hash).unwrap();
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[0].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::transfer_report(RawOrigin::Signed(deal_info.assigned_miner[2].miner.clone()).into(), deal_submit_info.file_hash)?;
-// 		FileBank::<T>::calculate_end(RawOrigin::Root.into(), deal_submit_info.file_hash)?;
-// 		pallet_sminer::benchmarking::bench_miner_exit::<T>(deal_info.assigned_miner[2].miner.clone())?;
-// 	}: _(RawOrigin::Signed(deal_info.assigned_miner[1].miner.clone()), deal_info.assigned_miner[2].miner.clone(), deal_submit_info.file_hash, Hash([99u8; 64]))
-// 	verify {
-// 		assert!(<RestoralOrder<T>>::contains_key(Hash([99u8; 64])))
-// 	}
-// }

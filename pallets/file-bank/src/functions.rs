@@ -136,7 +136,7 @@ impl<T: Config> Pallet<T> {
     }
 
     pub(super) fn cal_file_size(len: u128) -> u128 {
-        len * (SEGMENT_SIZE * 15 / 10)
+        len * (SEGMENT_SIZE * 30 / 10)
     }
 
     pub(super) fn delete_user_file(file_hash: &Hash, acc: &AccountOf<T>, file: &FileInfo<T>) -> Result<Weight, DispatchError> {
@@ -189,7 +189,7 @@ impl<T: Config> Pallet<T> {
     // The status of the file must be confirmed before use.
     pub(super) fn remove_file_owner(file_hash: &Hash, acc: &AccountOf<T>, user_clear: bool) -> DispatchResult {
         <File<T>>::try_mutate(file_hash, |file_opt| -> DispatchResult {
-            let file = file_opt.as_mut().ok_or(Error::<T>::Overflow)?;
+            let file = file_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
             for (index, user_brief) in file.owner.iter().enumerate() {
                 if acc == &user_brief.user {
                     let file_size = Self::cal_file_size(file.segment_list.len() as u128);
