@@ -87,5 +87,4 @@ std = [
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
-	"pallet-cess-staking/runtime-benchmarks",
 ]
