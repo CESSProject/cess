@@ -584,7 +584,7 @@ pub mod pallet {
 		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically, this is the account of a registered Miner.
 		#[pallet::call_index(6)]
 		#[transactional]
-		#[pallet::weight(Weight::zero())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::receive_reward(90))]
 		pub fn receive_reward(
 			origin: OriginFor<T>,
 		) -> DispatchResult {
@@ -764,7 +764,7 @@ pub mod pallet {
 		/// FOR TEST
 		#[pallet::call_index(14)]
 		#[transactional]
-		#[pallet::weight(Weight::zero())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::faucet())]
 		pub fn faucet(origin: OriginFor<T>, to: AccountOf<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			
@@ -871,7 +871,7 @@ pub mod pallet {
 
 		#[pallet::call_index(16)]
 		#[transactional]
-		#[pallet::weight(Weight::zero())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::register_pois_key())]
 		pub fn register_pois_key(
 			origin: OriginFor<T>, 
 			pois_key: PoISKey,
@@ -948,7 +948,7 @@ pub mod pallet {
 
 		#[pallet::call_index(17)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk_assign_staking())]
 		pub fn regnstk_assign_staking(
 			origin: OriginFor<T>,
 			beneficiary: AccountOf<T>,
@@ -998,7 +998,7 @@ pub mod pallet {
 
 		#[pallet::call_index(18)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::increase_collateral())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::increase_declaration_space())]
 		pub fn increase_declaration_space(origin: OriginFor<T>, tib_count: u32) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 

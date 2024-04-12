@@ -457,7 +457,7 @@ pub mod pallet {
 		#[pallet::call_index(2)]
 		#[transactional]
 		/// FIX ME
-		#[pallet::weight(Weight::zero())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::ownership_transfer())]
 		pub fn ownership_transfer(
 			origin: OriginFor<T>,
 			target_brief: UserBrief<T>,
@@ -543,7 +543,7 @@ pub mod pallet {
 
 		#[pallet::call_index(1)]
 		// FIX ME
-		#[pallet::weight(Weight::zero())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::calculate_report())]
 		pub fn calculate_report(
 			origin: OriginFor<T>,
 			tee_sig: BoundedVec<u8, ConstU32<64>>,
@@ -727,8 +727,7 @@ pub mod pallet {
 		#[pallet::call_index(6)]
 		#[transactional]
 		#[pallet::weight({
-			let v = Pallet::<T>::get_segment_length_from_file(&file_hash);
-			<T as pallet::Config>::WeightInfo::delete_file(v)
+			<T as pallet::Config>::WeightInfo::delete_file()
 		})]
 		pub fn delete_file(origin: OriginFor<T>, owner: AccountOf<T>, file_hash: Hash) -> DispatchResult {
 			let sender = ensure_signed(origin)?;

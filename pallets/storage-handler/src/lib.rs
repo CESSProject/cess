@@ -373,7 +373,7 @@ pub mod pallet {
 
         #[pallet::call_index(6)]
         #[transactional]
-        #[pallet::weight(Weight::zero())]
+        #[pallet::weight(<T as pallet::Config>::WeightInfo::create_order())]
         pub fn create_order(
             origin: OriginFor<T>, 
             target_acc: AccountOf<T>, 
@@ -438,7 +438,7 @@ pub mod pallet {
         }
 
         #[pallet::call_index(7)]
-        #[pallet::weight(Weight::zero())]
+        #[pallet::weight(<T as pallet::Config>::WeightInfo::exec_order())]
         pub fn exec_order(origin: OriginFor<T>, order_id: BoundedVec<u8, ConstU32<32>>) -> DispatchResult {
             let sender = ensure_signed(origin)?;
 

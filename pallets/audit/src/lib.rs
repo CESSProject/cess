@@ -452,7 +452,7 @@ pub mod pallet {
 		/// - `tee_acc`: The TEERsaSignature worker account associated with the proof.
 		#[pallet::call_index(3)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_verify_idle_result())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_verify_idle_result_reward())]
 		pub fn submit_verify_idle_result(
 			origin: OriginFor<T>,
 			total_prove_hash: BoundedVec<u8, T::IdleTotalHashLength>,
@@ -576,7 +576,7 @@ pub mod pallet {
 		/// - `tee_acc`: The TEERsaSignature worker account associated with the proof.
 		#[pallet::call_index(4)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_verify_service_result())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_verify_service_result_reward())]
 		pub fn submit_verify_service_result(
 			origin: OriginFor<T>,
 			service_result: bool,

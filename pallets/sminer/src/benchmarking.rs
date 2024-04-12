@@ -65,6 +65,12 @@ pub fn register_positive_miner<T: Config>(account: AccountOf<T>) -> Result<(), &
     Ok(())
 }
 
+pub fn set_facuet_whitelist_for_bench<T: Config>(acc: AccountOf<T>) -> Result<(), &'static str> {
+    <FacuetWhitelist<T>>::put(acc);
+
+    Ok(())
+}
+
 benchmarks! {
     regnstk {
         log::info!("regnstk start");
@@ -217,6 +223,25 @@ benchmarks! {
         assert!(<RestoralTarget<T>>::contains_key(&caller));
     }
 
+    miner_withdraw {
+        log::info!("miner miner_exit");
+        log::info!("miner exit start");
+        pallet_tee_worker::benchmarking::generate_workers::<T>();
+        pallet_cess_treasury::benchmarking::initialize_reward::<T>();
+        let caller: AccountOf<T> = account("user1", 100, SEED);
+        register_positive_miner::<T>(caller.clone())?;
+        frame_system::Pallet::<T>::set_block_number(28805000u32.into());
+        Sminer::<T>::miner_exit_prep(RawOrigin::Signed(caller.clone()).into(), caller.clone())?;
+        Sminer::<T>::miner_exit(RawOrigin::Root.into(), caller.clone());
+        frame_system::Pallet::<T>::set_block_number(28835000u32.into());
+        let origin_free_balance = <T as pallet::Config>::Currency::free_balance(&caller);
+    }: _(RawOrigin::Signed(caller.clone()))
+    verify {
+        let current_free_balance = <T as pallet::Config>::Currency::free_balance(&caller);
+        let staking_val: BalanceOf<T> = 4_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
+        assert_eq!(current_free_balance, origin_free_balance + staking_val);
+    }
+
     faucet_top_up {
         let caller: T::AccountId = whitelisted_caller();
         let existential_deposit = <T as crate::Config>::Currency::minimum_balance();
@@ -246,6 +271,7 @@ benchmarks! {
             &faucet_acc,
             faucet_reward,
         );
+        set_facuet_whitelist_for_bench::<T>(caller.clone());
     }: _(RawOrigin::Signed(caller.clone()), caller.clone())
     verify {
         assert!(<FaucetRecordMap<T>>::contains_key(&caller))
