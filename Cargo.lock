@@ -1592,6 +1592,7 @@ dependencies = [
  "array-bytes 4.2.0",
  "async-trait",
  "ces-node-rpc-ext",
+ "ces-pallet-mq",
  "ces-pallet-mq-runtime-api",
  "cess-node-runtime",
  "cessc-consensus-rrsc",
@@ -7499,6 +7500,7 @@ dependencies = [
 name = "pallet-cess-treasury"
 version = "0.7.6"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "log",
@@ -8194,6 +8196,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "hex",
+ "log",
  "pallet-bags-list",
  "pallet-balances",
  "pallet-cess-staking",

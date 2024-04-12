@@ -28,7 +28,7 @@ use crate::{
 	eth::db_config_dir,
 	service,
 };
-use cess_node_runtime::{Block};
+use cess_node_runtime::{Block, ExistentialDeposit};
 
 #[cfg(feature = "runtime-benchmarks")]
 use crate::chain_spec::get_account_id_from_seed;

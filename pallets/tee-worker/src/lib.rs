@@ -749,7 +749,7 @@ pub mod pallet {
 			allowlist.push(ceseal_hash.clone());
 			CesealBinAllowList::<T>::put(allowlist);
 
-			let now = frame_system::Pallet::<T>::block_number();
+			let now = frame_system::Pallet::<T>::block_number(); 
 			CesealBinAddedAt::<T>::insert(&ceseal_hash, now);
 
 			Ok(())

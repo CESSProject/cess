@@ -17,6 +17,9 @@ use frame_system::{
 	ensure_signed, ensure_root,
 };
 
+#[cfg(feature = "runtime-benchmarks")]
+pub mod benchmarking;
+
 mod constants;
 use constants::*;
 

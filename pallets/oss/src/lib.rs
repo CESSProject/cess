@@ -240,7 +240,7 @@ use frame_system::{ensure_signed, Origin};
 
 		#[pallet::call_index(5)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::destroy())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::proxy_authorzie())]
 		pub fn proxy_authorzie(origin: OriginFor<T>, auth_puk: sp_core::sr25519::Public, sig: BoundedVec<u8, ConstU32<64>>, payload: ProxyAuthPayload<T>) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
 

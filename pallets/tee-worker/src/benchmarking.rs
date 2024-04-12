@@ -1,4 +1,11 @@
-// use super::*;
+#![cfg(feature = "runtime-benchmarks")]
+
+use super::*;
+use sp_core::crypto::DEV_PHRASE;
+use scale_info::prelude::format;
+use ces_types::AttestationProvider;
+use sp_io::crypto::{sr25519_generate, sr25519_sign};
+use sp_core::crypto::KeyTypeId;
 // use crate::{Pallet as TeeWorker};
 // use codec::{alloc::string::ToString, Decode};
 // pub use frame_benchmarking::{
@@ -15,10 +22,51 @@
 // {
 // }
 
-// const USER_SEED: u32 = 999666;
+const USER_SEED: u32 = 999666;
+const KEY_ID: KeyTypeId = KeyTypeId(*b"xyjj");
 // const PODR2_PBK: [u8; 270] = [48, 130, 1, 10, 2, 130, 1, 1, 0, 151, 247, 38, 216, 188, 81, 0, 64, 239, 101, 82, 181, 134, 30, 84, 171, 120, 21, 39, 196, 216, 82, 17, 10, 225, 78, 91, 35, 182, 8, 50, 1, 164, 235, 206, 201, 233, 223, 174, 125, 138, 51, 70, 14, 20, 198, 52, 199, 9, 142, 65, 183, 251, 134, 22, 114, 242, 205, 169, 28, 115, 213, 82, 82, 170, 63, 57, 24, 59, 136, 162, 231, 123, 234, 187, 175, 244, 95, 232, 254, 130, 17, 46, 163, 201, 93, 244, 240, 179, 30, 43, 221, 67, 226, 161, 22, 53, 161, 77, 221, 124, 48, 21, 62, 181, 108, 63, 10, 7, 160, 92, 170, 151, 111, 51, 112, 0, 183, 168, 219, 78, 105, 29, 47, 84, 34, 159, 17, 118, 194, 115, 4, 208, 110, 56, 76, 22, 202, 200, 104, 210, 97, 102, 183, 86, 63, 108, 50, 179, 21, 236, 147, 57, 142, 76, 67, 243, 235, 162, 202, 147, 163, 148, 237, 7, 229, 122, 250, 75, 249, 99, 242, 157, 34, 136, 175, 74, 140, 73, 145, 9, 131, 56, 88, 249, 175, 17, 26, 93, 72, 15, 50, 85, 230, 91, 124, 235, 26, 104, 200, 161, 160, 137, 249, 3, 49, 7, 119, 207, 100, 127, 108, 215, 251, 214, 228, 180, 221, 223, 12, 163, 66, 214, 185, 100, 84, 65, 6, 71, 240, 45, 247, 107, 193, 238, 68, 67, 92, 161, 223, 1, 43, 150, 137, 218, 221, 213, 232, 36, 5, 121, 32, 59, 129, 75, 5, 2, 3, 1, 0, 1];
 // const PEER_ID: [u8; 38] = [0, 36, 8, 1, 18, 32, 12, 50, 93, 198, 152, 25, 126, 164, 106, 27, 26, 219, 151, 207, 191, 72, 133, 39, 20, 109, 117, 187, 165, 127, 101, 12, 167, 175, 255, 138, 213, 34];
 // const NODE_PUBLIC_KEY: NodePublicKey = sp_core::ed25519::Public([12, 50, 93, 198, 152, 25, 126, 164, 106, 27, 26, 219, 151, 207, 191, 72, 133, 39, 20, 109, 117, 187, 165, 127, 101, 12, 167, 175, 255, 138, 213, 34]);
+pub fn generate_workers<T: Config>() -> DispatchResult {
+    let (stash_account, _) = pallet_cess_staking::testing_utils::create_stash_controller::<T>(USER_SEED, 100, Default::default())?;
+    let pubkey = sr25519_generate(KEY_ID, None);
+    <MasterPubkey<T>>::put(pubkey);
+    let worker_info = WorkerInfo::<AccountOf<T>> {
+        pubkey,
+        ecdh_pubkey: pubkey,
+        version: 0,
+        last_updated: 1,
+        stash_account: Some(stash_account),
+        attestation_provider: Some(AttestationProvider::Root),
+        confidence_level: 128u8,
+        features: vec![1, 4],
+        role: WorkerRole::Full,
+    };
+    <Workers<T>>::insert(&pubkey, worker_info);
+    ValidationTypeList::<T>::mutate(|puk_list| -> DispatchResult {
+        puk_list
+            .try_push(pubkey)
+            .map_err(|_| Error::<T>::BoundedVecError)?;
+        Ok(())
+    })?;
+
+    Ok(())
+}
+
+pub fn get_pubkey<T: Config>() -> WorkerPublicKey {
+    let pubkey = <MasterPubkey<T>>::get().unwrap();
+
+    pubkey
+}
+
+pub fn sign_message<T: Config>(msg: &[u8]) -> sp_core::sr25519::Signature {
+    let pubkey = <MasterPubkey<T>>::get().unwrap();
+    sr25519_sign(
+        KEY_ID,
+        &pubkey,
+        msg
+    ).unwrap()
+}
 
 // pub fn get_report() -> SgxAttestationReport {
 //     SgxAttestationReport {

@@ -452,7 +452,7 @@ pub mod pallet {
 		/// - `tee_acc`: The TEERsaSignature worker account associated with the proof.
 		#[pallet::call_index(3)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_verify_idle_result())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_verify_idle_result_reward())]
 		pub fn submit_verify_idle_result(
 			origin: OriginFor<T>,
 			total_prove_hash: BoundedVec<u8, T::IdleTotalHashLength>,
@@ -460,7 +460,7 @@ pub mod pallet {
 			rear: u64,
 			accumulator: Accumulator,
 			idle_result: bool,
-			signature: BoundedVec<u8, ConstU32<4096>>,
+			signature: BoundedVec<u8, ConstU32<64>>,
 			tee_puk: WorkerPublicKey,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -576,7 +576,7 @@ pub mod pallet {
 		/// - `tee_acc`: The TEERsaSignature worker account associated with the proof.
 		#[pallet::call_index(4)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_verify_service_result())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_verify_service_result_reward())]
 		pub fn submit_verify_service_result(
 			origin: OriginFor<T>,
 			service_result: bool,
@@ -1013,7 +1013,7 @@ pub mod pallet {
 		///
 		/// Returns:
 		/// - A `Weight` value representing the computational cost of the operation.
-		fn generate_challenge(now: BlockNumberFor<T>) -> Weight {
+		pub(crate) fn generate_challenge(now: BlockNumberFor<T>) -> Weight {
 			let mut weight: Weight = Weight::zero();
 
 			let one_day = T::OneDay::get();
@@ -1178,7 +1178,7 @@ pub mod pallet {
 		/// - A `Result` containing a `QElement` with populated random indices and values if
 		///   successful, or an `AuditErr` error in case of potential issues during the generation
 		///   process.
-		fn generate_miner_qelement(seed: u32) -> Result<QElement, AuditErr> {
+		pub(crate) fn generate_miner_qelement(seed: u32) -> Result<QElement, AuditErr> {
 			let mut random_index_list: BoundedVec<u32, ConstU32<1024>> = Default::default();
 			let mut random_list: BoundedVec<[u8; 20], ConstU32<1024>> = Default::default();
 
@@ -1227,7 +1227,7 @@ pub mod pallet {
 		/// - A `Result` containing a `SpaceChallengeParam` with populated space challenge elements
 		///   if successful, or an `AuditErr` error in case of potential issues during the
 		///   generation process.
-		fn generate_miner_space_param(seed: u32) -> Result<SpaceChallengeParam, AuditErr> {
+		pub(crate) fn generate_miner_space_param(seed: u32) -> Result<SpaceChallengeParam, AuditErr> {
 			// generate idle challenge param
 			let (_, n, d) =
 				T::MinerControl::get_expenders().map_err(|_| AuditErr::SpaceParamErr)?;
