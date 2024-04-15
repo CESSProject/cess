@@ -10,7 +10,8 @@ panic = "abort"
 [dependencies]
 anyhow = { version = "1" }
 base64 = { version = "0.13", default-features = false, features = ["alloc"] }
-clap = { version = "4.0.32", features = ["derive"] }
+clap = { version = "4.0.32", features = ["derive", "cargo"] }
+const-str = { version = "0.5", features = ["proc"] }
 hex_fmt = "0.3.0"
 humantime = "2.1.0"
 lazy_static = { version = "1.4.0", default-features = false }

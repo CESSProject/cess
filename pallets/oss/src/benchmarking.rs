@@ -3,6 +3,11 @@ use frame_benchmarking::{
 	account, benchmarks, impl_benchmark_test_suite, whitelist_account, whitelisted_caller,
 };
 use frame_support::dispatch::RawOrigin;
+use sp_runtime::{
+	AccountId32, MultiSignature, MultiSigner,
+	SaturatedConversion, 
+};
+use sp_io::crypto::{sr25519_generate, sr25519_sign};
 
 const SEED: u32 = 2190502;
 
@@ -77,5 +82,44 @@ benchmarks! {
 	}: _(RawOrigin::Signed(oss.clone()))
 	verify {
 		assert!(!<Oss<T>>::contains_key(&oss));
+	}
+
+	proxy_authorzie {
+		let sender = account("origin", 100, SEED);
+		let oss: AccountOf<T> = account("oss", 100, SEED);
+
+		let payload = ProxyAuthPayload::<T> {
+			oss: oss.clone(),
+			exp: 32u32.saturated_into(),
+		};
+
+		let mut payload_encode = payload.encode();
+		let mut b1 = "<Bytes>".to_string().as_bytes().to_vec();
+		let mut b2 = "</Bytes>".to_string().as_bytes().to_vec();
+
+		let mut origin: Vec<u8> = Default::default();
+		origin.append(&mut b1);
+		origin.append(&mut payload_encode);
+		origin.append(&mut b2);
+
+		let caller_public = sr25519_generate(0.into(), None);
+		let signature = MultiSignature::Sr25519(sr25519_sign(0.into(), &caller_public, &origin).unwrap());
+
+		let sig = match signature {
+			MultiSignature::Sr25519(sig) => sig,
+			_ => return Err(frame_benchmarking::BenchmarkError::Stop("asdf")),
+		};
+		let sig: BoundedVec<u8, ConstU32<64>> = sig.0.to_vec().try_into().map_err(|_| "bounded convert error")?;
+
+
+	}: _(RawOrigin::Signed(sender), caller_public.clone(), sig, payload)
+	verify {
+		let account = caller_public.using_encoded(|entropy| {
+			AccountOf::<T>::decode(&mut TrailingZeroInput::new(entropy))
+				.expect("infinite input; no invalid input; qed")
+		});
+
+		let authorty_list = <AuthorityList<T>>::try_get(&account).unwrap();
+		assert!(authorty_list.contains(&oss))
 	}
 }
