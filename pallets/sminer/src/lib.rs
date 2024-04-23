@@ -79,8 +79,8 @@ type BalanceOf<T> =
 pub mod pallet {
 	use super::*;
 	use frame_support::{
-		pallet_prelude::{ValueQuery, *},
-		traits::Get,
+		pallet_prelude::{StorageValue, ValueQuery, *},
+		traits::Get, Blake2_128Concat,
 	};
 	use frame_system::{ensure_signed, pallet_prelude::*};
 
@@ -104,6 +104,9 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type StakingLockBlock: Get<BlockNumberFor<Self>>;
+
+		#[pallet::constant]
+		type MaximumRelease: Get<u128>;
 
 		/// The WeightInfo.
 		type WeightInfo: WeightInfo;
@@ -196,48 +199,47 @@ pub mod pallet {
 		LessThan24Hours,
 		/// Numerical conversion error.
 		ConversionError,
-		//The account has been frozen
+		/// The account has been frozen
 		AlreadyFrozen,
-
-		LockInNotOver,
-
+		/// The miner is not in a positive state and cannot perform this operation
 		NotpositiveState,
-
+		/// The capacity of Vec has reached the upper limit, making it impossible to register new miners. In theory, this error should not occur
 		StorageLimitReached,
-
+		/// Convert bounded vec error 
 		BoundedVecError,
-
+		/// The recording error of the faucet does not occur under normal circumstances
 		DataNotExist,
-		//haven't bought space at all
-		NotPurchasedPackage,
-
+		/// According to business logic, errors that should not occur
 		Unexpected,
-
-		NoReward,
-
+		/// Verify tee signature error
 		VerifyTeeSigFailed,
-
+		/// Count error in spatial proof related data
 		CountError,
-
-		LowerOperationBlock,
-
+		/// The status of the miner cannot call the current transaction
 		StateError,
-
+		/// Bloom filter update error
 		BloomElemPushError,
-
+		/// Insufficient pledged amount
 		CollateralNotUp,
-
+		/// Not the pledgor
 		NotStakingAcc,
-
+		/// System method errors that should not occur
 		BugInvalid,
-
+		/// The pledge period is insufficient and needs to reach 180 days
 		InsufficientStakingPeriod,
-
+		/// The certified space exceeds the declared space
 		ExceedingDeclarationSpace,
-
+		/// Insufficient idle space for replacement
 		InsufficientReplaceable,
-
+		/// Conversion tee signature error
 		MalformedSignature,
+		/// Chain does not initialize whitelist
+		NotSetWhite,
+		/// Wrong signature source
+		WrongOrigin,
+		/// Exceeding the maximum release volume of the faucet in one day
+		ExceedRelease,
+		
 	}
 
 	/// The hashmap for info of storage miners.
@@ -299,6 +301,10 @@ pub mod pallet {
 	#[pallet::getter(fn pending_replacements)]
 		pub(super) type PendingReplacements<T: Config> = 
 			StorageMap<_, Blake2_128Concat, AccountOf<T>, u128, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn facuet_release_record)]
+		pub(super) type FacuetReleaseRecord<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
 	
 	#[pallet::storage]
 	#[pallet::getter(fn return_staking_schedule)]
@@ -310,6 +316,32 @@ pub mod pallet {
 				BoundedVec<(AccountOf<T>, BalanceOf<T>), T::ItemLimit>,
 				ValueQuery,
 			>;
+	
+	#[pallet::storage]
+	#[pallet::getter(fn complete_snap_shot)]
+		pub(super) type CompleteSnapShot<T: Config> = 
+			StorageMap<
+				_,
+				Blake2_128Concat,
+				u32,
+				CompleteInfo,
+				ValueQuery,
+			>;
+	
+	#[pallet::storage]
+	#[pallet::getter(fn complete_miner_snap_shot)]
+		pub(super) type CompleteMinerSnapShot<T: Config> = 
+			StorageMap<
+				_,
+				Blake2_128Concat,
+				AccountOf<T>,
+				BoundedVec<MinerCompleteInfo<BlockNumberFor<T>>, ConstU32<{RELEASE_NUMBER as u32}>>,
+				ValueQuery,
+			>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn facuet_whitelist)]
+		pub(super) type FacuetWhitelist<T: Config> = StorageValue<_, AccountOf<T>>;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
@@ -552,7 +584,7 @@ pub mod pallet {
 		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically, this is the account of a registered Miner.
 		#[pallet::call_index(6)]
 		#[transactional]
-		#[pallet::weight(Weight::zero())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::receive_reward(90))]
 		pub fn receive_reward(
 			origin: OriginFor<T>,
 		) -> DispatchResult {
@@ -563,48 +595,8 @@ pub mod pallet {
 					miner.state == STATE_POSITIVE.as_bytes().to_vec() || miner.state == STATE_EXIT.as_bytes().to_vec(),
 					Error::<T>::NotpositiveState
 				);
-
-				<RewardMap<T>>::try_mutate(&sender, |opt_reward| -> DispatchResult {
-					let reward = opt_reward.as_mut().ok_or(Error::<T>::Unexpected)?;
-					let one_day = T::OneDayBlock::get();
-					let now = <frame_system::Pallet<T>>::block_number();
-					let mut avail_reward: BalanceOf<T> = BalanceOf::<T>::zero(); 
-
-					for order in reward.order_list.iter_mut() {
-						let diff = now.checked_sub(&order.last_receive_block).ok_or(Error::<T>::Overflow)?;
-						if diff >= one_day {
-							let count = diff.checked_div(&one_day).ok_or(Error::<T>::Overflow)?;
-							let avail_count: u8;
-							if order.receive_count.saturating_add(count.saturated_into()) > order.max_count {
-								avail_count = order.max_count.checked_sub(order.receive_count).ok_or(Error::<T>::Unexpected)?;
-							} else {
-								avail_count = count.saturated_into();
-							}
-
-							if avail_count > 0 {
-								let order_avail_reward = order.each_amount.checked_mul(&avail_count.into()).ok_or(Error::<T>::Overflow)?;
-								avail_reward = avail_reward.checked_add(&order_avail_reward).ok_or(Error::<T>::Overflow)?;
-								order.receive_count = order.receive_count.checked_add(avail_count).ok_or(Error::<T>::Overflow)?;
-								order.last_receive_block = now;
-							}
-						}
-
-						if !order.atonce {
-							avail_reward = avail_reward.checked_add(
-								&(AOIR_PERCENT.mul_floor(order.order_reward))
-							).ok_or(Error::<T>::Overflow)?;
-							order.atonce = true;
-						}
-					}
-
-					reward.order_list.retain(|order| order.max_count != order.receive_count);
-
-					reward.reward_issued = reward.reward_issued.checked_add(&avail_reward).ok_or(Error::<T>::Overflow)?;
-
-					T::RewardPool::send_reward_to_miner(miner.beneficiary, avail_reward)?;
-
-					Ok(())
-				})?;
+				Self::calculate_miner_reward(&sender)?;
+				Self::distribute_rewards(&sender, miner.beneficiary)?;
 			}
 
 			Ok(())
@@ -629,7 +621,7 @@ pub mod pallet {
 			let sender = ensure_signed(origin)?;
 
 			let now = <frame_system::Pallet<T>>::block_number();
-			if let Ok(lock_time) = <MinerLock<T>>::try_get(&sender) {
+			if let Ok(lock_time) = <MinerLock<T>>::try_get(&miner) {
 				ensure!(now > lock_time, Error::<T>::StateError);
 			}
 			let staking_start_block = <StakingStartBlock<T>>::try_get(&miner).map_err(|_| Error::<T>::BugInvalid)?;
@@ -772,9 +764,14 @@ pub mod pallet {
 		/// FOR TEST
 		#[pallet::call_index(14)]
 		#[transactional]
-		#[pallet::weight(Weight::zero())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::faucet())]
 		pub fn faucet(origin: OriginFor<T>, to: AccountOf<T>) -> DispatchResult {
-			let _ = ensure_signed(origin)?;
+			let sender = ensure_signed(origin)?;
+			
+			let white = <FacuetWhitelist<T>>::try_get().map_err(|_| Error::<T>::NotSetWhite)?;
+			ensure!(sender == white, Error::<T>::WrongOrigin);
+
+			let facuet_value: BalanceOf<T> = FAUCET_VALUE.try_into().map_err(|_e| Error::<T>::ConversionError)?;
 
 			if !<FaucetRecordMap<T>>::contains_key(&to) {
 				<FaucetRecordMap<T>>::insert(
@@ -790,7 +787,7 @@ pub mod pallet {
 				<T as pallet::Config>::Currency::transfer(
 					&reward_pot,
 					&to,
-					FAUCET_VALUE.try_into().map_err(|_e| Error::<T>::ConversionError)?,
+					facuet_value,
 					KeepAlive,
 				)?;
 				<FaucetRecordMap<T>>::insert(
@@ -806,7 +803,7 @@ pub mod pallet {
 				let now = <frame_system::Pallet<T>>::block_number();
 
 				let mut flag: bool = true;
-				if now >= BlockNumberFor::<T>::from(one_day) {
+				if now >= one_day.into() {
 					if !(faucet_record.last_claim_time
 						<= now
 							.checked_sub(&BlockNumberFor::<T>::from(one_day))
@@ -830,12 +827,21 @@ pub mod pallet {
 				ensure!(flag, Error::<T>::LessThan24Hours);
 
 				let reward_pot = T::FaucetId::get().into_account_truncating();
+				<FacuetReleaseRecord<T>>::try_mutate(|release_amount| -> DispatchResult {
+					let max: BalanceOf<T> = T::MaximumRelease::get().try_into().map_err(|_| Error::<T>::ConversionError)?;
+					*release_amount = release_amount.checked_add(&facuet_value).ok_or(Error::<T>::Overflow)?;
+					ensure!(*release_amount <= max, Error::<T>::ExceedRelease);
+
+					Ok(())
+				})?;
+
 				<T as pallet::Config>::Currency::transfer(
 					&reward_pot,
 					&to,
-					FAUCET_VALUE.try_into().map_err(|_e| Error::<T>::ConversionError)?,
+					facuet_value,
 					KeepAlive,
 				)?;
+
 				<FaucetRecordMap<T>>::insert(
 					&to,
 					FaucetRecord::<BlockNumberFor<T>> { last_claim_time: now },
@@ -865,7 +871,7 @@ pub mod pallet {
 
 		#[pallet::call_index(16)]
 		#[transactional]
-		#[pallet::weight(Weight::zero())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::register_pois_key())]
 		pub fn register_pois_key(
 			origin: OriginFor<T>, 
 			pois_key: PoISKey,
@@ -942,7 +948,7 @@ pub mod pallet {
 
 		#[pallet::call_index(17)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::regnstk_assign_staking())]
 		pub fn regnstk_assign_staking(
 			origin: OriginFor<T>,
 			beneficiary: AccountOf<T>,
@@ -992,7 +998,7 @@ pub mod pallet {
 
 		#[pallet::call_index(18)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::increase_collateral())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::increase_declaration_space())]
 		pub fn increase_declaration_space(origin: OriginFor<T>, tib_count: u32) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
@@ -1039,6 +1045,17 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		#[pallet::call_index(20)]
+		#[transactional]
+		#[pallet::weight(Weight::zero())]
+		pub fn set_facuet_whitelist(origin: OriginFor<T>, acc: AccountOf<T>) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			<FacuetWhitelist<T>>::put(acc);
+
+			Ok(())
+		}
 	}
 }
 
@@ -1064,10 +1081,8 @@ pub trait MinerControl<AccountId, BlockNumber> {
 
 	fn get_miner_idle_space(acc: &AccountId) -> Result<u128, DispatchError>;
 	fn get_miner_count() -> u32;
-	fn calculate_miner_reward(
-		miner: &AccountId, 
-		total_idle_space: u128,
-		total_service_space: u128,
+	fn record_snap_shot(
+		miner: &AccountId,
 		miner_idle_space: u128,
 		miner_service_space: u128,
 	) -> DispatchResult;
@@ -1221,21 +1236,43 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 	fn get_miner_count() -> u32 {
 		<MinerItems<T>>::count()
 	}
-
-	fn calculate_miner_reward(
-		miner: &AccountOf<T>, 
-		total_idle_space: u128,
-		total_service_space: u128,
+	
+	fn record_snap_shot(
+		miner: &AccountOf<T>,
 		miner_idle_space: u128,
 		miner_service_space: u128,
 	) -> DispatchResult {
-		Self::calculate_miner_reward(
-			miner, 
-			total_idle_space, 
-			total_service_space, 
-			miner_idle_space, 
-			miner_service_space
-		)
+		let now = frame_system::Pallet::<T>::block_number();
+		let one_day = T::OneDayBlock::get();
+		let round: u32 = now
+			.checked_div(&one_day).ok_or(Error::<T>::Overflow)?
+			.try_into().map_err(|_| Error::<T>::Overflow)?;
+		let power = Self::calculate_power(miner_idle_space, miner_service_space);
+
+		<CompleteMinerSnapShot<T>>::mutate(miner, |miner_info_list| -> DispatchResult {
+			let snap_shot = MinerCompleteInfo::<BlockNumberFor<T>> {
+				issued: false,
+				finsh_block: now,
+				power: power,
+			};
+
+			if miner_info_list.len() == RELEASE_NUMBER as usize {
+				return Ok(())
+			}
+
+			<CompleteSnapShot<T>>::mutate(&round, |complete_info| -> DispatchResult {
+				complete_info.miner_count = complete_info.miner_count.checked_add(1).ok_or(Error::<T>::Overflow)?;
+				complete_info.total_power = complete_info.total_power.checked_add(power).ok_or(Error::<T>::Overflow)?;
+	
+				Ok(())
+			})?;
+
+			miner_info_list.try_push(snap_shot).map_err(|_| Error::<T>::Overflow)?;
+
+			Ok(())
+		})?;
+
+		Ok(())
 	}
 
 	fn clear_punish(

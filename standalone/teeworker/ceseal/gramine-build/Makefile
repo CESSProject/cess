@@ -54,7 +54,10 @@ ${BIN_FILE}:
 	@echo "IAS_ENV: ${IAS_ENV}"
 	@echo "IAS_SPID: ${IAS_SPID}"
 	@echo "IAS_API_KEY: ${IAS_API_KEY}"
-	make BUILD=${BUILD} -C ..
+	@echo "BUILD: ${BUILD}"
+	@echo "OA: ${OA}"
+	@echo "VC: ${VC}"
+	make BUILD=${BUILD} OA=${OA} VC=${VC} -C ..
 
 ${BIN_NAME}: ${BIN_FILE}
 	cp ${BIN_FILE} ${BIN_NAME}	

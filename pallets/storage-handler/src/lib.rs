@@ -104,34 +104,35 @@ pub mod pallet {
 
     #[pallet::error]
 	pub enum Error<T> {
+        /// System method errors that should not occur
         BugInvalid,
-
+        /// Convert bounded vec error 
         BoundedVecError,
-        
+        /// Insufficient available space on the network, unable to purchase
         InsufficientAvailableSpace,
-        // Balance not enough
+        /// Balance not enough
         InsufficientBalance,
-
+        /// The user currently has insufficient available space
         InsufficientStorage,
-
+        /// Data operation overflow
         Overflow,
-
+        /// Wrong operator input, can only be 1 or 2
         WrongOperation,
-
+        /// Space has already been purchased and cannot be purchased again
         PurchasedSpace,
-
+        /// Space not purchased, please purchase space first before calling this transaction
         NotPurchasedSpace,
-        // storage space frozen
+        /// storage space frozen
         LeaseFreeze,
-
+        /// Space has expired
         LeaseExpired,
-
+        /// Order has expired
         OrderExpired,
-
+        /// Random number generation error1
         RandomErr,
-
+        /// There is no such order
         NoOrder,
-
+        /// Parameter error, please check the parameters. The expiration time cannot exceed one hour
         ParamError,
     }
 
@@ -372,7 +373,7 @@ pub mod pallet {
 
         #[pallet::call_index(6)]
         #[transactional]
-        #[pallet::weight(Weight::zero())]
+        #[pallet::weight(<T as pallet::Config>::WeightInfo::create_order())]
         pub fn create_order(
             origin: OriginFor<T>, 
             target_acc: AccountOf<T>, 
@@ -437,7 +438,7 @@ pub mod pallet {
         }
 
         #[pallet::call_index(7)]
-        #[pallet::weight(Weight::zero())]
+        #[pallet::weight(<T as pallet::Config>::WeightInfo::exec_order())]
         pub fn exec_order(origin: OriginFor<T>, order_id: BoundedVec<u8, ConstU32<32>>) -> DispatchResult {
             let sender = ensure_signed(origin)?;
 

@@ -7,31 +7,34 @@ use ces_sanitized_logger as logger;
 use ces_types::WorkerRole;
 use cestory::run_ceseal_server;
 use cestory_api::ecall_args::InitArgs;
-use clap::Parser;
+use clap::{crate_version, Parser, Subcommand};
 use pal_gramine::GraminePlatform;
 use std::{env, time::Duration};
 use tracing::info;
 
+const VERSION: &str = const_str::format!(
+    "ceseal {}-{} {}",
+    crate_version!(),
+    env!("VERGEN_GIT_DESCRIBE"),
+    env!("VERGEN_BUILD_TIMESTAMP")
+);
+
 #[derive(Parser, Debug, Clone)]
 #[clap(about = "The CESS TEE worker app.", version, author)]
 struct Args {
-    /// Number of CPU cores to be used for mining.
+    /// Number of CPU cores to be used for PODR2 thread-pool.
     #[arg(short, long)]
     cores: Option<u32>,
 
-    /// Allow CORS for HTTP
-    #[arg(long)]
-    allow_cors: bool,
-
-    /// Listening IP address of HTTP
+    /// Listening IP address of internal H2 server
     #[arg(long)]
     address: Option<String>,
 
-    /// Listening port of HTTP
+    /// Listening port of internal H2 server
     #[arg(long)]
     port: Option<u16>,
 
-    /// Listening port of HTTP (with access control)
+    /// Listening port of public H2 server
     #[arg(long)]
     public_port: Option<u16>,
 
@@ -82,21 +85,47 @@ struct Args {
 
     #[arg(long, value_parser = parse_worker_role, default_value = "full")]
     role: WorkerRole,
+
+    #[command(subcommand)]
+    command: Option<Commands>,
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    pal_gramine::print_target_info();
+#[derive(Subcommand, Debug, Clone)]
+enum Commands {
+    /// Show Ceseal version details
+    Version,
+    /// Show Ceseal target information
+    TargetInfo,
+}
 
-    let sgx = pal_gramine::is_gramine();
-    logger::init_subscriber(sgx);
-    serve(sgx).await
+fn main() -> Result<()> {
+    let args = Args::parse();
+    match args.command {
+        Some(Commands::Version) => {
+            if let Some(em) = pal_gramine::get_extend_measurement().unwrap() {
+                println!("{} {:?}", VERSION, em.measurement());
+            } else {
+                println!("{} [No measurement in non-SGX environments]", VERSION);
+            }
+        }
+        Some(Commands::TargetInfo) => {
+            pal_gramine::print_target_info();
+        }
+        None => {
+            let rt = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()?;
+            let sgx = pal_gramine::is_gramine();
+            logger::init_subscriber(sgx);
+            pal_gramine::print_target_info();
+            rt.block_on(serve(sgx, args))?;
+        }
+    }
+    Ok(())
 }
 
 #[tracing::instrument(name = "main", skip_all)]
-async fn serve(sgx: bool) -> Result<()> {
-    let args = Args::parse();
-
+async fn serve(sgx: bool, args: Args) -> Result<()> {
     info!(sgx, "Starting ceseal...");
 
     let sealing_path;

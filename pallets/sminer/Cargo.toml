@@ -19,10 +19,10 @@ rand_chacha = { workspace = true, optional = true }
 pallet-preimage = { workspace = true }
 
 #local crate
-pallet-tee-worker = { workspace = true }
-pallet-storage-handler = { workspace = true }
 pallet-cess-treasury = { workspace = true }
 pallet-cess-staking = { workspace = true }
+pallet-tee-worker = { workspace = true }
+pallet-storage-handler = { workspace = true }
 ces-types = { workspace = true, features = ["enable_serde"] }
 cp-enclave-verify = { workspace = true }
 cp-bloom-filter = { workspace = true }

@@ -230,55 +230,49 @@ pub mod pallet {
 	/// Error for the audit pallet.
 	#[pallet::error]
 	pub enum Error<T> {
-		//Vec to BoundedVec Error.
+		/// Vec to BoundedVec Error
 		BoundedVecError,
-		//Error that the storage has reached the upper LIMIT.
+		/// Error indicating that the storage has reached its limit
 		StorageLimitReached,
-
+		/// Data overflow
 		Overflow,
-		//The miner submits a certificate, but there is no error in the challenge list
+		/// The miner submits a certificate, but there is no error in the challenge list
 		NoChallenge,
-		//Not a consensus node or not registered
+		/// Not a consensus node or not registered
 		ScheduleNonExistent,
-		//The certificate does not exist or the certificate is not verified by this dispatcher
-		NonProof,
-		//filetype error
+		/// filetype error
 		FileTypeError,
-		//The user does not have permission to call this method
+		/// The user does not have permission to call this method
 		NotQualified,
-		//Error recording time
+		/// Error recording time
 		RecordTimeError,
-
+		/// Offchain worker: Error Signing the transaction
 		OffchainSignedTxError,
-
+		/// There is no local account that can be used for signing
 		NoLocalAcctForSigning,
-
+		/// Length exceeds limit
 		LengthExceedsLimit,
-
-		Locked,
-
+		/// An error that will not occur by design will be prompted after an error occurs during the random number generation process
 		SystemError,
-
+		/// The verification task does not exist
 		NonExistentMission,
-
+		/// Unexpected Error
 		UnexpectedError,
-
+		/// Challenge has expired
 		Expired,
-
+		/// Verification of tee signature failed
 		VerifyTeeSigFailed,
-
+		/// Bloom filter validation failed
 		BloomFilterError,
-
+		/// The certificate has been submitted and cannot be submitted again
 		Submitted,
-
-		Challenging,
-
+		/// Random number generation failed
 		RandomErr,
-
+		/// No proof submitted
 		UnSubmitted,
-
+		/// The tee does not have permission
 		TeeNoPermission,
-
+		/// Signature format conversion failed
 		MalformedSignature,
 	}
 
@@ -458,7 +452,7 @@ pub mod pallet {
 		/// - `tee_acc`: The TEERsaSignature worker account associated with the proof.
 		#[pallet::call_index(3)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_verify_idle_result())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_verify_idle_result_reward())]
 		pub fn submit_verify_idle_result(
 			origin: OriginFor<T>,
 			total_prove_hash: BoundedVec<u8, T::IdleTotalHashLength>,
@@ -466,7 +460,7 @@ pub mod pallet {
 			rear: u64,
 			accumulator: Accumulator,
 			idle_result: bool,
-			signature: BoundedVec<u8, ConstU32<4096>>,
+			signature: BoundedVec<u8, ConstU32<64>>,
 			tee_puk: WorkerPublicKey,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -537,13 +531,8 @@ pub mod pallet {
 				if let Some(service_prove) = &challenge_info.prove_info.service_prove {
 					if let Some(service_result) = service_prove.verify_result {
 						if idle_result && service_result {
-							let total_idle_space = T::StorageHandle::get_total_idle_space();
-							let total_service_space = T::StorageHandle::get_total_service_space();
-
-							T::MinerControl::calculate_miner_reward(
+							T::MinerControl::record_snap_shot(
 								&sender,
-								total_idle_space,
-								total_service_space,
 								*idle_space,
 								*service_space,
 							)?;
@@ -587,7 +576,7 @@ pub mod pallet {
 		/// - `tee_acc`: The TEERsaSignature worker account associated with the proof.
 		#[pallet::call_index(4)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_verify_service_result())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::submit_verify_service_result_reward())]
 		pub fn submit_verify_service_result(
 			origin: OriginFor<T>,
 			service_result: bool,
@@ -669,13 +658,8 @@ pub mod pallet {
 				if let Some(idle_prove) = &challenge_info.prove_info.idle_prove {
 					if let Some(idle_result) = idle_prove.verify_result {
 						if idle_result && service_result {
-							let total_idle_space = T::StorageHandle::get_total_idle_space();
-							let total_service_space = T::StorageHandle::get_total_service_space();
-
-							T::MinerControl::calculate_miner_reward(
+							T::MinerControl::record_snap_shot(
 								&sender,
-								total_idle_space,
-								total_service_space,
 								idle_space,
 								service_space,
 							)?;
@@ -1029,7 +1013,7 @@ pub mod pallet {
 		///
 		/// Returns:
 		/// - A `Weight` value representing the computational cost of the operation.
-		fn generate_challenge(now: BlockNumberFor<T>) -> Weight {
+		pub(crate) fn generate_challenge(now: BlockNumberFor<T>) -> Weight {
 			let mut weight: Weight = Weight::zero();
 
 			let one_day = T::OneDay::get();
@@ -1194,7 +1178,7 @@ pub mod pallet {
 		/// - A `Result` containing a `QElement` with populated random indices and values if
 		///   successful, or an `AuditErr` error in case of potential issues during the generation
 		///   process.
-		fn generate_miner_qelement(seed: u32) -> Result<QElement, AuditErr> {
+		pub(crate) fn generate_miner_qelement(seed: u32) -> Result<QElement, AuditErr> {
 			let mut random_index_list: BoundedVec<u32, ConstU32<1024>> = Default::default();
 			let mut random_list: BoundedVec<[u8; 20], ConstU32<1024>> = Default::default();
 
@@ -1243,7 +1227,7 @@ pub mod pallet {
 		/// - A `Result` containing a `SpaceChallengeParam` with populated space challenge elements
 		///   if successful, or an `AuditErr` error in case of potential issues during the
 		///   generation process.
-		fn generate_miner_space_param(seed: u32) -> Result<SpaceChallengeParam, AuditErr> {
+		pub(crate) fn generate_miner_space_param(seed: u32) -> Result<SpaceChallengeParam, AuditErr> {
 			// generate idle challenge param
 			let (_, n, d) =
 				T::MinerControl::get_expenders().map_err(|_| AuditErr::SpaceParamErr)?;

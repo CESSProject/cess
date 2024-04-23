@@ -1,5 +1,4 @@
 use anyhow::{anyhow, bail, Context, Result};
-use core::panic;
 use dashmap::DashMap;
 use rand::Rng;
 use sha2::{Digest, Sha256};
@@ -109,7 +108,7 @@ impl Verifier {
             Some(mut node) => {
                 let (mut acc, front, rear) = match &node.record {
                     Some(record) => (record.acc.clone(), record.front, record.rear),
-                    None => panic!("Record not found."),
+                    None => return Err(anyhow!("Record not found")),
                 };
                 node.commit_buf = Default::default();
                 if node.record.is_some() {

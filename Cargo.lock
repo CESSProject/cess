@@ -1503,7 +1503,7 @@ dependencies = [
 
 [[package]]
 name = "ces-pois"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "anyhow",
  "bigdecimal",
@@ -1592,6 +1592,7 @@ dependencies = [
  "array-bytes 4.2.0",
  "async-trait",
  "ces-node-rpc-ext",
+ "ces-pallet-mq",
  "ces-pallet-mq-runtime-api",
  "cess-node-runtime",
  "cessc-consensus-rrsc",
@@ -1883,7 +1884,7 @@ dependencies = [
 
 [[package]]
 name = "cestory"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -7499,6 +7500,7 @@ dependencies = [
 name = "pallet-cess-treasury"
 version = "0.7.6"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "log",
@@ -7952,6 +7954,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "hex",
  "log",
  "pallet-balances",
  "parity-scale-codec",
@@ -8193,6 +8196,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "hex",
+ "log",
  "pallet-bags-list",
  "pallet-balances",
  "pallet-cess-staking",

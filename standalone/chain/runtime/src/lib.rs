@@ -176,7 +176,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	//   `spec_version`, and `authoring_version` are the same between Wasm and native.
 	// This value is set to 100 to notify Polkadot-JS App (https://polkadot.js.org/apps) to use
 	//   the compatible custom types.
-	spec_version: 107,
+	spec_version: 117,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -1093,6 +1093,7 @@ parameter_types! {
 	pub const FaucetId: PalletId = PalletId(*b"facuetid");
 	#[derive(Clone, Eq, PartialEq)]
 	pub const StakingLockBlock: BlockNumber = DAYS * 180;
+	pub const MaximumRelease: u128 = 5_000_000_000_000_000_000_000_000;
 }
 
 impl pallet_sminer::Config for Runtime {
@@ -1112,6 +1113,7 @@ impl pallet_sminer::Config for Runtime {
 	type StorageHandle = StorageHandler;
 	type RewardPool = CessTreasury;
 	type CessTreasuryHandle = CessTreasury;
+	type MaximumRelease = MaximumRelease;
 }
 
 parameter_types! {
@@ -1122,6 +1124,7 @@ parameter_types! {
 }
 
 impl pallet_cess_treasury::Config for Runtime {
+	type OneDay = OneDay;
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type MinerRewardId = RewardPalletId;
@@ -1829,11 +1832,11 @@ mod benches {
 		[pallet_contracts, Contracts]
 		[pallet_oss, Oss]
 		[pallet_cacher, Cacher]
-		// [pallet_storage_handler, StorageHandler]
-		// [pallet_sminer, SminerBench::<Runtime>]
-		// [pallet_audit, AuditBench::<Runtime>]
-		// [pallet_file_bank, FileBankBench::<Runtime>]
-		// [pallet_tee_worker, TeeWorkerBench::<Runtime>]
+		[pallet_storage_handler, StorageHandler]
+		[pallet_sminer, SminerBench<Runtime>]
+		[pallet_audit, AuditBench::<Runtime>]
+		[pallet_file_bank, FileBankBench::<Runtime>]
+		// [pallet_tee_worker, TeeWorker]
 		// [pallet_oss, Oss]
 		// [pallet_audit, Audit]
 		[pallet_collective::<Instance1>, Council]
@@ -2390,9 +2393,9 @@ impl_runtime_apis! {
 			use frame_support::traits::StorageInfoTrait;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			// use pallet_tee_worker::benchmarking::Pallet as TeeWorkerBench;
-			// use pallet_file_bank::benchmarking::Pallet as FileBankBench;
-			// use pallet_sminer::benchmarking::Pallet as SminerBench;
-			// use pallet_audit::benchmarking::Pallet as AuditBench;
+			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
+			use pallet_sminer::benchmarking::Pallet as SminerBench;
+			use pallet_audit::benchmarking::Pallet as AuditBench;
 			use pallet_evm::Pallet as PalletEvmBench;
 			use baseline::Pallet as BaselineBench;
 
@@ -2412,16 +2415,16 @@ impl_runtime_apis! {
 			use pallet_evm::Pallet as PalletEvmBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			// use pallet_tee_worker::benchmarking::Pallet as TeeWorkerBench;
-			// use pallet_file_bank::benchmarking::Pallet as FileBankBench;
-			// use pallet_sminer::benchmarking::Pallet as SminerBench;
-			// use pallet_audit::benchmarking::Pallet as AuditBench;
+			use pallet_file_bank::benchmarking::Pallet as FileBankBench;
+			use pallet_sminer::benchmarking::Pallet as SminerBench;
+			use pallet_audit::benchmarking::Pallet as AuditBench;
 			use baseline::Pallet as BaselineBench;
 			use frame_support::traits::WhitelistedStorageKeys;
 			impl frame_system_benchmarking::Config for Runtime {}
 			// impl pallet_tee_worker::benchmarking::Config for Runtime{}
-			// impl pallet_sminer::benchmarking::Config for Runtime{}
-			// impl pallet_file_bank::benchmarking::Config for Runtime{}
-			// impl pallet_audit::benchmarking::Config for Runtime{}
+			impl pallet_sminer::benchmarking::Config for Runtime{}
+			impl pallet_file_bank::benchmarking::Config for Runtime{}
+			impl pallet_audit::benchmarking::Config for Runtime{}
 			impl baseline::Config for Runtime {}
 
 			let mut whitelist: Vec<TrackedStorageKey> = AllPalletsWithSystem::whitelisted_storage_keys();

@@ -197,76 +197,70 @@ pub mod pallet {
 	#[pallet::error]
 	pub enum Error<T> {
 		Existed,
-
+		/// File already exists
 		FileExistent,
-		//file doesn't exist.
+		/// file doesn't exist
 		FileNonExistent,
-		//overflow.
+		/// Data operation overflow
 		Overflow,
-
+		/// Not the owner of the file
 		NotOwner,
-
-		NotQualified,
-		//It is not an error message for scheduling operation
+		/// It is not an error message for scheduling operation
 		ScheduleNonExistent,
-		//Error reporting when boundedvec is converted to VEC
+		/// Error reporting when boundedvec is converted to VEC
 		BoundedVecError,
-		//Error that the storage has reached the upper limit.
+		/// Error indicating that the storage has reached its limit
 		StorageLimitReached,
-		//The miner's calculation power is insufficient, resulting in an error that cannot be
-		// replaced
+		/// The miner's calculation power is insufficient, resulting in an error that cannot be replaced
 		MinerPowerInsufficient,
-
+		/// The bucket is not empty
 		NotEmpty,
-		//Multi consensus query restriction of off chain workers
+		/// Multi consensus query restriction of off chain workers
 		Locked,
-
+		/// Length exceeds limit, maximum of 42 bytes
 		LengthExceedsLimit,
-
-		Declarated,
-
+		/// Some operations that should not have errors
 		BugInvalid,
-
+		/// Error encountered when converting Hash
 		ConvertHashError,
-		//No operation permission
+		/// No operation permission. Perhaps it was not authorized
 		NoPermission,
-		//user had same name bucket
+		/// User had same name bucket
 		SameBucketName,
-		//Bucket, file, and scheduling errors do not exist
+		/// Bucket, file, and scheduling errors do not exist
 		NonExistent,
-		//Unexpected error
+		/// Logically speaking, errors that should not occur
 		Unexpected,
-		//Less than minimum length
+		/// Less than minimum length
 		LessMinLength,
-		//The file is in an unprepared state
+		/// The file is in an unprepared state
 		Unprepared,
-		//Transfer target acc already have this file
+		/// Transfer target acc already have this file
 		IsOwned,
-		//The file does not meet the specification
+		/// The file does not meet the specification
 		SpecError,
-
-		NodesInsufficient,
-		// This is a bug that is reported only when the most undesirable 
-		// situation occurs during a transaction execution process.
+		/// This is a bug that is reported only when the most undesirable situation occurs during a transaction execution process
 		PanicOverflow,
-
+		/// The user currently has insufficient available storage space
 		InsufficientAvailableSpace,
-		// The file is in a calculated tag state and cannot be deleted
+		/// The file is in a calculated tag state and cannot be deleted
 		Calculate,
-
+		/// Miners need to be in a positive state
 		MinerStateError,
-
+		/// The deadline for restoring files has expired
 		Expired,
-
+		/// Failed to verify the signature of tee
 		VerifyTeeSigFailed,
-
+		/// The type of tee does not have permission to execute this function
 		TeeNoPermission,
-
+		/// Validation digest error during file tag calculation process
 		DigestError,
-
+		/// Error converting tee signature
 		MalformedSignature,
-
+		/// Error in comparing miner account information
 		MinerError,
+		/// Does not comply with the rules: fragments of a segment need to be stored on different miners
+		RulesNotAllowed,
 	}
 
 	#[pallet::storage]
@@ -438,7 +432,7 @@ pub mod pallet {
 				Receptionist::<T>::fly_upload_file(file_hash, user_brief.clone())?;
 			} else {
 				let needed_space = SEGMENT_SIZE
-					.checked_mul(15).ok_or(Error::<T>::Overflow)?
+					.checked_mul(30).ok_or(Error::<T>::Overflow)?
 					.checked_div(10).ok_or(Error::<T>::Overflow)?
 					.checked_mul(deal_info.len() as u128).ok_or(Error::<T>::Overflow)?;
             	ensure!(T::StorageHandle::get_user_avail_space(&user_brief.user)? > needed_space, Error::<T>::InsufficientAvailableSpace);
@@ -463,7 +457,7 @@ pub mod pallet {
 		#[pallet::call_index(2)]
 		#[transactional]
 		/// FIX ME
-		#[pallet::weight(Weight::zero())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::ownership_transfer())]
 		pub fn ownership_transfer(
 			origin: OriginFor<T>,
 			target_brief: UserBrief<T>,
@@ -549,7 +543,7 @@ pub mod pallet {
 
 		#[pallet::call_index(1)]
 		// FIX ME
-		#[pallet::weight(Weight::zero())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::calculate_report())]
 		pub fn calculate_report(
 			origin: OriginFor<T>,
 			tee_sig: BoundedVec<u8, ConstU32<64>>,
@@ -733,8 +727,7 @@ pub mod pallet {
 		#[pallet::call_index(6)]
 		#[transactional]
 		#[pallet::weight({
-			let v = Pallet::<T>::get_segment_length_from_file(&file_hash);
-			<T as pallet::Config>::WeightInfo::delete_file(v)
+			<T as pallet::Config>::WeightInfo::delete_file()
 		})]
 		pub fn delete_file(origin: OriginFor<T>, owner: AccountOf<T>, file_hash: Hash) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
@@ -745,7 +738,6 @@ pub mod pallet {
 			let _ = Self::delete_user_file(&file_hash, &owner, &file)?;
 			Self::bucket_remove_file(&file_hash, &owner, &file)?;
 			Self::remove_user_hold_file_list(&file_hash, &owner)?;
-			
 			Self::deposit_event(Event::<T>::DeleteFile{ operator: sender, owner, file_hash });
 
 			Ok(())
@@ -1096,6 +1088,9 @@ pub mod pallet {
 					for segment in &mut file.segment_list {
 						for fragment in &mut segment.fragment_list {
 							if &fragment.hash == &fragment_hash {
+								if &fragment.miner ==  &sender {
+									Err(Error::<T>::RulesNotAllowed)?
+								}
 								if &fragment.miner == &order.origin_miner {
 									let binary = fragment.hash.binary().map_err(|_| Error::<T>::BugInvalid)?;
 									T::MinerControl::insert_service_bloom(&sender, vec![binary.clone()])?;

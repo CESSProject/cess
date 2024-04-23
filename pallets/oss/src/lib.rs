@@ -13,11 +13,15 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+use codec::alloc::string::ToString;
+use sp_core::H256;
 use frame_system::pallet_prelude::*;
 use frame_support::{
 	pallet_prelude::*, transactional,
 };
 use cp_cess_common::*;
+use sp_std::vec::Vec;
+use sp_runtime::traits::TrailingZeroInput;
 
 pub use pallet::*;
 
@@ -28,7 +32,8 @@ type AccountOf<T> = <T as frame_system::Config>::AccountId;
 #[frame_support::pallet]
 pub mod pallet {
 	use crate::*;
-	use frame_system::ensure_signed;
+	use frame_support::Hashable;
+use frame_system::{ensure_signed, Origin};
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + sp_std::fmt::Debug {
@@ -42,6 +47,8 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type AuthorLimit: Get<u32> + Clone;
+
+		// type AccountIdConvertor: AccountIdConvertor<Self::AccountId>;
 	}
 
 	#[pallet::event]
@@ -61,18 +68,22 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		//No errors authorizing any use
+		/// No errors authorizing any use
 		NoAuthorization,
-		//Registered Error
+		/// Registered Error
 		Registered,
-		//Unregistered Error
+		/// Unregistered Error
 		UnRegister,
-		//Option parse Error
+		/// Option parse Error
 		OptionParseError,
-		//Bounded Vector Error
+		/// Convert bounded vector Error
 		BoundedVecError,
-		//Already Exists Error
+		/// Already Exists Error
 		Existed,
+
+		MalformedSignature,
+
+		VerifySigFailed,
 	}
 
 	#[pallet::storage]
@@ -223,6 +234,45 @@ pub mod pallet {
 			<Oss<T>>::remove(&sender);
 
 			Self::deposit_event(Event::<T>::OssDestroy { acc: sender });
+
+			Ok(())
+		}
+
+		#[pallet::call_index(5)]
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::proxy_authorzie())]
+		pub fn proxy_authorzie(origin: OriginFor<T>, auth_puk: sp_core::sr25519::Public, sig: BoundedVec<u8, ConstU32<64>>, payload: ProxyAuthPayload<T>) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+
+			let mut payload_encode = payload.encode();
+			let mut b1 = "<Bytes>".to_string().as_bytes().to_vec();
+			let mut b2 = "</Bytes>".to_string().as_bytes().to_vec();
+
+			let mut origin: Vec<u8> = Default::default();
+			origin.append(&mut b1);
+			origin.append(&mut payload_encode);
+			origin.append(&mut b2);
+
+			let account = auth_puk.using_encoded(|entropy| {
+				AccountOf::<T>::decode(&mut TrailingZeroInput::new(entropy))
+					.expect("infinite input; no invalid input; qed")
+			});
+
+			let sig = 
+				sp_core::sr25519::Signature::try_from(sig.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
+
+			ensure!(
+				sp_io::crypto::sr25519_verify(&sig, &origin, &auth_puk),
+				Error::<T>::VerifySigFailed
+			);
+
+			AuthorityList::<T>::try_mutate(&account, |list| -> DispatchResult {
+				ensure!(!list.contains(&payload.oss), Error::<T>::Existed);
+
+				list.try_push(payload.oss).map_err(|_| Error::<T>::BoundedVecError)?;
+
+				Ok(())
+			})?; 
 
 			Ok(())
 		}

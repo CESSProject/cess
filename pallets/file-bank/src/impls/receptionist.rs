@@ -4,8 +4,6 @@ pub struct Receptionist<T: Config>(PhantomData<T>);
 
 impl<T: Config> Receptionist<T> {
     pub fn fly_upload_file(file_hash: Hash, user_brief: UserBrief<T>) -> DispatchResult {
-
-
         <File<T>>::try_mutate(&file_hash, |file_opt| -> DispatchResult {
             let file = file_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
             let needed_space = SEGMENT_SIZE
@@ -26,8 +24,6 @@ impl<T: Config> Receptionist<T> {
 
             Ok(())
         })?;
-
-
 
         Ok(())
     }
