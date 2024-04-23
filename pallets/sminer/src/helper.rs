@@ -283,7 +283,9 @@ impl<T: Config> Pallet<T> {
 
 			reward.reward_issued = reward.reward_issued.checked_add(&avail_reward).ok_or(Error::<T>::Overflow)?;
 
-			T::RewardPool::send_reward_to_miner(beneficiary, avail_reward)?;
+			T::RewardPool::send_reward_to_miner(beneficiary.clone(), avail_reward)?;
+
+			Self::deposit_event(Event::<T>::Receive { acc: beneficiary, reward: avail_reward });
 
 			Ok(())
 		})

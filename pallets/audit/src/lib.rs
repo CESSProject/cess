@@ -214,7 +214,7 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		GenerateChallenge,
+		GenerateChallenge { miner: AccountOf<T> },
 
 		SubmitIdleProof { miner: AccountOf<T> },
 
@@ -1131,6 +1131,10 @@ pub mod pallet {
 			<ChallengeSnapShot<T>>::insert(&miner, challenge_info);
 			<ChallengeSlip<T>>::insert(&max_slip, &miner, true);
 			<VerifySlip<T>>::insert(&verify_slip, &miner, true);
+
+			Self::deposit_event(Event::<T>::GenerateChallenge {
+				miner: miner.clone(),
+			});
 
 			weight
 		}
