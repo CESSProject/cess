@@ -1927,6 +1927,7 @@ dependencies = [
  "pallet-sminer",
  "pallet-tee-worker",
  "parity-scale-codec",
+ "parking_lot 0.12.1",
  "prost",
  "rand 0.8.5",
  "regex",

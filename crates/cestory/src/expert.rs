@@ -2,10 +2,12 @@ use crate::types::MasterKey;
 
 use super::{
     pal::Platform, system::WorkerIdentityKey, types::ThreadPoolSafeBox, CesealProperties, CesealSafeBox, ChainStorage,
+    ChainStorageReadBox,
 };
 use ces_types::{WorkerPublicKey, WorkerRole};
 use sp_core::Pair;
 use std::{
+    borrow::Borrow,
     collections::HashMap,
     sync::{Arc, Mutex},
 };
@@ -44,7 +46,7 @@ impl From<Error> for Status {
 pub type CmdResult<T> = Result<T, Error>;
 
 pub enum Cmd {
-    ChainStorage(oneshot::Sender<Option<Arc<ChainStorage>>>),
+    ChainStorage(oneshot::Sender<Option<ChainStorageReadBox>>),
     EgressMessage,
 }
 
@@ -54,7 +56,7 @@ pub async fn run<P: Platform>(ceseal: CesealSafeBox<P>, mut expert_cmd_rx: Exper
             Some(cmd) => match cmd {
                 Cmd::ChainStorage(resp_sender) => {
                     let guard = ceseal.lock(false, false).expect("ceseal lock failed");
-                    let chain_storage = guard.runtime_state.as_ref().map(|s| s.chain_storage.clone());
+                    let chain_storage = guard.runtime_state.as_ref().map(|s| s.chain_storage());
                     let _ = resp_sender.send(chain_storage);
                 },
                 Cmd::EgressMessage => {
@@ -117,17 +119,23 @@ impl CesealExpertStub {
         self.thread_pool.clone()
     }
 
-    pub async fn using_chain_storage<F, R>(&self, call: F) -> CmdResult<R>
+    pub async fn using_chain_storage<'a, F, R>(&self, call: F) -> CmdResult<R>
     where
-        F: FnOnce(Option<Arc<ChainStorage>>) -> R,
+        F: FnOnce(Option<&ChainStorage>) -> R,
     {
         let (tx, rx) = oneshot::channel();
         self.cmd_sender
             .send(Cmd::ChainStorage(tx))
             .await
             .map_err(|e| Error::MpscSend(e.to_string()))?;
-        let chain_storage = rx.await.map_err(|e| Error::OneshotRecv(e.to_string()))?;
-        Ok(call(chain_storage))
+        let opt = rx.await.map_err(|e| Error::OneshotRecv(e.to_string()))?;
+        Ok(match opt {
+            Some(chain_storage) => {
+                let chain_storage = chain_storage.read();
+                call(Some(chain_storage.borrow()))
+            },
+            None => call(None),
+        })
     }
 
     pub async fn try_acquire_permit(&self, ext_res_kind: ExternalResourceKind) -> Result<SemaphorePermit, Error> {

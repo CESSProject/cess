@@ -30,6 +30,7 @@ use cestory_api::{
     storage_sync::{StorageSynchronizer, Synchronizer},
 };
 use parity_scale_codec::{Decode, Encode};
+use parking_lot::{RwLock, RwLockReadGuard};
 use ring::rand::SecureRandom;
 use scale_info::TypeInfo;
 use sp_core::{crypto::Pair, sr25519, H256};
@@ -66,6 +67,28 @@ mod types;
 
 pub use podr2::verify_signature;
 
+mod arc_rwlock_serde {
+    use parking_lot::RwLock;
+    use serde::{de::Deserializer, ser::Serializer, Deserialize, Serialize};
+    use std::sync::Arc;
+
+    pub fn serialize<S, T>(val: &Arc<RwLock<T>>, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+        T: Serialize,
+    {
+        T::serialize(&*val.read(), s)
+    }
+
+    pub fn deserialize<'de, D, T>(d: D) -> Result<Arc<RwLock<T>>, D::Error>
+    where
+        D: Deserializer<'de>,
+        T: Deserialize<'de>,
+    {
+        Ok(Arc::new(RwLock::new(T::deserialize(d)?)))
+    }
+}
+
 // TODO: Completely remove the reference to cess-node-runtime. Instead we can create a minimal
 // runtime definition locally.
 type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
@@ -85,7 +108,8 @@ struct RuntimeState {
 
     // TODO: use a better serialization approach
     #[codec(skip)]
-    chain_storage: Arc<ChainStorage>,
+    #[serde(with = "arc_rwlock_serde")]
+    chain_storage: Arc<RwLock<ChainStorage>>,
 
     #[serde(with = "more::scale_bytes")]
     genesis_block_hash: H256,
@@ -93,7 +117,21 @@ struct RuntimeState {
 
 impl RuntimeState {
     fn purge_mq(&mut self) {
-        self.send_mq.purge(|sender| self.chain_storage.mq_sequence(sender))
+        self.send_mq.purge(|sender| self.chain_storage.read().mq_sequence(sender))
+    }
+
+    fn chain_storage(&self) -> ChainStorageReadBox {
+        ChainStorageReadBox { inner: self.chain_storage.clone() }
+    }
+}
+
+pub struct ChainStorageReadBox {
+    inner: Arc<RwLock<ChainStorage>>,
+}
+
+impl ChainStorageReadBox {
+    pub fn read(&self) -> RwLockReadGuard<ChainStorage> {
+        self.inner.read()
     }
 }
 
@@ -417,9 +455,7 @@ impl<P: pal::Platform> Ceseal<P> {
         if self.args.safe_mode_level >= 2 {
             if let Some(state) = &mut self.runtime_state {
                 info!("Clearing the storage data to save memory");
-                let Some(chain_storage) = Arc::get_mut(&mut state.chain_storage) else {
-                    return Err(anyhow!(types::Error::MultiRefToChainStorage.to_string()))
-                };
+                let mut chain_storage = state.chain_storage.write();
                 chain_storage.inner_mut().load_proof(vec![])
             }
         }
@@ -428,7 +464,7 @@ impl<P: pal::Platform> Ceseal<P> {
 
     fn check_requirements(&self) {
         let ver = P::app_version();
-        let chain_storage = &self.runtime_state.as_ref().expect("BUG: no runtime state").chain_storage;
+        let chain_storage = &self.runtime_state.as_ref().expect("BUG: no runtime state").chain_storage.read();
         let min_version = chain_storage.minimum_ceseal_version();
 
         let measurement = self.platform.measurement().unwrap_or_else(|| vec![0; 32]);

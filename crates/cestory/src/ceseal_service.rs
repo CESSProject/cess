@@ -12,7 +12,7 @@ use cestory_api::{
     crpc::{self as pb, ceseal_api_server::CesealApi},
 };
 use parity_scale_codec::Error as ScaleDecodeError;
-use std::{fmt::Debug, time::Duration};
+use std::{borrow::Borrow, fmt::Debug, time::Duration};
 use thiserror::Error;
 use tonic::{Request, Response, Status};
 use tracing::{error, info};
@@ -42,9 +42,6 @@ impl<Platform: pal::Platform> RpcService<Platform> {
 pub enum CesealServiceError {
     #[error(transparent)]
     CesealLock(#[from] CesealLockError),
-
-    #[error("multi reference to chain_storage at the same time")]
-    MultiRefToChainStorage,
 
     /// Failed to decode the request parameters
     #[error("{0}")]
@@ -322,6 +319,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
             let runtime_state = cestory.runtime_state()?;
             let my_runtime_timestamp = runtime_state
                 .chain_storage
+                .read()
                 .get_ceseal_bin_added_at(&my_runtime_hash)
                 .ok_or_else(|| from_display("Server ceseal not allowed on chain"))?;
 
@@ -335,6 +333,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
             };
             let req_runtime_timestamp = runtime_state
                 .chain_storage
+                .read()
                 .get_ceseal_bin_added_at(&runtime_hash)
                 .ok_or_else(|| from_display("Client ceseal not allowed on chain"))?;
 
@@ -523,7 +522,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
     }
 
     pub(crate) fn current_block(&mut self) -> CesealResult<(BlockNumber, u64)> {
-        let now_ms = self.runtime_state()?.chain_storage.timestamp_now();
+        let now_ms = self.runtime_state()?.chain_storage.read().timestamp_now();
         let block = self
             .runtime_state()?
             .storage_synchronizer
@@ -541,7 +540,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
 
         let (state_root, pending_messages, counters) = match state.as_ref() {
             Some(state) => {
-                let state_root = hex::encode(state.chain_storage.root());
+                let state_root = hex::encode(state.chain_storage.read().root());
                 let pending_messages = state.send_mq.count_messages();
                 let counters = state.storage_synchronizer.counters();
                 (state_root, pending_messages, counters)
@@ -555,7 +554,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
             1 => self
                 .runtime_state
                 .as_ref()
-                .map(|state| state.chain_storage.timestamp_now())
+                .map(|state| state.chain_storage.read().timestamp_now())
                 .unwrap_or_default(),
             _ => 0,
         };
@@ -625,14 +624,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         for block in blocks.into_iter() {
             info!(block = block.block_header.number, "Dispatching");
             let state = self.runtime_state()?;
-            let Some(chain_storage) = Arc::get_mut(&mut state.chain_storage) else {
-                return Err(CesealServiceError::MultiRefToChainStorage)
-            };
-            let drop_proofs = safe_mode_level > 1;
-            state
-                .storage_synchronizer
-                .feed_block(&block, chain_storage.inner_mut(), drop_proofs)
-                .map_err(from_display)?;
+            {
+                let mut chain_storage = state.chain_storage.write();
+                let drop_proofs = safe_mode_level > 1;
+                state
+                    .storage_synchronizer
+                    .feed_block(&block, chain_storage.inner_mut(), drop_proofs)
+                    .map_err(from_display)?;
+            }
             if safe_mode_level > 0 {
                 continue
             }
@@ -735,20 +734,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         let send_mq = MessageSendQueue::default();
         let recv_mq = MessageDispatcher::default();
 
-        let mut runtime_state = RuntimeState {
-            send_mq,
-            recv_mq,
-            storage_synchronizer,
-            chain_storage: Arc::new(chain_storage),
-            genesis_block_hash,
-        };
-
         // In parachain mode the state root is stored in parachain header which isn't passed in here.
         // The storage root would be checked at the time each block being synced in(where the storage
         // being patched) and ceseal doesn't read any data from the chain storage until the first
         // block being synced in. So it's OK to skip the check here.
         {
-            let this_root = *runtime_state.chain_storage.root();
+            let this_root = *chain_storage.root();
             if this_root != genesis.block_header.state_root {
                 error!(
                     "Genesis state root mismatch, required in header: {:?}, actual: {:?}",
@@ -757,6 +748,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
                 return Err(from_display("state root mismatch"))
             }
         }
+
+        let mut runtime_state = RuntimeState {
+            send_mq,
+            recv_mq,
+            storage_synchronizer,
+            chain_storage: Arc::new(parking_lot::RwLock::new(chain_storage)),
+            genesis_block_hash,
+        };
 
         let system = system::System::new(
             self.platform.clone(),
@@ -865,20 +864,20 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
             .ok_or_else(|| from_display("Runtime not initialized"))?;
         let system = self.system.as_mut().ok_or_else(|| from_display("Runtime not initialized"))?;
 
+        let chain_storage = state.chain_storage.read();
         // Dispatch events
-        let messages = state
-            .chain_storage
+        let messages = chain_storage
             .mq_messages()
             .map_err(|_| from_display("Can not get mq messages from storage"))?;
 
         state.recv_mq.reset_local_index();
 
-        let now_ms = state.chain_storage.timestamp_now();
+        let now_ms = chain_storage.timestamp_now();
 
         let mut block = BlockDispatchContext {
             block_number,
             now_ms,
-            storage: &state.chain_storage,
+            storage: chain_storage.borrow(),
             send_mq: &state.send_mq,
             recv_mq: &mut state.recv_mq,
         };
@@ -987,7 +986,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
             .storage_synchronizer
             .assume_at_block(block)
             .context("Failed to set synchronizer state")?;
-        state.chain_storage = Arc::new(chain_storage);
+        state.chain_storage = Arc::new(parking_lot::RwLock::new(chain_storage));
         system.genesis_block = block;
         self.can_load_chain_state = false;
         Ok(())
@@ -1005,9 +1004,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         if self.args.safe_mode_level < 2 {
             return Err(from_display("Can not load storage proof when safe_mode_level < 2"))
         }
-        let Some(chain_storage) = Arc::get_mut(&mut self.runtime_state()?.chain_storage) else {
-            return Err(CesealServiceError::MultiRefToChainStorage)
-        };
+        let mut chain_storage = self.runtime_state()?.chain_storage.write();
         chain_storage.inner_mut().load_proof(proof);
         Ok(())
     }

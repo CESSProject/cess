@@ -68,9 +68,6 @@ pub enum Error {
     #[error(transparent)]
     IoError(#[from] std::io::Error),
 
-    #[error("multi reference to chain_storage at the same time")]
-    MultiRefToChainStorage,
-
     #[error(transparent)]
     DecodeError(#[from] CodecError),
 

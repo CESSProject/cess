@@ -27,6 +27,7 @@ parity-scale-codec = { workspace = true, features = [
     "full",
     "chain-error",
 ] }
+parking_lot = { workspace = true }
 rand = { workspace = true }
 regex = { workspace = true }
 ring = { workspace = true }
