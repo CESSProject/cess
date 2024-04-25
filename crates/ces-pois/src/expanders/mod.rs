@@ -2,7 +2,8 @@ pub mod generate_expanders;
 pub mod generate_idle_file;
 use std::mem;
 
-use num_traits::ToPrimitive;
+use num_bigint_dig::BigInt;
+use num_traits::{Signed, ToPrimitive};
 
 pub use generate_idle_file::new_hash;
 pub type NodeType = i32;
@@ -107,23 +108,32 @@ pub fn get_bytes<T: ToPrimitive>(v: T) -> Vec<u8> {
     bytes
 }
 
-pub fn get_bytes_slice<T: ToPrimitive>(v: &[T]) -> Vec<u8> {
+pub fn get_bytes_slice<T: ToPrimitive>(values: &[T]) -> Vec<u8> {
     let size = mem::size_of::<T>();
-    let mut bytes = Vec::with_capacity(v.len() * size);
+    let mut bytes = Vec::with_capacity(size * values.len());
 
-    for value in v {
-        let value = value.to_i64().unwrap();
+    for v in values {
+        let value = v.to_i64().unwrap();
         for i in 0..size {
-            bytes.push(((value >> (8 * i)) & 0xFF) as u8);
+            bytes.push(((value >> (8 * (size - 1 - i))) & 0xFF) as u8);
         }
     }
 
     bytes
 }
 
-fn bytes_to_node_value(data: &[u8], max: i64) -> NodeType {
-    let v = i64::from_be_bytes(data.try_into().unwrap());
-    let v = if v < 0 { -v } else { v };
-    let v = v % max;
-    v as NodeType
+pub fn bytes_to_node_value(data: &[u8], max: i64) -> NodeType {
+    let value = BigInt::from_bytes_be(num_bigint_dig::Sign::Plus, data);
+    let big_max = BigInt::from(max);
+
+    let value = value % &big_max;
+    let i_value = value.to_i64().unwrap_or_else(|| {
+        if value.is_negative() {
+            i64::min_value()
+        } else {
+            i64::max_value()
+        }
+    });
+
+    ((i_value + max) % max) as NodeType
 }

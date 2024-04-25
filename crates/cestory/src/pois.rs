@@ -4,6 +4,7 @@ use ces_pdp::Keys;
 use ces_pois::{
     acc::{multi_level_acc::WitnessNode, rsa_keygen, RsaKey},
     pois::{
+        challenge,
         prove::{AccProof, CommitProof, Commits, DeletionProof, MhtProof, SpaceProof},
         verify::{ProverNode, Verifier},
     },
@@ -643,6 +644,8 @@ impl PoisVerifierApi for PoisVerifierServer {
             .collect::<Vec<u64>>()
             .try_into()
             .map_err(|_| Status::invalid_argument("space_chals parameters passed incorrectly!"))?;
+        let front: i64 = req.front;
+        let rear: i64 = req.rear;
         let miner_cess_address = get_ss58_address(&miner_id)?;
         let now = Instant::now();
         info!("[Verify Space Total] miner {:?} verify space proof tatal...", miner_cess_address);
@@ -658,42 +661,76 @@ impl PoisVerifierApi for PoisVerifierServer {
 
         //check proof list validity,simultaneously set it in haser
         let mut result = true;
-
         let mut total_proof_hasher = Sha256::new();
-        for proof in &blocks_proof {
-            if !is_valid_proof(proof, &self.podr2_keys, self.ceseal_identity_key.to_vec())? {
-                result = false;
-                break
-            };
-            total_proof_hasher.input(&proof.space_proof_hash);
-        }
 
-        //check whether the left and right in the proof are continuous in the entire [front, rear] interval
-        //The rule:
-        //left = front + 1
-        //right = rear + 1
-        let front: i64 = req.front;
-        let rear: i64 = req.rear;
-        if result {
-            let mut prev_right = front + 1;
-            for proof in &blocks_proof {
-                if proof.left == prev_right {
-                    //do nothing
+        /*check whether the left and right in the proof are continuous in the entire [front, rear] interval
+            The rule is:
+            left = front + 1
+            right = rear + 1
+        if pois chanllenge will check all blocks , uncomment this
+        */
+        // if result {
+        //     let mut prev_right = front + 1;
+        //     for proof in &blocks_proof {
+        //         if proof.left == prev_right {
+        //             //do nothing
+        //         } else {
+        //             warn!("Provide a complete sequence of blocks for verification! the previous block right: {}, the
+        // left of this block is {}", prev_right, proof.left);             result = false;
+        //             break
+        //         }
+        //         prev_right = proof.right;
+        //     }
+        //     if prev_right != rear + 1 {
+        //         warn!("The right({}) and rear({}) numbers of the last block do not equal", prev_right, rear);
+        //         result = false;
+        //     }
+        // }
+
+        info!("miner id :{:?}",miner_id.clone());
+        info!("req.space_chals is :{:?}",req.space_chals.clone());
+        info!("front is :{}",front);
+        info!("rear is :{}",rear);
+        info!("proof_list.len() is :{}",proof_list.len() as i64);
+
+        if let Some(mut call) = challenge::new_challenge_handle(
+            &miner_id,
+            &[0u8; 32],
+            &req.space_chals,
+            front,
+            rear,
+            proof_list.len() as i64,
+        ) {
+            let mut space_proof_hash = Vec::new();
+            for serial in 0..blocks_proof.len() {
+                if call(&space_proof_hash, blocks_proof[serial].left, blocks_proof[serial].right) {
+                    info!("block proof index is:{},left is:{},right is:{},space_proof_hash is:{:?}",serial,blocks_proof[serial].left,blocks_proof[serial].right,blocks_proof[serial].space_proof_hash.clone());
+                    info!("but this time use space_proof_hash is :{:?}",space_proof_hash.clone());
+                    if !is_valid_proof(&blocks_proof[serial], &self.podr2_keys, self.ceseal_identity_key.to_vec())? {
+                        result = false;
+                        break
+                    };
+                    total_proof_hasher.input(&blocks_proof[serial].space_proof_hash);
                 } else {
-                    warn!("Provide a complete sequence of blocks for verification! the previous block right: {}, the left of this block is {}", prev_right, proof.left);
+                    info!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!,index is:{}use space_proof_hash is :{:?},left is:{},right is:{}",serial,space_proof_hash.clone(),blocks_proof[serial].left,blocks_proof[serial].right);
                     result = false;
                     break
                 }
-                prev_right = proof.right;
+                space_proof_hash = blocks_proof[serial].space_proof_hash.clone()
             }
-            if prev_right != rear + 1 {
-                warn!("The right({}) and rear({}) numbers of the last block do not equal", prev_right, rear);
-                result = false;
-            }
-        }
+        } else {
+            return Err(Status::unauthenticated("Verify miner challenge failed, challenge handle create fail!"))
+        };
+
         //Concatenate all hashes to calculate the total hash
         let mut total_proof_hash = vec![0u8; 32];
         total_proof_hasher.result(&mut total_proof_hash);
+        info!("-----------------------total_proof_hash:{:?}",total_proof_hash.clone());
+        info!("-----------------------front:{}",front);
+        info!("-----------------------rear:{}",rear);
+        info!("-----------------------acc:{:?}",acc.clone());
+        info!("-----------------------space_chals:{:?}",space_chals.clone());
+        info!("-----------------------result:{}",result);
 
         //compute signature
         let sig_struct = ResponseSpaceProofVerifyTotalSignatureMember {
@@ -994,5 +1031,19 @@ fn get_ss58_address(account: &[u8]) -> std::result::Result<String, AccountConver
 impl From<AccountConvertError> for Status {
     fn from(value: AccountConvertError) -> Self {
         Status::internal(value.0)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_hash256(){
+        let mut total_proof_hasher = Sha256::new();
+        total_proof_hasher.input(&vec![81, 64, 6, 253, 142, 97, 167, 41, 81, 81, 79, 79, 234, 10, 45, 183, 213, 117, 255, 197, 252, 145, 122, 123, 74, 214, 1, 22, 84, 230, 86, 45]);
+        let mut total_proof_hash = vec![0u8; 32];
+        total_proof_hasher.result(&mut total_proof_hash);
+        println!("total proof hash is :{:?}",total_proof_hash);
     }
 }

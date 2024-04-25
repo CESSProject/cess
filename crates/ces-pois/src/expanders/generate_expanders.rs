@@ -1,13 +1,18 @@
-use super::{
-    bytes_to_node_value, generate_idle_file::get_hash, get_bytes_slice, Expanders, Node, NodeType,
-};
-use crate::{expanders::get_bytes, util::copy_data};
+use sha2::{Digest, Sha512};
+
+use super::{Expanders, Node, NodeType};
 
 pub fn construct_stacked_expanders(k: i64, n: i64, d: i64) -> Expanders {
     Expanders::new(k, n, d)
 }
 
-pub fn calc_parents(expanders: &Expanders, node: &mut Node, miner_id: &[u8], count: &[i64]) {
+pub fn calc_parents(
+    expanders: &Expanders,
+    node: &mut Node,
+    miner_id: &[u8],
+    count: i64,
+    rlayer: i64,
+) {
     if node.parents.capacity() != (expanders.d + 1) as usize {
         return;
     }
@@ -17,65 +22,41 @@ pub fn calc_parents(expanders: &Expanders, node: &mut Node, miner_id: &[u8], cou
         return;
     }
 
-    let base_parent = ((layer - 1) * expanders.n) as NodeType;
-    let lens = miner_id.len() + 8 * 17 + count.len() * 8;
-    let mut content: Vec<u8> = vec![0; lens];
-    copy_data(
-        &mut content,
-        &[miner_id, &get_bytes_slice(count), &layer.to_be_bytes()],
-    );
-    node.add_parent(node.index - expanders.n as NodeType);
-    let mut plate = vec![vec![]; 16];
+    let group_size = expanders.n / expanders.d;
+    let offset = group_size / 256;
 
-    for i in (0..expanders.d).step_by(16) {
-        // Add index to plate
-        for (j, v) in plate.iter_mut().enumerate().take(16) {
-            *v = get_bytes(i + j as i64);
-        }
+    let mut hash = Sha512::new();
+    hash.update(miner_id);
+    hash.update(count.to_be_bytes());
+    hash.update(rlayer.to_be_bytes()); // add real layer
+    hash.update((node.index as i64).to_be_bytes());
+    let res = hash.clone().finalize();
+    let mut res = res.to_vec();
+    if expanders.d > 64 {
+        hash.reset();
+        hash.update(res.clone());
+        let result = hash.finalize();
+        res.append(&mut result.to_vec());
+    }
+    res = res[..expanders.d as usize].to_vec();
 
-        copy_data(
-            &mut content[lens - 8 * 16..],
-            &plate.iter().map(|v| &v[..]).collect::<Vec<&[u8]>>(),
-        );
-        let hash = get_hash(&content);
-        let mut s = 0;
-        let mut p = 0;
-
-        let mut j = 0;
-        while j < 16 {
-            if s < 4 && j < 15 {
-                p = bytes_to_node_value(&hash[j * 4 + s..(j + 1) * 4 + s], expanders.n);
-                p = p % expanders.n as NodeType + base_parent;
-            } else {
-                s = 0;
-                loop {
-                    p = p + 1 % expanders.n as NodeType + base_parent;
-
-                    if p <= node.index - expanders.n as NodeType {
-                        let (_, ok) = node.parent_in_list(p + expanders.n as NodeType);
-                        if !ok && p != node.index - expanders.n as NodeType {
-                            break;
-                        }
-                    }
-
-                    let (_, ok) = node.parent_in_list(p);
-                    if !ok {
-                        break;
-                    }
-                }
+    let parent = node.index - expanders.n as NodeType;
+    node.add_parent(parent);
+    for i in 0..res.len() as i64 {
+        let index = (layer - 1) * expanders.n
+            + i * group_size
+            + res[i as usize] as i64 * offset
+            + res[i as usize] as i64 % offset;
+        match index {
+            i if i == parent as i64 => {
+                node.add_parent((i + 1) as i32);
             }
-
-            if p < node.index - expanders.n as NodeType {
-                p += expanders.n as NodeType;
+            i if i < parent as i64 => {
+                node.add_parent((i + expanders.n) as i32);
             }
-
-            if node.add_parent(p) {
-                j += 1;
-                s = 0;
-                continue;
+            _ => {
+                node.add_parent(index as i32);
             }
-
-            s += 1;
         }
     }
 }

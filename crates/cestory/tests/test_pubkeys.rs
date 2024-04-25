@@ -6,7 +6,7 @@ use tonic::Request;
 #[tokio::test]
 async fn fetch_pubkeys() {
     let miner_id = AccountId32::from_str("cXjEPD6CAnjupMaRrxq9AEKCA3HRCumSxkSxWVKcL3pMeEyFi").unwrap();
-    let mut client = CesealPubkeysProviderClient::connect("http://127.0.0.1:19999").await.unwrap();
+    let mut client = CesealPubkeysProviderClient::connect("http://45.195.74.39:19999").await.unwrap();
 
     {
         let resp = client
