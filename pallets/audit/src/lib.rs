@@ -1017,9 +1017,9 @@ pub mod pallet {
 			let mut weight: Weight = Weight::zero();
 
 			let one_day = T::OneDay::get();
-			if now < one_day.saturating_mul(3u32.saturated_into()) {
-				return weight;
-			}
+			// if now < one_day.saturating_mul(3u32.saturated_into()) {
+			// 	return weight;
+			// }
 
 			if now % 10u32.saturated_into() != 0u32.saturated_into() {
 				return weight;
@@ -1044,19 +1044,24 @@ pub mod pallet {
 			let miner = &miner_list[index as usize];
 
 			if <ChallengeSnapShot<T>>::contains_key(miner) {
+				log::info!("audit: Select invalid miner");
 				return weight
 			}
 
 			weight = weight.saturating_add(T::DbWeight::get().reads(1));
 			let miner_snapshot = match T::MinerControl::get_miner_snapshot(miner) {
 				Ok(miner_snapshot) => miner_snapshot,
-				Err(_) => return weight,
+				Err(e) => {
+					log::info!("audit: {:?}", e);
+					return weight
+				},
 			};
 
 			let (idle_space, service_space, service_bloom_filter, space_proof_info, tee_signature) =
 				miner_snapshot;
 
 			if idle_space + service_space == 0 {
+				log::info!("audit: Select invalid miner");
 				return weight
 			}
 
