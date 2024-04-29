@@ -22,7 +22,7 @@ use frame_support::{
 use cp_cess_common::*;
 use sp_std::vec::Vec;
 use sp_runtime::traits::TrailingZeroInput;
-
+use sp_runtime::SaturatedConversion;
 pub use pallet::*;
 
 pub use weights::WeightInfo;
@@ -47,6 +47,9 @@ use frame_system::{ensure_signed, Origin};
 
 		#[pallet::constant]
 		type AuthorLimit: Get<u32> + Clone;
+
+		#[pallet::constant]
+		type PayloadExpired: Get<u32> + Clone;
 
 		// type AccountIdConvertor: AccountIdConvertor<Self::AccountId>;
 	}
@@ -80,10 +83,12 @@ use frame_system::{ensure_signed, Origin};
 		BoundedVecError,
 		/// Already Exists Error
 		Existed,
-
+		/// Error converting tee signature 
 		MalformedSignature,
-
+		/// User's authorization signature verification error
 		VerifySigFailed,
+		/// The user's authorized signature has expired
+		Expired,
 	}
 
 	#[pallet::storage]
@@ -252,6 +257,10 @@ use frame_system::{ensure_signed, Origin};
 			origin.append(&mut b1);
 			origin.append(&mut payload_encode);
 			origin.append(&mut b2);
+
+			let now = frame_system::Pallet::<T>::block_number();
+			let expirtion: BlockNumberFor<T> = T::PayloadExpired::get().saturated_into();
+			ensure!(payload.exp < now + expirtion, Error::<T>::Expired);
 
 			let account = auth_puk.using_encoded(|entropy| {
 				AccountOf::<T>::decode(&mut TrailingZeroInput::new(entropy))
