@@ -11,20 +11,21 @@ pub use types::*;
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 
+use ces_types::{MasterPublicKey, WorkerPublicKey, WorkerRole};
 use codec::{Decode, Encode};
-use frame_support::{
-	dispatch::DispatchResult, pallet_prelude::*, traits::ReservableCurrency, BoundedVec, PalletId,
-	traits::{Get, StorageVersion, UnixTime},
-};
-pub use pallet::*;
-use scale_info::TypeInfo;
-use sp_runtime::{DispatchError, RuntimeDebug, SaturatedConversion};
-use sp_std::{convert::TryInto, prelude::*};
-use sp_runtime::Saturating;
 use cp_cess_common::*;
 use cp_scheduler_credit::SchedulerCreditCounter;
-use ces_types::{WorkerPublicKey, MasterPublicKey, WorkerRole};
+use frame_support::{
+	dispatch::DispatchResult,
+	pallet_prelude::*,
+	traits::{Get, ReservableCurrency, StorageVersion, UnixTime},
+	BoundedVec, PalletId,
+};
 use frame_system::{ensure_signed, pallet_prelude::*};
+pub use pallet::*;
+use scale_info::TypeInfo;
+use sp_runtime::{DispatchError, RuntimeDebug, SaturatedConversion, Saturating};
+use sp_std::{convert::TryInto, prelude::*};
 pub use weights::WeightInfo;
 pub mod weights;
 
@@ -44,20 +45,15 @@ type AccountOf<T> = <T as frame_system::Config>::AccountId;
 pub mod pallet {
 	use super::*;
 	use codec::{Decode, Encode};
-	use frame_support::{
-		dispatch::DispatchResult,
-	};
+	use frame_support::dispatch::DispatchResult;
 	use scale_info::TypeInfo;
-
 
 	use ces_pallet_mq::MessageOriginInfo;
 	use ces_types::{
 		attestation::{self, Error as AttestationError},
-		messaging::{
-			self, bind_topic, DecodedMessage, KeyfairyChange, KeyfairyLaunch, MessageOrigin, SystemEvent, WorkerEvent,
-		},
-		wrap_content_to_sign, AttestationProvider, EcdhPublicKey,  SignedContentType,
-		WorkerEndpointPayload, WorkerIdentity, WorkerRegistrationInfo,
+		messaging::{bind_topic, DecodedMessage, MasterKeyApply, MasterKeyLaunch, MessageOrigin, WorkerEvent},
+		wrap_content_to_sign, AttestationProvider, EcdhPublicKey, MasterKeyApplyPayload, SignedContentType,
+		WorkerEndpointPayload, WorkerRegistrationInfo,
 	};
 
 	// Re-export
@@ -65,20 +61,14 @@ pub mod pallet {
 	// TODO: Legacy
 	pub use ces_types::attestation::legacy::{Attestation, AttestationValidator, IasFields, IasValidator};
 
-	bind_topic!(RegistryEvent, b"^cess/registry/event");
+	bind_topic!(MasterKeySubmission, b"^cess/masterkey/submit");
 	#[derive(Encode, Decode, TypeInfo, Clone, Debug)]
-	pub enum RegistryEvent {
+	pub enum MasterKeySubmission {
 		///	MessageOrigin::Worker -> Pallet
 		///
 		/// Only used for first master pubkey upload, the origin has to be worker identity since there is no master
 		/// pubkey on-chain yet.
 		MasterPubkey { master_pubkey: MasterPublicKey },
-	}
-
-	bind_topic!(KeyfairyRegistryEvent, b"^cess/registry/kf_event");
-	#[derive(Encode, Decode, TypeInfo, Clone, Debug)]
-	pub enum KeyfairyRegistryEvent {
-		RotatedMasterPubkey { rotation_id: u64, master_pubkey: MasterPublicKey },
 	}
 
 	#[pallet::config]
@@ -127,14 +117,12 @@ pub mod pallet {
 			tee: WorkerPublicKey,
 		},
 
+		MasterKeyLaunching {
+			holder: WorkerPublicKey,
+		},
+
 		MasterKeyLaunched,
-		/// A new Keyfairy is enabled on the blockchain
-		KeyfairyAdded {
-			pubkey: WorkerPublicKey,
-		},
-		KeyfairyRemoved {
-			pubkey: WorkerPublicKey,
-		},
+
 		WorkerAdded {
 			pubkey: WorkerPublicKey,
 			attestation_provider: Option<AttestationProvider>,
@@ -145,14 +133,7 @@ pub mod pallet {
 			attestation_provider: Option<AttestationProvider>,
 			confidence_level: u8,
 		},
-		MasterKeyRotated {
-			rotation_id: u64,
-			master_pubkey: MasterPublicKey,
-		},
-		MasterKeyRotationFailed {
-			rotation_lock: Option<u64>,
-			keyfairy_rotation_id: u64,
-		},
+
 		MinimumCesealVersionChangedTo(u32, u32, u32),
 	}
 
@@ -210,19 +191,21 @@ pub mod pallet {
 		InvalidSignature,
 		/// IAS related
 		WorkerNotFound,
-		/// Keyfairy related
-		InvalidKeyfairy,
-		InvalidMasterPubkey,
+		/// master-key launch related
+		MasterKeyLaunchRequire,
+		InvalidMasterKeyFirstHolder,
+		MasterKeyAlreadyLaunched,
+		MasterKeyLaunching,
 		MasterKeyMismatch,
+		InvalidMasterPubkey,
 		MasterKeyUninitialized,
+		InvalidMasterKeyApplySigningTime,
 		/// Ceseal related
 		CesealAlreadyExists,
 		CesealNotFound,
 		/// Additional
 		NotImplemented,
 		CannotRemoveLastKeyfairy,
-		MasterKeyInRotation,
-		InvalidRotatedMasterPubkey,
 		/// Endpoint related
 		EmptyEndpoint,
 		InvalidEndpointSigningTime,
@@ -237,30 +220,16 @@ pub mod pallet {
 	pub(super) type ValidationTypeList<T: Config> =
 		StorageValue<_, BoundedVec<WorkerPublicKey, T::SchedulerMaximum>, ValueQuery>;
 
-	/// Keyfairy pubkey list
 	#[pallet::storage]
-	pub type Keyfairies<T: Config> = StorageValue<_, Vec<WorkerPublicKey>, ValueQuery>;
+	pub type MasterKeyFirstHolder<T: Config> = StorageValue<_, WorkerPublicKey>;
 
 	/// Master public key
 	#[pallet::storage]
 	pub type MasterPubkey<T: Config> = StorageValue<_, MasterPublicKey>;
 
-	/// The block number and unix timestamp when the keyfairy is launched
+	/// The block number and unix timestamp when the master-key is launched
 	#[pallet::storage]
-	pub type KeyfairyLaunchedAt<T: Config> = StorageValue<_, (BlockNumberFor<T>, u64)>;
-
-	/// The rotation counter starting from 1, it always equals to the latest rotation id.
-	/// The totation id 0 is reserved for the first master key before we introduce the rotation.
-	#[pallet::storage]
-	pub type RotationCounter<T> = StorageValue<_, u64, ValueQuery>;
-
-	/// Current rotation info including rotation id
-	///
-	/// Only one rotation process is allowed at one time.
-	/// Since the rotation request is broadcasted to all keyfairys, it should be finished only if there is one
-	/// functional keyfairy.
-	#[pallet::storage]
-	pub type MasterKeyRotationLock<T: Config> = StorageValue<_, Option<u64>, ValueQuery>;
+	pub type MasterKeyLaunchedAt<T: Config> = StorageValue<_, (BlockNumberFor<T>, u64)>;
 
 	/// Mapping from worker pubkey to WorkerInfo
 	#[pallet::storage]
@@ -306,8 +275,7 @@ pub mod pallet {
 
 			let least = T::AtLeastWorkBlock::get();
 			if now % least == 0u32.saturated_into() {
-				weight
-				.saturating_add(Self::clear_mission(now));
+				weight.saturating_add(Self::clear_mission(now));
 			}
 
 			weight
@@ -344,8 +312,8 @@ pub mod pallet {
 		// #[pallet::call_index(2)]
 		// #[pallet::weight(Weight::zero())]
 		// pub fn exit(
-		// 	origin: OriginFor<T>, 
-		// 	payload: WorkerAction, 
+		// 	origin: OriginFor<T>,
+		// 	payload: WorkerAction,
 		// 	sig: BoundedVec<u8, ConstU32<64>>
 		// ) -> DispatchResult {
 		// 	ensure_signed(origin)?;
@@ -363,7 +331,7 @@ pub mod pallet {
 
 		// 		ensure!(<Workers<T>>::count() > 1, Error::<T>::LastWorker);
 		// 		ensure!(<Workers<T>>::contains_key(&payload.pubkey), Error::<T>::WorkerNotFound);
-				
+
 		// 		Workers::<T>::remove(&payload.pubkey);
 		// 		WorkerAddedAt::<T>::remove(&payload.pubkey);
 		// 		Endpoints::<T>::remove(&payload.pubkey);
@@ -377,12 +345,11 @@ pub mod pallet {
 		// 			Self::check_time_unix(&payload.signing_time),
 		// 			Error::<T>::InvalidEndpointSigningTime
 		// 		);
-	
+
 		// 		Self::deposit_event(Event::<T>::Exit { tee: payload.pubkey });
 		// 	} else {
 		// 		return Err(Error::<T>::PayloadError)?
 		// 	}
-			
 
 		// 	Ok(())
 		// }
@@ -404,7 +371,7 @@ pub mod pallet {
 				ecdh_pubkey,
 				version: 0,
 				last_updated: 1,
-				stash_account: stash_account,
+				stash_account,
 				attestation_provider: Some(AttestationProvider::Root),
 				confidence_level: 128u8,
 				features: vec![1, 4],
@@ -412,10 +379,7 @@ pub mod pallet {
 			};
 			Workers::<T>::insert(worker_info.pubkey, &worker_info);
 			WorkerAddedAt::<T>::insert(worker_info.pubkey, frame_system::Pallet::<T>::block_number());
-			Self::push_message(SystemEvent::new_worker_event(
-				pubkey,
-				WorkerEvent::Registered(messaging::WorkerInfo { confidence_level: worker_info.confidence_level }),
-			));
+			Self::push_message(WorkerEvent::new_worker(pubkey));
 			Self::deposit_event(Event::<T>::WorkerAdded {
 				pubkey,
 				attestation_provider: Some(AttestationProvider::Root),
@@ -425,86 +389,22 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Register a keyfairy.
+		/// Launch master-key
 		///
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::call_index(13)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn register_keyfairy(origin: OriginFor<T>, keyfairy: WorkerPublicKey) -> DispatchResult {
+		pub fn launch_master_key(origin: OriginFor<T>, worker_pubkey: WorkerPublicKey) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
-			// disable keyfairy change during key rotation
-			let rotating = MasterKeyRotationLock::<T>::get();
-			ensure!(rotating.is_none(), Error::<T>::MasterKeyInRotation);
+			ensure!(MasterPubkey::<T>::get().is_none(), Error::<T>::MasterKeyAlreadyLaunched);
+			ensure!(MasterKeyFirstHolder::<T>::get().is_none(), Error::<T>::MasterKeyLaunching);
 
-			let mut keyfairys = Keyfairies::<T>::get();
-			// wait for the lead keyfairy to upload the master pubkey
-			ensure!(keyfairys.is_empty() || MasterPubkey::<T>::get().is_some(), Error::<T>::MasterKeyUninitialized);
-
-			if !keyfairys.contains(&keyfairy) {
-				let worker_info = Workers::<T>::get(keyfairy).ok_or(Error::<T>::WorkerNotFound)?;
-				keyfairys.push(keyfairy);
-				let keyfairy_count = keyfairys.len() as u32;
-				Keyfairies::<T>::put(keyfairys);
-
-				if keyfairy_count == 1 {
-					Self::push_message(KeyfairyLaunch::first_keyfairy(keyfairy, worker_info.ecdh_pubkey));
-				} else {
-					Self::push_message(KeyfairyChange::keyfairy_registered(keyfairy, worker_info.ecdh_pubkey));
-				}
-			}
-
-			Self::deposit_event(Event::<T>::KeyfairyAdded { pubkey: keyfairy });
-			Ok(())
-		}
-
-		/// Unregister a keyfairy
-		///
-		/// At least one keyfairy should be available
-		#[pallet::call_index(14)]
-		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn unregister_keyfairy(origin: OriginFor<T>, keyfairy: WorkerPublicKey) -> DispatchResult {
-			T::GovernanceOrigin::ensure_origin(origin)?;
-
-			// disable keyfairy change during key rotation
-			let rotating = MasterKeyRotationLock::<T>::get();
-			ensure!(rotating.is_none(), Error::<T>::MasterKeyInRotation);
-
-			let mut keyfairys = Keyfairies::<T>::get();
-			ensure!(keyfairys.contains(&keyfairy), Error::<T>::InvalidKeyfairy);
-			ensure!(keyfairys.len() > 1, Error::<T>::CannotRemoveLastKeyfairy);
-
-			keyfairys.retain(|g| *g != keyfairy);
-			Keyfairies::<T>::put(keyfairys);
-			Self::push_message(KeyfairyChange::keyfairy_unregistered(keyfairy));
-			Ok(())
-		}
-
-		/// Rotate the master key
-		#[pallet::call_index(15)]
-		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn rotate_master_key(origin: OriginFor<T>) -> DispatchResult {
-			T::GovernanceOrigin::ensure_origin(origin)?;
-
-			let rotating = MasterKeyRotationLock::<T>::get();
-			ensure!(rotating.is_none(), Error::<T>::MasterKeyInRotation);
-
-			let keyfairys = Keyfairies::<T>::get();
-			let gk_identities = keyfairys
-				.iter()
-				.map(|gk| {
-					let worker_info = Workers::<T>::get(gk).ok_or(Error::<T>::WorkerNotFound)?;
-					Ok(WorkerIdentity { pubkey: worker_info.pubkey, ecdh_pubkey: worker_info.ecdh_pubkey })
-				})
-				.collect::<Result<Vec<WorkerIdentity>, Error<T>>>()?;
-
-			let rotation_id = RotationCounter::<T>::mutate(|counter| {
-				*counter += 1;
-				*counter
-			});
-
-			MasterKeyRotationLock::<T>::put(Some(rotation_id));
-			Self::push_message(KeyfairyLaunch::rotate_master_key(rotation_id, gk_identities));
+			let worker_info = Workers::<T>::get(worker_pubkey).ok_or(Error::<T>::WorkerNotFound)?;
+			MasterKeyFirstHolder::<T>::put(worker_pubkey);
+			Self::push_message(MasterKeyLaunch::launch_request(worker_pubkey, worker_info.ecdh_pubkey));
+			// wait for the lead worker to upload the master pubkey
+			Self::deposit_event(Event::<T>::MasterKeyLaunching { holder: worker_pubkey });
 			Ok(())
 		}
 
@@ -540,7 +440,10 @@ pub mod pallet {
 			match &ceseal_info.operator {
 				Some(acc) => {
 					let _ = <pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond)?;
-					ensure!(ceseal_info.role == WorkerRole::Verifier || ceseal_info.role == WorkerRole::Full, Error::<T>::WrongTeeType);
+					ensure!(
+						ceseal_info.role == WorkerRole::Verifier || ceseal_info.role == WorkerRole::Full,
+						Error::<T>::WrongTeeType
+					);
 				},
 				None => ensure!(ceseal_info.role == WorkerRole::Marker, Error::<T>::WrongTeeType),
 			};
@@ -563,19 +466,12 @@ pub mod pallet {
 
 			if ceseal_info.role == WorkerRole::Full || ceseal_info.role == WorkerRole::Verifier {
 				ValidationTypeList::<T>::mutate(|puk_list| -> DispatchResult {
-					puk_list
-						.try_push(pubkey)
-						.map_err(|_| Error::<T>::BoundedVecError)?;
+					puk_list.try_push(pubkey).map_err(|_| Error::<T>::BoundedVecError)?;
 					Ok(())
 				})?;
 			}
 
-			Self::push_message(SystemEvent::new_worker_event(
-				pubkey,
-				WorkerEvent::Registered(messaging::WorkerInfo {
-					confidence_level: fields.confidence_level,
-				}),
-			));
+			Self::push_message(WorkerEvent::new_worker(pubkey));
 			Self::deposit_event(Event::<T>::WorkerAdded {
 				pubkey,
 				attestation_provider: Some(AttestationProvider::Ias),
@@ -583,21 +479,6 @@ pub mod pallet {
 			});
 			WorkerAddedAt::<T>::insert(pubkey, frame_system::Pallet::<T>::block_number());
 
-			// If the master key has been created, register immediately as Keyfair
-			if MasterPubkey::<T>::get().is_some() {
-				let mut keyfairys = Keyfairies::<T>::get();
-				if !keyfairys.contains(&pubkey) {
-					keyfairys.push(pubkey);
-					Keyfairies::<T>::put(keyfairys);
-
-					Self::push_message(KeyfairyChange::keyfairy_registered(
-						pubkey,
-						ceseal_info.ecdh_pubkey,
-					));
-					Self::deposit_event(Event::<T>::KeyfairyAdded { pubkey });
-				}
-			}
-			
 			Ok(())
 		}
 
@@ -634,7 +515,10 @@ pub mod pallet {
 			match &ceseal_info.operator {
 				Some(acc) => {
 					let _ = <pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond)?;
-					ensure!(ceseal_info.role == WorkerRole::Verifier || ceseal_info.role == WorkerRole::Full, Error::<T>::WrongTeeType);
+					ensure!(
+						ceseal_info.role == WorkerRole::Verifier || ceseal_info.role == WorkerRole::Full,
+						Error::<T>::WrongTeeType
+					);
 				},
 				None => ensure!(ceseal_info.role == WorkerRole::Marker, Error::<T>::WrongTeeType),
 			};
@@ -657,19 +541,12 @@ pub mod pallet {
 
 			if ceseal_info.role == WorkerRole::Full || ceseal_info.role == WorkerRole::Verifier {
 				ValidationTypeList::<T>::mutate(|puk_list| -> DispatchResult {
-					puk_list
-						.try_push(pubkey)
-						.map_err(|_| Error::<T>::BoundedVecError)?;
+					puk_list.try_push(pubkey).map_err(|_| Error::<T>::BoundedVecError)?;
 					Ok(())
 				})?;
 			}
 
-			Self::push_message(SystemEvent::new_worker_event(
-				pubkey,
-				WorkerEvent::Registered(messaging::WorkerInfo {
-					confidence_level: attestation_report.confidence_level,
-				}),
-			));
+			Self::push_message(WorkerEvent::new_worker(pubkey));
 			Self::deposit_event(Event::<T>::WorkerAdded {
 				pubkey,
 				attestation_provider: attestation_report.provider,
@@ -677,23 +554,9 @@ pub mod pallet {
 			});
 			WorkerAddedAt::<T>::insert(pubkey, frame_system::Pallet::<T>::block_number());
 
-			// If the master key has been created, register immediately as Keyfair
-			if MasterPubkey::<T>::get().is_some() {
-				let mut keyfairys = Keyfairies::<T>::get();
-				if !keyfairys.contains(&pubkey) {
-					keyfairys.push(pubkey);
-					Keyfairies::<T>::put(keyfairys);
-
-					Self::push_message(KeyfairyChange::keyfairy_registered(
-						pubkey,
-						ceseal_info.ecdh_pubkey,
-					));
-					Self::deposit_event(Event::<T>::KeyfairyAdded { pubkey });
-				}
-			}
 			Ok(())
 		}
-		
+
 		#[pallet::call_index(18)]
 		#[pallet::weight({0})]
 		pub fn update_worker_endpoint(
@@ -731,7 +594,39 @@ pub mod pallet {
 			ensure!(Workers::<T>::contains_key(endpoint_payload.pubkey), Error::<T>::InvalidPubKey);
 
 			Endpoints::<T>::insert(endpoint_payload.pubkey, endpoint);
-			
+
+			Ok(())
+		}
+
+		#[pallet::call_index(21)]
+		#[pallet::weight({0})]
+		pub fn apply_master_key(
+			origin: OriginFor<T>,
+			payload: MasterKeyApplyPayload,
+			signature: Vec<u8>,
+		) -> DispatchResult {
+			ensure_signed(origin)?;
+			// Validate the signature
+			ensure!(signature.len() == 64, Error::<T>::InvalidSignatureLength);
+			let sig =
+				sp_core::sr25519::Signature::try_from(signature.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
+			let encoded_data = payload.encode();
+			let data_to_sign = wrap_content_to_sign(&encoded_data, SignedContentType::MasterKeyApply);
+			ensure!(sp_io::crypto::sr25519_verify(&sig, &data_to_sign, &payload.pubkey), Error::<T>::InvalidSignature);
+
+			// Validate the time
+			let expiration = 30 * 60 * 1000; // 30 minutes
+			let now = T::UnixTime::now().as_millis().saturated_into::<u64>();
+			ensure!(
+				payload.signing_time < now && now <= payload.signing_time + expiration,
+				Error::<T>::InvalidMasterKeyApplySigningTime
+			);
+
+			// Validate the public key
+			ensure!(Workers::<T>::contains_key(payload.pubkey), Error::<T>::InvalidPubKey);
+
+			Self::push_message(MasterKeyApply::Apply(payload.pubkey, payload.ecdh_pubkey));
+
 			Ok(())
 		}
 
@@ -749,7 +644,7 @@ pub mod pallet {
 			allowlist.push(ceseal_hash.clone());
 			CesealBinAllowList::<T>::put(allowlist);
 
-			let now = frame_system::Pallet::<T>::block_number(); 
+			let now = frame_system::Pallet::<T>::block_number();
 			CesealBinAddedAt::<T>::insert(&ceseal_hash, now);
 
 			Ok(())
@@ -806,7 +701,7 @@ pub mod pallet {
 				puk_list.retain(|g| Endpoints::<T>::contains_key(g));
 				Ok(())
 			})?;
-			
+
 			Ok(())
 		}
 		// FOR TEST
@@ -834,16 +729,16 @@ pub mod pallet {
 	where
 		T: ces_pallet_mq::Config,
 	{
-		pub fn on_message_received(message: DecodedMessage<RegistryEvent>) -> DispatchResult {
+		pub fn on_message_received(message: DecodedMessage<MasterKeySubmission>) -> DispatchResult {
 			let worker_pubkey = match &message.sender {
 				MessageOrigin::Worker(key) => key,
 				_ => return Err(Error::<T>::InvalidSender.into()),
 			};
 
+			let holder = MasterKeyFirstHolder::<T>::get().ok_or(Error::<T>::MasterKeyLaunchRequire)?;
 			match message.payload {
-				RegistryEvent::MasterPubkey { master_pubkey } => {
-					let keyfairys = Keyfairies::<T>::get();
-					ensure!(keyfairys.contains(worker_pubkey), Error::<T>::InvalidKeyfairy);
+				MasterKeySubmission::MasterPubkey { master_pubkey } => {
+					ensure!(worker_pubkey.0 == holder.0, Error::<T>::InvalidMasterKeyFirstHolder);
 					match MasterPubkey::<T>::try_get() {
 						Ok(saved_pubkey) => {
 							ensure!(
@@ -853,8 +748,8 @@ pub mod pallet {
 						},
 						_ => {
 							MasterPubkey::<T>::put(master_pubkey);
-							Self::push_message(KeyfairyLaunch::master_pubkey_on_chain(master_pubkey));
-							Self::on_keyfairy_launched();
+							Self::push_message(MasterKeyLaunch::on_chain_launched(master_pubkey));
+							Self::on_master_key_launched();
 						},
 					}
 				},
@@ -862,35 +757,10 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub fn on_keyfairy_message_received(message: DecodedMessage<KeyfairyRegistryEvent>) -> DispatchResult {
-			if !message.sender.is_keyfairy() {
-				return Err(Error::<T>::InvalidSender.into())
-			}
-
-			match message.payload {
-				KeyfairyRegistryEvent::RotatedMasterPubkey { rotation_id, master_pubkey } => {
-					let rotating = MasterKeyRotationLock::<T>::get();
-					if rotating.is_none() || rotating.unwrap() != rotation_id {
-						Self::deposit_event(Event::<T>::MasterKeyRotationFailed {
-							rotation_lock: rotating,
-							keyfairy_rotation_id: rotation_id,
-						});
-						return Err(Error::<T>::InvalidRotatedMasterPubkey.into())
-					}
-
-					MasterPubkey::<T>::put(master_pubkey);
-					MasterKeyRotationLock::<T>::put(Option::<u64>::None);
-					Self::deposit_event(Event::<T>::MasterKeyRotated { rotation_id, master_pubkey });
-					Self::push_message(KeyfairyLaunch::master_pubkey_rotated(master_pubkey));
-				},
-			}
-			Ok(())
-		}
-
-		fn on_keyfairy_launched() {
+		fn on_master_key_launched() {
 			let block_number = frame_system::Pallet::<T>::block_number();
 			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
-			KeyfairyLaunchedAt::<T>::put((block_number, now));
+			MasterKeyLaunchedAt::<T>::put((block_number, now));
 			Self::deposit_event(Event::<T>::MasterKeyLaunched);
 		}
 	}

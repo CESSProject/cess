@@ -7,12 +7,10 @@ use std::{
 };
 use thiserror::Error;
 use threadpool::ThreadPool;
-use tokio::sync::oneshot;
+use tokio::sync::{mpsc, oneshot};
 
 extern crate runtime as chain;
 
-pub type KeyfairyReadySender = oneshot::Sender<CesealProperties>;
-pub type KeyfairyReadyReceiver = oneshot::Receiver<CesealProperties>;
 pub type ThreadPoolSafeBox = Arc<Mutex<ThreadPool>>;
 pub type MasterKey = sp_core::sr25519::Pair;
 
@@ -74,6 +72,20 @@ pub enum Error {
     #[error("{:?}", self)]
     PersistentRuntimeNotFound,
 
+    #[error("external server already started")]
+    ExternalServerAlreadyServing,
+
+    #[error("external server already closed")]
+    ExternalServerAlreadyClosed,
+
     #[error(transparent)]
-    AnyhowError(#[from] anyhow::Error),
+    Anyhow(anyhow::Error),
+}
+
+pub type ExpertCmdSender = mpsc::Sender<ExpertCmd>;
+pub type ExpertCmdReceiver = mpsc::Receiver<ExpertCmd>;
+
+pub enum ExpertCmd {
+    ChainStorage(oneshot::Sender<Option<super::ChainStorageReadBox>>),
+    EgressMessage,
 }

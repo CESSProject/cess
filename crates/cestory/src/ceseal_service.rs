@@ -5,7 +5,7 @@ use ces_types::{
     attestation::{validate as validate_attestation_report, IasFields},
     messaging::EncryptedKey,
     wrap_content_to_sign, AttestationReport, ChallengeHandlerInfo, EncryptedWorkerKey, HandoverChallenge,
-    SignedContentType, WorkerEndpointPayload, WorkerRegistrationInfo,
+    MasterKeyApplyPayload, SignedContentType, WorkerEndpointPayload, WorkerRegistrationInfo,
 };
 use cestory_api::{
     blocks::{self, StorageState},
@@ -17,24 +17,19 @@ use thiserror::Error;
 use tonic::{Request, Response, Status};
 use tracing::{error, info};
 
-type RpcResult<T> = Result<Response<T>, Status>;
+type RpcResult<T> = anyhow::Result<Response<T>, Status>;
 
 pub struct RpcService<Platform> {
-    req_id: u64,
     pub(crate) cestory: CesealSafeBox<Platform>,
 }
 
 impl<Platform: pal::Platform> RpcService<Platform> {
     pub fn new_with(cestory: CesealSafeBox<Platform>) -> RpcService<Platform> {
-        RpcService { cestory, req_id: 0 }
+        RpcService { cestory }
     }
 
     pub fn new(platform: Platform) -> RpcService<Platform> {
-        RpcService { cestory: CesealSafeBox::new(platform), req_id: 0 }
-    }
-
-    pub fn with_id(&self, req_id: u64) -> RpcService<Platform> {
-        RpcService { cestory: self.cestory.clone(), req_id }
+        RpcService { cestory: CesealSafeBox::new(platform, None) }
     }
 }
 
@@ -50,6 +45,9 @@ pub enum CesealServiceError {
     /// Some error occurred when handling the request
     #[error("{0}")]
     AppError(String),
+
+    #[error(transparent)]
+    Anyhow(anyhow::Error),
 }
 
 impl From<ScaleDecodeError> for CesealServiceError {
@@ -88,13 +86,19 @@ fn from_debug(e: impl core::fmt::Debug) -> CesealServiceError {
     CesealServiceError::AppError(format!("{e:?}"))
 }
 
+impl From<types::Error> for Status {
+    fn from(value: types::Error) -> Self {
+        Status::internal(value.to_string())
+    }
+}
+
 fn now() -> u64 {
     use std::time::SystemTime;
     let now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
     now.as_secs()
 }
 
-type CesealResult<T> = Result<T, CesealServiceError>;
+type CesealResult<T> = anyhow::Result<T, CesealServiceError>;
 
 impl<Platform: pal::Platform> RpcService<Platform> {
     pub fn lock_ceseal(
@@ -173,7 +177,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
         // 2. Or refactor ceseal to reduce the granularity of CESEAL locks.
         // However, now in order to avoid cloning the ceseal instance (as we do not want to use mutex on its internal
         // state), we have simply locked it. Remember to optimize here!
-        let synced_to = self.lock_ceseal(false, true)?.dispatch_blocks(self.req_id, blocks);
+        let synced_to = self.lock_ceseal(false, true)?.dispatch_blocks(blocks);
         info!("Blocks are dispatched");
         Ok(Response::new(synced_to?))
     }
@@ -227,6 +231,33 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
     /// Get endpoint info
     async fn get_endpoint_info(&self, _: Request<()>) -> RpcResult<pb::GetEndpointResponse> {
         Ok(Response::new(self.lock_ceseal(true, false)?.get_endpoint_info()?))
+    }
+
+    async fn get_master_key_apply(&self, _: Request<()>) -> RpcResult<pb::GetMasterKeyApplyResponse> {
+        Ok(Response::new(self.lock_ceseal(true, false)?.get_master_key_apply()?))
+    }
+
+    async fn operate_external_server(&self, request: Request<pb::ExternalServerOperation>) -> RpcResult<()> {
+        use pb::ExternalServerCmd::*;
+        let request = request.into_inner();
+        match request.cmd() {
+            Start => self
+                .lock_ceseal(false, false)?
+                .start_external_server()
+                .map_err(|e| Error::Anyhow(e))?,
+            Shutdown => {
+                let stub = {
+                    let mut ceseal = self.lock_ceseal(false, false)?;
+                    let Some(stub) = ceseal.external_server_stub.take() else {
+                        return Err(Error::ExternalServerAlreadyClosed.into())
+                    };
+                    stub
+                };
+                let _ = stub.shutdown_tx.send(());
+                let _ = stub.stopped_rx.await;
+            },
+        }
+        Ok(Response::new(()))
     }
 
     /// A echo rpc to measure network RTT.
@@ -559,6 +590,12 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
             _ => 0,
         };
 
+        let external_server_state = if self.external_server_stub.is_some() {
+            ExternalServerState::Serving
+        } else {
+            ExternalServerState::Closed
+        }
+        .into();
         pb::CesealInfo {
             initialized,
             genesis_block_hash,
@@ -574,6 +611,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
             can_load_chain_state: self.can_load_chain_state,
             safe_mode_level: self.args.safe_mode_level as _,
             current_block_time,
+            external_server_state,
         }
     }
 
@@ -601,7 +639,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
 
     pub(crate) fn dispatch_blocks(
         &mut self,
-        _req_id: u64,
         mut blocks: Vec<blocks::BlockHeaderWithChanges>,
     ) -> CesealResult<pb::SyncedTo> {
         info!(
@@ -671,7 +708,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         if self.system.is_some() {
             return Err(from_display("Runtime already initialized"))
         }
-        let keyfairy_ready_sender = self.keyfairy_ready_sender.take().expect("keyfairy_ready_sender must be set");
 
         info!("Initializing runtime");
         info!("operator      : {operator:?}");
@@ -766,7 +802,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
             ecdh_key,
             &runtime_state.send_mq,
             &mut runtime_state.recv_mq,
-            keyfairy_ready_sender,
             self.args.clone(),
         );
 
@@ -885,7 +920,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         system.will_process_block(&mut block);
 
         for message in messages {
-            use ces_types::messaging::SystemEvent;
+            use ces_types::messaging::WorkerEvent;
             macro_rules! log_message {
                 ($msg: expr, $t: ident) => {{
                     let event: Result<$t, _> =
@@ -903,9 +938,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
                     }
                 }};
             }
-            // TODO: reuse codes in debug-cli
-            if message.destination.path() == &SystemEvent::topic() {
-                log_message!(message, SystemEvent);
+            if message.destination.path() == &WorkerEvent::topic() {
+                log_message!(message, WorkerEvent);
             } else {
                 debug!(target: "ces_mq",
                     "mq dispatching message: sender={}, dest={:?}",
@@ -963,6 +997,18 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         let wrapped_data = wrap_content_to_sign(&data_to_sign, SignedContentType::EndpointInfo);
         let signature = self.system()?.identity_key.clone().sign(&wrapped_data).encode();
         Ok(signature)
+    }
+
+    fn get_master_key_apply(&mut self) -> CesealResult<pb::GetMasterKeyApplyResponse> {
+        let system = self.system()?;
+        let block_time: u64 = system.now_ms;
+        let pubkey = system.identity_key.public();
+        let ecdh_pubkey = sp_core::sr25519::Public::from_raw(system.ecdh_key.public());
+        let payload = MasterKeyApplyPayload { pubkey, ecdh_pubkey, signing_time: block_time };
+        let data_to_sign = payload.encode();
+        let wrapped_data = wrap_content_to_sign(&data_to_sign, SignedContentType::MasterKeyApply);
+        let signature = system.identity_key.sign(&wrapped_data).encode();
+        Ok(pb::GetMasterKeyApplyResponse::new(payload, signature))
     }
 
     pub fn load_chain_state(&mut self, block: chain::BlockNumber, storage: StorageState) -> anyhow::Result<()> {

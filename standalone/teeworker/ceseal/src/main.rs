@@ -86,6 +86,10 @@ struct Args {
     #[arg(long, value_parser = parse_worker_role, default_value = "full")]
     role: WorkerRole,
 
+    /// Custom ceseal data directory in non-SGX environment
+    #[arg(long)]
+    data_dir: Option<String>,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -134,29 +138,26 @@ async fn serve(sgx: bool, args: Args) -> Result<()> {
         // In gramine, the protected files are configured via manifest file. So we must not allow it to
         // be changed at runtime for security reason. Thus hardcoded it to `/data/protected_files` here.
         // Should keep it the same with the manifest config.
-        sealing_path = "/data/protected_files";
-        storage_path = "/data/storage_files";
+        sealing_path = "/data/protected_files".to_string();
+        storage_path = "/data/storage_files".to_string();
     } else {
-        sealing_path = "./data/protected_files";
-        storage_path = "./data/storage_files";
-
-        fn mkdir(dir: &str) {
-            if let Err(err) = std::fs::create_dir_all(dir) {
-                panic!("Failed to create {dir}: {err:?}");
-            }
+        use std::{fs, path::Path};
+        let data_dir = args.data_dir.as_ref().map_or("./data", |dir| dir.as_str());
+        {
+            let p = Path::new(data_dir).join("protected_files");
+            sealing_path = p.to_str().unwrap().to_string();
+            fs::create_dir_all(p)?;
         }
-        mkdir(sealing_path);
-        mkdir(storage_path);
+        {
+            let p = Path::new(data_dir).join("storage_files");
+            storage_path = p.to_str().unwrap().to_string();
+            fs::create_dir_all(p)?;
+        }
     }
 
     let listener_addr = {
         let ip = args.address.as_ref().map_or("0.0.0.0", String::as_str);
         let port = args.port.unwrap_or(8000);
-        format!("{ip}:{port}").parse().unwrap()
-    };
-    let public_listener_addr = {
-        let ip = args.address.as_ref().map_or("0.0.0.0", String::as_str);
-        let port = args.public_port.unwrap_or(19999);
         format!("{ip}:{port}").parse().unwrap()
     };
 
@@ -179,6 +180,7 @@ async fn serve(sgx: bool, args: Args) -> Result<()> {
             remove_corrupted_checkpoint: args.remove_corrupted_checkpoint,
             max_checkpoint_files: args.max_checkpoint_files,
             cores,
+            ip_address: args.address,
             public_port: args.public_port,
             safe_mode_level: args.safe_mode_level,
             no_rcu: args.no_rcu,
@@ -197,13 +199,7 @@ async fn serve(sgx: bool, args: Args) -> Result<()> {
         return Ok(());
     }
 
-    run_ceseal_server(
-        init_args,
-        GraminePlatform,
-        listener_addr,
-        public_listener_addr,
-    )
-    .await?;
+    run_ceseal_server(init_args, GraminePlatform, listener_addr).await?;
 
     Ok(())
 }

@@ -68,7 +68,7 @@ pub fn seal(
         .expect("Seal master key failed");
 }
 
-pub fn gk_master_key_exists(sealing_path: &str) -> bool {
+pub fn is_master_key_exists_on_local(sealing_path: &str) -> bool {
     master_key_file_path(sealing_path).exists()
 }
 

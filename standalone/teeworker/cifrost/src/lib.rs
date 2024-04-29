@@ -23,6 +23,7 @@ mod error;
 mod msg_sync;
 mod notify_client;
 mod prefetcher;
+mod tx;
 
 pub mod chain_client;
 pub mod types;
@@ -1024,6 +1025,14 @@ async fn bridge(
                 }
             }
 
+            if chain_api.is_master_key_launched().await? && !info.is_master_key_holded() {
+                tx::try_apply_master_key(&mut cc, &chain_api, &mut signer, args).await?;
+            }
+
+            if info.is_master_key_holded() && !info.is_external_server_running() {
+                start_external_server(&mut cc).await?;
+            }
+
             // STATUS: initial_sync_finished = true
             initial_sync_finished = true;
             nc.notify(&NotifyReq {
@@ -1154,4 +1163,14 @@ async fn handover_worker_key(server: &mut CesealClient, client: &mut CesealClien
     let encrypted_key = server.handover_start(response).await?.into_inner();
     client.handover_receive(encrypted_key).await?;
     panic!("Worker key handover done, the new Ceseal is ready to go");
+}
+
+async fn start_external_server(cc: &mut CesealClient) -> Result<()> {
+    use cestory_api::crpc::{ExternalServerCmd, ExternalServerOperation};
+    use tonic::Request;
+    cc.operate_external_server(Request::new(ExternalServerOperation {
+        cmd: ExternalServerCmd::Start.into(),
+    }))
+    .await?;
+    Ok(())
 }

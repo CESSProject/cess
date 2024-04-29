@@ -147,6 +147,20 @@ impl ChainApi {
         Ok(Some(block_number as _))
     }
 
+    pub async fn is_master_key_launched(&self) -> Result<bool> {
+        let key: Vec<Value> = vec![];
+        let address = subxt::dynamic::storage("TeeWorker", "MasterPubkey", key);
+        let launched = self
+            .storage()
+            .at_latest()
+            .await?
+            .fetch(&address)
+            .await
+            .context("Failed to get master public key")?
+            .is_some();
+        Ok(launched)
+    }
+
     async fn fetch<K: Encode, V: Decode>(
         &self,
         pallet: &str,
