@@ -13,6 +13,8 @@ use serde::{
     ser::SerializeSeq,
     Deserialize, Deserializer, Serialize, Serializer,
 };
+use system::CesealMasterKey;
+use tokio::sync::oneshot;
 
 use crate::light_validation::LightValidation;
 use anyhow::{anyhow, Context as _, Result};
@@ -25,11 +27,12 @@ use ces_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
 use ces_serde_more as more;
 use ces_types::{AttestationProvider, HandoverChallenge};
 use cestory_api::{
-    crpc::{ceseal_api_server::CesealApiServer, GetEndpointResponse, InitRuntimeResponse},
+    crpc::{ExternalServerState, GetEndpointResponse, InitRuntimeResponse},
     ecall_args::InitArgs,
     storage_sync::{StorageSynchronizer, Synchronizer},
 };
 use parity_scale_codec::{Decode, Encode};
+use parking_lot::{RwLock, RwLockReadGuard};
 use ring::rand::SecureRandom;
 use scale_info::TypeInfo;
 use sp_core::{crypto::Pair, sr25519, H256};
@@ -43,8 +46,7 @@ use std::{
     time::Instant,
 };
 use thiserror::Error;
-use tokio::sync::oneshot;
-use types::Error;
+use types::{Error, ExpertCmdSender};
 
 pub use ceseal_service::RpcService;
 pub use chain::BlockNumber;
@@ -52,6 +54,7 @@ pub use storage::ChainStorage;
 pub use types::{BlockDispatchContext, CesealProperties};
 pub type CesealLightValidation = LightValidation<chain::Runtime>;
 
+mod bootstrap;
 mod ceseal_service;
 mod cryptography;
 pub mod expert;
@@ -64,7 +67,30 @@ mod storage;
 mod system;
 mod types;
 
+pub use bootstrap::run_ceseal_server;
 pub use podr2::verify_signature;
+
+mod arc_rwlock_serde {
+    use parking_lot::RwLock;
+    use serde::{de::Deserializer, ser::Serializer, Deserialize, Serialize};
+    use std::sync::Arc;
+
+    pub fn serialize<S, T>(val: &Arc<RwLock<T>>, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+        T: Serialize,
+    {
+        T::serialize(&*val.read(), s)
+    }
+
+    pub fn deserialize<'de, D, T>(d: D) -> Result<Arc<RwLock<T>>, D::Error>
+    where
+        D: Deserializer<'de>,
+        T: Deserialize<'de>,
+    {
+        Ok(Arc::new(RwLock::new(T::deserialize(d)?)))
+    }
+}
 
 // TODO: Completely remove the reference to cess-node-runtime. Instead we can create a minimal
 // runtime definition locally.
@@ -85,7 +111,8 @@ struct RuntimeState {
 
     // TODO: use a better serialization approach
     #[codec(skip)]
-    chain_storage: Arc<ChainStorage>,
+    #[serde(with = "arc_rwlock_serde")]
+    chain_storage: Arc<RwLock<ChainStorage>>,
 
     #[serde(with = "more::scale_bytes")]
     genesis_block_hash: H256,
@@ -93,7 +120,21 @@ struct RuntimeState {
 
 impl RuntimeState {
     fn purge_mq(&mut self) {
-        self.send_mq.purge(|sender| self.chain_storage.mq_sequence(sender))
+        self.send_mq.purge(|sender| self.chain_storage.read().mq_sequence(sender))
+    }
+
+    fn chain_storage(&self) -> ChainStorageReadBox {
+        ChainStorageReadBox { inner: self.chain_storage.clone() }
+    }
+}
+
+pub struct ChainStorageReadBox {
+    inner: Arc<RwLock<ChainStorage>>,
+}
+
+impl ChainStorageReadBox {
+    pub fn read(&self) -> RwLockReadGuard<ChainStorage> {
+        self.inner.read()
     }
 }
 
@@ -200,6 +241,11 @@ enum RuntimeDataSeal {
     V1(PersistentRuntimeData),
 }
 
+struct ExternalServerStub {
+    shutdown_tx: oneshot::Sender<()>,
+    stopped_rx: oneshot::Receiver<()>,
+}
+
 #[derive(Serialize, Deserialize, TypeInfo)]
 #[serde(bound(deserialize = "Platform: Deserialize<'de>"))]
 pub struct Ceseal<Platform> {
@@ -219,6 +265,14 @@ pub struct Ceseal<Platform> {
     // The deserialzation of system requires the mq, which inside the runtime_state, to be ready.
     #[serde(skip)]
     system: Option<system::System<Platform>>,
+
+    #[codec(skip)]
+    #[serde(skip)]
+    external_server_stub: Option<ExternalServerStub>,
+
+    #[codec(skip)]
+    #[serde(skip)]
+    expert_cmd_sender: Option<ExpertCmdSender>,
 
     // tmp key for WorkerKey handover encryption
     #[codec(skip)]
@@ -250,10 +304,6 @@ pub struct Ceseal<Platform> {
     #[serde(skip)]
     #[serde(default = "Instant::now")]
     started_at: Instant,
-
-    #[codec(skip)]
-    #[serde(skip)]
-    pub(crate) keyfairy_ready_sender: Option<types::KeyfairyReadySender>,
 }
 
 #[test]
@@ -279,6 +329,8 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
             runtime_info: None,
             runtime_state: None,
             system: None,
+            external_server_stub: None,
+            expert_cmd_sender: None,
             endpoint: None,
             signed_endpoint: None,
             handover_ecdh_key: None,
@@ -288,26 +340,16 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
             trusted_sk: false,
             rcu_dispatching: false,
             started_at: Instant::now(),
-            keyfairy_ready_sender: None,
         }
     }
 
-    pub fn init(&mut self, args: InitArgs) -> types::KeyfairyReadyReceiver {
-        self.can_load_chain_state = !system::gk_master_key_exists(&args.sealing_path);
-        self.args = Arc::new(args);
+    pub fn with_expert_cmd_sender(&mut self, expert_cmd_sender: Option<ExpertCmdSender>) {
+        self.expert_cmd_sender = expert_cmd_sender
+    }
 
-        let (tx, rx) = oneshot::channel();
-        self.keyfairy_ready_sender = if let Some(ref mut system) = self.system {
-            if system.keyfairy.is_some() {
-                system.keyfairy_ready_sender = Some(tx);
-                None
-            } else {
-                Some(tx)
-            }
-        } else {
-            Some(tx)
-        };
-        rx
+    pub fn init(&mut self, args: InitArgs) {
+        self.can_load_chain_state = !system::is_master_key_exists_on_local(&args.sealing_path);
+        self.args = Arc::new(args);
     }
 
     pub fn set_args(&mut self, args: InitArgs) {
@@ -323,10 +365,10 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
         &self.started_at
     }
 
-    pub fn get_pdp_key(&self) -> Result<ces_pdp::Keys, types::Error> {
+    pub fn get_master_key(&self) -> Result<CesealMasterKey, types::Error> {
         if let Some(ref system) = self.system {
             if let Some(ref keyfariy) = system.keyfairy {
-                Ok(ces_pdp::gen_keypair_from_private_key(keyfariy.rsa_private_key().clone()))
+                Ok(keyfariy.master_key().clone())
             } else {
                 return Err(types::Error::KeyfairyNotReady)
             }
@@ -396,12 +438,31 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
         let filepath = PathBuf::from(sealing_path).join(RUNTIME_SEALED_DATA_FILE);
         let data = platform
             .unseal_data(filepath)
-            .map_err(Into::into)?
+            .map_err(|_| Error::Anyhow(anyhow!("unseal error in load_runtime_data()")))?
             .ok_or(Error::PersistentRuntimeNotFound)?;
         let data: RuntimeDataSeal = Decode::decode(&mut &data[..]).map_err(Error::DecodeError)?;
         match data {
             RuntimeDataSeal::V1(data) => Ok(data),
         }
+    }
+
+    fn start_external_server(&mut self) -> Result<()> {
+        if self.external_server_stub.is_some() {
+            return Err(Error::ExternalServerAlreadyServing.into())
+        }
+        let Some(system) = self.system.as_ref() else { anyhow::bail!("ceseal uninitialize") };
+        let Some(keyfairy) = system.keyfairy.as_ref() else { anyhow::bail!("master key uninitialize") };
+        let ceseal_props = CesealProperties {
+            role: self.args.role.clone(),
+            master_key: keyfairy.master_key().clone(),
+            identity_key: system.identity_key.clone(),
+            cores: self.args.cores,
+        };
+        let (shutdown_tx, shutdown_rx) = oneshot::channel();
+        let (stopped_tx, stopped_rx) = oneshot::channel();
+        bootstrap::spawn_external_server(self, ceseal_props, shutdown_rx, stopped_tx)?;
+        self.external_server_stub = Some(ExternalServerStub { shutdown_tx, stopped_rx });
+        Ok(())
     }
 }
 
@@ -417,9 +478,7 @@ impl<P: pal::Platform> Ceseal<P> {
         if self.args.safe_mode_level >= 2 {
             if let Some(state) = &mut self.runtime_state {
                 info!("Clearing the storage data to save memory");
-                let Some(chain_storage) = Arc::get_mut(&mut state.chain_storage) else {
-                    return Err(anyhow!(types::Error::MultiRefToChainStorage.to_string()))
-                };
+                let mut chain_storage = state.chain_storage.write();
                 chain_storage.inner_mut().load_proof(vec![])
             }
         }
@@ -428,7 +487,7 @@ impl<P: pal::Platform> Ceseal<P> {
 
     fn check_requirements(&self) {
         let ver = P::app_version();
-        let chain_storage = &self.runtime_state.as_ref().expect("BUG: no runtime state").chain_storage;
+        let chain_storage = &self.runtime_state.as_ref().expect("BUG: no runtime state").chain_storage.read();
         let min_version = chain_storage.minimum_ceseal_version();
 
         let measurement = self.platform.measurement().unwrap_or_else(|| vec![0; 32]);
@@ -644,21 +703,6 @@ pub(crate) fn new_sr25519_key() -> sr25519::Pair {
     rng.fill_bytes(&mut seed);
     sr25519::Pair::from_seed(&seed)
 }
-use crypto::digest::Digest;
-use rsa::{pkcs1::EncodeRsaPublicKey, pkcs8::EncodePrivateKey};
-fn new_podr2_key() -> rsa::RsaPrivateKey {
-    let rsa_key = ces_pdp::gen_keypair(2048);
-    rsa_key.skey
-}
-
-fn get_sr25519_from_rsa_key(skey: rsa::RsaPrivateKey) -> sr25519::Pair {
-    let rsa_key_byte = skey.to_pkcs8_der().unwrap().as_bytes().to_vec();
-    let mut hasher = crypto::sha2::Sha256::new();
-    hasher.input(&rsa_key_byte);
-    let mut seed = vec![0u8; hasher.output_bytes()];
-    hasher.result(&mut seed);
-    sr25519::Pair::from_seed(&seed.try_into().expect("panic:get sr25519 from rsa key fail!"))
-}
 
 // TODO: Move to cestory-api when the std ready.
 fn generate_random_iv() -> aead::IV {
@@ -697,11 +741,14 @@ pub enum CesealLockError {
 }
 
 impl<Platform: pal::Platform> CesealSafeBox<Platform> {
-    pub fn new(platform: Platform) -> Self {
-        CesealSafeBox(Arc::new(Mutex::new(Ceseal::new(platform))))
+    pub fn new(platform: Platform, expert_cmd_sender: Option<ExpertCmdSender>) -> Self {
+        let mut ceseal = Ceseal::new(platform);
+        ceseal.with_expert_cmd_sender(expert_cmd_sender);
+        CesealSafeBox(Arc::new(Mutex::new(ceseal)))
     }
 
-    pub fn new_with(ceseal: Ceseal<Platform>) -> Self {
+    pub fn new_with(mut ceseal: Ceseal<Platform>, expert_cmd_sender: Option<ExpertCmdSender>) -> Self {
+        ceseal.with_expert_cmd_sender(expert_cmd_sender);
         CesealSafeBox(Arc::new(Mutex::new(ceseal)))
     }
 
@@ -745,178 +792,4 @@ impl<T> Drop for LogOnDrop<T> {
     fn drop(&mut self) {
         trace!(target: "cestory::lock", "{}", self.msg);
     }
-}
-
-use std::net::SocketAddr;
-use tonic::transport::Server;
-
-pub async fn run_ceseal_server<Platform>(
-    init_args: InitArgs,
-    platform: Platform,
-    inner_listener_addr: SocketAddr,
-    public_listener_addr: SocketAddr,
-) -> Result<()>
-where
-    Platform: pal::Platform + Serialize + DeserializeOwned,
-{
-    let (cestory, keyfairy_ready_by_restore) = if init_args.enable_checkpoint {
-        match Ceseal::restore_from_checkpoint(&platform, &init_args) {
-            Ok(Some(factory)) => {
-                info!("Loaded checkpoint");
-                let keyfairy_ready_by_restore = if let Some(ref system) = factory.system {
-                    if system.keyfairy.is_some() {
-                        info!("keyfairy is ready by restore");
-                        true
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                };
-                (CesealSafeBox::new_with(factory), keyfairy_ready_by_restore)
-            },
-            Ok(None) => {
-                info!("No checkpoint found");
-                (CesealSafeBox::new(platform), false)
-            },
-            Err(err) => {
-                anyhow::bail!("Failed to load checkpoint: {:?}", err);
-            },
-        }
-    } else {
-        info!("Checkpoint disabled.");
-        (CesealSafeBox::new(platform), false)
-    };
-
-    let keyfairy_ready_rx = cestory.lock(true, true).expect("Failed to lock Ceseal").init(init_args);
-    info!("Enclave init OK");
-
-    let external_server_handler =
-        tokio::spawn(run_external_server(cestory.clone(), keyfairy_ready_rx, public_listener_addr));
-    let restored_keyfairy_ready_handler =
-        tokio::spawn(maybe_keyfairy_ready_by_restore(cestory.clone(), keyfairy_ready_by_restore));
-    let ceseal_server_handler = tokio::spawn(async move {
-        let ceseal_service = RpcService::new_with(cestory);
-        info!("Ceseal internal server will listening on {}", inner_listener_addr);
-        Server::builder()
-            .add_service(CesealApiServer::new(ceseal_service))
-            .serve(inner_listener_addr)
-            .await
-            .expect("Ceseal server catch panic");
-    });
-    let result = tokio::try_join!(ceseal_server_handler, external_server_handler, restored_keyfairy_ready_handler);
-    if let Err(e) = result {
-        panic!("Error in run_ceseal_server() tokio::try_join!: {:?}", e)
-    }
-
-    info!("Ceseal quited");
-    Ok(())
-}
-
-#[derive(Debug, Clone)]
-pub struct OnChainConfigs {
-    pub pois_param: (i64, i64, i64),
-}
-
-async fn run_external_server<Platform>(
-    ceseal: CesealSafeBox<Platform>,
-    keyfairy_ready_rx: types::KeyfairyReadyReceiver,
-    public_listener_addr: SocketAddr,
-) where
-    Platform: pal::Platform + Serialize + DeserializeOwned,
-{
-    const MAX_ENCODED_MSG_SIZE: usize = 104857600; // 100MiB
-    const MAX_DECODED_MSG_SIZE: usize = MAX_ENCODED_MSG_SIZE;
-
-    let ceseal_props = keyfairy_ready_rx.await.expect("expect keyfairy ready");
-    //FIXME: SHOULD BE DISABLE LOG KEY ON PRODUCTION !!!
-    debug!(
-        "Successfully load podr2 key public key is: {:?}",
-        hex::encode(&ceseal_props.podr2_key.pkey.to_pkcs1_der().unwrap().as_bytes())
-    );
-
-    let (ceseal_expert, expert_cmd_rx) = expert::CesealExpertStub::new(ceseal_props.clone());
-    tokio::spawn(expert::run(ceseal.clone(), expert_cmd_rx));
-
-    let (on_chain_cfg_tx, on_chain_cfg_rx) = oneshot::channel();
-    let ceseal_expert_clone = ceseal_expert.clone();
-    tokio::spawn(async move {
-        let pois_param = panic_if_no_pois_expender_param(ceseal_expert_clone).await;
-        info!("pois expender param on chain: {pois_param:?}");
-        let _ = on_chain_cfg_tx.send(OnChainConfigs { pois_param });
-    });
-
-    let (ext_srv_quit_tx, ext_srv_quit_rx) = oneshot::channel();
-    let ceseal_expert_clone = ceseal_expert.clone();
-    tokio::spawn(async move {
-        let on_chain_cfg = on_chain_cfg_rx.await.expect("on chain config fetch failed");
-        let ceseal_expert = ceseal_expert_clone;
-        let pois_param = on_chain_cfg.pois_param.clone();
-        let podr2_srv = podr2::new_podr2_api_server(ceseal_expert.clone())
-            .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
-            .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
-        let podr2v_srv = podr2::new_podr2_verifier_api_server(ceseal_expert.clone())
-            .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
-            .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
-        let pois_srv = pois::new_pois_certifier_api_server(pois_param.clone(), ceseal_expert.clone())
-            .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
-            .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
-        let poisv_srv = pois::new_pois_verifier_api_server(pois_param, ceseal_expert.clone())
-            .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
-            .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
-        let pubkeys = pubkeys::new_pubkeys_provider_server(ceseal_expert);
-
-        info!(
-            "keyfairy ready, external server will listening on {} run with {:?} role",
-            public_listener_addr, ceseal_props.role
-        );
-        let mut server = Server::builder();
-        let router = match ceseal_props.role {
-            ces_types::WorkerRole::Full => server
-                .add_service(pubkeys)
-                .add_service(podr2_srv)
-                .add_service(podr2v_srv)
-                .add_service(pois_srv)
-                .add_service(poisv_srv),
-            ces_types::WorkerRole::Verifier => server.add_service(pubkeys).add_service(podr2v_srv).add_service(poisv_srv),
-            ces_types::WorkerRole::Marker => server.add_service(pubkeys).add_service(podr2_srv).add_service(pois_srv),
-        };
-        let result = router.serve(public_listener_addr).await;
-        let _ = ext_srv_quit_tx.send(result);
-        info!("external server shutdown!");
-    });
-
-    let _ = ext_srv_quit_rx.await;
-}
-
-async fn maybe_keyfairy_ready_by_restore<Platform>(ceseal: CesealSafeBox<Platform>, keyfairy_ready_by_restore: bool)
-where
-    Platform: pal::Platform + Serialize + DeserializeOwned,
-{
-    if keyfairy_ready_by_restore {
-        //FIXME: The ideal solution is to wait for the ceseal service to start and complete
-        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
-        ceseal
-            .lock(true, true)
-            .expect("Failed to lock Ceseal")
-            .system
-            .as_mut()
-            .expect("the checkpoint restore bug: system field must not be empty")
-            .send_keyfairy_ready();
-    }
-}
-
-async fn panic_if_no_pois_expender_param(ceseal_expert: expert::CesealExpertStub) -> (i64, i64, i64) {
-    ceseal_expert
-        .using_chain_storage(move |opt| {
-            if let Some(cs) = opt {
-                cs.get_pois_expender_param()
-                    .expect("the pois expender param not config on chain")
-            } else {
-                panic!("chain storage must be inited")
-            }
-        })
-        .await
-        .map(|r| (r.0 as i64, r.1 as i64, r.2 as i64)) //FIXME: It is best to unify the type with POIS Verifier
-        .expect("chain storage not ready")
 }

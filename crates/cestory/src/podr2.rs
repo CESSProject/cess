@@ -32,8 +32,9 @@ pub type Podr2Result<T> = Result<Response<T>, Status>;
 pub use proxy::{Podr2ApiServerProxy, Podr2VerifierApiServerProxy};
 
 pub fn new_podr2_api_server(ceseal_expert: CesealExpertStub) -> Podr2ApiServer {
-    let podr2_keys = ceseal_expert.podr2_key().clone();
-    let master_key = crate::get_sr25519_from_rsa_key(podr2_keys.clone().skey);
+    let podr2_keys =
+        ces_pdp::gen_keypair_from_private_key(ceseal_expert.ceseal_props().master_key.rsa_private_key().clone());
+    let master_key = ceseal_expert.ceseal_props().master_key.sr25519_keypair().clone();
     let inner = Podr2ApiServerProxy {
         inner: Podr2Server {
             podr2_keys,
@@ -49,8 +50,9 @@ pub fn new_podr2_api_server(ceseal_expert: CesealExpertStub) -> Podr2ApiServer {
 }
 
 pub fn new_podr2_verifier_api_server(ceseal_expert: CesealExpertStub) -> Podr2VerifierApiServer {
-    let podr2_keys = ceseal_expert.podr2_key().clone();
-    let master_key = crate::get_sr25519_from_rsa_key(podr2_keys.clone().skey);
+    let podr2_keys =
+        ces_pdp::gen_keypair_from_private_key(ceseal_expert.ceseal_props().master_key.rsa_private_key().clone());
+    let master_key = ceseal_expert.ceseal_props().master_key.sr25519_keypair().clone();
     let inner = Podr2VerifierApiServerProxy {
         inner: Podr2VerifierServer {
             podr2_keys,

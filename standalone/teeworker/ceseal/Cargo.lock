@@ -924,7 +924,7 @@ dependencies = [
 
 [[package]]
 name = "ceseal"
-version = "0.1.2"
+version = "0.2.0-alpha"
 dependencies = [
  "anyhow",
  "base64 0.13.1",
@@ -959,7 +959,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node-runtime"
-version = "0.7.6"
+version = "0.7.7"
 dependencies = [
  "ces-pallet-mq",
  "ces-pallet-mq-runtime-api",
@@ -1070,7 +1070,7 @@ dependencies = [
 
 [[package]]
 name = "cestory"
-version = "0.0.2"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1111,6 +1111,7 @@ dependencies = [
  "pallet-sminer",
  "pallet-tee-worker",
  "parity-scale-codec",
+ "parking_lot",
  "prost",
  "rand 0.8.5",
  "regex",
@@ -3991,6 +3992,7 @@ dependencies = [
 name = "pallet-cess-treasury"
 version = "0.7.6"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "log",
@@ -4628,6 +4630,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "log",
  "pallet-cess-staking",
  "parity-scale-codec",
  "scale-info",

@@ -33,7 +33,7 @@ pub enum MessageOrigin {
     #[display("AccountId({})", "hex::encode(_0)")]
     #[serde(with = "more::scale_bytes")]
     AccountId(AccountId),
-    /// All keyfairys share the same origin
+    /// All master key holder share the same origin
     Keyfairy,
     /// Reserved, we use this prefix to indicate the signed content is not a mq message
     #[codec(index = 255)]

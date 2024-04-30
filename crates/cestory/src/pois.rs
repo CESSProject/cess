@@ -19,7 +19,6 @@ use cestory_api::pois::{
 };
 use crypto::{digest::Digest, sha2::Sha256};
 use dashmap::DashMap;
-use log::{info, warn};
 use num_bigint_dig::BigUint;
 use parity_scale_codec::Encode;
 use prost::Message;
@@ -30,6 +29,7 @@ use std::{
     time::Instant,
 };
 use tonic::{Request, Response, Status};
+use tracing::info;
 
 mod proxy;
 
@@ -45,8 +45,9 @@ pub fn new_pois_certifier_api_server(
     pois_param: (i64, i64, i64),
     ceseal_expert: CesealExpertStub,
 ) -> PoisCertifierApiServer {
-    let podr2_keys = ceseal_expert.podr2_key().clone();
-    let master_key = crate::get_sr25519_from_rsa_key(podr2_keys.clone().skey);
+    let podr2_keys =
+        ces_pdp::gen_keypair_from_private_key(ceseal_expert.ceseal_props().master_key.rsa_private_key().clone());
+    let master_key = ceseal_expert.ceseal_props().master_key.sr25519_keypair().clone();
     let inner = PoisCertifierApiServerProxy {
         inner: PoisCertifierServer {
             podr2_keys,
@@ -65,8 +66,9 @@ pub fn new_pois_verifier_api_server(
     pois_param: (i64, i64, i64),
     ceseal_expert: CesealExpertStub,
 ) -> PoisVerifierApiServer {
-    let podr2_keys = ceseal_expert.podr2_key().clone();
-    let master_key = crate::get_sr25519_from_rsa_key(podr2_keys.clone().skey);
+    let podr2_keys =
+        ces_pdp::gen_keypair_from_private_key(ceseal_expert.ceseal_props().master_key.rsa_private_key().clone());
+    let master_key = ceseal_expert.ceseal_props().master_key.sr25519_keypair().clone();
     let inner = PoisVerifierApiServerProxy {
         inner: PoisVerifierServer {
             podr2_keys,
@@ -1044,6 +1046,6 @@ mod test {
         total_proof_hasher.input(&vec![81, 64, 6, 253, 142, 97, 167, 41, 81, 81, 79, 79, 234, 10, 45, 183, 213, 117, 255, 197, 252, 145, 122, 123, 74, 214, 1, 22, 84, 230, 86, 45]);
         let mut total_proof_hash = vec![0u8; 32];
         total_proof_hasher.result(&mut total_proof_hash);
-        println!("total proof hash is :{:?}",total_proof_hash);
+        println!("total proof hash is :{:?}", total_proof_hash);
     }
 }

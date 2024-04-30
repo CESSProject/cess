@@ -1,19 +1,18 @@
-use crate::types::MasterKey;
-
 use super::{
-    pal::Platform, system::WorkerIdentityKey, types::ThreadPoolSafeBox, CesealProperties, CesealSafeBox, ChainStorage,
+    pal::Platform,
+    system::WorkerIdentityKey,
+    types::{ExpertCmd, ExpertCmdReceiver, ExpertCmdSender, ThreadPoolSafeBox},
+    CesealProperties, CesealSafeBox, ChainStorage,
 };
 use ces_types::{WorkerPublicKey, WorkerRole};
 use sp_core::Pair;
 use std::{
+    borrow::Borrow,
     collections::HashMap,
     sync::{Arc, Mutex},
 };
-use tokio::sync::{mpsc, oneshot, Semaphore, SemaphorePermit, TryAcquireError};
+use tokio::sync::{oneshot, Semaphore, SemaphorePermit, TryAcquireError};
 use tonic::Status;
-
-pub type ExpertCmdSender = mpsc::Sender<Cmd>;
-pub type ExpertCmdReceiver = mpsc::Receiver<Cmd>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, derive_more::Display)]
 pub enum ExternalResourceKind {
@@ -41,23 +40,18 @@ impl From<Error> for Status {
     }
 }
 
-pub type CmdResult<T> = Result<T, Error>;
+pub type ExpertCmdResult<T> = Result<T, Error>;
 
-pub enum Cmd {
-    ChainStorage(oneshot::Sender<Option<Arc<ChainStorage>>>),
-    EgressMessage,
-}
-
-pub async fn run<P: Platform>(ceseal: CesealSafeBox<P>, mut expert_cmd_rx: ExpertCmdReceiver) -> CmdResult<()> {
+pub async fn run<P: Platform>(ceseal: CesealSafeBox<P>, mut expert_cmd_rx: ExpertCmdReceiver) -> ExpertCmdResult<()> {
     loop {
         match expert_cmd_rx.recv().await {
             Some(cmd) => match cmd {
-                Cmd::ChainStorage(resp_sender) => {
+                ExpertCmd::ChainStorage(resp_sender) => {
                     let guard = ceseal.lock(false, false).expect("ceseal lock failed");
-                    let chain_storage = guard.runtime_state.as_ref().map(|s| s.chain_storage.clone());
+                    let chain_storage = guard.runtime_state.as_ref().map(|s| s.chain_storage());
                     let _ = resp_sender.send(chain_storage);
                 },
-                Cmd::EgressMessage => {
+                ExpertCmd::EgressMessage => {
                     //TODO: We not need this yet
                 },
             },
@@ -70,27 +64,23 @@ pub async fn run<P: Platform>(ceseal: CesealSafeBox<P>, mut expert_cmd_rx: Exper
 #[derive(Clone)]
 pub struct CesealExpertStub {
     ceseal_props: Arc<CesealProperties>,
-    cmd_sender: mpsc::Sender<Cmd>,
+    cmd_sender: ExpertCmdSender,
     ext_res_semaphores: HashMap<ExternalResourceKind, Arc<Semaphore>>,
     thread_pool: ThreadPoolSafeBox,
 }
 
 impl CesealExpertStub {
-    pub fn new(ceseal_props: CesealProperties) -> (Self, ExpertCmdReceiver) {
-        let (tx, rx) = mpsc::channel(16);
+    pub fn new(ceseal_props: CesealProperties, cmd_sender: ExpertCmdSender) -> Self {
         let thread_pool_cap = ceseal_props.cores.saturating_sub(1).max(1);
         let thread_pool = threadpool::ThreadPool::new(thread_pool_cap as usize);
         info!("PODR2 compute thread pool capacity: {}", thread_pool.max_count());
         let role = ceseal_props.role.clone();
-        (
-            Self {
-                ceseal_props: Arc::new(ceseal_props),
-                cmd_sender: tx,
-                ext_res_semaphores: make_resource_quotas_by_role(role),
-                thread_pool: Arc::new(Mutex::new(thread_pool)),
-            },
-            rx,
-        )
+        Self {
+            ceseal_props: Arc::new(ceseal_props),
+            cmd_sender,
+            ext_res_semaphores: make_resource_quotas_by_role(role),
+            thread_pool: Arc::new(Mutex::new(thread_pool)),
+        }
     }
 
     pub fn identity_key(&self) -> &WorkerIdentityKey {
@@ -101,12 +91,8 @@ impl CesealExpertStub {
         self.ceseal_props.identity_key.public()
     }
 
-    pub fn master_key(&self) -> &MasterKey {
-        &self.ceseal_props.master_key
-    }
-
-    pub fn podr2_key(&self) -> &ces_pdp::Keys {
-        &self.ceseal_props.podr2_key
+    pub fn ceseal_props(&self) -> &CesealProperties {
+        &self.ceseal_props
     }
 
     pub fn role(&self) -> &WorkerRole {
@@ -117,17 +103,23 @@ impl CesealExpertStub {
         self.thread_pool.clone()
     }
 
-    pub async fn using_chain_storage<F, R>(&self, call: F) -> CmdResult<R>
+    pub async fn using_chain_storage<'a, F, R>(&self, call: F) -> ExpertCmdResult<R>
     where
-        F: FnOnce(Option<Arc<ChainStorage>>) -> R,
+        F: FnOnce(Option<&ChainStorage>) -> R,
     {
         let (tx, rx) = oneshot::channel();
         self.cmd_sender
-            .send(Cmd::ChainStorage(tx))
+            .send(ExpertCmd::ChainStorage(tx))
             .await
             .map_err(|e| Error::MpscSend(e.to_string()))?;
-        let chain_storage = rx.await.map_err(|e| Error::OneshotRecv(e.to_string()))?;
-        Ok(call(chain_storage))
+        let opt = rx.await.map_err(|e| Error::OneshotRecv(e.to_string()))?;
+        Ok(match opt {
+            Some(chain_storage) => {
+                let chain_storage = chain_storage.read();
+                call(Some(chain_storage.borrow()))
+            },
+            None => call(None),
+        })
     }
 
     pub async fn try_acquire_permit(&self, ext_res_kind: ExternalResourceKind) -> Result<SemaphorePermit, Error> {
@@ -165,16 +157,17 @@ fn make_resource_quotas_by_role(role: WorkerRole) -> HashMap<ExternalResourceKin
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{new_sr25519_key, system::WorkerIdentityKey};
-    use ces_pdp::Keys;
-    use rsa::{rand_core::OsRng, RsaPrivateKey, RsaPublicKey};
+    use crate::{
+        new_sr25519_key,
+        system::{CesealMasterKey, WorkerIdentityKey},
+    };
+    use rsa::{rand_core::OsRng, RsaPrivateKey};
+    use tokio::sync::mpsc;
     use ExternalResourceKind::*;
 
-    fn any_podr2_key() -> Keys {
+    fn any_rsa_private_key() -> RsaPrivateKey {
         let mut rng = OsRng;
-        let skey = RsaPrivateKey::new(&mut rng, 1024).unwrap();
-        let pkey = RsaPublicKey::from(&skey);
-        Keys { skey, pkey }
+        RsaPrivateKey::new(&mut rng, 1024).unwrap()
     }
 
     fn any_identity_key() -> WorkerIdentityKey {
@@ -185,12 +178,12 @@ mod test {
     async fn permit_acquire_ok_on_full_role() {
         let ceseal_props = CesealProperties {
             role: WorkerRole::Full,
-            podr2_key: any_podr2_key(),
-            master_key: new_sr25519_key(),
+            master_key: CesealMasterKey { rsa_priv_key: any_rsa_private_key(), sr25519_keypair: new_sr25519_key() },
             identity_key: any_identity_key(),
             cores: 2,
         };
-        let (expert, _) = CesealExpertStub::new(ceseal_props);
+        let (tx, _) = mpsc::channel(1);
+        let expert = CesealExpertStub::new(ceseal_props, tx);
         {
             let p = expert.try_acquire_permit(Pord2Service).await;
             assert_eq!(p.is_ok(), true);

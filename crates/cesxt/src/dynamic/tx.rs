@@ -58,6 +58,11 @@ pub fn update_worker_endpoint(signed_endpoint: Vec<u8>, signature: Vec<u8>) -> E
     EncodedPayload::new("TeeWorker", "update_worker_endpoint", args)
 }
 
+pub fn apply_master_key(signed_payload: Vec<u8>, signature: Vec<u8>) -> EncodedPayload {
+    let args = (Encoded(signed_payload), signature).encode();
+    EncodedPayload::new("TeeWorker", "apply_master_key", args)
+}
+
 pub fn sync_offchain_message(message: SignedMessage) -> EncodedPayload {
     let args = message.encode();
     EncodedPayload::new("CesMq", "sync_offchain_message", args)

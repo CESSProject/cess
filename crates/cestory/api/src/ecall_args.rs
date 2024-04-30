@@ -32,6 +32,9 @@ pub struct InitArgs {
     /// Number of cores used to run ceseal service
     pub cores: u32,
 
+    /// Listening IP address of H2 server    
+    pub ip_address: Option<String>,
+
     /// The public rpc port with acl enabled
     pub public_port: Option<u16>,
 

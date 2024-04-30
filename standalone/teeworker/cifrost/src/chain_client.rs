@@ -3,12 +3,12 @@ use crate::{
     Error,
 };
 use anyhow::{Context, Result};
-use parity_scale_codec::{Decode, Encode};
-use cestory_api::blocks::StorageProof;
 use ces_node_rpc_ext::MakeInto as _;
 use ces_trie_storage::ser::StorageChanges;
 use ces_types::messaging::MessageOrigin;
+use cestory_api::blocks::StorageProof;
 use cesxt::{subxt, BlockNumber, ChainApi};
+use parity_scale_codec::{Decode, Encode};
 
 pub use sp_core::{twox_128, twox_64};
 
@@ -93,10 +93,7 @@ pub async fn mq_next_sequence(
 ) -> Result<u64, subxt::Error> {
     let sender_scl = sender.encode();
     let sender_hex = hex::encode(sender_scl);
-    api.extra_rpc()
-        .get_mq_next_sequence(&sender_hex)
-        // .request("pha_getMqNextSequence", rpc_params![to_value(sender_hex)?])
-        .await
+    api.extra_rpc().get_mq_next_sequence(&sender_hex).await
 }
 
 pub fn decode_parachain_heads(head: Vec<u8>) -> Result<Vec<u8>, Error> {

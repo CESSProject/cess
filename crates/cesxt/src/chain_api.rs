@@ -105,14 +105,15 @@ impl ChainApi {
             .ok_or_else(|| anyhow!("Invalid set id"))? as _)
     }
 
-    pub async fn worker_registered_at(
+    pub async fn is_worker_registered_at(
         &self,
-        block_number: BlockNumber,
         worker: &[u8],
+        block_number: Option<BlockNumber>,
     ) -> Result<bool> {
+        use subxt::backend::legacy::rpc_methods::NumberOrHex;
         let hash = self
             .rpc_methods
-            .chain_get_block_hash(Some(block_number.into()))
+            .chain_get_block_hash(block_number.map(|n| NumberOrHex::Number(n as u64)))
             .await?
             .ok_or_else(|| anyhow!("Block number not found"))?;
         let worker = Value::from_bytes(worker);
@@ -145,6 +146,20 @@ impl ChainApi {
             .as_u128()
             .ok_or_else(|| anyhow!("Invalid block number in WorkerAddedAt"))?;
         Ok(Some(block_number as _))
+    }
+
+    pub async fn is_master_key_launched(&self) -> Result<bool> {
+        let key: Vec<Value> = vec![];
+        let address = subxt::dynamic::storage("TeeWorker", "MasterPubkey", key);
+        let launched = self
+            .storage()
+            .at_latest()
+            .await?
+            .fetch(&address)
+            .await
+            .context("Failed to get master public key")?
+            .is_some();
+        Ok(launched)
     }
 
     async fn fetch<K: Encode, V: Decode>(

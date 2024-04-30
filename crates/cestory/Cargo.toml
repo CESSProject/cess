@@ -1,6 +1,6 @@
 [package]
 name = "cestory"
-version = "0.0.2"
+version = "0.1.0"
 edition = "2021"
 resolver = "2"
 
@@ -27,6 +27,7 @@ parity-scale-codec = { workspace = true, features = [
     "full",
     "chain-error",
 ] }
+parking_lot = { workspace = true }
 rand = { workspace = true }
 regex = { workspace = true }
 ring = { workspace = true }

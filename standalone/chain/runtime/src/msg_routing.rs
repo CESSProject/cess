@@ -31,7 +31,6 @@ impl ces_pallet_mq::QueueNotifyConfig for MessageRouteConfig {
 
         route_handlers! {
             TeeWorker::on_message_received,
-            TeeWorker::on_keyfairy_message_received,
         };
         Ok(())
     }
