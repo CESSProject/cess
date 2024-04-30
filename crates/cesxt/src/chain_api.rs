@@ -105,14 +105,15 @@ impl ChainApi {
             .ok_or_else(|| anyhow!("Invalid set id"))? as _)
     }
 
-    pub async fn worker_registered_at(
+    pub async fn is_worker_registered_at(
         &self,
-        block_number: BlockNumber,
         worker: &[u8],
+        block_number: Option<BlockNumber>,
     ) -> Result<bool> {
+        use subxt::backend::legacy::rpc_methods::NumberOrHex;
         let hash = self
             .rpc_methods
-            .chain_get_block_hash(Some(block_number.into()))
+            .chain_get_block_hash(block_number.map(|n| NumberOrHex::Number(n as u64)))
             .await?
             .ok_or_else(|| anyhow!("Block number not found"))?;
         let worker = Value::from_bytes(worker);

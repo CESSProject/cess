@@ -70,9 +70,6 @@ pub struct Args {
     #[arg(long, help = "Don't write Ceseal egress data back to Substarte.")]
     no_msg_submit: bool,
 
-    #[arg(long, help = "Skip registering the worker.")]
-    no_register: bool,
-
     #[arg(
         long,
         help = "Inject dev key (0x1) to Ceseal. Cannot be used with remote attestation enabled."
@@ -230,7 +227,7 @@ impl From<RaOption> for Option<AttestationProvider> {
 }
 
 struct RunningFlags {
-    worker_registered: bool,
+    worker_register_sent: bool,
     endpoint_registered: bool,
     restart_failure_count: u32,
 }
@@ -885,10 +882,18 @@ async fn bridge(
     }
 
     if args.no_sync {
-        if !args.no_register {
-            let registered =
-                try_register_worker(&mut cc, &chain_api, &mut signer, operator, args).await?;
-            flags.worker_registered = registered;
+        let worker_pubkey = hex::decode(
+            info.public_key()
+                .ok_or(anyhow!("worker public key must not none"))?,
+        )?;
+        if !chain_api
+            .is_worker_registered_at(&worker_pubkey, None)
+            .await?
+            && !flags.worker_register_sent
+        {
+            flags.worker_register_sent =
+                try_register_worker(&mut cc, &chain_api, &mut signer, operator.clone(), args)
+                    .await?;
         }
         // Try bind worker endpoint
         if args.public_endpoint.is_some() && info.public_key().is_some() {
@@ -1002,8 +1007,16 @@ async fn bridge(
                     .await
                     .context("Failed to load handover proof")?;
             }
-            if !args.no_register && !flags.worker_registered {
-                flags.worker_registered =
+            let worker_pubkey = hex::decode(
+                info.public_key()
+                    .ok_or(anyhow!("worker public key must not none"))?,
+            )?;
+            if !chain_api
+                .is_worker_registered_at(&worker_pubkey, None)
+                .await?
+                && !flags.worker_register_sent
+            {
+                flags.worker_register_sent =
                     try_register_worker(&mut cc, &chain_api, &mut signer, operator.clone(), args)
                         .await?;
             }
@@ -1126,7 +1139,7 @@ pub async fn run() {
     preprocess_args(&mut args);
 
     let mut flags = RunningFlags {
-        worker_registered: false,
+        worker_register_sent: false,
         endpoint_registered: false,
         restart_failure_count: 0,
     };
@@ -1145,7 +1158,7 @@ pub async fn run() {
             () = collect_async_errors(threshold, receiver) => ()
         };
         if !args.auto_restart || flags.restart_failure_count > args.max_restart_retries {
-            std::process::exit(if flags.worker_registered { 1 } else { 2 });
+            std::process::exit(1);
         }
         flags.restart_failure_count += 1;
         sleep(Duration::from_secs(2)).await;
