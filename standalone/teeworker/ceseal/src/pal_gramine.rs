@@ -1,13 +1,11 @@
 use anyhow::anyhow;
-use parity_scale_codec::Encode;
-use std::alloc::System;
-use tracing::info;
-
 use ces_allocator::StatSizeAllocator;
 use cestory_pal::{AppInfo, AppVersion, Machine, MemoryStats, MemoryUsage, Sealing, RA};
+use parity_scale_codec::Encode;
+use std::alloc::System;
 use std::io::ErrorKind;
-use std::str::FromStr as _;
 use std::time::Duration;
+use tracing::info;
 
 use crate::ias;
 
@@ -137,11 +135,10 @@ impl MemoryStats for GraminePlatform {
 
 impl AppInfo for GraminePlatform {
     fn app_version() -> AppVersion {
-        let ver = version::Version::from_str(version::version!()).unwrap();
         AppVersion {
-            major: ver.major,
-            minor: ver.minor,
-            patch: ver.patch,
+            major: env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap(),
+            minor: env!("CARGO_PKG_VERSION_MINOR").parse().unwrap(),
+            patch: env!("CARGO_PKG_VERSION_PATCH").parse().unwrap(),
         }
     }
 }
