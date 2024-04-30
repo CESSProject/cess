@@ -50,6 +50,14 @@ impl CesealInfo {
     pub fn public_key(&self) -> Option<&str> {
         self.system.as_ref().map(|s| s.public_key.as_str())
     }
+
+    pub fn is_external_server_running(&self) -> bool {
+        self.external_server_state() == crate::crpc::ExternalServerState::Serving
+    }
+
+    pub fn is_master_key_holded(&self) -> bool {
+        self.system.as_ref().map_or_else(|| false, |s| !s.master_public_key.is_empty())
+    }
 }
 
 use crate::crpc::*;
@@ -279,6 +287,40 @@ impl crate::crpc::ChainState {
         Self {
             block_number,
             encoded_state: state.encode(),
+        }
+    }
+}
+
+impl crate::crpc::GetMasterKeyApplyResponse {
+    pub fn decode_payload(
+        &self,
+    ) -> Result<Option<ces_types::MasterKeyApplyPayload>, ScaleDecodeError> {
+        self.encoded_payload
+            .as_ref()
+            .map(|v| Decode::decode(&mut &v[..]))
+            .transpose()
+    }
+    pub fn new(
+        payload: ces_types::MasterKeyApplyPayload,
+        signature: prost::alloc::vec::Vec<u8>,
+    ) -> Self {
+        Self {
+            encoded_payload: Some(payload.encode()),
+            signature: Some(signature),
+        }
+    }
+}
+
+impl crate::crpc::ExternalServerOperation {
+    pub fn start() -> Self {
+        Self {
+            cmd: crate::crpc::ExternalServerCmd::Start.into()
+        }
+    }
+
+    pub fn shutdown() -> Self {
+        Self {
+            cmd: crate::crpc::ExternalServerCmd::Shutdown.into()
         }
     }
 }

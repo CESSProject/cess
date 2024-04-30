@@ -60,6 +60,10 @@ service CesealApi {
 
   // Take checkpoint. Returns the current block number of the saved state.
   rpc TakeCheckpoint (google.protobuf.Empty) returns (SyncedTo) {}
+
+  rpc GetMasterKeyApply(google.protobuf.Empty) returns (GetMasterKeyApplyResponse) {}
+
+  rpc OperateExternalServer(ExternalServerOperation) returns (google.protobuf.Empty) {}
 }
 
 // Basic information about a Ceseal instance.
@@ -92,6 +96,8 @@ message CesealInfo {
   uint32 safe_mode_level = 14;
   // The timestamp of current block in milliseconds.
   uint64 current_block_time = 15;
+  // The External Server state
+  ExternalServerState external_server_state = 16;
 }
 
 // Basic information for the initialized runtime
@@ -102,23 +108,10 @@ message SystemInfo {
   string public_key = 2;
   // ECDH public key of the worker.
   string ecdh_public_key = 3;
-  // Status of keyfairy
-  KeyfairyStatus keyfairy = 4;
+  // The master public key, empty if the master key not ready
+  string master_public_key = 4;
   // The block that the ceseal loaded the genesis state from.
   uint32 genesis_block = 5;
-}
-
-enum KeyfairyRole {
-  None = 0;
-  Dummy = 1;
-  Active = 2;
-}
-
-message KeyfairyStatus {
-  // The Keyfairy role of the worker.
-  KeyfairyRole role = 1;
-  // The master public key, empty if not a Keyfairy
-  string master_public_key = 2;
 }
 
 message MemoryUsage {
@@ -306,3 +299,22 @@ message StorageProof {
   repeated bytes proof = 1;
 }
 
+message GetMasterKeyApplyResponse {
+  // @codec scale ces_types::MasterKeyApplyPayload
+  optional bytes encoded_payload = 1;
+  optional bytes signature = 2;
+}
+
+enum ExternalServerCmd {
+  Start = 0;
+  Shutdown = 1;
+}
+
+message ExternalServerOperation {
+  ExternalServerCmd cmd = 1;
+}
+
+enum ExternalServerState {
+  Closed = 0;
+  Serving = 1;
+}

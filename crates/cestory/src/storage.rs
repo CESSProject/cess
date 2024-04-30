@@ -149,12 +149,11 @@ mod storage_ext {
             self.execute_with(|| pallet_sminer::pallet::Pallet::<chain::Runtime>::expenders())
         }
 
-        pub fn is_keyfairy(&self, pubkey: &ces_types::WorkerPublicKey) -> bool {
-            self.keyfairys().contains(pubkey)
-        }
-
-        pub(crate) fn keyfairys(&self) -> Vec<ces_types::WorkerPublicKey> {
-            self.execute_with(pallet_tee_worker::Keyfairies::<chain::Runtime>::get)
+        pub fn is_master_key_first_holder(&self, worker_pubkey: &ces_types::WorkerPublicKey) -> bool {
+            self.execute_with(|| {
+                pallet_tee_worker::MasterKeyFirstHolder::<chain::Runtime>::get()
+                    .map_or_else(|| false, |e| e == *worker_pubkey)
+            })
         }
 
         pub(crate) fn is_worker_registered(&self, worker: &ces_types::WorkerPublicKey) -> bool {

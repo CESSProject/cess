@@ -23,6 +23,7 @@ mod error;
 mod msg_sync;
 mod notify_client;
 mod prefetcher;
+mod tx;
 
 pub mod chain_client;
 pub mod types;
@@ -68,9 +69,6 @@ pub struct Args {
 
     #[arg(long, help = "Don't write Ceseal egress data back to Substarte.")]
     no_msg_submit: bool,
-
-    #[arg(long, help = "Skip registering the worker.")]
-    no_register: bool,
 
     #[arg(
         long,
@@ -229,8 +227,9 @@ impl From<RaOption> for Option<AttestationProvider> {
 }
 
 struct RunningFlags {
-    worker_registered: bool,
+    worker_register_sent: bool,
     endpoint_registered: bool,
+    master_key_apply_sent: bool,
     restart_failure_count: u32,
 }
 
@@ -884,10 +883,18 @@ async fn bridge(
     }
 
     if args.no_sync {
-        if !args.no_register {
-            let registered =
-                try_register_worker(&mut cc, &chain_api, &mut signer, operator, args).await?;
-            flags.worker_registered = registered;
+        let worker_pubkey = hex::decode(
+            info.public_key()
+                .ok_or(anyhow!("worker public key must not none"))?,
+        )?;
+        if !chain_api
+            .is_worker_registered_at(&worker_pubkey, None)
+            .await?
+            && !flags.worker_register_sent
+        {
+            flags.worker_register_sent =
+                try_register_worker(&mut cc, &chain_api, &mut signer, operator.clone(), args)
+                    .await?;
         }
         // Try bind worker endpoint
         if args.public_endpoint.is_some() && info.public_key().is_some() {
@@ -1001,8 +1008,16 @@ async fn bridge(
                     .await
                     .context("Failed to load handover proof")?;
             }
-            if !args.no_register && !flags.worker_registered {
-                flags.worker_registered =
+            let worker_pubkey = hex::decode(
+                info.public_key()
+                    .ok_or(anyhow!("worker public key must not none"))?,
+            )?;
+            if !chain_api
+                .is_worker_registered_at(&worker_pubkey, None)
+                .await?
+                && !flags.worker_register_sent
+            {
+                flags.worker_register_sent =
                     try_register_worker(&mut cc, &chain_api, &mut signer, operator.clone(), args)
                         .await?;
             }
@@ -1022,6 +1037,18 @@ async fn bridge(
                         error!("FailedToCallBindWorkerEndpoint: {:?}", e);
                     }
                 }
+            }
+
+            if chain_api.is_master_key_launched().await?
+                && !info.is_master_key_holded()
+                && !flags.master_key_apply_sent
+            {
+                let sent = tx::try_apply_master_key(&mut cc, &chain_api, &mut signer, args).await?;
+                flags.master_key_apply_sent = sent;
+            }
+
+            if info.is_master_key_holded() && !info.is_external_server_running() {
+                start_external_server(&mut cc).await?;
             }
 
             // STATUS: initial_sync_finished = true
@@ -1117,8 +1144,9 @@ pub async fn run() {
     preprocess_args(&mut args);
 
     let mut flags = RunningFlags {
-        worker_registered: false,
+        worker_register_sent: false,
         endpoint_registered: false,
+        master_key_apply_sent: false,
         restart_failure_count: 0,
     };
 
@@ -1136,7 +1164,7 @@ pub async fn run() {
             () = collect_async_errors(threshold, receiver) => ()
         };
         if !args.auto_restart || flags.restart_failure_count > args.max_restart_retries {
-            std::process::exit(if flags.worker_registered { 1 } else { 2 });
+            std::process::exit(1);
         }
         flags.restart_failure_count += 1;
         sleep(Duration::from_secs(2)).await;
@@ -1154,4 +1182,14 @@ async fn handover_worker_key(server: &mut CesealClient, client: &mut CesealClien
     let encrypted_key = server.handover_start(response).await?.into_inner();
     client.handover_receive(encrypted_key).await?;
     panic!("Worker key handover done, the new Ceseal is ready to go");
+}
+
+async fn start_external_server(cc: &mut CesealClient) -> Result<()> {
+    use cestory_api::crpc::{ExternalServerCmd, ExternalServerOperation};
+    use tonic::Request;
+    cc.operate_external_server(Request::new(ExternalServerOperation {
+        cmd: ExternalServerCmd::Start.into(),
+    }))
+    .await?;
+    Ok(())
 }

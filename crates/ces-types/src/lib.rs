@@ -10,165 +10,64 @@ use sp_core::H256;
 pub mod attestation;
 
 pub mod messaging {
-	use super::{EcdhPublicKey, MasterPublicKey, WorkerIdentity, WorkerPublicKey};
-	use alloc::{collections::btree_map::BTreeMap, vec::Vec};
+	use super::{EcdhPublicKey, MasterPublicKey, WorkerPublicKey};
+	use alloc::vec::Vec;
 	use core::fmt::Debug;
 	use parity_scale_codec::{Decode, Encode};
 	use scale_info::TypeInfo;
 
 	pub use ces_mq::{bind_topic, types::*};
 
-	// Messages: System
-	#[derive(Encode, Decode, TypeInfo)]
-	pub struct WorkerEventWithKey {
-		pub pubkey: WorkerPublicKey,
-		pub event: WorkerEvent,
-	}
-
-	impl Debug for WorkerEventWithKey {
-		fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-			let pubkey = hex::encode(self.pubkey.0);
-			f.debug_struct("WorkerEventWithKey")
-				.field("pubkey", &pubkey)
-				.field("event", &self.event)
-				.finish()
-		}
-	}
-
-	#[derive(Encode, Decode, Debug, TypeInfo)]
-	pub struct WorkerInfo {
-		pub confidence_level: u8,
-	}
-
+	bind_topic!(WorkerEvent, b"cess/teeworker/event");
 	#[derive(Encode, Decode, Debug, TypeInfo)]
 	pub enum WorkerEvent {
-		/// pallet-registry --> worker
-		///  Indicate a worker register succeeded.
-		Registered(WorkerInfo),
+		/// pallet-tee-worker --> worker
+		/// Indicate a worker register succeeded.
+		Registered(WorkerPublicKey),
 	}
 
-	bind_topic!(SystemEvent, b"cess/system/event");
-	#[derive(Encode, Decode, Debug, TypeInfo)]
-	pub enum SystemEvent {
-		WorkerEvent(WorkerEventWithKey),
-	}
-
-	impl SystemEvent {
-		pub fn new_worker_event(pubkey: WorkerPublicKey, event: WorkerEvent) -> SystemEvent {
-			SystemEvent::WorkerEvent(WorkerEventWithKey { pubkey, event })
+	impl WorkerEvent {
+		pub fn new_worker(worker_pubkey: WorkerPublicKey) -> WorkerEvent {
+			WorkerEvent::Registered(worker_pubkey)
 		}
 	}
 
-	// Messages: Keyfairy launch
-	bind_topic!(KeyfairyLaunch, b"cess/keyfairy/launch");
+	// Messages: MasterKey launch
+	bind_topic!(MasterKeyLaunch, b"cess/masterkey/launch");
 	#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
-	pub enum KeyfairyLaunch {
-		FirstKeyfairy(NewKeyfairyEvent),
-		MasterPubkeyOnChain(MasterPubkeyEvent),
-		RotateMasterKey(RotateMasterKeyEvent),
-		MasterPubkeyRotated(MasterPubkeyEvent),
+	pub enum MasterKeyLaunch {
+		LaunchRequest(WorkerPublicKey, EcdhPublicKey),
+		OnChainLaunched(MasterPublicKey),
 	}
 
-	impl KeyfairyLaunch {
-		pub fn first_keyfairy(pubkey: WorkerPublicKey, ecdh_pubkey: EcdhPublicKey) -> KeyfairyLaunch {
-			KeyfairyLaunch::FirstKeyfairy(NewKeyfairyEvent { pubkey, ecdh_pubkey })
+	impl MasterKeyLaunch {
+		pub fn launch_request(pubkey: WorkerPublicKey, ecdh_pubkey: EcdhPublicKey) -> MasterKeyLaunch {
+			MasterKeyLaunch::LaunchRequest(pubkey, ecdh_pubkey)
 		}
 
-		pub fn master_pubkey_on_chain(master_pubkey: MasterPublicKey) -> KeyfairyLaunch {
-			KeyfairyLaunch::MasterPubkeyOnChain(MasterPubkeyEvent { master_pubkey })
+		pub fn on_chain_launched(master_pubkey: MasterPublicKey) -> MasterKeyLaunch {
+			MasterKeyLaunch::OnChainLaunched(master_pubkey)
 		}
-
-		pub fn rotate_master_key(rotation_id: u64, gk_identities: Vec<WorkerIdentity>) -> KeyfairyLaunch {
-			KeyfairyLaunch::RotateMasterKey(RotateMasterKeyEvent { rotation_id, gk_identities })
-		}
-
-		pub fn master_pubkey_rotated(master_pubkey: MasterPublicKey) -> KeyfairyLaunch {
-			KeyfairyLaunch::MasterPubkeyRotated(MasterPubkeyEvent { master_pubkey })
-		}
-	}
-
-	#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
-	pub struct NewKeyfairyEvent {
-		/// The public key of registered keyfairy
-		pub pubkey: WorkerPublicKey,
-		/// The ecdh public key of registered keyfairy
-		pub ecdh_pubkey: EcdhPublicKey,
-	}
-
-	#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
-	pub struct RemoveKeyfairyEvent {
-		/// The public key of registered keyfairy
-		pub pubkey: WorkerPublicKey,
-	}
-
-	#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
-	pub struct MasterPubkeyEvent {
-		pub master_pubkey: MasterPublicKey,
-	}
-
-	#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
-	pub struct RotateMasterKeyEvent {
-		pub rotation_id: u64,
-		pub gk_identities: Vec<WorkerIdentity>,
-	}
-
-	// Messages: Keyfairy change
-	bind_topic!(KeyfairyChange, b"cess/keyfairy/change");
-	#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
-	pub enum KeyfairyChange {
-		Registered(NewKeyfairyEvent),
-		Unregistered(RemoveKeyfairyEvent),
-	}
-
-	impl KeyfairyChange {
-		pub fn keyfairy_registered(pubkey: WorkerPublicKey, ecdh_pubkey: EcdhPublicKey) -> KeyfairyChange {
-			KeyfairyChange::Registered(NewKeyfairyEvent { pubkey, ecdh_pubkey })
-		}
-
-		pub fn keyfairy_unregistered(pubkey: WorkerPublicKey) -> KeyfairyChange {
-			KeyfairyChange::Unregistered(RemoveKeyfairyEvent { pubkey })
-		}
-	}
-
-	//TODO: To be removed after code-merge
-	bind_topic!(Podr2DemoEvent, b"cess/podr2/demo");
-	#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
-	pub enum Podr2DemoEvent {
-		Greeting,
 	}
 
 	// Messages: Distribution of master key
-	bind_topic!(KeyDistribution<BlockNumber>, b"cess/keyfairy/key");
+	bind_topic!(MasterKeyDistribution, b"cess/masterkey/dist");
 	#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
-	pub enum KeyDistribution<BlockNumber> {
-		/// Legacy single master key sharing, use `MasterKeyHistory` after we enable master key
-		/// rotation
+	pub enum MasterKeyDistribution {
+		/// Master key sharing
 		///
 		/// MessageOrigin::Keyfairy -> MessageOrigin::Worker
-		MasterKeyDistribution(DispatchMasterKeyEvent),
-		// TODO: a better way for real large batch key distribution
-		/// MessageOrigin::Worker -> ALL
-		///
-		/// The origin cannot be Keyfairy, else the leakage of old master key will further leak
-		/// the following keys
-		MasterKeyRotation(BatchRotateMasterKeyEvent),
-		/// MessageOrigin::Keyfairy -> MessageOrigin::Worker
-		MasterKeyHistory(DispatchMasterKeyHistoryEvent<BlockNumber>),
+		Distribution(DispatchMasterKeyEvent),
 	}
 
-	impl<BlockNumber> KeyDistribution<BlockNumber> {
-		pub fn master_key_distribution(
+	impl MasterKeyDistribution {
+		pub fn distribution(
 			dest: WorkerPublicKey,
 			ecdh_pubkey: EcdhPublicKey,
 			encrypted_master_key: Vec<u8>,
 			iv: AeadIV,
-		) -> KeyDistribution<BlockNumber> {
-			KeyDistribution::MasterKeyDistribution(DispatchMasterKeyEvent {
-				dest,
-				ecdh_pubkey,
-				encrypted_master_key,
-				iv,
-			})
+		) -> MasterKeyDistribution {
+			MasterKeyDistribution::Distribution(DispatchMasterKeyEvent { dest, ecdh_pubkey, encrypted_master_key, iv })
 		}
 	}
 
@@ -199,37 +98,10 @@ pub mod messaging {
 		pub iv: AeadIV,
 	}
 
+	bind_topic!(MasterKeyApply, b"cess/masterkey/apply");
 	#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
-	pub struct DispatchMasterKeyHistoryEvent<BlockNumber> {
-		/// The target to dispatch master key
-		pub dest: WorkerPublicKey,
-		pub encrypted_master_key_history: Vec<(u64, BlockNumber, EncryptedKey)>,
-	}
-
-	#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
-	pub struct BatchRotateMasterKeyEvent {
-		pub rotation_id: u64,
-		pub secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
-		pub sender: WorkerPublicKey,
-		pub sig: Vec<u8>,
-	}
-
-	#[derive(Encode)]
-	pub(crate) struct BatchRotateMasterKeyData<'a> {
-		pub(crate) rotation_id: u64,
-		pub(crate) secret_keys: &'a BTreeMap<WorkerPublicKey, EncryptedKey>,
-		pub(crate) sender: WorkerPublicKey,
-	}
-
-	impl BatchRotateMasterKeyEvent {
-		pub fn data_be_signed(&self) -> Vec<u8> {
-			BatchRotateMasterKeyData {
-				rotation_id: self.rotation_id,
-				secret_keys: &self.secret_keys,
-				sender: self.sender,
-			}
-			.encode()
-		}
+	pub enum MasterKeyApply {
+		Apply(WorkerPublicKey, EcdhPublicKey),
 	}
 }
 
@@ -306,12 +178,19 @@ pub struct WorkerEndpointPayload {
 	pub signing_time: u64,
 }
 
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+pub struct MasterKeyApplyPayload {
+	pub pubkey: WorkerPublicKey,
+	pub ecdh_pubkey: EcdhPublicKey,
+	pub signing_time: u64,
+}
+
 #[repr(u8)]
 pub enum SignedContentType {
 	MqMessage = 0,
 	RpcResponse = 1,
 	EndpointInfo = 2,
-	MasterKeyRotation = 3,
+	MasterKeyApply = 3,
 	MasterKeyStore = 4,
 }
 
