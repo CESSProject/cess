@@ -16,6 +16,9 @@ pub async fn run_ceseal_server<Platform>(
 where
     Platform: pal::Platform + Serialize + DeserializeOwned,
 {
+    const MAX_ENCODED_MSG_SIZE: usize = 16 << 20; // 16MiB
+    const MAX_DECODED_MSG_SIZE: usize = MAX_ENCODED_MSG_SIZE;
+
     let (expert_cmd_tx, expert_cmd_rx) = mpsc::channel(16);
     let cestory = if init_args.enable_checkpoint {
         match Ceseal::restore_from_checkpoint(&platform, &init_args) {
@@ -44,7 +47,11 @@ where
     let ceseal_service = RpcService::new_with(cestory);
     info!("Ceseal internal server will listening on {}", inner_listener_addr);
     Server::builder()
-        .add_service(CesealApiServer::new(ceseal_service))
+        .add_service(
+            CesealApiServer::new(ceseal_service)
+                .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
+                .max_encoding_message_size(MAX_ENCODED_MSG_SIZE),
+        )
         .serve(inner_listener_addr)
         .await
         .expect("Ceseal server catch panic");

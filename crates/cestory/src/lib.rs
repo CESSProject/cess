@@ -54,6 +54,7 @@ pub use storage::ChainStorage;
 pub use types::{BlockDispatchContext, CesealProperties};
 pub type CesealLightValidation = LightValidation<chain::Runtime>;
 
+mod bootstrap;
 mod ceseal_service;
 mod cryptography;
 pub mod expert;
@@ -62,13 +63,12 @@ pub mod podr2;
 pub mod pois;
 mod pubkeys;
 mod secret_channel;
-mod server_run;
 mod storage;
 mod system;
 mod types;
 
+pub use bootstrap::run_ceseal_server;
 pub use podr2::verify_signature;
-pub use server_run::run_ceseal_server;
 
 mod arc_rwlock_serde {
     use parking_lot::RwLock;
@@ -460,7 +460,7 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
         };
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
         let (stopped_tx, stopped_rx) = oneshot::channel();
-        server_run::spawn_external_server(self, ceseal_props, shutdown_rx, stopped_tx)?;
+        bootstrap::spawn_external_server(self, ceseal_props, shutdown_rx, stopped_tx)?;
         self.external_server_stub = Some(ExternalServerStub { shutdown_tx, stopped_rx });
         Ok(())
     }
