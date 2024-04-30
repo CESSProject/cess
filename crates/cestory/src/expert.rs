@@ -1,7 +1,7 @@
 use super::{
     pal::Platform,
     system::WorkerIdentityKey,
-    types::{ExpertCmd, ExpertCmdReceiver, ExpertCmdSender, MasterKey, ThreadPoolSafeBox},
+    types::{ExpertCmd, ExpertCmdReceiver, ExpertCmdSender, ThreadPoolSafeBox},
     CesealProperties, CesealSafeBox, ChainStorage,
 };
 use ces_types::{WorkerPublicKey, WorkerRole};
@@ -91,12 +91,8 @@ impl CesealExpertStub {
         self.ceseal_props.identity_key.public()
     }
 
-    pub fn master_key(&self) -> &MasterKey {
-        &self.ceseal_props.master_key
-    }
-
-    pub fn podr2_key(&self) -> &ces_pdp::Keys {
-        &self.ceseal_props.podr2_key
+    pub fn ceseal_props(&self) -> &CesealProperties {
+        &self.ceseal_props
     }
 
     pub fn role(&self) -> &WorkerRole {
@@ -161,16 +157,17 @@ fn make_resource_quotas_by_role(role: WorkerRole) -> HashMap<ExternalResourceKin
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{new_sr25519_key, system::WorkerIdentityKey};
-    use ces_pdp::Keys;
-    use rsa::{rand_core::OsRng, RsaPrivateKey, RsaPublicKey};
+    use crate::{
+        new_sr25519_key,
+        system::{CesealMasterKey, WorkerIdentityKey},
+    };
+    use rsa::{rand_core::OsRng, RsaPrivateKey};
+    use tokio::sync::mpsc;
     use ExternalResourceKind::*;
 
-    fn any_podr2_key() -> Keys {
+    fn any_rsa_private_key() -> RsaPrivateKey {
         let mut rng = OsRng;
-        let skey = RsaPrivateKey::new(&mut rng, 1024).unwrap();
-        let pkey = RsaPublicKey::from(&skey);
-        Keys { skey, pkey }
+        RsaPrivateKey::new(&mut rng, 1024).unwrap()
     }
 
     fn any_identity_key() -> WorkerIdentityKey {
@@ -181,8 +178,7 @@ mod test {
     async fn permit_acquire_ok_on_full_role() {
         let ceseal_props = CesealProperties {
             role: WorkerRole::Full,
-            podr2_key: any_podr2_key(),
-            master_key: new_sr25519_key(),
+            master_key: CesealMasterKey { rsa_priv_key: any_rsa_private_key(), sr25519_keypair: new_sr25519_key() },
             identity_key: any_identity_key(),
             cores: 2,
         };

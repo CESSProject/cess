@@ -1,4 +1,4 @@
-use crate::system::WorkerIdentityKey;
+use crate::system::{CesealMasterKey, WorkerIdentityKey};
 use ces_types::WorkerRole;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use std::{
@@ -12,13 +12,11 @@ use tokio::sync::{mpsc, oneshot};
 extern crate runtime as chain;
 
 pub type ThreadPoolSafeBox = Arc<Mutex<ThreadPool>>;
-pub type MasterKey = sp_core::sr25519::Pair;
 
 #[derive(Clone)]
 pub struct CesealProperties {
     pub role: WorkerRole,
-    pub podr2_key: ces_pdp::Keys,
-    pub master_key: MasterKey,
+    pub master_key: CesealMasterKey,
     pub identity_key: WorkerIdentityKey,
     pub cores: u32,
 }
@@ -27,7 +25,7 @@ impl fmt::Debug for CesealProperties {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "CesealProperties {{ role: {:?}, podr2_key: <omitted>, identity_key: <omitted>, cores: {} }}",
+            "CesealProperties {{ role: {:?}, master_key: <omitted>, identity_key: <omitted>, cores: {} }}",
             self.role, self.cores
         )
     }

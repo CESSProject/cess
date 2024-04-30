@@ -2,8 +2,8 @@ pub mod keyfairy;
 mod master_key;
 
 use crate::{pal, secret_channel::ecdh_serde, types::BlockDispatchContext};
-use anyhow::Result;
-use ces_crypto::{ecdh::EcdhKey, key_share, rsa::Persistence, sr25519::KDF, SecretKey};
+use anyhow::{Context, Result};
+use ces_crypto::{ecdh::EcdhKey, key_share, rsa::RsaDer, sr25519::KDF, SecretKey};
 use ces_mq::{
     traits::MessageChannel, BadOrigin, MessageDispatcher, MessageOrigin, MessageSendQueue, SignedMessageChannel,
     TypedReceiver,
@@ -15,7 +15,7 @@ use ces_types::{
 };
 pub use cestory_api::{crpc::SystemInfo, ecall_args::InitArgs};
 use core::fmt;
-pub use master_key::{is_master_key_exists_on_local, RotatedMasterKey};
+pub use master_key::{persistence::is_master_key_exists_on_local, CesealMasterKey, Error as MasterKeyError};
 use pallet_tee_worker::MasterKeySubmission;
 use parity_scale_codec::{Decode, Encode};
 use runtime::BlockNumber;
@@ -204,45 +204,6 @@ impl<Platform: pal::Platform> System<Platform> {
         };
     }
 
-    /// Update local sealed master keys if the received history is longer than existing one.
-    ///
-    /// Panic if `self.keyfairy` is None since it implies a need for resync from the start as gk
-    fn set_master_key_history(&mut self, master_key_history: Vec<RotatedMasterKey>) {
-        if self.keyfairy.is_none() {
-            master_key::seal(self.sealing_path.clone(), &master_key_history, &self.identity_key, &self.platform);
-            crate::maybe_remove_checkpoints(&self.storage_path);
-            //TODO: refactor here later
-            panic!("Received master key, please restart ceseal and cifrost to sync as Keyfairy");            
-        }
-
-        if self
-            .keyfairy
-            .as_mut()
-            .expect("checked; qed.")
-            .set_master_key_history(&master_key_history)
-        {
-            master_key::seal(self.sealing_path.clone(), &master_key_history, &self.identity_key, &self.platform);
-        }
-    }
-
-    fn init_keyfairy(&mut self, block: &mut BlockDispatchContext, master_key_history: Vec<RotatedMasterKey>) {
-        assert!(self.keyfairy.is_none(), "Duplicated keyfairy initialization");
-        assert!(!master_key_history.is_empty(), "Init keyfairy with no master key");
-
-        if self.genesis_block != 0 {
-            panic!("Keyfairy must be synced start from the first block");
-        }
-        let master_key = crate::get_sr25519_from_rsa_key(
-            rsa::RsaPrivateKey::restore_from_der(&master_key_history.first().expect("empty master key history").secret)
-                .expect("Failed restore podr2 key from master_key_history in init_keyfairy"),
-        );
-        let keyfairy = keyfairy::Keyfairy::new(
-            master_key_history,
-            block.send_mq.channel(MessageOrigin::Keyfairy, master_key.into()),
-        );
-        self.keyfairy = Some(keyfairy);
-    }
-
     fn process_master_key_launch_event(
         &mut self,
         block: &mut BlockDispatchContext,
@@ -254,17 +215,24 @@ impl<Platform: pal::Platform> System<Platform> {
             return
         }
 
-        info!("Incoming keyfairy launch event: {:?}", event);
+        info!("incoming master key launch event: {:?}", event);
         match event {
             MasterKeyLaunch::LaunchRequest(worker_pubkey, _) =>
                 self.process_master_key_launch_reqeust(block, origin, worker_pubkey),
-            MasterKeyLaunch::OnChainLaunched(masterkey_pubkey) => {
-                info!("Keyfairy launches on chain in block {}", block.block_number);
+            MasterKeyLaunch::OnChainLaunched(master_pubkey) => {
                 if let Some(keyfairy) = &mut self.keyfairy {
-                    keyfairy.master_pubkey_uploaded(masterkey_pubkey);
+                    assert_eq!(keyfairy.master_pubkey(), master_pubkey, "local and on-chain master key mismatch");
                 }
+                info!("master key is launched on chain at block {}", block.block_number);
             },
         }
+    }
+
+    fn init_keyfairy(&mut self, block: &mut BlockDispatchContext, master_key: CesealMasterKey) {
+        let signer = master_key.sr25519_keypair().clone().into();
+        let egress = block.send_mq.channel(MessageOrigin::Keyfairy, signer);
+        self.keyfairy = Some(keyfairy::Keyfairy::new(master_key, egress));
+        info!("keyfairy inited at block {}", block.block_number);
     }
 
     /// Generate the master key if this is the first keyfairy
@@ -280,56 +248,53 @@ impl<Platform: pal::Platform> System<Platform> {
         // Solution: always unregister the first keyfairy after the second keyfairy receives the key,
         // thank god we only need to do this once for each blockchain
 
+        assert!(self.keyfairy.is_none(), "Duplicated keyfairy initialization");
+
+        if self.genesis_block != 0 {
+            panic!("Keyfairy must be synced start from the first block");
+        }
+
+        if self.identity_key.public() != worker_pubkey {
+            return
+        }
+
+        if is_master_key_exists_on_local(&self.sealing_path) {
+            info!("the master key on local, unseal it");
+            let master_key =
+                CesealMasterKey::from_sealed_file(&self.sealing_path, &self.identity_key.0, &self.platform)
+                    .expect("CesealMasterKey from sealed file");
+            self.init_keyfairy(block, master_key);
+            return
+        }
+
         // double check the first master key holder is valid on chain
         if !block.storage.is_master_key_first_holder(&worker_pubkey) {
             error!("Fatal error: Invalid master key first holder {:?}", worker_pubkey);
             panic!("System state poisoned");
         }
 
-        let mut master_key_history =
-            master_key::try_unseal(self.sealing_path.clone(), &self.identity_key.0, &self.platform);
-        let my_pubkey = self.identity_key.public();
-        if my_pubkey == worker_pubkey {
-            // if the first keyfairy reboots, it will possess the master key, and should not re-generate it
-            if master_key_history.is_empty() {
-                info!("Keyfairy: generate master key as the first keyfairy");
-                // generate master key as the first keyfairy, no need to restart
-                let podr2_key = crate::new_podr2_key();
-                master_key_history.push(RotatedMasterKey {
-                    rotation_id: 0,
-                    block_height: 0,
-                    secret: podr2_key.dump_secret_der(),
-                });
-                // manually seal the first master key for the first gk
-                master_key::seal(self.sealing_path.clone(), &master_key_history, &self.identity_key, &self.platform);
-            }
-            let master_key = crate::get_sr25519_from_rsa_key(
-                rsa::RsaPrivateKey::restore_from_der(&master_key_history.first().expect("checked; qed.").secret)
-                    .expect("Failed to restore sr25519 from master key history in process_first_keyfairy_event"),
-            );
-            // upload the master key on chain via worker egress
-            info!("Keyfairy: upload master key {} on chain", hex::encode(master_key.public()));
-            let master_pubkey = MasterKeySubmission::MasterPubkey { master_pubkey: master_key.public() };
-            self.egress.push_message(&master_pubkey);
-        }
+        info!("generate new master key as the first keyfairy");
+        let new_master_key = CesealMasterKey::generate().expect("CesealMasterKey generate");
+        new_master_key.seal(&self.sealing_path, &self.identity_key.0, &self.platform);
 
-        // other keyfairys will has keys after key sharing and reboot
-        // init the keyfairy if there is any master key to start slient syncing
-        if !master_key_history.is_empty() {
-            info!("Init keyfairy in block {}", block.block_number);
-            self.init_keyfairy(block, master_key_history);
-        }
+        let master_pubkey = new_master_key.sr25519_public_key();
+        // upload the master key on chain via worker egress
+        info!("upload master key {} on chain", hex::encode(master_pubkey));
+        let master_pubkey = MasterKeySubmission::MasterPubkey { master_pubkey };
+        self.egress.push_message(&master_pubkey);
+
+        self.init_keyfairy(block, new_master_key);
     }
 
     fn process_master_key_distribution_event(
         &mut self,
-        _block: &mut BlockDispatchContext,
+        block: &mut BlockDispatchContext,
         origin: MessageOrigin,
         event: MasterKeyDistribution,
     ) {
         match event {
             MasterKeyDistribution::Distribution(event) => {
-                if let Err(err) = self.process_master_key_distribution(origin, event) {
+                if let Err(err) = self.process_master_key_distribution(block, origin, event) {
                     error!("Failed to process master key distribution event: {:?}", err);
                 };
             },
@@ -339,12 +304,7 @@ impl<Platform: pal::Platform> System<Platform> {
     /// Decrypt the key encrypted by `encrypt_key_to()`
     ///
     /// This function could panic a lot, thus should only handle data from other ceseals.
-    fn decrypt_key_from(
-        &self,
-        ecdh_pubkey: &EcdhPublicKey,
-        encrypted_key: &[u8],
-        iv: &AeadIV,
-    ) -> (sr25519::Pair, Vec<u8>) {
+    fn decrypt_key_from(&self, ecdh_pubkey: &EcdhPublicKey, encrypted_key: &[u8], iv: &AeadIV) -> RsaDer {
         let my_ecdh_key = self
             .identity_key
             .derive_ecdh_key()
@@ -355,36 +315,39 @@ impl<Platform: pal::Platform> System<Platform> {
             SecretKey::Rsa(key) => key,
             _ => panic!("Expected rsa key, but got sr25519 key."),
         };
-        (
-            crate::get_sr25519_from_rsa_key(
-                rsa::RsaPrivateKey::restore_from_der(&secret_data)
-                    .expect("Failed restore sr25519 from rsa in decrypt_key_from"),
-            ),
-            secret_data,
-        )
+        secret_data
     }
 
     /// Process encrypted master key from mq
     fn process_master_key_distribution(
         &mut self,
+        block: &mut BlockDispatchContext,
         origin: MessageOrigin,
         event: DispatchMasterKeyEvent,
-    ) -> Result<(), TransactionError> {
+    ) -> Result<()> {
         if !origin.is_keyfairy() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
-            return Err(TransactionError::BadOrigin)
+            return Err(TransactionError::BadOrigin.into())
         }
 
-        let my_pubkey = self.identity_key.public();
-        if my_pubkey == event.dest {
-            let master_pair = self.decrypt_key_from(&event.ecdh_pubkey, &event.encrypted_master_key, &event.iv);
-            info!("Keyfairy: successfully decrypt received master key");
-            self.set_master_key_history(vec![RotatedMasterKey {
-                rotation_id: 0,
-                block_height: 0,
-                secret: master_pair.1,
-            }]);
+        if self.identity_key.public() != event.dest {
+            debug!("ignore no self event: {:?}", event);
+            return Ok(())
         }
+
+        if self.keyfairy.is_some() {
+            warn!("ignore master key distribution, keyfariy has already inited");
+            return Ok(())
+        }
+
+        let rsa_der = self.decrypt_key_from(&event.ecdh_pubkey, &event.encrypted_master_key, &event.iv);
+        info!("Keyfairy: successfully decrypt received master key");
+        let master_key =
+            CesealMasterKey::from_rsa_der(&rsa_der).context("failed build CesealMasterKey from rsa_der")?;
+        master_key.seal(&self.sealing_path, &self.identity_key.0, &self.platform);
+
+        self.init_keyfairy(block, master_key);
+
         Ok(())
     }
 

@@ -3,10 +3,9 @@ use crate::{
     types::{CesealClient, SrSigner},
     Args,
 };
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use cesxt::{subxt::config::polkadot::PolkadotExtrinsicParamsBuilder as Params, ChainApi};
-use log::{error, info};
-use parity_scale_codec::Decode;
+use log::debug;
 
 pub async fn try_apply_master_key(
     cc: &mut CesealClient,
@@ -21,7 +20,7 @@ pub async fn try_apply_master_key(
     let signature = apply_info
         .signature
         .ok_or_else(|| anyhow!("No master key apply signature"))?;
-    info!("appling master key...");
+    debug!("appling master key...");
     apply_master_key(chain_api, payload, signature, signer, args).await
 }
 
@@ -39,12 +38,24 @@ async fn apply_master_key(
         .mortal(latest_block.header(), args.longevity)
         .build();
     let tx = cesxt::dynamic::tx::apply_master_key(encoded_payload, signature);
-    let ret = chain_api
+    let tx_progress = chain_api
         .tx()
         .create_signed_with_nonce(&tx, &signer.signer, signer.nonce(), tx_params)?
         .submit_and_watch()
         .await?;
-    info!("worker's endpoint updated on chain");
+    let tx_in_block = tx_progress
+        .wait_for_in_block()
+        .await
+        .context("tx progress wait for in block")?;
+    debug!(
+        "call tx apply_master_key, txn: {}, block hash: {}",
+        tx_in_block.extrinsic_hash(),
+        tx_in_block.block_hash()
+    );
+    let _ = tx_in_block
+        .wait_for_success()
+        .await
+        .context("tx in block wait for success")?;
     signer.increment_nonce();
     Ok(true)
 }

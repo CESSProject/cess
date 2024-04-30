@@ -89,7 +89,7 @@ pub(crate) fn spawn_external_server<Platform>(
         use rsa::pkcs1::EncodeRsaPublicKey;
         debug!(
             "Successfully load podr2 key public key is: {:?}",
-            hex::encode(&ceseal_props.podr2_key.pkey.to_pkcs1_der().unwrap().as_bytes())
+            hex::encode(&ceseal_props.master_key.rsa_public_key().to_pkcs1_der().unwrap().as_bytes())
         );
     }
 

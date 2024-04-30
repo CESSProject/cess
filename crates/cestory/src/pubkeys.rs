@@ -12,6 +12,12 @@ use tonic::{Request, Response, Status};
 pub type Result<T> = StdResult<Response<T>, Status>;
 pub type CesealPubkeysProviderServer = CesealPubkeysProviderServerPb<CesealPubkeysProviderImpl>;
 
+impl From<crate::system::MasterKeyError> for Status {
+    fn from(value: crate::system::MasterKeyError) -> Self {
+        Status::internal(value.to_string())
+    }
+}
+
 pub struct CesealPubkeysProviderImpl {
     ceseal_expert: CesealExpertStub,
 }
@@ -60,8 +66,13 @@ impl CesealPubkeysProvider for CesealPubkeysProviderImpl {
         let request = request.into_inner();
         is_storage_miner_registered_on_chain(&self.ceseal_expert, &request.storage_miner_account_id[..]).await?;
         let now_ts = chrono::Utc::now().timestamp_millis();
-        let pubkey = self.ceseal_expert.master_key().public();
-        let sign = self.ceseal_expert.master_key().sign(&now_ts.to_be_bytes());
+        let pubkey = self.ceseal_expert.ceseal_props().master_key.sr25519_public_key();
+        let sign = self
+            .ceseal_expert
+            .ceseal_props()
+            .master_key
+            .sr25519_keypair()
+            .sign(&now_ts.to_be_bytes());
         Ok(Response::new(MasterPubkeyResponse {
             pubkey: pubkey.to_raw_vec(),
             timestamp: now_ts,
@@ -70,20 +81,16 @@ impl CesealPubkeysProvider for CesealPubkeysProviderImpl {
     }
 
     async fn get_podr2_pubkey(&self, request: Request<InnerReq>) -> Result<Podr2PubkeyResponse> {
-        use rsa::{pkcs1::EncodeRsaPublicKey, Pkcs1v15Sign};
-
+        use rsa::Pkcs1v15Sign;
         let request = request.into_inner();
         is_storage_miner_registered_on_chain(&self.ceseal_expert, &request.storage_miner_account_id[..]).await?;
         let now_ts = chrono::Utc::now().timestamp_millis();
-        let pubkey = self.ceseal_expert.podr2_key().pkey.clone();
-        let pubkey = pubkey
-            .to_pkcs1_der()
-            .map_err(|e| Status::internal(format!("PKCS#1-encoding Podr2 public key error: {:?}", e)))?
-            .to_vec();
+        let pubkey = self.ceseal_expert.ceseal_props().master_key.rsa_public_key_as_pkcs1_der()?;
         let sign = self
             .ceseal_expert
-            .podr2_key()
-            .skey
+            .ceseal_props()
+            .master_key
+            .rsa_private_key()
             .sign(Pkcs1v15Sign::new_raw(), &now_ts.to_be_bytes())
             .map_err(|e| Status::internal(format!("Podr2 key sign error: {:?}", e)))?;
         Ok(Response::new(Podr2PubkeyResponse { pubkey, timestamp: now_ts, signature: sign }))

@@ -13,6 +13,7 @@ use serde::{
     ser::SerializeSeq,
     Deserialize, Deserializer, Serialize, Serializer,
 };
+use system::CesealMasterKey;
 use tokio::sync::oneshot;
 
 use crate::light_validation::LightValidation;
@@ -364,10 +365,10 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
         &self.started_at
     }
 
-    pub fn get_pdp_key(&self) -> Result<ces_pdp::Keys, types::Error> {
+    pub fn get_master_key(&self) -> Result<CesealMasterKey, types::Error> {
         if let Some(ref system) = self.system {
             if let Some(ref keyfariy) = system.keyfairy {
-                Ok(ces_pdp::gen_keypair_from_private_key(keyfariy.rsa_private_key().clone()))
+                Ok(keyfariy.master_key().clone())
             } else {
                 return Err(types::Error::KeyfairyNotReady)
             }
@@ -453,7 +454,6 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
         let Some(keyfairy) = system.keyfairy.as_ref() else { anyhow::bail!("master key uninitialize") };
         let ceseal_props = CesealProperties {
             role: self.args.role.clone(),
-            podr2_key: keyfairy.podr2_key_pair(),
             master_key: keyfairy.master_key().clone(),
             identity_key: system.identity_key.clone(),
             cores: self.args.cores,
@@ -702,22 +702,6 @@ pub(crate) fn new_sr25519_key() -> sr25519::Pair {
     let mut seed = [0_u8; SEED_BYTES];
     rng.fill_bytes(&mut seed);
     sr25519::Pair::from_seed(&seed)
-}
-
-fn new_podr2_key() -> rsa::RsaPrivateKey {
-    let rsa_key = ces_pdp::gen_keypair(2048);
-    rsa_key.skey
-}
-
-fn get_sr25519_from_rsa_key(skey: rsa::RsaPrivateKey) -> sr25519::Pair {
-    use crypto::digest::Digest;
-    use rsa::pkcs8::EncodePrivateKey;
-    let rsa_key_byte = skey.to_pkcs8_der().unwrap().as_bytes().to_vec();
-    let mut hasher = crypto::sha2::Sha256::new();
-    hasher.input(&rsa_key_byte);
-    let mut seed = vec![0u8; hasher.output_bytes()];
-    hasher.result(&mut seed);
-    sr25519::Pair::from_seed(&seed.try_into().expect("panic:get sr25519 from rsa key fail!"))
 }
 
 // TODO: Move to cestory-api when the std ready.
