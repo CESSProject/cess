@@ -229,6 +229,7 @@ impl From<RaOption> for Option<AttestationProvider> {
 struct RunningFlags {
     worker_register_sent: bool,
     endpoint_registered: bool,
+    master_key_apply_sent: bool,
     restart_failure_count: u32,
 }
 
@@ -1038,8 +1039,12 @@ async fn bridge(
                 }
             }
 
-            if chain_api.is_master_key_launched().await? && !info.is_master_key_holded() {
-                tx::try_apply_master_key(&mut cc, &chain_api, &mut signer, args).await?;
+            if chain_api.is_master_key_launched().await?
+                && !info.is_master_key_holded()
+                && !flags.master_key_apply_sent
+            {
+                let sent = tx::try_apply_master_key(&mut cc, &chain_api, &mut signer, args).await?;
+                flags.master_key_apply_sent = sent;
             }
 
             if info.is_master_key_holded() && !info.is_external_server_running() {
@@ -1141,6 +1146,7 @@ pub async fn run() {
     let mut flags = RunningFlags {
         worker_register_sent: false,
         endpoint_registered: false,
+        master_key_apply_sent: false,
         restart_failure_count: 0,
     };
 
