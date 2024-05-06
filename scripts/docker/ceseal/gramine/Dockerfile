@@ -12,6 +12,7 @@ ARG IAS_ENV
 ARG BUILD=release
 ARG OA
 ARG VC
+ARG GIT_SHA
 
 RUN <<EOF
   set -e
@@ -27,6 +28,8 @@ COPY standalone ./cess-code/standalone
 COPY Cargo.toml Cargo.lock rustfmt.toml rust-toolchain.toml Makefile ./cess-code/
 
 RUN mkdir prebuilt
+
+ENV VERGEN_GIT_SHA=${GIT_SHA}
 
 RUN <<EOF
   set -e
