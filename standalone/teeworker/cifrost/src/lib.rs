@@ -718,6 +718,15 @@ async fn register_worker(
         error!("FailedToCallRegisterWorker: {:?}", ret);
         return Err(anyhow!(Error::FailedToCallRegisterWorker));
     }
+    match ret.unwrap().wait_for_finalized_success().await {
+        Ok(e) => {
+            info!("Tee registration successful in block hash:{:?}, and the transaction hash is :{:?}",e.block_hash(),e.extrinsic_hash())
+        },
+        Err(e) => {
+            error!("Tee registration transaction has been finalized, but registration failed :{:?}",e.to_string());
+            return Err(anyhow!(Error::FailedToCallRegisterWorker));
+        },
+    };
     signer.increment_nonce();
     Ok(())
 }
