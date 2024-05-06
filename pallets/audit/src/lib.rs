@@ -1016,7 +1016,7 @@ pub mod pallet {
 		pub(crate) fn generate_challenge(now: BlockNumberFor<T>) -> Weight {
 			let mut weight: Weight = Weight::zero();
 
-			let one_day = T::OneDay::get();
+			// let one_day = T::OneDay::get();
 			// if now < one_day.saturating_mul(3u32.saturated_into()) {
 			// 	return weight;
 			// }
