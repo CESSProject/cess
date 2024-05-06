@@ -18,6 +18,9 @@ ARG http_proxy
 ARG BUILD=release
 ARG OA
 ARG VC
+ARG GIT_SHA
+
+ENV SUBSTRATE_CLI_GIT_COMMIT_HASH=${GIT_SHA}
 
 COPY --from=planner /node/recipe.json recipe.json
 # Build dependencies - this is the caching Docker layer!

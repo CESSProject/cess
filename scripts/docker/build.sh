@@ -2,7 +2,7 @@
 
 the_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 docker_build_ctx_dir=$(dirname $(dirname $the_script_dir))
-docker_build_args=()
+docker_build_args=(--build-arg GIT_SHA=$(git rev-parse --short HEAD))
 org_id="cesslab"
 network="devnet"
 image_id=
