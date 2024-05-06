@@ -188,7 +188,7 @@ pub(crate) fn print_target_info() {
     } else {
         println!("Running in Native mode");
     }
-    println!("git revision: {}", env!("VERGEN_GIT_DESCRIBE"));
+    println!("git revision: {}", env!("VERGEN_GIT_SHA"));
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
