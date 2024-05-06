@@ -106,8 +106,9 @@ fn main() -> Result<()> {
     let args = Args::parse();
     match args.command {
         Some(Commands::Version) => {
+            use hex_fmt::HexFmt;
             if let Some(em) = pal_gramine::get_extend_measurement().unwrap() {
-                println!("{} {:?}", VERSION, em.measurement());
+                println!("{} {:?}", VERSION, HexFmt(em.measurement()));
             } else {
                 println!("{} [No measurement in non-SGX environments]", VERSION);
             }
