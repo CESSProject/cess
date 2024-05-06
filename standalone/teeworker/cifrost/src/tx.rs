@@ -48,7 +48,7 @@ async fn apply_master_key(
         .await
         .context("tx progress wait for in block")?;
     debug!(
-        "call tx apply_master_key, txn: {}, block hash: {}",
+        "call tx apply_master_key, txn: {:?}, block hash: {:?}",
         tx_in_block.extrinsic_hash(),
         tx_in_block.block_hash()
     );
