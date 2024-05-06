@@ -15,7 +15,7 @@ use tracing::info;
 const VERSION: &str = const_str::format!(
     "ceseal {}-{} {}",
     crate_version!(),
-    env!("VERGEN_GIT_DESCRIBE"),
+    env!("VERGEN_GIT_SHA"),
     env!("VERGEN_BUILD_TIMESTAMP")
 );
 
@@ -172,7 +172,7 @@ async fn serve(sgx: bool, args: Args) -> Result<()> {
             version: env!("CARGO_PKG_VERSION").into(),
             git_revision: format!(
                 "{}-{}",
-                env!("VERGEN_GIT_DESCRIBE"),
+                env!("VERGEN_GIT_SHA"),
                 env!("VERGEN_BUILD_TIMESTAMP")
             ),
             enable_checkpoint: !args.disable_checkpoint,
