@@ -12,6 +12,7 @@ ARG IAS_ENV
 ARG BUILD=release
 ARG OA
 ARG VC
+ARG GIT_SHA
 
 RUN <<EOF
   set -e
@@ -26,6 +27,8 @@ COPY pallets ./cess-code/pallets
 COPY crates ./cess-code/crates
 COPY standalone ./cess-code/standalone
 COPY Cargo.toml Cargo.lock rustfmt.toml rust-toolchain.toml Makefile ./cess-code/
+
+ENV VERGEN_GIT_SHA=${GIT_SHA}
 
 RUN <<EOF
   set -e

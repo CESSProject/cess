@@ -424,13 +424,5 @@ impl<T: Config> Pallet<T> {
         }
 
         return 0;
-    }
-
-    pub(super) fn get_segment_length_from_file(file_hash: &Hash) -> u32 {
-        if let Ok(file) = <File<T>>::try_get(file_hash) {
-            return file.segment_list.len() as u32;
-        }
-
-        return 0;
-    }
+    }    
 }

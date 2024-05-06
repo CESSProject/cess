@@ -14,7 +14,6 @@ mod mock;
 mod tests;
 
 use codec::alloc::string::ToString;
-use sp_core::H256;
 use frame_system::pallet_prelude::*;
 use frame_support::{
 	pallet_prelude::*, transactional,
@@ -32,8 +31,7 @@ type AccountOf<T> = <T as frame_system::Config>::AccountId;
 #[frame_support::pallet]
 pub mod pallet {
 	use crate::*;
-	use frame_support::Hashable;
-use frame_system::{ensure_signed, Origin};
+	use frame_system::ensure_signed;
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + sp_std::fmt::Debug {

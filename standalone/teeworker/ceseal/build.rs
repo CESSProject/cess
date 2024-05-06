@@ -5,6 +5,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 	EmitBuilder::builder()
         .all_build()
         .all_git()
+		.git_sha(true)
         .emit()?;
 
 	let ias_env = env::var("IAS_ENV").unwrap_or_else(|_| "DEV".to_string());
