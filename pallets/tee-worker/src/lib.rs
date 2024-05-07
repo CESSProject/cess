@@ -123,6 +123,10 @@ pub mod pallet {
 
 		MasterKeyLaunched,
 
+		MasterKeyApplied {
+			worker_pubkey: WorkerPublicKey,
+		},
+
 		WorkerAdded {
 			pubkey: WorkerPublicKey,
 			attestation_provider: Option<AttestationProvider>,
@@ -679,8 +683,8 @@ pub mod pallet {
 			// Validate the public key
 			ensure!(Workers::<T>::contains_key(payload.pubkey), Error::<T>::InvalidPubKey);
 
-			Self::push_message(MasterKeyApply::Apply(payload.pubkey, payload.ecdh_pubkey));
-
+			Self::push_message(MasterKeyApply::Apply(payload.pubkey.clone(), payload.ecdh_pubkey));
+			Self::deposit_event(Event::<T>::MasterKeyApplied { worker_pubkey: payload.pubkey });
 			Ok(())
 		}
 
