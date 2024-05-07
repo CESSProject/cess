@@ -153,30 +153,12 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		/// Already registered
-		AlreadyRegistration,
-		/// Not a controller account
-		NotStash,
-		/// The scheduled error report has been reported once
-		AlreadyReport,
 		/// Boundedvec conversion error
 		BoundedVecError,
-		/// Error indicating that the storage has reached its limit
-		StorageLimitReached,
-		/// data overrun error
-		Overflow,
 
 		NotBond,
 
-		NotController,
-
 		NonTeeWorker,
-
-		VerifyCertFailed,
-
-		TeePodr2PkNotInitialized,
-
-		Existed,
 
 		CesealRejected,
 
@@ -199,7 +181,7 @@ pub mod pallet {
 		WrongTeeType,
 
 		InvalidSender,
-		InvalidPubKey,
+		InvalidWorkerPubKey,
 		MalformedSignature,
 		InvalidSignatureLength,
 		InvalidSignature,
@@ -211,16 +193,14 @@ pub mod pallet {
 		MasterKeyAlreadyLaunched,
 		MasterKeyLaunching,
 		MasterKeyMismatch,
-		InvalidMasterPubkey,
 		MasterKeyUninitialized,
 		InvalidMasterKeyApplySigningTime,
 		/// Ceseal related
 		CesealAlreadyExists,
-		CesealNotFound,
-		/// Additional
-		NotImplemented,
-		CannotRemoveLastKeyfairy,
-		/// Endpoint related
+		CesealBinNotFound,
+
+		CannotExitMasterKeyHolder,
+
 		EmptyEndpoint,
 		InvalidEndpointSigningTime,
 
@@ -649,7 +629,7 @@ pub mod pallet {
 			);
 
 			// Validate the public key
-			ensure!(Workers::<T>::contains_key(endpoint_payload.pubkey), Error::<T>::InvalidPubKey);
+			ensure!(Workers::<T>::contains_key(endpoint_payload.pubkey), Error::<T>::InvalidWorkerPubKey);
 
 			Endpoints::<T>::insert(endpoint_payload.pubkey, endpoint);
 
@@ -681,7 +661,7 @@ pub mod pallet {
 			);
 
 			// Validate the public key
-			ensure!(Workers::<T>::contains_key(payload.pubkey), Error::<T>::InvalidPubKey);
+			ensure!(Workers::<T>::contains_key(payload.pubkey), Error::<T>::InvalidWorkerPubKey);
 
 			Self::push_message(MasterKeyApply::Apply(payload.pubkey.clone(), payload.ecdh_pubkey));
 			Self::deposit_event(Event::<T>::MasterKeyApplied { worker_pubkey: payload.pubkey });
@@ -717,7 +697,7 @@ pub mod pallet {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
 			let mut allowlist = CesealBinAllowList::<T>::get();
-			ensure!(allowlist.contains(&ceseal_hash), Error::<T>::CesealNotFound);
+			ensure!(allowlist.contains(&ceseal_hash), Error::<T>::CesealBinNotFound);
 
 			allowlist.retain(|h| *h != ceseal_hash);
 			CesealBinAllowList::<T>::put(allowlist);
@@ -955,7 +935,7 @@ impl<T: Config> TeeWorkerHandler<AccountOf<T>, BlockNumberFor<T>> for Pallet<T> 
 	}
 
 	fn get_master_publickey() -> Result<MasterPublicKey, DispatchError> {
-		let pk = MasterPubkey::<T>::try_get().map_err(|_| Error::<T>::TeePodr2PkNotInitialized)?;
+		let pk = MasterPubkey::<T>::try_get().map_err(|_| Error::<T>::MasterKeyUninitialized)?;
 
 		Ok(pk)
 	}
