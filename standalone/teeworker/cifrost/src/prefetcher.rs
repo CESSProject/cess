@@ -1,5 +1,5 @@
 use anyhow::Result;
-use cestory_api::blocks::BlockHeaderWithChanges;
+use cestory_api::blocks::{BlockHeader, BlockHeaderWithChanges};
 use cesxt::{BlockNumber, ChainApi};
 use tokio::task::JoinHandle;
 
@@ -47,7 +47,7 @@ impl PrefetchClient {
         let result = if let Some(result) = result {
             result
         } else {
-            crate::fetch_storage_changes(client, from, to).await?
+            fetch_storage_changes(client, from, to).await?
         };
         let next_from = from + count;
         let next_to = next_from + count - 1;
@@ -57,9 +57,41 @@ impl PrefetchClient {
             to: next_to,
             handle: tokio::spawn(async move {
                 log::info!("prefetching ({next_from}-{next_to})");
-                crate::fetch_storage_changes(&client, next_from, next_to).await
+                fetch_storage_changes(&client, next_from, next_to).await
             }),
         });
         Ok(result)
     }
+}
+
+pub async fn fetch_storage_changes(
+    client: &ChainApi,
+    from: BlockNumber,
+    to: BlockNumber,
+) -> Result<Vec<BlockHeaderWithChanges>> {
+    log::info!("fetch_storage_changes ({from}-{to})");
+    if to < from {
+        return Ok(vec![]);
+    }
+    let from_hash = crate::chain_client::get_header_hash(client, Some(from)).await?;
+    let to_hash = crate::chain_client::get_header_hash(client, Some(to)).await?;
+    let storage_changes = crate::chain_client::fetch_storage_changes(client, &from_hash, &to_hash)
+        .await?
+        .into_iter()
+        .enumerate()
+        .map(|(offset, storage_changes)| {
+            BlockHeaderWithChanges {
+                // Headers are synced separately. Only the `number` is used in Ceseal while syncing blocks.
+                block_header: BlockHeader {
+                    number: from + offset as BlockNumber,
+                    parent_hash: Default::default(),
+                    state_root: Default::default(),
+                    extrinsics_root: Default::default(),
+                    digest: Default::default(),
+                },
+                storage_changes,
+            }
+        })
+        .collect();
+    Ok(storage_changes)
 }

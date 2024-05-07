@@ -1,22 +1,24 @@
 use crate::{
-    types::{utils::raw_proof, Hash, ParachainApi, RelaychainApi, StorageKey},
+    types::{utils::raw_proof, Block, Hash, Header, SrSigner, StorageKey, NumberOrHex, ConvertTo},
     Error,
 };
 use anyhow::{Context, Result};
 use ces_node_rpc_ext::MakeInto as _;
 use ces_trie_storage::ser::StorageChanges;
 use ces_types::messaging::MessageOrigin;
-use cestory_api::blocks::StorageProof;
+use cestory_api::blocks::{AuthoritySet, AuthoritySetChange, StorageProof};
 use cesxt::{subxt, BlockNumber, ChainApi};
 use parity_scale_codec::{Decode, Encode};
+use sp_consensus_grandpa::{AuthorityList, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
+use tokio::time::sleep;
+use std::time::Duration;
+use log::info;
 
 pub use sp_core::{twox_128, twox_64};
 
-use crate::types::SrSigner;
-
 /// Gets a storage proof for a single storage item
 pub async fn state_get_read_proof(
-    api: &RelaychainApi,
+    api: &ChainApi,
     hash: Option<Hash>,
     storage_key: &[u8],
 ) -> Result<StorageProof> {
@@ -29,7 +31,7 @@ pub async fn state_get_read_proof(
 
 /// Gets a storage proof for a storage items
 pub async fn read_proofs(
-    api: &RelaychainApi,
+    api: &ChainApi,
     hash: Option<Hash>,
     storage_keys: impl IntoIterator<Item = &[u8]>,
 ) -> Result<StorageProof> {
@@ -69,13 +71,13 @@ pub async fn fetch_storage_changes(
 }
 
 /// Fetch the genesis storage.
-pub async fn fetch_genesis_storage(api: &ParachainApi) -> Result<Vec<(Vec<u8>, Vec<u8>)>> {
+pub async fn fetch_genesis_storage(api: &ChainApi) -> Result<Vec<(Vec<u8>, Vec<u8>)>> {
     let hash = Some(api.genesis_hash());
     fetch_genesis_storage_at(api, hash).await
 }
 
 async fn fetch_genesis_storage_at(
-    api: &ParachainApi,
+    api: &ChainApi,
     hash: Option<sp_core::H256>,
 ) -> Result<Vec<(Vec<u8>, Vec<u8>)>> {
     let response = api
@@ -87,10 +89,7 @@ async fn fetch_genesis_storage_at(
 }
 
 /// Fetch best next sequence for given sender considering the txpool
-pub async fn mq_next_sequence(
-    api: &ParachainApi,
-    sender: &MessageOrigin,
-) -> Result<u64, subxt::Error> {
+pub async fn mq_next_sequence(api: &ChainApi, sender: &MessageOrigin) -> Result<u64, subxt::Error> {
     let sender_scl = sender.encode();
     let sender_hex = hex::encode(sender_scl);
     api.extra_rpc().get_mq_next_sequence(&sender_hex).await
@@ -101,7 +100,7 @@ pub fn decode_parachain_heads(head: Vec<u8>) -> Result<Vec<u8>, Error> {
 }
 
 /// Updates the nonce from the mempool
-pub async fn update_signer_nonce(api: &ParachainApi, signer: &mut SrSigner) -> Result<()> {
+pub async fn update_signer_nonce(api: &ChainApi, signer: &mut SrSigner) -> Result<()> {
     let account_id = signer.account_id().clone();
     let nonce = api.extra_rpc().account_nonce(&account_id).await?;
     signer.set_nonce(nonce);
@@ -110,7 +109,7 @@ pub async fn update_signer_nonce(api: &ParachainApi, signer: &mut SrSigner) -> R
 }
 
 pub async fn search_suitable_genesis_for_worker(
-    api: &ParachainApi,
+    api: &ChainApi,
     pubkey: &[u8],
     prefer: Option<BlockNumber>,
 ) -> Result<(BlockNumber, Vec<(Vec<u8>, Vec<u8>)>)> {
@@ -141,7 +140,7 @@ pub async fn search_suitable_genesis_for_worker(
 }
 
 async fn get_worker_unregistered_block(
-    api: &ParachainApi,
+    api: &ChainApi,
     worker: &[u8],
     latest_block: u32,
 ) -> Result<u32> {
@@ -150,4 +149,87 @@ async fn get_worker_unregistered_block(
     let block = added_at.unwrap_or(latest_block + 1).saturating_sub(1);
     log::info!("Choosing genesis state at {block} ");
     Ok(block)
+}
+
+pub async fn wait_until_synced(client: &ChainApi) -> Result<()> {
+    loop {
+        let state = client.extra_rpc().system_sync_state().await?;
+        info!(
+            "Checking synced: current={} highest={:?}",
+            state.current_block, state.highest_block
+        );
+        if let Some(highest) = state.highest_block {
+            if highest - state.current_block <= 8 {
+                return Ok(());
+            }
+        }
+        sleep(Duration::from_secs(5)).await;
+    }
+}
+
+pub async fn get_header_hash(client: &ChainApi, h: Option<u32>) -> Result<Hash> {
+    let pos = h.map(|h| NumberOrHex::Number(h.into()));
+    let hash = match pos {
+        Some(_) => client
+            .rpc()
+            .chain_get_block_hash(pos)
+            .await?
+            .ok_or(Error::BlockHashNotFound)?,
+        None => client.rpc().chain_get_finalized_head().await?,
+    };
+    Ok(hash)
+}
+
+pub async fn get_block_at(client: &ChainApi, h: Option<u32>) -> Result<(Block, Hash)> {
+    let hash = get_header_hash(client, h).await?;
+    let block = client
+        .rpc()
+        .chain_get_block(Some(hash))
+        .await?
+        .ok_or(Error::BlockNotFound)?;
+
+    Ok((block.convert_to(), hash))
+}
+
+pub async fn get_header_at(client: &ChainApi, h: Option<u32>) -> Result<(Header, Hash)> {
+    let hash = get_header_hash(client, h).await?;
+    let header = client
+        .rpc()
+        .chain_get_header(Some(hash))
+        .await?
+        .ok_or(Error::BlockNotFound)?;
+
+    Ok((header.convert_to(), hash))
+}
+
+///Get the authority through the block header hash and pass it to ceseal for verification
+pub async fn get_authority_with_proof_at(
+    chain_api: &ChainApi,
+    hash: Hash,
+) -> Result<AuthoritySetChange> {
+    // Storage
+    let id_key = cesxt::dynamic::storage_key("Grandpa", "CurrentSetId");
+    // Authority set
+    let value = chain_api
+        .rpc()
+        .state_get_storage(GRANDPA_AUTHORITIES_KEY, Some(hash))
+        .await?
+        .expect("No authority key found");
+    let list: AuthorityList = VersionedAuthorityList::decode(&mut value.as_slice())
+        .expect("Failed to decode VersionedAuthorityList")
+        .into();
+
+    // Set id
+    let id = chain_api.current_set_id(Some(hash)).await?;
+    // Proof
+    let proof = crate::chain_client::read_proofs(
+        chain_api,
+        Some(hash),
+        vec![GRANDPA_AUTHORITIES_KEY, &id_key],
+    )
+    .await?;
+    Ok(AuthoritySetChange {
+        authority_set: AuthoritySet { list, id },
+        authority_proof: proof,
+    })
 }

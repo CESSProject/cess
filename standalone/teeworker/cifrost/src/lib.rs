@@ -5,6 +5,7 @@ use std::cmp;
 use std::str::FromStr;
 use std::time::Duration;
 use tokio::time::sleep;
+use tonic::Request;
 
 use cesxt::{
     connect as subxt_connect,
@@ -12,13 +13,10 @@ use cesxt::{
     sp_core::{crypto::Pair, sr25519},
     ChainApi,
 };
-use parity_scale_codec::{Decode, Encode};
-use sp_consensus_grandpa::{AuthorityList, SetId, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
+use parity_scale_codec::Decode;
+use sp_consensus_grandpa::SetId;
 
 pub use cesxt::subxt;
-use subxt::{config::polkadot::PolkadotExtrinsicParamsBuilder as Params, tx::TxPayload};
-
-mod endpoint;
 mod error;
 mod msg_sync;
 mod notify_client;
@@ -30,290 +28,16 @@ pub mod types;
 
 use crate::{
     error::Error,
-    types::{
-        Block, BlockNumber, CesealClient, ConvertTo, Hash, Header, NotifyReq, NumberOrHex, SrSigner,
-    },
+    types::{Block, BlockNumber, CesealClient, Header, NotifyReq, SrSigner, Args, RaOption, RunningFlags, BlockSyncState},
 };
-use ces_types::{attestation::legacy::Attestation, AttestationProvider};
+use ces_types::{AttestationProvider, WorkerEndpointPayload};
 use cestory_api::{
-    blocks::{
-        self, AuthoritySet, AuthoritySetChange, BlockHeader, BlockHeaderWithChanges, HeaderToSync,
-    },
+    blocks::{self, AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync},
     crpc::{self, InitRuntimeResponse},
 };
 use clap::Parser;
 use msg_sync::{Error as MsgSyncError, Receiver, Sender};
 use notify_client::NotifyClient;
-
-#[derive(Parser, Debug)]
-#[command(
-    about = "Sync messages between ceseal and the blockchain.",
-    version,
-    author
-)]
-pub struct Args {
-    #[arg(
-        long,
-        help = "Dev mode (equivalent to `--use-dev-key --mnemonic='//Alice'`)"
-    )]
-    dev: bool,
-
-    #[arg(short = 'n', long = "no-init", help = "Should init Ceseal?")]
-    no_init: bool,
-
-    #[arg(
-        long = "no-sync",
-        help = "Don't sync Ceseal. Quit right after initialization."
-    )]
-    no_sync: bool,
-
-    #[arg(long, help = "Don't write Ceseal egress data back to Substarte.")]
-    no_msg_submit: bool,
-
-    #[arg(
-        long,
-        help = "Inject dev key (0x1) to Ceseal. Cannot be used with remote attestation enabled."
-    )]
-    use_dev_key: bool,
-
-    #[arg(
-        default_value = "",
-        long = "inject-key",
-        help = "Inject key to Ceseal."
-    )]
-    inject_key: String,
-
-    #[arg(
-        default_value = "ws://localhost:9944",
-        long,
-        help = "Substrate chain rpc websocket endpoint"
-    )]
-    chain_ws_endpoint: String,
-
-    #[arg(
-        default_value = "http://localhost:8000",
-        long,
-        help = "The http endpoint to access Ceseal's internal service"
-    )]
-    internal_endpoint: String,
-
-    #[arg(
-        long,
-        help = "The http endpoint where Ceseal provides services to the outside world"
-    )]
-    public_endpoint: Option<String>,
-
-    #[arg(
-        long,
-        help = "Ceseal http endpoint to handover the key. The handover will only happen when the old Ceseal is synced."
-    )]
-    next_ceseal_endpoint: Option<String>,
-
-    #[arg(default_value = "", long, help = "notify endpoint")]
-    notify_endpoint: String,
-
-    #[arg(
-        default_value = "//Alice",
-        short = 'm',
-        long = "mnemonic",
-        help = "Controller SR25519 private key mnemonic, private key seed, or derive path"
-    )]
-    mnemonic: String,
-
-    #[arg(
-        default_value = "1000",
-        long = "fetch-blocks",
-        help = "The batch size to fetch blocks from Substrate."
-    )]
-    fetch_blocks: u32,
-
-    #[arg(
-        default_value = "4",
-        long = "sync-blocks",
-        help = "The batch size to sync blocks to Ceseal."
-    )]
-    sync_blocks: BlockNumber,
-
-    #[arg(
-        long = "operator",
-        help = "The operator account to set the miner for the worker."
-    )]
-    operator: Option<String>,
-
-    #[arg(
-        long,
-        help = "The first parent header to be synced, default to auto-determine"
-    )]
-    start_header: Option<BlockNumber>,
-
-    #[arg(long, help = "Don't wait the substrate nodes to sync blocks")]
-    no_wait: bool,
-
-    #[arg(
-        default_value = "5000",
-        long,
-        help = "(Debug only) Set the wait block duration in ms"
-    )]
-    dev_wait_block_ms: u64,
-
-    #[arg(
-        default_value = "0",
-        long,
-        help = "The charge transaction payment, unit: balance"
-    )]
-    tip: u128,
-
-    #[arg(
-        default_value = "4",
-        long,
-        help = "The transaction longevity, should be a power of two between 4 and 65536. unit: block"
-    )]
-    longevity: u64,
-
-    #[arg(
-        default_value = "200",
-        long,
-        help = "Max number of messages to be submitted per-round"
-    )]
-    max_sync_msgs_per_round: u64,
-
-    #[arg(long, help = "Auto restart self after an error occurred")]
-    auto_restart: bool,
-
-    #[arg(
-        default_value = "10",
-        long,
-        help = "Max auto restart retries if it continiously failing. Only used with --auto-restart"
-    )]
-    max_restart_retries: u32,
-
-    #[arg(long, help = "Restart if number of rpc errors reaches the threshold")]
-    restart_on_rpc_error_threshold: Option<u64>,
-
-    #[arg(long, help = "Stop when synced to given block")]
-    #[arg(default_value_t = BlockNumber::MAX)]
-    to_block: BlockNumber,
-
-    /// Attestation provider
-    #[arg(long, value_enum, default_value_t = RaOption::Ias)]
-    attestation_provider: RaOption,
-
-    /// Try to load chain state from the latest block that the worker haven't registered at.
-    #[arg(long)]
-    fast_sync: bool,
-
-    /// The prefered block to load the genesis state from.
-    #[arg(long)]
-    prefer_genesis_at_block: Option<BlockNumber>,
-
-    /// Load handover proof after blocks synced.
-    #[arg(long)]
-    load_handover_proof: bool,
-}
-
-#[derive(clap::ValueEnum, Clone, Copy, Debug)]
-enum RaOption {
-    None,
-    Ias,
-}
-
-impl From<RaOption> for Option<AttestationProvider> {
-    fn from(other: RaOption) -> Self {
-        match other {
-            RaOption::None => None,
-            RaOption::Ias => Some(AttestationProvider::Ias),
-        }
-    }
-}
-
-struct RunningFlags {
-    worker_register_sent: bool,
-    endpoint_registered: bool,
-    master_key_apply_sent: bool,
-    restart_failure_count: u32,
-}
-
-pub struct BlockSyncState {
-    pub blocks: Vec<Block>,
-    /// Tracks the latest known authority set id at a certain block.
-    pub authory_set_state: Option<(BlockNumber, SetId)>,
-}
-
-pub async fn get_header_hash(client: &ChainApi, h: Option<u32>) -> Result<Hash> {
-    let pos = h.map(|h| NumberOrHex::Number(h.into()));
-    let hash = match pos {
-        Some(_) => client
-            .rpc()
-            .chain_get_block_hash(pos)
-            .await?
-            .ok_or(Error::BlockHashNotFound)?,
-        None => client.rpc().chain_get_finalized_head().await?,
-    };
-    Ok(hash)
-}
-
-pub async fn get_block_at(client: &ChainApi, h: Option<u32>) -> Result<(Block, Hash)> {
-    let hash = get_header_hash(client, h).await?;
-    let block = client
-        .rpc()
-        .chain_get_block(Some(hash))
-        .await?
-        .ok_or(Error::BlockNotFound)?;
-
-    Ok((block.convert_to(), hash))
-}
-
-pub async fn get_header_at(client: &ChainApi, h: Option<u32>) -> Result<(Header, Hash)> {
-    let hash = get_header_hash(client, h).await?;
-    let header = client
-        .rpc()
-        .chain_get_header(Some(hash))
-        .await?
-        .ok_or(Error::BlockNotFound)?;
-
-    Ok((header.convert_to(), hash))
-}
-
-pub async fn get_block_without_storage_changes(
-    chain_api: &ChainApi,
-    h: Option<u32>,
-) -> Result<Block> {
-    let (block, hash) = get_block_at(chain_api, h).await?;
-    info!("get_block: Got block {:?} hash {}", h, hash.to_string());
-    Ok(block)
-}
-
-pub async fn fetch_storage_changes(
-    client: &ChainApi,
-    from: BlockNumber,
-    to: BlockNumber,
-) -> Result<Vec<BlockHeaderWithChanges>> {
-    log::info!("fetch_storage_changes ({from}-{to})");
-    if to < from {
-        return Ok(vec![]);
-    }
-    let from_hash = get_header_hash(client, Some(from)).await?;
-    let to_hash = get_header_hash(client, Some(to)).await?;
-    let storage_changes = chain_client::fetch_storage_changes(client, &from_hash, &to_hash)
-        .await?
-        .into_iter()
-        .enumerate()
-        .map(|(offset, storage_changes)| {
-            BlockHeaderWithChanges {
-                // Headers are synced separately. Only the `number` is used in Ceseal while syncing blocks.
-                block_header: BlockHeader {
-                    number: from + offset as BlockNumber,
-                    parent_hash: Default::default(),
-                    state_root: Default::default(),
-                    extrinsics_root: Default::default(),
-                    digest: Default::default(),
-                },
-                storage_changes,
-            }
-        })
-        .collect();
-    Ok(storage_changes)
-}
 
 pub async fn batch_sync_storage_changes(
     pr: &mut CesealClient,
@@ -338,37 +62,6 @@ pub async fn batch_sync_storage_changes(
     Ok(())
 }
 
-pub async fn get_authority_with_proof_at(
-    chain_api: &ChainApi,
-    hash: Hash,
-) -> Result<AuthoritySetChange> {
-    // Storage
-    let id_key = cesxt::dynamic::storage_key("Grandpa", "CurrentSetId");
-    // Authority set
-    let value = chain_api
-        .rpc()
-        .state_get_storage(GRANDPA_AUTHORITIES_KEY, Some(hash))
-        .await?
-        .expect("No authority key found");
-    let list: AuthorityList = VersionedAuthorityList::decode(&mut value.as_slice())
-        .expect("Failed to decode VersionedAuthorityList")
-        .into();
-
-    // Set id
-    let id = chain_api.current_set_id(Some(hash)).await?;
-    // Proof
-    let proof = chain_client::read_proofs(
-        chain_api,
-        Some(hash),
-        vec![GRANDPA_AUTHORITIES_KEY, &id_key],
-    )
-    .await?;
-    Ok(AuthoritySetChange {
-        authority_set: AuthoritySet { list, id },
-        authority_proof: proof,
-    })
-}
-
 async fn try_load_handover_proof(pr: &mut CesealClient, chain_api: &ChainApi) -> Result<()> {
     let info = pr.get_info(()).await?.into_inner();
     if info.safe_mode_level < 2 {
@@ -378,7 +71,7 @@ async fn try_load_handover_proof(pr: &mut CesealClient, chain_api: &ChainApi) ->
         return Ok(());
     }
     let current_block = info.blocknum - 1;
-    let hash = get_header_hash(chain_api, Some(current_block)).await?;
+    let hash = chain_client::get_header_hash(chain_api, Some(current_block)).await?;
     let proof = chain_client::read_proofs(
         chain_api,
         Some(hash),
@@ -581,8 +274,9 @@ async fn batch_sync_block(
         let mut authrotiy_change: Option<AuthoritySetChange> = None;
         if let Some(change_at) = set_id_change_at {
             if change_at == last_header_number {
-                authrotiy_change =
-                    Some(get_authority_with_proof_at(chain_api, last_header_hash).await?);
+                authrotiy_change = Some(
+                    chain_client::get_authority_with_proof_at(chain_api, last_header_hash).await?,
+                );
             }
         }
 
@@ -621,6 +315,7 @@ async fn batch_sync_block(
     Ok(synced_blocks)
 }
 
+const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
 #[allow(clippy::too_many_arguments)]
 async fn init_runtime(
     chain_api: &ChainApi,
@@ -632,13 +327,15 @@ async fn init_runtime(
     start_header: BlockNumber,
 ) -> Result<InitRuntimeResponse> {
     let genesis_info = {
-        let genesis_block = get_block_at(chain_api, Some(start_header)).await?.0.block;
-        let hash = chain_api
-            .rpc()
-            .chain_get_block_hash(Some(NumberOrHex::Number(start_header as _)))
+        let genesis_block = chain_client::get_block_at(chain_api, Some(start_header))
             .await?
+            .0
+            .block;
+        let genesis_block_hash = chain_client::get_header_hash(chain_api, Some(start_header))
+            .await
             .expect("No genesis block?");
-        let set_proof = get_authority_with_proof_at(chain_api, hash).await?;
+        let set_proof =
+            chain_client::get_authority_with_proof_at(chain_api, genesis_block_hash).await?;
         blocks::GenesisBlockInfo {
             block_header: genesis_block.header.clone(),
             authority_set: set_proof.authority_set,
@@ -672,65 +369,6 @@ async fn init_runtime(
     Ok(resp.into_inner())
 }
 
-async fn register_worker(
-    chain_api: &ChainApi,
-    encoded_runtime_info: Vec<u8>,
-    attestation: crpc::Attestation,
-    signer: &mut SrSigner,
-    args: &Args,
-) -> Result<()> {
-    chain_client::update_signer_nonce(chain_api, signer).await?;
-    let latest_block = chain_api.blocks().at_latest().await?;
-    let tx_params = Params::new()
-        .tip(args.tip)
-        .mortal(latest_block.header(), args.longevity)
-        .build();
-    debug!(
-        "tx mortal: (from: {:?}, for_blocks: {:?})",
-        latest_block.header().number,
-        args.longevity
-    );
-    let v2 = attestation.payload.is_none();
-    debug!("attestation: {attestation:?}, v2: {v2:?}");
-    let attestation = match attestation.payload {
-        Some(payload) => Attestation::SgxIas {
-            ra_report: payload.report.as_bytes().to_vec(),
-            signature: payload.signature,
-            raw_signing_cert: payload.signing_cert,
-        }
-        .encode(),
-        None => attestation.encoded_report,
-    };
-    debug!("encoded attestation: {}", hex::encode(&attestation));
-    let tx = cesxt::dynamic::tx::register_worker(encoded_runtime_info, attestation, v2);
-
-    let encoded_call_data = tx
-        .encode_call_data(&chain_api.metadata())
-        .expect("should encoded");
-    debug!("register_worker call: 0x{}", hex::encode(encoded_call_data));
-
-    let ret = chain_api
-        .tx()
-        .create_signed_with_nonce(&tx, &signer.signer, signer.nonce(), tx_params)?
-        .submit_and_watch()
-        .await;
-    if ret.is_err() {
-        error!("FailedToCallRegisterWorker: {:?}", ret);
-        return Err(anyhow!(Error::FailedToCallRegisterWorker));
-    }
-    match ret.unwrap().wait_for_finalized_success().await {
-        Ok(e) => {
-            info!("Tee registration successful in block hash:{:?}, and the transaction hash is :{:?}",e.block_hash(),e.extrinsic_hash())
-        },
-        Err(e) => {
-            error!("Tee registration transaction has been finalized, but registration failed :{:?}",e.to_string());
-            return Err(anyhow!(Error::FailedToCallRegisterWorker));
-        },
-    };
-    signer.increment_nonce();
-    Ok(())
-}
-
 async fn try_register_worker(
     ceseal_client: &mut CesealClient,
     chain_client: &ChainApi,
@@ -744,7 +382,7 @@ async fn try_register_worker(
         .into_inner();
     if let Some(attestation) = info.attestation {
         info!("Registering worker...");
-        register_worker(
+        tx::register_worker(
             chain_client,
             info.encoded_runtime_info,
             attestation,
@@ -786,22 +424,73 @@ async fn try_load_chain_state(
     Ok(())
 }
 
-const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
-
-async fn wait_until_synced(client: &ChainApi) -> Result<()> {
-    loop {
-        let state = client.extra_rpc().system_sync_state().await?;
-        info!(
-            "Checking synced: current={} highest={:?}",
-            state.current_block, state.highest_block
-        );
-        if let Some(highest) = state.highest_block {
-            if highest - state.current_block <= 8 {
-                return Ok(());
+pub async fn try_update_worker_endpoint(
+    cc: &mut CesealClient,
+    para_api: &ChainApi,
+    signer: &mut SrSigner,
+    args: &Args,
+) -> Result<bool> {
+    let mut info = cc.get_endpoint_info(()).await?.into_inner();
+    let encoded_endpoint_payload = match info.encoded_endpoint_payload {
+        None => {
+            // set endpoint if public_endpoint arg configed
+            if let Some(endpoint) = args.public_endpoint.clone() {
+                match cc
+                    .set_endpoint(Request::new(crpc::SetEndpointRequest::new(endpoint)))
+                    .await
+                {
+                    Ok(resp) => {
+                        let response = resp.into_inner();
+                        info.signature = response.signature;
+                        response
+                            .encoded_endpoint_payload
+                            .ok_or(anyhow!("BUG: can't be None"))?
+                    }
+                    Err(e) => {
+                        error!("call ceseal.set_endpoint() response error: {:?}", e);
+                        return Ok(false);
+                    }
+                }
+            } else {
+                return Ok(false);
             }
         }
-        sleep(Duration::from_secs(5)).await;
-    }
+        Some(payload) => {
+            // update endpoint if the public_endpoint arg changed
+            let former: WorkerEndpointPayload =
+                Decode::decode(&mut &payload[..]).context("decode payload error")?;
+            match args.public_endpoint.clone() {
+                Some(endpoint) => {
+                    if former.endpoint != Some(endpoint.clone()) || former.endpoint.is_none() {
+                        match cc
+                            .set_endpoint(Request::new(crpc::SetEndpointRequest::new(endpoint)))
+                            .await
+                        {
+                            Ok(resp) => resp
+                                .into_inner()
+                                .encoded_endpoint_payload
+                                .ok_or(anyhow!("BUG: can't be None"))?,
+                            Err(e) => {
+                                error!("call ceseal.set_endpoint() response error: {:?}", e);
+                                return Ok(false);
+                            }
+                        }
+                    } else {
+                        payload
+                    }
+                }
+                None => payload,
+            }
+        }
+    };
+
+    //TODO: Only update on chain if the endpoint changed
+    let signature = info
+        .signature
+        .ok_or_else(|| anyhow!("No endpoint signature"))?;
+    info!("Binding worker's endpoint...");
+    tx::update_worker_endpoint(para_api, encoded_endpoint_payload, signature, signer, args)
+        .await
 }
 
 async fn bridge(
@@ -816,7 +505,7 @@ async fn bridge(
     if !args.no_wait {
         // Don't start our worker until the substrate node is synced
         info!("Waiting for chain node to sync blocks...");
-        wait_until_synced(&chain_api).await?;
+        chain_client::wait_until_synced(&chain_api).await?;
         info!("Substrate sync blocks done");
     }
 
@@ -908,7 +597,7 @@ async fn bridge(
         // Try bind worker endpoint
         if args.public_endpoint.is_some() && info.public_key().is_some() {
             // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the cifrost initialization)
-            match endpoint::try_update_worker_endpoint(&mut cc, &chain_api, &mut signer, args).await
+            match try_update_worker_endpoint(&mut cc, &chain_api, &mut signer, args).await
             {
                 Ok(registered) => {
                     flags.endpoint_registered = registered;
@@ -962,7 +651,7 @@ async fn bridge(
             .await?;
         }
 
-        let latest_block = get_block_at(&chain_api, None).await?.0.block;
+        let latest_block = chain_client::get_block_at(&chain_api, None).await?.0.block;
         // remove the blocks not needed in the buffer. info.blocknum is the next required block
         while let Some(b) = sync_state.blocks.first() {
             if b.block.header.number >= info.headernum {
@@ -992,7 +681,7 @@ async fn bridge(
         };
 
         for b in next_block..=batch_end {
-            let block = get_block_without_storage_changes(&chain_api, Some(b)).await?;
+            let (block, _) = chain_client::get_block_at(&chain_api, Some(b)).await?;
 
             if block.justifications.is_some() {
                 debug!("block with justification at: {}", block.block.header.number);
@@ -1036,7 +725,7 @@ async fn bridge(
                 && info.public_key().is_some()
             {
                 // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the cifrost initialization)
-                match endpoint::try_update_worker_endpoint(&mut cc, &chain_api, &mut signer, args)
+                match try_update_worker_endpoint(&mut cc, &chain_api, &mut signer, args)
                     .await
                 {
                     Ok(registered) => {
@@ -1195,7 +884,6 @@ async fn handover_worker_key(server: &mut CesealClient, client: &mut CesealClien
 
 async fn start_external_server(cc: &mut CesealClient) -> Result<()> {
     use cestory_api::crpc::{ExternalServerCmd, ExternalServerOperation};
-    use tonic::Request;
     cc.operate_external_server(Request::new(ExternalServerOperation {
         cmd: ExternalServerCmd::Start.into(),
     }))

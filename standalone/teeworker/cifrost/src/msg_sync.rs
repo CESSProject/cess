@@ -1,10 +1,10 @@
 use crate::{
     chain_client::{mq_next_sequence, update_signer_nonce},
-    types::{ParachainApi, CesealClient, SrSigner},
+    types::{CesealClient, SrSigner},
 };
 use anyhow::Result;
+use cesxt::{subxt::config::polkadot::PolkadotExtrinsicParamsBuilder as Params, ChainApi};
 use log::{error, info};
-use cesxt::subxt::config::polkadot::PolkadotExtrinsicParamsBuilder as Params;
 use std::time::Duration;
 
 pub use tokio::sync::mpsc::{channel, Receiver, Sender};
@@ -19,7 +19,7 @@ pub fn create_report_channel() -> (Sender<Error>, Receiver<Error>) {
 }
 
 pub async fn maybe_sync_mq_egress(
-    api: &ParachainApi,
+    api: &ChainApi,
     pr: &mut CesealClient,
     signer: &mut SrSigner,
     tip: u128,
@@ -28,7 +28,11 @@ pub async fn maybe_sync_mq_egress(
     err_report: Sender<Error>,
 ) -> Result<()> {
     // Send the query
-    let messages = pr.get_egress_messages(()).await?.into_inner().decode_messages()?;
+    let messages = pr
+        .get_egress_messages(())
+        .await?
+        .into_inner()
+        .decode_messages()?;
 
     // No pending message. We are done.
     if messages.is_empty() {
