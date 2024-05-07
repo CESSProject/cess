@@ -404,9 +404,11 @@ impl<Platform: pal::Platform> System<Platform> {
 }
 
 impl<P: pal::Platform> System<P> {
-    pub fn on_restored(&mut self, safe_mode_level: u8) -> Result<()> {
-        if safe_mode_level > 0 {
-            return Ok(())
+    pub fn on_restored(&mut self, _safe_mode_level: u8) -> Result<()> {
+        if self.keyfairy.is_some() {
+            info!("system.on_restored(), keyfairy was assigned");
+        } else {
+            warn!("system.on_restored(), keyfairy was none");
         }
         Ok(())
     }
