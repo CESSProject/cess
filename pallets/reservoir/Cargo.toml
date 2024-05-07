@@ -1,0 +1,14 @@
+[package]
+name = "pallet-reservoir"
+authors = ["CESS LAB"]
+version = "0.7.7"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/CESSProject/cess"
+description = "FRAME pallet for segment management"
+readme = "README.md"
+
+[dependencies]
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+pallet-balances = { workspace = true }
