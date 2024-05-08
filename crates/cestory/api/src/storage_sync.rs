@@ -223,7 +223,7 @@ where
 
         let changes = &block.storage_changes;
 
-        log::debug!(
+        log::trace!(
             "calc root ({}, {})",
             changes.main_storage_changes.len(),
             changes.child_storage_changes.len()
@@ -241,9 +241,9 @@ where
             });
         }
 
-        log::debug!("apply changes");
+        log::trace!("apply changes");
         storage.apply_changes(state_root, transaction);
-        log::debug!("applied");
+        log::trace!("applied");
 
         self.block_number_next += 1;
         state_roots.pop_front();
