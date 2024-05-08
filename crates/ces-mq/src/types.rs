@@ -1,3 +1,4 @@
+use alloc::string::String;
 use alloc::vec::Vec;
 use core::hash::{Hash, Hasher};
 
@@ -22,15 +23,15 @@ use serde::{Deserialize, Serialize};
 )]
 pub enum MessageOrigin {
     /// Runtime pallets (identified by pallet name)
-    #[display("Pallet(\"{}\")", "String::from_utf8_lossy(_0)")]
+    #[display("Pallet({})", String::from_utf8_lossy(_0))]
     #[serde(with = "more::scale_bytes")]
     Pallet(Vec<u8>),
     /// A ceseal worker
-    #[display("Worker({})", "hex::encode(_0)")]
+    #[display("Worker({})", hex::encode(_0))]
     #[serde(with = "more::scale_bytes")]
     Worker(sp_core::sr25519::Public),
     /// A user
-    #[display("AccountId({})", "hex::encode(_0)")]
+    #[display("AccountId({})", hex::encode(_0))]
     #[serde(with = "more::scale_bytes")]
     AccountId(AccountId),
     /// All master key holder share the same origin
@@ -60,10 +61,7 @@ impl PartialEq for MessageOrigin {
 impl MessageOrigin {
     /// Returns if the origin is located off-chain
     pub fn is_offchain(&self) -> bool {
-        matches!(
-            self,
-            Self::Worker(_) | Self::Keyfairy
-        )
+        matches!(self, Self::Worker(_) | Self::Keyfairy)
     }
 
     /// Returns if the origin is from a Pallet
