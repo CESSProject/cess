@@ -344,7 +344,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
                     report_data: [0; 64],
                     confidence_level: 0,
                 };
-                ias_fields.extend_mrenclave()
+                ias_fields.measurement_hash()
             };
             let runtime_state = cestory.runtime_state()?;
             let my_runtime_timestamp = runtime_state
@@ -358,7 +358,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
                 AttestationReport::SgxIas { ra_report, signature: _, raw_signing_cert: _ } => {
                     let (ias_fields, _) =
                         IasFields::from_ias_report(&ra_report).map_err(|_| from_display("Invalid client RA report"))?;
-                    ias_fields.extend_mrenclave()
+                    ias_fields.measurement_hash()
                 },
             };
             let req_runtime_timestamp = runtime_state
@@ -877,6 +877,25 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
                 self.args.ra_timeout,
                 self.args.ra_max_retries,
             )?;
+            {
+                let mut encoded_report = &report.encoded_report[..];
+                let report: Option<AttestationReport> = Decode::decode(&mut encoded_report)?;
+                if let Some(report) = report {
+                    match report {
+                        AttestationReport::SgxIas { ra_report, .. } => {
+                            match IasFields::from_ias_report(&ra_report[..]) {
+                                Ok((ias_fields, _)) => {
+                                    info!("measurement       :{}", hex::encode(ias_fields.measurement()));
+                                    info!("measurement hash  :{}", ias_fields.measurement_hash());
+                                },
+                                Err(e) => {
+                                    error!("deserial ias report to IasFields failed: {:?}", e);
+                                },
+                            }
+                        },
+                    }
+                }
+            }
             cached_resp.attestation = Some(report);
         }
 

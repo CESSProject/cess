@@ -1,6 +1,7 @@
 use super::{ias_quote_consts::*, Error};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
+use sp_core::H256;
 use sp_std::vec::Vec;
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
@@ -15,7 +16,7 @@ pub trait AttestationValidator {
 		user_data_hash: &[u8; 32],
 		now: u64,
 		verify_ceseal_hash: bool,
-		ceseal_bin_allowlist: Vec<Vec<u8>>,
+		ceseal_bin_allowlist: Vec<H256>,
 	) -> Result<IasFields, Error>;
 }
 
@@ -86,13 +87,12 @@ impl IasFields {
 		))
 	}
 
-	pub fn extend_mrenclave(&self) -> Vec<u8> {
-		let mut t_mrenclave = Vec::new();
-		t_mrenclave.extend_from_slice(&self.mr_enclave);
-		t_mrenclave.extend_from_slice(&self.isv_prod_id);
-		t_mrenclave.extend_from_slice(&self.isv_svn);
-		t_mrenclave.extend_from_slice(&self.mr_signer);
-		t_mrenclave
+	pub fn measurement(&self) -> Vec<u8> {
+		super::fixed_measurement(&self.mr_enclave, &self.isv_prod_id, &self.isv_svn, &self.mr_signer)
+	}
+
+	pub fn measurement_hash(&self) -> H256 {
+		super::fixed_measurement_hash(&self.measurement()[..])
 	}
 }
 
@@ -104,7 +104,7 @@ impl AttestationValidator for IasValidator {
 		user_data_hash: &[u8; 32],
 		now: u64,
 		verify_ceseal: bool,
-		ceseal_bin_allowlist: Vec<Vec<u8>>,
+		ceseal_bin_allowlist: Vec<H256>,
 	) -> Result<IasFields, Error> {
 		let fields = match attestation {
 			Attestation::SgxIas { ra_report, signature, raw_signing_cert } =>
@@ -125,7 +125,7 @@ pub fn validate_ias_report(
 	raw_signing_cert: &[u8],
 	now: u64,
 	verify_ceseal: bool,
-	ceseal_bin_allowlist: Vec<Vec<u8>>,
+	ceseal_bin_allowlist: Vec<H256>,
 ) -> Result<IasFields, Error> {
 	// Validate report
 	sgx_attestation::ias::verify_signature(report, signature, raw_signing_cert, core::time::Duration::from_secs(now))
@@ -135,7 +135,7 @@ pub fn validate_ias_report(
 
 	// Validate Ceseal
 	if verify_ceseal {
-		let t_mrenclave = ias_fields.extend_mrenclave();
+		let t_mrenclave = ias_fields.measurement_hash();
 		if !ceseal_bin_allowlist.contains(&t_mrenclave) {
 			return Err(Error::CesealRejected)
 		}

@@ -1,15 +1,15 @@
+use crate::ias;
 use anyhow::anyhow;
 use ces_allocator::StatSizeAllocator;
-use cestory_pal::{AppInfo, AppVersion, Machine, MemoryStats, MemoryUsage, Sealing, RA};
+use ces_types::AttestationProvider;
+use cestory_pal::{
+    AppInfo, AppVersion, ExtendMeasurement, Machine, MemoryStats, MemoryUsage, Sealing, RA,
+};
 use parity_scale_codec::Encode;
 use std::alloc::System;
 use std::io::ErrorKind;
 use std::time::Duration;
 use tracing::info;
-
-use crate::ias;
-
-use ces_types::AttestationProvider;
 
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub(crate) struct GraminePlatform;
@@ -75,7 +75,7 @@ impl RA for GraminePlatform {
         }
     }
 
-    fn measurement(&self) -> Option<Vec<u8>> {
+    fn mr_enclave(&self) -> Option<Vec<u8>> {
         if is_gramine() {
             sgx_api_lite::target_info()
                 .map(|info| info.mr_enclave.m.to_vec())
@@ -84,11 +84,18 @@ impl RA for GraminePlatform {
             None
         }
     }
+
+    fn extend_measurement(&self) -> Result<ExtendMeasurement, Self::Error> {
+        if is_gramine() {
+            Ok(get_extend_measurement()?.expect("must in gramine enviroment"))
+        } else {
+            Err(anyhow!("no measurement in native mode"))
+        }
+    }
 }
 
 impl Machine for GraminePlatform {
     fn machine_id(&self) -> Vec<u8> {
-        // TODO.kevin.must
         vec![]
     }
 
@@ -185,29 +192,11 @@ pub(crate) fn print_target_info() {
         println!("isv_svn          : 0x{:?}", HexFmt(em.isv_svn));
         println!("isv_prod_id      : 0x{:?}", HexFmt(em.isv_prod_id));
         println!("measurement      : 0x{:?}", HexFmt(em.measurement()));
+        println!("measurement hash : {:?}", em.measurement_hash());
     } else {
         println!("Running in Native mode");
     }
     println!("git revision: {}", env!("VERGEN_GIT_SHA"));
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExtendMeasurement {
-    pub mr_enclave: [u8; 32],
-    pub mr_signer: [u8; 32],
-    pub isv_prod_id: [u8; 2],
-    pub isv_svn: [u8; 2],
-}
-
-impl ExtendMeasurement {
-    pub fn measurement(&self) -> Vec<u8> {
-        let mut data = Vec::new();
-        data.extend_from_slice(&self.mr_enclave);
-        data.extend_from_slice(&self.isv_prod_id);
-        data.extend_from_slice(&self.isv_svn);
-        data.extend_from_slice(&self.mr_signer);
-        data
-    }
 }
 
 pub(crate) fn get_extend_measurement() -> anyhow::Result<Option<ExtendMeasurement>> {

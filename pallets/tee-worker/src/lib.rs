@@ -47,6 +47,7 @@ pub mod pallet {
 	use codec::{Decode, Encode};
 	use frame_support::dispatch::DispatchResult;
 	use scale_info::TypeInfo;
+	use sp_core::H256;
 
 	use ces_pallet_mq::MessageOriginInfo;
 	use ces_types::{
@@ -238,11 +239,11 @@ pub mod pallet {
 	/// Only ceseal within the list can register.
 	#[pallet::storage]
 	#[pallet::getter(fn ceseal_bin_allowlist)]
-	pub type CesealBinAllowList<T: Config> = StorageValue<_, Vec<Vec<u8>>, ValueQuery>;
+	pub type CesealBinAllowList<T: Config> = StorageValue<_, Vec<H256>, ValueQuery>;
 
 	/// The effective height of ceseal binary
 	#[pallet::storage]
-	pub type CesealBinAddedAt<T: Config> = StorageMap<_, Twox64Concat, Vec<u8>, BlockNumberFor<T>>;
+	pub type CesealBinAddedAt<T: Config> = StorageMap<_, Twox64Concat, H256, BlockNumberFor<T>>;
 
 	/// Mapping from worker pubkey to CESS Network identity
 	#[pallet::storage]
@@ -673,7 +674,7 @@ pub mod pallet {
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::call_index(19)]
 		#[pallet::weight({0})]
-		pub fn add_ceseal(origin: OriginFor<T>, ceseal_hash: Vec<u8>) -> DispatchResult {
+		pub fn add_ceseal(origin: OriginFor<T>, ceseal_hash: H256) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
 			let mut allowlist = CesealBinAllowList::<T>::get();
@@ -693,7 +694,7 @@ pub mod pallet {
 		/// Can only be called by `GovernanceOrigin`.
 		#[pallet::call_index(110)]
 		#[pallet::weight({0})]
-		pub fn remove_ceseal(origin: OriginFor<T>, ceseal_hash: Vec<u8>) -> DispatchResult {
+		pub fn remove_ceseal(origin: OriginFor<T>, ceseal_hash: H256) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
 			let mut allowlist = CesealBinAllowList::<T>::get();
