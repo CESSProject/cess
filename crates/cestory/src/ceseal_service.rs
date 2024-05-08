@@ -15,7 +15,7 @@ use parity_scale_codec::Error as ScaleDecodeError;
 use std::{borrow::Borrow, fmt::Debug, time::Duration};
 use thiserror::Error;
 use tonic::{Request, Response, Status};
-use tracing::{error, info};
+use tracing::{debug, error, info, trace};
 
 type RpcResult<T> = anyhow::Result<Response<T>, Status>;
 
@@ -150,9 +150,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
     async fn get_info(&self, _request: Request<()>) -> RpcResult<pb::CesealInfo> {
         let info = self.lock_ceseal(true, true)?.get_info();
         #[cfg(target_env = "gnu")]
-        info!("Got info: {:?} mallinfo: {:?}", info.debug_info(), unsafe { libc::mallinfo() });
+        trace!("Got info: {:?} mallinfo: {:?}", info.debug_info(), unsafe { libc::mallinfo() });
         #[cfg(not(target_env = "gnu"))]
-        info!("Got info: {:?}", info.debug_info());
+        trace!("Got info: {:?}", info.debug_info());
         Ok(Response::new(info))
     }
 
@@ -178,7 +178,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
         // However, now in order to avoid cloning the ceseal instance (as we do not want to use mutex on its internal
         // state), we have simply locked it. Remember to optimize here!
         let synced_to = self.lock_ceseal(false, true)?.dispatch_blocks(blocks);
-        info!("Blocks are dispatched");
         Ok(Response::new(synced_to?))
     }
 
@@ -620,7 +619,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         headers: Vec<blocks::HeaderToSync>,
         authority_set_change: Option<blocks::AuthoritySetChange>,
     ) -> CesealResult<pb::SyncedTo> {
-        info!(
+        trace!(
             range=?(
                 headers.first().map(|h| h.header.number),
                 headers.last().map(|h| h.header.number)
@@ -641,7 +640,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         &mut self,
         mut blocks: Vec<blocks::BlockHeaderWithChanges>,
     ) -> CesealResult<pb::SyncedTo> {
-        info!(
+        trace!(
             range=?(
                 blocks.first().map(|h| h.block_header.number),
                 blocks.last().map(|h| h.block_header.number)
@@ -659,7 +658,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         let safe_mode_level = self.args.safe_mode_level;
 
         for block in blocks.into_iter() {
-            info!(block = block.block_header.number, "Dispatching");
+            trace!(block = block.block_header.number, "Dispatching");
             let state = self.runtime_state()?;
             {
                 let mut chain_storage = state.chain_storage.write();
@@ -672,7 +671,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
             if safe_mode_level > 0 {
                 continue
             }
-            info!("State synced");
+            trace!("State synced");
             state.purge_mq();
             let block_number = block.block_header.number;
 
@@ -732,6 +731,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         };
         self.dev_mode = rt_data.dev_mode;
         self.trusted_sk = rt_data.trusted_sk;
+        info!("trusted_sk: {}", self.trusted_sk);
 
         self.attestation_provider = attestation_provider;
         info!("attestation_provider: {:?}", self.attestation_provider);
@@ -884,11 +884,23 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
     }
 
     fn get_egress_messages(&mut self) -> CesealResult<pb::EgressMessages> {
-        let messages: Vec<_> = self
+        use ces_mq::{MessageOrigin, SignedMessage};
+        let messages: Vec<(MessageOrigin, Vec<SignedMessage>)> = self
             .runtime_state
             .as_ref()
             .map(|state| state.send_mq.all_messages_grouped().into_iter().collect())
             .unwrap_or_default();
+        if log::log_enabled!(log::Level::Debug) {
+            for (_, msgs) in &messages {
+                for (index, SignedMessage { message, sequence, .. }) in msgs.iter().enumerate() {
+                    debug!(
+                        target: "ces_mq",
+                        "mq egress message {index} [seq: {}, sender: {}, destination: {:?}]",
+                        sequence, message.sender, message.destination
+                    );
+                }
+            }
+        }
         Ok(messages)
     }
 

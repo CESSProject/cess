@@ -33,7 +33,7 @@ use std::marker::PhantomData;
 use anyhow::Result;
 use error::JustificationError;
 use justification::GrandpaJustification;
-use log::{error, info};
+use log::{error, trace};
 use ces_serde_more as more;
 use serde::{Deserialize, Serialize};
 use storage_proof::{StorageProof, StorageProofChecker};
@@ -298,16 +298,16 @@ where
     H: Header<Hash = H256>,
 {
     {
-        info!("ancestor_hash: {}", ancestor_hash);
+        trace!("ancestor_hash: {}", ancestor_hash);
         for h in proof.iter() {
-            info!(
+            trace!(
                 "block {:?} - hash: {} parent: {}",
                 h.number(),
                 h.hash(),
                 h.parent_hash()
             );
         }
-        info!(
+        trace!(
             "child block {:?} - hash: {} parent: {}",
             child.number(),
             child.hash(),

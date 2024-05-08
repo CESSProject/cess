@@ -163,10 +163,6 @@ impl<Platform: pal::Platform> System<Platform> {
     pub fn will_process_block(&mut self, block: &mut BlockDispatchContext) {
         self.block_number = block.block_number;
         self.now_ms = block.now_ms;
-
-        // if let Some(keyfairy) = &mut self.keyfairy {
-        //     keyfairy.will_process_block(block);
-        // }
     }
 
     pub fn process_messages(&mut self, block: &mut BlockDispatchContext) {
@@ -181,16 +177,9 @@ impl<Platform: pal::Platform> System<Platform> {
                     },
             }
         }
-        // if let Some(keyfairy) = &mut self.keyfairy {
-        //     keyfairy.process_messages(block);
-        // }
     }
 
-    pub fn did_process_block(&mut self, _block: &mut BlockDispatchContext) {
-        // if let Some(keyfairy) = &mut self.keyfairy {
-        //     keyfairy.did_process_block(block);
-        // }
-    }
+    pub fn did_process_block(&mut self, _block: &mut BlockDispatchContext) {}
 
     fn process_worker_event(&mut self, _block: &BlockDispatchContext, event: &WorkerEvent) {
         match event {
@@ -215,7 +204,6 @@ impl<Platform: pal::Platform> System<Platform> {
             return
         }
 
-        info!("incoming master key launch event: {:?}", event);
         match event {
             MasterKeyLaunch::LaunchRequest(worker_pubkey, _) =>
                 self.process_master_key_launch_reqeust(block, origin, worker_pubkey),
@@ -279,7 +267,7 @@ impl<Platform: pal::Platform> System<Platform> {
 
         let master_pubkey = new_master_key.sr25519_public_key();
         // upload the master key on chain via worker egress
-        info!("upload master key {} on chain", hex::encode(master_pubkey));
+        info!("upload master pubkey: {} on chain", hex::encode(master_pubkey));
         let master_pubkey = MasterKeySubmission::MasterPubkey { master_pubkey };
         self.egress.push_message(&master_pubkey);
 
@@ -331,17 +319,16 @@ impl<Platform: pal::Platform> System<Platform> {
         }
 
         if self.identity_key.public() != event.dest {
-            debug!("ignore no self event: {:?}", event);
+            trace!("ignore DispatchMasterKeyEvent that do not belong to you");
             return Ok(())
         }
 
         if self.keyfairy.is_some() {
-            warn!("ignore master key distribution, keyfariy has already inited");
+            warn!("ignore DispatchMasterKeyEvent as the keyfariy has already inited");
             return Ok(())
         }
 
         let rsa_der = self.decrypt_key_from(&event.ecdh_pubkey, &event.encrypted_master_key, &event.iv);
-        info!("Keyfairy: successfully decrypt received master key");
         let master_key =
             CesealMasterKey::from_rsa_der(&rsa_der).context("failed build CesealMasterKey from rsa_der")?;
         master_key.seal(&self.sealing_path, &self.identity_key.0, &self.platform);
@@ -365,7 +352,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 }
 
                 if worker_pubkey == self.identity_key.public() {
-                    info!("ignore self master key apply");
+                    trace!("ignore MasterKeyApply event that you send out");
                     return
                 }
 
@@ -408,7 +395,7 @@ impl<P: pal::Platform> System<P> {
         if self.keyfairy.is_some() {
             info!("system.on_restored(), keyfairy was assigned");
         } else {
-            warn!("system.on_restored(), keyfairy was none");
+            warn!("system.on_restored(), keyfairy is not set");
         }
         Ok(())
     }
