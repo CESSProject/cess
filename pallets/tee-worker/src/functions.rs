@@ -32,7 +32,7 @@ impl<T: Config> Pallet<T> {
 		let mut weight: Weight = Weight::zero();
 
 		if let Some(first_holder) = MasterKeyFirstHolder::<T>::get() {
-			ensure!(first_holder != pbk, Error::<T>::CannotRemoveLastKeyfairy);
+			ensure!(first_holder != pbk, Error::<T>::CannotExitMasterKeyHolder);
 		}
 		weight = weight.saturating_add(T::DbWeight::get().reads(1));
 
