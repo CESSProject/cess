@@ -163,10 +163,6 @@ impl<Platform: pal::Platform> System<Platform> {
     pub fn will_process_block(&mut self, block: &mut BlockDispatchContext) {
         self.block_number = block.block_number;
         self.now_ms = block.now_ms;
-
-        // if let Some(keyfairy) = &mut self.keyfairy {
-        //     keyfairy.will_process_block(block);
-        // }
     }
 
     pub fn process_messages(&mut self, block: &mut BlockDispatchContext) {
@@ -181,16 +177,9 @@ impl<Platform: pal::Platform> System<Platform> {
                     },
             }
         }
-        // if let Some(keyfairy) = &mut self.keyfairy {
-        //     keyfairy.process_messages(block);
-        // }
     }
 
-    pub fn did_process_block(&mut self, _block: &mut BlockDispatchContext) {
-        // if let Some(keyfairy) = &mut self.keyfairy {
-        //     keyfairy.did_process_block(block);
-        // }
-    }
+    pub fn did_process_block(&mut self, _block: &mut BlockDispatchContext) {}
 
     fn process_worker_event(&mut self, _block: &BlockDispatchContext, event: &WorkerEvent) {
         match event {
