@@ -3,7 +3,13 @@
 mod types;
 
 use codec::{Decode, Encode};
-use frame_system::pallet_prelude::BlockNumberFor;
+use frame_system::{
+    ensure_signed,
+    pallet_prelude::{OriginFor, *},
+};
+use frame_support::traits::Get;
+use frame_support::pallet_prelude::*;
+
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> =
@@ -44,7 +50,7 @@ pub mod pallet {
 
     #[pallet::storage]
     #[pallet::getter(fn user_passbook)]
-    pub(super) type UserPassbook<T: Config> = StorageMap<_, Twox64Concat, AccountOf<T>, >
+    pub(super) type UserPassbook<T: Config> = StorageMap<_, Twox64Concat, AccountOf<T>>;
     
 
     #[pallet::call]
@@ -52,7 +58,20 @@ pub mod pallet {
         #[pallet::call_index(0)]
 		#[transactional]
 		#[pallet::weight(Weight::zero())]
-        pub fn 
+        pub fn filling(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
+            let sender = ensure_signed(origin)?;
+
+            return Ok(())
+        }
+
+        #[pallet::call_index(1)]
+		#[transactional]
+		#[pallet::weight(Weight::zero())]
+        pub fn store(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
+            let sender = ensure_signed(origin)?;
+
+            return Ok(())
+        }
     }
 
     // helper
