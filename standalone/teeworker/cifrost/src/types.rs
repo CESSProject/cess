@@ -190,6 +190,10 @@ pub struct Args {
     /// Load handover proof after blocks synced.
     #[arg(long)]
     pub load_handover_proof: bool,
+
+    /// Take checkpoint from Ceseal after completing the first block synchronization in Cifrost
+    #[arg(long)]
+    pub take_checkpoint: bool,
 }
 
 #[derive(clap::ValueEnum, Clone, Copy, Debug)]
@@ -212,6 +216,7 @@ pub struct RunningFlags {
     pub endpoint_registered: bool,
     pub master_key_apply_sent: bool,
     pub restart_failure_count: u32,
+    pub checkpoint_taked: bool,
 }
 
 pub struct BlockSyncState {
