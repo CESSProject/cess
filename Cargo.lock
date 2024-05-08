@@ -1741,6 +1741,7 @@ dependencies = [
  "pallet-oss",
  "pallet-preimage",
  "pallet-proxy",
+ "pallet-reservoir",
  "pallet-rrsc",
  "pallet-scheduler",
  "pallet-scheduler-credit",
@@ -7994,6 +7995,19 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "pallet-reservoir"
+version = "0.7.7"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "pallet-balances",
+ "parity-scale-codec",
+ "scale-info",
  "sp-runtime",
  "sp-std",
 ]

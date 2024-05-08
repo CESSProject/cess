@@ -443,6 +443,7 @@ pallet-cess-treasury = { path = "pallets/cess-treasury", default-features = fals
 pallet-evm-account-mapping = { path = "pallets/evm-account-mapping", default-features = false }
 pallet-file-bank = { path = "pallets/file-bank", default-features = false }
 pallet-oss = { path = "pallets/oss", default-features = false }
+pallet-reservoir = { path= "pallets/reservoir", default-features = false }
 pallet-scheduler-credit = { path = "pallets/scheduler-credit", default-features = false }
 pallet-sminer = { path = "pallets/sminer", default-features = false }
 pallet-storage-handler = { path = "pallets/storage-handler", default-features = false }

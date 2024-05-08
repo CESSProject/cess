@@ -1286,6 +1286,18 @@ impl pallet_tee_worker::Config for Runtime {
 }
 
 parameter_types! {
+	pub const ReservoirPalletId: PalletId = PalletId(*b"rsorptid");
+	pub const IdLength: u32 = 64;
+}
+
+impl pallet_reservoir::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type PalletId = ReservoirPalletId;
+	type IdLength = IdLength;
+}
+
+parameter_types! {
 	#[derive(Clone, Eq, PartialEq)]
 	pub const P2PLength: u32 = 200;
 	#[derive(Clone, Eq, PartialEq)]
@@ -1764,6 +1776,7 @@ construct_runtime!(
 		Cacher: pallet_cacher = 67,
 		CessTreasury: pallet_cess_treasury = 68,
 		CesMq: ces_pallet_mq = 69,
+		Reservoir: pallet_reservoir = 70,
 	}
 );
 
