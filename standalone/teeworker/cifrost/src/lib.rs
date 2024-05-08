@@ -784,6 +784,11 @@ async fn bridge(
                 handover_worker_key(&mut cc, &mut next_pr).await?;
             }
 
+            if !flags.checkpoint_taked && args.take_checkpoint {
+                cc.take_checkpoint(()).await?;
+                flags.checkpoint_taked = true;
+            }
+
             sleep(Duration::from_millis(args.dev_wait_block_ms)).await;
             continue;
         }
@@ -846,6 +851,7 @@ pub async fn run() {
         endpoint_registered: false,
         master_key_apply_sent: false,
         restart_failure_count: 0,
+        checkpoint_taked: false,
     };
 
     loop {

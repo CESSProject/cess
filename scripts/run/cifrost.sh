@@ -10,6 +10,10 @@ ceseal_port=$((${CESEAL_PORT:-8000} + $inst_seq))
 pub_port=$((${PUB_PORT:-19999} + $inst_seq))
 mnemonic=${MNEMONIC:-//Ferdie}
 inject_key=$(printf %064d $(($inst_seq + 1)))
+snapshot="--take-checkpoint"
+if [[ -z "${SNAPSHOT}" ]]; then
+    snapshot=
+fi
 
 bin="../cess/target/debug/cifrost"
 log_file="./target/cifrost-$inst_seq.log"
@@ -26,5 +30,6 @@ $bin \
     --mnemonic $mnemonic \
     --attestation-provider none \
     --longevity 16 \
+    $snapshot \
     --operator cXjHGCWMUM8gM9YFJUK2rqq2tiFWB4huBKWdQPkWdcXcZHhHA |&
     tee $log_file
