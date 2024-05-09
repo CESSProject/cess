@@ -885,8 +885,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
                         AttestationReport::SgxIas { ra_report, .. } => {
                             match IasFields::from_ias_report(&ra_report[..]) {
                                 Ok((ias_fields, _)) => {
-                                    info!("measurement       :{}", hex::encode(ias_fields.measurement()));
-                                    info!("measurement hash  :{}", ias_fields.measurement_hash());
+                                    info!("RA report measurement       :{}", hex::encode(ias_fields.measurement()));
+                                    info!("RA report measurement hash  :{:?}", ias_fields.measurement_hash());
                                 },
                                 Err(e) => {
                                     error!("deserial ias report to IasFields failed: {:?}", e);
