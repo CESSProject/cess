@@ -130,7 +130,14 @@ impl MessageSendQueue {
         let mut inner = self.inner.lock();
         for (k, v) in inner.iter_mut() {
             let seq = next_sequence_for(k);
+            let before_size = v.messages.len();
             v.messages.retain(|msg| msg.sequence >= seq);
+            if log::log_enabled!(target: "ces_mq", log::Level::Trace) {
+                let n = before_size - v.messages.len();
+                if n > 0 {
+                    log::trace!("purge {k} messages: {n}, by next sequence: {seq}");
+                }
+            }
         }
     }
 
