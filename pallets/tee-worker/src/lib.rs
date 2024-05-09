@@ -200,8 +200,10 @@ pub mod pallet {
 		MasterKeyMismatch,
 		MasterKeyUninitialized,
 		InvalidMasterKeyApplySigningTime,
-		/// Ceseal related
+
 		CesealAlreadyExists,
+
+		CesealBinAlreadyExists,
 		CesealBinNotFound,
 
 		CannotExitMasterKeyHolder,
@@ -682,7 +684,7 @@ pub mod pallet {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
 			let mut allowlist = CesealBinAllowList::<T>::get();
-			ensure!(!allowlist.contains(&ceseal_hash), Error::<T>::CesealAlreadyExists);
+			ensure!(!allowlist.contains(&ceseal_hash), Error::<T>::CesealBinAlreadyExists);
 
 			allowlist.push(ceseal_hash.clone());
 			CesealBinAllowList::<T>::put(allowlist);
