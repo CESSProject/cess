@@ -36,6 +36,7 @@ mod storage_ext {
     use log::error;
     use parity_scale_codec::{Decode, Error};
     use serde::{Deserialize, Serialize};
+    use sp_core::H256;
     use sp_state_machine::{Ext, OverlayedChanges};
 
     #[derive(Serialize, Deserialize, Default)]
@@ -141,7 +142,7 @@ mod storage_ext {
         }
 
         /// Return `None` if given ceseal hash is not allowed on-chain
-        pub(crate) fn get_ceseal_bin_added_at(&self, runtime_hash: &[u8]) -> Option<chain::BlockNumber> {
+        pub(crate) fn get_ceseal_bin_added_at(&self, runtime_hash: &H256) -> Option<chain::BlockNumber> {
             self.execute_with(|| pallet_tee_worker::CesealBinAddedAt::<chain::Runtime>::get(runtime_hash))
         }
 
@@ -165,14 +166,9 @@ mod storage_ext {
             self.execute_with(pallet_tee_worker::MinimumCesealVersion::<chain::Runtime>::get)
         }
 
-        pub(crate) fn is_ceseal_bin_in_whitelist(&self, measurement: &[u8]) -> bool {
+        pub(crate) fn is_ceseal_bin_in_whitelist(&self, measurement: &H256) -> bool {
             let list = self.execute_with(pallet_tee_worker::CesealBinAllowList::<chain::Runtime>::get);
-            for hash in list.iter() {
-                if hash.starts_with(measurement) {
-                    return true
-                }
-            }
-            false
+            list.contains(measurement)
         }
     }
 }

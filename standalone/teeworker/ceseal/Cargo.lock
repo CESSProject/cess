@@ -913,6 +913,7 @@ dependencies = [
  "ces-mq",
  "chrono",
  "hex",
+ "log",
  "parity-scale-codec",
  "scale-info",
  "serde",

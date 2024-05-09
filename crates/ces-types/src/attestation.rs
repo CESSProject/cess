@@ -13,6 +13,7 @@ pub mod ias_quote_consts {
 use ias_quote_consts::*;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
+use sp_core::H256;
 use sp_std::vec::Vec;
 
 #[cfg(feature = "enable_serde")]
@@ -49,7 +50,45 @@ pub enum Error {
 pub struct ConfidentialReport {
 	pub confidence_level: u8,
 	pub provider: Option<AttestationProvider>,
-	pub runtime_hash: Vec<u8>,
+	pub measurement_hash: H256,
+}
+
+fn fixed_measurement(mr_enclave: &[u8], isv_prod_id: &[u8], isv_svn: &[u8], mr_signer: &[u8]) -> Vec<u8> {
+	let mut data = Vec::new();
+	data.extend_from_slice(mr_enclave);
+	data.extend_from_slice(isv_prod_id);
+	data.extend_from_slice(isv_svn);
+	data.extend_from_slice(mr_signer);
+	data
+}
+
+#[cfg(feature = "full_crypto")]
+fn fixed_measurement_hash(data: &[u8]) -> H256 {
+	H256(sp_core::blake2_256(data))
+}
+
+#[cfg(not(feature = "full_crypto"))]
+fn fixed_measurement_hash(data: &[u8]) -> H256 {
+	log::error!("The measurement hash must be in SGX enviroment with \"full_crypto\" feature, now return zero");
+	H256::default()
+}
+
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
+pub struct ExtendMeasurement {
+	pub mr_enclave: [u8; 32],
+	pub mr_signer: [u8; 32],
+	pub isv_prod_id: [u8; 2],
+	pub isv_svn: [u8; 2],
+}
+
+impl ExtendMeasurement {
+	pub fn measurement(&self) -> Vec<u8> {
+		fixed_measurement(&self.mr_enclave, &self.isv_prod_id, &self.isv_svn, &self.mr_signer)
+	}
+
+	pub fn measurement_hash(&self) -> H256 {
+		fixed_measurement_hash(&self.measurement()[..])
+	}
 }
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
@@ -121,13 +160,12 @@ impl IasFields {
 		))
 	}
 
-	pub fn extend_mrenclave(&self) -> Vec<u8> {
-		let mut t_mrenclave = Vec::new();
-		t_mrenclave.extend_from_slice(&self.mr_enclave);
-		t_mrenclave.extend_from_slice(&self.isv_prod_id);
-		t_mrenclave.extend_from_slice(&self.isv_svn);
-		t_mrenclave.extend_from_slice(&self.mr_signer);
-		t_mrenclave
+	pub fn measurement(&self) -> Vec<u8> {
+		fixed_measurement(&self.mr_enclave, &self.isv_prod_id, &self.isv_svn, &self.mr_signer)
+	}
+
+	pub fn measurement_hash(&self) -> H256 {
+		fixed_measurement_hash(&self.measurement()[..])
 	}
 }
 
@@ -136,7 +174,7 @@ pub fn validate(
 	user_data_hash: &[u8; 32],
 	now: u64,
 	verify_ceseal_hash: bool,
-	ceseal_bin_allowlist: Vec<Vec<u8>>,
+	ceseal_bin_allowlist: Vec<H256>,
 	opt_out_enabled: bool,
 ) -> Result<ConfidentialReport, Error> {
 	match attestation {
@@ -151,7 +189,7 @@ pub fn validate(
 		),
 		None =>
 			if opt_out_enabled {
-				Ok(ConfidentialReport { provider: None, runtime_hash: Vec::new(), confidence_level: 128u8 })
+				Ok(ConfidentialReport { provider: None, measurement_hash: Default::default(), confidence_level: 128u8 })
 			} else {
 				Err(Error::NoneAttestationDisabled)
 			},
@@ -165,7 +203,7 @@ pub fn validate_ias_report(
 	raw_signing_cert: &[u8],
 	now: u64,
 	verify_ceseal_hash: bool,
-	ceseal_bin_allowlist: Vec<Vec<u8>>,
+	ceseal_bin_allowlist: Vec<H256>,
 ) -> Result<ConfidentialReport, Error> {
 	// Validate report
 	sgx_attestation::ias::verify_signature(report, signature, raw_signing_cert, core::time::Duration::from_secs(now))
@@ -174,7 +212,7 @@ pub fn validate_ias_report(
 	let (ias_fields, report_timestamp) = IasFields::from_ias_report(report)?;
 
 	// Validate Ceseal
-	let ceseal_hash = ias_fields.extend_mrenclave();
+	let ceseal_hash = ias_fields.measurement_hash();
 	if verify_ceseal_hash && !ceseal_bin_allowlist.contains(&ceseal_hash) {
 		return Err(Error::CesealRejected)
 	}
@@ -192,7 +230,7 @@ pub fn validate_ias_report(
 	// Check the following fields
 	Ok(ConfidentialReport {
 		provider: Some(AttestationProvider::Ias),
-		runtime_hash: ceseal_hash,
+		measurement_hash: ceseal_hash,
 		confidence_level: ias_fields.confidence_level,
 	})
 }

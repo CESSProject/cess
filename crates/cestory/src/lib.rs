@@ -490,8 +490,18 @@ impl<P: pal::Platform> Ceseal<P> {
         let chain_storage = &self.runtime_state.as_ref().expect("BUG: no runtime state").chain_storage.read();
         let min_version = chain_storage.minimum_ceseal_version();
 
-        let measurement = self.platform.measurement().unwrap_or_else(|| vec![0; 32]);
-        let in_whitelist = chain_storage.is_ceseal_bin_in_whitelist(&measurement);
+        let in_whitelist: bool;
+        if cfg!(feature = "verify-cesealbin") {
+            in_whitelist = match self.platform.extend_measurement() {
+                Ok(em) => chain_storage.is_ceseal_bin_in_whitelist(&em.measurement_hash()),
+                Err(_) => {
+                    warn!("The verify-cesealbin feature enabled, but not in SGX enviroment, ignore whitelist check");
+                    true
+                },
+            };
+        } else {
+            in_whitelist = true;
+        }
 
         if (ver.major, ver.minor, ver.patch) < min_version && !in_whitelist {
             error!("This ceseal is outdated. Please update to the latest version.");

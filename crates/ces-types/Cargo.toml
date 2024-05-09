@@ -7,10 +7,11 @@ edition = "2021"
 [dependencies]
 chrono = { workspace = true }
 hex = { workspace = true, features = ["alloc"] }
-serde = { workspace = true, optional = true }
-serde_json = { workspace = true, features = ["alloc"] }
+log ={ workspace = true }
 parity-scale-codec = { workspace = true, features = ["full"] }
 scale-info = { workspace = true, features = ["derive"] }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, features = ["alloc"] }
 sp-core = { workspace = true }
 sp-std = { workspace = true }
 

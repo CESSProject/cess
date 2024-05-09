@@ -20,7 +20,7 @@ const VERSION: &str = const_str::format!(
 );
 
 #[derive(Parser, Debug, Clone)]
-#[clap(about = "The CESS TEE worker app.", version, author)]
+#[clap(about = "The CESS TEE worker app.", version = VERSION, author)]
 struct Args {
     /// Number of CPU cores to be used for PODR2 thread-pool.
     #[arg(short, long)]
@@ -106,9 +106,8 @@ fn main() -> Result<()> {
     let args = Args::parse();
     match args.command {
         Some(Commands::Version) => {
-            use hex_fmt::HexFmt;
             if let Some(em) = pal_gramine::get_extend_measurement().unwrap() {
-                println!("{} {:?}", VERSION, HexFmt(em.measurement()));
+                println!("{} {:?}", VERSION, em.measurement_hash());
             } else {
                 println!("{} [No measurement in non-SGX environments]", VERSION);
             }
