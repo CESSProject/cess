@@ -671,7 +671,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
             if safe_mode_level > 0 {
                 continue
             }
-            trace!("State synced");
+            trace!(block = block.block_header.number, "chain storage synced");
             state.purge_mq();
             let block_number = block.block_header.number;
 
@@ -885,8 +885,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
                         AttestationReport::SgxIas { ra_report, .. } => {
                             match IasFields::from_ias_report(&ra_report[..]) {
                                 Ok((ias_fields, _)) => {
-                                    info!("measurement       :{}", hex::encode(ias_fields.measurement()));
-                                    info!("measurement hash  :{}", ias_fields.measurement_hash());
+                                    info!("RA report measurement       :{}", hex::encode(ias_fields.measurement()));
+                                    info!("RA report measurement hash  :{:?}", ias_fields.measurement_hash());
                                 },
                                 Err(e) => {
                                     error!("deserial ias report to IasFields failed: {:?}", e);
@@ -909,13 +909,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
             .as_ref()
             .map(|state| state.send_mq.all_messages_grouped().into_iter().collect())
             .unwrap_or_default();
-        if log::log_enabled!(log::Level::Debug) {
+        if log::log_enabled!(log::Level::Trace) && !messages.is_empty() {
             for (_, msgs) in &messages {
                 for (index, SignedMessage { message, sequence, .. }) in msgs.iter().enumerate() {
-                    debug!(
+                    trace!(
                         target: "ces_mq",
-                        "mq egress message {index} [seq: {}, sender: {}, destination: {:?}]",
-                        sequence, message.sender, message.destination
+                        "got egress message {index} [sender: {}, destination: {:?}, seq: {sequence}]",
+                        message.sender, message.destination
                     );
                 }
             }
