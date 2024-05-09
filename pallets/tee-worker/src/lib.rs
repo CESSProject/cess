@@ -150,6 +150,10 @@ pub mod pallet {
 		ValidateError,
 
 		BoundedVecError,
+
+		CesealBinAdded(H256),
+
+		CesealBinRemoved(H256),
 	}
 
 	#[pallet::error]
@@ -686,6 +690,7 @@ pub mod pallet {
 			let now = frame_system::Pallet::<T>::block_number();
 			CesealBinAddedAt::<T>::insert(&ceseal_hash, now);
 
+			Self::deposit_event(Event::<T>::CesealBinAdded(ceseal_hash));
 			Ok(())
 		}
 
@@ -705,6 +710,7 @@ pub mod pallet {
 
 			CesealBinAddedAt::<T>::remove(&ceseal_hash);
 
+			Self::deposit_event(Event::<T>::CesealBinRemoved(ceseal_hash));
 			Ok(())
 		}
 
