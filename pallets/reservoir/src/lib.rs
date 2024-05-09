@@ -46,6 +46,9 @@ pub mod pallet {
         /// Maximum length of event id
         #[pallet::constant]
         type IdLength: Get<u32>;
+        /// ongoing event cap
+        #[pallet::constant]
+        type EventLimit: Get<u32>;
     }
 
     #[pallet::event]
@@ -63,7 +66,8 @@ pub mod pallet {
         CreateEvent { id: BoundedVec<u8, T::IdLength> },
         /// Attending an event success event.
         AttendEvent { id: BoundedVec<u8, T::IdLength> },
-        
+        /// Information reported when polling and processing expiration events.
+        EventExpired { id: BoundedVec<u8, T::IdLength> },     
     }
 
     #[pallet::error]
@@ -84,6 +88,8 @@ pub mod pallet {
         IdNonExistent,
         /// The number of people in the event has reached the upper limit.
         UpperLimit,
+        /// The current user already has a borrowing bill.
+        Borrowed,
     }
 
     #[pallet::storage]
@@ -101,9 +107,30 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::getter(fn events)]
     pub(super) type Events<T: Config> = StorageMap<_, Twox64Concat, BoundedVec<u8, T::IdLength>, EventInfo<T>>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn event_expired_records)]
+    pub(super) type EventExpiredRecords<T: Config> = StorageMap<_, Twox64Concat, BlockNumberFor<T>, BoundedVec<BoundedVec<u8, T::IdLength>, T::EventLimit>, ValueQuery>;
     
     #[pallet::pallet]
 	pub struct Pallet<T>(PhantomData<T>);
+
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn on_initialize(now: BlockNumberFor<T>) -> Weight {
+            let mut weight = Weight::zero();
+
+            let list = <EventExpiredRecords<T>>::get(&now);
+            weight = weight.saturating_add(T::DbWeight::get().reads(1));
+            for id in list.iter() {
+                Events::<T>::remove(id);
+                weight = weight.saturating_add(T::DbWeight::get().writes(1));
+                Self::deposit_event( Event::<T>::EventExpired { id: id.clone() });
+            }
+
+            weight
+        }
+    }
 
     #[pallet::call]
 	impl<T: Config> Pallet<T> {
@@ -222,6 +249,14 @@ pub mod pallet {
 
             <Events<T>>::insert(&id, event_info);
 
+            let now = <frame_system::Pallet<T>>::block_number();
+            let expired = now.checked_add(&deadline).ok_or(Error::<T>::Overflow)?;
+            EventExpiredRecords::<T>::try_mutate(&expired, |list| -> DispatchResult {
+                list.try_push(id.clone()).map_err(|_| Error::<T>::BoundedVecError)?;
+
+                Ok(())
+            })?;
+
             Self::deposit_event( Event::<T>::CreateEvent { id: id });
 
             Ok(())
@@ -233,7 +268,20 @@ pub mod pallet {
             let sender = ensure_signed(origin)?;
             
             ensure!(Events::<T>::contains_key(&id), Error::<T>::IdNonExistent);
-            ensure!(!BorrowList::<T>::contains_key(&sender), Error::<T>::IdNonExistent);
+            if let Ok(borrow_info) = <BorrowList<T>>::try_get(&sender) {
+                let now = <frame_system::Pallet<T>>::block_number();
+                if now >= borrow_info.deadline && borrow_info.staking == BalanceOf::<T>::zero() {
+                    Reservoir::<T>::try_mutate(|reservoir_info| -> DispatchResult {
+                        reservoir_info.borrow_balance = reservoir_info.borrow_balance.checked_sub(&borrow_info.free).ok_or(Error::<T>::Overflow)?;
+                        reservoir_info.free_balance = reservoir_info.free_balance.checked_add(&borrow_info.free).ok_or(Error::<T>::Overflow)?;
+
+                        Ok(())
+                    })?;
+                    <BorrowList<T>>::remove(&sender);
+                } else {
+                    return Err(Error::<T>::Borrowed)?;
+                }
+            }
 
             <Events<T>>::try_mutate(&id, |event_opt| -> DispatchResult {
                 let event = event_opt.as_mut().ok_or(Error::<T>::IdNonExistent)?;
@@ -245,14 +293,23 @@ pub mod pallet {
                 event.quota = event.quota.checked_sub(1).ok_or(Error::<T>::Overflow)?;
 
                 let reservoir = T::PalletId::get().into_account_truncating();
+                let now = <frame_system::Pallet<T>>::block_number();
+                let deadline = now.checked_add(&event.borrow_period).ok_or(Error::<T>::Overflow)?;
 
                 let borrow_info = BorrowInfo::<T>{
                     free: event.unit_amount,
                     lender: reservoir,
                     staking: BalanceOf::<T>::zero(),
-                    deadline: event.borrow_period,
+                    deadline: deadline,
                 };
                 BorrowList::<T>::insert(&sender, borrow_info);
+
+                Reservoir::<T>::try_mutate(|reservoir_info| -> DispatchResult {
+                    reservoir_info.borrow_balance = reservoir_info.borrow_balance.checked_add(&event.unit_amount).ok_or(Error::<T>::Overflow)?;
+                    reservoir_info.free_balance = reservoir_info.free_balance.checked_sub(&event.unit_amount).ok_or(Error::<T>::Overflow)?;
+
+                    Ok(())
+                })?;
 
                 Ok(())
             })?;
@@ -288,17 +345,22 @@ impl<T: Config> ReservoirGate<AccountOf<T>, BalanceOf<T>> for Pallet<T> {
     fn staking(acc: &AccountOf<T>, amount: BalanceOf<T>) -> DispatchResult {
         let mut need_staking = amount;
         if let Ok(mut borrow_info) = <BorrowList<T>>::try_get(acc) {
-            if borrow_info.free >= need_staking {
-                borrow_info.free = borrow_info.free.checked_sub(&need_staking).ok_or(Error::<T>::Overflow)?;
-                borrow_info.staking = borrow_info.staking.checked_add(&need_staking).ok_or(Error::<T>::Overflow)?;
-                need_staking = BalanceOf::<T>::zero();
+            let now = <frame_system::Pallet<T>>::block_number();
+            if now < borrow_info.deadline {
+                if borrow_info.free >= need_staking {
+                    borrow_info.free = borrow_info.free.checked_sub(&need_staking).ok_or(Error::<T>::Overflow)?;
+                    borrow_info.staking = borrow_info.staking.checked_add(&need_staking).ok_or(Error::<T>::Overflow)?;
+                    need_staking = BalanceOf::<T>::zero();
+                } else {
+                    need_staking = need_staking.checked_sub(&borrow_info.free).ok_or(Error::<T>::Overflow)?;
+                    borrow_info.staking = borrow_info.staking.checked_add(&borrow_info.free).ok_or(Error::<T>::Overflow)?;
+                    borrow_info.free = BalanceOf::<T>::zero();
+                }
+    
+                <BorrowList<T>>::insert(acc, borrow_info);
             } else {
-                need_staking = need_staking.checked_sub(&borrow_info.free).ok_or(Error::<T>::Overflow)?;
-                borrow_info.staking = borrow_info.staking.checked_add(&borrow_info.free).ok_or(Error::<T>::Overflow)?;
-                borrow_info.free = BalanceOf::<T>::zero();
+                BorrowList::<T>::remove(acc);
             }
-
-            <BorrowList<T>>::insert(acc, borrow_info);
         }
 
         if need_staking != 0u32.into() {

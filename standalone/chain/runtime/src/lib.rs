@@ -1288,6 +1288,7 @@ impl pallet_tee_worker::Config for Runtime {
 parameter_types! {
 	pub const ReservoirPalletId: PalletId = PalletId(*b"rsorptid");
 	pub const IdLength: u32 = 64;
+	pub const EventLimit: u32 = 32;
 }
 
 impl pallet_reservoir::Config for Runtime {
@@ -1295,6 +1296,7 @@ impl pallet_reservoir::Config for Runtime {
 	type Currency = Balances;
 	type PalletId = ReservoirPalletId;
 	type IdLength = IdLength;
+	type EventLimit = EventLimit;
 }
 
 parameter_types! {
