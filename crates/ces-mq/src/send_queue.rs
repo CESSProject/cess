@@ -99,7 +99,13 @@ impl MessageSendQueue {
         let inner = self.inner.lock();
         inner
             .iter()
-            .map(|(k, v)| (k.clone(), v.messages.clone()))
+            .filter_map(|(k, v)| {
+                if !v.messages.is_empty() {
+                    Some((k.clone(), v.messages.clone()))
+                } else {
+                    None
+                }
+            })
             .collect()
     }
 
