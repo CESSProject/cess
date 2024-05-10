@@ -4,7 +4,6 @@ use cestory_api::{
 };
 use cesxt::Config;
 use parity_scale_codec::{Decode, Encode};
-use serde::{Deserialize, Serialize};
 use sp_runtime::{generic::SignedBlock as SpSignedBlock, Justifications, OpaqueExtrinsic};
 use subxt::backend::legacy::rpc_methods::{BlockDetails, BlockJustification};
 use tonic::transport::Channel;
@@ -89,9 +88,6 @@ pub struct Args {
         help = "Ceseal http endpoint to handover the key. The handover will only happen when the old Ceseal is synced."
     )]
     pub next_ceseal_endpoint: Option<String>,
-
-    #[arg(default_value = "", long, help = "notify endpoint")]
-    pub notify_endpoint: String,
 
     #[arg(
         default_value = "//Alice",
@@ -223,16 +219,6 @@ pub struct BlockSyncState {
     pub blocks: Vec<Block>,
     /// Tracks the latest known authority set id at a certain block.
     pub authory_set_state: Option<(BlockNumber, SetId)>,
-}
-
-// API: notify
-#[derive(Serialize, Deserialize, Debug)]
-pub struct NotifyReq {
-    pub headernum: BlockNumber,
-    pub blocknum: BlockNumber,
-    pub ceseal_initialized: bool,
-    pub ceseal_new_init: bool,
-    pub initial_sync_finished: bool,
 }
 
 pub mod utils {
