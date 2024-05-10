@@ -279,6 +279,7 @@ mod test {
 			Err(Error::CesealRejected)
 		);
 
+		let m_hash = fixed_measurement_hash(&hex::decode(PRUNTIME_HASH).unwrap());
 		assert_ok!(validate_ias_report(
 			commit,
 			report,
@@ -286,7 +287,7 @@ mod test {
 			&raw_signing_cert,
 			ATTESTATION_TIMESTAMP,
 			true,
-			vec![hex::decode(PRUNTIME_HASH).unwrap()]
+			vec![m_hash]
 		));
 	}
 }
