@@ -432,41 +432,18 @@ pub mod pallet {
 				T::VerifyCeseal::get(),
 				CesealBinAllowList::<T>::get(),
 			)
-			.map_err({
-				Self::deposit_event(Event::<T>::ValidateError);
-				Into::<Error<T>>::into
-			})?;
+			.map_err(Into::<Error<T>>::into)?;
 
 			// Update the registry
 			let pubkey = ceseal_info.pubkey;
-
-			if Workers::<T>::contains_key(&pubkey) {
-				Self::deposit_event(Event::<T>::CesealAlreadyExists);
-				return Err(Error::<T>::CesealAlreadyExists)?;
-			}
+			ensure!(!Workers::<T>::contains_key(&pubkey), Error::<T>::CesealAlreadyExists);
 
 			match &ceseal_info.operator {
 				Some(acc) => {
-					let result = <pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond);
-					if result.is_err() {
-						Self::deposit_event(Event::<T>::NotBond);
-						return Err(Error::<T>::NotBond)?;
-					}
-
-					// ensure!(ceseal_info.role == WorkerRole::Verifier || ceseal_info.role == WorkerRole::Full, Error::<T>::WrongTeeType);
-					if ceseal_info.role != WorkerRole::Verifier && ceseal_info.role != WorkerRole::Full {
-						Self::deposit_event(Event::<T>::WrongTeeType);
-						return Err(Error::<T>::WrongTeeType)?;
-					}
+					<pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond)?;
+					ensure!(ceseal_info.role == WorkerRole::Verifier || ceseal_info.role == WorkerRole::Full, Error::<T>::WrongTeeType);
 				},
-
-				None => {
-					if ceseal_info.role != WorkerRole::Marker {
-						Self::deposit_event(Event::<T>::WrongTeeType);
-						return Err(Error::<T>::WrongTeeType)?;
-					}
-					// ensure!(ceseal_info.role == WorkerRole::Marker, Error::<T>::WrongTeeType)
-				},
+				None => ensure!(ceseal_info.role == WorkerRole::Marker, Error::<T>::WrongTeeType),
 			};
 
 			let worker_info = WorkerInfo {
@@ -489,7 +466,7 @@ pub mod pallet {
 				ValidationTypeList::<T>::mutate(|puk_list| -> DispatchResult {
 					puk_list
 						.try_push(pubkey)
-						.map_err(|_| {Self::deposit_event(Event::<T>::BoundedVecError); Error::<T>::BoundedVecError})?;
+						.map_err(|_| Error::<T>::BoundedVecError)?;
 					Ok(())
 				})?;
 			}
@@ -529,41 +506,18 @@ pub mod pallet {
 				CesealBinAllowList::<T>::get(),
 				T::NoneAttestationEnabled::get(),
 			)
-			.map_err({
-				Self::deposit_event(Event::<T>::ValidateError);
-				Into::<Error<T>>::into
-			})?;
+			.map_err(Into::<Error<T>>::into)?;
 
 			// Update the registry
 			let pubkey = ceseal_info.pubkey;
-
-			if Workers::<T>::contains_key(&pubkey) {
-				Self::deposit_event(Event::<T>::CesealAlreadyExists);
-				return Err(Error::<T>::CesealAlreadyExists)?;
-			}
+			ensure!(!Workers::<T>::contains_key(&pubkey), Error::<T>::CesealAlreadyExists);
 
 			match &ceseal_info.operator {
 				Some(acc) => {
-					let result = <pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond);
-					if result.is_err() {
-						Self::deposit_event(Event::<T>::NotBond);
-						return Err(Error::<T>::NotBond)?;
-					}
-
-					// ensure!(ceseal_info.role == WorkerRole::Verifier || ceseal_info.role == WorkerRole::Full, Error::<T>::WrongTeeType);
-					if ceseal_info.role != WorkerRole::Verifier && ceseal_info.role != WorkerRole::Full {
-						Self::deposit_event(Event::<T>::WrongTeeType);
-						return Err(Error::<T>::WrongTeeType)?;
-					}
+					<pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond)?;
+					ensure!(ceseal_info.role == WorkerRole::Verifier || ceseal_info.role == WorkerRole::Full, Error::<T>::WrongTeeType);
 				},
-
-				None => {
-					if ceseal_info.role != WorkerRole::Marker {
-						Self::deposit_event(Event::<T>::WrongTeeType);
-						return Err(Error::<T>::WrongTeeType)?;
-					}
-					// ensure!(ceseal_info.role == WorkerRole::Marker, Error::<T>::WrongTeeType)
-				},
+				None => ensure!(ceseal_info.role == WorkerRole::Marker, Error::<T>::WrongTeeType),
 			};
 
 			let worker_info = WorkerInfo {
@@ -586,7 +540,7 @@ pub mod pallet {
 				ValidationTypeList::<T>::mutate(|puk_list| -> DispatchResult {
 					puk_list
 						.try_push(pubkey)
-						.map_err(|_| {Self::deposit_event(Event::<T>::BoundedVecError); Error::<T>::BoundedVecError})?;
+						.map_err(|_| Error::<T>::BoundedVecError)?;
 					Ok(())
 				})?;
 			}
