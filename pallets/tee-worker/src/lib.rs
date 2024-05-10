@@ -150,6 +150,10 @@ pub mod pallet {
 		ValidateError,
 
 		BoundedVecError,
+
+		CesealBinAdded(H256),
+
+		CesealBinRemoved(H256),
 	}
 
 	#[pallet::error]
@@ -196,8 +200,10 @@ pub mod pallet {
 		MasterKeyMismatch,
 		MasterKeyUninitialized,
 		InvalidMasterKeyApplySigningTime,
-		/// Ceseal related
+
 		CesealAlreadyExists,
+
+		CesealBinAlreadyExists,
 		CesealBinNotFound,
 
 		CannotExitMasterKeyHolder,
@@ -678,7 +684,7 @@ pub mod pallet {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
 			let mut allowlist = CesealBinAllowList::<T>::get();
-			ensure!(!allowlist.contains(&ceseal_hash), Error::<T>::CesealAlreadyExists);
+			ensure!(!allowlist.contains(&ceseal_hash), Error::<T>::CesealBinAlreadyExists);
 
 			allowlist.push(ceseal_hash.clone());
 			CesealBinAllowList::<T>::put(allowlist);
@@ -686,6 +692,7 @@ pub mod pallet {
 			let now = frame_system::Pallet::<T>::block_number();
 			CesealBinAddedAt::<T>::insert(&ceseal_hash, now);
 
+			Self::deposit_event(Event::<T>::CesealBinAdded(ceseal_hash));
 			Ok(())
 		}
 
@@ -705,6 +712,7 @@ pub mod pallet {
 
 			CesealBinAddedAt::<T>::remove(&ceseal_hash);
 
+			Self::deposit_event(Event::<T>::CesealBinRemoved(ceseal_hash));
 			Ok(())
 		}
 
