@@ -41,13 +41,20 @@ impl<T: Config> Pallet<T> {
 		<MinerItems<T>>::try_mutate(miner, |miner_info_opt| -> DispatchResult {
 			let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotMiner)?;
 
+			let spec_acc = T::ReservoirGate::get_reservoir_acc();
 			if miner_info.collaterals > punish_amount {
+				if miner_info.staking_account == spec_acc {
+					T::ReservoirGate::redeem(miner, punish_amount, false)?;
+				}
 				T::Currency::unreserve(&miner_info.staking_account, punish_amount);
-				T::CessTreasuryHandle::send_to_pid(miner.clone(), punish_amount)?;
+				T::CessTreasuryHandle::send_to_pid(miner_info.staking_account.clone(), punish_amount)?;
 				miner_info.collaterals = miner_info.collaterals.checked_sub(&punish_amount).ok_or(Error::<T>::Overflow)?;
 			} else {
-				T::Currency::unreserve(miner, miner_info.collaterals);
-				T::CessTreasuryHandle::send_to_pid(miner.clone(), miner_info.collaterals)?;
+				if miner_info.staking_account == spec_acc {
+					T::ReservoirGate::redeem(miner, punish_amount, false)?;
+				}
+				T::Currency::unreserve(&miner_info.staking_account, miner_info.collaterals);
+				T::CessTreasuryHandle::send_to_pid(miner_info.staking_account.clone(), miner_info.collaterals)?;
 				miner_info.collaterals = BalanceOf::<T>::zero();
 				miner_info.debt = punish_amount.checked_sub(&miner_info.collaterals).ok_or(Error::<T>::Overflow)?;
 			}
@@ -114,6 +121,10 @@ impl<T: Config> Pallet<T> {
 	// Note: that it is necessary to determine whether the state meets the exit conditions before use.
 	pub(super) fn withdraw(miner: AccountOf<T>) -> DispatchResult {
 		let miner_info = <MinerItems<T>>::try_get(&miner).map_err(|_| Error::<T>::NotMiner)?;
+		let spec_acc = T::ReservoirGate::get_reservoir_acc();
+		if miner_info.staking_account == spec_acc {
+			T::ReservoirGate::redeem(&miner, miner_info.collaterals, false)?;
+		}
 		T::Currency::unreserve(&miner_info.staking_account, miner_info.collaterals);
 		let space_proof_info = miner_info.space_proof_info.ok_or(Error::<T>::NotpositiveState)?;
 		let encoding = space_proof_info.pois_key.encode();

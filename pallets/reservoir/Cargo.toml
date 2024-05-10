@@ -1,0 +1,30 @@
+[package]
+name = "pallet-reservoir"
+authors = ["CESS LAB"]
+version = "0.7.7"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/CESSProject/cess"
+description = "FRAME pallet for segment management"
+readme = "README.md"
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive", "max-encoded-len"] }
+scale-info = { workspace = true, features = ["derive"] }
+sp-std = { workspace = true }
+sp-runtime = { workspace = true }
+
+# substrate
+frame-support = { workspace = true }
+frame-system = { workspace = true }
+pallet-balances = { workspace = true }
+
+[features]
+default = ["std"]
+std = [
+    "codec/std",
+    "scale-info/std",
+    "sp-std/std",
+    "frame-support/std",
+    "frame-system/std",
+]

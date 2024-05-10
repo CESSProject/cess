@@ -1114,6 +1114,7 @@ impl pallet_sminer::Config for Runtime {
 	type RewardPool = CessTreasury;
 	type CessTreasuryHandle = CessTreasury;
 	type MaximumRelease = MaximumRelease;
+	type ReservoirGate = Reservoir;
 }
 
 parameter_types! {
@@ -1283,6 +1284,20 @@ impl pallet_tee_worker::Config for Runtime {
     type NoneAttestationEnabled = NoneAttestationEnabled;
     type VerifyCeseal = VerifyCeseal;
     type GovernanceOrigin = EnsureRootOrHalfCouncil;
+}
+
+parameter_types! {
+	pub const ReservoirPalletId: PalletId = PalletId(*b"rsorptid");
+	pub const IdLength: u32 = 64;
+	pub const EventLimit: u32 = 32;
+}
+
+impl pallet_reservoir::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type PalletId = ReservoirPalletId;
+	type IdLength = IdLength;
+	type EventLimit = EventLimit;
 }
 
 parameter_types! {
@@ -1764,6 +1779,7 @@ construct_runtime!(
 		Cacher: pallet_cacher = 67,
 		CessTreasury: pallet_cess_treasury = 68,
 		CesMq: ces_pallet_mq = 69,
+		Reservoir: pallet_reservoir = 70,
 	}
 );
 
