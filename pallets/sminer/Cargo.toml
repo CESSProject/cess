@@ -19,6 +19,7 @@ rand_chacha = { workspace = true, optional = true }
 pallet-preimage = { workspace = true }
 
 #local crate
+pallet-reservoir = { workspace = true }
 pallet-cess-treasury = { workspace = true }
 pallet-cess-staking = { workspace = true }
 pallet-tee-worker = { workspace = true }
@@ -69,6 +70,7 @@ std = [
 	"cp-cess-common/std",
 	"pallet-cess-treasury/std",
 	"pallet-tee-worker/std",
+	"pallet-reservoir/std",
 ]
 
 runtime-benchmarks = [

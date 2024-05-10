@@ -264,7 +264,7 @@ pub mod pallet {
 
         #[pallet::call_index(5)]
         #[pallet::weight(Weight::zero())]
-        pub fn attend_evnet(origin: OriginFor<T>, id:  BoundedVec<u8, T::IdLength>) -> DispatchResult {
+        pub fn attend_evnet(origin: OriginFor<T>, id: BoundedVec<u8, T::IdLength>) -> DispatchResult {
             let sender = ensure_signed(origin)?;
             
             ensure!(Events::<T>::contains_key(&id), Error::<T>::IdNonExistent);
@@ -323,8 +323,9 @@ pub mod pallet {
 
 pub trait ReservoirGate<AccountId, Balance> {
     fn check_qualification(acc: &AccountId, amount: Balance) -> DispatchResult;
-    fn staking(acc: &AccountId, amount: Balance) -> DispatchResult;
-    fn redeem(acc: &AccountId, amount: Balance) -> DispatchResult;
+    fn staking(acc: &AccountId, amount: Balance, flag: bool) -> DispatchResult;
+    fn redeem(acc: &AccountId, amount: Balance, flag: bool) -> DispatchResult;
+    fn get_reservoir_acc() -> AccountId;
 }
 
 impl<T: Config> ReservoirGate<AccountOf<T>, BalanceOf<T>> for Pallet<T> {
@@ -342,7 +343,7 @@ impl<T: Config> ReservoirGate<AccountOf<T>, BalanceOf<T>> for Pallet<T> {
         Ok(())
     }
 
-    fn staking(acc: &AccountOf<T>, amount: BalanceOf<T>) -> DispatchResult {
+    fn staking(acc: &AccountOf<T>, amount: BalanceOf<T>, flag: bool) -> DispatchResult {
         let mut need_staking = amount;
         if let Ok(mut borrow_info) = <BorrowList<T>>::try_get(acc) {
             let now = <frame_system::Pallet<T>>::block_number();
@@ -373,12 +374,16 @@ impl<T: Config> ReservoirGate<AccountOf<T>, BalanceOf<T>> for Pallet<T> {
         }
 
         let reservoir = T::PalletId::get().into_account_truncating();
-        T::Currency::reserve(&reservoir, amount)?;
+
+        if flag {
+            T::Currency::reserve(&reservoir, amount)?;
+        }
+       
 
         Ok(())
     }
 
-    fn redeem(acc: &AccountOf<T>, amount: BalanceOf<T>) -> DispatchResult {
+    fn redeem(acc: &AccountOf<T>, amount: BalanceOf<T>, flag: bool) -> DispatchResult {
         let mut need_amount = amount;
         <UserPassbook<T>>::try_mutate(acc, |user_hold| -> DispatchResult {
             if user_hold.staking >= need_amount {
@@ -409,8 +414,16 @@ impl<T: Config> ReservoirGate<AccountOf<T>, BalanceOf<T>> for Pallet<T> {
         }
 
         let reservoir = T::PalletId::get().into_account_truncating();
-        T::Currency::unreserve(&reservoir, amount);
+
+        if flag {
+            T::Currency::unreserve(&reservoir, amount);
+        }
+
 
         Ok(())
+    }
+
+    fn get_reservoir_acc() -> AccountOf<T> {
+        T::PalletId::get().into_account_truncating()
     }
 }

@@ -1114,6 +1114,7 @@ impl pallet_sminer::Config for Runtime {
 	type RewardPool = CessTreasury;
 	type CessTreasuryHandle = CessTreasury;
 	type MaximumRelease = MaximumRelease;
+	type ReservoirGate = Reservoir;
 }
 
 parameter_types! {

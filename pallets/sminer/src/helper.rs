@@ -350,6 +350,10 @@ impl<T: Config> Pallet<T> {
 			if let Ok(reward_info) = <RewardMap<T>>::try_get(acc).map_err(|_| Error::<T>::NotExisted) {
 				// T::RewardPool::send_reward_to_miner(miner.beneficiary.clone(), reward_info.total_reward)?;
 				if reward_info.total_reward == BalanceOf::<T>::zero() {
+					let spec_acc = T::ReservoirGate::get_reservoir_acc();
+					if spec_acc == miner.staking_account {
+						T::ReservoirGate::redeem(acc, miner.collaterals, false)?;
+					}
 					T::Currency::unreserve(&miner.staking_account, miner.collaterals);
 				} else {
 					Self::calculate_miner_reward(acc)?;
@@ -361,7 +365,7 @@ impl<T: Config> Pallet<T> {
 					let exec_block = start_block.checked_add(&staking_lock_block).ok_or(Error::<T>::Overflow)?;
 					<ReturnStakingSchedule<T>>::try_mutate(&exec_block, |miner_list| -> DispatchResult {
 						miner_list
-							.try_push((miner.staking_account.clone(), miner.collaterals.clone()))
+							.try_push((acc.clone(), miner.staking_account.clone(), miner.collaterals.clone()))
 							.map_err(|_| Error::<T>::BoundedVecError)?;
 
 						Ok(())
