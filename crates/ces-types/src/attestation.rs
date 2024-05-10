@@ -68,7 +68,7 @@ fn fixed_measurement_hash(data: &[u8]) -> H256 {
 }
 
 #[cfg(not(feature = "full_crypto"))]
-fn fixed_measurement_hash(data: &[u8]) -> H256 {
+fn fixed_measurement_hash(_data: &[u8]) -> H256 {
 	log::error!("The measurement hash must be in SGX enviroment with \"full_crypto\" feature, now return zero");
 	H256::default()
 }
