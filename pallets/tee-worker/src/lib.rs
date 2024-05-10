@@ -133,6 +133,7 @@ pub mod pallet {
 			attestation_provider: Option<AttestationProvider>,
 			confidence_level: u8,
 		},
+
 		WorkerUpdated {
 			pubkey: WorkerPublicKey,
 			attestation_provider: Option<AttestationProvider>,
@@ -140,16 +141,6 @@ pub mod pallet {
 		},
 
 		MinimumCesealVersionChangedTo(u32, u32, u32),
-
-		NotBond,
-
-		WrongTeeType,
-
-		CesealAlreadyExists,
-
-		ValidateError,
-
-		BoundedVecError,
 
 		CesealBinAdded(H256),
 
@@ -288,73 +279,6 @@ pub mod pallet {
 	where
 		T: ces_pallet_mq::Config,
 	{
-		/// Update the TEE Worker MR Enclave Whitelist
-		///
-		/// This function allows the root or superuser to update the whitelist of Trusted Execution Environment (TEE)
-		/// Worker MR (Measurement and Report) Enclaves. Each MR Enclave represents a specific instance of a TEE worker.
-		/// By adding an MR Enclave to the whitelist, the user ensures that the associated TEE worker can participate in
-		/// network activities.
-		///
-		/// Parameters:
-		/// - `origin`: The origin from which the function is called, representing the user's account. Only the root
-		///   user is authorized to call this function.
-		/// - `mr_enclave`: A fixed-size array of 64 bytes representing the MR Enclave of the TEE worker to be added to
-		///   the whitelist.
-
-		/// Exit a TEE Worker from the Network
-		///
-		/// This function allows a TEE (Trusted Execution Environment) Worker to voluntarily exit from the network.
-		/// When a TEE Worker exits, it will no longer participate in network activities and will be removed from the
-		/// list of active TEE Workers.
-		///
-		/// Parameters:
-		/// - `origin`: The origin from which the function is called, representing the account of the TEE Worker. This
-		///   should be the controller account of the TEE Worker.
-		// #[pallet::call_index(2)]
-		// #[pallet::weight(Weight::zero())]
-		// pub fn exit(
-		// 	origin: OriginFor<T>,
-		// 	payload: WorkerAction,
-		// 	sig: BoundedVec<u8, ConstU32<64>>
-		// ) -> DispatchResult {
-		// 	ensure_signed(origin)?;
-
-		// 	if let WorkerAction::Exit(payload) = payload {
-		// 		ensure!(sig.len() == 64, Error::<T>::InvalidSignatureLength);
-		// 		let sig =
-		// 			sp_core::sr25519::Signature::try_from(sig.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
-		// 		let encoded_data = payload.encode();
-		// 		let data_to_sign = wrap_content_to_sign(&encoded_data, SignedContentType::EndpointInfo);
-		// 		ensure!(
-		// 			sp_io::crypto::sr25519_verify(&sig, &data_to_sign, &payload.pubkey),
-		// 			Error::<T>::InvalidSignature
-		// 		);
-
-		// 		ensure!(<Workers<T>>::count() > 1, Error::<T>::LastWorker);
-		// 		ensure!(<Workers<T>>::contains_key(&payload.pubkey), Error::<T>::WorkerNotFound);
-
-		// 		Workers::<T>::remove(&payload.pubkey);
-		// 		WorkerAddedAt::<T>::remove(&payload.pubkey);
-		// 		Endpoints::<T>::remove(&payload.pubkey);
-
-		// 		let mut keyfairys = Keyfairies::<T>::get();
-		// 		ensure!(keyfairys.len() > 1, Error::<T>::CannotRemoveLastKeyfairy);
-		// 		keyfairys.retain(|g| *g != payload.pubkey);
-		// 		Keyfairies::<T>::put(keyfairys);
-
-		// 		ensure!(
-		// 			Self::check_time_unix(&payload.signing_time),
-		// 			Error::<T>::InvalidEndpointSigningTime
-		// 		);
-
-		// 		Self::deposit_event(Event::<T>::Exit { tee: payload.pubkey });
-		// 	} else {
-		// 		return Err(Error::<T>::PayloadError)?
-		// 	}
-
-		// 	Ok(())
-		// }
-
 		/// Force register a worker with the given pubkey with sudo permission
 		///
 		/// For test only.
@@ -432,41 +356,18 @@ pub mod pallet {
 				T::VerifyCeseal::get(),
 				CesealBinAllowList::<T>::get(),
 			)
-			.map_err({
-				Self::deposit_event(Event::<T>::ValidateError);
-				Into::<Error<T>>::into
-			})?;
+			.map_err(Into::<Error<T>>::into)?;
 
 			// Update the registry
 			let pubkey = ceseal_info.pubkey;
-
-			if Workers::<T>::contains_key(&pubkey) {
-				Self::deposit_event(Event::<T>::CesealAlreadyExists);
-				return Err(Error::<T>::CesealAlreadyExists)?;
-			}
+			ensure!(!Workers::<T>::contains_key(&pubkey), Error::<T>::CesealAlreadyExists);
 
 			match &ceseal_info.operator {
 				Some(acc) => {
-					let result = <pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond);
-					if result.is_err() {
-						Self::deposit_event(Event::<T>::NotBond);
-						return Err(Error::<T>::NotBond)?;
-					}
-
-					// ensure!(ceseal_info.role == WorkerRole::Verifier || ceseal_info.role == WorkerRole::Full, Error::<T>::WrongTeeType);
-					if ceseal_info.role != WorkerRole::Verifier && ceseal_info.role != WorkerRole::Full {
-						Self::deposit_event(Event::<T>::WrongTeeType);
-						return Err(Error::<T>::WrongTeeType)?;
-					}
+					<pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond)?;
+					ensure!(ceseal_info.role == WorkerRole::Verifier || ceseal_info.role == WorkerRole::Full, Error::<T>::WrongTeeType);
 				},
-
-				None => {
-					if ceseal_info.role != WorkerRole::Marker {
-						Self::deposit_event(Event::<T>::WrongTeeType);
-						return Err(Error::<T>::WrongTeeType)?;
-					}
-					// ensure!(ceseal_info.role == WorkerRole::Marker, Error::<T>::WrongTeeType)
-				},
+				None => ensure!(ceseal_info.role == WorkerRole::Marker, Error::<T>::WrongTeeType),
 			};
 
 			let worker_info = WorkerInfo {
@@ -489,7 +390,7 @@ pub mod pallet {
 				ValidationTypeList::<T>::mutate(|puk_list| -> DispatchResult {
 					puk_list
 						.try_push(pubkey)
-						.map_err(|_| {Self::deposit_event(Event::<T>::BoundedVecError); Error::<T>::BoundedVecError})?;
+						.map_err(|_| Error::<T>::BoundedVecError)?;
 					Ok(())
 				})?;
 			}
@@ -529,41 +430,18 @@ pub mod pallet {
 				CesealBinAllowList::<T>::get(),
 				T::NoneAttestationEnabled::get(),
 			)
-			.map_err({
-				Self::deposit_event(Event::<T>::ValidateError);
-				Into::<Error<T>>::into
-			})?;
+			.map_err(Into::<Error<T>>::into)?;
 
 			// Update the registry
 			let pubkey = ceseal_info.pubkey;
-
-			if Workers::<T>::contains_key(&pubkey) {
-				Self::deposit_event(Event::<T>::CesealAlreadyExists);
-				return Err(Error::<T>::CesealAlreadyExists)?;
-			}
+			ensure!(!Workers::<T>::contains_key(&pubkey), Error::<T>::CesealAlreadyExists);
 
 			match &ceseal_info.operator {
 				Some(acc) => {
-					let result = <pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond);
-					if result.is_err() {
-						Self::deposit_event(Event::<T>::NotBond);
-						return Err(Error::<T>::NotBond)?;
-					}
-
-					// ensure!(ceseal_info.role == WorkerRole::Verifier || ceseal_info.role == WorkerRole::Full, Error::<T>::WrongTeeType);
-					if ceseal_info.role != WorkerRole::Verifier && ceseal_info.role != WorkerRole::Full {
-						Self::deposit_event(Event::<T>::WrongTeeType);
-						return Err(Error::<T>::WrongTeeType)?;
-					}
+					<pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond)?;
+					ensure!(ceseal_info.role == WorkerRole::Verifier || ceseal_info.role == WorkerRole::Full, Error::<T>::WrongTeeType);
 				},
-
-				None => {
-					if ceseal_info.role != WorkerRole::Marker {
-						Self::deposit_event(Event::<T>::WrongTeeType);
-						return Err(Error::<T>::WrongTeeType)?;
-					}
-					// ensure!(ceseal_info.role == WorkerRole::Marker, Error::<T>::WrongTeeType)
-				},
+				None => ensure!(ceseal_info.role == WorkerRole::Marker, Error::<T>::WrongTeeType),
 			};
 
 			let worker_info = WorkerInfo {
@@ -586,7 +464,7 @@ pub mod pallet {
 				ValidationTypeList::<T>::mutate(|puk_list| -> DispatchResult {
 					puk_list
 						.try_push(pubkey)
-						.map_err(|_| {Self::deposit_event(Event::<T>::BoundedVecError); Error::<T>::BoundedVecError})?;
+						.map_err(|_| Error::<T>::BoundedVecError)?;
 					Ok(())
 				})?;
 			}
