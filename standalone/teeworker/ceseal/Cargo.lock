@@ -1018,6 +1018,7 @@ dependencies = [
  "pallet-oss",
  "pallet-preimage",
  "pallet-proxy",
+ "pallet-reservoir",
  "pallet-rrsc",
  "pallet-scheduler",
  "pallet-scheduler-credit",
@@ -4474,6 +4475,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-reservoir"
+version = "0.7.7"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "pallet-balances",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-rrsc"
 version = "4.0.0-dev"
 dependencies = [
@@ -4570,6 +4584,7 @@ dependencies = [
  "pallet-cess-staking",
  "pallet-cess-treasury",
  "pallet-preimage",
+ "pallet-reservoir",
  "pallet-scheduler",
  "pallet-storage-handler",
  "pallet-tee-worker",
