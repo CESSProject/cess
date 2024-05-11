@@ -4,7 +4,6 @@ mod types;
 use types::*;
 
 mod impls;
-use impls::*;
 
 pub use pallet::*;
 
@@ -205,12 +204,11 @@ pub mod pallet {
 
         #[pallet::call_index(3)]
         #[pallet::weight(Weight::zero())]
-        pub fn event_withdraw(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
-            ensure_root(origin.clone())?;
-            let root = ensure_signed(origin)?;
+        pub fn event_withdraw(origin: OriginFor<T>, amount: BalanceOf<T>, target: AccountOf<T>) -> DispatchResult {
+            ensure_root(origin)?;
 
             let reservoir = T::PalletId::get().into_account_truncating();
-            T::Currency::transfer(&reservoir, &root, amount, KeepAlive)?;
+            T::Currency::transfer(&reservoir, &target, amount, KeepAlive)?;
 
             Reservoir::<T>::try_mutate(|reservoir| -> DispatchResult {
                 reservoir.free_balance = reservoir.free_balance.checked_sub(&amount).ok_or(Error::<T>::Overflow)?;
