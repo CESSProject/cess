@@ -44,14 +44,14 @@ impl<T: Config> Pallet<T> {
 			let spec_acc = T::ReservoirGate::get_reservoir_acc();
 			if miner_info.collaterals > punish_amount {
 				if miner_info.staking_account == spec_acc {
-					T::ReservoirGate::redeem(miner, punish_amount, false)?;
+					T::ReservoirGate::punish(miner, punish_amount, false)?;
 				}
 				T::Currency::unreserve(&miner_info.staking_account, punish_amount);
 				T::CessTreasuryHandle::send_to_pid(miner_info.staking_account.clone(), punish_amount)?;
 				miner_info.collaterals = miner_info.collaterals.checked_sub(&punish_amount).ok_or(Error::<T>::Overflow)?;
 			} else {
 				if miner_info.staking_account == spec_acc {
-					T::ReservoirGate::redeem(miner, punish_amount, false)?;
+					T::ReservoirGate::punish(miner, punish_amount, false)?;
 				}
 				T::Currency::unreserve(&miner_info.staking_account, miner_info.collaterals);
 				T::CessTreasuryHandle::send_to_pid(miner_info.staking_account.clone(), miner_info.collaterals)?;

@@ -323,6 +323,7 @@ pub trait ReservoirGate<AccountId, Balance> {
     fn check_qualification(acc: &AccountId, amount: Balance) -> DispatchResult;
     fn staking(acc: &AccountId, amount: Balance, flag: bool) -> DispatchResult;
     fn redeem(acc: &AccountId, amount: Balance, flag: bool) -> DispatchResult;
+    fn punish(acc: &AccountId, amount: Balance, flag:bool) -> DispatchResult;
     fn get_reservoir_acc() -> AccountId;
 }
 
@@ -417,6 +418,42 @@ impl<T: Config> ReservoirGate<AccountOf<T>, BalanceOf<T>> for Pallet<T> {
             T::Currency::unreserve(&reservoir, amount);
         }
 
+
+        Ok(())
+    }
+
+    fn punish(acc: &AccountOf<T>, amount: BalanceOf<T>, flag:bool) -> DispatchResult {
+        let mut need_amount = amount;
+        <UserPassbook<T>>::try_mutate(acc, |user_hold| -> DispatchResult {
+            if user_hold.staking >= need_amount {
+                user_hold.staking = user_hold.staking.checked_sub(&need_amount).ok_or(Error::<T>::Overflow)?;
+                need_amount = BalanceOf::<T>::zero();
+            } else {
+                need_amount = need_amount.checked_sub(&user_hold.staking).ok_or(Error::<T>::Overflow)?;
+                user_hold.staking = BalanceOf::<T>::zero();
+            }
+
+            Ok(())
+        })?;
+
+        if need_amount != 0u32.into() {
+            if let Ok(mut borrow_info) = <BorrowList<T>>::try_get(acc) {
+                if borrow_info.staking >= need_amount {
+                    borrow_info.staking = borrow_info.staking.checked_sub(&need_amount).ok_or(Error::<T>::Overflow)?;
+                    <BorrowList<T>>::insert(acc, borrow_info);
+                } else {
+                    return Err(Error::<T>::BugInvalid)?;
+                }
+            } else {
+                return Err(Error::<T>::BugInvalid)?;
+            }
+        }
+
+        let reservoir = T::PalletId::get().into_account_truncating();
+
+        if flag {
+            T::Currency::unreserve(&reservoir, amount);
+        }
 
         Ok(())
     }
