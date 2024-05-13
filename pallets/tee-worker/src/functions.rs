@@ -16,11 +16,13 @@ impl<T: Config> Pallet<T> {
 
 		let least = T::AtLeastWorkBlock::get();
 
-		for (pbk, last_block) in LastWork::<T>::iter() {
+		for (pubkey, last_block) in LastWork::<T>::iter() {
 			weight = weight.saturating_add(T::DbWeight::get().reads(1));
 			if last_block.saturating_add(least) < now {
-				if let Ok(temp_weight) = Self::execute_exit(pbk) {
+				if let Ok(temp_weight) = Self::execute_exit(pubkey.clone()) {
 					weight.saturating_add(temp_weight);
+					LastWork::<T>::remove(pubkey);
+					Self::deposit_event(Event::<T>::ClearInvalidTee{ pubkey });
 				}
 			}
 		}
