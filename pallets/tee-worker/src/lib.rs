@@ -140,6 +140,14 @@ pub mod pallet {
 			confidence_level: u8,
 		},
 
+		ChangeFirstHolder {
+			pubkey: WorkerPublicKey,
+		},
+
+		ClearInvalidTee {
+			pubkey: WorkerPublicKey,
+		},
+
 		MinimumCesealVersionChangedTo(u32, u32, u32),
 
 		CesealBinAdded(H256),
@@ -186,6 +194,7 @@ pub mod pallet {
 		/// master-key launch related
 		MasterKeyLaunchRequire,
 		InvalidMasterKeyFirstHolder,
+		MasterKeyFirstHolderNotFound,
 		MasterKeyAlreadyLaunched,
 		MasterKeyLaunching,
 		MasterKeyMismatch,
@@ -574,6 +583,22 @@ pub mod pallet {
 			Ok(())
 		}
 
+		
+		#[pallet::call_index(22)]
+		#[pallet::weight({0})]
+		pub fn change_first_holder(origin: OriginFor<T>, pubkey: WorkerPublicKey) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+
+			MasterKeyFirstHolder::<T>::try_mutate(|first_key_opt| -> DispatchResult {
+				let first_key = first_key_opt.as_mut().ok_or(Error::<T>::MasterKeyFirstHolderNotFound)?;
+				*first_key = pubkey;
+				Ok(())
+			})?;
+
+			Self::deposit_event(Event::<T>::ChangeFirstHolder{ pubkey });
+			Ok(())
+		}
+
 		/// Removes a ceseal binary from [`CesealBinAllowList`]
 		///
 		/// Can only be called by `GovernanceOrigin`.
@@ -622,10 +647,9 @@ pub mod pallet {
 		#[pallet::weight({0})]
 		pub fn patch_clear_invalid_tee(origin: OriginFor<T>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
-			ValidationTypeList::<T>::mutate(|puk_list| -> DispatchResult {
-				puk_list.retain(|g| Endpoints::<T>::contains_key(g));
-				Ok(())
-			})?;
+			
+			let now = <frame_system::Pallet<T>>::block_number();
+			let _ = Self::clear_mission(now);
 
 			Ok(())
 		}
