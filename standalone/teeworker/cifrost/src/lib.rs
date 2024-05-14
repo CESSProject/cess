@@ -17,6 +17,7 @@ use parity_scale_codec::Decode;
 use sp_consensus_grandpa::SetId;
 
 pub use cesxt::subxt;
+mod block_subscribe;
 mod error;
 mod msg_sync;
 mod prefetcher;
@@ -579,6 +580,8 @@ async fn bridge(
         warn!("Block sync disabled.");
         return Ok(());
     }
+
+    block_subscribe::spawn_subscriber(&chain_api, cc.clone()).await?;
 
     // Don't just sync message if we want to wait for some block
     let mut sync_state = BlockSyncState {
