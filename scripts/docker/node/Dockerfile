@@ -42,4 +42,7 @@ WORKDIR /opt/cess
 COPY --from=builder /node/target/release/cess-node .
 RUN apt-get update && apt-get install -y curl && apt-get clean -y && apt-get autoremove
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=1800s --retries=10 \
+    CMD bash -c 'printf "GET / HTTP/1.1\n\n" > /dev/tcp/127.0.0.1/9944 || exit 1'
+
 ENTRYPOINT ["./cess-node"]
