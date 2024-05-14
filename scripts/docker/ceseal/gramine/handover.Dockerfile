@@ -80,3 +80,5 @@ EXPOSE 8000
 SHELL ["/bin/bash", "-c"]
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ${CESEAL_HOME}/start.sh
+HEALTHCHECK --start-period=8s --timeout=5s \
+  CMD curl -s --fail --http2-prior-knowledge http://localhost:8000 || exit 1
