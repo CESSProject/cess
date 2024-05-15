@@ -17,6 +17,11 @@ impl<T: Config> Receptionist<T> {
                 Pallet::<T>::add_file_to_bucket(&user_brief.user, &user_brief.bucket_name, &file_hash)?;
             } else {
                 Pallet::<T>::create_bucket_helper(&user_brief.user, &user_brief.bucket_name, Some(file_hash))?;
+                crate::Pallet::deposit_event(Event::<T>::CreateBucket {
+                    operator: user_brief.user.clone(),
+                    owner: user_brief.user.clone(),
+                    bucket_name: user_brief.bucket_name.to_vec(),
+                });
             }
      
             Pallet::<T>::add_user_hold_fileslice(&user_brief.user, file_hash, needed_space)?;
