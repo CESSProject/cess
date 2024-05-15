@@ -496,7 +496,7 @@ pub mod pallet {
 
 				if miner_info.staking_account == spec_acc {
 					ensure!(sender == miner, Error::<T>::NotStakingAcc);
-					T::ReservoirGate::check_qualification(&miner_info.staking_account, collaterals)?;
+					T::ReservoirGate::check_qualification(&sender, collaterals)?;
 				}
 
 				let mut remaining = collaterals;
@@ -998,6 +998,8 @@ pub mod pallet {
 					.try_into().map_err(|_| Error::<T>::Overflow)?;
 				T::ReservoirGate::check_qualification(&sender, need_staking)?;
 				T::ReservoirGate::staking(&sender, need_staking, true)?;
+				let now = <frame_system::Pallet<T>>::block_number();
+				<StakingStartBlock<T>>::insert(&sender, now);
 			}
 
 			<MinerItems<T>>::insert(
