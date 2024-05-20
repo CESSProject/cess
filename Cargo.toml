@@ -8,6 +8,7 @@ members = [
     "pallets/mq/runtime-api",
     "standalone/chain/*",
     "standalone/teeworker/cifrost",
+    "scripts/docker/ceseal/gramine/handover",
 ]
 
 resolver = "2"
