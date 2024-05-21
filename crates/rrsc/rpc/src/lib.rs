@@ -22,15 +22,15 @@ use std::{collections::HashMap, sync::Arc};
 
 use futures::TryFutureExt;
 use jsonrpsee::{
-	core::{async_trait, Error as JsonRpseeError, RpcResult},
+	core::async_trait,
 	proc_macros::rpc,
-	types::{error::CallError, ErrorObject},
+	types::{ErrorObject, ErrorObjectOwned},
 };
 use serde::{Deserialize, Serialize};
 
 use cessc_consensus_rrsc::{authorship, RRSCWorkerHandle};
 use sc_consensus_epochs::Epoch as EpochT;
-use sc_rpc_api::DenyUnsafe;
+use sc_rpc_api::{DenyUnsafe, UnsafeRpcError};
 use sp_api::ProvideRuntimeApi;
 use sp_application_crypto::AppCrypto;
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
@@ -48,7 +48,7 @@ pub trait RRSCApi {
 	/// Returns data about which slots (primary or secondary) can be claimed in the current epoch
 	/// with the keys in the keystore.
 	#[method(name = "rrsc_epochAuthorship")]
-	async fn epoch_authorship(&self) -> RpcResult<HashMap<AuthorityId, EpochAuthorship>>;
+	async fn epoch_authorship(&self) -> Result<HashMap<AuthorityId, EpochAuthorship>, Error>;
 }
 
 /// Provides RPC methods for interacting with RRSC.
@@ -89,7 +89,7 @@ where
 	C::Api: RRSCRuntimeApi<B>,
 	SC: SelectChain<B> + Clone + 'static,
 {
-	async fn epoch_authorship(&self) -> RpcResult<HashMap<AuthorityId, EpochAuthorship>> {
+	async fn epoch_authorship(&self) -> Result<HashMap<AuthorityId, EpochAuthorship>, Error> {
 		self.deny_unsafe.check_if_safe()?;
 
 		let best_header = self.select_chain.best_chain().map_err(Error::SelectChain).await?;
@@ -147,7 +147,7 @@ where
 }
 
 /// Holds information about the `slot`'s that can be claimed by a given key.
-#[derive(Default, Debug, Deserialize, Serialize)]
+#[derive(Clone, Default, Debug, Deserialize, Serialize)]
 pub struct EpochAuthorship {
 	/// the array of primary slots that can be claimed
 	primary: Vec<u64>,
@@ -166,20 +166,26 @@ pub enum Error {
 	/// Failed to fetch epoch data.
 	#[error("Failed to fetch epoch data")]
 	FetchEpoch,
+	/// Consensus error
+	#[error(transparent)]
+	Consensus(#[from] ConsensusError),
+	/// Errors that can be formatted as a String
+	#[error("{0}")]
+	StringError(String),
+	/// Call to an unsafe RPC was denied.
+	#[error(transparent)]
+	UnsafeRpcCalled(#[from] UnsafeRpcError),
 }
 
-impl From<Error> for JsonRpseeError {
+impl From<Error> for ErrorObjectOwned {
 	fn from(error: Error) -> Self {
-		let error_code = match error {
-			Error::SelectChain(_) => 1,
-			Error::FetchEpoch => 2,
-		};
-
-		JsonRpseeError::Call(CallError::Custom(ErrorObject::owned(
-			RRSC_ERROR + error_code,
-			error.to_string(),
-			Some(format!("{:?}", error)),
-		)))
+		match error {
+			Error::SelectChain(e) => ErrorObject::owned(RRSC_ERROR + 1, e.to_string(), None::<()>),
+			Error::FetchEpoch => ErrorObject::owned(RRSC_ERROR + 2, error.to_string(), None::<()>),
+			Error::Consensus(e) => ErrorObject::owned(RRSC_ERROR + 3, e.to_string(), None::<()>),
+			Error::StringError(e) => ErrorObject::owned(RRSC_ERROR + 4, e, None::<()>),
+			Error::UnsafeRpcCalled(e) => e.into(),
+		}
 	}
 }
 
@@ -189,7 +195,7 @@ mod tests {
 	use cessc_consensus_rrsc::ImportQueueParams;
 	use sc_transaction_pool_api::{OffchainTransactionPoolFactory, RejectAllTxPool};
 	use cessp_consensus_rrsc::{inherents::InherentDataProvider, KEY_TYPE as RRSC};
-	use sp_core::{testing::TaskExecutor};
+	use sp_core::testing::TaskExecutor;
 	use sp_keyring::Sr25519Keyring;
 	use sp_keystore::{testing::MemoryKeystore, Keystore};
 	use substrate_test_runtime_client::{
@@ -214,11 +220,11 @@ mod tests {
 		let task_executor = TaskExecutor::new();
 		let keystore = create_keystore(Sr25519Keyring::Alice);
 
-		let config = sc_consensus_rrsc::configuration(&*client).expect("config available");
+		let config = cessc_consensus_rrsc::configuration(&*client).expect("config available");
 		let slot_duration = config.slot_duration();
 
 		let (block_import, link) =
-			sc_consensus_rrsc::block_import(config.clone(), client.clone(), client.clone())
+			cessc_consensus_rrsc::block_import(config.clone(), client.clone(), client.clone())
 				.expect("can initialize block-import");
 
 		let (_, rrsc_worker_handle) = cessc_consensus_rrsc::import_queue(ImportQueueParams {

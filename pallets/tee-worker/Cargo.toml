@@ -70,3 +70,4 @@ runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 ]
 native = []
+try-runtime = []

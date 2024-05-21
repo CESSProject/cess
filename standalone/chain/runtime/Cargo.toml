@@ -23,6 +23,7 @@ sp-api = { workspace = true }
 sp-authority-discovery = { workspace = true }
 sp-block-builder = { workspace = true }
 sp-core = { workspace = true }
+sp-genesis-builder = { workspace = true }
 sp-inherents = { workspace = true }
 sp-io = { workspace = true }
 sp-offchain = { workspace = true }
@@ -38,13 +39,14 @@ sp-storage = { workspace = true }
 frame-benchmarking = { workspace = true, optional = true }
 frame-election-provider-support = { workspace = true }
 frame-executive = { workspace = true }
-frame-support = { workspace = true }
+frame-support = { workspace = true, features = ["experimental"] }
 frame-system = { workspace = true }
 frame-system-benchmarking = { workspace = true, optional = true }
 frame-system-rpc-runtime-api = { workspace = true }
 frame-try-runtime = { workspace = true, optional = true }
 pallet-asset-tx-payment = { workspace = true }
 pallet-assets = { workspace = true }
+pallet-asset-rate = { workspace = true }
 pallet-authority-discovery = { workspace = true }
 pallet-authorship = { workspace = true }
 pallet-bags-list = { workspace = true }
@@ -54,7 +56,6 @@ pallet-cess-staking = { workspace = true }
 pallet-child-bounties = { workspace = true }
 pallet-collective = { workspace = true }
 pallet-contracts = { workspace = true }
-pallet-contracts-primitives = { workspace = true }
 pallet-election-provider-multi-phase = { workspace = true }
 pallet-grandpa = { workspace = true }
 pallet-im-online = { workspace = true }
@@ -74,6 +75,7 @@ pallet-timestamp = { workspace = true }
 pallet-transaction-payment = { workspace = true }
 pallet-transaction-payment-rpc-runtime-api = { workspace = true }
 pallet-treasury = { workspace = true }
+pallet-parameters = { workspace = true }
 
 # local dependencies
 cp-scheduler-credit = { workspace = true }
@@ -133,6 +135,7 @@ std = [
   "log/std",
   "pallet-asset-tx-payment/std",
   "pallet-assets/std",
+  "pallet-asset-rate/std",
   "pallet-audit/std",
   "pallet-authority-discovery/std",
   "pallet-authorship/std",
@@ -145,7 +148,6 @@ std = [
   "pallet-cess-treasury/std",
   "pallet-child-bounties/std",
   "pallet-collective/std",    
-  "pallet-contracts-primitives/std",
   "pallet-contracts/std",
   "pallet-dynamic-fee/std",
   "pallet-election-provider-multi-phase/std",
@@ -167,6 +169,7 @@ std = [
   "pallet-offences/std",
   "pallet-oss/std",
   "pallet-reservoir/std",
+  "pallet-parameters/std",
   "pallet-preimage/std",
   "pallet-proxy/std",
   "pallet-rrsc/std",

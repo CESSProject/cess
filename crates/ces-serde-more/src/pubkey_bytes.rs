@@ -7,5 +7,5 @@ pub fn serialize<S: Serializer>(data: &sr25519::Public, ser: S) -> Result<S::Ok,
 
 pub fn deserialize<'de, De: Deserializer<'de>>(der: De) -> Result<sr25519::Public, De::Error> {
     let bytes = Deserialize::deserialize(der)?;
-    Ok(sr25519::Public(bytes))
+    Ok(sr25519::Public::from_raw(bytes))
 }

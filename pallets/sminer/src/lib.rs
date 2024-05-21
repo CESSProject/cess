@@ -445,7 +445,7 @@ pub mod pallet {
 					lock_space: u128::MIN,
 					space_proof_info: Option::None,			
 					service_bloom_filter: Default::default(),
-					tee_signature: sp_core::sr25519::Signature([0u8; 64]),
+					tee_signature: Default::default(), // sp_core::sr25519::Signature([0u8; 64]),
 				},
 			);
 
@@ -1017,7 +1017,7 @@ pub mod pallet {
 					lock_space: u128::MIN,
 					space_proof_info: Option::None,	
 					service_bloom_filter: Default::default(),
-					tee_signature: sp_core::sr25519::Signature([0u8; 64]),
+					tee_signature: Default::default(), // sp_core::sr25519::Signature([0u8; 64]),
 				},
 			);
 

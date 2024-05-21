@@ -10,13 +10,11 @@ hex = { workspace = true, features = ["alloc"] }
 base64 = { workspace = true, features = ["alloc"] }
 parity-scale-codec = { workspace = true, features = ["derive"] }
 webpki = { workspace = true, features = ["alloc", "ring"] }
+rustls-pki-types = { version = "=0.2.1", default-features = false, optional = true }
 
 [dev-dependencies]
 insta = { workspace = true }
 
 [features]
 default = ["std"]
-std = [
-    "serde_json/std", 
-    "serde/std"
-]
+std = ["serde_json/std", "serde/std"]

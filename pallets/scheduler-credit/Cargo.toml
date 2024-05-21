@@ -36,3 +36,4 @@ std = [
     "cp-scheduler-credit/std",
     "cessp-consensus-rrsc/std",
 ]
+try-runtime = []
