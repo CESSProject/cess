@@ -100,7 +100,7 @@ sp-authority-discovery = { git = "https://github.com/paritytech/polkadot-sdk.git
 sp-block-builder = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.10.1", default-features = false }
 sp-blockchain = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.10.1" }
 sp-consensus = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.10.1", default-features = false }
-# sp-consensus-babe = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.10.1", default-features = false }
+sp-consensus-babe = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.10.1", default-features = false }
 sp-consensus-grandpa = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.10.1", default-features = false }
 sp-consensus-slots = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.10.1", default-features = false }
 sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.10.1", default-features = false }
@@ -162,7 +162,7 @@ pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/polkadot
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.10.1", default-features = false }
 pallet-authority-discovery = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.10.1", default-features = false }
 pallet-authorship = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.10.1", default-features = false }
-# pallet-babe = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.10.1", default-features = false }
+pallet-babe = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.10.1", default-features = false }
 pallet-bags-list = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.10.1", default-features = false }
 pallet-bounties = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.10.1", default-features = false }
 pallet-child-bounties = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.10.1", default-features = false }
@@ -465,6 +465,8 @@ cessc-consensus-rrsc-rpc = { path = "crates/rrsc/rpc" }
 cessc-sync-state-rpc = { path = "crates/rrsc/sync-state" }
 cessp-consensus-rrsc = { path = "crates/rrsc/primitives", default-features = false }
 pallet-rrsc = { path = "crates/rrsc/pallet", default-features = false }
+
+cess-node-primitives ={ path = "standalone/chain/primitives", default-features = false }
 # ---- Cess workspace crates and pallets end ----
 
 
