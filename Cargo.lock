@@ -1689,6 +1689,7 @@ name = "cess-node-runtime"
 version = "0.7.7"
 dependencies = [
  "cess-node-primitives",
+ "cessp-consensus-rrsc",
  "fp-account",
  "fp-evm",
  "fp-rpc",
@@ -1743,6 +1744,7 @@ dependencies = [
  "pallet-parameters",
  "pallet-preimage",
  "pallet-proxy",
+ "pallet-rrsc",
  "pallet-scheduler",
  "pallet-session",
  "pallet-session-benchmarking",

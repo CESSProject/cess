@@ -157,10 +157,10 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 };
 
 /// The BABE epoch configuration at genesis.
-pub const BABE_GENESIS_EPOCH_CONFIG: sp_consensus_babe::BabeEpochConfiguration =
-	sp_consensus_babe::BabeEpochConfiguration {
+pub const BABE_GENESIS_EPOCH_CONFIG: cessp_consensus_rrsc::RRSCEpochConfiguration =
+	cessp_consensus_rrsc::RRSCEpochConfiguration {
 		c: PRIMARY_PROBABILITY,
-		allowed_slots: sp_consensus_babe::AllowedSlots::PrimaryAndSecondaryPlainSlots,
+		allowed_slots: cessp_consensus_rrsc::AllowedSlots::PrimaryAndSecondaryVRFSlots,
 	};
 
 /// Native version.
@@ -390,16 +390,16 @@ parameter_types! {
 		BondingDuration::get() as u64 * SessionsPerEra::get() as u64 * EpochDuration::get();
 }
 
-impl pallet_babe::Config for Runtime {
+impl pallet_rrsc::Config for Runtime {
 	type EpochDuration = EpochDuration;
 	type ExpectedBlockTime = ExpectedBlockTime;
-	type EpochChangeTrigger = pallet_babe::ExternalTrigger;
+	type EpochChangeTrigger = pallet_rrsc::ExternalTrigger;
 	type DisabledValidators = Session;
 	type WeightInfo = ();
 	type MaxAuthorities = MaxAuthorities;
 	type MaxNominators = MaxNominators;
-	type KeyOwnerProof = <Historical as KeyOwnerProofSystem<(KeyTypeId, pallet_babe::AuthorityId)>>::Proof;
-	type EquivocationReportSystem = pallet_babe::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
+	type KeyOwnerProof = <Historical as KeyOwnerProofSystem<(KeyTypeId, pallet_rrsc::AuthorityId)>>::Proof;
+	type EquivocationReportSystem = pallet_rrsc::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
 
 parameter_types! {
@@ -1363,7 +1363,7 @@ mod runtime {
 	pub type Utility = pallet_utility;
 
 	#[runtime::pallet_index(2)]
-	pub type Babe = pallet_babe;
+	pub type Babe = pallet_rrsc;
 
 	#[runtime::pallet_index(3)]
 	pub type Timestamp = pallet_timestamp;
@@ -1582,7 +1582,7 @@ mod benches {
 	frame_benchmarking::define_benchmarks!(
 		[frame_benchmarking, BaselineBench::<Runtime>]
 		[pallet_assets, Assets]
-		[pallet_babe, Babe]
+		[pallet_rrsc, Babe]
 		[pallet_bags_list, VoterList]
 		[pallet_balances, Balances]
 		[pallet_collective, Council]
@@ -1741,10 +1741,10 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl sp_consensus_babe::BabeApi<Block> for Runtime {
-		fn configuration() -> sp_consensus_babe::BabeConfiguration {
+	impl cessp_consensus_rrsc::RRSCApi<Block> for Runtime {
+		fn configuration() -> cessp_consensus_rrsc::RRSCConfiguration {
 			let epoch_config = Babe::epoch_config().unwrap_or(BABE_GENESIS_EPOCH_CONFIG);
-			sp_consensus_babe::BabeConfiguration {
+			cessp_consensus_rrsc::RRSCConfiguration {
 				slot_duration: Babe::slot_duration(),
 				epoch_length: EpochDuration::get(),
 				c: epoch_config.c,
@@ -1754,32 +1754,32 @@ impl_runtime_apis! {
 			}
 		}
 
-		fn current_epoch_start() -> sp_consensus_babe::Slot {
+		fn current_epoch_start() -> cessp_consensus_rrsc::Slot {
 			Babe::current_epoch_start()
 		}
 
-		fn current_epoch() -> sp_consensus_babe::Epoch {
+		fn current_epoch() -> cessp_consensus_rrsc::Epoch {
 			Babe::current_epoch()
 		}
 
-		fn next_epoch() -> sp_consensus_babe::Epoch {
+		fn next_epoch() -> cessp_consensus_rrsc::Epoch {
 			Babe::next_epoch()
 		}
 
 		fn generate_key_ownership_proof(
-			_slot: sp_consensus_babe::Slot,
-			authority_id: sp_consensus_babe::AuthorityId,
-		) -> Option<sp_consensus_babe::OpaqueKeyOwnershipProof> {
+			_slot: cessp_consensus_rrsc::Slot,
+			authority_id: cessp_consensus_rrsc::AuthorityId,
+		) -> Option<cessp_consensus_rrsc::OpaqueKeyOwnershipProof> {
 			use codec::Encode;
 
-			Historical::prove((sp_consensus_babe::KEY_TYPE, authority_id))
+			Historical::prove((cessp_consensus_rrsc::KEY_TYPE, authority_id))
 				.map(|p| p.encode())
-				.map(sp_consensus_babe::OpaqueKeyOwnershipProof::new)
+				.map(cessp_consensus_rrsc::OpaqueKeyOwnershipProof::new)
 		}
 
 		fn submit_report_equivocation_unsigned_extrinsic(
-			equivocation_proof: sp_consensus_babe::EquivocationProof<<Block as BlockT>::Header>,
-			key_owner_proof: sp_consensus_babe::OpaqueKeyOwnershipProof,
+			equivocation_proof: cessp_consensus_rrsc::EquivocationProof<<Block as BlockT>::Header>,
+			key_owner_proof: cessp_consensus_rrsc::OpaqueKeyOwnershipProof,
 		) -> Option<()> {
 			let key_owner_proof = key_owner_proof.decode()?;
 
