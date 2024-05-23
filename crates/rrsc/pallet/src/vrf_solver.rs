@@ -1,24 +1,19 @@
-use frame_election_provider_support::{Assignment, NposSolver, WeightInfo as NposWeightInfo};
-use frame_support::{
-	traits::{Get, Randomness},
-	weights::Weight
-};
-use sp_std::{collections::btree_map::BTreeMap, prelude::*};
-use sp_npos_elections::{
-	ElectionResult, ExtendedBalance, IdentifierT, PerThing128, VoteWeight,
-};
-use super::{Config, ParentBlockRandomness, EpochIndex};
-use codec::{alloc::string::ToString, Decode};
+use super::{Config, EpochIndex, ParentBlockRandomness};
 use cessp_consensus_rrsc::traits::ValidatorCredits;
+use codec::{alloc::string::ToString, Decode};
+use frame_election_provider_support::{Assignment, NposSolver, WeightInfo as NposWeightInfo};
+use frame_support::{traits::Randomness, weights::Weight};
+use sp_npos_elections::{ElectionResult, ExtendedBalance, IdentifierT, PerThing128, VoteWeight};
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 pub trait VrfSloverConfig {
-
 	/// A target whose vote weight is less than `min_electable_weight` will never be elected.
 	fn min_electable_weight() -> VoteWeight;
 }
+
 /// A wrapper for elect by vrf that implements [`NposSolver`].
-pub struct VrfSolver<AccountId, Accuracy, T, Credits, SloverConfig, Balancing = ()>(
-	sp_std::marker::PhantomData<(AccountId, Accuracy, T, Credits, SloverConfig, Balancing)>,
+pub struct VrfSolver<AccountId, Accuracy, T, Credits, SloverConfig>(
+	sp_std::marker::PhantomData<(AccountId, Accuracy, T, Credits, SloverConfig)>,
 );
 
 impl<
@@ -27,8 +22,7 @@ impl<
 		T: Config,
 		Credits: ValidatorCredits<AccountId>,
 		SloverConfig: VrfSloverConfig,
-		Balancing: Get<Option<(usize, ExtendedBalance)>>,
-	> NposSolver for VrfSolver<AccountId, Accuracy, T, Credits, SloverConfig, Balancing>
+	> NposSolver for VrfSolver<AccountId, Accuracy, T, Credits, SloverConfig>
 {
 	type AccountId = AccountId;
 	type Accuracy = Accuracy;
@@ -51,7 +45,7 @@ impl<
 
 		let credits = Credits::credits(EpochIndex::<T>::get());
 		let full_credit = Credits::full_credit();
-		
+
 		let mut account_scores = winners
 			.into_iter()
 			.enumerate()
@@ -67,11 +61,12 @@ impl<
 				let random_number = Self::random_number("authorities", &account_index);
 				let random_score = random_number % full_credit;
 				// final_score = `credit_score` * 50% + `stake_score` * 30% + `random_score` * 20%
-				let final_score = credit_score.saturating_mul(5)
-							.saturating_add(stake_score.saturating_mul(3))
-							.saturating_add(random_score.saturating_mul(2))
-							.saturating_div(10);
-				
+				let final_score = credit_score
+					.saturating_mul(5)
+					.saturating_add(stake_score.saturating_mul(3))
+					.saturating_add(random_score.saturating_mul(2))
+					.saturating_div(10);
+
 				log::debug!(
 					target: "rrsc::vrf_solver",
 					"account: {:?}, credit_score: {:?}, stake_score: {:?}, random_score: {:?}, final_score: {:?}",
@@ -93,12 +88,8 @@ impl<
 			.take(to_elect)
 			.map(|e| (e.0, e.1))
 			.collect::<Vec<_>>();
-		let winner_accounts = winners
-			.clone()
-			.into_iter()
-			.map(|w| w.0)
-			.collect::<Vec<AccountId>>();
-		
+		let winner_accounts = winners.clone().into_iter().map(|w| w.0).collect::<Vec<AccountId>>();
+
 		let assignments = assignments
 			.into_iter()
 			.filter_map(|assignment| {
@@ -115,7 +106,7 @@ impl<
 				}
 			})
 			.collect::<Vec<_>>();
-		
+
 		log::debug!(target: "rrsc::vrf_solver", "[solve] winners: {:#?}", winners);
 		log::debug!(target: "rrsc::vrf_solver", "[solve] assignments: {:#?}", assignments);
 		Ok(ElectionResult { winners, assignments })
@@ -126,25 +117,25 @@ impl<
 	}
 }
 
-impl <
-AccountId: IdentifierT,
-Accuracy: PerThing128,
-T: Config,
-Credits: ValidatorCredits<AccountId>,
-SloverConfig: VrfSloverConfig,
-Balancing: Get<Option<(usize, ExtendedBalance)>>,
-> VrfSolver<AccountId, Accuracy, T, Credits, SloverConfig, Balancing> {
-	pub fn random_number(context: &str,authority_index: &usize) -> u32 {
+impl<
+		AccountId: IdentifierT,
+		Accuracy: PerThing128,
+		T: Config,
+		Credits: ValidatorCredits<AccountId>,
+		SloverConfig: VrfSloverConfig,
+	> VrfSolver<AccountId, Accuracy, T, Credits, SloverConfig>
+{
+	pub fn random_number(context: &str, authority_index: &usize) -> u32 {
 		let mut b_context = context.to_string();
 		b_context.push_str(authority_index.to_string().as_str());
 		let (hash, _) = ParentBlockRandomness::<T>::random(&b_context.as_bytes());
-		let hash = 	match hash {
-				Some(h) => h,
-				None => T::Hash::default(),
+		let hash = match hash {
+			Some(h) => h,
+			None => T::Hash::default(),
 		};
 		log::debug!(target: "rrsc::vrf_solver", "{:?} Hash: {:?}", b_context, hash);
-		let random_number = u32::decode(&mut hash.as_ref())
-								.expect("secure hashes should always be bigger than u32; qed");
+		let random_number =
+			u32::decode(&mut hash.as_ref()).expect("secure hashes should always be bigger than u32; qed");
 		random_number
 	}
 
@@ -159,11 +150,9 @@ Balancing: Get<Option<(usize, ExtendedBalance)>>,
 	) -> ElectionResult<AccountId, Accuracy> {
 		let mut candidates = BTreeMap::<AccountId, ExtendedBalance>::new();
 
-		initial_candidates
-			.into_iter()
-			.for_each(|who| {
-				candidates.insert(who, 0u128);
-			});
+		initial_candidates.into_iter().for_each(|who| {
+			candidates.insert(who, 0u128);
+		});
 
 		let assignments = initial_voters
 			.into_iter()
