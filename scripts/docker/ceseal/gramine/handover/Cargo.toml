@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 clap = { workspace = true, features = ["derive"] }
 tokio = { workspace = true, features = ["full"] }
+walkdir = { workspace = true }

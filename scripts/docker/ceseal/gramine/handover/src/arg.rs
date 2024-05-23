@@ -23,17 +23,31 @@ pub struct Args {
 
     #[arg(
         long,
-        help = "ceseal log path for detect the status of ceseal",
-        default_value = "/tmp/ceseal.log"
+        help = "ceseal home",
+        default_value = "/opt/ceseal/data"
     )]
-    pub ceseal_log_path: String,
+    pub ceseal_data_path: String,
 
     #[arg(
         long,
-        help = "the relative path where each version of ceseal stores sealed runtime_data",
-        default_value = "data/protected_files/runtime-data.seal"
+        help = "Ceseal log path for detect the status of previous ceseal",
+        default_value = "/tmp/pre_ceseal.log"
     )]
-    pub ceseal_runtime_data_seal_path: String,
+    pub previous_ceseal_log_path: String,
+
+    #[arg(
+        long,
+        help = "Ceseal log path for detect the status of new ceseal",
+        default_value = "/tmp/new_ceseal.log"
+    )]
+    pub new_ceseal_log_path: String,
+
+    #[arg(
+        long,
+        help = "The relative path where each version of ceseal stores protected files",
+        default_value = "data/protected_files"
+    )]
+    pub ceseal_protected_files_path: String,
 
     #[arg(
         long,
@@ -47,5 +61,5 @@ pub struct Args {
         help = "old ceseal start on this port",
         default_value = "1888"
     )]
-    pub previous_ceseal_port: String,
+    pub previous_ceseal_port: u64,
 }

@@ -5,7 +5,8 @@ pub enum Error {
 	StartCesealFailed(String),
     RedirectCesealLogFailed(String),
     DetectCesealRunningStatueFailed(String),
-    PreviousVersionFailed(String)
+    PreviousVersionFailed(String),
+	CopyDirectory(String)
 }
 
 impl fmt::Display for Error {
@@ -15,6 +16,7 @@ impl fmt::Display for Error {
             Error::RedirectCesealLogFailed(e) => write!(f, "{:?}", e),
             Error::DetectCesealRunningStatueFailed(e) => write!(f, "{:?}", e),
 			Error::PreviousVersionFailed(e) => write!(f, "{:?}", e),
+			Error::CopyDirectory(e) => write!(f, "{:?}", e),
 		}
 	}
 }
