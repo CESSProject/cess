@@ -8,6 +8,7 @@ members = [
     "pallets/mq/runtime-api",
     "standalone/chain/*",
     "standalone/teeworker/cifrost",
+    "scripts/docker/ceseal/gramine/handover",
 ]
 
 resolver = "2"
@@ -407,6 +408,7 @@ webpki = { git = "https://github.com/rustls/webpki", version = "=0.102.0-alpha.3
     "alloc",
     "ring",
 ], rev = "2ed9a4324f48c2c46ffdd7dc9d3eb315af25fce2" } # Release version no-std has bug
+walkdir = "2.5.0"
 # webpki = { version = "0.102.0", package = "rustls-webpki", default-features = false, features = ["alloc", "ring"] }
 # ---- Generic crates end ----
 
