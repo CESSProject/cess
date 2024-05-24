@@ -180,7 +180,8 @@ impl fp_self_contained::SelfContainedCall for RuntimeCall {
 
 #[cfg(test)]
 mod tests {
-	use super::*;
+	use crate::Runtime;
+	use super::WeightPerGas;
 
 	#[test]
 	fn configured_base_extrinsic_weight_is_evm_compatible() {
