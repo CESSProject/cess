@@ -22,8 +22,7 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limits.
 #![recursion_limit = "1024"]
 
-pub use cess_node_primitives::{AccountId, Signature};
-use cess_node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Moment, Nonce};
+use cess_node_primitives::{AccountId, AccountIndex, Balance, BlockNumber, Hash, Moment, Nonce, Signature};
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_election_provider_support::{
 	bounds::{ElectionBounds, ElectionBoundsBuilder},
@@ -41,9 +40,9 @@ use frame_support::{
 	traits::{
 		fungible::{HoldConsideration, NativeFromLeft, NativeOrWithId, UnionOf},
 		tokens::{imbalance::ResolveAssetTo, pay::PayAssetFromAccount},
-		AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU32, Currency, EitherOfDiverse,
-		EnsureOriginWithArg, EqualPrivilegeOnly, Imbalance, InstanceFilter, KeyOwnerProofSystem, LinearStoragePrice,
-		Nothing, OnFinalize, OnUnbalanced,
+		AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU32, Currency, EitherOfDiverse, EnsureOriginWithArg,
+		EqualPrivilegeOnly, Imbalance, InstanceFilter, KeyOwnerProofSystem, LinearStoragePrice, Nothing, OnFinalize,
+		OnUnbalanced,
 	},
 	weights::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_REF_TIME_PER_MILLIS},
@@ -118,6 +117,8 @@ mod voter_bags;
 pub mod assets_api;
 
 mod frontier;
+pub use frontier::TransactionConverter;
+
 mod msg_routing;
 
 // Make the WASM binary available.
@@ -485,30 +486,13 @@ impl pallet_authorship::Config for Runtime {
 	type EventHandler = (Staking, ImOnline);
 }
 
-/// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
-/// the specifics of the runtime. They can then be made to be agnostic over specific formats
-/// of data like extrinsics, allowing for them to continue syncing the network through upgrades
-/// to even the core data structures.
-pub mod opaque {
-	use super::*;
-
-	pub use sp_runtime::OpaqueExtrinsic as UncheckedExtrinsic;
-
-	/// Opaque block header type.
-	pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
-	/// Opaque block type.
-	pub type Block = generic::Block<Header, UncheckedExtrinsic>;
-	/// Opaque block identifier type.
-	pub type BlockId = generic::BlockId<Block>;
-
-	impl_opaque_keys! {
-		pub struct SessionKeys {
-			pub grandpa: Grandpa,
-			pub babe: Babe,
-			pub im_online: ImOnline,
-			pub authority_discovery: AuthorityDiscovery,
-			pub beefy: Beefy,
-		}
+impl_opaque_keys! {
+	pub struct SessionKeys {
+		pub grandpa: Grandpa,
+		pub babe: Babe,
+		pub im_online: ImOnline,
+		pub authority_discovery: AuthorityDiscovery,
+		pub beefy: Beefy,
 	}
 }
 
@@ -519,8 +503,8 @@ impl pallet_session::Config for Runtime {
 	type ShouldEndSession = Babe;
 	type NextSessionRotation = Babe;
 	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, Staking>;
-	type SessionHandler = <opaque::SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
-	type Keys = opaque::SessionKeys;
+	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
+	type Keys = SessionKeys;
 	type WeightInfo = pallet_session::weights::SubstrateWeight<Runtime>;
 }
 
@@ -1423,7 +1407,7 @@ mod runtime {
 	pub type CesMq = ces_pallet_mq;
 
 	#[runtime::pallet_index(103)]
-	pub type TeeWorker = pallet_tee_worker;	
+	pub type TeeWorker = pallet_tee_worker;
 
 	#[runtime::pallet_index(104)]
 	pub type FileBank = pallet_file_bank;
@@ -2194,13 +2178,13 @@ impl_runtime_apis! {
 
 	impl sp_session::SessionKeys<Block> for Runtime {
 		fn generate_session_keys(seed: Option<Vec<u8>>) -> Vec<u8> {
-			opaque::SessionKeys::generate(seed)
+			SessionKeys::generate(seed)
 		}
 
 		fn decode_session_keys(
 			encoded: Vec<u8>,
 		) -> Option<Vec<(Vec<u8>, KeyTypeId)>> {
-			opaque::SessionKeys::decode_into_raw_public_keys(&encoded)
+			SessionKeys::decode_into_raw_public_keys(&encoded)
 		}
 	}
 

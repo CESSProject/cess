@@ -1,6 +1,7 @@
 mod precompiles;
 
 use super::*;
+use cess_node_primitives::opaque;
 use core::marker::PhantomData;
 use fp_evm::weight_per_gas;
 use frame_support::{parameter_types, traits::FindAuthor};
