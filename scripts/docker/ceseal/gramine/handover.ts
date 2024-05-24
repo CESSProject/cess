@@ -126,7 +126,7 @@ if (await exists(path.join(currentPath, "data/protected_files/runtime-data.seal"
 }
 
 let previousVersion: number | undefined = await confirmPreviousVersion();
-
+//Otherwise, confirm whether a previous version exists. If there is no previous version, no handover is required, back up the current version to the backup directory and exit.
 if (previousVersion === undefined) {
   log("No previous version, no need to handover!");
 
@@ -135,7 +135,7 @@ if (previousVersion === undefined) {
 
   Deno.exit(0);
 }
-
+//If the current version is the same as the previous version, there is no need to hand over and exit directly.
 if (currentVersion == previousVersion) {
   log("same version, no need to handover")
   Deno.exit(0);
