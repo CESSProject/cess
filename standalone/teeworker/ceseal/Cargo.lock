@@ -1096,6 +1096,8 @@ name = "cess-node-runtime"
 version = "0.7.7"
 dependencies = [
  "cess-node-primitives",
+ "cessp-consensus-rrsc",
+ "cp-scheduler-credit",
  "fp-account",
  "fp-evm",
  "fp-rpc",
@@ -1116,18 +1118,18 @@ dependencies = [
  "pallet-assets",
  "pallet-authority-discovery",
  "pallet-authorship",
- "pallet-babe",
  "pallet-bags-list",
  "pallet-balances",
  "pallet-base-fee",
  "pallet-beefy",
  "pallet-beefy-mmr",
+ "pallet-cess-staking",
+ "pallet-cess-treasury",
  "pallet-collective",
  "pallet-contracts",
  "pallet-dynamic-fee",
  "pallet-election-provider-multi-phase",
  "pallet-election-provider-support-benchmarking",
- "pallet-elections-phragmen",
  "pallet-ethereum",
  "pallet-evm",
  "pallet-evm-chain-id",
@@ -1150,12 +1152,11 @@ dependencies = [
  "pallet-parameters",
  "pallet-preimage",
  "pallet-proxy",
+ "pallet-rrsc",
  "pallet-scheduler",
+ "pallet-scheduler-credit",
  "pallet-session",
  "pallet-session-benchmarking",
- "pallet-staking",
- "pallet-staking-reward-curve",
- "pallet-staking-runtime-api",
  "pallet-state-trie-migration",
  "pallet-sudo",
  "pallet-timestamp",
@@ -1171,7 +1172,6 @@ dependencies = [
  "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
- "sp-consensus-babe",
  "sp-consensus-beefy",
  "sp-consensus-grandpa",
  "sp-core",
@@ -1188,6 +1188,24 @@ dependencies = [
  "sp-version",
  "static_assertions",
  "substrate-wasm-builder",
+]
+
+[[package]]
+name = "cessp-consensus-rrsc"
+version = "0.10.0-dev"
+dependencies = [
+ "async-trait",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-consensus-slots",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std 14.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.10.1)",
+ "sp-timestamp",
 ]
 
 [[package]]
@@ -4191,6 +4209,7 @@ dependencies = [
 name = "pallet-cess-staking"
 version = "4.0.0-dev"
 dependencies = [
+ "frame-benchmarking",
  "frame-election-provider-support",
  "frame-support",
  "frame-system",
@@ -4211,6 +4230,7 @@ dependencies = [
 name = "pallet-cess-treasury"
 version = "0.7.6"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "log",
@@ -4341,25 +4361,6 @@ dependencies = [
  "parity-scale-codec",
  "sp-npos-elections",
  "sp-runtime",
- "sp-std 14.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.10.1)",
-]
-
-[[package]]
-name = "pallet-elections-phragmen"
-version = "29.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.10.1#8eb1f5592d15c7c748fbe21c2ea951d3bfe890e2"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "log",
- "parity-scale-codec",
- "scale-info",
- "sp-core",
- "sp-io",
- "sp-npos-elections",
- "sp-runtime",
- "sp-staking",
  "sp-std 14.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.10.1)",
 ]
 
@@ -4751,6 +4752,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-rrsc"
+version = "4.0.0-dev"
+dependencies = [
+ "cessp-consensus-rrsc",
+ "frame-benchmarking",
+ "frame-election-provider-support",
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-authorship",
+ "pallet-session",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-io",
+ "sp-npos-elections",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std 14.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.10.1)",
+]
+
+[[package]]
 name = "pallet-scheduler"
 version = "29.0.0"
 source = "git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.10.1#8eb1f5592d15c7c748fbe21c2ea951d3bfe890e2"
@@ -4766,6 +4792,22 @@ dependencies = [
  "sp-runtime",
  "sp-std 14.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.10.1)",
  "sp-weights",
+]
+
+[[package]]
+name = "pallet-scheduler-credit"
+version = "0.1.0"
+dependencies = [
+ "cessp-consensus-rrsc",
+ "cp-cess-common",
+ "cp-scheduler-credit",
+ "frame-support",
+ "frame-system",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-runtime",
+ "sp-std 14.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.10.1)",
 ]
 
 [[package]]
@@ -4855,27 +4897,6 @@ dependencies = [
  "sp-runtime",
  "sp-staking",
  "sp-std 14.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.10.1)",
-]
-
-[[package]]
-name = "pallet-staking-reward-curve"
-version = "11.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.10.1#8eb1f5592d15c7c748fbe21c2ea951d3bfe890e2"
-dependencies = [
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn 2.0.64",
-]
-
-[[package]]
-name = "pallet-staking-runtime-api"
-version = "14.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.10.1#8eb1f5592d15c7c748fbe21c2ea951d3bfe890e2"
-dependencies = [
- "parity-scale-codec",
- "sp-api",
- "sp-staking",
 ]
 
 [[package]]

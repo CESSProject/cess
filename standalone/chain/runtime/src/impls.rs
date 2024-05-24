@@ -17,18 +17,13 @@
 
 //! Some configurable implementations as associated type for the substrate runtime.
 
-use frame_support::{
-	traits::{
-		fungibles::{Balanced, Credit},
-		Currency, OnUnbalanced,
-	},
+use frame_support::traits::{
+	fungibles::{Balanced, Credit},
+	Currency, OnUnbalanced,
 };
 use pallet_asset_tx_payment::HandleCredit;
 
-use crate::{
-	AccountId, Assets, Authorship, Balances,
-	NegativeImbalance, Runtime,
-};
+use crate::{AccountId, Assets, Authorship, Balances, NegativeImbalance, Runtime};
 
 pub struct Author;
 impl OnUnbalanced<NegativeImbalance> for Author {
@@ -51,6 +46,21 @@ impl HandleCredit<AccountId, Assets> for CreditToBlockAuthor {
 	}
 }
 
+pub struct SchedulerStashAccountFinder;
+impl cp_scheduler_credit::SchedulerStashAccountFinder<AccountId> for SchedulerStashAccountFinder {
+	fn find_stash_account_id(ctrl_account_id: &AccountId) -> Option<AccountId> {
+		use pallet_cess_staking::Pallet as StakingPallet;
+		use sp_staking::StakingAccount;
+		if let Ok(staking_ledger) =
+			StakingPallet::<Runtime>::ledger(StakingAccount::Controller(ctrl_account_id.clone()))
+		{
+			Some(staking_ledger.stash)
+		} else {
+			None
+		}
+	}
+}
+
 #[cfg(test)]
 mod multiplier_tests {
 	use frame_support::{
@@ -66,8 +76,8 @@ mod multiplier_tests {
 
 	use crate::{
 		constants::{currency::*, time::*},
-		AdjustmentVariable, MaximumMultiplier, MinimumMultiplier, Runtime,
-		RuntimeBlockWeights as BlockWeights, System, TargetBlockFullness, TransactionPayment,
+		AdjustmentVariable, MaximumMultiplier, MinimumMultiplier, Runtime, RuntimeBlockWeights as BlockWeights, System,
+		TargetBlockFullness, TransactionPayment,
 	};
 
 	fn max_normal() -> Weight {
@@ -110,12 +120,11 @@ mod multiplier_tests {
 			block_weight.proof_size() as f64 / max_normal.proof_size() as f64,
 		);
 
-		let (normal, max, target) =
-			if normalized_weight_dimensions.0 < normalized_weight_dimensions.1 {
-				(block_weight.proof_size(), max_normal.proof_size(), target_weight.proof_size())
-			} else {
-				(block_weight.ref_time(), max_normal.ref_time(), target_weight.ref_time())
-			};
+		let (normal, max, target) = if normalized_weight_dimensions.0 < normalized_weight_dimensions.1 {
+			(block_weight.proof_size(), max_normal.proof_size(), target_weight.proof_size())
+		} else {
+			(block_weight.ref_time(), max_normal.ref_time(), target_weight.ref_time())
+		};
 
 		// maximum tx weight
 		let m = max as f64;
@@ -244,8 +253,8 @@ mod multiplier_tests {
 		// `cargo test congested_chain_simulation -- --nocapture` to get some insight.
 
 		// almost full. The entire quota of normal transactions is taken.
-		let block_weight = BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap() -
-			Weight::from_parts(100, 0);
+		let block_weight =
+			BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap() - Weight::from_parts(100, 0);
 
 		// Default substrate weight.
 		let tx_weight = frame_support::weights::constants::ExtrinsicBaseWeight::get();
@@ -264,10 +273,7 @@ mod multiplier_tests {
 				}
 				fm = next;
 				iterations += 1;
-				let fee =
-					<Runtime as pallet_transaction_payment::Config>::WeightToFee::weight_to_fee(
-						&tx_weight,
-					);
+				let fee = <Runtime as pallet_transaction_payment::Config>::WeightToFee::weight_to_fee(&tx_weight);
 				let adjusted_fee = fm.saturating_mul_acc_int(fee);
 				println!(
 					"iteration {}, new fm = {:?}. Fee at this point is: {} units / {} millicents, \
@@ -288,11 +294,7 @@ mod multiplier_tests {
 		let fm = Multiplier::saturating_from_rational(1, 2);
 		run_with_system_weight(target() / 4, || {
 			let next = runtime_multiplier_update(fm);
-			assert_eq_error_rate!(
-				next,
-				truth_value_update(target() / 4, fm),
-				Multiplier::from_inner(100),
-			);
+			assert_eq_error_rate!(next, truth_value_update(target() / 4, fm), Multiplier::from_inner(100),);
 
 			// Light block. Multiplier is reduced a little.
 			assert!(next < fm);
@@ -300,32 +302,20 @@ mod multiplier_tests {
 
 		run_with_system_weight(target() / 2, || {
 			let next = runtime_multiplier_update(fm);
-			assert_eq_error_rate!(
-				next,
-				truth_value_update(target() / 2, fm),
-				Multiplier::from_inner(100),
-			);
+			assert_eq_error_rate!(next, truth_value_update(target() / 2, fm), Multiplier::from_inner(100),);
 			// Light block. Multiplier is reduced a little.
 			assert!(next < fm);
 		});
 		run_with_system_weight(target(), || {
 			let next = runtime_multiplier_update(fm);
-			assert_eq_error_rate!(
-				next,
-				truth_value_update(target(), fm),
-				Multiplier::from_inner(100),
-			);
+			assert_eq_error_rate!(next, truth_value_update(target(), fm), Multiplier::from_inner(100),);
 			// ideal. No changes.
 			assert_eq!(next, fm)
 		});
 		run_with_system_weight(target() * 2, || {
 			// More than ideal. Fee is increased.
 			let next = runtime_multiplier_update(fm);
-			assert_eq_error_rate!(
-				next,
-				truth_value_update(target() * 2, fm),
-				Multiplier::from_inner(100),
-			);
+			assert_eq_error_rate!(next, truth_value_update(target() * 2, fm), Multiplier::from_inner(100),);
 
 			// Heavy block. Fee is increased a little.
 			assert!(next > fm);
@@ -340,11 +330,7 @@ mod multiplier_tests {
 
 			(0..1_000).for_each(|_| {
 				next = runtime_multiplier_update(original);
-				assert_eq_error_rate!(
-					next,
-					truth_value_update(target() * 2, original),
-					Multiplier::from_inner(100),
-				);
+				assert_eq_error_rate!(next, truth_value_update(target() * 2, original), Multiplier::from_inner(100),);
 				// must always increase
 				assert!(next > original, "{:?} !>= {:?}", next, original);
 				original = next;
@@ -412,19 +398,14 @@ mod multiplier_tests {
 
 		// Some values that are all above the target and will cause an increase.
 		let t = target();
-		vec![
-			t + Weight::from_parts(100, 0),
-			t + Weight::from_parts(0, t.proof_size() * 2),
-			t * 2,
-			t * 4,
-		]
-		.into_iter()
-		.for_each(|i| {
-			run_with_system_weight(i, || {
-				let fm = runtime_multiplier_update(max_fm);
-				// won't grow. The convert saturates everything.
-				assert_eq!(fm, max_fm);
-			})
-		});
+		vec![t + Weight::from_parts(100, 0), t + Weight::from_parts(0, t.proof_size() * 2), t * 2, t * 4]
+			.into_iter()
+			.for_each(|i| {
+				run_with_system_weight(i, || {
+					let fm = runtime_multiplier_update(max_fm);
+					// won't grow. The convert saturates everything.
+					assert_eq!(fm, max_fm);
+				})
+			});
 	}
 }
