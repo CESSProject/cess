@@ -1431,13 +1431,13 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "sc-client-api",
- "sc-rpc",
  "sc-transaction-pool-api",
  "scale-info",
  "serde",
  "sp-api",
  "sp-blockchain",
  "sp-runtime 31.0.1",
+ "sp-state-machine 0.35.0",
  "thiserror",
 ]
 
@@ -1590,6 +1590,7 @@ dependencies = [
  "ces-node-rpc-ext",
  "ces-pallet-mq",
  "ces-pallet-mq-runtime-api",
+ "cess-node-primitives",
  "cess-node-runtime",
  "cessc-consensus-rrsc",
  "cessc-consensus-rrsc-rpc",

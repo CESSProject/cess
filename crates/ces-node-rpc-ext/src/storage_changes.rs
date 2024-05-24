@@ -1,57 +1,6 @@
 use super::*;
-pub use ext_types::*;
+pub use ces_node_rpc_ext_types::*;
 use sp_runtime::StateVersion;
-
-/// State RPC errors.
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    /// Provided block range couldn't be resolved to a list of blocks.
-    #[error("Cannot resolve a block range ['{from}' ... '{to}].")]
-    InvalidBlockRange {
-        /// Beginning of the block range.
-        from: String,
-        /// End of the block range.
-        to: String,
-    },
-
-    /// Aborted due resource limiting such as MAX_NUMBER_OF_BLOCKS.
-    #[error("Resource limited, {0}.")]
-    ResourceLimited(String),
-
-    /// Error occurred while processing some block.
-    #[error("Error occurred while processing the block {0}.")]
-    InvalidBlock(String),
-
-    /// The RPC is unavailable.
-    #[error("This RPC is unavailable. {0}")]
-    Unavailable(String),
-}
-
-impl Error {
-    fn invalid_block<Block: BlockT, E: Display>(id: BlockId<Block>, error: E) -> Self {
-        Self::InvalidBlock(format!("{id}: {error}"))
-    }
-}
-
-impl From<Error> for JsonRpseeError {
-    fn from(e: Error) -> Self {
-        JsonRpseeError::Call(CallError::Custom(ErrorObject::owned(
-            CUSTOM_RPC_ERROR,
-            e.to_string(),
-            Option::<()>::None,
-        )))
-    }
-}
-
-impl From<Error> for ErrorObjectOwned {
-    fn from(e: Error) -> Self {
-        ErrorObject::owned(
-            CUSTOM_RPC_ERROR,
-            e.to_string(),
-            Option::<()>::None,
-        )
-    }
-}
 
 pub(super) fn get_storage_changes<Client, BE, Block>(
     client: &Client,
@@ -68,8 +17,7 @@ where
         + HeaderMetadata<Block, Error = sp_blockchain::Error>
         + ProvideRuntimeApi<Block>,
     Block: BlockT + 'static,
-    Client::Api:
-        sp_api::Metadata<Block> + ApiExt<Block>,
+    Client::Api: sp_api::Metadata<Block> + ApiExt<Block>,
     <<Block as BlockT>::Header as Header>::Number: Into<u64>,
 {
     fn header<Client: HeaderBackend<Block>, Block: BlockT>(

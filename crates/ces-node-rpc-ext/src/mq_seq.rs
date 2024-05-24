@@ -3,31 +3,6 @@ use ces_mq::MessageOrigin;
 use ces_pallet_mq::tag;
 use ces_pallet_mq_runtime_api::MqApi;
 use parity_scale_codec::Decode;
-use thiserror::Error;
-
-#[derive(Error, Debug)]
-pub enum Error {
-    #[error("invalid sender")]
-    InvalidSender,
-    #[error("{0}")]
-    ApiError(#[from] sp_api::ApiError),
-}
-
-impl From<Error> for JsonRpseeError {
-    fn from(e: Error) -> Self {
-        JsonRpseeError::Call(CallError::Custom(ErrorObject::owned(
-            CUSTOM_RPC_ERROR,
-            e.to_string(),
-            Option::<()>::None,
-        )))
-    }
-}
-
-impl From<Error> for ErrorObjectOwned {
-    fn from(e: Error) -> Self {
-        ErrorObject::owned(CUSTOM_RPC_ERROR, e.to_string(), Option::<()>::None)
-    }
-}
 
 pub(super) fn get_mq_seq<Client, BE, Block, P>(
     client: &Client,

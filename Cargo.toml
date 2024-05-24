@@ -429,8 +429,8 @@ webpki = { git = "https://github.com/rustls/webpki", version = "=0.102.0-alpha.3
 # ---- Cess workspace crates and pallets begin ----
 ces-crypto = { path = "crates/ces-crypto", default-features = false }
 ces-mq = { path = "crates/ces-mq", default-features = false }
-ces-node-rpc-ext = { path = "crates/ces-node-rpc-ext", default-features = false }
-ces-node-rpc-ext-types = { path = "crates/ces-node-rpc-ext/types", default-features = false }
+ces-node-rpc-ext = { path = "crates/ces-node-rpc-ext" }
+ces-node-rpc-ext-types = { path = "crates/ces-node-rpc-ext/types" }
 ces-node-runtime = { path = "standalone/chain/runtime", package = "cess-node-runtime", default-features = false }
 ces-pallet-mq = { path = "pallets/mq", default-features = false }
 ces-pallet-mq-runtime-api = { path = "pallets/mq/runtime-api", default-features = false }
@@ -449,7 +449,6 @@ cp-bloom-filter = { path = "crates/bloom-filter", default-features = false }
 cp-cess-common = { path = "crates/common", default-features = false }
 cp-enclave-verify = { path = "crates/enclave-verify", default-features = false }
 cp-scheduler-credit = { path = "crates/scheduler-credit", default-features = false }
-ext-types = { path = "crates/ces-node-rpc-ext/types", default-features = false, package = "ces-node-rpc-ext-types" }
 node-executor = { path = "standalone/chain/executor" }
 node-rpc = { path = "standalone/chain/rpc" }
 pallet-audit = { path = "pallets/audit", default-features = false }
