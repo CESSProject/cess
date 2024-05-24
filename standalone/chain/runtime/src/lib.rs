@@ -118,6 +118,7 @@ mod voter_bags;
 pub mod assets_api;
 
 mod frontier;
+mod msg_routing;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -952,6 +953,8 @@ where
 			frame_system::CheckEra::<Runtime>::from(era),
 			frame_system::CheckNonce::<Runtime>::from(nonce),
 			frame_system::CheckWeight::<Runtime>::new(),
+			ces_pallet_mq::CheckMqSequence::<Runtime>::new(),
+			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(0),
 		);
 		let raw_payload = SignedPayload::new(call, extra)
 			.map_err(|e| {
@@ -1415,6 +1418,12 @@ mod runtime {
 
 	#[runtime::pallet_index(101)]
 	pub type SchedulerCredit = pallet_scheduler_credit;
+
+	#[runtime::pallet_index(102)]
+	pub type CesMq = ces_pallet_mq;
+
+	#[runtime::pallet_index(103)]
+	pub type TeeWorker = pallet_tee_worker;	
 	//------------------- CESS's end ---------------------
 }
 
@@ -1441,6 +1450,8 @@ pub type SignedExtra = (
 	frame_system::CheckEra<Runtime>,
 	frame_system::CheckNonce<Runtime>,
 	frame_system::CheckWeight<Runtime>,
+	ces_pallet_mq::CheckMqSequence<Runtime>,
+	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
@@ -1508,6 +1519,47 @@ parameter_types! {
 impl pallet_scheduler_credit::Config for Runtime {
 	type PeriodDuration = PeriodDuration;
 	type StashAccountFinder = SchedulerStashAccountFinder;
+}
+
+pub struct MqCallMatcher;
+impl ces_pallet_mq::CallMatcher<Runtime> for MqCallMatcher {
+	fn match_call(call: &RuntimeCall) -> Option<&ces_pallet_mq::Call<Runtime>> {
+		match call {
+			RuntimeCall::CesMq(mq_call) => Some(mq_call),
+			_ => None,
+		}
+	}
+}
+impl ces_pallet_mq::Config for Runtime {
+	type QueueNotifyConfig = msg_routing::MessageRouteConfig;
+	type CallMatcher = MqCallMatcher;
+	type MasterPubkeySupplier = pallet_tee_worker::Pallet<Runtime>;
+}
+
+parameter_types! {
+	pub const TeeWorkerPalletId: PalletId = PalletId(*b"filmpdpt");
+	#[derive(Clone, PartialEq, Eq)]
+	pub const SchedulerMaximum: u32 = 10000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const MaxWhitelist: u32 = 200;
+	pub const NoneAttestationEnabled: bool = if cfg!(not(feature = "only-attestation")) { true } else { false };
+	pub const VerifyCeseal: bool = if cfg!(not(feature = "verify-cesealbin")) { false } else { true };
+	pub const AtLeastWorkBlock: BlockNumber = DAYS;
+}
+
+impl pallet_tee_worker::Config for Runtime {
+	type Currency = Balances;
+	type RuntimeEvent = RuntimeEvent;
+	type TeeWorkerPalletId = TeeWorkerPalletId;
+	type SchedulerMaximum = SchedulerMaximum;
+	type WeightInfo = pallet_tee_worker::weights::SubstrateWeight<Runtime>;
+	type CreditCounter = SchedulerCredit;
+	type MaxWhitelist = MaxWhitelist;
+	type AtLeastWorkBlock = AtLeastWorkBlock;
+	type LegacyAttestationValidator = pallet_tee_worker::IasValidator;
+	type NoneAttestationEnabled = NoneAttestationEnabled;
+	type VerifyCeseal = VerifyCeseal;
+	type GovernanceOrigin = EnsureRootOrHalfCouncil;
 }
 
 //------------------------- CESS's end -------------------------

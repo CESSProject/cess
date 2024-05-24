@@ -1686,10 +1686,14 @@ dependencies = [
 
 [[package]]
 name = "cess-node-runtime"
-version = "0.7.7"
+version = "0.8.0"
 dependencies = [
+ "ces-pallet-mq",
+ "ces-pallet-mq-runtime-api",
+ "ces-types",
  "cess-node-primitives",
  "cessp-consensus-rrsc",
+ "cp-cess-common",
  "cp-scheduler-credit",
  "fp-account",
  "fp-evm",
@@ -1752,6 +1756,7 @@ dependencies = [
  "pallet-session-benchmarking",
  "pallet-state-trie-migration",
  "pallet-sudo",
+ "pallet-tee-worker",
  "pallet-timestamp",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
