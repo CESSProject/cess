@@ -17,9 +17,9 @@ use parity_scale_codec::Decode;
 use sp_consensus_grandpa::SetId;
 
 pub use cesxt::subxt;
+mod block_subscribe;
 mod error;
 mod msg_sync;
-mod notify_client;
 mod prefetcher;
 mod tx;
 
@@ -28,7 +28,10 @@ pub mod types;
 
 use crate::{
     error::Error,
-    types::{Block, BlockNumber, CesealClient, Header, NotifyReq, SrSigner, Args, RaOption, RunningFlags, BlockSyncState},
+    types::{
+        Args, Block, BlockNumber, BlockSyncState, CesealClient, Header, RaOption, RunningFlags,
+        SrSigner,
+    },
 };
 use ces_types::{AttestationProvider, WorkerEndpointPayload};
 use cestory_api::{
@@ -37,7 +40,6 @@ use cestory_api::{
 };
 use clap::Parser;
 use msg_sync::{Error as MsgSyncError, Receiver, Sender};
-use notify_client::NotifyClient;
 
 pub async fn batch_sync_storage_changes(
     pr: &mut CesealClient,
@@ -489,8 +491,7 @@ pub async fn try_update_worker_endpoint(
         .signature
         .ok_or_else(|| anyhow!("No endpoint signature"))?;
     info!("Binding worker's endpoint...");
-    tx::update_worker_endpoint(para_api, encoded_endpoint_payload, signature, signer, args)
-        .await
+    tx::update_worker_endpoint(para_api, encoded_endpoint_payload, signature, signer, args).await
 }
 
 async fn bridge(
@@ -514,10 +515,6 @@ async fn bridge(
     let pair = <sr25519::Pair as Pair>::from_string(&args.mnemonic, None)
         .expect("Bad privkey derive path");
     let mut signer = SrSigner::new(pair);
-    let nc = NotifyClient::new(&args.notify_endpoint);
-    let mut ceseal_initialized = false;
-    let mut ceseal_new_init = false;
-    let mut initial_sync_finished = false;
 
     // Try to initialize Ceseal and register on-chain
     let info = cc.get_info(()).await?.into_inner();
@@ -544,35 +541,9 @@ async fn bridge(
                 start_header,
             )
             .await?;
-            // STATUS: ceseal_initialized = true
-            // STATUS: ceseal_new_init = true
-            ceseal_initialized = true;
-            ceseal_new_init = true;
-            nc.notify(&NotifyReq {
-                headernum: info.headernum,
-                blocknum: info.blocknum,
-                ceseal_initialized,
-                ceseal_new_init,
-                initial_sync_finished,
-            })
-            .await
-            .ok();
             info!("runtime_info: {:?}", runtime_info);
         } else {
             info!("Ceseal already initialized.");
-            // STATUS: ceseal_initialized = true
-            // STATUS: ceseal_new_init = false
-            ceseal_initialized = true;
-            ceseal_new_init = false;
-            nc.notify(&NotifyReq {
-                headernum: info.headernum,
-                blocknum: info.blocknum,
-                ceseal_initialized,
-                ceseal_new_init,
-                initial_sync_finished,
-            })
-            .await
-            .ok();
         }
 
         if args.fast_sync {
@@ -597,8 +568,7 @@ async fn bridge(
         // Try bind worker endpoint
         if args.public_endpoint.is_some() && info.public_key().is_some() {
             // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the cifrost initialization)
-            match try_update_worker_endpoint(&mut cc, &chain_api, &mut signer, args).await
-            {
+            match try_update_worker_endpoint(&mut cc, &chain_api, &mut signer, args).await {
                 Ok(registered) => {
                     flags.endpoint_registered = registered;
                 }
@@ -610,6 +580,8 @@ async fn bridge(
         warn!("Block sync disabled.");
         return Ok(());
     }
+
+    block_subscribe::spawn_subscriber(&chain_api, cc.clone()).await?;
 
     // Don't just sync message if we want to wait for some block
     let mut sync_state = BlockSyncState {
@@ -625,18 +597,6 @@ async fn bridge(
             info!("Reached target block: {}", args.to_block);
             return Ok(());
         }
-
-        // STATUS: header_synced = info.headernum
-        // STATUS: block_synced = info.blocknum
-        nc.notify(&NotifyReq {
-            headernum: info.headernum,
-            blocknum: info.blocknum,
-            ceseal_initialized,
-            ceseal_new_init,
-            initial_sync_finished,
-        })
-        .await
-        .ok();
 
         let next_headernum = info.headernum;
         if info.blocknum < next_headernum {
@@ -725,9 +685,7 @@ async fn bridge(
                 && info.public_key().is_some()
             {
                 // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the cifrost initialization)
-                match try_update_worker_endpoint(&mut cc, &chain_api, &mut signer, args)
-                    .await
-                {
+                match try_update_worker_endpoint(&mut cc, &chain_api, &mut signer, args).await {
                     Ok(registered) => {
                         flags.endpoint_registered = registered;
                     }
@@ -748,18 +706,6 @@ async fn bridge(
             if info.is_master_key_holded() && !info.is_external_server_running() {
                 start_external_server(&mut cc).await?;
             }
-
-            // STATUS: initial_sync_finished = true
-            initial_sync_finished = true;
-            nc.notify(&NotifyReq {
-                headernum: info.headernum,
-                blocknum: info.blocknum,
-                ceseal_initialized,
-                ceseal_new_init,
-                initial_sync_finished,
-            })
-            .await
-            .ok();
 
             // Now we are idle. Let's try to sync the egress messages.
             if !args.no_msg_submit {

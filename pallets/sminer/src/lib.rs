@@ -43,6 +43,7 @@ use sp_core::{
 	ConstU32,
 };
 use pallet_tee_worker::TeeWorkerHandler;
+use pallet_reservoir::ReservoirGate;
 use cp_bloom_filter::BloomFilter;
 use pallet_storage_handler::StorageHandle;
 use pallet_cess_treasury::{RewardPool, TreasuryHandle};
@@ -124,6 +125,8 @@ pub mod pallet {
 		type SProposal: Parameter + Dispatchable<RuntimeOrigin = Self::RuntimeOrigin> + From<Call<Self>>;
 
 		type StorageHandle: StorageHandle<Self::AccountId>;
+
+		type ReservoirGate: ReservoirGate<Self::AccountId, BalanceOf<Self>>;
 	}
 
 	#[pallet::event]
@@ -313,7 +316,7 @@ pub mod pallet {
 				_,
 				Blake2_128Concat,
 				BlockNumberFor<T>,
-				BoundedVec<(AccountOf<T>, BalanceOf<T>), T::ItemLimit>,
+				BoundedVec<(AccountOf<T>, AccountOf<T>, BalanceOf<T>), T::ItemLimit>,
 				ValueQuery,
 			>;
 	
@@ -375,8 +378,15 @@ pub mod pallet {
 			let mut weight: Weight = Weight::zero();
 			let miner_list = ReturnStakingSchedule::<T>::get(&now);
 			weight = weight.saturating_add(T::DbWeight::get().reads(1));
-			for (miner, collaterals) in miner_list {
-				T::Currency::unreserve(&miner, collaterals);
+			for (miner, staking_acc, collaterals) in miner_list {
+				let spec_acc = T::ReservoirGate::get_reservoir_acc();
+				if spec_acc == staking_acc {
+					if let Err(e) = T::ReservoirGate::redeem(&miner, collaterals, false) {
+						log::error!("return staking [Reservoir]error: {:?}", e);
+					}
+					weight = weight.saturating_add(T::DbWeight::get().reads_writes(2, 2));
+				}
+				T::Currency::unreserve(&staking_acc, collaterals);
 				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 			}
 
@@ -477,21 +487,36 @@ pub mod pallet {
 			let mut balance: BalanceOf<T> = 0u32.saturated_into();
 			<MinerItems<T>>::try_mutate(&miner, |miner_info_opt| -> DispatchResult {
 				let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
+				let spec_acc = T::ReservoirGate::get_reservoir_acc();
 
 				ensure!(miner_info.state.to_vec() != STATE_OFFLINE.as_bytes().to_vec(), Error::<T>::StateError);
 				ensure!(miner_info.state.to_vec() != STATE_LOCK.as_bytes().to_vec(), Error::<T>::StateError);
 				ensure!(miner_info.state.to_vec() != STATE_EXIT.as_bytes().to_vec(), Error::<T>::StateError);
-				ensure!(miner_info.staking_account == sender, Error::<T>::NotStakingAcc);
+				ensure!(miner_info.staking_account == sender || miner_info.staking_account == spec_acc, Error::<T>::NotStakingAcc);
+
+				if miner_info.staking_account == spec_acc {
+					ensure!(sender == miner, Error::<T>::NotStakingAcc);
+					T::ReservoirGate::check_qualification(&sender, collaterals)?;
+				}
 
 				let mut remaining = collaterals;
 				if miner_info.debt > BalanceOf::<T>::zero() {
 					if miner_info.debt > collaterals {
 						miner_info.debt = miner_info.debt.checked_sub(&collaterals).ok_or(Error::<T>::Overflow)?;
 						remaining = BalanceOf::<T>::zero();
-						T::CessTreasuryHandle::send_to_pid(sender.clone(), collaterals)?;
+						if miner_info.staking_account == spec_acc {
+							T::CessTreasuryHandle::send_to_pid(miner_info.staking_account.clone(), collaterals)?;
+						} else {
+							T::CessTreasuryHandle::send_to_pid(sender.clone(), collaterals)?;
+						}
 					} else {
 						remaining = remaining.checked_sub(&miner_info.debt).ok_or(Error::<T>::Overflow)?;
-						T::CessTreasuryHandle::send_to_pid(sender.clone(), miner_info.debt)?;
+						if miner_info.staking_account == spec_acc {
+							T::CessTreasuryHandle::send_to_pid(miner_info.staking_account.clone(), miner_info.debt)?;
+						} else {
+							T::CessTreasuryHandle::send_to_pid(sender.clone(), miner_info.debt)?;
+						}
+						
 						miner_info.debt = BalanceOf::<T>::zero();
 					}
 				}
@@ -512,7 +537,12 @@ pub mod pallet {
 				let now = <frame_system::Pallet<T>>::block_number();
 				<StakingStartBlock<T>>::insert(&miner, now);
 
-				T::Currency::reserve(&sender, remaining)?;
+				if miner_info.staking_account == spec_acc {
+					T::ReservoirGate::staking(&miner, remaining, true)?;
+				} else {
+					T::Currency::reserve(&sender, remaining)?;
+				}
+
 
 				Ok(())
 			})?;
@@ -960,13 +990,25 @@ pub mod pallet {
 			ensure!(!(<MinerItems<T>>::contains_key(&sender)), Error::<T>::AlreadyRegistered);
 			let declaration_space = T_BYTE.checked_mul(tib_count as u128).ok_or(Error::<T>::Overflow)?;
 
+			let mut need_staking = BalanceOf::<T>::zero();
+			let spec_acc = T::ReservoirGate::get_reservoir_acc();			
+			if staking_account == spec_acc {
+				need_staking = (tib_count as u128)
+					.checked_mul(BASE_UNIT).ok_or(Error::<T>::Overflow)?
+					.try_into().map_err(|_| Error::<T>::Overflow)?;
+				T::ReservoirGate::check_qualification(&sender, need_staking)?;
+				T::ReservoirGate::staking(&sender, need_staking, true)?;
+				let now = <frame_system::Pallet<T>>::block_number();
+				<StakingStartBlock<T>>::insert(&sender, now);
+			}
+
 			<MinerItems<T>>::insert(
 				&sender,
 				MinerInfo::<T> {
 					beneficiary: beneficiary.clone(),
 					staking_account: staking_account.clone(),
 					peer_id: peer_id,
-					collaterals: BalanceOf::<T>::zero(),
+					collaterals: need_staking,
 					debt: BalanceOf::<T>::zero(),
 					state: Self::str_to_bound(STATE_NOT_READY)?,
 					declaration_space: declaration_space,

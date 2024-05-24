@@ -153,6 +153,7 @@ pub fn validate_ias_report(
 mod test {
 	use super::*;
 	use frame_support::assert_ok;
+	use crate::attestation::fixed_measurement_hash;
 
 	pub const ATTESTATION_SAMPLE: &[u8] = include_bytes!("../../sample/ias_attestation.json");
 	pub const ATTESTATION_TIMESTAMP: u64 = 1631441180; // 2021-09-12T18:06:20.402478
@@ -176,13 +177,14 @@ mod test {
 			Err(Error::CesealRejected)
 		);
 
+		let m_hash = fixed_measurement_hash(&hex::decode(PRUNTIME_HASH).unwrap());
 		assert_ok!(validate_ias_report(
 			report,
 			&signature,
 			&raw_signing_cert,
 			ATTESTATION_TIMESTAMP,
 			true,
-			vec![hex::decode(PRUNTIME_HASH).unwrap()]
+			vec![m_hash]
 		));
 	}
 }

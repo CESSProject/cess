@@ -61,3 +61,5 @@ ENV EXTRA_OPTS=
 EXPOSE 8000
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["/bin/bash", "./start.sh"]
+HEALTHCHECK --start-period=8s --timeout=5s \
+  CMD curl -s --fail --http2-prior-knowledge http://localhost:8000 || exit 1

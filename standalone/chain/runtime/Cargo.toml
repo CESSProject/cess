@@ -87,6 +87,7 @@ pallet-tee-worker = { workspace = true }
 pallet-storage-handler = { workspace = true }
 pallet-oss = { workspace = true }
 pallet-cacher = { workspace = true }
+pallet-reservoir = { workspace = true }
 ces-types = { workspace = true }
 ces-pallet-mq ={ workspace = true }
 ces-pallet-mq-runtime-api = { workspace = true }
@@ -165,6 +166,7 @@ std = [
   "pallet-multisig/std",
   "pallet-offences/std",
   "pallet-oss/std",
+  "pallet-reservoir/std",
   "pallet-preimage/std",
   "pallet-proxy/std",
   "pallet-rrsc/std",

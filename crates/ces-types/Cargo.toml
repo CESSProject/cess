@@ -20,7 +20,7 @@ sgx-attestation = { workspace = true }
 
 
 [dev-dependencies]
-frame-support = { workspace = true }
+frame-support = { workspace = true, features = ["std"] }
 
 
 [features]
