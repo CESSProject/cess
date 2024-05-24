@@ -1040,7 +1040,7 @@ impl pallet_beefy_mmr::Config for Runtime {
 parameter_types! {
 	pub const AssetDeposit: Balance = 100 * DOLLARS;
 	pub const ApprovalDeposit: Balance = 1 * DOLLARS;
-	pub const StringLimit: u32 = 50;
+	pub const AssetStringLimit: u32 = 50;
 	pub const MetadataDepositBase: Balance = 10 * DOLLARS;
 	pub const MetadataDepositPerByte: Balance = 1 * DOLLARS;
 }
@@ -1058,7 +1058,7 @@ impl pallet_assets::Config<Instance1> for Runtime {
 	type MetadataDepositBase = MetadataDepositBase;
 	type MetadataDepositPerByte = MetadataDepositPerByte;
 	type ApprovalDeposit = ApprovalDeposit;
-	type StringLimit = StringLimit;
+	type StringLimit = AssetStringLimit;
 	type Freezer = ();
 	type Extra = ();
 	type CallbackHandle = ();
@@ -1085,7 +1085,7 @@ impl pallet_assets::Config<Instance2> for Runtime {
 	type MetadataDepositBase = MetadataDepositBase;
 	type MetadataDepositPerByte = MetadataDepositPerByte;
 	type ApprovalDeposit = ApprovalDeposit;
-	type StringLimit = StringLimit;
+	type StringLimit = AssetStringLimit;
 	type Freezer = ();
 	type Extra = ();
 	type WeightInfo = pallet_assets::weights::SubstrateWeight<Runtime>;
@@ -1424,6 +1424,27 @@ mod runtime {
 
 	#[runtime::pallet_index(103)]
 	pub type TeeWorker = pallet_tee_worker;	
+
+	#[runtime::pallet_index(104)]
+	pub type FileBank = pallet_file_bank;
+
+	#[runtime::pallet_index(105)]
+	pub type Sminer = pallet_sminer;
+
+	#[runtime::pallet_index(106)]
+	pub type Audit = pallet_audit;
+
+	#[runtime::pallet_index(107)]
+	pub type StorageHandler = pallet_storage_handler;
+
+	#[runtime::pallet_index(108)]
+	pub type Oss = pallet_oss;
+
+	#[runtime::pallet_index(109)]
+	pub type Cacher = pallet_cacher;
+
+	#[runtime::pallet_index(110)]
+	pub type Reservoir = pallet_reservoir;
 	//------------------- CESS's end ---------------------
 }
 
@@ -1562,6 +1583,188 @@ impl pallet_tee_worker::Config for Runtime {
 	type GovernanceOrigin = EnsureRootOrHalfCouncil;
 }
 
+pub const SEGMENT_COUNT: u32 = 1000;
+pub const FRAGMENT_COUNT: u32 = cp_cess_common::FRAGMENT_COUNT;
+
+parameter_types! {
+	pub const FilbakPalletId: PalletId = PalletId(*b"rewardpt");
+	#[derive(Clone, Eq, PartialEq)]
+	pub const BucketLimit: u32 = 1000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const NameStrLimit: u32 = 63;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const SegmentCount: u32 = SEGMENT_COUNT;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const FragmentCount: u32 = FRAGMENT_COUNT;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const OwnerLimit: u32 = 50000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const UserFileLimit: u32 = 500000;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const NameMinLength: u32 = 3;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const RestoralOrderLife: u32 = 250;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const MissionCount: u32 = SEGMENT_COUNT * FRAGMENT_COUNT;
+}
+
+impl pallet_file_bank::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeCall = RuntimeCall;
+	type FilbakPalletId = FilbakPalletId;
+	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
+	type FScheduler = Scheduler;
+	type AScheduler = Scheduler;
+	type SPalletsOrigin = OriginCaller;
+	type SProposal = RuntimeCall;
+	type WeightInfo = pallet_file_bank::weights::SubstrateWeight<Runtime>;
+	type MinerControl = Sminer;
+	type StorageHandle = StorageHandler;
+	type MyRandomness = pallet_rrsc::ParentBlockRandomness<Runtime>;
+	type TeeWorkerHandler = TeeWorker;
+	type UserFileLimit = UserFileLimit;
+	type OneDay = OneDay;
+	type CreditCounter = SchedulerCredit;
+	type OssFindAuthor = Oss;
+	type BucketLimit = BucketLimit;
+	type NameStrLimit = NameStrLimit;
+	type SegmentCount = SegmentCount;
+	type FragmentCount = FragmentCount;
+	type OwnerLimit = OwnerLimit;
+	type NameMinLength = NameMinLength;
+	type RestoralOrderLife = RestoralOrderLife;
+	type MissionCount = MissionCount;
+}
+
+parameter_types! {
+	pub const FaucetId: PalletId = PalletId(*b"facuetid");
+	#[derive(Clone, Eq, PartialEq)]
+	pub const StakingLockBlock: BlockNumber = DAYS * 180;
+	pub const MaximumRelease: u128 = 5_000_000_000_000_000_000_000_000;
+}
+
+impl pallet_sminer::Config for Runtime {
+	type Currency = Balances;
+	type RuntimeEvent = RuntimeEvent;
+	type FaucetId = FaucetId;
+	type WeightInfo = pallet_sminer::weights::SubstrateWeight<Runtime>;
+	type ItemLimit = ConstU32<200000>;
+	type OneDayBlock = OneDay;
+	type StakingLockBlock = StakingLockBlock;
+	type TeeWorkerHandler = TeeWorker;
+	type FScheduler = Scheduler;
+	type AScheduler = Scheduler;
+	type SPalletsOrigin = OriginCaller;
+	type SProposal = RuntimeCall;
+	type StorageHandle = StorageHandler;
+	type RewardPool = CessTreasury;
+	type CessTreasuryHandle = CessTreasury;
+	type MaximumRelease = MaximumRelease;
+	type ReservoirGate = Reservoir;
+}
+
+parameter_types! {
+	pub const SegbkPalletId: PalletId = PalletId(*b"rewardpt");
+	#[derive(Clone, PartialEq, Eq)]
+	pub const SessionKeyMax: u32 = 1000;
+	#[derive(Clone, PartialEq, Eq)]
+	pub const ChallengeMinerMax: u32 = 8000;
+	#[derive(Clone, PartialEq, Eq)]
+	pub const VerifyMissionMax: u32 = 500;
+	#[derive(Clone, PartialEq, Eq)]
+	pub const SigmaMax: u32 = 2048;
+	#[derive(Clone, PartialEq, Eq)]
+	pub const IdleTotalHashLength: u32 = 256;
+	pub const OneHours: BlockNumber = HOURS;
+	pub const SegUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
+	pub const LockTime: BlockNumber = HOURS / 60;
+	#[derive(Clone, PartialEq, Eq)]
+	pub const ReassignCeiling: u8 = 1;
+}
+
+impl pallet_audit::Config for Runtime {
+	type Currency = Balances;
+	type RuntimeEvent = RuntimeEvent;
+	type MyPalletId = SegbkPalletId;
+	type MyRandomness = pallet_rrsc::ParentBlockRandomness<Runtime>;
+	type WeightInfo = pallet_audit::weights::SubstrateWeight<Runtime>;
+	type AuthorityId = pallet_audit::sr25519::AuthorityId;
+	type CreditCounter = SchedulerCredit;
+	type SessionKeyMax = SessionKeyMax;
+	type VerifyMissionMax = VerifyMissionMax;
+	type OneDay = OneDay;
+	type OneHours = OneHours;
+	type TeeWorkerHandler = TeeWorker;
+	type MinerControl = Sminer;
+	type StorageHandle = StorageHandler;
+	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
+	type ValidatorSet = Historical;
+	type NextSessionRotation = Babe;
+	type UnsignedPriority = SegUnsignedPriority;
+	type LockTime = LockTime;
+	type ChallengeMinerMax = ChallengeMinerMax;
+	type SigmaMax = SigmaMax;
+	type IdleTotalHashLength = IdleTotalHashLength;
+	type ReassignCeiling = ReassignCeiling;
+}
+
+parameter_types! {
+	#[derive(Clone, Eq, PartialEq)]
+	pub const FrozenDays: BlockNumber = 7 * DAYS;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const StateStringMax: u32 = 20;
+}
+
+impl pallet_storage_handler::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type WeightInfo = pallet_storage_handler::weights::SubstrateWeight<Runtime>;
+	type OneDay = OneDay;
+	type OneHours = OneHours;
+	type RewardPalletId = RewardPalletId;
+	type MyRandomness = pallet_rrsc::ParentBlockRandomness<Runtime>;
+	type StateStringMax = StateStringMax;
+	type FrozenDays = FrozenDays;
+	type CessTreasuryHandle = CessTreasury;
+}
+
+parameter_types! {
+	#[derive(Clone, Eq, PartialEq)]
+	pub const P2PLength: u32 = 200;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const AuthorLimit: u32 = 20;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const PayloadExpired: u32 = 100;
+}
+
+impl pallet_oss::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = pallet_oss::weights::SubstrateWeight<Runtime>;
+	type P2PLength = P2PLength;
+	type AuthorLimit = AuthorLimit;
+	type PayloadExpired = PayloadExpired;
+}
+
+impl pallet_cacher::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type BillsLimit = ConstU32<10>;
+	type WeightInfo = pallet_cacher::weights::SubstrateWeight<Runtime>;
+}
+
+parameter_types! {
+	pub const ReservoirPalletId: PalletId = PalletId(*b"rsorptid");
+	pub const IdLength: u32 = 64;
+	pub const EventLimit: u32 = 32;
+}
+
+impl pallet_reservoir::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type PalletId = ReservoirPalletId;
+	type IdLength = IdLength;
+	type EventLimit = EventLimit;
+}
 //------------------------- CESS's end -------------------------
 
 #[cfg(feature = "runtime-benchmarks")]

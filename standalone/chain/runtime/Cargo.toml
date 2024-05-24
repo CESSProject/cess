@@ -123,6 +123,13 @@ ces-types = { workspace = true }
 ces-pallet-mq ={ workspace = true }
 ces-pallet-mq-runtime-api = { workspace = true }
 pallet-tee-worker = { workspace = true }
+pallet-audit = { workspace = true }
+pallet-file-bank = { workspace = true }
+pallet-sminer = { workspace = true }
+pallet-storage-handler = { workspace = true }
+pallet-oss = { workspace = true }
+pallet-cacher = { workspace = true }
+pallet-reservoir = { workspace = true }
 
 
 [build-dependencies]
@@ -230,6 +237,13 @@ std = [
 	"ces-pallet-mq/std",
 	"ces-pallet-mq-runtime-api/std",
 	"pallet-tee-worker/std",
+	"pallet-audit/std",
+	"pallet-file-bank/std",
+	"pallet-sminer/std",
+	"pallet-storage-handler/std",
+	"pallet-oss/std",
+	"pallet-cacher/std",
+	"pallet-reservoir/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
@@ -275,6 +289,12 @@ runtime-benchmarks = [
 	"pallet-evm/runtime-benchmarks",
 	# CESS
 	"pallet-tee-worker/runtime-benchmarks",
+	"pallet-audit/runtime-benchmarks",
+	"pallet-file-bank/runtime-benchmarks",
+	"pallet-sminer/runtime-benchmarks",
+	"pallet-storage-handler/runtime-benchmarks",
+	"pallet-oss/runtime-benchmarks",
+	"pallet-cacher/runtime-benchmarks",
 ]
 try-runtime = [
 	"frame-election-provider-support/try-runtime",
