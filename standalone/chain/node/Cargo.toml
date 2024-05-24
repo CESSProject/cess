@@ -22,12 +22,12 @@ clap = { workspace = true, features = ["derive"] }
 codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false }
 serde = { workspace = true, features = ["derive"] }
 jsonrpsee = { workspace = true, features = ["server"] }
-futures = { workspace = true, features = ["thread-pool"]}	
+futures = { workspace = true, features = ["thread-pool"] }
 log = { workspace = true }
 rand = { workspace = true }
 
 # primitives
-sp-api = { workspace = true, features = ["std", "frame-metadata"]}
+sp-api = { workspace = true, features = ["std", "frame-metadata"] }
 sp-authority-discovery = { workspace = true, features = ["default"] }
 sp-core = { workspace = true, features = ["default"] }
 sp-consensus = { workspace = true, features = ["default"] }
@@ -79,6 +79,7 @@ pallet-transaction-payment-rpc-runtime-api = { workspace = true }
 pallet-im-online = { workspace = true, features = ["default"] }
 
 # node-specific dependencies
+cess-node-primitives = { workspace = true, features = ["std"] }
 cess-node-runtime = { workspace = true, features = ["std"] }
 ces-node-rpc-ext = { workspace = true }
 ces-pallet-mq-runtime-api = { workspace = true }
@@ -124,11 +125,7 @@ try-runtime-cli = { workspace = true, optional = true }
 substrate-build-script-utils = { workspace = true }
 
 [features]
-default = [
-	"rocksdb",
-	"sql",
-	"txpool"
-]
+default = ["rocksdb", "sql", "txpool"]
 rocksdb = [
 	"sc-cli/rocksdb",
 	"sc-service/rocksdb",
@@ -137,25 +134,13 @@ rocksdb = [
 	"fc-mapping-sync/rocksdb",
 	"fc-rpc/rocksdb",
 ]
-sql = [
-	"fc-db/sql",
-	"fc-mapping-sync/sql",
-]
-txpool = [
-	"fc-rpc/txpool"
-]
+sql = ["fc-db/sql", "fc-mapping-sync/sql"]
+txpool = ["fc-rpc/txpool"]
 runtime-benchmarks = [
 	'cess-node-runtime/runtime-benchmarks',
 	"frame-benchmarking/runtime-benchmarks",
 	"frame-benchmarking-cli/runtime-benchmarks",
 ]
-try-runtime = [
-	"cess-node-runtime/try-runtime", 
-	"try-runtime-cli/try-runtime"
-]
-only-attestation = [
-	"cess-node-runtime/only-attestation"
-]
-verify-cesealbin = [
-	"cess-node-runtime/verify-cesealbin"
-]
+try-runtime = ["cess-node-runtime/try-runtime", "try-runtime-cli/try-runtime"]
+only-attestation = ["cess-node-runtime/only-attestation"]
+verify-cesealbin = ["cess-node-runtime/verify-cesealbin"]

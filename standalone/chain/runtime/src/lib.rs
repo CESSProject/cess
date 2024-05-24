@@ -2406,6 +2406,14 @@ impl_runtime_apis! {
 		}
 	}
 	//------------------- Frontier's end ---------------------
+
+	//------------------------- CESS's begin -------------------------
+	impl ces_pallet_mq_runtime_api::MqApi<Block> for Runtime {
+        fn sender_sequence(sender: &ces_types::messaging::MessageOrigin) -> Option<u64> {
+            CesMq::offchain_ingress(sender)
+        }
+    }
+	//------------------------- CESS's end -------------------------
 }
 
 #[cfg(test)]

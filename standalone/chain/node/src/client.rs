@@ -1,10 +1,8 @@
 // Substrate
-use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch, NativeVersion};
-
-use cess_node_runtime::{opaque::Block, AccountId, Balance, Nonce};
-use ces_pallet_mq_runtime_api::MqApi;
-
 use crate::eth::EthCompatRuntimeApiCollection;
+use ces_pallet_mq_runtime_api::MqApi;
+use cess_node_primitives::{opaque::Block, AccountId, Balance, Nonce};
+use sc_executor::{NativeElseWasmExecutor, NativeExecutionDispatch, NativeVersion};
 
 /// Full backend.
 pub type FullBackend = sc_service::TFullBackend<Block>;
@@ -61,7 +59,7 @@ pub trait RuntimeApiCollection:
 	+ EthCompatRuntimeApiCollection
 	+ cessc_consensus_rrsc::RRSCApi<Block>
 	+ sp_consensus_grandpa::GrandpaApi<Block>
-    + sp_authority_discovery::AuthorityDiscoveryApi<Block>
+	+ sp_authority_discovery::AuthorityDiscoveryApi<Block>
 	+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
 	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
 	+ MqApi<Block>

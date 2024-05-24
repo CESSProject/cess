@@ -1,26 +1,21 @@
+use cess_node_primitives::{AccountId, Balance, Block, Signature};
+use cess_node_runtime::{constants::currency::DOLLARS, wasm_binary_unwrap, MaxNominations, SessionKeys, StakerStatus};
 /// Added a graph view on the functions relationship in this file, refer to the github-rendered view at:
 //    https://github.com/CESSProject/cess/blob/main/docs/on-src/node/src/chain_spec.rs.md
-
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
-use cess_node_runtime::{
-	opaque::SessionKeys, wasm_binary_unwrap, AccountId, Balance,
-	BalancesConfig, Block, CouncilConfig, ImOnlineConfig,
-	IndicesConfig, MaxNominations, BabeConfig, SessionConfig, Signature, StakerStatus,
-	StakingConfig, SudoConfig, SystemConfig, TechnicalCommitteeConfig, DOLLARS,
-	StorageHandlerConfig, EVMChainIdConfig,
-};
 
-use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
+use cessp_consensus_rrsc::AuthorityId as RRSCId;
 use pallet_audit::sr25519::AuthorityId as SegmentBookId;
-use sc_chain_spec::ChainSpecExtension;
-use sc_service::{config::TelemetryEndpoints, ChainType};
+use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
+use sc_chain_spec::{ChainSpecExtension, Properties};
+use sc_service::ChainType;
+use sc_telemetry::TelemetryEndpoints;
 use serde::{Deserialize, Serialize};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use cessp_consensus_rrsc::AuthorityId as RRSCId;
 use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public};
 use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
-	Perbill, 
+	Perbill,
 };
 
 pub use cess_node_runtime::RuntimeGenesisConfig;
@@ -59,7 +54,7 @@ fn session_keys(
 	im_online: ImOnlineId,
 	authority_discovery: AuthorityDiscoveryId,
 ) -> SessionKeys {
-	SessionKeys { grandpa, rrsc, im_online, authority_discovery }
+	SessionKeys { grandpa, babe: rrsc, im_online, authority_discovery }
 }
 
 /// Generate an account ID from seed.
@@ -85,7 +80,15 @@ pub fn authority_keys_from_seed(
 	)
 }
 
-fn cess_main_genesis() -> RuntimeGenesisConfig {
+fn properties() -> Properties {
+	let mut properties = Properties::new();
+	properties.insert("tokenSymbol".into(), "TCESS".into());
+	properties.insert("tokenDecimals".into(), 18.into());
+	properties.insert("ss58Format".into(), 11330.into());
+	properties
+}
+
+fn cess_main_genesis() -> serde_json::Value {
 	#[rustfmt::skip]
 		let initial_authorities: Vec<(
 		AccountId,
@@ -197,7 +200,7 @@ fn cess_main_genesis() -> RuntimeGenesisConfig {
 	// generated with secret: subkey inspect "$secret"/fir
 	let root_key: AccountId = array_bytes::hex_n_into_unchecked(
 		// cXffK7BmstE5rXcK8pxKLufkffp9iASMntxUm6ctpR6xS3icV
-		"1e3e1c69dfbd27d398e92da4844a9abdc2786ac01588d87a2e1f5ec06ea2a936"
+		"1e3e1c69dfbd27d398e92da4844a9abdc2786ac01588d87a2e1f5ec06ea2a936",
 	);
 
 	let endowed_accounts: Vec<AccountId> = vec![
@@ -229,7 +232,7 @@ fn cess_main_genesis() -> RuntimeGenesisConfig {
 	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts))
 }
 
-fn cess_testnet_config_genesis() -> RuntimeGenesisConfig {
+fn cess_testnet_config_genesis() -> serde_json::Value {
 	#[rustfmt::skip]
 	// stash, controller, session-key
 	// generated with secret:
@@ -313,7 +316,7 @@ fn cess_testnet_config_genesis() -> RuntimeGenesisConfig {
 	// generated with secret: subkey inspect "$secret"/fir
 	let root_key: AccountId = array_bytes::hex_n_into_unchecked(
 		// cXffK7BmstE5rXcK8pxKLufkffp9iASMntxUm6ctpR6xS3icV
-		"1e3e1c69dfbd27d398e92da4844a9abdc2786ac01588d87a2e1f5ec06ea2a936"
+		"1e3e1c69dfbd27d398e92da4844a9abdc2786ac01588d87a2e1f5ec06ea2a936",
 	);
 
 	let endowed_accounts: Vec<AccountId> = vec![
@@ -331,7 +334,7 @@ fn cess_testnet_config_genesis() -> RuntimeGenesisConfig {
 		array_bytes::hex_n_into_unchecked("2a66038471e6a62a2df2195efef9d25263858711337cf8dc31804f196bdb7840"),
 		array_bytes::hex_n_into_unchecked("2ed4a2c67291bf3eaa4de538ab120ba21b302db5704551864226d2fae8f87937"),
 		array_bytes::hex_n_into_unchecked("d0a9eef85d7762e89280b8fdfd4ce031530b95421214fcc28c554dbb4d9fe927"),
-		array_bytes::hex_n_into_unchecked("5ce2722592557b41c2359fec3367f782703706784f193abc735b937abae71e30",)
+		array_bytes::hex_n_into_unchecked("5ce2722592557b41c2359fec3367f782703706784f193abc735b937abae71e30"),
 	];
 
 	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts))
@@ -346,64 +349,34 @@ pub fn cess_develop_config() -> ChainSpec {
 }
 
 pub fn cess_testnet_generate_config() -> ChainSpec {
-	let boot_nodes = vec![];
-	ChainSpec::from_genesis(
-		// Name
-		"cess-devnet",
-		// ID
-		"cess-devnet",
-		ChainType::Live,
-		cess_testnet_config_genesis,
-		boot_nodes,
-		Some(
+	ChainSpec::builder(wasm_binary_unwrap(), Default::default())
+		.with_name("cess-devnet")
+		.with_id("cess-devnet")
+		.with_chain_type(ChainType::Live)
+		.with_properties(properties())
+		.with_genesis_config_patch(cess_testnet_config_genesis())
+		.with_telemetry_endpoints(
 			TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
 				.expect("Staging telemetry url is valid; qed"),
-		),
-		Some("TCESS"),
-		None,
-		// Properties
-		Some(
-			serde_json::from_str(
-				"{\"tokenDecimals\": 18, \"tokenSymbol\": \"TCESS\", \"SS58Prefix\": 11330}",
-			)
-			.expect("Provided valid json map"),
-		),
-		Default::default(),
-	)
+		)
+		.build()
 }
 
 pub fn cess_main() -> ChainSpec {
-	let boot_nodes = vec![];
-	ChainSpec::from_genesis(
-		// Name
-		"cess-testnet",
-		// ID
-		"cess-testnet",
-		ChainType::Live,
-		cess_main_genesis,
-		// Bootnodes
-		boot_nodes,
-		// Telemetry
-		Some(
+	ChainSpec::builder(wasm_binary_unwrap(), Default::default())
+		.with_name("cess-testnet")
+		.with_id("cess-testnet")
+		.with_chain_type(ChainType::Live)
+		.with_properties(properties())
+		.with_genesis_config_patch(cess_main_genesis())
+		.with_telemetry_endpoints(
 			TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
 				.expect("Staging telemetry url is valid; qed"),
-		),
-		// Protocol ID
-		Some("TCESS"),
-		// Fork ID
-		None,
-		// Properties
-		Some(
-			serde_json::from_str(
-				"{\"tokenDecimals\": 18, \"tokenSymbol\": \"TCESS\", \"SS58Prefix\": 11330}",
-			)
-				.expect("Provided valid json map"),
-		),
-		Default::default(),
-	)
+		)
+		.build()
 }
 
-fn development_config_genesis() -> RuntimeGenesisConfig {
+fn development_config_genesis() -> serde_json::Value {
 	testnet_genesis(
 		vec![authority_keys_from_seed("Alice")],
 		vec![],
@@ -413,34 +386,16 @@ fn development_config_genesis() -> RuntimeGenesisConfig {
 }
 
 pub fn development_config() -> ChainSpec {
-	ChainSpec::from_genesis(
-		// Name
-		"Development",
-		// ID
-		"dev",
-		ChainType::Development,
-		development_config_genesis,
-		// Bootnodes
-		vec![],
-		// Telemetry
-		None,
-		// Protocol ID
-		Some("TCESS"),
-		// Fork ID
-		None,
-		// Properties
-		Some(
-			serde_json::from_str(
-				"{\"tokenDecimals\": 18, \"tokenSymbol\": \"TCESS\", \"SS58Prefix\": 11330}",
-			)
-				.expect("Provided valid json map"),
-		),
-		// Extensions
-		Default::default(),
-	)
+	ChainSpec::builder(wasm_binary_unwrap(), Default::default())
+		.with_name("Development")
+		.with_id("dev")
+		.with_chain_type(ChainType::Development)
+		.with_properties(properties())
+		.with_genesis_config_patch(development_config_genesis())
+		.build()
 }
 
-fn local_testnet_genesis() -> RuntimeGenesisConfig {
+fn local_testnet_genesis() -> serde_json::Value {
 	testnet_genesis(
 		vec![authority_keys_from_seed("Alice"), authority_keys_from_seed("Bob")],
 		vec![],
@@ -450,25 +405,13 @@ fn local_testnet_genesis() -> RuntimeGenesisConfig {
 }
 
 pub fn local_testnet_config() -> ChainSpec {
-	ChainSpec::from_genesis(
-		// Name
-		"Local Testnet",
-		// ID
-		"local_testnet",
-		ChainType::Local,
-		local_testnet_genesis,
-		// Bootnodes
-		vec![],
-		// Telemetry
-		None,
-		// Protocol ID
-		None,
-		// Properties
-		None,
-		None,
-		// Extensions
-		Default::default(),
-	)
+	ChainSpec::builder(wasm_binary_unwrap(), Default::default())
+		.with_name("Local Testnet")
+		.with_id("local_testnet")
+		.with_chain_type(ChainType::Local)
+		.with_properties(properties())
+		.with_genesis_config_patch(local_testnet_genesis())
+		.build()
 }
 
 /// Configure initial storage state for FRAME modules.
@@ -485,7 +428,7 @@ fn testnet_genesis(
 	initial_nominators: Vec<AccountId>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
-) -> RuntimeGenesisConfig {
+) -> serde_json::Value {
 	let mut endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(|| {
 		vec![
 			get_account_id_from_seed::<sr25519::Public>("Alice"),
@@ -537,70 +480,39 @@ fn testnet_genesis(
 	const ENDOWMENT: Balance = 100_000_000 * DOLLARS;
 	const STASH: Balance = 3_000_000 * DOLLARS;
 
-	RuntimeGenesisConfig {
-		system: SystemConfig { code: wasm_binary_unwrap().to_vec(), ..Default::default() },
-		balances: BalancesConfig {
-			// Configure endowed accounts with initial balance of ENDOWMENT.
-			balances: endowed_accounts.iter().cloned().map(|k| (k, ENDOWMENT)).collect(),
-		},
-		storage_handler: StorageHandlerConfig { price: 30 * DOLLARS },
-		// FOR TESTING
-		sminer: Default::default(),
-		indices: IndicesConfig { indices: vec![] },
-		session: SessionConfig {
-			keys: initial_authorities
+	serde_json::json!({
+		"sudo": { "key": Some(root_key) },
+		"balances": {
+			"balances": endowed_accounts
 				.iter()
-				.map(|x| {
-					(
-						x.0.clone(),
-						x.0.clone(),
-						session_keys(
-							x.2.clone(),
-							x.3.clone(),
-							x.4.clone(),
-							x.5.clone(),
-						),
-					)
-				})
-				.collect::<Vec<_>>(),
-		},
-		staking: StakingConfig {
-			validator_count: initial_authorities.len() as u32,
-			minimum_validator_count: 1,
-			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
-			slash_reward_fraction: Perbill::from_percent(10),
-			stakers,
-			..Default::default()
-		},
-		council: CouncilConfig::default(),
-		technical_committee: TechnicalCommitteeConfig {
-			members: endowed_accounts
-				.iter()
-				.take((num_endowed_accounts + 1) / 2)
 				.cloned()
-				.collect(),
-			phantom: Default::default(),
+				.map(|k| (k, ENDOWMENT))
+				.collect::<Vec<_>>()
 		},
-		babe: BabeConfig {
-			authorities: vec![],
-			epoch_config: Some(cess_node_runtime::RRSC_GENESIS_EPOCH_CONFIG),
-			..Default::default()
+		"session": {
+			"keys": initial_authorities
+				.iter()
+				.map(|x| (x.0.clone(), x.0.clone(), session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone())))
+				.collect::<Vec<_>>()
 		},
-		im_online: ImOnlineConfig { keys: vec![] },
-		authority_discovery: Default::default(),
-		grandpa: Default::default(),
-		technical_membership: Default::default(),
-		treasury: Default::default(),
-		sudo: SudoConfig {
-			// Assign network admin rights.
-			key: Some(root_key),
+		"staking": {
+			"validatorCount": initial_authorities.len(),
+			"minimumValidatorCount": 1,
+			"invulnerables": initial_authorities.iter().map(|x| x.0.clone()).collect::<Vec<_>>(),
+			"slashRewardFraction": Perbill::from_percent(10),
+			"stakers": stakers,
 		},
-		assets: Default::default(),
-		transaction_payment: Default::default(),
-		evm: Default::default(),
-		ethereum: Default::default(),
-		dynamic_fee: Default::default(),
-		base_fee: Default::default(),
-		evm_chain_id: EVMChainIdConfig { chain_id: 11330, ..Default::default() },
-	}
+		"technicalCommittee": {
+			"members": endowed_accounts.iter().take((num_endowed_accounts + 1) / 2).cloned().collect::<Vec<_>>()
+		},
+		"babe": {
+			"epochConfig": Some(cess_node_runtime::BABE_GENESIS_EPOCH_CONFIG)
+		},
+		"evmChainId": {
+			"chainId": 11330
+		},
+		"storageHandler": {
+			"price": 30 * DOLLARS
+		}
+	})
 }

@@ -1581,6 +1581,7 @@ dependencies = [
  "ces-node-rpc-ext",
  "ces-pallet-mq",
  "ces-pallet-mq-runtime-api",
+ "cess-node-primitives",
  "cess-node-runtime",
  "cessc-consensus-rrsc",
  "cessc-consensus-rrsc-rpc",

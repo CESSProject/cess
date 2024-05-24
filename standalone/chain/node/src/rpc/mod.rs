@@ -1,15 +1,11 @@
 //! A collection of node-specific RPC methods.
 
-use std::sync::Arc;
-
-use jsonrpsee::RpcModule;
-// Substrate
+use cess_node_primitives::{opaque::Block, AccountId, Balance, BlockNumber, Hash, Nonce};
 use cessc_consensus_rrsc::RRSCWorkerHandle;
 use cessc_consensus_rrsc_rpc::{RRSCApiServer, RRSC};
 use cessp_consensus_rrsc::RRSCApi;
-use grandpa::{
-	FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState,
-};
+use grandpa::{FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState};
+use jsonrpsee::RpcModule;
 use sc_client_api::{
 	backend::{Backend, StorageProvider},
 	client::BlockchainEvents,
@@ -25,8 +21,7 @@ use sp_consensus::SelectChain;
 use sp_inherents::CreateInherentDataProviders;
 use sp_keystore::KeystorePtr;
 use sp_runtime::traits::Block as BlockT;
-// Runtime
-use cess_node_runtime::{opaque::Block, AccountId, Balance, BlockNumber, Hash, Nonce};
+use std::sync::Arc;
 
 mod eth;
 pub use self::eth::{create_eth, overrides_handle, EthDeps};
@@ -81,28 +76,16 @@ where
 	BE: Backend<Block> + 'static,
 {
 	type EstimateGasAdapter = ();
-	type RuntimeStorageOverride =
-		fc_rpc::frontier_backend_client::SystemAccountId20StorageOverride<Block, C, BE>;
+	type RuntimeStorageOverride = fc_rpc::frontier_backend_client::SystemAccountId20StorageOverride<Block, C, BE>;
 }
 
 /// Instantiate all Full RPC extensions.
 pub fn create_full<C, B, SC, P, A, CT, CIDP>(
-	FullDeps {
-		client,
-		pool,
-		select_chain,
-		chain_spec,
-		deny_unsafe,
-		rrsc,
-		grandpa,
-		backend,
-	}: FullDeps<C, P, SC, B>,
+	FullDeps { client, pool, select_chain, chain_spec, deny_unsafe, rrsc, grandpa, backend }: FullDeps<C, P, SC, B>,
 	eth_deps: EthDeps<Block, C, P, A, CT, CIDP>,
 	subscription_task_executor: SubscriptionTaskExecutor,
 	pubsub_notification_sinks: Arc<
-		fc_mapping_sync::EthereumBlockNotificationSinks<
-			fc_mapping_sync::EthereumBlockNotification<Block>,
-		>,
+		fc_mapping_sync::EthereumBlockNotificationSinks<fc_mapping_sync::EthereumBlockNotification<Block>>,
 	>,
 ) -> Result<RpcModule<()>, Box<dyn std::error::Error + Send + Sync>>
 where
@@ -155,10 +138,7 @@ where
 	// more context: https://github.com/paritytech/substrate/pull/3480
 	// These RPCs should use an asynchronous caller instead.
 	io.merge(TransactionPayment::new(client.clone()).into_rpc())?;
-	io.merge(
-		RRSC::new(client.clone(), rrsc_worker_handle.clone(), keystore, select_chain, deny_unsafe)
-			.into_rpc(),
-	)?;
+	io.merge(RRSC::new(client.clone(), rrsc_worker_handle.clone(), keystore, select_chain, deny_unsafe).into_rpc())?;
 	io.merge(
 		Grandpa::new(
 			subscription_executor,
@@ -170,13 +150,11 @@ where
 		.into_rpc(),
 	)?;
 
-	io.merge(
-		SyncState::new(chain_spec, client.clone(), shared_authority_set, rrsc_worker_handle)?
-			.into_rpc(),
-	)?;
+	io.merge(SyncState::new(chain_spec, client.clone(), shared_authority_set, rrsc_worker_handle)?.into_rpc())?;
 
 	io.merge(StateMigration::new(client.clone(), backend.clone(), deny_unsafe).into_rpc())?;
-	io.merge(NodeRpcExt::new(client, backend, pool).into_rpc()).expect("Initialize CESS node RPC ext failed.");
+	io.merge(NodeRpcExt::new(client, backend, pool).into_rpc())
+		.expect("Initialize CESS node RPC ext failed.");
 
 	// Ethereum compatibility RPCs
 	let io = create_eth::<_, _, _, _, _, _, _, DefaultEthConfig<C, B>>(
