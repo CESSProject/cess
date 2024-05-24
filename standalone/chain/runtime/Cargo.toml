@@ -25,7 +25,6 @@ primitive-types = { workspace = true, features = ["codec", "num-traits", "scale-
 
 # primitives
 sp-authority-discovery = { workspace = true, features = ["serde"] }
-sp-consensus-beefy = { workspace = true }
 sp-consensus-grandpa = { workspace = true, features = ["serde"] }
 sp-block-builder = { workspace = true }
 sp-genesis-builder = { workspace = true }
@@ -58,8 +57,6 @@ pallet-authority-discovery = { workspace = true }
 pallet-authorship = { workspace = true }
 pallet-bags-list = { workspace = true }
 pallet-balances = { workspace = true }
-pallet-beefy = { workspace = true }
-pallet-beefy-mmr = { workspace = true }
 pallet-collective = { workspace = true }
 pallet-contracts = { workspace = true }
 pallet-election-provider-multi-phase = { workspace = true }
@@ -157,8 +154,6 @@ std = [
 	"pallet-authorship/std",
 	"pallet-bags-list/std",
 	"pallet-balances/std",
-	"pallet-beefy-mmr/std",
-	"pallet-beefy/std",
 	"pallet-collective/std",
 	"pallet-contracts/std",
 	"pallet-election-provider-multi-phase/std",
@@ -196,7 +191,6 @@ std = [
 	"sp-api/std",
 	"sp-authority-discovery/std",
 	"sp-block-builder/std",
-	"sp-consensus-beefy/std",
 	"sp-consensus-grandpa/std",
 	"sp-core/std",
 	"sp-genesis-builder/std",
@@ -310,8 +304,6 @@ try-runtime = [
 	"pallet-authorship/try-runtime",
 	"pallet-bags-list/try-runtime",
 	"pallet-balances/try-runtime",
-	"pallet-beefy-mmr/try-runtime",
-	"pallet-beefy/try-runtime",
 	"pallet-collective/try-runtime",
 	"pallet-contracts/try-runtime",
 	"pallet-election-provider-multi-phase/try-runtime",

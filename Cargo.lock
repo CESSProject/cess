@@ -1006,15 +1006,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "binary-merkle-tree"
-version = "13.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.10.1#8eb1f5592d15c7c748fbe21c2ea951d3bfe890e2"
-dependencies = [
- "hash-db",
- "log",
-]
-
-[[package]]
 name = "bincode"
 version = "1.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1590,7 +1581,6 @@ dependencies = [
  "ces-node-rpc-ext",
  "ces-pallet-mq",
  "ces-pallet-mq-runtime-api",
- "cess-node-primitives",
  "cess-node-runtime",
  "cessc-consensus-rrsc",
  "cessc-consensus-rrsc-rpc",
@@ -1720,8 +1710,6 @@ dependencies = [
  "pallet-bags-list",
  "pallet-balances",
  "pallet-base-fee",
- "pallet-beefy",
- "pallet-beefy-mmr",
  "pallet-cacher",
  "pallet-cess-staking",
  "pallet-cess-treasury",
@@ -1778,7 +1766,6 @@ dependencies = [
  "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
- "sp-consensus-beefy",
  "sp-consensus-grandpa",
  "sp-core 28.0.0",
  "sp-genesis-builder",
@@ -7574,51 +7561,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-beefy"
-version = "28.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.10.1#8eb1f5592d15c7c748fbe21c2ea951d3bfe890e2"
-dependencies = [
- "frame-support",
- "frame-system",
- "log",
- "pallet-authorship",
- "pallet-session",
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-consensus-beefy",
- "sp-runtime 31.0.1",
- "sp-session",
- "sp-staking",
- "sp-std 14.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.10.1)",
-]
-
-[[package]]
-name = "pallet-beefy-mmr"
-version = "28.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.10.1#8eb1f5592d15c7c748fbe21c2ea951d3bfe890e2"
-dependencies = [
- "array-bytes 6.2.3",
- "binary-merkle-tree",
- "frame-support",
- "frame-system",
- "log",
- "pallet-beefy",
- "pallet-mmr",
- "pallet-session",
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-api",
- "sp-consensus-beefy",
- "sp-core 28.0.0",
- "sp-io 30.0.0",
- "sp-runtime 31.0.1",
- "sp-state-machine 0.35.0",
- "sp-std 14.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.10.1)",
-]
-
-[[package]]
 name = "pallet-cacher"
 version = "0.7.0"
 dependencies = [
@@ -12543,26 +12485,6 @@ dependencies = [
  "sp-inherents",
  "sp-runtime 31.0.1",
  "sp-timestamp",
-]
-
-[[package]]
-name = "sp-consensus-beefy"
-version = "13.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.10.1#8eb1f5592d15c7c748fbe21c2ea951d3bfe890e2"
-dependencies = [
- "lazy_static",
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-api",
- "sp-application-crypto 30.0.0",
- "sp-core 28.0.0",
- "sp-crypto-hashing",
- "sp-io 30.0.0",
- "sp-keystore 0.34.0",
- "sp-mmr-primitives",
- "sp-runtime 31.0.1",
- "strum 0.26.2",
 ]
 
 [[package]]
