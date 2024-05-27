@@ -11,7 +11,7 @@ sp-application-crypto = { workspace = true }
 
 ring = { workspace = true, features = ["alloc"] }
 curve25519-dalek = { workspace = true }
-schnorrkel = { workspace = true, features = ["preaudit_deprecated", "u64_backend"] }
+schnorrkel = { workspace = true, features = ["preaudit_deprecated"] }
 aead = { workspace = true, optional = true }
 typenum = { workspace = true, optional = true }
 aead-io = { workspace = true, optional = true }
@@ -19,7 +19,7 @@ aead-io = { workspace = true, optional = true }
 [dev-dependencies]
 rand = "0.8.5"
 hex = "0.4"
-schnorrkel = { workspace = true, features = ["preaudit_deprecated", "u64_backend", "getrandom"] }
+schnorrkel = { workspace = true, features = ["preaudit_deprecated", "getrandom"] }
 
 [features]
 default = [ "full_crypto" ]

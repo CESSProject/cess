@@ -1,7 +1,7 @@
 use super::{
     expert, expert::CesealExpertStub, podr2, pois, pubkeys, types::CesealProperties, Ceseal, CesealSafeBox, RpcService,
 };
-use anyhow::{anyhow, Context as _, Result};
+use anyhow::{anyhow, Result};
 use cestory_api::{crpc::ceseal_api_server::CesealApiServer, ecall_args::InitArgs};
 use serde::{de::DeserializeOwned, Serialize};
 use std::net::SocketAddr;
@@ -136,7 +136,7 @@ pub(crate) fn spawn_external_server<Platform>(
                 info!("external server starts shutting down");
             })
             .await
-            .context("start external server failed")?;
+            .map_err(|e| anyhow!("start external server failed: {e}"))?;
         stopped_tx.send(()).ok();
         Ok::<(), anyhow::Error>(result)
     });

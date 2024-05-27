@@ -18,7 +18,7 @@ pub fn copy_data(target: &mut [u8], src: &[&[u8]]) {
     }
 }
 
-pub fn parse_key(path: &str) -> Result<RsaKey> {
+pub fn parse_key(path: &str) -> Result<RsaKey, std::io::Error> {
     let data = fs::read(path)?;
     Ok(get_key_from_bytes(&data))
 }

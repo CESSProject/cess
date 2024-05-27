@@ -1,4 +1,5 @@
 use crate::system::{CesealMasterKey, WorkerIdentityKey};
+use anyhow::anyhow;
 use ces_types::WorkerRole;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use std::{
@@ -76,8 +77,17 @@ pub enum Error {
     #[error("external server already closed")]
     ExternalServerAlreadyClosed,
 
-    #[error(transparent)]
+    #[error("unseal error on load_runtime_data()")]
+    UnsealOnLoad,
+
+    #[error("{0}")]
     Anyhow(anyhow::Error),
+}
+
+impl Into<anyhow::Error> for Error {
+    fn into(self) -> anyhow::Error {
+        anyhow!("{self}")
+    }
 }
 
 pub type ExpertCmdSender = mpsc::Sender<ExpertCmd>;

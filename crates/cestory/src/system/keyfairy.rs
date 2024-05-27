@@ -98,6 +98,6 @@ where
             &iv,
         )
         .expect("should never fail with valid master key; qed.");
-        EncryptedKey { ecdh_pubkey: sr25519::Public(ecdh_pubkey), encrypted_key, iv }
+        EncryptedKey { ecdh_pubkey: sr25519::Public::from_raw(ecdh_pubkey), encrypted_key, iv }
     }
 }

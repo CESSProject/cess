@@ -309,7 +309,7 @@ codec = { package = "parity-scale-codec", version = "3.6.1", default-features = 
 scale-codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false }
 const-str = { version = "0.5", default-features = false }
 criterion = { version = "0.4.0", features = ["async_tokio"] }
-curve25519-dalek = { version = "2.0", default-features = false }
+curve25519-dalek = { version = "4.1", default-features = false }
 dashmap = "5.5.3"
 derive_more = { version = "1.0.0-beta.6", default-features = false, features = [
     "display",
@@ -384,10 +384,7 @@ scale-decode = "0.9.0"
 scale-encode = "0.5.0"
 scale-info = { version = "2.11", default-features = false }
 scale-value = "0.12.0"
-schnorrkel = { version = "0.9.1", default-features = false, features = [
-    "preaudit_deprecated",
-    "u64_backend",
-] }
+schnorrkel = { version = "0.11", default-features = false }
 scopeguard = { version = "1.1", default-features = false }
 serde = { version = "1.0", default-features = false }
 serde_cbor = "0.11.2"

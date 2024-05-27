@@ -6,35 +6,32 @@ extern crate log;
 extern crate cestory_pal as pal;
 extern crate runtime as chain;
 
-use glob::PatternError;
-use rand::*;
-use serde::{
-    de::{self, DeserializeOwned, SeqAccess, Visitor},
-    ser::SerializeSeq,
-    Deserialize, Deserializer, Serialize, Serializer,
-};
-use system::CesealMasterKey;
-use tokio::sync::oneshot;
-
-use crate::light_validation::LightValidation;
-use anyhow::{anyhow, Context as _, Result};
+use anyhow::{anyhow, Result};
 use ces_crypto::{
     aead,
     ecdh::EcdhKey,
     sr25519::{Persistence as Persist, Sr25519SecretKey, KDF, SEED_BYTES},
 };
-use ces_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
+use ces_mq::{MessageDispatcher, MessageSendQueue};
 use ces_serde_more as more;
 use ces_types::{AttestationProvider, HandoverChallenge};
 use cestory_api::{
     crpc::{ExternalServerState, GetEndpointResponse, InitRuntimeResponse},
     ecall_args::InitArgs,
-    storage_sync::{StorageSynchronizer, Synchronizer},
+    storage_sync::Synchronizer,
 };
+use glob::PatternError;
+use light_validation::LightValidation;
 use parity_scale_codec::{Decode, Encode};
 use parking_lot::{RwLock, RwLockReadGuard};
+use rand::*;
 use ring::rand::SecureRandom;
 use scale_info::TypeInfo;
+use serde::{
+    de::{self, DeserializeOwned, SeqAccess, Visitor},
+    ser::SerializeSeq,
+    Deserialize, Deserializer, Serialize, Serializer,
+};
 use sp_core::{crypto::Pair, sr25519, H256};
 use std::{
     fs::File,
@@ -45,7 +42,9 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
     time::Instant,
 };
+use system::CesealMasterKey;
 use thiserror::Error;
+use tokio::sync::oneshot;
 use types::{Error, ExpertCmdSender};
 
 pub use ceseal_service::RpcService;
@@ -191,7 +190,9 @@ fn maybe_remove_checkpoints(basedir: &str) {
 
 fn remove_outdated_checkpoints(basedir: &str, max_kept: u32, current_block: chain::BlockNumber) -> Result<()> {
     let mut kept = 0_u32;
-    for (block, filename) in glob_checkpoint_files_sorted(basedir)? {
+    let checkpoints =
+        glob_checkpoint_files_sorted(basedir).map_err(|e| anyhow!("error in glob_checkpoint_files_sorted(): {e}"))?;
+    for (block, filename) in checkpoints {
         if block > current_block {
             continue
         }
@@ -209,9 +210,9 @@ fn remove_outdated_checkpoints(basedir: &str, max_kept: u32, current_block: chai
 }
 
 fn remove_checkpoint(filename: &Path) -> Result<()> {
-    std::fs::remove_file(filename).context("Failed to remove checkpoint file")?;
+    std::fs::remove_file(filename).map_err(|e| anyhow!("Failed to remove checkpoint file: {e}"))?;
     let info_filename = checkpoint_info_filename_for(&filename.display().to_string());
-    std::fs::remove_file(info_filename).context("Failed to remove checkpoint info file")?;
+    std::fs::remove_file(info_filename).map_err(|e| anyhow!("Failed to remove checkpoint info file: {e}"))?;
     Ok(())
 }
 
@@ -422,8 +423,7 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
             let filepath = PathBuf::from(&self.args.sealing_path).join(RUNTIME_SEALED_DATA_FILE);
             self.platform
                 .seal_data(filepath, &encoded_vec)
-                .map_err(Into::into)
-                .context("Failed to seal runtime data")?;
+                .map_err(|_| anyhow!("Failed to seal runtime data"))?;
             info!("Persistent Runtime Data V2 saved");
         }
         Ok(data)
@@ -438,7 +438,7 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
         let filepath = PathBuf::from(sealing_path).join(RUNTIME_SEALED_DATA_FILE);
         let data = platform
             .unseal_data(filepath)
-            .map_err(|_| Error::Anyhow(anyhow!("unseal error in load_runtime_data()")))?
+            .map_err(|_| Error::UnsealOnLoad)?
             .ok_or(Error::PersistentRuntimeNotFound)?;
         let data: RuntimeDataSeal = Decode::decode(&mut &data[..]).map_err(Error::DecodeError)?;
         match data {
@@ -471,7 +471,9 @@ impl<P: pal::Platform> Ceseal<P> {
     pub fn on_restored(&mut self) -> Result<()> {
         self.check_requirements();
         self.update_runtime_info(|_| {});
-        self.trusted_sk = Self::load_runtime_data(&self.platform, &self.args.sealing_path)?.trusted_sk;
+        self.trusted_sk = Self::load_runtime_data(&self.platform, &self.args.sealing_path)
+            .map_err(|e| anyhow!("load runtime data error: {e}"))?
+            .trusted_sk;
         if let Some(system) = &mut self.system {
             system.on_restored(self.args.safe_mode_level)?;
         }
@@ -529,19 +531,19 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         if self.args.safe_mode_level > 0 {
             anyhow::bail!("Checkpoint is disabled in safe mode");
         }
-        let (current_block, _) = self.current_block()?;
+        let (current_block, _) = self.current_block().map_err(|e| anyhow!("get current block error: {e}"))?;
         let key = self
             .system
             .as_ref()
-            .context("Take checkpoint failed, runtime is not ready")?
+            .ok_or(anyhow!("Take checkpoint failed, runtime is not ready"))?
             .identity_key
             .dump_secret_key();
         let checkpoint_file = checkpoint_filename_for(current_block, &self.args.storage_path);
         info!("Taking checkpoint to {checkpoint_file}...");
         self.save_checkpoint_info(&checkpoint_file)?;
-        let file = File::create(&checkpoint_file).context("Failed to create checkpoint file")?;
+        let file = File::create(&checkpoint_file).map_err(|e| anyhow!("Failed to create checkpoint file: {e}"))?;
         self.take_checkpoint_to_writer(&key, file)
-            .context("Take checkpoint to writer failed")?;
+            .map_err(|e| anyhow!("Take checkpoint to writer failed: {e}"))?;
         info!("Checkpoint saved to {checkpoint_file}");
         self.last_checkpoint = Instant::now();
         remove_outdated_checkpoints(&self.args.storage_path, self.args.max_checkpoint_files, current_block)?;
@@ -550,11 +552,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
 
     pub fn save_checkpoint_info(&self, filename: &str) -> anyhow::Result<()> {
         let info = self.get_info();
-        let content = serde_json::to_string_pretty(&info).context("Failed to serialize checkpoint info")?;
+        let content =
+            serde_json::to_string_pretty(&info).map_err(|e| anyhow!("Failed to serialize checkpoint info: {e}"))?;
         let info_filename = checkpoint_info_filename_for(filename);
-        let mut file = File::create(info_filename).context("Failed to create checkpoint info file")?;
+        let mut file =
+            File::create(info_filename).map_err(|e| anyhow!("Failed to create checkpoint info file: {e}"))?;
         file.write_all(content.as_bytes())
-            .context("Failed to write checkpoint info file")?;
+            .map_err(|e| anyhow!("Failed to write checkpoint info file: {e}"))?;
         Ok(())
     }
 
@@ -562,17 +566,20 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         let key128 = derive_key_for_checkpoint(key);
         let nonce = rand::thread_rng().gen();
         let mut enc_writer = aead::stream::new_aes128gcm_writer(key128, nonce, writer);
-        serialize_ceseal_to_writer(self, &mut enc_writer).context("Failed to write checkpoint")?;
-        enc_writer.flush().context("Failed to flush encrypted writer")?;
+        serialize_ceseal_to_writer(self, &mut enc_writer).map_err(|e| anyhow!("Failed to write checkpoint: {e}"))?;
+        enc_writer
+            .flush()
+            .map_err(|e| anyhow!("Failed to flush encrypted writer: {e}"))?;
         Ok(())
     }
 
     pub fn restore_from_checkpoint(platform: &Platform, args: &InitArgs) -> anyhow::Result<Option<Self>> {
         let runtime_data = match Self::load_runtime_data(platform, &args.sealing_path) {
             Err(Error::PersistentRuntimeNotFound) => return Ok(None),
-            other => other.context("Failed to load persistent data")?,
+            other => other.map_err(|e| anyhow!("Failed to load persistent data: {e}"))?,
         };
-        let files = glob_checkpoint_files_sorted(&args.storage_path).context("Glob checkpoint files failed")?;
+        let files = glob_checkpoint_files_sorted(&args.storage_path)
+            .map_err(|e| anyhow!("Glob checkpoint files failed: {e}"))?;
         if files.is_empty() {
             return Ok(None)
         }
@@ -588,7 +595,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
                 error!("Failed to open checkpoint file {ckpt_filename:?}: {err:?}",);
                 if args.remove_corrupted_checkpoint {
                     error!("Removing {ckpt_filename:?}");
-                    std::fs::remove_file(ckpt_filename).context("Failed to remove corrupted checkpoint file")?;
+                    std::fs::remove_file(ckpt_filename)
+                        .map_err(|e| anyhow!("Failed to remove corrupted checkpoint file: {e}"))?;
                 }
                 anyhow::bail!("Failed to open checkpoint file {ckpt_filename:?}: {err:?}");
             },
@@ -604,7 +612,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
                 error!("Failed to load checkpoint file {ckpt_filename:?}");
                 if args.remove_corrupted_checkpoint {
                     error!("Removing {:?}", ckpt_filename);
-                    std::fs::remove_file(ckpt_filename).context("Failed to remove corrupted checkpoint file")?;
+                    std::fs::remove_file(ckpt_filename)
+                        .map_err(|e| anyhow!("Failed to remove corrupted checkpoint file: {e}"))?;
                 }
                 anyhow::bail!("Failed to load checkpoint file {ckpt_filename:?}");
             },
@@ -619,10 +628,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         let key128 = derive_key_for_checkpoint(key);
         let dec_reader = aead::stream::new_aes128gcm_reader(key128, reader);
 
-        let mut factory =
-            deserialize_ceseal_from_reader(dec_reader, args.safe_mode_level).context("Failed to deserialize Ceseal")?;
+        let mut factory = deserialize_ceseal_from_reader(dec_reader, args.safe_mode_level)
+            .map_err(|e| anyhow!("Failed to deserialize Ceseal: {e}"))?;
         factory.set_args(args.clone());
-        factory.on_restored().context("Failed to restore Ceseal")?;
+        factory.on_restored().map_err(|e| anyhow!("Failed to restore Ceseal: {e}"))?;
         Ok(factory)
     }
 }
@@ -693,7 +702,7 @@ where
     R: std::io::Read,
 {
     let mut deserializer = serde_cbor::Deserializer::from_reader(reader);
-    Ceseal::load_state(&mut deserializer, safe_mode_level).context("Failed to load factory")
+    Ceseal::load_state(&mut deserializer, safe_mode_level).map_err(|e| anyhow!("Failed to load factory: {e}"))
 }
 
 fn serialize_ceseal_to_writer<Platform, R>(phatory: &Ceseal<Platform>, writer: R) -> Result<()>
@@ -703,7 +712,9 @@ where
 {
     let mut writer = serde_cbor::ser::IoWrite::new(writer);
     let mut serializer = serde_cbor::Serializer::new(&mut writer);
-    phatory.dump_state(&mut serializer)?;
+    phatory
+        .dump_state(&mut serializer)
+        .map_err(|e| anyhow!("dump state error: {e}"))?;
     Ok(())
 }
 
