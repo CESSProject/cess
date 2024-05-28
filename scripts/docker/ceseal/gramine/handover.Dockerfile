@@ -45,7 +45,7 @@ EOF
 
 # ====== runtime ======
 
-FROM cesslab/intel-sgx-deno-env:latest AS runtime
+FROM cesslab/intel-sgx-env:latest AS runtime
 
 ARG https_proxy
 ARG http_proxy
