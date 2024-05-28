@@ -3,6 +3,7 @@ use cestory_api::{
     ceseal_client,
 };
 use cesxt::Config;
+use clap::Parser;
 use parity_scale_codec::{Decode, Encode};
 use sp_runtime::{generic::SignedBlock as SpSignedBlock, Justifications, OpaqueExtrinsic};
 use subxt::backend::legacy::rpc_methods::{BlockDetails, BlockJustification};
@@ -23,7 +24,7 @@ pub type BlockNumber = u32;
 pub type Hash = sp_core::H256;
 pub type Header = sp_runtime::generic::Header<BlockNumber, sp_runtime::traits::BlakeTwo256>;
 pub type Block = SignedBlock<Header, OpaqueExtrinsic>;
-use clap::Parser;
+pub type UnsigedBlock = sp_runtime::generic::Block<Header, OpaqueExtrinsic>;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -261,5 +262,21 @@ impl ConvertTo<Block> for BlockDetails<Config> {
 impl ConvertTo<Justifications> for Vec<BlockJustification> {
     fn convert_to(&self) -> Justifications {
         recode(self).expect("Failed to convert BlockDetails to Block")
+    }
+}
+
+pub enum SyncOperation {
+    ChainHeader,
+    Block,
+    ReachedChainTip,
+}
+
+impl std::fmt::Display for SyncOperation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SyncOperation::ChainHeader => write!(f, "ChainHeader"),
+            SyncOperation::Block => write!(f, "Block"),
+            SyncOperation::ReachedChainTip => write!(f, "ReachedChainTip"),
+        }
     }
 }

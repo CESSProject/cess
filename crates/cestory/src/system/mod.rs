@@ -5,8 +5,7 @@ use crate::{pal, secret_channel::ecdh_serde, types::BlockDispatchContext};
 use anyhow::{anyhow, Result};
 use ces_crypto::{ecdh::EcdhKey, key_share, rsa::RsaDer, sr25519::KDF, SecretKey};
 use ces_mq::{
-    traits::MessageChannel, BadOrigin, MessageDispatcher, MessageOrigin, MessageSendQueue, SignedMessageChannel,
-    TypedReceiver,
+    traits::MessageChannel, MessageDispatcher, MessageOrigin, MessageSendQueue, SignedMessageChannel, TypedReceiver,
 };
 use ces_serde_more as more;
 use ces_types::{
@@ -23,32 +22,6 @@ use serde::{Deserialize, Serialize};
 use sp_core::{sr25519, Pair};
 use std::sync::Arc;
 use tracing::{error, info};
-
-#[derive(Encode, Decode, Debug, Clone, thiserror::Error)]
-#[error("TransactionError: {:?}", self)]
-pub enum TransactionError {
-    BadInput,
-    BadOrigin,
-    Other(String),
-}
-
-impl From<BadOrigin> for TransactionError {
-    fn from(_: BadOrigin) -> TransactionError {
-        TransactionError::BadOrigin
-    }
-}
-
-impl From<String> for TransactionError {
-    fn from(s: String) -> TransactionError {
-        TransactionError::Other(s)
-    }
-}
-
-impl Into<anyhow::Error> for TransactionError {
-    fn into(self) -> anyhow::Error {
-        anyhow!("{self}")
-    }
-}
 
 #[derive(Serialize, Deserialize, Clone, derive_more::Deref, derive_more::DerefMut, derive_more::From)]
 #[serde(transparent)]
@@ -321,7 +294,7 @@ impl<Platform: pal::Platform> System<Platform> {
     ) -> Result<()> {
         if !origin.is_keyfairy() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
-            return Err(TransactionError::BadOrigin.into())
+            anyhow::bail!("invalid origin");
         }
 
         if self.identity_key.public() != event.dest {
@@ -335,8 +308,8 @@ impl<Platform: pal::Platform> System<Platform> {
         }
 
         let rsa_der = self.decrypt_key_from(&event.ecdh_pubkey, &event.encrypted_master_key, &event.iv);
-        let master_key =
-            CesealMasterKey::from_rsa_der(&rsa_der).map_err(|e| anyhow!("failed build CesealMasterKey from rsa_der: {e}"))?;
+        let master_key = CesealMasterKey::from_rsa_der(&rsa_der)
+            .map_err(|e| anyhow!("failed build CesealMasterKey from rsa_der: {e}"))?;
         master_key.seal(&self.sealing_path, &self.identity_key.0, &self.platform);
 
         self.init_keyfairy(block, master_key);

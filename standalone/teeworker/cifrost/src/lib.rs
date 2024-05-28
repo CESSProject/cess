@@ -1,22 +1,37 @@
+use crate::{
+    error::Error,
+    types::{
+        Args, BlockNumber, BlockSyncState, CesealClient, Header, RaOption, RunningFlags,
+        SrSigner, SyncOperation,
+    },
+};
 use anyhow::{anyhow, Context, Result};
-use log::{debug, error, info, warn};
-use sp_core::crypto::AccountId32;
-use std::cmp;
-use std::str::FromStr;
-use std::time::Duration;
-use tokio::time::sleep;
-use tonic::Request;
-
+use ces_types::{AttestationProvider, WorkerEndpointPayload};
+use cestory_api::{
+    blocks::{BlockHeaderWithChanges, GenesisBlockInfo, HeaderToSync},
+    crpc::{self, InitRuntimeResponse},
+};
 use cesxt::{
     connect as subxt_connect,
     dynamic::storage_key,
     sp_core::{crypto::Pair, sr25519},
     ChainApi,
 };
+use clap::Parser;
+use log::{error, info, warn};
+use msg_sync::{Error as MsgSyncError, Receiver, Sender};
 use parity_scale_codec::Decode;
-use sp_consensus_grandpa::SetId;
+use sc_consensus_grandpa::FinalityProof;
+use sp_core::crypto::AccountId32;
+use std::str::FromStr;
+use std::time::Duration;
+use tokio::time::sleep;
+use tonic::Request;
 
+pub use authority::get_authority_with_proof_at;
 pub use cesxt::subxt;
+
+mod authority;
 mod block_subscribe;
 mod error;
 mod msg_sync;
@@ -26,23 +41,46 @@ mod tx;
 pub mod chain_client;
 pub mod types;
 
-use crate::{
-    error::Error,
-    types::{
-        Args, Block, BlockNumber, BlockSyncState, CesealClient, Header, RaOption, RunningFlags,
-        SrSigner,
-    },
-};
-use ces_types::{AttestationProvider, WorkerEndpointPayload};
-use cestory_api::{
-    blocks::{self, AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync},
-    crpc::{self, InitRuntimeResponse},
-};
-use clap::Parser;
-use msg_sync::{Error as MsgSyncError, Receiver, Sender};
+async fn sync_headers(cc: &mut CesealClient, api: &ChainApi, from: BlockNumber) -> Result<()> {
+    let first_header = chain_client::get_header_at(api, Some(from)).await?;
+    let mut headers = vec![HeaderToSync {
+        header: first_header.0.clone(),
+        justification: None,
+    }];
+
+    let encoded_finality_proof = prove_finality_at(api, from).await?;
+    let finality_proof: FinalityProof<Header> =
+        Decode::decode(&mut encoded_finality_proof.as_slice())?;
+    headers.extend(finality_proof.unknown_headers.iter().map(|h| HeaderToSync {
+        header: h.clone(),
+        justification: None,
+    }));
+
+    let last_header = headers
+        .last_mut()
+        .expect("Already filled at least one header");
+    let last_number = last_header.header.number;
+    last_header.justification = Some(finality_proof.justification);
+
+    info!(
+        "sending a batch of {} headers (last: {})",
+        headers.len(),
+        last_number
+    );
+    let relay_synced_to = req_sync_header(cc, headers).await?;
+    info!("  ..sync_header: {:?}", relay_synced_to);
+
+    Ok(())
+}
+
+pub async fn prove_finality_at(api: &ChainApi, block_number: u32) -> Result<Vec<u8>> {
+    let pos = cesxt::rpc::BlockNumberOrHex::Number(block_number.into());
+    let proof = api.extra_rpc().prove_finality(pos).await?;
+    Ok(proof.0)
+}
 
 pub async fn batch_sync_storage_changes(
-    pr: &mut CesealClient,
+    cc: &mut CesealClient,
     chain_api: &ChainApi,
     from: BlockNumber,
     to: BlockNumber,
@@ -58,7 +96,7 @@ pub async fn batch_sync_storage_changes(
     for from in (from..=to).step_by(batch_size as _) {
         let to = to.min(from.saturating_add(batch_size - 1));
         let storage_changes = fetcher.fetch_storage_changes(chain_api, from, to).await?;
-        let r = req_dispatch_block(pr, storage_changes).await?;
+        let r = req_dispatch_block(cc, storage_changes).await?;
         log::debug!("  ..dispatch_block: {:?}", r);
     }
     Ok(())
@@ -93,56 +131,12 @@ async fn try_load_handover_proof(pr: &mut CesealClient, chain_api: &ChainApi) ->
     Ok(())
 }
 
-/// Returns the next set_id change by a binary search on the known blocks
-///
-/// `known_blocks` must have at least one block with block justification, otherwise raise an error
-/// `NoJustificationInRange`. If there's no set_id change in the given blocks, it returns None.
-async fn bisec_setid_change(
-    chain_api: &ChainApi,
-    last_set: (BlockNumber, SetId),
-    known_blocks: &Vec<Block>,
-) -> Result<Option<BlockNumber>> {
-    debug!("bisec_setid_change(last_set: {:?})", last_set);
-    if known_blocks.is_empty() {
-        return Err(anyhow!(Error::SearchSetIdChangeInEmptyRange));
-    }
-    let (last_block, last_id) = last_set;
-    // Run binary search only on blocks with justification
-    let headers: Vec<&Header> = known_blocks
-        .iter()
-        .filter(|b| b.block.header.number > last_block && b.justifications.is_some())
-        .map(|b| &b.block.header)
-        .collect();
-    let mut l = 0i64;
-    let mut r = (headers.len() as i64) - 1;
-    while l <= r {
-        let mid = (l + r) / 2;
-        let hash = headers[mid as usize].hash();
-        let set_id = chain_api.current_set_id(Some(hash)).await?;
-        // Left: set_id == last_id, Right: set_id > last_id
-        if set_id == last_id {
-            l = mid + 1;
-        } else {
-            r = mid - 1;
-        }
-    }
-    // Return the first occurance of bigger set_id; return (last_id + 1) if not found
-    let result = if (l as usize) < headers.len() {
-        Some(headers[l as usize].number)
-    } else {
-        None
-    };
-    debug!("bisec_setid_change result: {:?}", result);
-    Ok(result)
-}
-
 async fn req_sync_header(
-    pr: &mut CesealClient,
+    cc: &mut CesealClient,
     headers: Vec<HeaderToSync>,
-    authority_set_change: Option<AuthoritySetChange>,
 ) -> Result<crpc::SyncedTo> {
-    let resp = pr
-        .sync_header(crpc::HeadersToSync::new(headers, authority_set_change))
+    let resp = cc
+        .sync_header(crpc::HeadersToSync::new(headers, None))
         .await?;
     Ok(resp.into_inner())
 }
@@ -153,168 +147,6 @@ async fn req_dispatch_block(
 ) -> Result<crpc::SyncedTo> {
     let resp = pr.dispatch_blocks(crpc::Blocks::new(blocks)).await?;
     Ok(resp.into_inner())
-}
-
-const GRANDPA_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"FRNK";
-
-#[allow(clippy::too_many_arguments)]
-async fn batch_sync_block(
-    chain_api: &ChainApi,
-    ceseal_api: &mut CesealClient,
-    sync_state: &mut BlockSyncState,
-    batch_window: BlockNumber,
-    info: &crpc::CesealInfo,
-) -> Result<BlockNumber> {
-    let block_buf = &mut sync_state.blocks;
-    if block_buf.is_empty() {
-        return Ok(0);
-    }
-    let mut next_headernum = info.headernum;
-    let mut next_blocknum = info.blocknum;
-
-    let mut synced_blocks: BlockNumber = 0;
-
-    let hdr_synced_to = next_headernum.saturating_sub(1);
-    macro_rules! sync_blocks_to {
-        ($to: expr) => {
-            if next_blocknum <= $to {
-                batch_sync_storage_changes(ceseal_api, chain_api, next_blocknum, $to, batch_window)
-                    .await?;
-                synced_blocks += $to - next_blocknum + 1;
-                next_blocknum = $to + 1;
-            };
-        };
-    }
-
-    sync_blocks_to!(hdr_synced_to);
-
-    while !block_buf.is_empty() {
-        // Current authority set id
-        let last_set = if let Some(set) = sync_state.authory_set_state {
-            set
-        } else {
-            // Construct the authority set from the last block we have synced (the genesis)
-            let number = block_buf
-                .first()
-                .unwrap()
-                .block
-                .header
-                .number
-                .saturating_sub(1);
-            let hash = chain_api
-                .rpc()
-                .chain_get_block_hash(Some(number.into()))
-                .await?
-                .ok_or_else(|| anyhow!("Failed to get block hash for block number {}", number))?;
-            let set_id = chain_api.current_set_id(Some(hash)).await?;
-            let set = (number, set_id);
-            sync_state.authory_set_state = Some(set);
-            set
-        };
-        // Find the next set id change
-        let set_id_change_at = bisec_setid_change(chain_api, last_set, block_buf).await?;
-        let last_number_in_buff = block_buf.last().unwrap().block.header.number;
-        // Search
-        // Find the longest batch within the window
-        let first_block_number = block_buf.first().unwrap().block.header.number;
-        // TODO: fix the potential overflow here
-        let end_buffer = block_buf.len() as isize - 1;
-        let end_set_id_change = match set_id_change_at {
-            Some(change_at) => change_at as isize - first_block_number as isize,
-            None => block_buf.len() as isize,
-        };
-        let header_end = cmp::min(end_buffer, end_set_id_change);
-        let mut header_idx = header_end;
-        while header_idx >= 0 {
-            if block_buf[header_idx as usize]
-                .justifications
-                .as_ref()
-                .and_then(|v| v.get(GRANDPA_ENGINE_ID))
-                .is_some()
-            {
-                break;
-            }
-            header_idx -= 1;
-        }
-        if header_idx < 0 {
-            warn!(
-                "Cannot find justification within window (from: {}, to: {})",
-                first_block_number,
-                block_buf.last().unwrap().block.header.number,
-            );
-            break;
-        }
-        // send out the longest batch and remove it from the input buffer
-        let block_batch: Vec<Block> = block_buf.drain(..=(header_idx as usize)).collect();
-        let header_batch: Vec<HeaderToSync> = block_batch
-            .iter()
-            .map(|b| HeaderToSync {
-                header: b.block.header.clone(),
-                justification: b
-                    .justifications
-                    .clone()
-                    .and_then(|v| v.into_justification(GRANDPA_ENGINE_ID)),
-            })
-            .collect();
-
-        /* print collected headers */
-        {
-            for h in header_batch.iter() {
-                debug!(
-                    "Header {} :: {} :: {}",
-                    h.header.number,
-                    h.header.hash().to_string(),
-                    h.header.parent_hash.to_string()
-                );
-            }
-        }
-
-        let last_header = &header_batch.last().unwrap();
-        let last_header_hash = last_header.header.hash();
-        let last_header_number = last_header.header.number;
-
-        let mut authrotiy_change: Option<AuthoritySetChange> = None;
-        if let Some(change_at) = set_id_change_at {
-            if change_at == last_header_number {
-                authrotiy_change = Some(
-                    chain_client::get_authority_with_proof_at(chain_api, last_header_hash).await?,
-                );
-            }
-        }
-
-        info!(
-            "sending a batch of {} headers (last: {}, change: {:?})",
-            header_batch.len(),
-            last_header_number,
-            authrotiy_change
-                .as_ref()
-                .map(|change| &change.authority_set)
-        );
-
-        let mut header_batch = header_batch;
-        header_batch.retain(|h| h.header.number >= next_headernum);
-        // Remove justifications for all headers except the last one to reduce data overhead
-        // and improve sync performance.
-        if let Some((_last, rest_headers)) = header_batch.split_last_mut() {
-            for header in rest_headers {
-                header.justification = None;
-            }
-        }
-
-        let r = req_sync_header(ceseal_api, header_batch, authrotiy_change).await?;
-        info!("  ..sync_header: {:?}", r);
-        next_headernum = r.synced_to + 1;
-
-        sync_blocks_to!(r.synced_to);
-
-        sync_state.authory_set_state = Some(match set_id_change_at {
-            // set_id changed at next block
-            Some(change_at) => (change_at + 1, last_set.1 + 1),
-            // not changed
-            None => (last_number_in_buff, last_set.1),
-        });
-    }
-    Ok(synced_blocks)
 }
 
 const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
@@ -328,22 +160,7 @@ async fn init_runtime(
     operator: Option<AccountId32>,
     start_header: BlockNumber,
 ) -> Result<InitRuntimeResponse> {
-    let genesis_info = {
-        let genesis_block = chain_client::get_block_at(chain_api, Some(start_header))
-            .await?
-            .0
-            .block;
-        let genesis_block_hash = chain_client::get_header_hash(chain_api, Some(start_header))
-            .await
-            .expect("No genesis block?");
-        let set_proof =
-            chain_client::get_authority_with_proof_at(chain_api, genesis_block_hash).await?;
-        blocks::GenesisBlockInfo {
-            block_header: genesis_block.header.clone(),
-            authority_set: set_proof.authority_set,
-            proof: set_proof.authority_proof,
-        }
-    };
+    let genesis_info = fetch_genesis_info(chain_api, start_header).await?;
     let genesis_state = chain_client::fetch_genesis_storage(chain_api).await?;
     let mut debug_set_key = None;
     if !inject_key.is_empty() {
@@ -369,6 +186,22 @@ async fn init_runtime(
         ))
         .await?;
     Ok(resp.into_inner())
+}
+
+pub async fn fetch_genesis_info(
+    api: &ChainApi,
+    genesis_block_number: BlockNumber,
+) -> Result<GenesisBlockInfo> {
+    let genesis_block = chain_client::get_block_at(api, Some(genesis_block_number))
+        .await?
+        .0
+        .block;
+    let set_proof = crate::get_authority_with_proof_at(api, &genesis_block.header).await?;
+    Ok(GenesisBlockInfo {
+        block_header: genesis_block.header,
+        authority_set: set_proof.authority_set,
+        proof: set_proof.authority_proof,
+    })
 }
 
 async fn try_register_worker(
@@ -583,163 +416,137 @@ async fn bridge(
 
     block_subscribe::spawn_subscriber(&chain_api, cc.clone()).await?;
 
-    // Don't just sync message if we want to wait for some block
-    let mut sync_state = BlockSyncState {
-        blocks: Vec::new(),
-        authory_set_state: None,
-    };
-
-    for round in 0u64.. {
+    loop {
         // update the latest Ceseal state
         let info = cc.get_info(()).await?.into_inner();
-        info!("Ceseal get_info response (round: {}): {:#?}", round, info);
+        info!("Ceseal get_info response: {:#?}", info);
         if info.blocknum >= args.to_block {
             info!("Reached target block: {}", args.to_block);
             return Ok(());
         }
 
-        let next_headernum = info.headernum;
-        if info.blocknum < next_headernum {
-            info!("blocks fall behind");
-            batch_sync_storage_changes(
-                &mut cc,
-                &chain_api,
-                info.blocknum,
-                next_headernum - 1,
-                args.sync_blocks,
-            )
-            .await?;
-        }
-
-        let latest_block = chain_client::get_block_at(&chain_api, None).await?.0.block;
-        // remove the blocks not needed in the buffer. info.blocknum is the next required block
-        while let Some(b) = sync_state.blocks.first() {
-            if b.block.header.number >= info.headernum {
-                break;
+        match get_sync_operation(&chain_api, &info).await? {
+            SyncOperation::ChainHeader => {
+                sync_headers(&mut cc, &chain_api, info.headernum).await?;
             }
-            sync_state.blocks.remove(0);
-        }
-
-        info!(
-            "try to sync blocks. next required: (body={}, header={}), finalized tip: {}, buffered: {}",
-            info.blocknum, info.headernum, latest_block.header.number, sync_state.blocks.len());
-
-        // fill the sync buffer to catch up the chain tip
-        let next_block = match sync_state.blocks.last() {
-            Some(b) => b.block.header.number + 1,
-            None => info.headernum,
-        };
-
-        let (batch_end, more_blocks) = {
-            let latest = latest_block.header.number;
-            let fetch_limit = next_block + args.fetch_blocks - 1;
-            if fetch_limit < latest {
-                (fetch_limit, true)
-            } else {
-                (latest, false)
-            }
-        };
-
-        for b in next_block..=batch_end {
-            let (block, _) = chain_client::get_block_at(&chain_api, Some(b)).await?;
-
-            if block.justifications.is_some() {
-                debug!("block with justification at: {}", block.block.header.number);
-            }
-            sync_state.blocks.push(block);
-        }
-
-        // send the blocks to Ceseal in batch
-        let synced_blocks = batch_sync_block(
-            &chain_api,
-            &mut cc,
-            &mut sync_state,
-            args.sync_blocks,
-            &info,
-        )
-        .await?;
-
-        // check if Ceseal has already reached the chain tip.
-        if synced_blocks == 0 && !more_blocks {
-            if args.load_handover_proof {
-                try_load_handover_proof(&mut cc, &chain_api)
-                    .await
-                    .context("Failed to load handover proof")?;
-            }
-            let worker_pubkey = hex::decode(
-                info.public_key()
-                    .ok_or(anyhow!("worker public key must not none"))?,
-            )?;
-            if !chain_api
-                .is_worker_registered_at(&worker_pubkey, None)
-                .await?
-                && !flags.worker_register_sent
-            {
-                flags.worker_register_sent =
-                    try_register_worker(&mut cc, &chain_api, &mut signer, operator.clone(), args)
-                        .await?;
-            }
-
-            if args.public_endpoint.is_some()
-                && !flags.endpoint_registered
-                && info.public_key().is_some()
-            {
-                // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the cifrost initialization)
-                match try_update_worker_endpoint(&mut cc, &chain_api, &mut signer, args).await {
-                    Ok(registered) => {
-                        flags.endpoint_registered = registered;
-                    }
-                    Err(e) => {
-                        error!("FailedToCallBindWorkerEndpoint: {:?}", e);
-                    }
-                }
-            }
-
-            if chain_api.is_master_key_launched().await?
-                && !info.is_master_key_holded()
-                && !flags.master_key_apply_sent
-            {
-                let sent = tx::try_apply_master_key(&mut cc, &chain_api, &mut signer, args).await?;
-                flags.master_key_apply_sent = sent;
-            }
-
-            if info.is_master_key_holded() && !info.is_external_server_running() {
-                start_external_server(&mut cc).await?;
-            }
-
-            // Now we are idle. Let's try to sync the egress messages.
-            if !args.no_msg_submit {
-                msg_sync::maybe_sync_mq_egress(
-                    &chain_api,
+            SyncOperation::Block => {
+                let next_headernum = info.headernum;
+                batch_sync_storage_changes(
                     &mut cc,
-                    &mut signer,
-                    args.tip,
-                    args.longevity,
-                    args.max_sync_msgs_per_round,
-                    err_report.clone(),
+                    &chain_api,
+                    info.blocknum,
+                    next_headernum - 1,
+                    args.sync_blocks,
                 )
                 .await?;
             }
-            flags.restart_failure_count = 0;
-            info!("Waiting for new blocks");
+            SyncOperation::ReachedChainTip => {
+                if args.load_handover_proof {
+                    try_load_handover_proof(&mut cc, &chain_api)
+                        .await
+                        .context("Failed to load handover proof")?;
+                }
+                let worker_pubkey = hex::decode(
+                    info.public_key()
+                        .ok_or(anyhow!("worker public key must not none"))?,
+                )?;
+                if !chain_api
+                    .is_worker_registered_at(&worker_pubkey, None)
+                    .await?
+                    && !flags.worker_register_sent
+                {
+                    flags.worker_register_sent = try_register_worker(
+                        &mut cc,
+                        &chain_api,
+                        &mut signer,
+                        operator.clone(),
+                        args,
+                    )
+                    .await?;
+                }
 
-            // Launch key handover if required only when the old Ceseal is up-to-date
-            if args.next_ceseal_endpoint.is_some() {
-                let mut next_pr =
-                    CesealClient::connect(args.next_ceseal_endpoint.clone().unwrap()).await?;
-                handover_worker_key(&mut cc, &mut next_pr).await?;
+                if args.public_endpoint.is_some()
+                    && !flags.endpoint_registered
+                    && info.public_key().is_some()
+                {
+                    // Here the reason we dont directly report errors when `try_update_worker_endpoint` fails is that we want the endpoint can be registered anytime (e.g. days after the cifrost initialization)
+                    match try_update_worker_endpoint(&mut cc, &chain_api, &mut signer, args).await {
+                        Ok(registered) => {
+                            flags.endpoint_registered = registered;
+                        }
+                        Err(e) => {
+                            error!("FailedToCallBindWorkerEndpoint: {:?}", e);
+                        }
+                    }
+                }
+
+                if chain_api.is_master_key_launched().await?
+                    && !info.is_master_key_holded()
+                    && !flags.master_key_apply_sent
+                {
+                    let sent =
+                        tx::try_apply_master_key(&mut cc, &chain_api, &mut signer, args).await?;
+                    flags.master_key_apply_sent = sent;
+                }
+
+                if info.is_master_key_holded() && !info.is_external_server_running() {
+                    start_external_server(&mut cc).await?;
+                }
+
+                // Now we are idle. Let's try to sync the egress messages.
+                if !args.no_msg_submit {
+                    msg_sync::maybe_sync_mq_egress(
+                        &chain_api,
+                        &mut cc,
+                        &mut signer,
+                        args.tip,
+                        args.longevity,
+                        args.max_sync_msgs_per_round,
+                        err_report.clone(),
+                    )
+                    .await?;
+                }
+                flags.restart_failure_count = 0;
+                info!("Waiting for new blocks");
+
+                // Launch key handover if required only when the old Ceseal is up-to-date
+                if args.next_ceseal_endpoint.is_some() {
+                    let mut next_pr =
+                        CesealClient::connect(args.next_ceseal_endpoint.clone().unwrap()).await?;
+                    handover_worker_key(&mut cc, &mut next_pr).await?;
+                }
+
+                if !flags.checkpoint_taked && args.take_checkpoint {
+                    cc.take_checkpoint(()).await?;
+                    flags.checkpoint_taked = true;
+                }
+
+                sleep(Duration::from_millis(args.dev_wait_block_ms)).await;
+                continue;
             }
-
-            if !flags.checkpoint_taked && args.take_checkpoint {
-                cc.take_checkpoint(()).await?;
-                flags.checkpoint_taked = true;
-            }
-
-            sleep(Duration::from_millis(args.dev_wait_block_ms)).await;
-            continue;
-        }
+        };
     }
-    Ok(())
+}
+
+async fn get_sync_operation(
+    chain_api: &ChainApi,
+    info: &crpc::CesealInfo,
+) -> Result<SyncOperation> {
+    let next_headernum = info.headernum;
+    if info.blocknum < next_headernum {
+        return Ok(SyncOperation::Block);
+    }
+
+    let latest_header = chain_client::get_header_at(chain_api, None).await?.0;
+    info!(
+        "get_sync_operation: ceseal next header: {}, latest header: {}",
+        info.headernum, latest_header.number,
+    );
+    if latest_header.number > 0 && info.headernum <= latest_header.number {
+        Ok(SyncOperation::ChainHeader)
+    } else {
+        Ok(SyncOperation::ReachedChainTip)
+    }
 }
 
 fn preprocess_args(args: &mut Args) {

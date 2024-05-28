@@ -448,7 +448,7 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
 
     fn start_external_server(&mut self) -> Result<()> {
         if self.external_server_stub.is_some() {
-            return Err(Error::ExternalServerAlreadyServing.into())
+            anyhow::bail!("external server already started");
         }
         let Some(system) = self.system.as_ref() else { anyhow::bail!("ceseal uninitialize") };
         let Some(keyfairy) = system.keyfairy.as_ref() else { anyhow::bail!("master key uninitialize") };

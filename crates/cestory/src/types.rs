@@ -1,5 +1,4 @@
 use crate::system::{CesealMasterKey, WorkerIdentityKey};
-use anyhow::anyhow;
 use ces_types::WorkerRole;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use std::{
@@ -82,12 +81,6 @@ pub enum Error {
 
     #[error("{0}")]
     Anyhow(anyhow::Error),
-}
-
-impl Into<anyhow::Error> for Error {
-    fn into(self) -> anyhow::Error {
-        anyhow!("{self}")
-    }
 }
 
 pub type ExpertCmdSender = mpsc::Sender<ExpertCmd>;
