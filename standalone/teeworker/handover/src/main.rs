@@ -12,10 +12,6 @@ use tokio::{
 
 #[tokio::main]
 async fn main() {
-	
-	println!("version 111111111111111111111111111111111111111111111111111111");
-	println!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
-	println!("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
 	let args = Args::parse();
 	let mut current_version: u64 = 0;
 	let mut previous_version: u64 = 0;
