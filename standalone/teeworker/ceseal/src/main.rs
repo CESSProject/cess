@@ -103,6 +103,9 @@ enum Commands {
 }
 
 fn main() -> Result<()> {
+    println!("version 22222222222222222222222222222222222222222222222222222222222222222222222222222222222222");
+	println!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+	println!("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
     let args = Args::parse();
     match args.command {
         Some(Commands::Version) => {
