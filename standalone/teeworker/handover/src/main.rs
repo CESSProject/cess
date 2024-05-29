@@ -109,10 +109,9 @@ async fn main() {
 	.expect("wait for previous ceseal log fail");
 	log(format!("previous ceseal started!"));
 
-	let current_ceseal_storage_path =
-		Path::new(&args.current_version_ceseal_path).join(&args.ceseal_storage_files_path);
-	let previous_ceseal_storage_path = previous_ceseal_path.join(&args.ceseal_storage_files_path);
-	ensure_data_dir(current_ceseal_storage_path.parent().unwrap().to_str().unwrap())
+	let current_ceseal_real_storage_path =
+		Path::new(&args.ceseal_data_path).join(&current_version.to_string());
+	ensure_data_dir(&current_ceseal_real_storage_path)
 		.await
 		.expect("ensure current data dir fail");
 
@@ -141,6 +140,9 @@ async fn main() {
 	old_process.kill().await.expect("old ceseal stop fail");
 	kill_previous_ceseal(previous_version).await;
 
+	let current_ceseal_storage_path =
+		Path::new(&args.current_version_ceseal_path).join(&args.ceseal_storage_files_path);
+	let previous_ceseal_storage_path = previous_ceseal_path.join(&args.ceseal_storage_files_path);
 	match tokio::fs::remove_dir_all(&current_ceseal_storage_path).await {
 		Ok(_) => log("Removed current storage successfully.".to_string()),
 		Err(e) => eprintln!("Error removing previous storage: {}", e),
@@ -300,19 +302,19 @@ pub async fn confirm_previous_ceseal_version(
 	Ok(previous_version)
 }
 
-async fn ensure_data_dir(data_dir: &str) -> Result<(), std::io::Error> {
-	if !Path::new(data_dir).exists() {
+async fn ensure_data_dir(data_dir: &Path) -> Result<(), std::io::Error> {
+	if !data_dir.exists() {
 		tokio::fs::create_dir_all(data_dir).await?;
 	}
 
 	// Create the protected_files subdirectory if it does not exist
-	let protected_files_dir = Path::new(data_dir).join("protected_files");
+	let protected_files_dir = data_dir.join("protected_files");
 	if !protected_files_dir.exists() {
 		tokio::fs::create_dir_all(&protected_files_dir).await?;
 		log("create protected file for current ceseal...".to_string())
 	}
 
-	let storage_files_dir = Path::new(data_dir).join("storage_files");
+	let storage_files_dir = data_dir.join("storage_files");
 	if !storage_files_dir.exists() {
 		tokio::fs::create_dir_all(&storage_files_dir).await?;
 		log("create storage file for current ceseal...".to_string())

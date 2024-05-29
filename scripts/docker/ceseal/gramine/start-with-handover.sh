@@ -21,10 +21,5 @@ if [ "$SGX" -eq 1 ] && [ "$SKIP_AESMD" -eq 0 ]; then
   fi
 fi
 
-cd /opt/ceseal && deno run --allow-all handover.ts
-if [ $? -eq 0 ]
-then
-  cd /opt/ceseal/releases/current && SKIP_AESMD=1 ./start.sh
-else
-  exit 1
-fi
+./handover
+cd /opt/ceseal/releases/current && SKIP_AESMD=1 ./start.sh

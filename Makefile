@@ -19,7 +19,7 @@ node:
 cifrost:
 	cargo build -p cifrost ${XARGS}
 handover:
-	cargo build -p handover  ${XARGS}
+	cargo build -p handover --release
 ceseal:
 	make -C standalone/teeworker/ceseal
 test:

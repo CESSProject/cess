@@ -22,7 +22,7 @@ RUN <<EOF
   mkdir prebuilt
 EOF
 
-COPY ./scripts/docker/cargo-config.toml /usr/local/cargo/config
+# COPY ./scripts/docker/cargo-config.toml /usr/local/cargo/config
 COPY pallets ./cess-code/pallets
 COPY crates ./cess-code/crates
 COPY standalone ./cess-code/standalone
@@ -32,8 +32,11 @@ ENV VERGEN_GIT_SHA=${GIT_SHA}
 
 RUN <<EOF
   set -e
-  cd cess-code/standalone/teeworker/ceseal/gramine-build
   PATH=$PATH:/root/.cargo/bin
+  cd /root/cess-code
+  make handover
+  cp ./target/release/handover /root/prebuilt
+  cd /root/cess-code/standalone/teeworker/ceseal/gramine-build
   make dist PREFIX=/root/prebuilt
   make clean
   rm -rf /root/.cargo/registry
@@ -42,7 +45,7 @@ EOF
 
 # ====== runtime ======
 
-FROM cesslab/intel-sgx-deno-env:latest AS runtime
+FROM cesslab/intel-sgx-env:latest AS runtime
 
 ARG https_proxy
 ARG http_proxy
@@ -56,7 +59,7 @@ ARG REAL_CESEAL_DATA_DIR=${CESEAL_HOME}/data/${CESEAL_VERSION}
 COPY --from=builder /root/prebuilt/ ${CESEAL_DIR}
 ADD --chmod=0755 ./scripts/docker/ceseal/gramine/start.sh ${CESEAL_DIR}/start.sh
 ADD --chmod=0755 ./scripts/docker/ceseal/gramine/start-with-handover.sh ${CESEAL_HOME}/start.sh
-ADD ./scripts/docker/ceseal/gramine/handover.ts ${CESEAL_HOME}/handover.ts
+
 
 RUN <<EOF
   set -e
@@ -64,7 +67,6 @@ RUN <<EOF
   mkdir -p ${REAL_CESEAL_DATA_DIR}
   rm -rf ${CESEAL_DIR}/data
   ln -s ${REAL_CESEAL_DATA_DIR} ${CESEAL_DIR}/data
-  deno cache --reload ${CESEAL_HOME}/handover.ts
 EOF
 
 WORKDIR ${CESEAL_HOME}/releases/current

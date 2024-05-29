@@ -8,7 +8,7 @@ members = [
     "pallets/mq/runtime-api",
     "standalone/chain/*",
     "standalone/teeworker/cifrost",
-    "standalone/handover",
+    "standalone/teeworker/handover",
 ]
 
 resolver = "2"
