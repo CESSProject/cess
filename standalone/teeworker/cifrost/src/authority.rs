@@ -81,6 +81,7 @@ pub async fn get_authority_with_proof_at(
     })
 }
 
+#[allow(dead_code)]
 pub async fn verify(api: &ChainApi, header: &Header, mut justifications: &[u8]) -> Result<()> {
     if header.number == 0 {
         return Ok(());
