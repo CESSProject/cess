@@ -2,7 +2,7 @@
   "name": "cess-devnet",
   "id": "cess-devnet",
   "chainType": "Live",
-  "bootNodes": ["/ip4/8.210.223.137/tcp/30333/p2p/12D3KooWCFNVh8Q1B9kFuybfTRjJguCXCWFig9uFBWTxfYaeqRDN"],
+  "bootNodes": ["/ip4/8.210.223.137/tcp/30333/p2p/12D3KooWDnU77tQhECkoCsKzdMmhoWRjm53ZRCPiQdyyTFB5jMac"],
   "telemetryEndpoints": [
     [
       "/dns/telemetry.polkadot.io/tcp/443/x-parity-wss/%2Fsubmit%2F",
