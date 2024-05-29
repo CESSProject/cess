@@ -264,19 +264,3 @@ impl ConvertTo<Justifications> for Vec<BlockJustification> {
         recode(self).expect("Failed to convert BlockDetails to Block")
     }
 }
-
-pub enum SyncOperation {
-    ChainHeader,
-    Block,
-    ReachedChainTip,
-}
-
-impl std::fmt::Display for SyncOperation {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SyncOperation::ChainHeader => write!(f, "ChainHeader"),
-            SyncOperation::Block => write!(f, "Block"),
-            SyncOperation::ReachedChainTip => write!(f, "ReachedChainTip"),
-        }
-    }
-}
