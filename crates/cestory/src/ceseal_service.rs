@@ -945,8 +945,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         let chain_storage = state.chain_storage.read();
         // Dispatch events
         let messages = chain_storage
-            .mq_messages()
-            .map_err(|_| from_display("Can not get mq messages from storage"))?;
+            .mq_messages();
 
         state.recv_mq.reset_local_index();
 

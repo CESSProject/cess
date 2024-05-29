@@ -2,7 +2,7 @@ use alloc::vec::Vec;
 use core::convert::TryFrom;
 use parity_scale_codec::{Decode, Encode, FullCodec};
 use scale_info::TypeInfo;
-pub use sp_consensus_grandpa::{AuthorityList, SetId};
+pub use sp_consensus_grandpa::{AuthorityList, ConsensusLog, GRANDPA_ENGINE_ID, ScheduledChange, SetId};
 
 pub use ces_trie_storage::ser::StorageChanges;
 use sp_core::U256;
@@ -121,7 +121,8 @@ pub mod compat {
                 .into_iter()
                 .map(|x| base64::encode(x.encode()))
                 .collect();
-            let authority_set_change_b64 = v.authority_set_change.map(|x| base64::encode(x.encode()));
+            let authority_set_change_b64 =
+                v.authority_set_change.map(|x| base64::encode(x.encode()));
             Self {
                 headers_b64,
                 authority_set_change_b64,
@@ -144,4 +145,28 @@ pub mod compat {
             Self { blocks_b64 }
         }
     }
+
+    #[derive(Serialize, Debug)]
+    pub struct ContractInput<T> {
+        pub input: T,
+    }
+
+    impl<T> ContractInput<T> {
+        pub fn new(input: T) -> Self {
+            Self { input }
+        }
+    }
+}
+
+pub fn find_scheduled_change(
+    header: &BlockHeader,
+) -> Option<ScheduledChange<u32>> {
+    let filter_log = |log: ConsensusLog<u32>| match log {
+        ConsensusLog::ScheduledChange(change) => Some(change),
+        _ => None,
+    };
+
+    // find the first consensus digest with the right ID which converts to
+    // the right kind of consensus log.
+    header.digest.convert_first(|l| l.consensus_try_to(&GRANDPA_ENGINE_ID).and_then(filter_log))
 }

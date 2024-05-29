@@ -9,7 +9,7 @@ use ces_types::messaging::MessageOrigin;
 use cestory_api::blocks::StorageProof;
 use cesxt::{subxt, BlockNumber, ChainApi};
 use log::info;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::Encode;
 use std::time::Duration;
 use tokio::time::sleep;
 

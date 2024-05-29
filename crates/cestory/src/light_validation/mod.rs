@@ -22,20 +22,18 @@ mod justification;
 pub mod storage_proof;
 mod types;
 
+use anyhow::{Context, Result};
+use ces_serde_more as more;
+use error::JustificationError;
 #[cfg(not(test))]
 use im::OrdMap as BTreeMap;
+use justification::GrandpaJustification;
+use log::{error, trace};
+use serde::{Deserialize, Serialize};
 #[cfg(test)]
 // For TypeInfo derivation
 use std::collections::BTreeMap;
-use std::fmt;
-use std::marker::PhantomData;
-
-use anyhow::Result;
-use error::JustificationError;
-use justification::GrandpaJustification;
-use log::{error, trace};
-use ces_serde_more as more;
-use serde::{Deserialize, Serialize};
+use std::{fmt, marker::PhantomData};
 use storage_proof::{StorageProof, StorageProofChecker};
 
 use finality_grandpa::voter_set::VoterSet;
@@ -43,10 +41,12 @@ use num_traits::AsPrimitive;
 use parity_scale_codec::{Decode, Encode};
 use sp_consensus_grandpa::{AuthorityId, AuthorityWeight, SetId};
 use sp_core::H256;
-use sp_runtime::traits::{Block as BlockT, Header, NumberFor};
-use sp_runtime::EncodedJustification;
+use sp_runtime::{
+    traits::{Block as BlockT, Header, NumberFor},
+    EncodedJustification,
+};
 
-pub use types::{AuthoritySet, AuthoritySetChange, BlockHeader};
+pub use types::{find_scheduled_change, AuthoritySet, BlockHeader};
 
 #[derive(Encode, Decode, Clone, PartialEq, Serialize, Deserialize, ::scale_info::TypeInfo)]
 pub struct BridgeInfo<T: Config> {
@@ -97,10 +97,7 @@ where
 {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-        LightValidation {
-            num_bridges: 0,
-            tracked_bridges: BTreeMap::new(),
-        }
+        LightValidation { num_bridges: 0, tracked_bridges: BTreeMap::new() }
     }
 
     pub fn initialize_bridge(
@@ -136,7 +133,6 @@ where
         header: BlockHeader,
         ancestry_proof: Vec<BlockHeader>,
         grandpa_proof: EncodedJustification,
-        auhtority_set_change: Option<AuthoritySetChange>,
     ) -> Result<()> {
         let bridge = self
             .tracked_bridges
@@ -164,27 +160,18 @@ where
 
         match self.tracked_bridges.get_mut(&bridge_id) {
             Some(bridge_info) => {
-                bridge_info.last_finalized_block_header = header;
-                if let Some(change) = auhtority_set_change {
-                    // Check the validator set increment
-                    if change.authority_set.id != voter_set_id + 1 {
-                        return Err(anyhow::Error::msg(Error::UnexpectedValidatorSetId));
+                if let Some(scheduled_change) = find_scheduled_change(&header) {
+                    // GRANDPA only includes a `delay` for forced changes, so this isn't valid.
+                    if scheduled_change.delay != 0 {
+                        return Err(anyhow::Error::msg(Error::UnsupportedScheduledChangeDelay));
                     }
-                    // Check validator set change proof
-                    let state_root = bridge_info.last_finalized_block_header.state_root();
-                    Self::check_validator_set_proof(
-                        state_root,
-                        change.authority_proof,
-                        &change.authority_set.list,
-                        change.authority_set.id,
-                    )?;
+
                     // Commit
-                    bridge_info.current_set = AuthoritySet {
-                        list: change.authority_set.list,
-                        id: change.authority_set.id,
-                    }
+                    bridge_info.current_set =
+                        AuthoritySet { list: scheduled_change.next_authorities, id: voter_set_id + 1 }
                 }
-            }
+                bridge_info.last_finalized_block_header = header;
+            },
             _ => panic!("We succesfully got this bridge earlier, therefore it exists; qed"),
         };
 
@@ -222,8 +209,9 @@ pub enum Error {
     InvalidFinalityProof,
     // UnknownClientError,
     // HeaderAncestryMismatch,
-    UnexpectedValidatorSetId,
+    // UnexpectedValidatorSetId,
     StorageValueMismatch,
+    UnsupportedScheduledChangeDelay,
 }
 
 impl fmt::Display for Error {
@@ -236,8 +224,9 @@ impl fmt::Display for Error {
             Error::NoSuchBridgeExists => write!(f, "no such bridge exists"),
             Error::InvalidFinalityProof => write!(f, "invalid finality proof"),
             // Error::HeaderAncestryMismatch => write!(f, "header ancestry mismatch"),
-            Error::UnexpectedValidatorSetId => write!(f, "unexpected validator set id"),
+            // Error::UnexpectedValidatorSetId => write!(f, "unexpected validator set id"),
             Error::StorageValueMismatch => write!(f, "storage value mismatch"),
+            Error::UnsupportedScheduledChangeDelay => write!(f, "scheduled change should not have delay"),
         }
     }
 }
@@ -248,11 +237,11 @@ impl From<JustificationError> for Error {
             JustificationError::BadJustification(msg) => {
                 error!("InvalidFinalityProof(BadJustification({}))", msg);
                 Error::InvalidFinalityProof
-            }
+            },
             JustificationError::JustificationDecode => {
                 error!("InvalidFinalityProof(JustificationDecode)");
                 Error::InvalidFinalityProof
-            }
+            },
         }
     }
 }
@@ -271,16 +260,26 @@ where
 
         // By encoding the given set we should have an easy way to compare
         // with the stuff we get out of storage via `read_value`
-        let mut encoded_validator_set = validator_set.encode();
-        encoded_validator_set.insert(0, 1); // Add AUTHORITIES_VERISON == 1
-        let actual_validator_set = checker
-            .read_value(b":grandpa_authorities")?
-            .ok_or_else(|| anyhow::Error::msg(Error::StorageValueUnavailable))?;
+        let encoded_validator_set = validator_set.encode();
+
+        let alt_key = utils::storage_prefix("Grandpa", "Authorities");
+        let old_key = b":grandpa_authorities";
+
+        let matches =
+            if let Some(authorities) = checker.read_value(&alt_key).context("Faield to read Grandpa::Authorities")? {
+                encoded_validator_set == authorities
+            } else {
+                let authorities = checker
+                    .read_value(old_key)
+                    .context("Faield to read :grandpa_authorities")?
+                    .ok_or_else(|| anyhow::anyhow!("Missing grandpa authorities"))?;
+                encoded_validator_set.get(..) == authorities.get(1..)
+            };
 
         // TODO: check set_id
         // checker.read_value(grandpa::CurrentSetId.key())
 
-        if encoded_validator_set == actual_validator_set {
+        if matches {
             Ok(())
         } else {
             Err(anyhow::Error::msg(Error::ValidatorSetMismatch))
@@ -300,19 +299,9 @@ where
     {
         trace!("ancestor_hash: {}", ancestor_hash);
         for h in proof.iter() {
-            trace!(
-                "block {:?} - hash: {} parent: {}",
-                h.number(),
-                h.hash(),
-                h.parent_hash()
-            );
+            trace!("block {:?} - hash: {} parent: {}", h.number(), h.hash(), h.parent_hash());
         }
-        trace!(
-            "child block {:?} - hash: {} parent: {}",
-            child.number(),
-            child.hash(),
-            child.parent_hash()
-        );
+        trace!("child block {:?} - hash: {} parent: {}", child.number(), child.hash(), child.parent_hash());
     }
 
     let mut parent_hash = child.parent_hash();
@@ -348,13 +337,8 @@ where
     NumberFor<B>: finality_grandpa::BlockNumberOps,
 {
     // We don't really care about the justification, as long as it's valid
-    let _ = GrandpaJustification::<B>::decode_and_verify_finalizes(
-        &justification,
-        (hash, number),
-        set_id,
-        voters,
-    )
-    .map_err(anyhow::Error::msg)?;
+    let _ = GrandpaJustification::<B>::decode_and_verify_finalizes(&justification, (hash, number), set_id, voters)
+        .map_err(anyhow::Error::msg)?;
 
     Ok(())
 }
@@ -379,11 +363,26 @@ impl<T: Config> fmt::Debug for BridgeInfo<T> {
 pub mod utils {
     use parity_scale_codec::Encode;
 
-    /// Gets the prefix of a storage item
-    pub fn storage_prefix(module: &str, storage: &str) -> Vec<u8> {
-        let mut bytes = sp_core::twox_128(module.as_bytes()).to_vec();
-        bytes.extend(&sp_core::twox_128(storage.as_bytes())[..]);
-        bytes
+    fn calc_storage_prefix(module: &str, storage_item: &str) -> [u8; 32] {
+        let module_hash = sp_core::twox_128(module.as_bytes());
+        let storage_hash = sp_core::twox_128(storage_item.as_bytes());
+        let mut final_key = [0u8; 32];
+        final_key[..16].copy_from_slice(&module_hash);
+        final_key[16..].copy_from_slice(&storage_hash);
+        final_key
+    }
+
+    #[inline(always)]
+    pub fn storage_prefix(module: &str, storage_item: &str) -> [u8; 32] {
+        use hex_literal::hex;
+        match (module, storage_item) {
+            // Speed up well-known storage items
+            // This let the compiler to optimize `storage_prefix("Grandpa", "Authorities")` to a constant.
+            ("Grandpa", "Authorities") => {
+                hex!("5f9cc45b7a00c5899361e1c6099678dc5e0621c4869aa60c02be9adcc98a0d1d")
+            },
+            _ => calc_storage_prefix(module, storage_item),
+        }
     }
 
     /// Calculates the Substrate storage key prefix for a StorageMap
@@ -400,5 +399,4 @@ pub mod utils {
         bytes.extend(&encoded);
         bytes
     }
-
 }

@@ -1,7 +1,7 @@
 use crate::{
     error::Error,
     types::{
-        Args, BlockNumber, BlockSyncState, CesealClient, Header, RaOption, RunningFlags,
+        Args, BlockNumber, CesealClient, Header, RaOption, RunningFlags,
         SrSigner, SyncOperation,
     },
 };
