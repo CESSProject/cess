@@ -281,6 +281,7 @@ runtime-benchmarks = [
 	"pallet-ethereum/runtime-benchmarks",
 	"pallet-evm/runtime-benchmarks",
 	# CESS
+	"pallet-cess-staking/std",
 	"pallet-cess-treasury/runtime-benchmarks",
 	"pallet-tee-worker/runtime-benchmarks",
 	# "pallet-audit/runtime-benchmarks",

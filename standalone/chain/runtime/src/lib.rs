@@ -1754,8 +1754,8 @@ mod benches {
 		// [pallet_audit, AuditBench::<Runtime>]
 		// [pallet_file_bank, FileBankBench::<Runtime>]
 		// [pallet_sminer, SminerBench::<Runtime>]
-		[pallet_storage_handler, StorageHandler]
-		[pallet_oss, Oss]
+		// [pallet_storage_handler, StorageHandler]
+		// [pallet_oss, Oss]
 	);
 }
 
