@@ -460,6 +460,7 @@ cess-node-primitives ={ path = "standalone/chain/primitives", default-features =
 [patch.crates-io]
 ring = { git = "https://github.com/jasl/ring-xous", branch = "better-wasm32-support" }
 
+sp-application-crypto = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.10.1" }
 sp-core = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.10.1" }
 sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.10.1" }
 sp-externalities = { git = "https://github.com/paritytech/polkadot-sdk.git", branch = "release-polkadot-v1.10.1" }
