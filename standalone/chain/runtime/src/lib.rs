@@ -1750,6 +1750,12 @@ mod benches {
 		[pallet_asset_rate, AssetRate]
 		[pallet_utility, Utility]
 		[pallet_evm, EVM]
+		[pallet_cess_treasury, CessTreasury]
+		// [pallet_audit, AuditBench::<Runtime>]
+		// [pallet_file_bank, FileBankBench::<Runtime>]
+		// [pallet_sminer, SminerBench::<Runtime>]
+		[pallet_storage_handler, StorageHandler]
+		[pallet_oss, Oss]
 	);
 }
 
@@ -2154,6 +2160,9 @@ impl_runtime_apis! {
 			use pallet_election_provider_support_benchmarking::Pallet as EPSBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use baseline::Pallet as BaselineBench;
+			// use pallet_sminer::benchmarking::Pallet as SminerBench;
+			// use pallet_file_bank::benchmarking::Pallet as FileBankBench;
+			// use pallet_audit::benchmarking::Pallet as AuditBench;
 
 			let mut list = Vec::<BenchmarkList>::new();
 			list_benchmarks!(list, extra);
@@ -2177,12 +2186,18 @@ impl_runtime_apis! {
 			use pallet_election_provider_support_benchmarking::Pallet as EPSBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use baseline::Pallet as BaselineBench;
+			// impl pallet_sminer::benchmarking::Pallet for SminerBench {};
+			// impl pallet_file_bank::benchmarking::Pallet for FileBankBench {};
+			// impl pallet_audit::benchmarking::Pallet for AuditBench {};
 
 			impl pallet_session_benchmarking::Config for Runtime {}
 			impl pallet_offences_benchmarking::Config for Runtime {}
 			impl pallet_election_provider_support_benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl baseline::Config for Runtime {}
+			// impl pallet_sminer::benchmarking::Config for Runtime {}
+			// impl pallet_file_bank::benchmarking::Config for Runtime {}
+			// impl pallet_audit::benchmarking::Config for Runtime {}
 
 			use frame_support::traits::WhitelistedStorageKeys;
 			let mut whitelist: Vec<TrackedStorageKey> = AllPalletsWithSystem::whitelisted_storage_keys();
