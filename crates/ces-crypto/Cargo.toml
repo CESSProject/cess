@@ -19,12 +19,10 @@ aead-io = { workspace = true, optional = true }
 [dev-dependencies]
 rand = "0.8.5"
 hex = "0.4"
-schnorrkel = { workspace = true, features = ["preaudit_deprecated", "getrandom"] }
 
 [features]
 default = [ "full_crypto" ]
 std = [ "aead/std" ]
-getrandom = [ "schnorrkel/getrandom" ]
 full_crypto = [
     "sp-core/full_crypto",
     "sp-application-crypto/full_crypto",

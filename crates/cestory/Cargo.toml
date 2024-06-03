@@ -61,7 +61,6 @@ rsa = { workspace = true }
 
 # CESS specific
 ces-crypto = { workspace = true, features = [
-    "getrandom",
     "stream",
     "full_crypto",
 ] }
