@@ -1748,7 +1748,6 @@ mod benches {
 		[pallet_asset_rate, AssetRate]
 		[pallet_utility, Utility]
 		[pallet_evm, EVM]
-		[pallet_cess_treasury, CessTreasury]
 		// [pallet_audit, AuditBench::<Runtime>]
 		// [pallet_file_bank, FileBankBench::<Runtime>]
 		// [pallet_sminer, SminerBench::<Runtime>]
