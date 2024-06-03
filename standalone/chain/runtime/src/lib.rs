@@ -1735,11 +1735,9 @@ mod benches {
 		[pallet_migrations, MultiBlockMigrations]
 		[pallet_mmr, Mmr]
 		[pallet_multisig, Multisig]
-		[pallet_offences, OffencesBench::<Runtime>]
 		[pallet_preimage, Preimage]
 		[pallet_proxy, Proxy]
 		[pallet_scheduler, Scheduler]
-		[pallet_session, SessionBench::<Runtime>]
 		[pallet_cess_staking, Staking]
 		[pallet_state_trie_migration, StateTrieMigration]
 		[pallet_sudo, Sudo]
@@ -2145,6 +2143,8 @@ impl_runtime_apis! {
 
 	#[cfg(feature = "runtime-benchmarks")]
 	impl frame_benchmarking::Benchmark<Block> for Runtime {
+
+		#[allow(non_local_definitions)]
 		fn benchmark_metadata(extra: bool) -> (
 			Vec<frame_benchmarking::BenchmarkList>,
 			Vec<frame_support::traits::StorageInfo>,
@@ -2152,11 +2152,6 @@ impl_runtime_apis! {
 			use frame_benchmarking::{baseline, Benchmarking, BenchmarkList};
 			use frame_support::traits::StorageInfoTrait;
 
-			// Trying to add benchmarks directly to the Session Pallet caused cyclic dependency
-			// issues. To get around that, we separated the Session benchmarks into its own crate,
-			// which is why we need these two lines below.
-			use pallet_session_benchmarking::Pallet as SessionBench;
-			use pallet_offences_benchmarking::Pallet as OffencesBench;
 			use pallet_election_provider_support_benchmarking::Pallet as EPSBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use baseline::Pallet as BaselineBench;
@@ -2172,17 +2167,13 @@ impl_runtime_apis! {
 			(list, storage_info)
 		}
 
+		#[allow(non_local_definitions)]
 		fn dispatch_benchmark(
 			config: frame_benchmarking::BenchmarkConfig
 		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, sp_runtime::RuntimeString> {
 			use frame_benchmarking::{baseline, Benchmarking, BenchmarkBatch};
 			use sp_storage::TrackedStorageKey;
 
-			// Trying to add benchmarks directly to the Session Pallet caused cyclic dependency
-			// issues. To get around that, we separated the Session benchmarks into its own crate,
-			// which is why we need these two lines below.
-			use pallet_session_benchmarking::Pallet as SessionBench;
-			use pallet_offences_benchmarking::Pallet as OffencesBench;
 			use pallet_election_provider_support_benchmarking::Pallet as EPSBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
 			use baseline::Pallet as BaselineBench;
@@ -2190,8 +2181,6 @@ impl_runtime_apis! {
 			// impl pallet_file_bank::benchmarking::Pallet for FileBankBench {};
 			// impl pallet_audit::benchmarking::Pallet for AuditBench {};
 
-			impl pallet_session_benchmarking::Config for Runtime {}
-			impl pallet_offences_benchmarking::Config for Runtime {}
 			impl pallet_election_provider_support_benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
 			impl baseline::Config for Runtime {}
