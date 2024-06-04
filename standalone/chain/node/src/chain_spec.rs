@@ -316,7 +316,7 @@ fn cess_testnet_config_genesis() -> serde_json::Value {
 	// generated with secret: subkey inspect "$secret"/fir
 	let root_key: AccountId = array_bytes::hex_n_into_unchecked(
 		// cXffK7BmstE5rXcK8pxKLufkffp9iASMntxUm6ctpR6xS3icV
-		"1e3e1c69dfbd27d398e92da4844a9abdc2786ac01588d87a2e1f5ec06ea2a936",
+		"1ec940be673d3613e94c4d44e3f4621422c1a0778a53a34b2b45f3118f823c03",
 	);
 
 	let endowed_accounts: Vec<AccountId> = vec![
