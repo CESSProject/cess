@@ -541,31 +541,54 @@ impl<T: Config> Pallet<T> {
 			let staked = Self::eras_total_stake(&active_era.index);
 			let issuance = T::Currency::total_issuance();
 
-			let (validator_payout, remainder) =
-				T::EraPayout::era_payout(staked, issuance, era_duration);
+			let (validator_payout, sminer_payout) = Self::rewards_in_era(active_era.index);
 
-			let total_payout = validator_payout.saturating_add(remainder);
+			let total_payout = validator_payout.saturating_add(sminer_payout);
 			let max_staked_rewards =
 				MaxStakedRewards::<T>::get().unwrap_or(Percent::from_percent(100));
 
 			// apply cap to validators payout and add difference to remainder.
 			let validator_payout = validator_payout.min(max_staked_rewards * total_payout);
-			let remainder = total_payout.saturating_sub(validator_payout);
+			let sminer_payout = total_payout.saturating_sub(validator_payout);
 
 			Self::deposit_event(Event::<T>::EraPaid {
 				era_index: active_era.index,
 				validator_payout,
-				remainder,
+				sminer_payout,
 			});
 
 			// Set ending era reward.
 			<ErasValidatorReward<T>>::insert(&active_era.index, validator_payout);
-			T::RewardRemainder::on_unbalanced(T::Currency::issue(remainder));
+			T::SminerRewardPool::on_unbalanced(T::Currency::issue(sminer_payout));
 
 			// Clear offending validators.
 			<OffendingValidators<T>>::kill();
 		}
 	}
+
+	/// Compute rewards for validator and sminer for era.
+	pub(crate) fn rewards_in_era(active_era_index: EraIndex) -> (BalanceOf<T>, BalanceOf<T>) {
+		let mut year_num = active_era_index as u64 / T::ERAS_PER_YEAR;
+		let mut validator_rewards_this_year =
+			TryInto::<u128>::try_into(T::FIRST_YEAR_VALIDATOR_REWARDS).ok().unwrap();
+		let mut sminer_rewards_this_year =
+			TryInto::<u128>::try_into(T::FIRST_YEAR_SMINER_REWARDS).ok().unwrap();
+		
+		if year_num > T::REWARD_DECREASE_YEARS {
+			year_num = T::REWARD_DECREASE_YEARS;
+		}
+		for _ in 0..year_num {
+			validator_rewards_this_year = T::REWARD_DECREASE_RATIO * validator_rewards_this_year;
+			sminer_rewards_this_year = T::REWARD_DECREASE_RATIO * sminer_rewards_this_year;
+		}
+
+		let validator_rewards_this_era = validator_rewards_this_year / T::ERAS_PER_YEAR as u128;
+		let sminer_rewards_this_era = sminer_rewards_this_year / T::ERAS_PER_YEAR as u128;
+		(
+			validator_rewards_this_era.try_into().ok().unwrap(),
+			sminer_rewards_this_era.try_into().ok().unwrap(),
+		)
+	}	
 
 	/// Plan a new era.
 	///
