@@ -1,12 +1,7 @@
 use alloc::vec::Vec;
 
-use crate::SignedMessage;
-
 pub trait MessageSigner {
     fn sign(&self, data: &[u8]) -> Vec<u8>;
-}
-pub trait MessageVerifier {
-    fn verify(&self, message: &SignedMessage) -> bool;
 }
 
 #[cfg(feature = "signers")]

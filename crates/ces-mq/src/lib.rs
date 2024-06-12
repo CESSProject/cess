@@ -1,8 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(feature = "sgx")]
-pub extern crate serde_sgx as serde;
-
 extern crate alloc;
 
 mod signer;

@@ -8,7 +8,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = { workspace = true }
-async-stream = { workspace = true }
+# async-stream = { workspace = true }
 futures = { workspace = true }
 log = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
@@ -20,14 +20,17 @@ serde_json = { workspace = true }
 rand = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 tonic ={ workspace = true }
-
 async-trait = { workspace = true }
+
 frame-system = { workspace = true }
 sp-core = { workspace = true }
 sp-runtime = { workspace = true }
 sp-consensus-grandpa = { workspace = true }
+sp-trie = { workspace = true }
+sc-consensus-grandpa = { workspace = true }
 parity-scale-codec = { workspace = true }
 scale-info = { workspace = true }
+hash-db = { workspace = true }
 
 pallet-grandpa = { workspace = true }
 pallet-indices = { workspace = true }

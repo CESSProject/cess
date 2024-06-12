@@ -6,6 +6,7 @@ use subxt::{
     Config, Error,
 };
 
+pub use subxt::backend::legacy::rpc_methods::{Bytes, NumberOrHex as BlockNumberOrHex};
 pub use subxt::ext::sp_core::storage::{StorageData, StorageKey};
 
 pub struct ExtraRpcMethods<T> {
@@ -69,6 +70,13 @@ impl<T: Config> ExtraRpcMethods<T> {
             )
             .await?;
         Ok(seq)
+    }
+
+    /// Get a block hash, returns hash of latest block by default
+    pub async fn prove_finality(&self, block_number: BlockNumberOrHex) -> Result<Bytes, Error> {
+        let params = rpc_params![block_number];
+        let proof = self.client.request("grandpa_proveFinality", params).await?;
+        Ok(proof)
     }
 }
 

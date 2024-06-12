@@ -998,7 +998,7 @@ fn verify_pois_status_signature(
     hasher.result(&mut hash_raw);
 
     if !master_key.verify_data(
-        &sr25519::Signature(
+        &sr25519::Signature::from_raw(
             signature
                 .try_into()
                 .map_err(|_| Status::invalid_argument("signature length must be 64"))?,

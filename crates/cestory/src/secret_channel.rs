@@ -1,8 +1,5 @@
-pub use receiver::*;
-pub use sender::*;
-
-use parity_scale_codec::{Decode, Encode};
 use cestory_api::crypto::EncryptedData;
+use parity_scale_codec::{Decode, Encode};
 
 #[derive(Encode, Decode, Debug)]
 pub enum Payload<T> {
@@ -10,10 +7,12 @@ pub enum Payload<T> {
     Encrypted(EncryptedData),
 }
 
-mod sender {    
+mod sender {
+    use ces_mq::{
+        traits::{MessageChannel, MessagePrepareChannel},
+        Path,
+    };
     use cestory_api::crypto::{ecdh, EncryptedData};
-    use ces_mq::traits::{MessageChannel, MessagePrepareChannel};
-    use ces_mq::Path;
 
     pub type KeyPair = ecdh::EcdhKey;
 
@@ -40,10 +39,7 @@ mod sender {
             &self,
             remote_pubkey: Option<&'a ecdh::EcdhPublicKey>,
         ) -> BoundSecretMessageChannel<'a, MsgChan> {
-            BoundSecretMessageChannel {
-                inner: self.clone(),
-                remote_pubkey,
-            }
+            BoundSecretMessageChannel { inner: self.clone(), remote_pubkey }
         }
     }
 
@@ -62,8 +58,8 @@ mod sender {
         fn encrypt_payload(&self, data: Vec<u8>) -> super::Payload<OpaqueData> {
             if let Some(remote_pubkey) = self.remote_pubkey {
                 let iv = crate::generate_random_iv();
-                let data = EncryptedData::encrypt(self.inner.key, remote_pubkey, iv, &data)
-                    .expect("Encrypt message failed?");
+                let data =
+                    EncryptedData::encrypt(self.inner.key, remote_pubkey, iv, &data).expect("Encrypt message failed?");
                 super::Payload::Encrypted(data)
             } else {
                 super::Payload::Plain(OpaqueData(data))
@@ -71,9 +67,7 @@ mod sender {
         }
     }
 
-    impl<'a, MsgChan: MessageChannel> ces_mq::traits::MessageChannel
-        for BoundSecretMessageChannel<'a, MsgChan>
-    {
+    impl<'a, MsgChan: MessageChannel> ces_mq::traits::MessageChannel for BoundSecretMessageChannel<'a, MsgChan> {
         type Signer = MsgChan::Signer;
 
         fn push_data(&self, data: Vec<u8>, to: impl Into<Path>) {
@@ -87,11 +81,7 @@ mod sender {
     {
         type Signer = MsgChan::Signer;
 
-        fn prepare_with_data(
-            &self,
-            data: Vec<u8>,
-            to: impl Into<Path>,
-        ) -> ces_mq::SigningMessage<Self::Signer> {
+        fn prepare_with_data(&self, data: Vec<u8>, to: impl Into<Path>) -> ces_mq::SigningMessage<Self::Signer> {
             let payload = self.encrypt_payload(data);
             self.inner.mq.prepare_message_to(&payload, to)
         }
@@ -101,10 +91,10 @@ mod sender {
 mod receiver {
     use super::Payload;
     use anyhow::bail;
+    use ces_mq::{MessageOrigin, ReceiveError, TypedReceiver};
+    use cestory_api::crypto::ecdh;
     use core::marker::PhantomData;
     use parity_scale_codec::Decode;
-    use cestory_api::crypto::ecdh;
-    use ces_mq::{MessageOrigin, ReceiveError, TypedReceiver};
     use serde::{Deserialize, Serialize};
     #[allow(unused)]
     pub type SecretReceiver<Msg> = PeelingReceiver<Msg, Payload<Msg>, SecretPeeler<Msg>>;
@@ -140,19 +130,13 @@ mod receiver {
 
     impl<T> Clone for SecretPeeler<T> {
         fn clone(&self) -> Self {
-            Self {
-                ecdh_key: self.ecdh_key.clone(),
-                _t: self._t,
-            }
+            Self { ecdh_key: self.ecdh_key.clone(), _t: self._t }
         }
     }
 
     impl<T> SecretPeeler<T> {
         pub fn new(ecdh_key: ecdh::EcdhKey) -> Self {
-            SecretPeeler {
-                ecdh_key,
-                _t: PhantomData,
-            }
+            SecretPeeler { ecdh_key, _t: PhantomData }
         }
     }
 
@@ -163,11 +147,9 @@ mod receiver {
             match msg {
                 Payload::Plain(msg) => Ok(msg),
                 Payload::Encrypted(msg) => {
-                    let data = msg
-                        .decrypt(&self.ecdh_key)
-                        .or(Err(PeelError::CryptoError))?;
+                    let data = msg.decrypt(&self.ecdh_key).or(Err(PeelError::CryptoError))?;
                     Decode::decode(&mut &data[..]).or(Err(PeelError::CodecError))
-                }
+                },
             }
         }
     }
@@ -182,33 +164,21 @@ mod receiver {
 
     impl<Msg, Wrp, Plr: Clone> Clone for PeelingReceiver<Msg, Wrp, Plr> {
         fn clone(&self) -> Self {
-            Self {
-                receiver: self.receiver.clone(),
-                peeler: self.peeler.clone(),
-                _msg: self._msg,
-            }
+            Self { receiver: self.receiver.clone(), peeler: self.peeler.clone(), _msg: self._msg }
         }
     }
 
     impl<Msg, Wrp> PeelingReceiver<Msg, Wrp, PlainPeeler<Msg>> {
         #[allow(unused)]
         pub fn new_plain(receiver: TypedReceiver<Wrp>) -> Self {
-            PeelingReceiver {
-                receiver,
-                peeler: PlainPeeler(Default::default()),
-                _msg: Default::default(),
-            }
+            PeelingReceiver { receiver, peeler: PlainPeeler(Default::default()), _msg: Default::default() }
         }
     }
 
     impl<Msg, Wrp> PeelingReceiver<Msg, Wrp, SecretPeeler<Msg>> {
         #[allow(unused)]
         pub fn new_secret(receiver: TypedReceiver<Wrp>, ecdh_key: ecdh::EcdhKey) -> Self {
-            PeelingReceiver {
-                receiver,
-                peeler: SecretPeeler::new(ecdh_key),
-                _msg: Default::default(),
-            }
+            PeelingReceiver { receiver, peeler: SecretPeeler::new(ecdh_key), _msg: Default::default() }
         }
     }
 
@@ -220,26 +190,22 @@ mod receiver {
     {
         #[allow(unused)]
         pub fn try_next(&mut self) -> Result<Option<(u64, Msg, MessageOrigin)>, anyhow::Error> {
-            let omsg = self
-                .receiver
-                .try_next()
-                .map_err(|e| anyhow::anyhow!("{}", e))?;
+            let omsg = self.receiver.try_next().map_err(|e| anyhow::anyhow!("{}", e))?;
             let (seq, msg, origin) = match omsg {
                 Some(x) => x,
                 None => return Ok(None),
             };
             let msg = match self.peeler.peel(msg) {
                 Ok(msg) => msg,
-                Err(PeelError::CodecError) => {
+                Err(PeelError::CodecError) =>
                     if origin.always_well_formed() {
                         panic!("Failed to decode critical mq message, please upgrade the ceseal client");
                     } else {
                         bail!("Failed to decode the mq message");
-                    }
-                }
+                    },
                 Err(PeelError::CryptoError) => {
                     bail!("Failed to decrypt the mq message");
-                }
+                },
             };
             Ok(Some((seq, msg, origin)))
         }

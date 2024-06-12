@@ -17,18 +17,16 @@ log = { workspace = true }
 hex = { workspace = true }
 parity-scale-codec = { workspace = true }
 scale-info = { workspace = true }
-
 # primitives
 sp-runtime = { workspace = true }
 sp-blockchain = { workspace = true }
 sp-api = { workspace = true }
-
+sp-state-machine = { workspace = true }
 # client dependencies
 sc-client-api = { workspace = true }
 sc-transaction-pool-api = { workspace = true }
-sc-rpc = { workspace = true }
 
-ces-mq = { workspace = true }
-ces-pallet-mq = { workspace = true }
-ces-pallet-mq-runtime-api = { workspace = true }
-ext-types = { workspace = true }
+ces-mq = { workspace = true, default-features = true }
+ces-pallet-mq = { workspace = true, default-features = true }
+ces-pallet-mq-runtime-api = { workspace = true, default-features = true }
+ces-node-rpc-ext-types = { workspace = true, default-features = true }

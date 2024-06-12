@@ -1,23 +1,22 @@
 use crate::{
-    types::{utils::raw_proof, Block, Hash, Header, SrSigner, StorageKey, NumberOrHex, ConvertTo},
+    types::{utils::raw_proof, Block, ConvertTo, Hash, Header, NumberOrHex, SrSigner, StorageKey},
     Error,
 };
 use anyhow::{Context, Result};
 use ces_node_rpc_ext::MakeInto as _;
 use ces_trie_storage::ser::StorageChanges;
 use ces_types::messaging::MessageOrigin;
-use cestory_api::blocks::{AuthoritySet, AuthoritySetChange, StorageProof};
+use cestory_api::blocks::StorageProof;
 use cesxt::{subxt, BlockNumber, ChainApi};
-use parity_scale_codec::{Decode, Encode};
-use sp_consensus_grandpa::{AuthorityList, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
-use tokio::time::sleep;
-use std::time::Duration;
 use log::info;
+use parity_scale_codec::Encode;
+use std::time::Duration;
+use tokio::time::sleep;
 
 pub use sp_core::{twox_128, twox_64};
 
 /// Gets a storage proof for a single storage item
-pub async fn state_get_read_proof(
+pub async fn read_proof(
     api: &ChainApi,
     hash: Option<Hash>,
     storage_key: &[u8],
@@ -93,10 +92,6 @@ pub async fn mq_next_sequence(api: &ChainApi, sender: &MessageOrigin) -> Result<
     let sender_scl = sender.encode();
     let sender_hex = hex::encode(sender_scl);
     api.extra_rpc().get_mq_next_sequence(&sender_hex).await
-}
-
-pub fn decode_parachain_heads(head: Vec<u8>) -> Result<Vec<u8>, Error> {
-    Decode::decode(&mut head.as_slice()).or(Err(Error::FailedToDecode))
 }
 
 /// Updates the nonce from the mempool
@@ -200,36 +195,4 @@ pub async fn get_header_at(client: &ChainApi, h: Option<u32>) -> Result<(Header,
         .ok_or(Error::BlockNotFound)?;
 
     Ok((header.convert_to(), hash))
-}
-
-///Get the authority through the block header hash and pass it to ceseal for verification
-pub async fn get_authority_with_proof_at(
-    chain_api: &ChainApi,
-    hash: Hash,
-) -> Result<AuthoritySetChange> {
-    // Storage
-    let id_key = cesxt::dynamic::storage_key("Grandpa", "CurrentSetId");
-    // Authority set
-    let value = chain_api
-        .rpc()
-        .state_get_storage(GRANDPA_AUTHORITIES_KEY, Some(hash))
-        .await?
-        .expect("No authority key found");
-    let list: AuthorityList = VersionedAuthorityList::decode(&mut value.as_slice())
-        .expect("Failed to decode VersionedAuthorityList")
-        .into();
-
-    // Set id
-    let id = chain_api.current_set_id(Some(hash)).await?;
-    // Proof
-    let proof = crate::chain_client::read_proofs(
-        chain_api,
-        Some(hash),
-        vec![GRANDPA_AUTHORITIES_KEY, &id_key],
-    )
-    .await?;
-    Ok(AuthoritySetChange {
-        authority_set: AuthoritySet { list, id },
-        authority_proof: proof,
-    })
 }

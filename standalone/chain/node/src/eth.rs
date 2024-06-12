@@ -13,11 +13,10 @@ use sc_network_sync::SyncingService;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sp_api::ConstructRuntimeApi;
 // Frontier
-pub use fc_consensus::FrontierBlockImport;
 use fc_rpc::{EthTask, OverrideHandle};
 pub use fc_rpc_core::types::{FeeHistoryCache, FeeHistoryCacheLimit, FilterPool};
 // Local
-use cess_node_runtime::opaque::Block;
+use cess_node_primitives::opaque::Block;
 
 use crate::client::{FullBackend, FullClient};
 
@@ -97,9 +96,7 @@ pub struct FrontierPartialComponents {
 	pub fee_history_cache_limit: FeeHistoryCacheLimit,
 }
 
-pub fn new_frontier_partial(
-	config: &EthConfiguration,
-) -> Result<FrontierPartialComponents, ServiceError> {
+pub fn new_frontier_partial(config: &EthConfiguration) -> Result<FrontierPartialComponents, ServiceError> {
 	Ok(FrontierPartialComponents {
 		filter_pool: Some(Arc::new(Mutex::new(BTreeMap::new()))),
 		fee_history_cache: Arc::new(Mutex::new(BTreeMap::new())),
@@ -109,17 +106,12 @@ pub fn new_frontier_partial(
 
 /// A set of APIs that ethereum-compatible runtimes must implement.
 pub trait EthCompatRuntimeApiCollection:
-	sp_api::ApiExt<Block>
-	+ fp_rpc::ConvertTransactionRuntimeApi<Block>
-	+ fp_rpc::EthereumRuntimeRPCApi<Block>
+	sp_api::ApiExt<Block> + fp_rpc::ConvertTransactionRuntimeApi<Block> + fp_rpc::EthereumRuntimeRPCApi<Block>
 {
 }
 
-impl<Api> EthCompatRuntimeApiCollection for Api 
-where
-	Api: sp_api::ApiExt<Block>
-		+ fp_rpc::ConvertTransactionRuntimeApi<Block>
-		+ fp_rpc::EthereumRuntimeRPCApi<Block>
+impl<Api> EthCompatRuntimeApiCollection for Api where
+	Api: sp_api::ApiExt<Block> + fp_rpc::ConvertTransactionRuntimeApi<Block> + fp_rpc::EthereumRuntimeRPCApi<Block>
 {
 }
 
@@ -134,9 +126,7 @@ pub async fn spawn_frontier_tasks<RuntimeApi, Executor>(
 	fee_history_cache_limit: FeeHistoryCacheLimit,
 	sync: Arc<SyncingService<Block>>,
 	pubsub_notification_sinks: Arc<
-		fc_mapping_sync::EthereumBlockNotificationSinks<
-			fc_mapping_sync::EthereumBlockNotification<Block>,
-		>,
+		fc_mapping_sync::EthereumBlockNotificationSinks<fc_mapping_sync::EthereumBlockNotification<Block>>,
 	>,
 ) where
 	RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>>,
@@ -165,7 +155,7 @@ pub async fn spawn_frontier_tasks<RuntimeApi, Executor>(
 				)
 				.for_each(|()| future::ready(())),
 			);
-		}
+		},
 		fc_db::Backend::Sql(b) => {
 			task_manager.spawn_essential_handle().spawn_blocking(
 				"frontier-mapping-sync-worker",
@@ -184,7 +174,7 @@ pub async fn spawn_frontier_tasks<RuntimeApi, Executor>(
 					pubsub_notification_sinks,
 				),
 			);
-		}
+		},
 	}
 
 	// Spawn Frontier EthFilterApi maintenance task.
@@ -202,11 +192,6 @@ pub async fn spawn_frontier_tasks<RuntimeApi, Executor>(
 	task_manager.spawn_essential_handle().spawn(
 		"frontier-fee-history",
 		Some("frontier"),
-		EthTask::fee_history_task(
-			client,
-			overrides,
-			fee_history_cache,
-			fee_history_cache_limit,
-		),
+		EthTask::fee_history_task(client, overrides, fee_history_cache, fee_history_cache_limit),
 	);
 }

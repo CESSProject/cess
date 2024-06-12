@@ -159,7 +159,7 @@ fn evm_ecdsa_recover(
     let recovered_pubkey = signature
         .recover_prehashed(&message_hash)
         .ok_or(SignatureVerifyError::InvalidSignature)?;
-    Ok(recovered_pubkey.as_ref().to_vec())
+    Ok(recovered_pubkey.as_array_ref().to_vec())
 }
 
 #[derive(Clone, Encode, Decode, Debug)]

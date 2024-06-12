@@ -1,19 +1,34 @@
-use super::*;
-use crate::system::System;
-use ces_crypto::{key_share, sr25519::KDF, SecretKey};
+use crate::{
+    system::System, types::Error, BlockDispatchContext, BlockNumber, Ceseal, CesealLockError, CesealSafeBox,
+    ChainStorage, ExternalServerState, LightValidation, LogOnDrop, RuntimeState,
+};
+use anyhow::anyhow;
+use ces_crypto::{
+    key_share,
+    sr25519::{Persistence, KDF},
+    SecretKey,
+};
+use ces_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
 use ces_types::{
     attestation::{validate as validate_attestation_report, IasFields},
     messaging::EncryptedKey,
-    wrap_content_to_sign, AttestationReport, ChallengeHandlerInfo, EncryptedWorkerKey, HandoverChallenge,
-    MasterKeyApplyPayload, SignedContentType, WorkerEndpointPayload, WorkerRegistrationInfo,
+    wrap_content_to_sign, AttestationProvider, AttestationReport, ChallengeHandlerInfo, EncryptedWorkerKey,
+    HandoverChallenge, MasterKeyApplyPayload, SignedContentType, WorkerEndpointPayload, WorkerRegistrationInfo,
 };
 use cestory_api::{
     blocks::{self, StorageState},
     crpc::{self as pb, ceseal_api_server::CesealApi},
+    storage_sync::{StorageSynchronizer, Synchronizer},
 };
-use parity_scale_codec::Error as ScaleDecodeError;
-use std::{borrow::Borrow, fmt::Debug, time::Duration};
-use thiserror::Error;
+use parity_scale_codec::{Decode, Encode, Error as ScaleDecodeError};
+use serde::{de::DeserializeOwned, Serialize};
+use sp_core::{crypto::Pair, sr25519};
+use std::{
+    borrow::Borrow,
+    fmt::Debug,
+    sync::{Arc, MutexGuard},
+    time::Duration,
+};
 use tonic::{Request, Response, Status};
 use tracing::{debug, error, info, trace};
 
@@ -33,7 +48,7 @@ impl<Platform: pal::Platform> RpcService<Platform> {
     }
 }
 
-#[derive(Error, Debug)]
+#[derive(thiserror::Error, Debug)]
 pub enum CesealServiceError {
     #[error(transparent)]
     CesealLock(#[from] CesealLockError),
@@ -46,8 +61,8 @@ pub enum CesealServiceError {
     #[error("{0}")]
     AppError(String),
 
-    #[error(transparent)]
-    Anyhow(anyhow::Error),
+    #[error("{0}")]
+    Anyhow(String),
 }
 
 impl From<ScaleDecodeError> for CesealServiceError {
@@ -86,8 +101,8 @@ fn from_debug(e: impl core::fmt::Debug) -> CesealServiceError {
     CesealServiceError::AppError(format!("{e:?}"))
 }
 
-impl From<types::Error> for Status {
-    fn from(value: types::Error) -> Self {
+impl From<Error> for Status {
+    fn from(value: Error) -> Self {
         Status::internal(value.to_string())
     }
 }
@@ -149,9 +164,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
     /// Get basic information about Ceseal state.
     async fn get_info(&self, _request: Request<()>) -> RpcResult<pb::CesealInfo> {
         let info = self.lock_ceseal(true, true)?.get_info();
-        #[cfg(target_env = "gnu")]
-        trace!("Got info: {:?} mallinfo: {:?}", info.debug_info(), unsafe { libc::mallinfo() });
-        #[cfg(not(target_env = "gnu"))]
         trace!("Got info: {:?}", info.debug_info());
         Ok(Response::new(info))
     }
@@ -387,7 +399,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
             &iv,
         )
         .map_err(from_debug)?;
-        let encrypted_key = EncryptedKey { ecdh_pubkey: sr25519::Public(ecdh_pubkey), encrypted_key, iv };
+        let encrypted_key = EncryptedKey { ecdh_pubkey: sr25519::Public::from_raw(ecdh_pubkey), encrypted_key, iv };
         let runtime_state = cestory.runtime_state()?;
         let genesis_block_hash = runtime_state.genesis_block_hash;
         let encrypted_worker_key = EncryptedWorkerKey { genesis_block_hash, dev_mode, encrypted_key };
@@ -419,7 +431,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
         // generate and save tmp key only for key handover encryption
         let handover_key = crate::new_sr25519_key();
         let handover_ecdh_key = handover_key.derive_ecdh_key().expect("should never fail with valid key; qed.");
-        let ecdh_pubkey = ces_types::EcdhPublicKey(handover_ecdh_key.public());
+        let ecdh_pubkey = ces_types::EcdhPublicKey::from_raw(handover_ecdh_key.public());
         cestory.handover_ecdh_key = Some(handover_ecdh_key);
 
         let request = request.into_inner();
@@ -750,7 +762,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         info!("Identity pubkey: {:?}", ecdsa_hex_pk);
 
         // derive ecdh key
-        let ecdh_pubkey = ces_types::EcdhPublicKey(ecdh_key.public());
+        let ecdh_pubkey = ces_types::EcdhPublicKey::from_raw(ecdh_key.public());
         let ecdh_hex_pk = hex::encode(ecdh_pubkey.0.as_ref());
         info!("ECDH pubkey: {:?}", ecdh_hex_pk);
 
@@ -794,7 +806,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
             genesis_block_hash,
         };
 
-        let system = system::System::new(
+        let system = System::new(
             self.platform.clone(),
             self.dev_mode,
             self.args.sealing_path.clone(),
@@ -934,8 +946,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         let chain_storage = state.chain_storage.read();
         // Dispatch events
         let messages = chain_storage
-            .mq_messages()
-            .map_err(|_| from_display("Can not get mq messages from storage"))?;
+            .mq_messages();
 
         state.recv_mq.reset_local_index();
 
@@ -1063,7 +1074,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         state
             .storage_synchronizer
             .assume_at_block(block)
-            .context("Failed to set synchronizer state")?;
+            .map_err(|e| anyhow!("Failed to set synchronizer state:{e}"))?;
         state.chain_storage = Arc::new(parking_lot::RwLock::new(chain_storage));
         system.genesis_block = block;
         self.can_load_chain_state = false;

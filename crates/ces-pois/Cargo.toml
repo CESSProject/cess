@@ -8,8 +8,6 @@ edition = "2021"
 [dependencies]
 anyhow = { workspace = true }
 bigdecimal = { workspace = true }
-byteorder = { workspace = true }
-bytes = { workspace = true }
 dashmap = { workspace = true }
 hex = { workspace = true, features = ["alloc"] }
 lazy_static = { workspace = true }

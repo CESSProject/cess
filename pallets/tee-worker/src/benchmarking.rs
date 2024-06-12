@@ -28,7 +28,7 @@ const KEY_ID: KeyTypeId = KeyTypeId(*b"xyjj");
 // const PEER_ID: [u8; 38] = [0, 36, 8, 1, 18, 32, 12, 50, 93, 198, 152, 25, 126, 164, 106, 27, 26, 219, 151, 207, 191, 72, 133, 39, 20, 109, 117, 187, 165, 127, 101, 12, 167, 175, 255, 138, 213, 34];
 // const NODE_PUBLIC_KEY: NodePublicKey = sp_core::ed25519::Public([12, 50, 93, 198, 152, 25, 126, 164, 106, 27, 26, 219, 151, 207, 191, 72, 133, 39, 20, 109, 117, 187, 165, 127, 101, 12, 167, 175, 255, 138, 213, 34]);
 pub fn generate_workers<T: Config>() -> DispatchResult {
-    let (stash_account, _) = pallet_cess_staking::testing_utils::create_stash_controller::<T>(USER_SEED, 100, Default::default())?;
+    let (stash_account, _) = pallet_cess_staking::testing_utils::create_stash_controller::<T>(USER_SEED, 100, pallet_cess_staking::RewardDestination::Staked)?;
     let pubkey = sr25519_generate(KEY_ID, None);
     <MasterPubkey<T>>::put(pubkey);
     let worker_info = WorkerInfo::<AccountOf<T>> {

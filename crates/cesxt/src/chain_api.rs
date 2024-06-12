@@ -37,11 +37,15 @@ pub async fn connect(uri: &str) -> Result<ChainApi> {
     })
 }
 
+const MAX_REQUEST_SIZE: u32 = 8 << 20; // 8MiB
+const MAX_RESPONSE_SIZE: u32 = 128 << 20; //128MiB
+
 async fn ws_client(url: &str) -> Result<jsonrpsee::async_client::Client> {
     use jsonrpsee::client_transport::ws::Url;
     let url = Url::parse(url).context("Invalid websocket url")?;
     let (sender, receiver) = WsTransportClientBuilder::default()
-        .max_request_size(u32::MAX)
+        .max_request_size(MAX_REQUEST_SIZE)
+        .max_response_size(MAX_RESPONSE_SIZE)
         .build(url)
         .await
         .context("Failed to build ws transport")?;

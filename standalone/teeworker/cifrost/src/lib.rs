@@ -1,22 +1,37 @@
+use crate::{
+    error::Error,
+    types::{
+        Args, Block, BlockNumber, BlockSyncState, CesealClient, Header, RaOption, RunningFlags,
+        SrSigner,
+    },
+};
 use anyhow::{anyhow, Context, Result};
-use log::{debug, error, info, warn};
-use sp_core::crypto::AccountId32;
-use std::cmp;
-use std::str::FromStr;
-use std::time::Duration;
-use tokio::time::sleep;
-use tonic::Request;
-
+use ces_types::{AttestationProvider, WorkerEndpointPayload};
+use cestory_api::{
+    blocks::{AuthoritySetChange, GenesisBlockInfo, HeaderToSync},
+    crpc::{self, InitRuntimeResponse},
+};
 use cesxt::{
     connect as subxt_connect,
     dynamic::storage_key,
     sp_core::{crypto::Pair, sr25519},
     ChainApi,
 };
+use clap::Parser;
+use log::{debug, error, info, warn};
+use msg_sync::{Error as MsgSyncError, Receiver, Sender};
 use parity_scale_codec::Decode;
 use sp_consensus_grandpa::SetId;
+use sp_core::crypto::AccountId32;
+use std::str::FromStr;
+use std::time::Duration;
+use tokio::time::sleep;
+use tonic::Request;
 
+pub use authority::get_authority_with_proof_at;
 pub use cesxt::subxt;
+
+mod authority;
 mod block_subscribe;
 mod error;
 mod msg_sync;
@@ -26,23 +41,8 @@ mod tx;
 pub mod chain_client;
 pub mod types;
 
-use crate::{
-    error::Error,
-    types::{
-        Args, Block, BlockNumber, BlockSyncState, CesealClient, Header, RaOption, RunningFlags,
-        SrSigner,
-    },
-};
-use ces_types::{AttestationProvider, WorkerEndpointPayload};
-use cestory_api::{
-    blocks::{self, AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync},
-    crpc::{self, InitRuntimeResponse},
-};
-use clap::Parser;
-use msg_sync::{Error as MsgSyncError, Receiver, Sender};
-
 pub async fn batch_sync_storage_changes(
-    pr: &mut CesealClient,
+    cc: &mut CesealClient,
     chain_api: &ChainApi,
     from: BlockNumber,
     to: BlockNumber,
@@ -58,7 +58,10 @@ pub async fn batch_sync_storage_changes(
     for from in (from..=to).step_by(batch_size as _) {
         let to = to.min(from.saturating_add(batch_size - 1));
         let storage_changes = fetcher.fetch_storage_changes(chain_api, from, to).await?;
-        let r = req_dispatch_block(pr, storage_changes).await?;
+        let r = cc
+            .dispatch_blocks(crpc::Blocks::new(storage_changes))
+            .await?
+            .into_inner();
         log::debug!("  ..dispatch_block: {:?}", r);
     }
     Ok(())
@@ -93,231 +96,8 @@ async fn try_load_handover_proof(pr: &mut CesealClient, chain_api: &ChainApi) ->
     Ok(())
 }
 
-/// Returns the next set_id change by a binary search on the known blocks
-///
-/// `known_blocks` must have at least one block with block justification, otherwise raise an error
-/// `NoJustificationInRange`. If there's no set_id change in the given blocks, it returns None.
-async fn bisec_setid_change(
-    chain_api: &ChainApi,
-    last_set: (BlockNumber, SetId),
-    known_blocks: &Vec<Block>,
-) -> Result<Option<BlockNumber>> {
-    debug!("bisec_setid_change(last_set: {:?})", last_set);
-    if known_blocks.is_empty() {
-        return Err(anyhow!(Error::SearchSetIdChangeInEmptyRange));
-    }
-    let (last_block, last_id) = last_set;
-    // Run binary search only on blocks with justification
-    let headers: Vec<&Header> = known_blocks
-        .iter()
-        .filter(|b| b.block.header.number > last_block && b.justifications.is_some())
-        .map(|b| &b.block.header)
-        .collect();
-    let mut l = 0i64;
-    let mut r = (headers.len() as i64) - 1;
-    while l <= r {
-        let mid = (l + r) / 2;
-        let hash = headers[mid as usize].hash();
-        let set_id = chain_api.current_set_id(Some(hash)).await?;
-        // Left: set_id == last_id, Right: set_id > last_id
-        if set_id == last_id {
-            l = mid + 1;
-        } else {
-            r = mid - 1;
-        }
-    }
-    // Return the first occurance of bigger set_id; return (last_id + 1) if not found
-    let result = if (l as usize) < headers.len() {
-        Some(headers[l as usize].number)
-    } else {
-        None
-    };
-    debug!("bisec_setid_change result: {:?}", result);
-    Ok(result)
-}
-
-async fn req_sync_header(
-    pr: &mut CesealClient,
-    headers: Vec<HeaderToSync>,
-    authority_set_change: Option<AuthoritySetChange>,
-) -> Result<crpc::SyncedTo> {
-    let resp = pr
-        .sync_header(crpc::HeadersToSync::new(headers, authority_set_change))
-        .await?;
-    Ok(resp.into_inner())
-}
-
-async fn req_dispatch_block(
-    pr: &mut CesealClient,
-    blocks: Vec<BlockHeaderWithChanges>,
-) -> Result<crpc::SyncedTo> {
-    let resp = pr.dispatch_blocks(crpc::Blocks::new(blocks)).await?;
-    Ok(resp.into_inner())
-}
-
-const GRANDPA_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"FRNK";
-
-#[allow(clippy::too_many_arguments)]
-async fn batch_sync_block(
-    chain_api: &ChainApi,
-    ceseal_api: &mut CesealClient,
-    sync_state: &mut BlockSyncState,
-    batch_window: BlockNumber,
-    info: &crpc::CesealInfo,
-) -> Result<BlockNumber> {
-    let block_buf = &mut sync_state.blocks;
-    if block_buf.is_empty() {
-        return Ok(0);
-    }
-    let mut next_headernum = info.headernum;
-    let mut next_blocknum = info.blocknum;
-
-    let mut synced_blocks: BlockNumber = 0;
-
-    let hdr_synced_to = next_headernum.saturating_sub(1);
-    macro_rules! sync_blocks_to {
-        ($to: expr) => {
-            if next_blocknum <= $to {
-                batch_sync_storage_changes(ceseal_api, chain_api, next_blocknum, $to, batch_window)
-                    .await?;
-                synced_blocks += $to - next_blocknum + 1;
-                next_blocknum = $to + 1;
-            };
-        };
-    }
-
-    sync_blocks_to!(hdr_synced_to);
-
-    while !block_buf.is_empty() {
-        // Current authority set id
-        let last_set = if let Some(set) = sync_state.authory_set_state {
-            set
-        } else {
-            // Construct the authority set from the last block we have synced (the genesis)
-            let number = block_buf
-                .first()
-                .unwrap()
-                .block
-                .header
-                .number
-                .saturating_sub(1);
-            let hash = chain_api
-                .rpc()
-                .chain_get_block_hash(Some(number.into()))
-                .await?
-                .ok_or_else(|| anyhow!("Failed to get block hash for block number {}", number))?;
-            let set_id = chain_api.current_set_id(Some(hash)).await?;
-            let set = (number, set_id);
-            sync_state.authory_set_state = Some(set);
-            set
-        };
-        // Find the next set id change
-        let set_id_change_at = bisec_setid_change(chain_api, last_set, block_buf).await?;
-        let last_number_in_buff = block_buf.last().unwrap().block.header.number;
-        // Search
-        // Find the longest batch within the window
-        let first_block_number = block_buf.first().unwrap().block.header.number;
-        // TODO: fix the potential overflow here
-        let end_buffer = block_buf.len() as isize - 1;
-        let end_set_id_change = match set_id_change_at {
-            Some(change_at) => change_at as isize - first_block_number as isize,
-            None => block_buf.len() as isize,
-        };
-        let header_end = cmp::min(end_buffer, end_set_id_change);
-        let mut header_idx = header_end;
-        while header_idx >= 0 {
-            if block_buf[header_idx as usize]
-                .justifications
-                .as_ref()
-                .and_then(|v| v.get(GRANDPA_ENGINE_ID))
-                .is_some()
-            {
-                break;
-            }
-            header_idx -= 1;
-        }
-        if header_idx < 0 {
-            warn!(
-                "Cannot find justification within window (from: {}, to: {})",
-                first_block_number,
-                block_buf.last().unwrap().block.header.number,
-            );
-            break;
-        }
-        // send out the longest batch and remove it from the input buffer
-        let block_batch: Vec<Block> = block_buf.drain(..=(header_idx as usize)).collect();
-        let header_batch: Vec<HeaderToSync> = block_batch
-            .iter()
-            .map(|b| HeaderToSync {
-                header: b.block.header.clone(),
-                justification: b
-                    .justifications
-                    .clone()
-                    .and_then(|v| v.into_justification(GRANDPA_ENGINE_ID)),
-            })
-            .collect();
-
-        /* print collected headers */
-        {
-            for h in header_batch.iter() {
-                debug!(
-                    "Header {} :: {} :: {}",
-                    h.header.number,
-                    h.header.hash().to_string(),
-                    h.header.parent_hash.to_string()
-                );
-            }
-        }
-
-        let last_header = &header_batch.last().unwrap();
-        let last_header_hash = last_header.header.hash();
-        let last_header_number = last_header.header.number;
-
-        let mut authrotiy_change: Option<AuthoritySetChange> = None;
-        if let Some(change_at) = set_id_change_at {
-            if change_at == last_header_number {
-                authrotiy_change = Some(
-                    chain_client::get_authority_with_proof_at(chain_api, last_header_hash).await?,
-                );
-            }
-        }
-
-        info!(
-            "sending a batch of {} headers (last: {}, change: {:?})",
-            header_batch.len(),
-            last_header_number,
-            authrotiy_change
-                .as_ref()
-                .map(|change| &change.authority_set)
-        );
-
-        let mut header_batch = header_batch;
-        header_batch.retain(|h| h.header.number >= next_headernum);
-        // Remove justifications for all headers except the last one to reduce data overhead
-        // and improve sync performance.
-        if let Some((_last, rest_headers)) = header_batch.split_last_mut() {
-            for header in rest_headers {
-                header.justification = None;
-            }
-        }
-
-        let r = req_sync_header(ceseal_api, header_batch, authrotiy_change).await?;
-        info!("  ..sync_header: {:?}", r);
-        next_headernum = r.synced_to + 1;
-
-        sync_blocks_to!(r.synced_to);
-
-        sync_state.authory_set_state = Some(match set_id_change_at {
-            // set_id changed at next block
-            Some(change_at) => (change_at + 1, last_set.1 + 1),
-            // not changed
-            None => (last_number_in_buff, last_set.1),
-        });
-    }
-    Ok(synced_blocks)
-}
-
 const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
+
 #[allow(clippy::too_many_arguments)]
 async fn init_runtime(
     chain_api: &ChainApi,
@@ -333,12 +113,8 @@ async fn init_runtime(
             .await?
             .0
             .block;
-        let genesis_block_hash = chain_client::get_header_hash(chain_api, Some(start_header))
-            .await
-            .expect("No genesis block?");
-        let set_proof =
-            chain_client::get_authority_with_proof_at(chain_api, genesis_block_hash).await?;
-        blocks::GenesisBlockInfo {
+        let set_proof = get_authority_with_proof_at(chain_api, &genesis_block.header).await?;
+        GenesisBlockInfo {
             block_header: genesis_block.header.clone(),
             authority_set: set_proof.authority_set,
             proof: set_proof.authority_proof,
@@ -369,6 +145,22 @@ async fn init_runtime(
         ))
         .await?;
     Ok(resp.into_inner())
+}
+
+pub async fn fetch_genesis_info(
+    api: &ChainApi,
+    genesis_block_number: BlockNumber,
+) -> Result<GenesisBlockInfo> {
+    let genesis_block = chain_client::get_block_at(api, Some(genesis_block_number))
+        .await?
+        .0
+        .block;
+    let set_proof = crate::get_authority_with_proof_at(api, &genesis_block.header).await?;
+    Ok(GenesisBlockInfo {
+        block_header: genesis_block.header,
+        authority_set: set_proof.authority_set,
+        proof: set_proof.authority_proof,
+    })
 }
 
 async fn try_register_worker(
@@ -589,26 +381,13 @@ async fn bridge(
         authory_set_state: None,
     };
 
-    for round in 0u64.. {
+    loop {
         // update the latest Ceseal state
         let info = cc.get_info(()).await?.into_inner();
-        info!("Ceseal get_info response (round: {}): {:#?}", round, info);
+        info!("Ceseal get_info response: {:#?}", info);
         if info.blocknum >= args.to_block {
             info!("Reached target block: {}", args.to_block);
             return Ok(());
-        }
-
-        let next_headernum = info.headernum;
-        if info.blocknum < next_headernum {
-            info!("blocks fall behind");
-            batch_sync_storage_changes(
-                &mut cc,
-                &chain_api,
-                info.blocknum,
-                next_headernum - 1,
-                args.sync_blocks,
-            )
-            .await?;
         }
 
         let latest_block = chain_client::get_block_at(&chain_api, None).await?.0.block;
@@ -739,7 +518,6 @@ async fn bridge(
             continue;
         }
     }
-    Ok(())
 }
 
 fn preprocess_args(args: &mut Args) {
@@ -841,4 +619,209 @@ async fn start_external_server(cc: &mut CesealClient) -> Result<()> {
     }))
     .await?;
     Ok(())
+}
+
+const GRANDPA_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"FRNK";
+
+async fn batch_sync_block(
+    chain_api: &ChainApi,
+    ceseal_api: &mut CesealClient,
+    sync_state: &mut BlockSyncState,
+    batch_window: BlockNumber,
+    info: &crpc::CesealInfo,
+) -> Result<BlockNumber> {
+    let block_buf = &mut sync_state.blocks;
+    if block_buf.is_empty() {
+        return Ok(0);
+    }
+    let mut next_headernum = info.headernum;
+    let mut next_blocknum = info.blocknum;
+
+    let mut synced_blocks: BlockNumber = 0;
+
+    let hdr_synced_to = next_headernum.saturating_sub(1);
+    macro_rules! sync_blocks_to {
+        ($to: expr) => {
+            if next_blocknum <= $to {
+                batch_sync_storage_changes(ceseal_api, chain_api, next_blocknum, $to, batch_window)
+                    .await?;
+                synced_blocks += $to - next_blocknum + 1;
+                next_blocknum = $to + 1;
+            };
+        };
+    }
+
+    sync_blocks_to!(hdr_synced_to);
+
+    while !block_buf.is_empty() {
+        // Current authority set id
+        let last_set = if let Some(set) = sync_state.authory_set_state {
+            set
+        } else {
+            // Construct the authority set from the last block we have synced (the genesis)
+            let number = block_buf
+                .first()
+                .unwrap()
+                .block
+                .header
+                .number
+                .saturating_sub(1);
+            let hash = chain_api
+                .rpc()
+                .chain_get_block_hash(Some(number.into()))
+                .await?
+                .ok_or_else(|| anyhow!("Failed to get block hash for block number {}", number))?;
+            let set_id = chain_api.current_set_id(Some(hash)).await?;
+            let set = (number, set_id);
+            sync_state.authory_set_state = Some(set);
+            set
+        };
+        // Find the next set id change
+        let set_id_change_at = bisec_setid_change(chain_api, last_set, block_buf).await?;
+        let last_number_in_buff = block_buf.last().unwrap().block.header.number;
+        // Search
+        // Find the longest batch within the window
+        let first_block_number = block_buf.first().unwrap().block.header.number;
+        // TODO: fix the potential overflow here
+        let end_buffer = block_buf.len() as isize - 1;
+        let end_set_id_change = match set_id_change_at {
+            Some(change_at) => change_at as isize - first_block_number as isize,
+            None => block_buf.len() as isize,
+        };
+        let header_end = std::cmp::min(end_buffer, end_set_id_change);
+        let mut header_idx = header_end;
+        while header_idx >= 0 {
+            if block_buf[header_idx as usize]
+                .justifications
+                .as_ref()
+                .and_then(|v| v.get(GRANDPA_ENGINE_ID))
+                .is_some()
+            {
+                break;
+            }
+            header_idx -= 1;
+        }
+        if header_idx < 0 {
+            warn!(
+                "Cannot find justification within window (from: {}, to: {})",
+                first_block_number,
+                block_buf.last().unwrap().block.header.number,
+            );
+            break;
+        }
+        // send out the longest batch and remove it from the input buffer
+        let block_batch: Vec<Block> = block_buf.drain(..=(header_idx as usize)).collect();
+        let header_batch: Vec<HeaderToSync> = block_batch
+            .iter()
+            .map(|b| HeaderToSync {
+                header: b.block.header.clone(),
+                justification: b
+                    .justifications
+                    .clone()
+                    .and_then(|v| v.into_justification(GRANDPA_ENGINE_ID)),
+            })
+            .collect();
+
+        /* print collected headers */
+        {
+            for h in header_batch.iter() {
+                debug!(
+                    "Header {} :: {} :: {}",
+                    h.header.number,
+                    h.header.hash().to_string(),
+                    h.header.parent_hash.to_string()
+                );
+            }
+        }
+
+        let last_header = &header_batch.last().unwrap();
+        let last_header_number = last_header.header.number;
+
+        let mut authrotiy_change: Option<AuthoritySetChange> = None;
+        if let Some(change_at) = set_id_change_at {
+            if change_at == last_header_number {
+                authrotiy_change =
+                    Some(get_authority_with_proof_at(chain_api, &last_header.header).await?);
+            }
+        }
+
+        info!(
+            "sending a batch of {} headers (last: {}, change: {:?})",
+            header_batch.len(),
+            last_header_number,
+            authrotiy_change
+                .as_ref()
+                .map(|change| &change.authority_set)
+        );
+
+        let mut header_batch = header_batch;
+        header_batch.retain(|h| h.header.number >= next_headernum);
+        // Remove justifications for all headers except the last one to reduce data overhead
+        // and improve sync performance.
+        if let Some((_last, rest_headers)) = header_batch.split_last_mut() {
+            for header in rest_headers {
+                header.justification = None;
+            }
+        }
+
+        let r = ceseal_api
+            .sync_header(crpc::HeadersToSync::new(header_batch, authrotiy_change))
+            .await?
+            .into_inner();
+        info!("  ..sync_header: {:?}", r);
+        next_headernum = r.synced_to + 1;
+
+        sync_blocks_to!(r.synced_to);
+
+        sync_state.authory_set_state = Some(match set_id_change_at {
+            // set_id changed at next block
+            Some(change_at) => (change_at + 1, last_set.1 + 1),
+            // not changed
+            None => (last_number_in_buff, last_set.1),
+        });
+    }
+    Ok(synced_blocks)
+}
+
+/// Returns the next set_id change by a binary search on the known blocks
+///
+/// `known_blocks` must have at least one block with block justification, otherwise raise an error
+/// `NoJustificationInRange`. If there's no set_id change in the given blocks, it returns None.
+async fn bisec_setid_change(
+    chain_api: &ChainApi,
+    last_set: (BlockNumber, SetId),
+    known_blocks: &Vec<Block>,
+) -> Result<Option<BlockNumber>> {
+    debug!("bisec_setid_change(last_set: {:?})", last_set);
+    if known_blocks.is_empty() {
+        return Err(anyhow!(Error::SearchSetIdChangeInEmptyRange));
+    }
+    let (last_block, last_id) = last_set;
+    // Run binary search only on blocks with justification
+    let headers: Vec<&Header> = known_blocks
+        .iter()
+        .filter(|b| b.block.header.number > last_block && b.justifications.is_some())
+        .map(|b| &b.block.header)
+        .collect();
+    let mut l = 0i64;
+    let mut r = (headers.len() as i64) - 1;
+    while l <= r {
+        let mid = (l + r) / 2;
+        let hash = headers[mid as usize].hash();
+        let set_id = chain_api.current_set_id(Some(hash)).await?;
+        // Left: set_id == last_id, Right: set_id > last_id
+        if set_id == last_id {
+            l = mid + 1;
+        } else {
+            r = mid - 1;
+        }
+    }
+    // Return the first occurance of bigger set_id; return (last_id + 1) if not found
+    let result = if (l as usize) < headers.len() {
+        Some(headers[l as usize].number)
+    } else {
+        None
+    };
+    debug!("bisec_setid_change result: {:?}", result);
+    Ok(result)
 }

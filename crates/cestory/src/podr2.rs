@@ -417,7 +417,7 @@ impl Podr2Server {
                             "The length of fragment name in tee_digest_list should be 64".to_string(),
                         )
                     })?),
-                    tee_puk: sr25519::Public(tdl.tee_account_id.try_into().map_err(|_| {
+                    tee_puk: sr25519::Public::from_raw(tdl.tee_account_id.try_into().map_err(|_| {
                         Status::invalid_argument(
                             "The length of tee worker id in tee_digest_list should be 64".to_string(),
                         )
@@ -429,7 +429,7 @@ impl Podr2Server {
                     .map_err(|_| Status::internal("Fail to conver tee_digest_list from miner into".to_string()))?;
             }
             if !self.master_key.verify_data(
-                &sr25519::Signature(request.last_tee_signature.try_into().map_err(|_| {
+                &sr25519::Signature::from_raw(request.last_tee_signature.try_into().map_err(|_| {
                     Status::invalid_argument("The last_tee_signature you provided is length is not 64".to_string())
                 })?),
                 &calculate_hash(&tag_sig_info_history.encode()),
@@ -440,7 +440,7 @@ impl Podr2Server {
 
         let new_tee_record = DigestInfo {
             fragment: Hash(request.fragment_name.as_bytes().try_into().unwrap()),
-            tee_puk: sr25519::Public(self.ceseal_identity_key.clone()),
+            tee_puk: sr25519::Public::from_raw(self.ceseal_identity_key.clone()),
         };
         tag_sig_info_history.digest.try_push(new_tee_record).map_err(|_| {
             Status::invalid_argument("Can not push the new tee record into tag_sig_info_history".to_string())

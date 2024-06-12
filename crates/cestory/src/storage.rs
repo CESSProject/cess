@@ -11,9 +11,8 @@ impl BlockValidator for LightValidation<chain::Runtime> {
         header: chain::Header,
         ancestry_proof: Vec<chain::Header>,
         grandpa_proof: Vec<u8>,
-        authority_set_change: Option<cestory_api::blocks::AuthoritySetChange>,
     ) -> Result<()> {
-        self.submit_finalized_headers(bridge_id, header, ancestry_proof, grandpa_proof, authority_set_change)
+        self.submit_finalized_headers(bridge_id, header, ancestry_proof, grandpa_proof)
             .map_err(|e| SyncError::HeaderValidateFailed(e.to_string()))
     }
 
@@ -29,12 +28,10 @@ impl BlockValidator for LightValidation<chain::Runtime> {
 }
 
 mod storage_ext {
-    use crate::{chain, light_validation::utils::storage_prefix};
+    use crate::chain;
     use ces_mq::{Message, MessageOrigin};
     use ces_trie_storage::TrieStorage;
     use chain::AccountId;
-    use log::error;
-    use parity_scale_codec::{Decode, Error};
     use serde::{Deserialize, Serialize};
     use sp_core::H256;
     use sp_state_machine::{Ext, OverlayedChanges};
@@ -53,23 +50,6 @@ mod storage_ext {
     impl From<TrieStorage<crate::RuntimeHasher>> for ChainStorage {
         fn from(value: TrieStorage<crate::RuntimeHasher>) -> Self {
             Self { trie_storage: value }
-        }
-    }
-
-    impl ChainStorage {
-        fn get_raw(&self, key: impl AsRef<[u8]>) -> Option<Vec<u8>> {
-            self.trie_storage.get(key)
-        }
-        fn get_decoded_result<T: Decode>(&self, key: impl AsRef<[u8]>) -> Result<Option<T>, Error> {
-            self.get_raw(key)
-                .map(|v| match Decode::decode(&mut &v[..]) {
-                    Ok(decoded) => Ok(decoded),
-                    Err(e) => {
-                        error!("Decode storage value failed: {}", e);
-                        Err(e)
-                    },
-                })
-                .transpose()
         }
     }
 
@@ -107,17 +87,8 @@ mod storage_ext {
             sp_externalities::set_and_run_with_externalities(&mut ext, f)
         }
 
-        pub fn mq_messages(&self) -> Result<Vec<Message>, Error> {
-            for key in ["OutboundMessagesV2", "OutboundMessages"] {
-                let messages: Vec<Message> = self
-                    .get_decoded_result(storage_prefix("CesMq", key))
-                    .map(|v| v.unwrap_or_default())?;
-                if !messages.is_empty() {
-                    info!("Got {} messages from {key}", messages.len());
-                    return Ok(messages)
-                }
-            }
-            Ok(vec![])
+        pub fn mq_messages(&self) -> Vec<Message> {
+            self.execute_with(chain::CesMq::messages)            
         }
 
         pub fn timestamp_now(&self) -> chain::Moment {

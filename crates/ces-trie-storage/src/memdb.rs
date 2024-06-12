@@ -23,9 +23,6 @@ use std::{borrow::Borrow, cmp::Eq, convert::TryFrom, hash, marker::PhantomData};
 use sp_state_machine::{DefaultError, TrieBackendStorage};
 use trie_db::DBValue;
 
-pub trait MaybeDebug: std::fmt::Debug {}
-impl<T: std::fmt::Debug> MaybeDebug for T {}
-
 pub type GenericMemoryDB<H> = MemoryDB<H, HashKey<H>, trie_db::DBValue>;
 
 impl<H: KeyHasher> TrieBackendStorage<H> for GenericMemoryDB<H>

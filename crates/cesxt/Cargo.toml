@@ -12,7 +12,7 @@ scale-encode = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 
-subxt = { workspace = true, features = ["substrate-compat"] }
+subxt = { workspace = true, features = ["jsonrpsee", "native", "substrate-compat"] }
 jsonrpsee = { version = "0.20" }  # use the same version of jsonrpsee in subxt
 primitive-types = { workspace = true, default-features = true }
 

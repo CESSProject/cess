@@ -10,5 +10,6 @@ export RUST_LOG=info
     --rpc-cors=all \
     --rpc-port 9944 \
     --rpc-external \
+    --rpc-max-response-size 32 \
     --validator \
     --state-pruning archive
