@@ -379,8 +379,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
                 .get_ceseal_bin_added_at(&runtime_hash)
                 .ok_or_else(|| from_display("Client ceseal not allowed on chain"))?;
 
-            if my_runtime_timestamp >= req_runtime_timestamp {
-                return Err(Status::internal("No handover for old ceseal"))
+                if my_runtime_timestamp >= req_runtime_timestamp {
+                return Err(Status::internal("Same ceseal version or rollback ,No local handover provided"))
             }
         } else {
             info!("Skip ceseal timestamp check in dev mode");
@@ -696,6 +696,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         Ok(pb::SyncedTo { synced_to: last_block })
     }
 
+    //Check whether checkpoint file is used and save it regularly
     fn maybe_take_checkpoint(&mut self) -> anyhow::Result<()> {
         if !self.args.enable_checkpoint {
             return Ok(())
