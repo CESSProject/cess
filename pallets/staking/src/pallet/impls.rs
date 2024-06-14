@@ -534,22 +534,7 @@ impl<T: Config> Pallet<T> {
 	fn end_era(active_era: ActiveEraInfo, _session_index: SessionIndex) {
 		// Note: active_era_start can be None if end era is called during genesis config.
 		if let Some(active_era_start) = active_era.start {
-			let now_as_millis_u64 = T::UnixTime::now().as_millis().saturated_into::<u64>();
-
-			let era_duration = (now_as_millis_u64.defensive_saturating_sub(active_era_start))
-				.saturated_into::<u64>();
-			let staked = Self::eras_total_stake(&active_era.index);
-			let issuance = T::Currency::total_issuance();
-
 			let (validator_payout, sminer_payout) = Self::rewards_in_era(active_era.index);
-
-			let total_payout = validator_payout.saturating_add(sminer_payout);
-			let max_staked_rewards =
-				MaxStakedRewards::<T>::get().unwrap_or(Percent::from_percent(100));
-
-			// apply cap to validators payout and add difference to remainder.
-			let validator_payout = validator_payout.min(max_staked_rewards * total_payout);
-			let sminer_payout = total_payout.saturating_sub(validator_payout);
 
 			Self::deposit_event(Event::<T>::EraPaid {
 				era_index: active_era.index,

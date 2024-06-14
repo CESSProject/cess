@@ -1478,6 +1478,7 @@ impl pallet_cess_treasury::Config for Runtime {
 	type SpaceTreasuryId = SpaceTreasuryId;
 	type ReserveRewardId = ReserveRewardId;
 	type BurnDestination = ();
+	type Staking = Staking;
 }
 
 parameter_types! {
@@ -1608,6 +1609,7 @@ impl pallet_sminer::Config for Runtime {
 	type CessTreasuryHandle = CessTreasury;
 	type MaximumRelease = MaximumRelease;
 	type ReservoirGate = Reservoir;
+	type Staking = Staking;
 }
 
 parameter_types! {

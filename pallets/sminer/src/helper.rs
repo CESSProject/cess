@@ -172,23 +172,19 @@ impl<T: Config> Pallet<T> {
 
 			for snap_shot in snap_shot_list.into_iter() {
 				if snap_shot.issued == false {
-					let lock_block = snap_shot.finsh_block.checked_add(&one_day).ok_or(Error::<T>::Overflow)?;
-					if lock_block > now {
+					let cur_era = T::Staking::current_era();
+					if snap_shot.era_index >= cur_era {
 						continue;
 					}
 
-					let round: u32 = snap_shot.finsh_block
-						.checked_div(&one_day).ok_or(Error::<T>::Overflow)?
-						.try_into().map_err(|_| Error::<T>::Overflow)?;
-
-					let total_power = <CompleteSnapShot<T>>::get(round).total_power;
-					let total_reward = T::RewardPool::get_round_reward(round);
+					let total_power = <CompleteSnapShot<T>>::get(snap_shot.era_index).total_power;
+					let total_reward = T::RewardPool::get_round_reward(snap_shot.era_index);
 					if total_reward == BalanceOf::<T>::zero() {
 						Err(Error::<T>::Unexpected)?;
 					}
 					let miner_prop = Perbill::from_rational(snap_shot.power, total_power);
 					let this_round_reward = miner_prop.mul_floor(total_reward);
-					T::RewardPool::sub_round_reward(round, this_round_reward)?;
+					T::RewardPool::sub_round_reward(snap_shot.era_index, this_round_reward)?;
 					let each_reward = AOIR_PERCENT
 						.mul_floor(this_round_reward)
 						.checked_div(&RELEASE_NUMBER.into()).ok_or(Error::<T>::Overflow)?;

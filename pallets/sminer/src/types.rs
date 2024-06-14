@@ -89,6 +89,7 @@ pub struct CompleteInfo {
 
 #[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct MinerCompleteInfo<Block> {
+	pub(super) era_index: u32,
 	pub(super) issued: bool,
 	pub(super) finsh_block: Block,
 	pub(super) power: u128,
