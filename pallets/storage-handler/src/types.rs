@@ -31,3 +31,37 @@ pub enum OrderType {
 	Expansion,
 	Renewal,
 }
+
+#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+#[codec(mel_bound())]
+pub struct TerritoryInfo<T: Config> {
+	pub(super) token: H256,
+    pub(super) total_space: u128,
+	pub(super) used_space: u128,
+	pub(super) locked_space: u128,
+	pub(super) remaining_space: u128,
+	pub(super) object: u32,
+	pub(super) start: BlockNumberFor<T>,
+	pub(super) deadline: BlockNumberFor<T>,
+	pub(super) state: TerritoryState,
+}
+
+#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+#[codec(mel_bound())]
+pub struct ConsignmentInfo<T: Config> {
+	pub(super) user: AccountOf<T>,
+    pub(super) price: BalanceOf<T>,
+    pub(super) buyers: Option<AccountOf<T>>,
+    pub(super) exec: Option<BlockNumberFor<T>>,
+	pub(super) locked: bool,
+}
+
+#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
+pub enum TerritoryState {
+	Active,
+	Frozen,
+	Expired,
+	OnConsignment,
+}

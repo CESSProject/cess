@@ -9,6 +9,7 @@ use frame_support::{
     storage::bounded_vec::BoundedVec,
     traits::{
         StorageVersion, Currency, ReservableCurrency, Randomness,
+        schedule::{self, Anon as ScheduleAnon, DispatchTime, Named as ScheduleNamed},
     },
     pallet_prelude::*,
 };
@@ -62,6 +63,8 @@ pub mod pallet {
 
         type WeightInfo: WeightInfo;
 
+        type FScheduler: ScheduleNamed<BlockNumberFor<Self>, Self::SProposal, Self::SPalletsOrigin>;
+
         #[pallet::constant]
 		type OneDay: Get<BlockNumberFor<Self>>;
 
@@ -74,6 +77,15 @@ pub mod pallet {
 
         #[pallet::constant]
         type StateStringMax: Get<u32> + Clone + Eq + PartialEq;
+
+        #[pallet::constant]
+        type NameLimit: Get<u32>;
+
+        #[pallet::constant]
+        type ConsignmentRemainingBlock: Get<BlockNumberFor<Self>>;
+
+        #[pallet::constant]
+        type LockingBlock: Get<BlockNumberFor<Self>>;
         
 		#[pallet::constant]
 		type FrozenDays: Get<BlockNumberFor<Self>> + Clone + Eq + PartialEq;
@@ -100,6 +112,37 @@ pub mod pallet {
         CreatePayOrder { order_hash: BoundedVec<u8, ConstU32<32>> },
 
         PaidOrder { order_hash: BoundedVec<u8, ConstU32<32>> },
+
+        MintTerritory { 
+            token: H256, 
+            name: BoundedVec<u8, T::NameLimit>, 
+            storage_capacity: u128, 
+            spend: BalanceOf<T>,
+        },
+
+        ExpansionTerritory { 
+            name: BoundedVec<u8, T::NameLimit>, 
+            expansion_space: u128, 
+            spend: BalanceOf<T>,
+        },
+
+        RenewalTerritory {
+            name: BoundedVec<u8, T::NameLimit>, 
+            days: u32, 
+            spend: BalanceOf<T>,
+        },
+
+        ReactivateTerritory {
+            name: BoundedVec<u8, T::NameLimit>, 
+            days: u32, 
+            spend: BalanceOf<T>,
+        },
+
+        Consignment {
+            name: BoundedVec<u8, T::NameLimit>,
+            token: H256,
+            price: BalanceOf<T>,
+        }
     }
 
     #[pallet::error]
@@ -134,7 +177,51 @@ pub mod pallet {
         NoOrder,
         /// Parameter error, please check the parameters. The expiration time cannot exceed one hour
         ParamError,
+        /// There is already an identical token on the chain
+        DuplicateTokens,
+        /// This user does not have this territory
+        NotHaveTerritory,
+        /// The territory is not active
+        NotActive,
+        /// The territory is not expired
+        NotExpire,
+        /// The territory does not have enough lease time remaining to allow consignment sale
+        InsufficientLease,
+        /// The current delegation already exists and cannot be created again
+        ConsignmentExisted,
+        /// A territory must have nothing stored in it before it can be consigned
+        ObjectNotZero,
+        /// The delegation corresponding to the token value does not exist
+        NonExistentConsignment,
+        /// The commission has been purchased by someone else and is locked. It cannot be purchased again
+        ConsignmentLocked,
+        /// The status of the order is abnormal and the purchase action fails
+        ConsignmentUnLocked
     }
+
+    #[pallet::storage]
+    #[pallet::getter(fn territory_key)]
+    pub(super) type TerritoryKey<T: Config> = 
+        StorageMap<_, Blake2_128Concat, H256, (AccountOf<T>, BoundedVec<u8, T::NameLimit>)>;
+    
+    #[pallet::storage]
+    #[pallet::getter(fn territory)]
+    pub(super) type Territory<T: Config> = 
+        StorageDoubleMap<
+            _,
+            Blake2_128Concat,
+            AccountOf<T>,
+            Blake2_128Concat,
+            BoundedVec<u8, T::NameLimit>,
+            TerritoryInfo<T>,
+        >;
+
+    #[pallet::storage]
+    #[pallet::getter(fn consignment)]
+    pub(super) type Consignment<T: Config> =
+        StorageMap<_, Blake2_128Concat, H256, ConsignmentInfo>;
+
+
 
 	#[pallet::storage]
 	#[pallet::getter(fn user_owned_space)]
@@ -190,26 +277,32 @@ pub mod pallet {
 
     #[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// Buy Space
-        ///
-        /// This function allows a user to purchase storage space in the network by specifying the desired capacity in gibibytes (GiB). 
-        /// The user's account is debited with the corresponding payment for the purchased space.
-        ///
-        /// Parameters:
-        /// - `origin`: The origin from which the function is called, representing the user's account.
-        /// - `gib_count`: The amount of storage space to purchase, specified in gibibytes (GiB).
-		#[pallet::call_index(0)]
+        #[pallet::call_index(0)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_space())]
-		pub fn buy_space(origin: OriginFor<T>, gib_count: u32) -> DispatchResult {
+		pub fn mint_territory(
+            origin: OriginFor<T>, 
+            gib_count: u32, 
+            territory_name: BoundedVec<u8, T::NameLimit>,
+        ) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			ensure!(!<UserOwnedSpace<T>>::contains_key(&sender), Error::<T>::PurchasedSpace);
+			ensure!(!<Territory<T>>::contains_key(&sender, &territory_name), Error::<T>::PurchasedSpace);
+
+            let now = <frame_system::Pallet<T>>::block_number();
+            let seed = (sender.clone(), now, territory_name.clone());
+            let (random_seed, _) =
+                T::MyRandomness::random(&(T::RewardPalletId::get(), seed).encode());
+            let token = match random_seed {
+				Some(random_seed) => <H256>::decode(&mut random_seed.as_ref()).map_err(|_| Error::<T>::RandomErr)?,
+				None => Default::default(),
+			};
+            ensure!(!<TerritoryKey<T>>::contains_key(&token), Error::<T>::DuplicateTokens);
 
 			let space = G_BYTE.checked_mul(gib_count as u128).ok_or(Error::<T>::Overflow)?;
 			let unit_price = <UnitPrice<T>>::try_get()
 				.map_err(|_e| Error::<T>::BugInvalid)?;
 
-			Self::add_user_purchased_space(sender.clone(), space, 30)?;
+			Self::storage_territory(token, sender.clone(), space, 30, territory_name.clone())?;
 			Self::add_purchased_space(space)?;
 			let price: BalanceOf<T> = unit_price
 				.checked_mul(&gib_count.saturated_into())
@@ -222,30 +315,32 @@ pub mod pallet {
 
             T::CessTreasuryHandle::send_to_sid(sender.clone(), price)?;
 
-			Self::deposit_event(Event::<T>::BuySpace { acc: sender, storage_capacity: space, spend: price });
+			Self::deposit_event(Event::<T>::MintTerritory {
+                token: token, 
+                name: territory_name, 
+                storage_capacity: space, 
+                spend: price,
+            });
+
 			Ok(())
 		}
-		
-        /// Expansion of Purchased Space
-        ///
-        /// This function allows a user who has previously purchased storage space to expand their purchased space by adding more storage capacity. 
-        /// The user specifies the desired capacity in gibibytes (GiB) for expansion.
-        ///
-        /// Parameters:
-        /// - `origin`: The origin from which the function is called, representing the user's account.
-        /// - `gib_count`: The amount of additional storage space to purchase for expansion, specified in gibibytes (GiB).
+
         #[pallet::call_index(1)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::expansion_space())]
-		pub fn expansion_space(origin: OriginFor<T>, gib_count: u32) -> DispatchResult {
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_space())]
+        pub fn expanding_territory(
+            origin: OriginFor<T>, 
+            territory_name: BoundedVec<u8, T::NameLimit>, 
+            gib_count: u32,
+        ) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			let cur_owned_space = <UserOwnedSpace<T>>::try_get(&sender)
-				.map_err(|_e| Error::<T>::NotPurchasedSpace)?;
+			let cur_owned_space = <Territory<T>>::try_get(&sender, &territory_name)
+				.map_err(|_e| Error::<T>::NotHaveTerritory)?;
 			let now = <frame_system::Pallet<T>>::block_number();
 			ensure!(now < cur_owned_space.deadline, Error::<T>::LeaseExpired);
 			ensure!(
-				cur_owned_space.state.to_vec() != SPACE_FROZEN.as_bytes().to_vec(),
-				Error::<T>::LeaseFreeze
+				cur_owned_space.state == TerritoryState::Active,
+				Error::<T>::NotActive
 			);
 			// The unit price recorded in UnitPrice is the unit price of one month.
 			// Here, the daily unit price is calculated.
@@ -280,39 +375,34 @@ pub mod pallet {
 				Error::<T>::InsufficientBalance
 			);
 
-			Self::add_purchased_space(
-				space,
-			)?;
-
-			Self::expension_puchased_package(sender.clone(), space)?;
+			Self::add_purchased_space(space)?;
+			Self::update_territory_space(sender.clone(), territory_name.clone(), space)?;
 
             T::CessTreasuryHandle::send_to_sid(sender.clone(), price.clone())?;
 
-			Self::deposit_event(Event::<T>::ExpansionSpace {
-				acc: sender,
+			Self::deposit_event(Event::<T>::ExpansionTerritory {
+				name: territory_name,
 				expansion_space: space,
-				fee: price,
+				spend: price,
 			});
+
 			Ok(())
 		}
 
-        /// Renewal of Purchased Space Lease
-        ///
-        /// This function allows a user who has purchased storage space to renew their lease for additional days by paying a renewal fee. The user specifies the number of days they wish to extend the lease.
-        ///
-        /// Parameters:
-        /// - `origin`: The origin from which the function is called, representing the user's account.
-        /// - `days`: The number of days for which the user wishes to renew the space lease.
-		#[pallet::call_index(2)]
+        #[pallet::call_index(2)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_space())]
-		pub fn renewal_space(origin: OriginFor<T>, days: u32) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			let cur_owned_space = <UserOwnedSpace<T>>::try_get(&sender)
-				.map_err(|_e| Error::<T>::NotPurchasedSpace)?;
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_space())]
+        pub fn renewal_territory(
+            origin: OriginFor<T>, 
+            territory_name: BoundedVec<u8, T::NameLimit>, 
+            days: u32,
+        ) -> DispatchResult {
+            let sender = ensure_signed(origin)?;
+			let cur_owned_space = <Territory<T>>::try_get(&sender, &territory_name)
+				.map_err(|_e| Error::<T>::NotHaveTerritory)?;
 
             ensure!(
-                cur_owned_space.state.to_vec() != SPACE_DEAD.as_bytes().to_vec(), 
+                cur_owned_space.state == TerritoryState::Active || cur_owned_space.state == TerritoryState::Frozen, 
                 Error::<T>::LeaseExpired,
             );
 
@@ -336,14 +426,181 @@ pub mod pallet {
 
 			T::CessTreasuryHandle::send_to_sid(sender.clone(), price.clone())?;
 
-			Self::update_puchased_package(sender.clone(), days)?;
-			Self::deposit_event(Event::<T>::RenewalSpace {
-				acc: sender,
-				renewal_days: days,
-				fee: price,
+			Self::update_territory_days(sender.clone(), territory_name.clone(), days)?;
+			Self::deposit_event(Event::<T>::RenewalTerritory {
+				name: territory_name,
+				days: days,
+				spend: price,
 			});
 			Ok(())
-		}
+        }
+
+        #[pallet::call_index(101)]
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_space())]
+        pub fn reactivate_territory(
+            origin: OriginFor<T>, 
+            territory_name: BoundedVec<u8, T::NameLimit>,
+            days: u32,
+        ) -> DispatchResult {
+            let sender = ensure_signed(origin)?;
+
+            let mut territory = <Territory<T>>::try_get(&sender, &territory_name)
+                .map_err(|_| Error::<T>::NotHaveTerritory)?
+                .as_mut();
+            
+            ensure!(territory.state == TerritoryState::Expired, Error::<T>::NotExpire);
+
+            let days_unit_price = <UnitPrice<T>>::try_get()
+                .map_err(|_e| Error::<T>::BugInvalid)?
+                .checked_div(&30u32.saturated_into())
+                .ok_or(Error::<T>::Overflow)?;
+
+            let gib_count = territory.total_space.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
+
+            let price = days_unit_price
+                .checked_mul(&days.saturated_into())
+                .ok_or(Error::<T>::Overflow)?
+                .checked_mul(&gib_count.saturated_into())
+                .ok_or(Error::<T>::Overflow)?;
+            ensure!(
+                <T as pallet::Config>::Currency::can_slash(&sender, price.clone()),
+                Error::<T>::InsufficientBalance
+            );
+
+            T::CessTreasuryHandle::send_to_sid(sender.clone(), price.clone())?;
+
+            Self::add_purchased_space(territory.total_space)?;
+            Self::initial_territory(sender.clone(), territory_name.clone(), days)?;
+            
+            Self::deposit_event(Event::<T>::ReactivateTerritory {
+				name: territory_name,
+				days: days,
+				spend: price,
+			});
+
+            Ok(())
+        }
+
+        #[pallet::call_index(102)]
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_space())]
+        pub fn treeitor_consignment(
+            origin: OriginFor<T>, 
+            territory_name: BoundedVec<u8, T::NameLimit>, 
+            price: BalanceOf<T>
+        ) -> DispatchResult {
+            let sender = ensure_signed(origin)?;
+
+            let token = <Territory<T>>::try_mutate(&sender, &territory_name, |t_opt| -> Result<H256, DispatchError> {
+                let t = t_opt.as_mut().ok_or(Error::<T>::NotHaveTerritory)?;
+
+                ensure!(t.state == TerritoryState::Active, Error::<T>::NotActive);
+                ensure!(t.object == 0, Error::<T>::ObjectNotZero);
+
+                let now = <frame_system::Pallet<T>>::block_number();
+                let remain_block = t.deadline.checked_sub(&now).ok_or(Error::<T>::Overflow)?;
+                let limit_block = T::ConsignmentRemainingBlock::get();
+                ensure!(remain_block > limit_block, Error::<T>::InsufficientLease);
+
+                t.state = TerritoryState::Consignment;
+
+                Ok(t.token)
+            })?;
+
+            ensure!(!<Consignment<T>>::contains_key(&token), Error::<T>::ConsignmentExisted);
+            let consignment_info = ConsignmentInfo::<T>{
+                user: sender,
+                price: price,
+                buyers: None,
+                exec: None,
+                locked: false,
+            };
+            <Consignment<T>>::insert(&token, consignment_info);
+
+            Self::deposit_event(Event::<T>::Consignment {
+                name: territory_name,
+                token: token,
+                price: price,
+            });
+
+            Ok(())
+        }
+
+        #[pallet::call_index(103)]
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_space())]
+        pub fn buy_consignment(
+            origin: OriginFor<T>,
+            token: H256,
+            rename: BoundedVec<u8, T::NameLimit>,
+        ) -> DispatchResult {
+            let sender = ensure_signed(origin)?;
+
+            let consignmnet = <Consignment<T>>::try_get(&token).map_err(|_| Error::<T>::NonExistentConsignment)?;
+            ensure!(!consignment.locked, Error::<T>::ConsignmentLocked);
+
+            <Consignment<T>>::try_mutate(&token, |c_opt| -> DispatchResult {
+                let c = c_opt.as_mut().ok_or(Error::<T>::NonExistentConsignment)?;
+
+                let now = <frame_system::Pallet<T>>::block_number();
+                let lock_block = T::LockingBlock::get();
+                let exec_block = now.checked_add(&lock_block).ok_or(Error::<T>::)?;
+
+                c.buyers = Some(sender);
+                c.exec = Some(exec_block);
+
+                T::FScheduler::schedule_named(
+                    token.encode(),
+                    DispatchTime::At(exec_block),
+                    Option::None,
+                    schedule::HARD_DEADLINE,
+                    frame_system::RawOrigin::Root.into(),
+                    // Call::miner_exit{miner: miner.clone()}.into(), 
+                ).map_err(|_| Error::<T>::Unexpected)?;
+
+                Ok(())
+            })?;
+
+            Self::deposit_event(Event::<T>::BuyConsignment {
+                name: territory_name,
+                token: token,
+                price: price,
+            });
+
+            Ok(())
+        }
+
+        #[pallet::call_index(104)]
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_space())]
+        pub fn exec_consignment(origin: OriginFor<T>, token: H256, territory_name: BoundedVec<u8, T::NameLimit>) -> DispatchResult {
+            ensure_root(origin)?;
+
+            let consignment = <Consignment<T>>::try_get(&token).map_err(|_| Error::<T>::NonExistentConsignment)?;
+            let buyer = consignment.buyers.ok_or(Error::<T>::Unexpected)?;
+            ensure!(consignment.locked, Error::<T>::ConsignmentUnLocked);
+            ensure!(
+                <T as pallet::Config>::Currency::can_slash(&buyer, consignment.price),
+                Error::<T>::InsufficientBalance
+            );
+
+            let (holder, name) = <TerritoryKey<T>>::try_get(&token).map_err(|_| Error::<T>::Unexpected)?;
+            let mut territory = <Territory<T>>::try_get(&holder, &name).map_err(|_| Error::<T>::Unexpected)?;
+            ensure!(territory.state == TerritoryState::Consignmnet, Error::<T>::Unexpected);
+
+            <Territory<T>>::remove(&holder, &name);
+            territory.state = TerritoryState::Active;
+            <Territory<T>>::insert(&buyer, &territory_name, territory);
+
+            <TerritoryKey<T>>::insert(&token, (buyer, territory_name));
+            <Consignment<T>>::remove(&token);
+
+            <T as pallet::Config>::Currency::transfer(&buyer, &holder, consignment.price, KeepAlive);
+
+            Ok(())
+        }
+
         // FOR TEST
 		#[pallet::call_index(4)]
 		#[transactional]
@@ -622,6 +879,105 @@ impl<T: Config> Pallet<T> {
         };
         <UserOwnedSpace<T>>::insert(&acc, info);
         Ok(())
+    }
+
+    fn storage_territory(
+        token: H256,
+        user: AccountOf<T>, 
+        space: u128, 
+        days: u32,
+        tname: BoundedVec<u8, T::NameLimit>,
+    ) -> DispatchResult {
+        let now = <frame_system::Pallet<T>>::block_number();
+        let one_day = <T as pallet::Config>::OneDay::get();
+        let sur_block: BlockNumberFor<T> = one_day
+            .checked_mul(&days.saturated_into())
+            .ok_or(Error::<T>::Overflow)?;
+        let deadline = now.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
+
+        let info = TerritoryInfo::<T> {
+            token: token.clone(),
+            total_space: space,
+            used_space: u128::MIN,
+            locked_space: u128::MIN,
+            remaining_space: space,
+            object: u32::MIN,
+            start: now,
+            deadline,
+            state: TerritoryState::Active,
+        };
+        <Territory<T>>::insert(&user, &tname, info);
+        <TerritoryKey<T>>::insert(&token, (user, tname));
+
+        Ok(())
+    }
+
+    fn update_territory_space(
+        user: AccountOf<T>,
+        tname: BoundedVec<u8, T::NameLimit>,
+        space: u128
+    ) -> DispatchResult {
+        <Territory<T>>::try_mutate(&user, &tname, |t_opt| -> DispatchResult {
+            let t = t_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
+            t.remaining_space = t.remaining_space.checked_add(space).ok_or(Error::<T>::Overflow)?;
+            t.total_space = t.total_space.checked_add(space).ok_or(Error::<T>::Overflow)?;
+            Ok(())
+        })?;
+
+        Ok(())
+    }
+
+    fn update_territory_days(
+        user: AccountOf<T>,
+        tname: BoundedVec<u8, T::NameLimit>,
+        days: u32,
+    ) -> DispatchResult {
+        <Territory<T>>::try_mutate(&user, &tname, |t_opt| -> DispatchResult {
+            let t = t_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
+            let one_day = <T as pallet::Config>::OneDay::get();
+            let now = <frame_system::Pallet<T>>::block_number();
+            let sur_block: BlockNumberFor<T> =
+                one_day.checked_mul(&days.saturated_into()).ok_or(Error::<T>::Overflow)?;
+            if now > t.deadline {
+                t.start = now;
+                t.deadline = now.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
+            } else {
+                t.deadline = t.deadline.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
+            }
+
+            if t.deadline > now {
+                t.state = TerritoryState::Active;
+            }
+
+            Ok(())
+        })?;
+        Ok(())
+    }
+
+    fn initial_territory(
+        user: AccountOf<T>,
+        tname: BoundedVec<u8, T::NameLimit>,
+        days: u32
+    ) -> DispatchResult {
+        <Territory<T>>::try_mutate(&user, &tname, |t_opt| -> DispatchResult {
+            let t = t_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
+
+            let now = <frame_system::Pallet<T>>::block_number();
+            
+            t.state = TerritoryState::Active;
+            t.remaining_space = 0;
+            t.locked_space = 0;
+            t.used_space = 0;
+            t.start = now;
+
+            let one_day = T::OneDay::get();
+            let deadline: BlockNumberFor<T> = one_day.checked_mul(&days.saturated_into()).ok_or(Error::<T>::Overflow)?;
+            t.deadline = now.checked_add(deadline).ok_or(Error::<T>::Overflow)?;
+            
+            Ok(())
+        })?
+
+
     }
 
     /// helper: update user storage space.

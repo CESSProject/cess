@@ -546,7 +546,7 @@ impl pallet_cess_staking::Config for Runtime {
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 4>,
 	>;
 	type SessionInterface = Self;
-	type EraPayout = (); // pallet_staking::ConvertCurve<RewardCurve>;
+	type EraPayout = (); // pallet_cess_staking::ConvertCurve<RewardCurve>;
 	type NextNewSession = Session;
 	type MaxExposurePageSize = ConstU32<256>;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
