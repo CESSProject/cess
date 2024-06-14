@@ -20,6 +20,8 @@ frame-system = { workspace = true }
 sp-std = { workspace = true }
 sp-runtime = { workspace = true }
 
+sp-staking = { workspace = true, features = ["serde"] }
+
 
 [features]
 default = ["std"]

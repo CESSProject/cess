@@ -16,6 +16,7 @@ use frame_system::{
 	pallet_prelude::OriginFor,
 	ensure_signed, ensure_root,
 };
+use sp_staking::StakingInterface;
 
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
@@ -66,6 +67,8 @@ pub mod pallet {
 		type BurnDestination: OnUnbalanced<NegativeImbalanceOf<Self>>;
 
 		type OneDay: Get<BlockNumberFor<Self>>;
+
+		type Staking: StakingInterface;
     }
 	
 	#[pallet::event]
@@ -233,13 +236,9 @@ impl<T: Config> Pallet<T> {
 
 	pub fn add_miner_reward_pool(amount: BalanceOf<T>) -> DispatchResult {
 		<EraReward<T>>::put(amount);
-		let now = frame_system::Pallet::<T>::block_number();
-		let one_day = T::OneDay::get();
-		let round: u32 = now
-			.checked_div(&one_day).ok_or(Error::<T>::Overflow)?
-			.try_into().map_err(|_| Error::<T>::Overflow)?;
+		let era = T::Staking::current_era();
 
-		<RoundReward<T>>::mutate(round, |v| -> DispatchResult {
+		<RoundReward<T>>::mutate(era, |v| -> DispatchResult {
 			v.0 = v.0.checked_add(&amount).ok_or(Error::<T>::Overflow)?;
 
 			Ok(())

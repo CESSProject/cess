@@ -38,6 +38,7 @@ use sp_runtime::{
 	traits::{AccountIdConversion, CheckedAdd, CheckedSub, CheckedMul, CheckedDiv, Dispatchable, SaturatedConversion},
 	RuntimeDebug, Perbill
 };
+use sp_staking::StakingInterface;
 use sp_std::{convert::TryInto, prelude::*, marker::PhantomData};
 use sp_core::{
 	ConstU32,
@@ -127,6 +128,8 @@ pub mod pallet {
 		type StorageHandle: StorageHandle<Self::AccountId>;
 
 		type ReservoirGate: ReservoirGate<Self::AccountId, BalanceOf<Self>>;
+
+		type Staking: StakingInterface;
 	}
 
 	#[pallet::event]
@@ -1285,14 +1288,12 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 		miner_service_space: u128,
 	) -> DispatchResult {
 		let now = frame_system::Pallet::<T>::block_number();
-		let one_day = T::OneDayBlock::get();
-		let round: u32 = now
-			.checked_div(&one_day).ok_or(Error::<T>::Overflow)?
-			.try_into().map_err(|_| Error::<T>::Overflow)?;
+		let era = T::Staking::current_era();
 		let power = Self::calculate_power(miner_idle_space, miner_service_space);
 
 		<CompleteMinerSnapShot<T>>::mutate(miner, |miner_info_list| -> DispatchResult {
 			let snap_shot = MinerCompleteInfo::<BlockNumberFor<T>> {
+				era_index: era,
 				issued: false,
 				finsh_block: now,
 				power: power,
@@ -1302,7 +1303,7 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 				return Ok(())
 			}
 
-			<CompleteSnapShot<T>>::mutate(&round, |complete_info| -> DispatchResult {
+			<CompleteSnapShot<T>>::mutate(&era, |complete_info| -> DispatchResult {
 				complete_info.miner_count = complete_info.miner_count.checked_add(1).ok_or(Error::<T>::Overflow)?;
 				complete_info.total_power = complete_info.total_power.checked_add(power).ok_or(Error::<T>::Overflow)?;
 	
