@@ -83,7 +83,7 @@ pub mod pallet {
 	pub enum Error<T> {
 		/// Data operation overflow
         Overflow,
-
+		/// Logically speaking, errors that should not occur
 		Unexpected,
     }
 

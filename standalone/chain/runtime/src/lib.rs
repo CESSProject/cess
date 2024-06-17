@@ -1662,9 +1662,18 @@ parameter_types! {
 	pub const FrozenDays: BlockNumber = 7 * DAYS;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const StateStringMax: u32 = 20;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const LockingBlock: BlockNumber = MINUTES * 10;
 }
 
 impl pallet_storage_handler::Config for Runtime {
+	type FScheduler = Scheduler;
+	type PalletsOrigin = OriginCaller;
+	type SProposal = RuntimeCall;
+	type ConsignmentRemainingBlock = OneDay;
+	type LockingBlock = LockingBlock;
+	type Preimages = Preimage;
+	type NameLimit = NameStrLimit;
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type WeightInfo = pallet_storage_handler::weights::SubstrateWeight<Runtime>;

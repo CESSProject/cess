@@ -435,7 +435,7 @@ pub mod pallet {
 					.checked_mul(30).ok_or(Error::<T>::Overflow)?
 					.checked_div(10).ok_or(Error::<T>::Overflow)?
 					.checked_mul(deal_info.len() as u128).ok_or(Error::<T>::Overflow)?;
-            	ensure!(T::StorageHandle::get_user_avail_space(&user_brief.user)? > needed_space, Error::<T>::InsufficientAvailableSpace);
+            	ensure!(T::StorageHandle::get_user_avail_space(&user_brief.user, &user_brief.territory_name)? > needed_space, Error::<T>::InsufficientAvailableSpace);
 				Receptionist::<T>::generate_deal(file_hash, deal_info, user_brief.clone(), needed_space, file_size)?;
 			}
 
@@ -474,7 +474,7 @@ pub mod pallet {
 			//Modify the space usage of target acc,
 			//and determine whether the space is enough to support transfer
 			let file_size = Self::cal_file_size(file.segment_list.len() as u128);
-			T::StorageHandle::update_user_space(&target_brief.user, 1, file_size)?;
+			T::StorageHandle::add_territory_used_space(&target_brief.user, &target_brief.territory_name, file_size)?;
 			//Increase the ownership of the file for target acc
 			<File<T>>::try_mutate(&file_hash, |file_opt| -> DispatchResult {
 				let file = file_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;

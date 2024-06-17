@@ -101,7 +101,8 @@ pub struct BucketInfo<T: Config> {
 pub struct UserBrief<T: Config> {
 	pub user: AccountOf<T>,
 	pub file_name: BoundedVec<u8, T::NameStrLimit>,
-	pub bucket_name:  BoundedVec<u8, T::NameStrLimit>,
+	pub bucket_name: BoundedVec<u8, T::NameStrLimit>,
+	pub territory_name: TerrName,
 }
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]

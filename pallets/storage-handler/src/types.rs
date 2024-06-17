@@ -41,7 +41,6 @@ pub struct TerritoryInfo<T: Config> {
 	pub(super) used_space: u128,
 	pub(super) locked_space: u128,
 	pub(super) remaining_space: u128,
-	pub(super) object: u32,
 	pub(super) start: BlockNumberFor<T>,
 	pub(super) deadline: BlockNumberFor<T>,
 	pub(super) state: TerritoryState,
