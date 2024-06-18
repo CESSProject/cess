@@ -1659,7 +1659,7 @@ parameter_types! {
 	#[derive(Clone, Eq, PartialEq)]
 	pub const StateStringMax: u32 = 20;
 	#[derive(Clone, Eq, PartialEq)]
-	pub const LockingBlock: BlockNumber = MINUTES * 10;
+	pub const LockingBlock: BlockNumber = MINUTES * 5;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const FrozenLimit: u32 = 2000;
 }

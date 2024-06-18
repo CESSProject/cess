@@ -170,6 +170,14 @@ pub mod pallet {
             price: BalanceOf<T>,
         },
 
+        CancleConsignment {
+            token: H256,
+        }
+
+        CancelPurchaseAction {
+            token: H256,
+        }
+
         ExecConsignment {
             buyer: AccountOf<T>,
             seller: AccountOf<T>,
@@ -691,6 +699,8 @@ pub mod pallet {
             territory.state = TerritoryState::Active;
             <Territory<T>>::insert(&sender, &territory_name, territory);
 
+            Self::deposit_event(Event::<T>::CancleConsignment {token: territory.token});
+
             Ok(())
         }
 
@@ -712,6 +722,8 @@ pub mod pallet {
 
                 Ok(())
             })?;
+            
+            Self::deposit_event(Event::<T>::CancelPurchaseAction {token: token});
             
             Ok(())
         }
