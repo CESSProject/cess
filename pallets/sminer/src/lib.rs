@@ -35,7 +35,7 @@ use sp_runtime::traits::Zero;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::{AccountIdConversion, CheckedAdd, CheckedSub, CheckedMul, CheckedDiv, Dispatchable, SaturatedConversion},
+	traits::{AccountIdConversion, CheckedAdd, CheckedSub, CheckedMul, Dispatchable, SaturatedConversion},
 	RuntimeDebug, Perbill
 };
 use sp_staking::StakingInterface;

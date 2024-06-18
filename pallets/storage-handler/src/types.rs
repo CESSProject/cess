@@ -17,6 +17,7 @@ pub struct OwnedSpaceDetails<T: Config> {
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct OrderInfo<T: Config> {
+	pub(super) territory_name: TerrName,
 	pub(super) pay: BalanceOf<T>,
 	pub(super) gib_count: u32,
 	pub(super) days: u32,

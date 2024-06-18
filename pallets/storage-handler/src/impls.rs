@@ -9,14 +9,12 @@ pub trait StorageHandle<AccountId> {
 	fn sub_total_service_space(decrement: u128) -> DispatchResult;
     fn get_total_idle_space() -> u128;
     fn get_total_service_space() -> u128;
-    fn add_purchased_space(size: u128) -> DispatchResult;
-	fn sub_purchased_space(size: u128) -> DispatchResult;
     fn get_avail_space() -> Result<u128, DispatchError>;
     fn lock_user_space(acc: &AccountId, name: &TerrName, needed_space: u128) -> DispatchResult;
     fn unlock_user_space(acc: &AccountId, name: &TerrName, needed_space: u128) -> DispatchResult;
     fn unlock_and_used_user_space(acc: &AccountId, name: &TerrName, needed_space: u128) -> DispatchResult;
     fn get_user_avail_space(acc: &AccountId, name: &TerrName) -> Result<u128, DispatchError>;
-    fn frozen_task() -> (Weight, Vec<AccountId>);
+    fn frozen_task() -> (Weight, Vec<(AccountId, TerrName)>);
     fn delete_user_space_storage(acc: &AccountId) -> Result<Weight, DispatchError>;
 }
 
@@ -75,25 +73,6 @@ impl<T: Config> StorageHandle<T::AccountId> for Pallet<T> {
         })
     }
 
-    fn add_purchased_space(size: u128) -> DispatchResult {
-		<PurchasedSpace<T>>::try_mutate(|purchased_space| -> DispatchResult {
-            let total_space = <TotalIdleSpace<T>>::get().checked_add(<TotalServiceSpace<T>>::get()).ok_or(Error::<T>::Overflow)?;
-            let new_space = purchased_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
-            if new_space > total_space {
-                Err(<Error<T>>::InsufficientAvailableSpace)?;
-            }
-            *purchased_space = new_space;
-            Ok(())
-        })
-	}
-
-	fn sub_purchased_space(size: u128) -> DispatchResult {
-		<PurchasedSpace<T>>::try_mutate(|purchased_space| -> DispatchResult {
-            *purchased_space = purchased_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
-            Ok(())
-        })
-	}
-
     fn get_avail_space() -> Result<u128, DispatchError> {
         let purchased_space = <PurchasedSpace<T>>::get();
         let total_space = <TotalIdleSpace<T>>::get().checked_add(<TotalServiceSpace<T>>::get()).ok_or(Error::<T>::Overflow)?;
@@ -146,7 +125,7 @@ impl<T: Config> StorageHandle<T::AccountId> for Pallet<T> {
         Ok(info.remaining_space)
     }
 
-    fn frozen_task() -> (Weight, Vec<AccountOf<T>>) {
+    fn frozen_task() -> (Weight, Vec<(AccountOf<T>, TerrName)>) {
         Self::frozen_task()
     }
 

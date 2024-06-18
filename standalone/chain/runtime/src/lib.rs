@@ -1561,10 +1561,6 @@ impl pallet_file_bank::Config for Runtime {
 	type RuntimeCall = RuntimeCall;
 	type FilbakPalletId = FilbakPalletId;
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
-	type FScheduler = Scheduler;
-	type AScheduler = Scheduler;
-	type SPalletsOrigin = OriginCaller;
-	type SProposal = RuntimeCall;
 	type WeightInfo = pallet_file_bank::weights::SubstrateWeight<Runtime>;
 	type MinerControl = Sminer;
 	type StorageHandle = StorageHandler;
@@ -1664,6 +1660,8 @@ parameter_types! {
 	pub const StateStringMax: u32 = 20;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const LockingBlock: BlockNumber = MINUTES * 10;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const FrozenLimit: u32 = 2000;
 }
 
 impl pallet_storage_handler::Config for Runtime {
@@ -1684,6 +1682,7 @@ impl pallet_storage_handler::Config for Runtime {
 	type StateStringMax = StateStringMax;
 	type FrozenDays = FrozenDays;
 	type CessTreasuryHandle = CessTreasury;
+	type FrozenLimit = FrozenLimit;
 }
 
 parameter_types! {

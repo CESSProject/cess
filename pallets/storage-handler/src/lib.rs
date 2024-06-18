@@ -5,12 +5,12 @@ use frame_system::{
     pallet_prelude::*,
 };
 use frame_support::{
-    dispatch::{GetDispatchInfo, Parameter, RawOrigin, PostDispatchInfo},
+    dispatch::{Parameter},
     Blake2_128Concat, PalletId, weights::Weight, ensure, transactional,
     storage::bounded_vec::BoundedVec,
     traits::{
         StorageVersion, Currency, ReservableCurrency, Randomness, ExistenceRequirement::KeepAlive,
-        schedule::v3::{self, Named as ScheduleNamed},
+        schedule::v3::{Named as ScheduleNamed},
         schedule, schedule::DispatchTime, QueryPreimage, StorePreimage,
     },
     pallet_prelude::*,
@@ -94,6 +94,9 @@ pub mod pallet {
 
         #[pallet::constant]
         type NameLimit: Get<u32>;
+
+        #[pallet::constant]
+        type FrozenLimit: Get<u32>;
 
         #[pallet::constant]
         type ConsignmentRemainingBlock: Get<BlockNumberFor<Self>>;
@@ -220,6 +223,10 @@ pub mod pallet {
         InsufficientLease,
         /// The current delegation already exists and cannot be created again
         ConsignmentExisted,
+        /// It is on consignment, so it cannot be renewed
+        OnConsignment,
+        /// The current territory's state does not support this operation
+        StateError,
         /// A territory must have nothing stored in it before it can be consigned
         ObjectNotZero,
         /// The delegation corresponding to the token value does not exist
@@ -232,6 +239,8 @@ pub mod pallet {
         Unexpected,
         /// Not the buyer of this consignment, no right to operate
         NotBuyer,
+        /// This is an invalid order, Because the price can't match
+        InvalidOrder,
     }
 
     #[pallet::storage]
@@ -256,7 +265,34 @@ pub mod pallet {
     pub(super) type Consignment<T: Config> =
         StorageMap<_, Blake2_128Concat, H256, ConsignmentInfo<T>>;
 
+    #[pallet::storage]
+    #[pallet::getter(fn territory_frozen)]
+    pub(super) type TerritoryFrozen<T: Config> =
+        StorageDoubleMap<
+            _, 
+            Blake2_128Concat, 
+            BlockNumberFor<T>,
+            Blake2_128Concat, 
+            H256,
+            bool,
+        >;
+    
+    #[pallet::storage]
+    #[pallet::getter(fn territory_frozen_counter)]
+    pub(super) type TerritoryFrozenCounter<T: Config> =
+        StorageMap<_, Blake2_128Concat, BlockNumberFor<T>, u32, ValueQuery>;
 
+    #[pallet::storage]
+    #[pallet::getter(fn territory_expired)]
+    pub(super) type TerritoryExpired<T: Config> =
+        StorageDoubleMap<
+            _, 
+            Blake2_128Concat, 
+            BlockNumberFor<T>,
+            Blake2_128Concat, 
+            H256,
+            bool,
+        >;
 
 	#[pallet::storage]
 	#[pallet::getter(fn user_owned_space)]
@@ -372,7 +408,6 @@ pub mod pallet {
 			let cur_owned_space = <Territory<T>>::try_get(&sender, &territory_name)
 				.map_err(|_e| Error::<T>::NotHaveTerritory)?;
 			let now = <frame_system::Pallet<T>>::block_number();
-			ensure!(now < cur_owned_space.deadline, Error::<T>::LeaseExpired);
 			ensure!(
 				cur_owned_space.state == TerritoryState::Active,
 				Error::<T>::NotActive
@@ -438,7 +473,7 @@ pub mod pallet {
 
             ensure!(
                 cur_owned_space.state == TerritoryState::Active || cur_owned_space.state == TerritoryState::Frozen, 
-                Error::<T>::LeaseExpired,
+                Error::<T>::StateError,
             );
 
 			let days_unit_price = <UnitPrice<T>>::try_get()
@@ -453,7 +488,7 @@ pub mod pallet {
 				.ok_or(Error::<T>::Overflow)?
 				.try_into()
 				.map_err(|_e| Error::<T>::Overflow)?;
-            
+
 			ensure!(
 				<T as pallet::Config>::Currency::can_slash(&sender, price.clone()),
 				Error::<T>::InsufficientBalance
@@ -630,7 +665,7 @@ pub mod pallet {
             <TerritoryKey<T>>::insert(&token, (buyer.clone(), territory_name));
             <Consignment<T>>::remove(&token);
 
-            <T as pallet::Config>::Currency::transfer(&buyer, &holder, consignment.price, KeepAlive);
+            <T as pallet::Config>::Currency::transfer(&buyer, &holder, consignment.price, KeepAlive)?;
 
             Self::deposit_event(Event::<T>::ExecConsignment {
                 buyer: buyer,
@@ -771,7 +806,8 @@ pub mod pallet {
         #[pallet::weight(<T as pallet::Config>::WeightInfo::create_order())]
         pub fn create_order(
             origin: OriginFor<T>, 
-            target_acc: AccountOf<T>, 
+            target_acc: AccountOf<T>,
+            territory_name: TerrName,
             order_type: OrderType, 
             gib_count: u32, 
             days: u32,
@@ -786,18 +822,18 @@ pub mod pallet {
 
             let price = match order_type {
                 OrderType::Buy => {
-                    ensure!(!<UserOwnedSpace<T>>::contains_key(&target_acc), Error::<T>::PurchasedSpace);
+                    ensure!(!<Territory<T>>::contains_key(&target_acc, &territory_name), Error::<T>::PurchasedSpace);
                     let price = Self::calculate_price(gib_count, days)?;
                     price
                 },
                 OrderType::Expansion => {
-                    let user_owned_space = <UserOwnedSpace<T>>::try_get(&target_acc).map_err(|_| Error::<T>::NotPurchasedSpace)?;
+                    let user_owned_space = <Territory<T>>::try_get(&target_acc, &territory_name).map_err(|_| Error::<T>::NotHaveTerritory)?;
                     let remain_day = Self::calculate_remain_day(user_owned_space.deadline)?;
                     let price = Self::calculate_price(gib_count, remain_day.saturated_into())?;
                     price
                 },
                 OrderType::Renewal => {
-                    let user_owned_space = <UserOwnedSpace<T>>::try_get(&target_acc).map_err(|_| Error::<T>::NotPurchasedSpace)?;
+                    let user_owned_space = <Territory<T>>::try_get(&target_acc, &territory_name).map_err(|_| Error::<T>::NotHaveTerritory)?;
                     let gib_count = user_owned_space.total_space.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
                     let price = Self::calculate_price(gib_count as u32, days)?;
                     price
@@ -807,6 +843,7 @@ pub mod pallet {
             let now = <frame_system::Pallet<T>>::block_number();
             let expired = now.checked_add(&expired.saturated_into()).ok_or(Error::<T>::Overflow)?;
             let pay_order = OrderInfo::<T> {
+                territory_name,
                 pay: price,
                 gib_count: gib_count,
                 days,
@@ -842,20 +879,39 @@ pub mod pallet {
             ensure!(order.expired > now, Error::<T>::OrderExpired);
             match order.order_type {
                 OrderType::Buy => {
-                    ensure!(!<UserOwnedSpace<T>>::contains_key(&order.target_acc), Error::<T>::PurchasedSpace);
+                    ensure!(!<Territory<T>>::contains_key(&order.target_acc, &order.territory_name), Error::<T>::PurchasedSpace);
                     let space = G_BYTE.checked_mul(order.gib_count as u128).ok_or(Error::<T>::Overflow)?;
-                    Self::add_user_purchased_space(order.target_acc, space, order.days)?;
+                    let now = <frame_system::Pallet<T>>::block_number();
+                    let seed = (sender.clone(), now, order.territory_name.clone());
+                    let (random_seed, _) =
+                        T::MyRandomness::random(&(T::RewardPalletId::get(), seed).encode());
+                    let token = match random_seed {
+                        Some(random_seed) => <H256>::decode(&mut random_seed.as_ref()).map_err(|_| Error::<T>::RandomErr)?,
+                        None => Default::default(),
+                    };
+                    ensure!(!<TerritoryKey<T>>::contains_key(&token), Error::<T>::DuplicateTokens);
+                    Self::storage_territory(token, order.target_acc, space, order.days, order.territory_name)?;
 			        Self::add_purchased_space(space)?;
                 },
                 OrderType::Expansion => {
-                    ensure!(<UserOwnedSpace<T>>::contains_key(&order.target_acc), Error::<T>::NotPurchasedSpace);
+                    let user_owned_space = <Territory<T>>::try_get(&order.target_acc, &order.territory_name).map_err(|_| Error::<T>::NotHaveTerritory)?;
+                    let remain_day = Self::calculate_remain_day(user_owned_space.deadline)?;
+                    let price = Self::calculate_price(order.gib_count, remain_day.saturated_into())?;
+                    // todo! If the price becomes dynamic in the future, the judgment basis will become invalid. 
+                    // Make sure that the territory data does not change before and after the order is created.
+                    ensure!(price == order.pay, Error::<T>::InvalidOrder);
                     let space = G_BYTE.checked_mul(order.gib_count as u128).ok_or(Error::<T>::Overflow)?;
                     Self::add_purchased_space(space)?;
-                    Self::expension_puchased_package(order.target_acc, space)?;
+                    Self::update_territory_space(order.target_acc, order.territory_name, space)?;
                 },
                 OrderType::Renewal => {
-                    ensure!(<UserOwnedSpace<T>>::contains_key(&order.target_acc), Error::<T>::NotPurchasedSpace);
-                    Self::update_puchased_package(order.target_acc, order.days)?;
+                    let user_owned_space = <Territory<T>>::try_get(&order.target_acc, &order.territory_name).map_err(|_| Error::<T>::NotHaveTerritory)?;
+                    let gib_count = user_owned_space.total_space.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
+                    let price = Self::calculate_price(gib_count as u32, order.days)?;
+                    // todo! If the price becomes dynamic in the future, the judgment basis will become invalid. 
+                    // Make sure that the territory data does not change before and after the order is created.
+                    ensure!(price == order.pay, Error::<T>::InvalidOrder);
+                    Self::update_territory_days(order.target_acc, order.territory_name, order.days)?;
                 },
             };
 
@@ -928,96 +984,6 @@ impl<T: Config> Pallet<T> {
 
         Ok(remain_day.into())
     }
-    /// helper: update_puchased_package.
-    ///
-    /// How to update the corresponding data after renewing the package.
-    /// Currently, it only supports and defaults to one month.
-    ///
-    /// Parameters:
-    /// - `acc`: Account
-    /// - `days`: Days of renewal
-    fn update_puchased_package(acc: AccountOf<T>, days: u32) -> DispatchResult {
-        <UserOwnedSpace<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
-            let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
-            let one_day = <T as pallet::Config>::OneDay::get();
-            let now = <frame_system::Pallet<T>>::block_number();
-            let sur_block: BlockNumberFor<T> =
-                one_day.checked_mul(&days.saturated_into()).ok_or(Error::<T>::Overflow)?;
-            if now > s.deadline {
-                s.start = now;
-                s.deadline = now.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
-            } else {
-                s.deadline = s.deadline.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
-            }
-
-            if s.deadline > now {
-                s.state = SPACE_NORMAL
-                .as_bytes()
-                .to_vec()
-                .try_into()
-                .map_err(|_e| Error::<T>::BoundedVecError)?;
-            }
-
-            Ok(())
-        })?;
-        Ok(())
-    }
-    /// helper: Expand storage space.
-    ///
-    /// Relevant data of users after updating the expansion package.
-    ///
-    /// Parameters:
-    /// - `space`: Size after expansion.
-    /// - `package_type`: New package type.
-    fn expension_puchased_package(
-        acc: AccountOf<T>,
-        space: u128,
-    ) -> DispatchResult {
-        <UserOwnedSpace<T>>::try_mutate(&acc, |s_opt| -> DispatchResult {
-            let s = s_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
-            s.remaining_space = s.remaining_space.checked_add(space).ok_or(Error::<T>::Overflow)?;
-            s.total_space = s.total_space.checked_add(space).ok_or(Error::<T>::Overflow)?;
-            Ok(())
-        })?;
-
-        Ok(())
-    }
-    /// helper: Initial purchase space initialization method.
-    ///
-    /// Purchase a package and create data corresponding to the user.
-    /// UserOwnedSpace Storage.
-    ///
-    /// Parameters:
-    /// - `space`: Buy storage space size.
-    /// - `month`: Month of purchase of package, It is 1 at present.
-    /// - `package_type`: Package type.
-    fn add_user_purchased_space(
-        acc: AccountOf<T>,
-        space: u128,
-        days: u32,
-    ) -> DispatchResult {
-        let now = <frame_system::Pallet<T>>::block_number();
-        let one_day = <T as pallet::Config>::OneDay::get();
-        let sur_block: BlockNumberFor<T> = one_day
-            .checked_mul(&days.saturated_into())
-            .ok_or(Error::<T>::Overflow)?;
-        let deadline = now.checked_add(&sur_block).ok_or(Error::<T>::Overflow)?;
-        let info = OwnedSpaceDetails::<T> {
-            total_space: space,
-            used_space: 0,
-            locked_space: u128::MIN,
-            remaining_space: space,
-            start: now,
-            deadline,
-            state: SPACE_NORMAL
-                .as_bytes()
-                .to_vec()
-                .try_into()
-                .map_err(|_e| Error::<T>::BoundedVecError)?,
-        };
-        <UserOwnedSpace<T>>::insert(&acc, info);
-        Ok(())
-    }
 
     fn storage_territory(
         token: H256,
@@ -1045,10 +1011,17 @@ impl<T: Config> Pallet<T> {
         };
         <Territory<T>>::insert(&user, &tname, info);
         <TerritoryKey<T>>::insert(&token, (user, tname));
+        <TerritoryFrozen<T>>::insert(&deadline, &token, true);
+        <TerritoryFrozenCounter<T>>::mutate(&deadline, |counter| -> DispatchResult {
+            *counter = counter.checked_add(1).ok_or(Error::<T>::Overflow)?;
+            ensure!(*counter < T::FrozenLimit::get(), Error::<T>::Overflow);
+            Ok(())
+        })?;
 
         Ok(())
     }
 
+    // Before calling this method, please determine the state of the territory
     fn update_territory_space(
         user: AccountOf<T>,
         tname: TerrName,
@@ -1064,13 +1037,22 @@ impl<T: Config> Pallet<T> {
         Ok(())
     }
 
+    // Before calling this method, please determine the state of the territory
     fn update_territory_days(
         user: AccountOf<T>,
         tname: TerrName,
         days: u32,
     ) -> DispatchResult {
         <Territory<T>>::try_mutate(&user, &tname, |t_opt| -> DispatchResult {
-            let t = t_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
+            let t = t_opt.as_mut().ok_or(Error::<T>::NotHaveTerritory)?;
+            <TerritoryFrozen<T>>::remove(&t.deadline, &t.token);
+            <TerritoryFrozenCounter<T>>::mutate(&t.deadline, |counter| -> DispatchResult {
+                *counter = counter.checked_sub(1).ok_or(Error::<T>::Overflow)?;
+                Ok(())
+            })?;
+            let frozen_days = <T as pallet::Config>::FrozenDays::get();
+            let expired_block = t.deadline.checked_add(&frozen_days).ok_or(Error::<T>::Overflow)?;
+            <TerritoryExpired<T>>::remove(&expired_block, &t.token);
             let one_day = <T as pallet::Config>::OneDay::get();
             let now = <frame_system::Pallet<T>>::block_number();
             let sur_block: BlockNumberFor<T> =
@@ -1086,11 +1068,19 @@ impl<T: Config> Pallet<T> {
                 t.state = TerritoryState::Active;
             }
 
+            <TerritoryFrozen<T>>::insert(&t.deadline, &t.token, true);
+            <TerritoryFrozenCounter<T>>::mutate(&t.deadline, |counter| -> DispatchResult {
+                *counter = counter.checked_add(1).ok_or(Error::<T>::Overflow)?;
+                ensure!(*counter < T::FrozenLimit::get(), Error::<T>::Overflow);
+                Ok(())
+            })?;
+
             Ok(())
         })?;
         Ok(())
     }
 
+    // Before calling this method, please determine the state of the territory
     fn initial_territory(
         user: AccountOf<T>,
         tname: TerrName,
@@ -1110,71 +1100,89 @@ impl<T: Config> Pallet<T> {
             let one_day = T::OneDay::get();
             let deadline: BlockNumberFor<T> = one_day.checked_mul(&days.saturated_into()).ok_or(Error::<T>::Overflow)?;
             t.deadline = now.checked_add(&deadline).ok_or(Error::<T>::Overflow)?;
+            <TerritoryFrozen<T>>::insert(&t.deadline, &t.token, true);
+            <TerritoryFrozenCounter<T>>::mutate(&t.deadline, |counter| -> DispatchResult {
+                *counter = counter.checked_add(1).ok_or(Error::<T>::Overflow)?;
+                ensure!(*counter < T::FrozenLimit::get(), Error::<T>::Overflow);
+                Ok(())
+            })?;
             
             Ok(())
         })
     }
 
-    fn frozen_task() -> (Weight, Vec<AccountOf<T>>) {
+    fn add_purchased_space(size: u128) -> DispatchResult {
+		<PurchasedSpace<T>>::try_mutate(|purchased_space| -> DispatchResult {
+            let total_space = <TotalIdleSpace<T>>::get().checked_add(<TotalServiceSpace<T>>::get()).ok_or(Error::<T>::Overflow)?;
+            let new_space = purchased_space.checked_add(size).ok_or(Error::<T>::Overflow)?;
+            if new_space > total_space {
+                Err(<Error<T>>::InsufficientAvailableSpace)?;
+            }
+            *purchased_space = new_space;
+            Ok(())
+        })
+	}
+
+	fn sub_purchased_space(size: u128) -> DispatchResult {
+		<PurchasedSpace<T>>::try_mutate(|purchased_space| -> DispatchResult {
+            *purchased_space = purchased_space.checked_sub(size).ok_or(Error::<T>::Overflow)?;
+            Ok(())
+        })
+	}
+
+    fn frozen_task() -> (Weight, Vec<(AccountOf<T>, TerrName)>) {
         let now: BlockNumberFor<T> = <frame_system::Pallet<T>>::block_number();
-        let number: u128 = now.saturated_into();
-    
         let mut weight: Weight = Weight::zero();
-        let mut clear_acc_list: Vec<AccountOf<T>> = Default::default();
 
         log::info!("Start lease expiration check");
-        for (acc, info) in <UserOwnedSpace<T>>::iter() {
+        for (token, _) in <TerritoryFrozen<T>>::iter_prefix(&now) {
             weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
-            if now > info.deadline {
-                let frozen_day: BlockNumberFor<T> = <T as pallet::Config>::FrozenDays::get();
-                if now > info.deadline + frozen_day {
-                    log::info!("clear user:#{}'s files", number);
-                    let result = <UserOwnedSpace<T>>::try_mutate(
-                        &acc,
-                        |s_opt| -> DispatchResult {
-                            let s = s_opt
-                                .as_mut()
-                                .ok_or(Error::<T>::NotPurchasedSpace)?;
-                            s.state = SPACE_DEAD
-                                .as_bytes()
-                                .to_vec()
-                                .try_into()
-                                .map_err(|_e| Error::<T>::BoundedVecError)?;
-                            Ok(())
-                        },
-                    );
-                    match result {
-                        Ok(()) => log::info!("user space dead: #{}", number),
-                        Err(e) => log::error!("space mark dead failed: {:?}", e),
-                    }
-                    weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-                    clear_acc_list.push(acc);
-                } else {
-                    if info.state.to_vec() != SPACE_FROZEN.as_bytes().to_vec() {
-                        let result = <UserOwnedSpace<T>>::try_mutate(
-                            &acc,
-                            |s_opt| -> DispatchResult {
-                                let s = s_opt
-                                    .as_mut()
-                                    .ok_or(Error::<T>::NotPurchasedSpace)?;
-                                s.state = SPACE_FROZEN
-                                    .as_bytes()
-                                    .to_vec()
-                                    .try_into()
-                                    .map_err(|_e| Error::<T>::BoundedVecError)?;
-                                Ok(())
-                            },
-                        );
-                        match result {
-                            Ok(()) => log::info!("user space frozen: #{}", number),
-                            Err(e) => log::error!("frozen failed: {:?}", e),
+            let result = <TerritoryKey<T>>::try_get(&token).map_err(|_| Error::<T>::Unexpected);
+            weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
+            match result {
+                Ok((acc, territory_name)) => {
+                    let _ = <Territory<T>>::try_mutate(&acc, &territory_name, |t_opt| -> DispatchResult {
+                        let t = t_opt.as_mut().ok_or(Error::<T>::Unexpected)?;
+                        if t.state == TerritoryState::OnConsignment {
+                            <Consignment<T>>::remove(&token);
+                            weight = weight.saturating_add(T::DbWeight::get().writes(1));
                         }
-                        weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-                    }
-                }
+
+                        t.state = TerritoryState::Frozen;
+                        let frozen_days = <T as pallet::Config>::FrozenDays::get();
+                        let expired_block = t.deadline.checked_add(&frozen_days).ok_or(Error::<T>::Overflow)?;
+                        <TerritoryExpired<T>>::insert(&expired_block, &t.token, true);
+                        weight = weight.saturating_add(T::DbWeight::get().writes(1));
+                        Ok(())
+                    });
+                    weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+                },
+                Err(e) => log::error!("[StorageHanle] -> [frozen_task]: TerritoryKey read failed {:?}", e),
             }
         }
+
+        let mut list: Vec<(AccountOf<T>, TerrName)> = Default::default();
+
+        for (token, _) in <TerritoryExpired<T>>::iter_prefix(&now) {
+            weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
+            let result = <TerritoryKey<T>>::try_get(&token).map_err(|_| Error::<T>::Unexpected);
+            weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
+            match result {
+                Ok((acc, territory_name)) => {
+                    let _ = <Territory<T>>::try_mutate(&acc, &territory_name, |t_opt| -> DispatchResult {
+                        let t = t_opt.as_mut().ok_or(Error::<T>::Unexpected)?;
+                        Self::sub_purchased_space(t.total_space)?;
+                        t.state = TerritoryState::Expired;
+                        Ok(())
+                    });
+                    weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+                    list.push((acc, territory_name));
+                },
+                Err(e) => log::error!("[StorageHanle] -> [frozen_task]: TerritoryKey read failed {:?}", e),
+            }
+        }
+
         log::info!("End lease expiration check");
-        (weight, clear_acc_list)
+        (weight, list)
     }
 }

@@ -83,6 +83,7 @@ pub struct FragmentInfo<T: Config> {
 
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub struct UserFileSliceInfo {
+	pub(super) territory_name: TerrName,
 	pub(super) file_hash: Hash,
 	pub(super) file_size: u128,
 }

@@ -161,8 +161,6 @@ impl<T: Config> Pallet<T> {
     pub(super) fn calculate_miner_reward(
 		miner: &AccountOf<T>,
 	) -> DispatchResult {
-		let now = frame_system::Pallet::<T>::block_number();
-		let one_day = T::OneDayBlock::get();
 		let order_list = <CompleteMinerSnapShot<T>>::mutate(&miner, |snap_shot_list| -> Result<Vec<RewardOrder::<BalanceOf<T>, BlockNumberFor<T>>>, DispatchError> {
 			if snap_shot_list.len() == 0 {
 				return Ok(Default::default());

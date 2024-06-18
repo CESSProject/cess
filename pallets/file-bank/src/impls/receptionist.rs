@@ -19,7 +19,7 @@ impl<T: Config> Receptionist<T> {
                 Pallet::<T>::create_bucket_helper(&user_brief.user, &user_brief.bucket_name, Some(file_hash))?;
             }
      
-            Pallet::<T>::add_user_hold_fileslice(&user_brief.user, file_hash, needed_space)?;
+            Pallet::<T>::add_user_hold_fileslice(&user_brief.user, file_hash, needed_space, user_brief.territory_name.clone())?;
             file.owner.try_push(user_brief.clone()).map_err(|_e| Error::<T>::BoundedVecError)?;
 
             Ok(())
@@ -68,7 +68,7 @@ impl<T: Config> Receptionist<T> {
             } else {
                 Pallet::<T>::create_bucket_helper(&deal_info.user.user, &deal_info.user.bucket_name, Some(deal_hash))?;
             }
-            Pallet::<T>::add_user_hold_fileslice(&deal_info.user.user, deal_hash.clone(), needed_space)?;
+            Pallet::<T>::add_user_hold_fileslice(&deal_info.user.user, deal_hash.clone(), needed_space, deal_info.user.territory_name.clone())?;
             <DealMap<T>>::remove(deal_hash);
             Pallet::<T>::deposit_event(Event::<T>::StorageCompleted{ file_hash: deal_hash });
         }
