@@ -301,11 +301,6 @@ pub mod pallet {
             H256,
             bool,
         >;
-
-	#[pallet::storage]
-	#[pallet::getter(fn user_owned_space)]
-	pub(super) type UserOwnedSpace<T: Config> =
-		StorageMap<_, Blake2_128Concat, AccountOf<T>, OwnedSpaceDetails<T>>;
  
 	#[pallet::storage]
 	#[pallet::getter(fn unit_price)]
@@ -358,7 +353,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
         #[pallet::call_index(0)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_space())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::mint_territory())]
 		pub fn mint_territory(
             origin: OriginFor<T>, 
             gib_count: u32, 
@@ -406,7 +401,7 @@ pub mod pallet {
 
         #[pallet::call_index(1)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_space())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::expanding_territory())]
         pub fn expanding_territory(
             origin: OriginFor<T>, 
             territory_name: TerrName, 
@@ -469,7 +464,7 @@ pub mod pallet {
 
         #[pallet::call_index(2)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_space())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_territory())]
         pub fn renewal_territory(
             origin: OriginFor<T>, 
             territory_name: TerrName, 
@@ -515,7 +510,7 @@ pub mod pallet {
 
         #[pallet::call_index(101)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_space())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_territory())]
         pub fn reactivate_territory(
             origin: OriginFor<T>, 
             territory_name: TerrName,
@@ -561,7 +556,7 @@ pub mod pallet {
 
         #[pallet::call_index(102)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_space())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_territory())]
         pub fn treeitory_consignment(
             origin: OriginFor<T>, 
             territory_name: TerrName, 
@@ -606,7 +601,7 @@ pub mod pallet {
 
         #[pallet::call_index(103)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_space())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_territory())]
         pub fn buy_consignment(
             origin: OriginFor<T>,
             token: H256,
@@ -650,7 +645,7 @@ pub mod pallet {
 
         #[pallet::call_index(104)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_space())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_territory())]
         pub fn exec_consignment(origin: OriginFor<T>, token: H256, territory_name: TerrName) -> DispatchResult {
             ensure_root(origin)?;
 
@@ -686,7 +681,7 @@ pub mod pallet {
 
         #[pallet::call_index(105)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_space())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_territory())]
         pub fn cancel_consignment(origin: OriginFor<T>, territory_name: TerrName) -> DispatchResult {
             let sender = ensure_signed(origin)?;
 
@@ -706,7 +701,7 @@ pub mod pallet {
 
         #[pallet::call_index(106)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_space())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_territory())]
         pub fn cancel_purchase_action(origin: OriginFor<T>, token: H256) -> DispatchResult {
             let sender = ensure_signed(origin)?;
 
@@ -730,7 +725,7 @@ pub mod pallet {
 
         #[pallet::call_index(107)]
         #[transactional]
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::buy_space())]
+        #[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_territory())]
         pub fn territory_grants(
             origin: OriginFor<T>, 
             territory_name: TerrName, 
@@ -761,7 +756,7 @@ pub mod pallet {
 
         #[pallet::call_index(108)]
         #[transactional]
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::buy_space())]
+        #[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_territory())]
         pub fn territory_rename(
             origin: OriginFor<T>,
             old_name: TerrName,
@@ -801,10 +796,10 @@ pub mod pallet {
         #[pallet::call_index(5)]
 		#[transactional]
 		#[pallet::weight(Weight::zero())]
-        pub fn update_user_life(origin: OriginFor<T>, user: AccountOf<T>, deadline: BlockNumberFor<T>) -> DispatchResult {
+        pub fn update_user_territory_life(origin: OriginFor<T>, user: AccountOf<T>, terr_name: TerrName, deadline: BlockNumberFor<T>) -> DispatchResult {
             let _ = ensure_root(origin)?;
 
-            <UserOwnedSpace<T>>::try_mutate(&user, |space_opt| -> DispatchResult {
+            <Territory<T>>::try_mutate(&user, &terr_name, |space_opt| -> DispatchResult {
                 let space_info = space_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
 
                 space_info.deadline = deadline;
@@ -941,22 +936,6 @@ pub mod pallet {
 
             TotalServiceSpace::<T>::try_mutate(|total_space| -> DispatchResult {
                 *total_space = 0;
-                Ok(())
-            })?;
-
-            Ok(())
-        }
-
-        // FOR TESTING
-        #[pallet::call_index(9)]
-        #[pallet::weight(Weight::zero())]
-        pub fn clear_user_used_space(origin: OriginFor<T>, user: AccountOf<T>) -> DispatchResult {
-            let _ = ensure_root(origin)?;
-
-            <UserOwnedSpace<T>>::try_mutate(&user, |space_info_opt| -> DispatchResult {
-                let space_info = space_info_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
-                space_info.used_space = 0;
-
                 Ok(())
             })?;
 

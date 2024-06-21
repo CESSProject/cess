@@ -3,19 +3,6 @@ use super::*;
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
-pub struct OwnedSpaceDetails<T: Config> {
-	pub(super) total_space: u128,
-	pub(super) used_space: u128,
-	pub(super) locked_space: u128,
-	pub(super) remaining_space: u128,
-	pub(super) start: BlockNumberFor<T>,
-	pub(super) deadline: BlockNumberFor<T>,
-	pub(super) state: BoundedVec<u8, T::StateStringMax>,
-}
-
-#[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-#[codec(mel_bound())]
 pub struct OrderInfo<T: Config> {
 	pub(super) territory_name: TerrName,
 	pub(super) pay: BalanceOf<T>,

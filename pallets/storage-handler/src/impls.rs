@@ -16,7 +16,6 @@ pub trait StorageHandle<AccountId> {
     fn unlock_and_used_user_space(acc: &AccountId, name: &TerrName, needed_space: u128) -> DispatchResult;
     fn get_user_avail_space(acc: &AccountId, name: &TerrName) -> Result<u128, DispatchError>;
     fn frozen_task() -> (Weight, Vec<(AccountId, TerrName)>);
-    fn delete_user_space_storage(acc: &AccountId) -> Result<Weight, DispatchError>;
 }
 
 impl<T: Config> StorageHandle<T::AccountId> for Pallet<T> {
@@ -133,21 +132,6 @@ impl<T: Config> StorageHandle<T::AccountId> for Pallet<T> {
 
     fn frozen_task() -> (Weight, Vec<(AccountOf<T>, TerrName)>) {
         Self::frozen_task()
-    }
-
-    fn delete_user_space_storage(acc: &T::AccountId) -> Result<Weight, DispatchError> {
-        let mut weight: Weight = Weight::zero();
-
-        let space_info = <UserOwnedSpace<T>>::try_get(acc).map_err(|_| Error::<T>::NotHaveTerritory)?;
-        weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
-
-        Self::sub_purchased_space(space_info.total_space)?;
-        weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-
-        <UserOwnedSpace<T>>::remove(acc);
-        weight = weight.saturating_add(T::DbWeight::get().writes(1 as u64));
-
-        Ok(weight)
     }
 
     fn get_total_idle_space() -> u128 {

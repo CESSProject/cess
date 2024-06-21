@@ -380,11 +380,6 @@ pub mod pallet {
 
 					}
 
-					match T::StorageHandle::delete_user_space_storage(&acc) {
-						Ok(temp_weight) => weight = weight.saturating_add(temp_weight),
-						Err(e) => log::info!("delete user sapce error: {:?}, \n failed user: {:?}", e, acc),
-					}
-
 					ClearUserList::<T>::mutate(|target_list| {
 						target_list.retain(|temp_acc| temp_acc.0 != *acc);
 					});
@@ -446,7 +441,7 @@ pub mod pallet {
 
 		#[pallet::call_index(2)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::ownership_transfer())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::calculate_report())]
 		pub fn territory_file_delivery(
 			origin: OriginFor<T>,
 			user: AccountOf<T>,
