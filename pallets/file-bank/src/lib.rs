@@ -184,6 +184,8 @@ pub mod pallet {
 		StorageCompleted { file_hash: Hash },
 
 		CalculateReport { miner: AccountOf<T>, file_hash: Hash },
+
+		TerritoryFileDelivery { file_hash: Hash, new_territory: TerrName },
 	}
 
 	#[pallet::error]
@@ -253,6 +255,8 @@ pub mod pallet {
 		MinerError,
 		/// Does not comply with the rules: fragments of a segment need to be stored on different miners
 		RulesNotAllowed,
+		/// The status of the file needs to be Active
+		NotActive,
 	}
 
 	#[pallet::storage]
@@ -264,6 +268,7 @@ pub mod pallet {
 	pub(super) type File<T: Config> =
 		StorageMap<_, Blake2_128Concat, Hash, FileInfo<T>>;
 
+	// todo! Consider that the storage structure can be optimized to BTreeMap
 	#[pallet::storage]
 	#[pallet::getter(fn user_hold_file_list)]
 	pub(super) type UserHoldFileList<T: Config> = StorageMap<
@@ -427,15 +432,56 @@ pub mod pallet {
 			if <File<T>>::contains_key(&file_hash) {
 				Receptionist::<T>::fly_upload_file(file_hash, user_brief.clone())?;
 			} else {
-				let needed_space = SEGMENT_SIZE
-					.checked_mul(30).ok_or(Error::<T>::Overflow)?
-					.checked_div(10).ok_or(Error::<T>::Overflow)?
+				let needed_space = FRAGMENT_SIZE
+					.checked_mul(FRAGMENT_COUNT.into()).ok_or(Error::<T>::Overflow)?
 					.checked_mul(deal_info.len() as u128).ok_or(Error::<T>::Overflow)?;
             	ensure!(T::StorageHandle::get_user_avail_space(&user_brief.user, &user_brief.territory_name)? > needed_space, Error::<T>::InsufficientAvailableSpace);
 				Receptionist::<T>::generate_deal(file_hash, deal_info, user_brief.clone(), needed_space, file_size)?;
 			}
 
 			Self::deposit_event(Event::<T>::UploadDeclaration { operator: sender, owner: user_brief.user, deal_hash: file_hash });
+
+			Ok(())
+		}
+
+		#[pallet::call_index(2)]
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::ownership_transfer())]
+		pub fn territory_file_delivery(
+			origin: OriginFor<T>,
+			user: AccountOf<T>,
+			file_hash: Hash,
+			target_territory: TerrName,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			ensure!(Self::check_permission(sender.clone(), user.clone()), Error::<T>::NoPermission);
+			ensure!(Self::check_is_file_owner(&user, &file_hash), Error::<T>::NotOwner);
+			let mut file_info = <File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::NonExistent)?;
+			ensure!(file_info.stat == FileState::Active, Error::<T>::NotActive);
+			T::StorageHandle::check_territry_owner(&user, &target_territory)?;
+
+			for user_brief in file_info.owner.iter_mut() {
+				if user_brief.user == user {
+					let space = FRAGMENT_SIZE
+						.checked_mul(FRAGMENT_COUNT.into()).ok_or(Error::<T>::Overflow)?
+						.checked_mul(file_info.segment_list.len() as u128).ok_or(Error::<T>::Overflow)?;
+					T::StorageHandle::sub_territory_used_space(&user, &user_brief.territory_name, space)?;
+					T::StorageHandle::add_territory_used_space(&user, &target_territory, space)?;
+					user_brief.territory_name = target_territory.clone();
+				}
+			}
+
+			UserHoldFileList::<T>::mutate(&user, |slice_list| -> DispatchResult {
+				for slice_info in slice_list.iter_mut() {
+					if slice_info.file_hash == file_hash {
+						slice_info.territory_name = target_territory.clone();
+					}
+				}
+
+				Ok(())
+			})?;
+
+			Self::deposit_event(Event::<T>::TerritoryFileDelivery { file_hash: file_hash, new_territory: target_territory });
 
 			Ok(())
 		}

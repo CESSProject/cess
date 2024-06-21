@@ -172,11 +172,11 @@ pub mod pallet {
 
         CancleConsignment {
             token: H256,
-        }
+        },
 
         CancelPurchaseAction {
             token: H256,
-        }
+        },
 
         ExecConsignment {
             buyer: AccountOf<T>,
@@ -697,7 +697,7 @@ pub mod pallet {
 
             <Consignment<T>>::remove(&territory.token);
             territory.state = TerritoryState::Active;
-            <Territory<T>>::insert(&sender, &territory_name, territory);
+            <Territory<T>>::insert(&sender, &territory_name, territory.clone());
 
             Self::deposit_event(Event::<T>::CancleConsignment {token: territory.token});
 

@@ -1,6 +1,7 @@
 use super::*;
 
 pub trait StorageHandle<AccountId> {
+    fn check_territry_owner(acc: &AccountId, name: &TerrName) -> DispatchResult;
     fn add_territory_used_space(acc: &AccountId, name: &TerrName, size: u128) -> DispatchResult;
     fn sub_territory_used_space(acc: &AccountId, name: &TerrName, size: u128) -> DispatchResult;
     fn add_total_idle_space(increment: u128) -> DispatchResult;
@@ -19,6 +20,11 @@ pub trait StorageHandle<AccountId> {
 }
 
 impl<T: Config> StorageHandle<T::AccountId> for Pallet<T> {
+    fn check_territry_owner(acc: &T::AccountId, name: &TerrName) -> DispatchResult {
+        ensure!(<Territory<T>>::contains_key(acc, name), Error::<T>::NotHaveTerritory);
+
+        Ok(())
+    }
     // fn update_user_space(acc: &T::AccountId, opeartion: u8, size: u128) -> DispatchResult {
     //     Pallet::<T>::update_user_space(acc, opeartion, size)
     // }
