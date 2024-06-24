@@ -510,7 +510,7 @@ pub mod pallet {
 
         #[pallet::call_index(101)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_territory())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::reactivate_territory())]
         pub fn reactivate_territory(
             origin: OriginFor<T>, 
             territory_name: TerrName,
@@ -556,7 +556,7 @@ pub mod pallet {
 
         #[pallet::call_index(102)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_territory())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::treeitory_consignment())]
         pub fn treeitory_consignment(
             origin: OriginFor<T>, 
             territory_name: TerrName, 
@@ -601,7 +601,7 @@ pub mod pallet {
 
         #[pallet::call_index(103)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_territory())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_consignment())]
         pub fn buy_consignment(
             origin: OriginFor<T>,
             token: H256,
@@ -621,6 +621,7 @@ pub mod pallet {
 
                 c.buyers = Some(sender);
                 c.exec = Some(exec_block);
+                c.locked = true;
                 let call: <T as Config>::SProposal = Call::exec_consignment{token: token.clone(), territory_name: rename.clone()}.into();
                 T::FScheduler::schedule_named(
                     *(token.as_fixed_bytes()),
@@ -645,7 +646,7 @@ pub mod pallet {
 
         #[pallet::call_index(104)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_territory())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::exec_consignment())]
         pub fn exec_consignment(origin: OriginFor<T>, token: H256, territory_name: TerrName) -> DispatchResult {
             ensure_root(origin)?;
 
@@ -681,7 +682,7 @@ pub mod pallet {
 
         #[pallet::call_index(105)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_territory())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::cancel_consignment())]
         pub fn cancel_consignment(origin: OriginFor<T>, territory_name: TerrName) -> DispatchResult {
             let sender = ensure_signed(origin)?;
 
@@ -701,7 +702,7 @@ pub mod pallet {
 
         #[pallet::call_index(106)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_territory())]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::cancel_purchase_action())]
         pub fn cancel_purchase_action(origin: OriginFor<T>, token: H256) -> DispatchResult {
             let sender = ensure_signed(origin)?;
 
@@ -725,7 +726,7 @@ pub mod pallet {
 
         #[pallet::call_index(107)]
         #[transactional]
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_territory())]
+        #[pallet::weight(<T as pallet::Config>::WeightInfo::territory_grants())]
         pub fn territory_grants(
             origin: OriginFor<T>, 
             territory_name: TerrName, 
@@ -756,7 +757,7 @@ pub mod pallet {
 
         #[pallet::call_index(108)]
         #[transactional]
-        #[pallet::weight(<T as pallet::Config>::WeightInfo::renewal_territory())]
+        #[pallet::weight(<T as pallet::Config>::WeightInfo::territory_rename())]
         pub fn territory_rename(
             origin: OriginFor<T>,
             old_name: TerrName,
