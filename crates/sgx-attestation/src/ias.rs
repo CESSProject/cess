@@ -2,7 +2,7 @@ use core::time::Duration;
 
 use alloc::string::String;
 use alloc::vec::Vec;
-use serde_json::Error as JsonError;
+use pink_json::de::Error as JsonError;
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
@@ -68,7 +68,7 @@ pub struct SignedIasReport {
 
 impl SignedIasReport {
     pub fn parse_report(&self) -> Result<RaReport, JsonError> {
-        serde_json::from_str(&self.ra_report)
+        pink_json::from_str(&self.ra_report)
     }
 
     pub fn verify(&self, now_since_unix_epoch: Duration) -> Result<(), crate::Error> {
