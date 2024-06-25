@@ -5,16 +5,64 @@ edition = "2021"
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true, features = ["alloc"] }
+serde_json = { workspace = true, features = ["alloc"], optional = true }
 hex = { workspace = true, features = ["alloc"] }
 base64 = { workspace = true, features = ["alloc"] }
 parity-scale-codec = { workspace = true, features = ["derive"] }
 webpki = { workspace = true, features = ["alloc", "ring"] }
 rustls-pki-types = { version = "=0.2.1", default-features = false, optional = true }
+pink-json = { workspace = true }
+scale-info = { workspace = true, features = ["derive"] }
+chrono = { workspace = true, features = [
+    "alloc",
+    "serde",
+] }
+const-oid = { workspace = true }
+x509-cert = { workspace = true }
+byteorder = { workspace = true }
+pem = { workspace = true }
+asn1_der = { workspace = true, features = [
+    "native_types",
+] }
+der = { workspace = true, features = ["alloc"] }
+
+log = { workspace = true }
+
+anyhow = { workspace = true, optional = true }
+
+ring = { workspace = true, optional = true, features = [
+    "alloc",
+] }
+reqwest = { workspace = true, optional = true, features = [
+    "rustls-tls",
+    "blocking",
+    "hickory-dns",
+] }
+urlencoding = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
+tokio ={ workspace = true, optional = true }
 
 [dev-dependencies]
-insta = { workspace = true }
+insta = "1"
 
 [features]
-default = ["std"]
-std = ["serde_json/std", "serde/std"]
+default = ["std", "report", "verify"]
+std = [
+    "pink-json/std",
+    "serde/std",
+    "parity-scale-codec/std",
+    "scale-info/std",
+    "ring/std",
+    "webpki/std",
+    "const-oid/std",
+    "pem/std",
+    "asn1_der/std",
+    "der/std",
+    "serde_json/std",
+    "anyhow",
+    "reqwest",
+    "urlencoding",
+]
+report = ["std", "tracing", "tokio"]
+verify = ["ring", "webpki/ring"]
+
