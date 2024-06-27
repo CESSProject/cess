@@ -182,6 +182,39 @@ pub mod pallet {
 
 		NoneAttestationDisabled,
 
+		UnsupportedAttestationType,
+
+		InvalidDCAPQuote,
+
+		InvalidCertificate,
+		InvalidSignature,
+		CodecError,
+		TCBInfoExpired,
+		KeyLengthIsInvalid,
+		PublicKeyIsInvalid,
+		RsaSignatureIsInvalid,
+		DerEncodingError,
+		UnsupportedDCAPQuoteVersion,
+		UnsupportedDCAPAttestationKeyType,
+		UnsupportedQuoteAuthData,
+		UnsupportedDCAPPckCertFormat,
+		LeafCertificateParsingError,
+		CertificateChainIsInvalid,
+		CertificateChainIsTooShort,
+		IntelExtensionCertificateDecodingError,
+		IntelExtensionAmbiguity,
+		CpuSvnLengthMismatch,
+		CpuSvnDecodingError,
+		PceSvnDecodingError,
+		PceSvnLengthMismatch,
+		FmspcLengthMismatch,
+		FmspcDecodingError,
+		FmspcMismatch,
+		QEReportHashMismatch,
+		IsvEnclaveReportSignatureIsInvalid,
+		DerDecodingError,
+		OidIsMissing,
+
 		WrongTeeType,
 
 		InvalidSender,
@@ -758,6 +791,8 @@ pub mod pallet {
 				AttestationError::UnknownQuoteBodyFormat => Self::UnknownQuoteBodyFormat,
 				AttestationError::InvalidUserDataHash => Self::InvalidCesealInfoHash,
 				AttestationError::NoneAttestationDisabled => Self::NoneAttestationDisabled,
+				AttestationError::UnsupportedAttestationType => Self::UnsupportedAttestationType,
+				AttestationError::InvalidDCAPQuote(_data) => Self::InvalidDCAPQuote,
 			}
 		}
 	}

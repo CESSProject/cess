@@ -1,28 +1,29 @@
 pub mod legacy;
 
-pub mod ias_quote_consts {
-	pub const IAS_QUOTE_STATUS_LEVEL_1: &[&str] = &["OK"];
-	pub const IAS_QUOTE_STATUS_LEVEL_2: &[&str] = &["SW_HARDENING_NEEDED"];
-	pub const IAS_QUOTE_STATUS_LEVEL_3: &[&str] = &["CONFIGURATION_NEEDED", "CONFIGURATION_AND_SW_HARDENING_NEEDED"];
-	// LEVEL 4 is LEVEL 3 with advisors which not included in whitelist
-	pub const IAS_QUOTE_STATUS_LEVEL_5: &[&str] = &["GROUP_OUT_OF_DATE"];
-	pub const IAS_QUOTE_ADVISORY_ID_WHITELIST: &[&str] =
-		&["INTEL-SA-00334", "INTEL-SA-00219", "INTEL-SA-00381", "INTEL-SA-00389"];
-}
+// pub mod ias_quote_consts {
+// 	pub const IAS_QUOTE_STATUS_LEVEL_1: &[&str] = &["OK"];
+// 	pub const IAS_QUOTE_STATUS_LEVEL_2: &[&str] = &["SW_HARDENING_NEEDED"];
+// 	pub const IAS_QUOTE_STATUS_LEVEL_3: &[&str] = &["CONFIGURATION_NEEDED", "CONFIGURATION_AND_SW_HARDENING_NEEDED"];
+// 	// LEVEL 4 is LEVEL 3 with advisors which not included in whitelist
+// 	pub const IAS_QUOTE_STATUS_LEVEL_5: &[&str] = &["GROUP_OUT_OF_DATE"];
+// 	pub const IAS_QUOTE_ADVISORY_ID_WHITELIST: &[&str] =
+// 		&["INTEL-SA-00334", "INTEL-SA-00219", "INTEL-SA-00381", "INTEL-SA-00389"];
+// }
 
-use ias_quote_consts::*;
+use sgx_attestation::quote_status_levels::*;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_core::H256;
 use sp_std::vec::Vec;
+pub use sgx_attestation::types::{AttestationReport,SgxQuote,Collateral,SgxV30QuoteCollateral};
 
 #[cfg(feature = "enable_serde")]
 use serde::{Deserialize, Serialize};
 
-#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
-pub enum AttestationReport {
-	SgxIas { ra_report: Vec<u8>, signature: Vec<u8>, raw_signing_cert: Vec<u8> },
-}
+// #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
+// pub enum AttestationReport {
+// 	SgxIas { ra_report: Vec<u8>, signature: Vec<u8>, raw_signing_cert: Vec<u8> },
+// }
 
 #[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
 #[derive(Encode, Decode, TypeInfo, Debug, Copy, Clone, PartialEq, Eq)]
@@ -31,6 +32,8 @@ pub enum AttestationProvider {
 	Root,
 	#[cfg_attr(feature = "enable_serde", serde(rename = "ias"))]
 	Ias,
+	#[cfg_attr(feature = "enable_serde", serde(rename = "dcap"))]
+    Dcap,
 }
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
@@ -44,6 +47,8 @@ pub enum Error {
 	UnknownQuoteBodyFormat,
 	InvalidUserDataHash,
 	NoneAttestationDisabled,
+	UnsupportedAttestationType,
+	InvalidDCAPQuote(sgx_attestation::Error),
 }
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
@@ -116,13 +121,13 @@ impl IasFields {
 		// Filter valid `isvEnclaveQuoteStatus`
 		let quote_status = &parsed_report.isv_enclave_quote_status.as_str();
 		let mut confidence_level: u8 = 128;
-		if IAS_QUOTE_STATUS_LEVEL_1.contains(quote_status) {
+		if SGX_QUOTE_STATUS_LEVEL_1.contains(quote_status) {
 			confidence_level = 1;
-		} else if IAS_QUOTE_STATUS_LEVEL_2.contains(quote_status) {
+		} else if SGX_QUOTE_STATUS_LEVEL_2.contains(quote_status) {
 			confidence_level = 2;
-		} else if IAS_QUOTE_STATUS_LEVEL_3.contains(quote_status) {
+		} else if SGX_QUOTE_STATUS_LEVEL_3.contains(quote_status) {
 			confidence_level = 3;
-		} else if IAS_QUOTE_STATUS_LEVEL_5.contains(quote_status) {
+		} else if SGX_QUOTE_STATUS_LEVEL_5.contains(quote_status) {
 			confidence_level = 5;
 		}
 		if confidence_level == 128 {
@@ -138,7 +143,7 @@ impl IasFields {
 			// Filter AdvisoryIDs. `advisoryIDs` is optional
 			for advisory_id in parsed_report.advisory_ids.iter() {
 				let advisory_id = advisory_id.as_str();
-				if !IAS_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id) {
+				if !SGX_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id) {
 					confidence_level = 4;
 				}
 			}
@@ -187,6 +192,19 @@ pub fn validate(
 			verify_ceseal_hash,
 			ceseal_bin_allowlist,
 		),
+		Some(AttestationReport::SgxDcap { quote, collateral }) => {
+			let Some(Collateral::SgxV30(collateral)) = collateral else {
+				return Err(Error::UnsupportedAttestationType);
+			};
+			validate_dcap(
+				&quote,
+				&collateral,
+				now,
+				user_data_hash,
+				verify_ceseal_hash,
+				ceseal_bin_allowlist,
+			)
+		},
 		None =>
 			if opt_out_enabled {
 				Ok(ConfidentialReport { provider: None, measurement_hash: Default::default(), confidence_level: 128u8 })
@@ -235,6 +253,67 @@ pub fn validate_ias_report(
 	})
 }
 
+pub fn validate_dcap(
+	quote: &[u8],
+	collateral: &SgxV30QuoteCollateral,
+	now: u64,
+	user_data_hash: &[u8],
+	verify_ceseal_hash: bool,
+	ceseal_bin_allowlist: Vec<H256>,
+) -> Result<ConfidentialReport, Error> {
+	// Validate report
+	let (report_data, ceseal_hash, tcb_status, advisory_ids) = sgx_attestation::dcap::verify::verify(
+		quote,
+		collateral,
+		now,
+	).map_err(Error::InvalidDCAPQuote)?;
+
+	// Validate Ceseal
+	if verify_ceseal_hash && !ceseal_bin_allowlist.contains(&fixed_measurement_hash(&ceseal_hash)) {
+		return Err(Error::CesealRejected);
+	}
+
+	let commit = &report_data[..32];
+	if commit != user_data_hash {
+		return Err(Error::InvalidUserDataHash);
+	}
+
+	let mut confidence_level: u8 = 128;
+	if SGX_QUOTE_STATUS_LEVEL_1.contains(&tcb_status.as_str()) {
+		confidence_level = 1;
+	} else if SGX_QUOTE_STATUS_LEVEL_2.contains(&tcb_status.as_str()) {
+		confidence_level = 2;
+	} else if SGX_QUOTE_STATUS_LEVEL_3.contains(&tcb_status.as_str()) {
+		confidence_level = 3;
+	} else if SGX_QUOTE_STATUS_LEVEL_5.contains(&tcb_status.as_str()) {
+		confidence_level = 5;
+	}
+	if confidence_level == 128 {
+		return Err(Error::InvalidQuoteStatus);
+	}
+	// CL 1 means there is no known issue of the CPU
+	// CL 2 means the worker's firmware up to date, and the worker has well configured to prevent known issues
+	// CL 3 means the worker's firmware up to date, but needs to well configure its BIOS to prevent known issues
+	// CL 5 means the worker's firmware is outdated
+	// For CL 3, we don't know which vulnerable (aka SA) the worker not well configured, so we need to check the allow list
+	if confidence_level == 3 {
+		// Filter AdvisoryIDs. `advisoryIDs` is optional
+		for advisory_id in advisory_ids.iter() {
+			let advisory_id = advisory_id.as_str();
+			if !SGX_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id) {
+				confidence_level = 4;
+			}
+		}
+	}
+
+	// Check the following fields
+	Ok(ConfidentialReport {
+		provider: Some(AttestationProvider::Dcap),
+		measurement_hash: fixed_measurement_hash(&ceseal_hash),
+		confidence_level
+	})
+}
+
 #[cfg(test)]
 mod test {
 	use super::*;
@@ -242,7 +321,7 @@ mod test {
 
 	pub const ATTESTATION_SAMPLE: &[u8] = include_bytes!("../sample/ias_attestation.json");
 	pub const ATTESTATION_TIMESTAMP: u64 = 1631441180; // 2021-09-12T18:06:20.402478
-	pub const PRUNTIME_HASH: &str = "518422fa769d2d55982015a0e0417c6a8521fdfc7308f5ec18aaa1b6924bd0f300000000815f42f11cf64430c30bab7816ba596a1da0130c3b028b673133a66cf9a3e0e6";
+	pub const CESEAL_HASH: &str = "518422fa769d2d55982015a0e0417c6a8521fdfc7308f5ec18aaa1b6924bd0f300000000815f42f11cf64430c30bab7816ba596a1da0130c3b028b673133a66cf9a3e0e6";
 
 	#[test]
 	fn test_ias_validator() {
@@ -279,7 +358,7 @@ mod test {
 			Err(Error::CesealRejected)
 		);
 
-		let m_hash = fixed_measurement_hash(&hex::decode(PRUNTIME_HASH).unwrap());
+		let m_hash = fixed_measurement_hash(&hex::decode(CESEAL_HASH).unwrap());
 		assert_ok!(validate_ias_report(
 			commit,
 			report,

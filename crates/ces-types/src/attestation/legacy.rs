@@ -1,4 +1,5 @@
-use super::{ias_quote_consts::*, Error};
+use super::Error;
+use sgx_attestation::quote_status_levels::*;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_core::H256;
@@ -45,13 +46,13 @@ impl IasFields {
 		// Filter valid `isvEnclaveQuoteStatus`
 		let quote_status = &parsed_report.isv_enclave_quote_status.as_str();
 		let mut confidence_level: u8 = 128;
-		if IAS_QUOTE_STATUS_LEVEL_1.contains(quote_status) {
+		if SGX_QUOTE_STATUS_LEVEL_1.contains(quote_status) {
 			confidence_level = 1;
-		} else if IAS_QUOTE_STATUS_LEVEL_2.contains(quote_status) {
+		} else if SGX_QUOTE_STATUS_LEVEL_2.contains(quote_status) {
 			confidence_level = 2;
-		} else if IAS_QUOTE_STATUS_LEVEL_3.contains(quote_status) {
+		} else if SGX_QUOTE_STATUS_LEVEL_3.contains(quote_status) {
 			confidence_level = 3;
-		} else if IAS_QUOTE_STATUS_LEVEL_5.contains(quote_status) {
+		} else if SGX_QUOTE_STATUS_LEVEL_5.contains(quote_status) {
 			confidence_level = 5;
 		}
 		if confidence_level == 128 {
@@ -66,7 +67,7 @@ impl IasFields {
 		if confidence_level == 3 {
 			// Filter AdvisoryIDs. `advisoryIDs` is optional
 			for advisory_id in parsed_report.advisory_ids.iter() {
-				if !IAS_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id.as_str()) {
+				if !SGX_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id.as_str()) {
 					confidence_level = 4;
 				}
 			}
@@ -157,7 +158,7 @@ mod test {
 
 	pub const ATTESTATION_SAMPLE: &[u8] = include_bytes!("../../sample/ias_attestation.json");
 	pub const ATTESTATION_TIMESTAMP: u64 = 1631441180; // 2021-09-12T18:06:20.402478
-	pub const PRUNTIME_HASH: &str = "518422fa769d2d55982015a0e0417c6a8521fdfc7308f5ec18aaa1b6924bd0f300000000815f42f11cf64430c30bab7816ba596a1da0130c3b028b673133a66cf9a3e0e6";
+	pub const CESEAL_HASH: &str = "518422fa769d2d55982015a0e0417c6a8521fdfc7308f5ec18aaa1b6924bd0f300000000815f42f11cf64430c30bab7816ba596a1da0130c3b028b673133a66cf9a3e0e6";
 
 	#[test]
 	fn test_ias_validator() {
@@ -177,7 +178,7 @@ mod test {
 			Err(Error::CesealRejected)
 		);
 
-		let m_hash = fixed_measurement_hash(&hex::decode(PRUNTIME_HASH).unwrap());
+		let m_hash = fixed_measurement_hash(&hex::decode(CESEAL_HASH).unwrap());
 		assert_ok!(validate_ias_report(
 			report,
 			&signature,
