@@ -5,4 +5,4 @@ mod quote;
 pub mod report;
 mod tcb_info;
 mod utils;
-mod verify;
+pub mod verify;

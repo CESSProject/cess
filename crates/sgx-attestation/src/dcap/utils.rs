@@ -165,7 +165,6 @@ pub fn verify_certificate_chain(
             None,
         )
         .map_err(|e| {
-            println!("verify certificate fail because :{:?}",e.to_string());
             Error::CertificateChainIsInvalid})?;
 
     Ok(())
