@@ -1,4 +1,3 @@
-use crate::ias;
 use anyhow::anyhow;
 use ces_allocator::StatSizeAllocator;
 use ces_types::AttestationProvider;
@@ -51,15 +50,17 @@ impl RA for GraminePlatform {
             Some(AttestationProvider::Ias) => {
                 // TODO: move the key out of the binary?
                 const IAS_API_KEY_STR: &str = env!("IAS_API_KEY");
+                const IAS_HOST: &str = env!("IAS_HOST");
+                const IAS_REPORT_ENDPOINT: &str = env!("IAS_REPORT_ENDPOINT");
 
-                let (attn_report, sig, cert) =
-                    ias::create_attestation_report(data, IAS_API_KEY_STR, timeout)?;
-                let attestation_report = Some(ces_types::AttestationReport::SgxIas {
-                    ra_report: attn_report.as_bytes().to_vec(),
-                    signature: sig,
-                    raw_signing_cert: cert,
-                });
+                let attestation_report =
+                    Some(sgx_attestation::ias::report::create_attestation_report(data, IAS_API_KEY_STR, IAS_HOST, IAS_REPORT_ENDPOINT, timeout)?);
 
+                Ok(Encode::encode(&attestation_report))
+            }
+            Some(AttestationProvider::Dcap) => {
+                const CESS_DCAP_PCCS_URL: &str = env!("DCAP_PCCS_URL");
+                let attestation_report = Some(sgx_attestation::dcap::report::create_attestation_report(data, CESS_DCAP_PCCS_URL, timeout)?);
                 Ok(Encode::encode(&attestation_report))
             }
             None => Ok(Encode::encode(&None::<AttestationProvider>)),
@@ -69,7 +70,8 @@ impl RA for GraminePlatform {
 
     fn quote_test(&self, provider: Option<AttestationProvider>) -> Result<(), Self::Error> {
         match provider {
-            Some(AttestationProvider::Ias) => ias::create_quote_vec(&[0u8; 64]).map(|_| ()),
+            Some(AttestationProvider::Ias) => Ok(()),
+            Some(AttestationProvider::Dcap) => Ok(()),
             None => Ok(()),
             _ => Err(anyhow!("Unknown attestation provider `{:?}`", provider)),
         }

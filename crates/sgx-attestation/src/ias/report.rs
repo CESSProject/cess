@@ -1,14 +1,14 @@
-use anyhow::{anyhow, Context as _, Result};
 use reqwest_env_proxy::EnvProxyBuilder as _;
-use std::{fs, time::Duration};
 use tracing::{error, info, warn};
-
-pub const IAS_HOST: &str = env!("IAS_HOST");
-pub const IAS_REPORT_ENDPOINT: &str = env!("IAS_REPORT_ENDPOINT");
+use anyhow::{anyhow, Context as _, Result};
+use std::{time::Duration};
+use crate::types::AttestationReport;
 
 fn get_report_from_intel(
     quote: &[u8],
     ias_key: &str,
+    ias_host: &str,
+    ias_report_endpoint: &str,
     timeout: Duration,
 ) -> Result<(String, String, String)> {
     let encoded_quote = base64::encode(quote);
@@ -16,7 +16,7 @@ fn get_report_from_intel(
 
     let mut res_body_buffer = Vec::new(); //container for body of a response
 
-    let url: reqwest::Url = format!("https://{IAS_HOST}{IAS_REPORT_ENDPOINT}").parse()?;
+    let url: reqwest::Url = format!("https://{ias_host}{ias_report_endpoint}").parse()?;
     info!(from=%url, "Getting RA report");
     let mut res = reqwest::blocking::Client::builder()
         .hickory_dns(true)
@@ -91,25 +91,24 @@ fn get_report_from_intel(
     Ok((attn_report, sig.into(), sig_cert))
 }
 
-pub fn create_quote_vec(data: &[u8]) -> Result<Vec<u8>> {
-    fs::write("/dev/attestation/user_report_data", data)?;
-    Ok(fs::read("/dev/attestation/quote")?)
-}
-
 pub fn create_attestation_report(
     data: &[u8],
     ias_key: &str,
+    ias_host: &str,
+    ias_report_endpoint: &str,
     timeout: Duration,
-) -> Result<(String, Vec<u8>, Vec<u8>)> {
-    let quote_vec = create_quote_vec(data)?;
-    let (attn_report, sig, cert) = get_report_from_intel(&quote_vec, ias_key, timeout)?;
+) -> Result<AttestationReport> {
+    let quote_vec = crate::gramine::create_quote_vec(data)?;
+    let (attn_report, sig, cert) = get_report_from_intel(&quote_vec, ias_key,ias_host , ias_report_endpoint, timeout)?;
 
-    let sig = base64
+    let ra_report = attn_report.as_bytes().to_vec();
+    let signature = base64
         ::decode(sig)
         .context("Failed to decode sig in base64 format")?;
-    let cert = base64
+    let raw_signing_cert = base64
         ::decode(cert)
         .context("Failed to decode cert in base64 format")?;
 
-    Ok((attn_report, sig, cert))
+    Ok(AttestationReport::SgxIas { ra_report, signature, raw_signing_cert })
 }
+

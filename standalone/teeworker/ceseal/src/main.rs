@@ -1,5 +1,4 @@
 mod handover;
-mod ias;
 mod pal_gramine;
 
 use anyhow::{bail, Result};

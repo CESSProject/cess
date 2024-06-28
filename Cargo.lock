@@ -12191,6 +12191,7 @@ dependencies = [
  "pem 3.0.4",
  "pink-json",
  "reqwest",
+ "reqwest-env-proxy",
  "ring 0.16.20",
  "rustls-pki-types 0.2.1",
  "rustls-webpki 0.102.0-alpha.3",

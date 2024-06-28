@@ -164,7 +164,7 @@ pub fn verify_certificate_chain(
             webpki::KeyUsage::server_auth(),
             None,
         )
-        .map_err(|e| {
+        .map_err(|_| {
             Error::CertificateChainIsInvalid})?;
 
     Ok(())

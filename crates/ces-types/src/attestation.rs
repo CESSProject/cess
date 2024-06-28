@@ -15,7 +15,7 @@ use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 use sp_core::H256;
 use sp_std::vec::Vec;
-pub use sgx_attestation::types::{AttestationReport,SgxQuote,Collateral,SgxV30QuoteCollateral};
+pub use sgx_attestation::{types::{AttestationReport,SgxQuote,Collateral,SgxV30QuoteCollateral},dcap::quote::Quote};
 
 #[cfg(feature = "enable_serde")]
 use serde::{Deserialize, Serialize};
@@ -97,7 +97,7 @@ impl ExtendMeasurement {
 }
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
-pub struct IasFields {
+pub struct SgxFields {
 	pub mr_enclave: [u8; 32],
 	pub mr_signer: [u8; 32],
 	pub isv_prod_id: [u8; 2],
@@ -106,10 +106,10 @@ pub struct IasFields {
 	pub confidence_level: u8,
 }
 
-impl IasFields {
-	pub fn from_ias_report(report: &[u8]) -> Result<(IasFields, i64), Error> {
+impl SgxFields {
+	pub fn from_ias_report(report: &[u8]) -> Result<(SgxFields, i64), Error> {
 		// Validate related fields
-		let parsed_report: sgx_attestation::ias::RaReport =
+		let parsed_report: sgx_attestation::ias::verify::RaReport =
 			serde_json::from_slice(report).or(Err(Error::InvalidReport))?;
 
 		// Extract report time
@@ -153,7 +153,7 @@ impl IasFields {
 		let quote = parsed_report.decode_quote().or(Err(Error::UnknownQuoteBodyFormat))?;
 
 		Ok((
-			IasFields {
+			SgxFields {
 				mr_enclave: quote.mr_enclave,
 				mr_signer: quote.mr_signer,
 				isv_prod_id: quote.isv_prod_id,
@@ -162,6 +162,23 @@ impl IasFields {
 				confidence_level,
 			},
 			report_timestamp,
+		))
+	}
+
+	pub fn from_dcap_quote_report(raw_quote: &[u8]) -> Result<(SgxFields, i64), Error> {
+		let mut quote = raw_quote;
+    	let quote = Quote::decode(&mut quote).map_err(|_| Error::InvalidDCAPQuote(sgx_attestation::Error::CodecError))?;
+		
+		Ok((
+			SgxFields {
+    			mr_enclave: quote.report.mr_enclave,
+    			mr_signer: quote.report.mr_signer,
+    			isv_prod_id: quote.report.isv_prod_id.to_be_bytes(),
+    			isv_svn: quote.report.isv_svn.to_be_bytes(),
+    			report_data: quote.report.report_data,
+    			confidence_level: /*no know confidence level over here,should catch it in collateral*/0,
+			},
+			/*no judege time this way in dcap verification*/0,
 		))
 	}
 
@@ -224,13 +241,13 @@ pub fn validate_ias_report(
 	ceseal_bin_allowlist: Vec<H256>,
 ) -> Result<ConfidentialReport, Error> {
 	// Validate report
-	sgx_attestation::ias::verify_signature(report, signature, raw_signing_cert, core::time::Duration::from_secs(now))
+	sgx_attestation::ias::verify::verify_signature(report, signature, raw_signing_cert, core::time::Duration::from_secs(now))
 		.or(Err(Error::InvalidIASSigningCert))?;
 
-	let (ias_fields, report_timestamp) = IasFields::from_ias_report(report)?;
+	let (sgx_fields, report_timestamp) = SgxFields::from_ias_report(report)?;
 
 	// Validate Ceseal
-	let ceseal_hash = ias_fields.measurement_hash();
+	let ceseal_hash = sgx_fields.measurement_hash();
 	if verify_ceseal_hash && !ceseal_bin_allowlist.contains(&ceseal_hash) {
 		return Err(Error::CesealRejected)
 	}
@@ -240,7 +257,7 @@ pub fn validate_ias_report(
 		return Err(Error::OutdatedIASReport)
 	}
 
-	let commit = &ias_fields.report_data[..32];
+	let commit = &sgx_fields.report_data[..32];
 	if commit != user_data_hash {
 		return Err(Error::InvalidUserDataHash)
 	}
@@ -249,7 +266,7 @@ pub fn validate_ias_report(
 	Ok(ConfidentialReport {
 		provider: Some(AttestationProvider::Ias),
 		measurement_hash: ceseal_hash,
-		confidence_level: ias_fields.confidence_level,
+		confidence_level: sgx_fields.confidence_level,
 	})
 }
 
@@ -325,7 +342,7 @@ mod test {
 
 	#[test]
 	fn test_ias_validator() {
-		let sample: sgx_attestation::ias::SignedIasReport = serde_json::from_slice(ATTESTATION_SAMPLE).unwrap();
+		let sample: sgx_attestation::ias::verify::SignedIasReport = serde_json::from_slice(ATTESTATION_SAMPLE).unwrap();
 
 		let report = sample.ra_report.as_bytes();
 		let parsed_report = sample.parse_report().unwrap();

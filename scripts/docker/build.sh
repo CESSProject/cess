@@ -58,9 +58,9 @@ function build_ceseal() {
         --build-arg IAS_API_KEY=$IAS_API_KEY
         --build-arg IAS_SPID=$IAS_SPID
     )
-    if [[ ! -z $IAS_ENV ]]; then
+    if [[ ! -z $SGX_ENV ]]; then
         docker_build_args+=(
-            --build-arg IAS_ENV=$IAS_ENV
+            --build-arg SGX_ENV=$SGX_ENV
         )
     fi
     if [[ -z $CESEAL_VERSION ]]; then
@@ -69,7 +69,7 @@ function build_ceseal() {
     docker_build_args+=(
         --build-arg CESEAL_VERSION=$CESEAL_VERSION
     )
-    echo "IAS_ENV: $IAS_ENV"
+    echo "SGX_ENV: $SGX_ENV"
     echo "IAS_API_KEY: $IAS_API_KEY"
     echo "IAS_SPID: $IAS_SPID"
     echo "CESEAL_VERSION: $CESEAL_VERSION"
