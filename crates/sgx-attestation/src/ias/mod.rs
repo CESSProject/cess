@@ -1,8 +1,4 @@
-mod constants;
-pub mod quote;
-
 #[cfg(feature = "report")]
 pub mod report;
-mod tcb_info;
-mod utils;
+#[cfg(feature = "verify")]
 pub mod verify;

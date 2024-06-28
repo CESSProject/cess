@@ -18,11 +18,11 @@ pub trait AttestationValidator {
 		now: u64,
 		verify_ceseal_hash: bool,
 		ceseal_bin_allowlist: Vec<H256>,
-	) -> Result<IasFields, Error>;
+	) -> Result<SgxFields, Error>;
 }
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
-pub struct IasFields {
+pub struct SgxFields {
 	pub mr_enclave: [u8; 32],
 	pub mr_signer: [u8; 32],
 	pub isv_prod_id: [u8; 2],
@@ -31,9 +31,9 @@ pub struct IasFields {
 	pub confidence_level: u8,
 }
 
-impl IasFields {
-	pub fn from_ias_report(report: &[u8]) -> Result<(IasFields, i64), Error> {
-		use sgx_attestation::ias::RaReport;
+impl SgxFields {
+	pub fn from_ias_report(report: &[u8]) -> Result<(SgxFields, i64), Error> {
+		use sgx_attestation::ias::verify::RaReport;
 		// Validate related fields
 		let parsed_report: RaReport = serde_json::from_slice(report).or(Err(Error::InvalidReport))?;
 
@@ -76,7 +76,7 @@ impl IasFields {
 		// Extract quote fields
 		let quote = parsed_report.decode_quote().or(Err(Error::UnknownQuoteBodyFormat))?;
 		Ok((
-			IasFields {
+			SgxFields {
 				mr_enclave: quote.mr_enclave,
 				mr_signer: quote.mr_signer,
 				isv_prod_id: quote.isv_prod_id,
@@ -106,7 +106,7 @@ impl AttestationValidator for IasValidator {
 		now: u64,
 		verify_ceseal: bool,
 		ceseal_bin_allowlist: Vec<H256>,
-	) -> Result<IasFields, Error> {
+	) -> Result<SgxFields, Error> {
 		let fields = match attestation {
 			Attestation::SgxIas { ra_report, signature, raw_signing_cert } =>
 				validate_ias_report(ra_report, signature, raw_signing_cert, now, verify_ceseal, ceseal_bin_allowlist),
@@ -127,16 +127,16 @@ pub fn validate_ias_report(
 	now: u64,
 	verify_ceseal: bool,
 	ceseal_bin_allowlist: Vec<H256>,
-) -> Result<IasFields, Error> {
+) -> Result<SgxFields, Error> {
 	// Validate report
-	sgx_attestation::ias::verify_signature(report, signature, raw_signing_cert, core::time::Duration::from_secs(now))
+	sgx_attestation::ias::verify::verify_signature(report, signature, raw_signing_cert, core::time::Duration::from_secs(now))
 		.or(Err(Error::InvalidIASSigningCert))?;
 
-	let (ias_fields, report_timestamp) = IasFields::from_ias_report(report)?;
+	let (sgx_fields, report_timestamp) = SgxFields::from_ias_report(report)?;
 
 	// Validate Ceseal
 	if verify_ceseal {
-		let t_mrenclave = ias_fields.measurement_hash();
+		let t_mrenclave = sgx_fields.measurement_hash();
 		if !ceseal_bin_allowlist.contains(&t_mrenclave) {
 			return Err(Error::CesealRejected)
 		}
@@ -147,7 +147,7 @@ pub fn validate_ias_report(
 		return Err(Error::OutdatedIASReport)
 	}
 
-	Ok(ias_fields)
+	Ok(sgx_fields)
 }
 
 #[cfg(test)]

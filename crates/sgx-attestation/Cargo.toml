@@ -41,7 +41,7 @@ reqwest = { workspace = true, optional = true, features = [
 urlencoding = { workspace = true, optional = true }
 tracing = { workspace = true, optional = true }
 tokio ={ workspace = true, optional = true }
-
+reqwest-env-proxy = { path = "../reqwest-env-proxy", optional = true }
 [dev-dependencies]
 insta = "1"
 
@@ -63,6 +63,6 @@ std = [
     "reqwest",
     "urlencoding",
 ]
-report = ["std", "tracing", "tokio"]
+report = ["std","reqwest-env-proxy" ,"tracing", "tokio"]
 verify = ["ring", "webpki/ring"]
 

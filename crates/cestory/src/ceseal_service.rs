@@ -10,7 +10,7 @@ use ces_crypto::{
 };
 use ces_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
 use ces_types::{
-    attestation::{validate as validate_attestation_report, IasFields},
+    attestation::{validate as validate_attestation_report, SgxFields},
     messaging::EncryptedKey,
     wrap_content_to_sign, AttestationProvider, AttestationReport, ChallengeHandlerInfo, EncryptedWorkerKey,
     HandoverChallenge, MasterKeyApplyPayload, SignedContentType, WorkerEndpointPayload, WorkerRegistrationInfo,
@@ -294,7 +294,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
         let mut cestory = self.lock_ceseal(false, true)?;
         let attestation_provider = cestory.attestation_provider;
         let dev_mode = cestory.dev_mode;
-        let in_sgx = attestation_provider == Some(AttestationProvider::Ias);
+        let in_sgx = attestation_provider == Some(AttestationProvider::Ias)||attestation_provider == Some(AttestationProvider::Dcap);
         let (block_number, now_ms) = cestory.current_block()?;
 
         // 1. verify client RA report to ensure it's in sgx
@@ -348,7 +348,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
                     .map_err(|_| from_display("Cannot read server ceseal info"))?
             };
             let my_runtime_hash = {
-                let ias_fields = IasFields {
+                let sgx_fields = SgxFields {
                     mr_enclave: my_la_report.body.mr_enclave.m,
                     mr_signer: my_la_report.body.mr_signer.m,
                     isv_prod_id: my_la_report.body.isv_prod_id.to_ne_bytes(),
@@ -356,7 +356,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
                     report_data: [0; 64],
                     confidence_level: 0,
                 };
-                ias_fields.measurement_hash()
+                sgx_fields.measurement_hash()
             };
             let runtime_state = cestory.runtime_state()?;
             let my_runtime_timestamp = runtime_state
@@ -368,9 +368,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
             let attestation = attestation.ok_or_else(|| from_display("Client attestation not found"))?;
             let runtime_hash = match attestation {
                 AttestationReport::SgxIas { ra_report, signature: _, raw_signing_cert: _ } => {
-                    let (ias_fields, _) =
-                        IasFields::from_ias_report(&ra_report).map_err(|_| from_display("Invalid client RA report"))?;
-                    ias_fields.measurement_hash()
+                    let (sgx_fields, _) =
+                        SgxFields::from_ias_report(&ra_report).map_err(|_| from_display("Invalid client RA report"))?;
+                    sgx_fields.measurement_hash()
+                },
+                AttestationReport::SgxDcap { quote, collateral: _ } => {
+                    let (sgx_fields, _) =
+                        SgxFields::from_dcap_quote_report(&quote).map_err(|_| from_display("Invalid client RA report"))?;
+                    sgx_fields.measurement_hash()
                 },
             };
             let req_runtime_timestamp = runtime_state
@@ -896,16 +901,17 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
                 if let Some(report) = report {
                     match report {
                         AttestationReport::SgxIas { ra_report, .. } => {
-                            match IasFields::from_ias_report(&ra_report[..]) {
-                                Ok((ias_fields, _)) => {
-                                    info!("RA report measurement       :{}", hex::encode(ias_fields.measurement()));
-                                    info!("RA report measurement hash  :{:?}", ias_fields.measurement_hash());
+                            match SgxFields::from_ias_report(&ra_report[..]) {
+                                Ok((sgx_fields, _)) => {
+                                    info!("RA report measurement       :{}", hex::encode(sgx_fields.measurement()));
+                                    info!("RA report measurement hash  :{:?}", sgx_fields.measurement_hash());
                                 },
                                 Err(e) => {
-                                    error!("deserial ias report to IasFields failed: {:?}", e);
+                                    error!("deserial ias report to SgxFields failed: {:?}", e);
                                 },
                             }
                         },
+                        AttestationReport::SgxDcap { quote:_, collateral:_ } => todo!(),
                     }
                 }
             }
