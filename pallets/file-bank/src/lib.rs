@@ -27,7 +27,6 @@
 use frame_support::traits::{
 	FindAuthor, Randomness,
 	StorageVersion,
-	schedule::{Anon as ScheduleAnon, Named as ScheduleNamed}, 
 };
 // use sc_network::Multiaddr;
 
@@ -64,7 +63,7 @@ use pallet_storage_handler::StorageHandle;
 use cp_scheduler_credit::SchedulerCreditCounter;
 use sp_runtime::{
 	traits::{
-		BlockNumberProvider, CheckedAdd, Dispatchable
+		BlockNumberProvider, CheckedAdd
 	},
 	RuntimeDebug, SaturatedConversion,
 };
@@ -106,13 +105,6 @@ pub mod pallet {
 
 		type RuntimeCall: From<Call<Self>>;
 
-		type FScheduler: ScheduleNamed<BlockNumberFor<Self>, Self::SProposal, Self::SPalletsOrigin>;
-
-		type AScheduler: ScheduleAnon<BlockNumberFor<Self>, Self::SProposal, Self::SPalletsOrigin>;
-		/// Overarching type of all pallets origins.
-		type SPalletsOrigin: From<frame_system::RawOrigin<Self::AccountId>>;
-		/// The SProposal.
-		type SProposal: Parameter + Dispatchable<RuntimeOrigin = Self::RuntimeOrigin> + From<Call<Self>>;
 		// Find the consensus of the current block
 		type FindAuthor: FindAuthor<Self::AccountId>;
 		// Used to find out whether the schedule exists
@@ -192,6 +184,8 @@ pub mod pallet {
 		StorageCompleted { file_hash: Hash },
 
 		CalculateReport { miner: AccountOf<T>, file_hash: Hash },
+
+		TerritoryFileDelivery { file_hash: Hash, new_territory: TerrName },
 	}
 
 	#[pallet::error]
@@ -261,6 +255,8 @@ pub mod pallet {
 		MinerError,
 		/// Does not comply with the rules: fragments of a segment need to be stored on different miners
 		RulesNotAllowed,
+		/// The status of the file needs to be Active
+		NotActive,
 	}
 
 	#[pallet::storage]
@@ -272,6 +268,7 @@ pub mod pallet {
 	pub(super) type File<T: Config> =
 		StorageMap<_, Blake2_128Concat, Hash, FileInfo<T>>;
 
+	// todo! Consider that the storage structure can be optimized to BTreeMap
 	#[pallet::storage]
 	#[pallet::getter(fn user_hold_file_list)]
 	pub(super) type UserHoldFileList<T: Config> = StorageMap<
@@ -313,7 +310,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn clear_user_list)]
 	pub(super) type ClearUserList<T: Config> = 
-		StorageValue<_, BoundedVec<AccountOf<T>, ConstU32<5000>>, ValueQuery>;
+		StorageValue<_, BoundedVec<(AccountOf<T>, TerrName), ConstU32<2000>>, ValueQuery>;
 	
 	#[pallet::storage]
 	#[pallet::getter(fn task_failed_count)]
@@ -331,22 +328,25 @@ pub mod pallet {
 			let mut weight: Weight = Weight::zero();
 			// FOR TESTING
 			if now % days == 0u32.saturated_into() {
-				let (temp_weight, acc_list) = T::StorageHandle::frozen_task();
+				let (temp_weight, clear_list) = T::StorageHandle::frozen_task();
 				weight = weight.saturating_add(temp_weight);
-				let temp_acc_list: BoundedVec<AccountOf<T>, ConstU32<5000>> = 
-					acc_list.try_into().unwrap_or_default();
+				let temp_acc_list: BoundedVec<(AccountOf<T>, TerrName), ConstU32<2000>> = 
+					clear_list.try_into().unwrap_or_default();
 				ClearUserList::<T>::put(temp_acc_list);
 				weight = weight.saturating_add(T::DbWeight::get().writes(1));
 			}
 
 			let mut count: u32 = 0;
-			let acc_list = ClearUserList::<T>::get();
+			let clear_list = ClearUserList::<T>::get();
 			weight = weight.saturating_add(T::DbWeight::get().reads(1));
-			for acc in acc_list.iter() {
+			for (acc, territory_name) in clear_list.iter() {
 				// todo! Delete in blocks, and delete a part of each block
 				if let Ok(mut file_info_list) = <UserHoldFileList<T>>::try_get(&acc) {
 					weight = weight.saturating_add(T::DbWeight::get().reads(1));
 					while let Some(file_info) = file_info_list.pop() {
+						if file_info.territory_name != *territory_name {
+							continue;
+						}
 						count = count.checked_add(1).unwrap_or(ONCE_MAX_CLEAR_FILE);
 						if count == ONCE_MAX_CLEAR_FILE {
 							<UserHoldFileList<T>>::insert(&acc, file_info_list);
@@ -368,25 +368,21 @@ pub mod pallet {
 									weight = weight.saturating_add(temp_weight);
 								}
 							}
+
+							if let Err(e) = Self::bucket_remove_file(&file_info.file_hash, &acc, &file) {
+								log::error!("[FileBank]: space lease, delete file from bucket report a bug! {:?}", e);
+							}
 						} else {
 							log::error!("space lease, delete file bug!");
 							log::error!("acc: {:?}, file_hash: {:?}", &acc, &file_info.file_hash);
 						}
-					}
 
-					match T::StorageHandle::delete_user_space_storage(&acc) {
-						Ok(temp_weight) => weight = weight.saturating_add(temp_weight),
-						Err(e) => log::info!("delete user sapce error: {:?}, \n failed user: {:?}", e, acc),
+
 					}
 
 					ClearUserList::<T>::mutate(|target_list| {
-						target_list.retain(|temp_acc| temp_acc != acc);
+						target_list.retain(|temp_acc| temp_acc.0 != *acc);
 					});
-
-					<UserHoldFileList<T>>::remove(&acc);
-					// todo! clear all
-					let _ = <Bucket<T>>::clear_prefix(&acc, 100000, None);
-					<UserBucketList<T>>::remove(&acc);
 				}
 			}
 			
@@ -431,15 +427,56 @@ pub mod pallet {
 			if <File<T>>::contains_key(&file_hash) {
 				Receptionist::<T>::fly_upload_file(file_hash, user_brief.clone())?;
 			} else {
-				let needed_space = SEGMENT_SIZE
-					.checked_mul(30).ok_or(Error::<T>::Overflow)?
-					.checked_div(10).ok_or(Error::<T>::Overflow)?
+				let needed_space = FRAGMENT_SIZE
+					.checked_mul(FRAGMENT_COUNT.into()).ok_or(Error::<T>::Overflow)?
 					.checked_mul(deal_info.len() as u128).ok_or(Error::<T>::Overflow)?;
-            	ensure!(T::StorageHandle::get_user_avail_space(&user_brief.user)? > needed_space, Error::<T>::InsufficientAvailableSpace);
+            	ensure!(T::StorageHandle::get_user_avail_space(&user_brief.user, &user_brief.territory_name)? > needed_space, Error::<T>::InsufficientAvailableSpace);
 				Receptionist::<T>::generate_deal(file_hash, deal_info, user_brief.clone(), needed_space, file_size)?;
 			}
 
 			Self::deposit_event(Event::<T>::UploadDeclaration { operator: sender, owner: user_brief.user, deal_hash: file_hash });
+
+			Ok(())
+		}
+
+		#[pallet::call_index(2)]
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::calculate_report())]
+		pub fn territory_file_delivery(
+			origin: OriginFor<T>,
+			user: AccountOf<T>,
+			file_hash: Hash,
+			target_territory: TerrName,
+		) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			ensure!(Self::check_permission(sender.clone(), user.clone()), Error::<T>::NoPermission);
+			ensure!(Self::check_is_file_owner(&user, &file_hash), Error::<T>::NotOwner);
+			let mut file_info = <File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::NonExistent)?;
+			ensure!(file_info.stat == FileState::Active, Error::<T>::NotActive);
+			T::StorageHandle::check_territry_owner(&user, &target_territory)?;
+
+			for user_brief in file_info.owner.iter_mut() {
+				if user_brief.user == user {
+					let space = FRAGMENT_SIZE
+						.checked_mul(FRAGMENT_COUNT.into()).ok_or(Error::<T>::Overflow)?
+						.checked_mul(file_info.segment_list.len() as u128).ok_or(Error::<T>::Overflow)?;
+					T::StorageHandle::sub_territory_used_space(&user, &user_brief.territory_name, space)?;
+					T::StorageHandle::add_territory_used_space(&user, &target_territory, space)?;
+					user_brief.territory_name = target_territory.clone();
+				}
+			}
+
+			UserHoldFileList::<T>::mutate(&user, |slice_list| -> DispatchResult {
+				for slice_info in slice_list.iter_mut() {
+					if slice_info.file_hash == file_hash {
+						slice_info.territory_name = target_territory.clone();
+					}
+				}
+
+				Ok(())
+			})?;
+
+			Self::deposit_event(Event::<T>::TerritoryFileDelivery { file_hash: file_hash, new_territory: target_territory });
 
 			Ok(())
 		}
@@ -454,60 +491,60 @@ pub mod pallet {
 		/// - `origin`: The origin of the transaction, representing the current owner of the file.
 		/// - `target_brief`: User brief information of the target user to whom ownership is being transferred.
 		/// - `file_hash`: The unique hash identifier of the file to be transferred
-		#[pallet::call_index(2)]
-		#[transactional]
-		/// FIX ME
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::ownership_transfer())]
-		pub fn ownership_transfer(
-			origin: OriginFor<T>,
-			target_brief: UserBrief<T>,
-			file_hash: Hash,
-		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			let file = <File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::FileNonExistent)?;
-			//If the file does not exist, false will also be returned
-			ensure!(Self::check_is_file_owner(&sender, &file_hash), Error::<T>::NotOwner);
-			ensure!(!Self::check_is_file_owner(&target_brief.user, &file_hash), Error::<T>::IsOwned);
+		// #[pallet::call_index(2)]
+		// #[transactional]
+		// /// FIX ME
+		// #[pallet::weight(<T as pallet::Config>::WeightInfo::ownership_transfer())]
+		// pub fn ownership_transfer(
+		// 	origin: OriginFor<T>,
+		// 	target_brief: UserBrief<T>,
+		// 	file_hash: Hash,
+		// ) -> DispatchResult {
+		// 	let sender = ensure_signed(origin)?;
+		// 	let file = <File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::FileNonExistent)?;
+		// 	//If the file does not exist, false will also be returned
+		// 	ensure!(Self::check_is_file_owner(&sender, &file_hash), Error::<T>::NotOwner);
+		// 	ensure!(!Self::check_is_file_owner(&target_brief.user, &file_hash), Error::<T>::IsOwned);
 
-			ensure!(file.stat == FileState::Active, Error::<T>::Unprepared);
-			ensure!(<Bucket<T>>::contains_key(&target_brief.user, &target_brief.bucket_name), Error::<T>::NonExistent);
-			//Modify the space usage of target acc,
-			//and determine whether the space is enough to support transfer
-			let file_size = Self::cal_file_size(file.segment_list.len() as u128);
-			T::StorageHandle::update_user_space(&target_brief.user, 1, file_size)?;
-			//Increase the ownership of the file for target acc
-			<File<T>>::try_mutate(&file_hash, |file_opt| -> DispatchResult {
-				let file = file_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
-				file.owner.try_push(target_brief.clone()).map_err(|_| Error::<T>::BoundedVecError)?;
-				Ok(())
-			})?;
-			//Add files to the bucket of target acc
-			<Bucket<T>>::try_mutate(
-				&target_brief.user,
-				&target_brief.bucket_name,
-				|bucket_info_opt| -> DispatchResult {
-					let bucket_info = bucket_info_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
-					bucket_info.object_list.try_push(file_hash.clone()).map_err(|_| Error::<T>::LengthExceedsLimit)?;
-					Ok(())
-			})?;
-			//Increase the corresponding space usage for target acc
-			Self::add_user_hold_fileslice(
-				&target_brief.user,
-				file_hash.clone(),
-				file_size,
-			)?;
-			//Clean up the file holding information of the original user
-			let file = <File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::NonExistent)?;
+		// 	ensure!(file.stat == FileState::Active, Error::<T>::Unprepared);
+		// 	ensure!(<Bucket<T>>::contains_key(&target_brief.user, &target_brief.bucket_name), Error::<T>::NonExistent);
+		// 	//Modify the space usage of target acc,
+		// 	//and determine whether the space is enough to support transfer
+		// 	let file_size = Self::cal_file_size(file.segment_list.len() as u128);
+		// 	T::StorageHandle::add_territory_used_space(&target_brief.user, &target_brief.territory_name, file_size)?;
+		// 	//Increase the ownership of the file for target acc
+		// 	<File<T>>::try_mutate(&file_hash, |file_opt| -> DispatchResult {
+		// 		let file = file_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
+		// 		file.owner.try_push(target_brief.clone()).map_err(|_| Error::<T>::BoundedVecError)?;
+		// 		Ok(())
+		// 	})?;
+		// 	//Add files to the bucket of target acc
+		// 	<Bucket<T>>::try_mutate(
+		// 		&target_brief.user,
+		// 		&target_brief.bucket_name,
+		// 		|bucket_info_opt| -> DispatchResult {
+		// 			let bucket_info = bucket_info_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
+		// 			bucket_info.object_list.try_push(file_hash.clone()).map_err(|_| Error::<T>::LengthExceedsLimit)?;
+		// 			Ok(())
+		// 	})?;
+		// 	//Increase the corresponding space usage for target acc
+		// 	Self::add_user_hold_fileslice(
+		// 		&target_brief.user,
+		// 		file_hash.clone(),
+		// 		file_size,
+		// 	)?;
+		// 	//Clean up the file holding information of the original user
+		// 	let file = <File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::NonExistent)?;
 
-			let _ = Self::delete_user_file(&file_hash, &sender, &file)?;
+		// 	let _ = Self::delete_user_file(&file_hash, &sender, &file)?;
 
-			Self::bucket_remove_file(&file_hash, &sender, &file)?;
+		// 	Self::bucket_remove_file(&file_hash, &sender, &file)?;
 
-			Self::remove_user_hold_file_list(&file_hash, &sender)?;
-			// let _ = Self::clear_user_file(file_hash.clone(), &sender, true)?;
+		// 	Self::remove_user_hold_file_list(&file_hash, &sender)?;
+		// 	// let _ = Self::clear_user_file(file_hash.clone(), &sender, true)?;
 
-			Ok(())
-		}
+		// 	Ok(())
+		// }
 
 		/// Transfer Report for a Storage Deal
 		///

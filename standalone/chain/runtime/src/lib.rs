@@ -546,7 +546,7 @@ impl pallet_cess_staking::Config for Runtime {
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 4>,
 	>;
 	type SessionInterface = Self;
-	type EraPayout = (); // pallet_staking::ConvertCurve<RewardCurve>;
+	type EraPayout = (); // pallet_cess_staking::ConvertCurve<RewardCurve>;
 	type NextNewSession = Session;
 	type MaxExposurePageSize = ConstU32<256>;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
@@ -1561,10 +1561,6 @@ impl pallet_file_bank::Config for Runtime {
 	type RuntimeCall = RuntimeCall;
 	type FilbakPalletId = FilbakPalletId;
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
-	type FScheduler = Scheduler;
-	type AScheduler = Scheduler;
-	type SPalletsOrigin = OriginCaller;
-	type SProposal = RuntimeCall;
 	type WeightInfo = pallet_file_bank::weights::SubstrateWeight<Runtime>;
 	type MinerControl = Sminer;
 	type StorageHandle = StorageHandler;
@@ -1662,9 +1658,20 @@ parameter_types! {
 	pub const FrozenDays: BlockNumber = 7 * DAYS;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const StateStringMax: u32 = 20;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const LockingBlock: BlockNumber = MINUTES * 5;
+	#[derive(Clone, Eq, PartialEq)]
+	pub const FrozenLimit: u32 = 2000;
 }
 
 impl pallet_storage_handler::Config for Runtime {
+	type FScheduler = Scheduler;
+	type PalletsOrigin = OriginCaller;
+	type SProposal = RuntimeCall;
+	type ConsignmentRemainingBlock = OneDay;
+	type LockingBlock = LockingBlock;
+	type Preimages = Preimage;
+	type NameLimit = NameStrLimit;
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type WeightInfo = pallet_storage_handler::weights::SubstrateWeight<Runtime>;
@@ -1675,6 +1682,7 @@ impl pallet_storage_handler::Config for Runtime {
 	type StateStringMax = StateStringMax;
 	type FrozenDays = FrozenDays;
 	type CessTreasuryHandle = CessTreasury;
+	type FrozenLimit = FrozenLimit;
 }
 
 parameter_types! {

@@ -80,12 +80,13 @@ pub fn cert_idle_for_miner<T: Config>(miner: T::AccountId) -> Result<(), &'stati
 }
 
 pub fn buy_space<T: Config>(user: T::AccountId) -> Result<(), &'static str> {
+	let territory_name: TerrName = "t1".as_bytes().to_vec().try_into().map_err(|_| "boundedvec error")?;
     <T as pallet_sminer::Config>::Currency::make_free_balance_be(
 		&user, 
 		365_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!"),
 	);
 
-	pallet_storage_handler::Pallet::<T>::buy_space(RawOrigin::Signed(user).into(), 10)?;
+	pallet_storage_handler::Pallet::<T>::mint_territory(RawOrigin::Signed(user).into(), 10, territory_name)?;
 
 	Ok(())
 }
@@ -107,10 +108,12 @@ pub fn initialize_file_from_scratch<T: Config>() -> Result<(), &'static str> {
 	let bucket_name = "test-bucket1".as_bytes().to_vec();
 	let file_hash: Hash = Hash([80u8; 64]);
 	let file_size: u128 = SEGMENT_SIZE * 3;
+	let territory_name: TerrName = "t1".as_bytes().to_vec().try_into().map_err(|_| "boundedvec error")?;
 	let user_brief = UserBrief::<T> {
 		user: user.clone(),
 		file_name: file_name.try_into().map_err(|_e| "file name convert err")?,
 		bucket_name: bucket_name.try_into().map_err(|_e| "bucket name convert err")?,
+		territory_name,
 	};
 
 	let mut deal_info: BoundedVec<SegmentList<T>, T::SegmentCount> = Default::default();
@@ -229,10 +232,12 @@ benchmarks! {
 		let bucket_name = "test-bucket1".as_bytes().to_vec();
 		let file_hash: Hash = Hash([80u8; 64]);
 		let file_size: u128 = SEGMENT_SIZE * 3;
+		let territory_name: TerrName = "t1".as_bytes().to_vec().try_into().map_err(|_| "boundedvec error")?;
 		let user_brief = UserBrief::<T> {
 			user: user.clone(),
 			file_name: file_name.try_into().map_err(|_e| "file name convert err")?,
 			bucket_name: bucket_name.try_into().map_err(|_e| "bucket name convert err")?,
+			territory_name,
 		};
 		
 		let mut deal_info: BoundedVec<SegmentList<T>, T::SegmentCount> = Default::default();
@@ -280,10 +285,12 @@ benchmarks! {
 		let bucket_name = "test-bucket1".as_bytes().to_vec();
 		let file_hash: Hash = Hash([80u8; 64]);
 		let file_size: u128 = SEGMENT_SIZE * 3;
+		let territory_name: TerrName = "t1".as_bytes().to_vec().try_into().map_err(|_| "boundedvec error")?;
 		let user_brief = UserBrief::<T> {
 			user: user.clone(),
 			file_name: file_name.try_into().map_err(|_e| "file name convert err")?,
 			bucket_name: bucket_name.try_into().map_err(|_e| "bucket name convert err")?,
+			territory_name,
 		};
 		
 		let mut deal_info: BoundedVec<SegmentList<T>, T::SegmentCount> = Default::default();
@@ -336,10 +343,12 @@ benchmarks! {
 		let bucket_name = "test-bucket1".as_bytes().to_vec();
 		let file_hash: Hash = Hash([80u8; 64]);
 		let file_size: u128 = SEGMENT_SIZE * 3;
+		let territory_name: TerrName = "t1".as_bytes().to_vec().try_into().map_err(|_| "boundedvec error")?;
 		let user_brief = UserBrief::<T> {
 			user: user.clone(),
 			file_name: file_name.try_into().map_err(|_e| "file name convert err")?,
 			bucket_name: bucket_name.try_into().map_err(|_e| "bucket name convert err")?,
+			territory_name,
 		};
 		
 		let mut deal_info: BoundedVec<SegmentList<T>, T::SegmentCount> = Default::default();
@@ -414,10 +423,12 @@ benchmarks! {
 		let bucket_name = "test-bucket1".as_bytes().to_vec();
 		let file_hash: Hash = Hash([80u8; 64]);
 		let file_size: u128 = SEGMENT_SIZE * 3;
+		let territory_name: TerrName = "t1".as_bytes().to_vec().try_into().map_err(|_| "boundedvec error")?;
 		let user_brief = UserBrief::<T> {
 			user: user.clone(),
 			file_name: file_name.try_into().map_err(|_e| "file name convert err")?,
 			bucket_name: bucket_name.try_into().map_err(|_e| "bucket name convert err")?,
+			territory_name,
 		};
 
 		let mut deal_info: BoundedVec<SegmentList<T>, T::SegmentCount> = Default::default();
@@ -516,10 +527,12 @@ benchmarks! {
 		let bucket_name = "test-bucket1".as_bytes().to_vec();
 		let file_hash: Hash = Hash([80u8; 64]);
 		let file_size: u128 = SEGMENT_SIZE * 3;
+		let territory_name: TerrName = "t1".as_bytes().to_vec().try_into().map_err(|_| "boundedvec error")?;
 		let user_brief = UserBrief::<T> {
 			user: user.clone(),
 			file_name: file_name.try_into().map_err(|_e| "file name convert err")?,
 			bucket_name: bucket_name.try_into().map_err(|_e| "bucket name convert err")?,
+			territory_name,
 		};
 
 		let mut deal_info: BoundedVec<SegmentList<T>, T::SegmentCount> = Default::default();
@@ -649,27 +662,5 @@ benchmarks! {
 		assert!(!<RestoralOrder<T>>::contains_key(&Hash([97u8; 64])));
 		let (_, space) = T::MinerControl::get_power(&miner2)?;
 		assert_eq!(space, FRAGMENT_SIZE);
-	}
-
-	ownership_transfer {
-		log::info!("start ownership_transfer");
-		initialize_file_from_scratch::<T>()?;
-		let user: AccountOf<T> = account("user1", 100, SEED);
-		let user2: AccountOf<T> = account("user2", 100, SEED);
-		buy_space::<T>(user2.clone())?;
-		let file_name = "test-file".as_bytes().to_vec();
-		let bucket_name = "test-bucket1".as_bytes().to_vec();
-		let bucket_name: BoundedVec<u8, T::NameStrLimit> = bucket_name.try_into().unwrap();
-		FileBank::<T>::create_bucket(RawOrigin::Signed(user2.clone()).into(), user2.clone(), bucket_name.clone())?;
-		let user_brief = UserBrief::<T> {
-			user: user2.clone(),
-			file_name: file_name.try_into().map_err(|_e| "file name convert err")?,
-			bucket_name: bucket_name.clone(),
-		};
-	}: _(RawOrigin::Signed(user.clone()), user_brief, Hash([80u8; 64]))
-	verify {
-		assert!(<Bucket<T>>::contains_key(&user2, &bucket_name));
-		let info = <Bucket<T>>::try_get(&user2, &bucket_name).unwrap();
-		assert!(info.object_list.contains(&Hash([80u8; 64])));
 	}
 }

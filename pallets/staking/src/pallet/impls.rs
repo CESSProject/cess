@@ -28,15 +28,15 @@ use frame_support::{
 	pallet_prelude::*,
 	traits::{
 		Currency, Defensive, DefensiveSaturating, EstimateNextNewSession, Get, Imbalance,
-		InspectLockableCurrency, Len, OnUnbalanced, TryCollect, UnixTime,
+		InspectLockableCurrency, Len, OnUnbalanced, TryCollect,
 	},
 	weights::Weight,
 };
 use frame_system::{pallet_prelude::BlockNumberFor, RawOrigin};
 use pallet_session::historical;
 use sp_runtime::{
-	traits::{Bounded, Convert, One, SaturatedConversion, Saturating, StaticLookup, Zero},
-	Perbill, Percent,
+	traits::{Bounded, Convert, One, Saturating, StaticLookup, Zero},
+	Perbill,
 };
 use sp_staking::{
 	currency_to_vote::CurrencyToVote,
@@ -49,7 +49,7 @@ use sp_std::prelude::*;
 
 use crate::{
 	election_size_tracker::StaticTracker, log, slashing, weights::WeightInfo, ActiveEraInfo,
-	BalanceOf, EraInfo, EraPayout, Exposure, ExposureOf, Forcing, IndividualExposure,
+	BalanceOf, EraInfo, Exposure, ExposureOf, Forcing, IndividualExposure,
 	LedgerIntegrityState, MaxNominationsOf, MaxWinnersOf, Nominations, NominationsQuota,
 	PositiveImbalanceOf, RewardDestination, SessionInterface, StakingLedger, ValidatorPrefs,
 };
@@ -533,7 +533,7 @@ impl<T: Config> Pallet<T> {
 	/// Compute payout for era.
 	fn end_era(active_era: ActiveEraInfo, _session_index: SessionIndex) {
 		// Note: active_era_start can be None if end era is called during genesis config.
-		if let Some(active_era_start) = active_era.start {
+		if let Some(_active_era_start) = active_era.start {
 			let (validator_payout, sminer_payout) = Self::rewards_in_era(active_era.index);
 
 			Self::deposit_event(Event::<T>::EraPaid {

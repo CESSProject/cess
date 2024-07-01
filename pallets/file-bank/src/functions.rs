@@ -124,7 +124,7 @@ impl<T: Config> Pallet<T> {
         let deal_info = <DealMap<T>>::try_get(deal_hash).map_err(|_| Error::<T>::NonExistent)?;
         let segment_len = deal_info.segment_list.len() as u128;
 		let needed_space = Self::cal_file_size(segment_len);
-		T::StorageHandle::unlock_user_space(&deal_info.user.user, needed_space)?;
+		T::StorageHandle::unlock_user_space(&deal_info.user.user, &deal_info.user.territory_name, needed_space)?;
 		// unlock mienr space
 		for complete_info in deal_info.complete_list {
             T::MinerControl::unlock_space(&complete_info.miner, FRAGMENT_SIZE * segment_len)?;
@@ -194,7 +194,7 @@ impl<T: Config> Pallet<T> {
                 if acc == &user_brief.user {
                     let file_size = Self::cal_file_size(file.segment_list.len() as u128);
                     if user_clear {
-                        T::StorageHandle::update_user_space(acc, 2, file_size)?;
+                        T::StorageHandle::sub_territory_used_space(acc, &user_brief.territory_name, file_size)?;
                     }
                     file.owner.remove(index);
                     break;
@@ -264,8 +264,13 @@ impl<T: Config> Pallet<T> {
         }
 
         if user_clear {
-            T::StorageHandle::update_user_space(acc, 2, total_fragment_dec as u128 * FRAGMENT_SIZE)?;
-            weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+            for user_brief in file.owner {
+                if &user_brief.user == acc {
+                    T::StorageHandle::sub_territory_used_space(acc, &user_brief.territory_name, total_fragment_dec as u128 * FRAGMENT_SIZE)?;
+                    weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+                    break;
+                }
+            }
         }
         T::StorageHandle::sub_total_service_space(total_fragment_dec as u128 * FRAGMENT_SIZE)?;
         weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
@@ -319,9 +324,13 @@ impl<T: Config> Pallet<T> {
         user: &AccountOf<T>,
         file_hash: Hash,
         file_size: u128,
+        territory_name: TerrName,
     ) -> DispatchResult {
-        let file_info =
-            UserFileSliceInfo { file_hash: file_hash, file_size };
+        let file_info = UserFileSliceInfo { 
+            territory_name, 
+            file_hash: file_hash, 
+            file_size,
+        };
         <UserHoldFileList<T>>::try_mutate(user, |v| -> DispatchResult {
             ensure!(!v.contains(&file_info), Error::<T>::Existed);
             v.try_push(file_info).map_err(|_| Error::<T>::StorageLimitReached)?;
