@@ -135,6 +135,8 @@ pub type ReportSign = BoundedVec<u8, ConstU32<344>>;
 pub type Report =  BoundedVec<u8, ConstU32<5000>>;
 pub type Cert = BoundedVec<u8, ConstU32<1588>>;
 
+pub type TerrName = BoundedVec<u8, ConstU32<63>>;
+
 #[derive(PartialEq, Eq, Encode, Decode, Clone, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 pub enum DataType {
 	File,
