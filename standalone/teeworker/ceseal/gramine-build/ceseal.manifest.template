@@ -72,11 +72,13 @@ ra_client_spid = "{{ ra_client_spid }}"
 trusted_files = [
   "file:{{ libos }}",
   "file:ceseal",
+  "file:{{ arch_libdir }}",
   "file:{{ libdir }}",
 ]
 
 allowed_files = [
   "file:/etc/hosts",
   "file:/etc/resolv.conf",
+  "file:/etc/sgx_default_qcnl.conf",
   "file:{{ storage_dir }}/",
 ]

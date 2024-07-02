@@ -59,7 +59,7 @@ ARG REAL_CESEAL_DATA_DIR=${CESEAL_HOME}/data/${CESEAL_VERSION}
 COPY --from=builder /root/prebuilt/ ${CESEAL_DIR}
 ADD --chmod=0755 ./scripts/docker/ceseal/gramine/start.sh ${CESEAL_DIR}/start.sh
 ADD --chmod=0755 ./scripts/docker/ceseal/gramine/start-with-handover.sh ${CESEAL_HOME}/start.sh
-
+ADD ./standalone/teeworker/ceseal/gramine-build/conf /opt/conf
 
 RUN <<EOF
   set -e

@@ -61,6 +61,7 @@ impl RA for GraminePlatform {
             Some(AttestationProvider::Dcap) => {
                 const CESS_DCAP_PCCS_URL: &str = env!("DCAP_PCCS_URL");
                 let attestation_report = Some(sgx_attestation::dcap::report::create_attestation_report(data, CESS_DCAP_PCCS_URL, timeout)?);
+                info!("Generate dcap collateral success!");
                 Ok(Encode::encode(&attestation_report))
             }
             None => Ok(Encode::encode(&None::<AttestationProvider>)),
