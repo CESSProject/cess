@@ -197,6 +197,7 @@ pub struct Args {
 pub enum RaOption {
     None,
     Ias,
+    Dcap,
 }
 
 impl From<RaOption> for Option<AttestationProvider> {
@@ -204,6 +205,7 @@ impl From<RaOption> for Option<AttestationProvider> {
         match other {
             RaOption::None => None,
             RaOption::Ias => Some(AttestationProvider::Ias),
+            RaOption::Dcap => Some(AttestationProvider::Dcap),
         }
     }
 }

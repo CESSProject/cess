@@ -903,15 +903,25 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
                         AttestationReport::SgxIas { ra_report, .. } => {
                             match SgxFields::from_ias_report(&ra_report[..]) {
                                 Ok((sgx_fields, _)) => {
-                                    info!("RA report measurement       :{}", hex::encode(sgx_fields.measurement()));
-                                    info!("RA report measurement hash  :{:?}", sgx_fields.measurement_hash());
+                                    info!("EPID RA report measurement       :{}", hex::encode(sgx_fields.measurement()));
+                                    info!("EPID RA report measurement hash  :{:?}", sgx_fields.measurement_hash());
                                 },
                                 Err(e) => {
                                     error!("deserial ias report to SgxFields failed: {:?}", e);
                                 },
                             }
                         },
-                        AttestationReport::SgxDcap { quote:_, collateral:_ } => todo!(),
+                        AttestationReport::SgxDcap { quote, collateral:_ } => {
+                            match SgxFields::from_dcap_quote_report(&quote) {
+                                Ok((sgx_fields, _)) => {
+                                    info!("DCAP measurement       :{}", hex::encode(sgx_fields.measurement()));
+                                    info!("DCAP measurement hash  :{:?}", sgx_fields.measurement_hash());
+                                },
+                                Err(e) => {
+                                    error!("deserial dcap report to SgxFields failed: {:?}", e);
+                                },
+                            }
+                        },
                     }
                 }
             }

@@ -52,6 +52,7 @@ signed-sgx-artifacts: ${BIN_NAME}.manifest ${BIN_NAME}.manifest.sgx ${BIN_NAME}.
 .PHONY: ${BIN_FILE}
 ${BIN_FILE}:
 	@echo "SGX_ENV: ${SGX_ENV}"
+	@echo "RA_METHOD: ${RA_METHOD}"
 	@echo "IAS_SPID: ${IAS_SPID}"
 	@echo "IAS_API_KEY: ${IAS_API_KEY}"
 	@echo "BUILD: ${BUILD}"
@@ -71,6 +72,7 @@ ${BIN_NAME}.manifest: ${BIN_NAME}.manifest.template
 		-Dseal_dir=${CESEAL_SEAL_DIR} \
 		-Dstorage_dir=${CESEAL_STORAGE_DIR} \
 		-Dlibdir=${RUNTIME_DIR}/lib/ \
+		-Darch_libdir=${ARCH_LIBDIR}/ \
 		-Dlibos=${LIBOS} \
 		-Dra_method=${RA_METHOD} \
 		$< $@

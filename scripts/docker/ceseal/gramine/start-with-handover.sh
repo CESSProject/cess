@@ -5,6 +5,16 @@ set -e
 if [ "$SGX" -eq 1 ] && [ "$SKIP_AESMD" -eq 0 ]; then
   echo "Starting AESMD"
 
+  if test -f "/opt/conf/aesmd.conf"; then
+    echo "Found custom aesmd.conf, override the default."
+    cp /opt/conf/aesmd.conf /etc/
+  fi
+
+  if test -f "/opt/conf/sgx_default_qcnl.conf"; then
+    echo "Found custom sgx_default_qcnl.conf, override the default."
+    cp /opt/conf/sgx_default_qcnl.conf /etc/
+  fi
+  
   /bin/mkdir -p /var/run/aesmd/
   /bin/chown -R aesmd:aesmd /var/run/aesmd/
   /bin/chmod 0755 /var/run/aesmd/

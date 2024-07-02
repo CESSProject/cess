@@ -113,7 +113,12 @@ pub fn create_attestation_report(
     let collateral = if pccs_url.is_empty() {
         None
     } else {
-        let collateral = tokio::runtime::Runtime::new()?.block_on(async {get_collateral(pccs_url, &quote, timeout).await})?;
+        let collateral = tokio::task::block_in_place(||{
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                get_collateral(pccs_url, &quote, timeout).await
+            })
+        })?;
         Some(Collateral::SgxV30(collateral))
     };
     Ok(AttestationReport::SgxDcap { quote, collateral })
