@@ -8,6 +8,7 @@ ARG https_proxy
 ARG http_proxy
 ARG IAS_API_KEY
 ARG IAS_SPID
+ARG RA_METHOD
 ARG SGX_ENV
 ARG BUILD=release
 ARG OA
@@ -16,8 +17,11 @@ ARG GIT_SHA
 
 RUN <<EOF
   set -e
-  : "${IAS_API_KEY:?IAS_API_KEY needs to be set and non-empty.}"
-  : "${IAS_SPID:?IAS_SPID needs to be set and non-empty.}"
+  : "${RA_METHOD:?RA_METHOD needs to be set and non-empty.}"
+  if [ "$RA_METHOD" != "dcap" ]; then
+    : "${IAS_API_KEY:?IAS_API_KEY needs to be set and non-empty.}"
+    : "${IAS_SPID:?IAS_SPID needs to be set and non-empty.}"
+  fi
   mkdir cess-code
   mkdir prebuilt
 EOF

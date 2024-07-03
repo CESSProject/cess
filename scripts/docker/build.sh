@@ -3,6 +3,8 @@
 the_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 docker_build_ctx_dir=$(dirname $(dirname $the_script_dir))
 docker_build_args=(--build-arg GIT_SHA=$(git rev-parse --short HEAD))
+docker_build_log=0
+RA_METHOD=epid
 org_id="cesslab"
 network="devnet"
 image_id=
@@ -20,12 +22,14 @@ Usage:
 
 Options:
     -b <program name>  which program image to build, options: node ceseal and cifrost
-    -n <network profile>  options: devnet, testnet, mainnet
+    -n <network profile>  options: devnet, testnet, mainnet, ownnet
     -s <image tag suffix>  padding a suffix for the image tag
     -t <image tag>  specific the tag name of the image, exclusion from option -s
     -x <proxy address>  use proxy access network in build
-    -o <enable 'only-attestation' feature to build>  options: 1 or 0, 1 for default
-    -v <enable 'verify-cesealbin' feature to build>  options: 1 or 0, 0 for default
+    -o <enable 'only-attestation' feature to build>  options: 1(default) or 0
+    -v <enable 'verify-cesealbin' feature to build>  options: 1 or 0(default)
+    -m <method of ceseal attestation> options:dcap or epid(default)
+    -l <docker build runtime log print out> options: 1 or 0(default)
     -c <ceseal build version>  8-digit integer, date +%y%m%d%H for default value
     -p  publish image to docker hub
     -h  display this help message.
@@ -46,18 +50,27 @@ function build_node() {
 }
 
 function build_ceseal() {
-    if [[ -z $IAS_API_KEY ]]; then
-        echo "the IAS_API_KEY environment variable is missing"
-        exit 1
-    fi
-    if [[ -z $IAS_SPID ]]; then
-        echo "the IAS_SPID environment variable is missing"
+    if ! [[ $RA_METHOD = "dcap" || $RA_METHOD = "epid" ]]; then
+        echo "[Error] wrong remote attestaion method type in"
         exit 1
     fi
     docker_build_args+=(
-        --build-arg IAS_API_KEY=$IAS_API_KEY
-        --build-arg IAS_SPID=$IAS_SPID
-    )
+            --build-arg RA_METHOD=$RA_METHOD
+        )
+    if [ $RA_METHOD = "epid" ]; then
+        if [[ -z $IAS_API_KEY ]]; then
+        echo "the IAS_API_KEY environment variable is missing"
+        exit 1
+        fi
+        if [[ -z $IAS_SPID ]]; then
+            echo "the IAS_SPID environment variable is missing"
+            exit 1
+        fi
+        docker_build_args+=(
+            --build-arg IAS_API_KEY=$IAS_API_KEY
+            --build-arg IAS_SPID=$IAS_SPID
+        )
+    fi
     if [[ ! -z $SGX_ENV ]]; then
         docker_build_args+=(
             --build-arg SGX_ENV=$SGX_ENV
@@ -73,20 +86,37 @@ function build_ceseal() {
     echo "IAS_API_KEY: $IAS_API_KEY"
     echo "IAS_SPID: $IAS_SPID"
     echo "CESEAL_VERSION: $CESEAL_VERSION"
+    echo "RA_METHOD: $RA_METHOD"
     local docker_file="$the_script_dir/ceseal/gramine/handover.Dockerfile"
     image_id="$org_id/ceseal:$image_tag"
     echo "begin build image $image_id ..."
-    docker_build -t $image_id -f $docker_file ${docker_build_args[@]} $docker_build_ctx_dir
+
+    local progress_option
+    progress_option=$(print_docker_build_log)
+    docker_build $progress_option -t $image_id -f $docker_file ${docker_build_args[@]} $docker_build_ctx_dir
 }
 
 function build_cifrost() {
     local docker_file="$the_script_dir/cifrost/Dockerfile"
     image_id="cesslab/cifrost:$image_tag"
     echo "begin build image $image_id ..."
-    docker_build -t $image_id -f $docker_file ${docker_build_args[@]} $docker_build_ctx_dir
+    local progress_option
+    progress_option=$(print_docker_build_log)
+    docker_build $progress_option -t $image_id -f $docker_file ${docker_build_args[@]} $docker_build_ctx_dir
 }
 
-while getopts ":hpn:b:x:t:s:o:v:c:" opt; do
+function print_docker_build_log() {
+    if [ $docker_build_log = "1" ]; then
+        echo "Print out the detail log of docker image build" >&2
+        echo "--progress=plain"
+    elif [ "$docker_build_log" -eq 0 ]; then
+        echo "No print out the detail log of docker image build" >&2
+    else
+        echo "wrong parameter print in '-l',use default value" >&2
+    fi
+}
+
+while getopts ":hpn:b:x:t:s:o:v:m:l:c:" opt; do
     case ${opt} in
     h)
         usage
@@ -117,6 +147,12 @@ while getopts ":hpn:b:x:t:s:o:v:c:" opt; do
             VC=0
         fi
         ;;
+    m)
+        RA_METHOD=$OPTARG
+        ;;
+    l)
+        docker_build_log=$OPTARG
+        ;;
     c)
         CESEAL_VERSION=$OPTARG
         ;;
@@ -145,7 +181,7 @@ if [[ -z $which_build_proc ]]; then
     exit 1
 fi
 
-if ! [[ $network = "devnet" || $network = "testnet" || $network = "mainnet" ]]; then
+if ! [[ $network = "devnet" || $network = "testnet" || $network = "mainnet" || $network = "ownnet" ]]; then
     echo "Invalid network option, use 'devnet' instead"
     network="devnet"
 fi
