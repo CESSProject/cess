@@ -623,9 +623,12 @@ pub mod pallet {
                 let lock_block = T::LockingBlock::get();
                 let exec_block = now.checked_add(&lock_block).ok_or(Error::<T>::Overflow)?;
 
-                c.buyers = Some(sender);
+                c.buyers = Some(sender.clone());
                 c.exec = Some(exec_block);
                 c.locked = true;
+
+                <T as pallet::Config>::Currency::reserve(&sender, c.price);
+
                 let call: <T as Config>::SProposal = Call::exec_consignment{token: token.clone(), territory_name: rename.clone()}.into();
                 T::FScheduler::schedule_named(
                     *(token.as_fixed_bytes()),
@@ -672,7 +675,7 @@ pub mod pallet {
 
             <TerritoryKey<T>>::insert(&token, (buyer.clone(), territory_name));
             <Consignment<T>>::remove(&token);
-
+            <T as pallet::Config>::Currency::unreserve(&buyer, consignment.price);
             <T as pallet::Config>::Currency::transfer(&buyer, &holder, consignment.price, KeepAlive)?;
 
             Self::deposit_event(Event::<T>::ExecConsignment {
@@ -715,6 +718,7 @@ pub mod pallet {
 
                 let buyer = c.buyers.as_ref().ok_or(Error::<T>::NotBuyer)?;
                 ensure!(&sender == buyer, Error::<T>::NotBuyer);
+                <T as pallet::Config>::Currency::unreserve(&buyer, c.price);
                 c.buyers = None;
                 c.exec = None;
                 c.locked = false;
