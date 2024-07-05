@@ -24,7 +24,7 @@ pub enum OrderType {
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
 pub struct TerritoryInfo<T: Config> {
-	pub(super) token: H256,
+	pub(super) token: TokenId,
     pub(super) total_space: u128,
 	pub(super) used_space: u128,
 	pub(super) locked_space: u128,

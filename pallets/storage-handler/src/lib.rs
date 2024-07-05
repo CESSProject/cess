@@ -51,6 +51,7 @@ pub const SPACE_DEAD: &str = "dead";
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> =
 	<<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type TokenId = H256;
 
 const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
@@ -134,7 +135,7 @@ pub mod pallet {
         PaidOrder { order_hash: BoundedVec<u8, ConstU32<32>> },
 
         MintTerritory { 
-            token: H256, 
+            token: TokenId, 
             name: TerrName, 
             storage_capacity: u128, 
             spend: BalanceOf<T>,
@@ -160,28 +161,28 @@ pub mod pallet {
 
         Consignment {
             name: TerrName,
-            token: H256,
+            token: TokenId,
             price: BalanceOf<T>,
         },
 
         BuyConsignment {
             name: TerrName,
-            token: H256,
+            token: TokenId,
             price: BalanceOf<T>,
         },
 
         CancleConsignment {
-            token: H256,
+            token: TokenId,
         },
 
         CancelPurchaseAction {
-            token: H256,
+            token: TokenId,
         },
 
         ExecConsignment {
             buyer: AccountOf<T>,
             seller: AccountOf<T>,
-            token: H256,
+            token: TokenId,
         },
     }
 
@@ -249,12 +250,14 @@ pub mod pallet {
         NotBuyer,
         /// This is an invalid order, Because the price can't match
         InvalidOrder,
+        /// Unable to purchase own consignment
+        OwnConsignment,
     }
 
     #[pallet::storage]
     #[pallet::getter(fn territory_key)]
     pub(super) type TerritoryKey<T: Config> = 
-        StorageMap<_, Blake2_128Concat, H256, (AccountOf<T>, TerrName)>;
+        StorageMap<_, Blake2_128Concat, TokenId, (AccountOf<T>, TerrName)>;
     
     #[pallet::storage]
     #[pallet::getter(fn territory)]
@@ -271,7 +274,7 @@ pub mod pallet {
     #[pallet::storage]
     #[pallet::getter(fn consignment)]
     pub(super) type Consignment<T: Config> =
-        StorageMap<_, Blake2_128Concat, H256, ConsignmentInfo<T>>;
+        StorageMap<_, Blake2_128Concat, TokenId, ConsignmentInfo<T>>;
 
     #[pallet::storage]
     #[pallet::getter(fn territory_frozen)]
@@ -281,7 +284,7 @@ pub mod pallet {
             Blake2_128Concat, 
             BlockNumberFor<T>,
             Blake2_128Concat, 
-            H256,
+            TokenId,
             bool,
         >;
     
@@ -298,7 +301,7 @@ pub mod pallet {
             Blake2_128Concat, 
             BlockNumberFor<T>,
             Blake2_128Concat, 
-            H256,
+            TokenId,
             bool,
         >;
  
@@ -556,15 +559,15 @@ pub mod pallet {
 
         #[pallet::call_index(102)]
 		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::treeitory_consignment())]
-        pub fn treeitory_consignment(
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::territory_consignment())]
+        pub fn territory_consignment(
             origin: OriginFor<T>, 
             territory_name: TerrName, 
             price: BalanceOf<T>
         ) -> DispatchResult {
             let sender = ensure_signed(origin)?;
 
-            let token = <Territory<T>>::try_mutate(&sender, &territory_name, |t_opt| -> Result<H256, DispatchError> {
+            let token = <Territory<T>>::try_mutate(&sender, &territory_name, |t_opt| -> Result<TokenId, DispatchError> {
                 let t = t_opt.as_mut().ok_or(Error::<T>::NotHaveTerritory)?;
 
                 ensure!(t.state == TerritoryState::Active, Error::<T>::NotActive);
@@ -604,13 +607,14 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::buy_consignment())]
         pub fn buy_consignment(
             origin: OriginFor<T>,
-            token: H256,
+            token: TokenId,
             rename: TerrName,
         ) -> DispatchResult {
             let sender = ensure_signed(origin)?;
 
             let consignment = <Consignment<T>>::try_get(&token).map_err(|_| Error::<T>::NonExistentConsignment)?;
             ensure!(!consignment.locked, Error::<T>::ConsignmentLocked);
+            ensure!(consignment.user != sender, Error::<T>::OwnConsignment);
 
             <Consignment<T>>::try_mutate(&token, |c_opt| -> DispatchResult {
                 let c = c_opt.as_mut().ok_or(Error::<T>::NonExistentConsignment)?;
@@ -619,9 +623,12 @@ pub mod pallet {
                 let lock_block = T::LockingBlock::get();
                 let exec_block = now.checked_add(&lock_block).ok_or(Error::<T>::Overflow)?;
 
-                c.buyers = Some(sender);
+                c.buyers = Some(sender.clone());
                 c.exec = Some(exec_block);
                 c.locked = true;
+
+                <T as pallet::Config>::Currency::reserve(&sender, c.price);
+
                 let call: <T as Config>::SProposal = Call::exec_consignment{token: token.clone(), territory_name: rename.clone()}.into();
                 T::FScheduler::schedule_named(
                     *(token.as_fixed_bytes()),
@@ -647,7 +654,7 @@ pub mod pallet {
         #[pallet::call_index(104)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::exec_consignment())]
-        pub fn exec_consignment(origin: OriginFor<T>, token: H256, territory_name: TerrName) -> DispatchResult {
+        pub fn exec_consignment(origin: OriginFor<T>, token: TokenId, territory_name: TerrName) -> DispatchResult {
             ensure_root(origin)?;
 
             let consignment = <Consignment<T>>::try_get(&token).map_err(|_| Error::<T>::NonExistentConsignment)?;
@@ -668,7 +675,7 @@ pub mod pallet {
 
             <TerritoryKey<T>>::insert(&token, (buyer.clone(), territory_name));
             <Consignment<T>>::remove(&token);
-
+            <T as pallet::Config>::Currency::unreserve(&buyer, consignment.price);
             <T as pallet::Config>::Currency::transfer(&buyer, &holder, consignment.price, KeepAlive)?;
 
             Self::deposit_event(Event::<T>::ExecConsignment {
@@ -703,7 +710,7 @@ pub mod pallet {
         #[pallet::call_index(106)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::cancel_purchase_action())]
-        pub fn cancel_purchase_action(origin: OriginFor<T>, token: H256) -> DispatchResult {
+        pub fn cancel_purchase_action(origin: OriginFor<T>, token: TokenId) -> DispatchResult {
             let sender = ensure_signed(origin)?;
 
             <Consignment<T>>::try_mutate(&token, |c_opt| -> DispatchResult {
@@ -711,6 +718,7 @@ pub mod pallet {
 
                 let buyer = c.buyers.as_ref().ok_or(Error::<T>::NotBuyer)?;
                 ensure!(&sender == buyer, Error::<T>::NotBuyer);
+                <T as pallet::Config>::Currency::unreserve(&buyer, c.price);
                 c.buyers = None;
                 c.exec = None;
                 c.locked = false;
@@ -797,17 +805,50 @@ pub mod pallet {
         #[pallet::call_index(5)]
 		#[transactional]
 		#[pallet::weight(Weight::zero())]
-        pub fn update_user_territory_life(origin: OriginFor<T>, user: AccountOf<T>, terr_name: TerrName, deadline: BlockNumberFor<T>) -> DispatchResult {
+        pub fn update_user_territory_life(
+            origin: OriginFor<T>, 
+            user: AccountOf<T>,
+            terr_name: TerrName, 
+            deadline: BlockNumberFor<T>
+        ) -> DispatchResult {
             let _ = ensure_root(origin)?;
 
             <Territory<T>>::try_mutate(&user, &terr_name, |space_opt| -> DispatchResult {
                 let space_info = space_opt.as_mut().ok_or(Error::<T>::NotPurchasedSpace)?;
 
+                // TerritoryFrozenCounter::<T>::mutate(&space_info.deadline, |counter| -> DispatchResult {
+                //     *counter = counter.checked_sub(1).ok_or(Error::<T>::Overflow)?;
+                //     Ok(())
+                // })?;
+
+                TerritoryFrozen::<T>::remove(&space_info.deadline, &space_info.token);
+
                 space_info.deadline = deadline;
+
+                TerritoryFrozen::<T>::insert(&space_info.deadline, &space_info.token, true);
 
                 Ok(())
             })
         }
+
+        #[pallet::call_index(201)]
+		#[transactional]
+		#[pallet::weight(Weight::zero())]
+        pub fn update_expired_exec(
+            origin: OriginFor<T>, 
+            old_block: BlockNumberFor<T>, 
+            new_block: BlockNumberFor<T>,
+            token: TokenId
+        ) -> DispatchResult {
+            let _ = ensure_root(origin)?;
+
+            TerritoryExpired::<T>::remove(&old_block, &token);
+
+            TerritoryExpired::<T>::insert(&new_block, &token, true);
+
+            Ok(())
+        }
+
 
         #[pallet::call_index(6)]
         #[transactional]
@@ -978,7 +1019,7 @@ impl<T: Config> Pallet<T> {
     }
 
     fn storage_territory(
-        token: H256,
+        token: TokenId,
         user: AccountOf<T>, 
         space: u128, 
         days: u32,
