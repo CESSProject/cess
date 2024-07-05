@@ -323,18 +323,16 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_initialize(now: BlockNumberFor<T>) -> Weight {
+		fn on_initialize(_now: BlockNumberFor<T>) -> Weight {
 			let days = T::OneDay::get();
 			let mut weight: Weight = Weight::zero();
 			// FOR TESTING
-			if now % days == 0u32.saturated_into() {
-				let (temp_weight, clear_list) = T::StorageHandle::frozen_task();
-				weight = weight.saturating_add(temp_weight);
-				let temp_acc_list: BoundedVec<(AccountOf<T>, TerrName), ConstU32<2000>> = 
-					clear_list.try_into().unwrap_or_default();
-				ClearUserList::<T>::put(temp_acc_list);
-				weight = weight.saturating_add(T::DbWeight::get().writes(1));
-			}
+			let (temp_weight, clear_list) = T::StorageHandle::frozen_task();
+			weight = weight.saturating_add(temp_weight);
+			let temp_acc_list: BoundedVec<(AccountOf<T>, TerrName), ConstU32<2000>> = 
+				clear_list.try_into().unwrap_or_default();
+			ClearUserList::<T>::put(temp_acc_list);
+			weight = weight.saturating_add(T::DbWeight::get().writes(1));
 
 			let mut count: u32 = 0;
 			let clear_list = ClearUserList::<T>::get();
