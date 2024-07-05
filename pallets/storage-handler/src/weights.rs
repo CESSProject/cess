@@ -39,7 +39,7 @@ pub trait WeightInfo {
 	fn mint_territory() -> Weight;
 	fn expanding_territory() -> Weight;
 	fn renewal_territory() -> Weight;
-	fn treeitory_consignment() -> Weight;
+	fn territory_consignment() -> Weight;
 	fn buy_consignment() -> Weight;
 	fn exec_consignment() -> Weight;
 	fn cancel_consignment() -> Weight;
@@ -129,7 +129,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	/// Proof: `StorageHandler::Territory` (`max_values`: None, `max_size`: Some(233), added: 2708, mode: `MaxEncodedLen`)
 	/// Storage: `StorageHandler::Consignment` (r:1 w:1)
 	/// Proof: `StorageHandler::Consignment` (`max_values`: None, `max_size`: Some(135), added: 2610, mode: `MaxEncodedLen`)
-	fn treeitory_consignment() -> Weight {
+	fn territory_consignment() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `590`
 		//  Estimated: `3698`
@@ -374,7 +374,7 @@ impl WeightInfo for () {
 	/// Proof: `StorageHandler::Territory` (`max_values`: None, `max_size`: Some(233), added: 2708, mode: `MaxEncodedLen`)
 	/// Storage: `StorageHandler::Consignment` (r:1 w:1)
 	/// Proof: `StorageHandler::Consignment` (`max_values`: None, `max_size`: Some(135), added: 2610, mode: `MaxEncodedLen`)
-	fn treeitory_consignment() -> Weight {
+	fn territory_consignment() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `590`
 		//  Estimated: `3698`

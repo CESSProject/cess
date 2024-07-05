@@ -54,7 +54,7 @@ benchmarks! {
         assert_eq!(territory_info.deadline, (40u32 * 14400u32).saturated_into());
     }
 
-    treeitory_consignment {
+    territory_consignment {
         let caller: AccountOf<T> = account("user1", 100, SEED);
         let terr_name: TerrName = "t1".as_bytes().to_vec().try_into().map_err(|_| "boundedvec error")?;
         let free: BalanceOf<T> = 365_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
