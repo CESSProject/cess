@@ -10,8 +10,8 @@ impl<T: Config> Receptionist<T> {
                 .checked_mul(15).ok_or(Error::<T>::Overflow)?
                 .checked_div(10).ok_or(Error::<T>::Overflow)?
                 .checked_mul(file.segment_list.len() as u128).ok_or(Error::<T>::Overflow)?;
-            ensure!(T::StorageHandle::get_user_avail_space(&user_brief.user)? > needed_space, Error::<T>::InsufficientAvailableSpace);
-            T::StorageHandle::update_user_space(&user_brief.user, 1, needed_space)?;
+            ensure!(T::StorageHandle::get_user_avail_space(&user_brief.user, &user_brief.territory_name)? > needed_space, Error::<T>::InsufficientAvailableSpace);
+            T::StorageHandle::add_territory_used_space(&user_brief.user, &user_brief.territory_name, needed_space)?;
 
             if <Bucket<T>>::contains_key(&user_brief.user, &user_brief.bucket_name) {
                 Pallet::<T>::add_file_to_bucket(&user_brief.user, &user_brief.bucket_name, &file_hash)?;
@@ -19,7 +19,7 @@ impl<T: Config> Receptionist<T> {
                 Pallet::<T>::create_bucket_helper(&user_brief.user, &user_brief.bucket_name, Some(file_hash))?;
             }
      
-            Pallet::<T>::add_user_hold_fileslice(&user_brief.user, file_hash, needed_space)?;
+            Pallet::<T>::add_user_hold_fileslice(&user_brief.user, file_hash, needed_space, user_brief.territory_name.clone())?;
             file.owner.try_push(user_brief.clone()).map_err(|_e| Error::<T>::BoundedVecError)?;
 
             Ok(())
@@ -35,7 +35,7 @@ impl<T: Config> Receptionist<T> {
         needed_space: u128,
         file_size: u128,
     ) -> DispatchResult {
-        T::StorageHandle::lock_user_space(&user_brief.user, needed_space)?;
+        T::StorageHandle::lock_user_space(&user_brief.user, &user_brief.territory_name, needed_space)?;
         // TODO! Replace the file_hash param
         Pallet::<T>::generate_deal(file_hash.clone(), deal_info, user_brief.clone(), file_size)?;
         
@@ -59,7 +59,7 @@ impl<T: Config> Receptionist<T> {
 
             let segment_count = deal_info.segment_list.len();
             let needed_space = Pallet::<T>::cal_file_size(segment_count as u128);
-            T::StorageHandle::unlock_and_used_user_space(&deal_info.user.user, needed_space)?;
+            T::StorageHandle::unlock_and_used_user_space(&deal_info.user.user, &deal_info.user.territory_name, needed_space)?;
             T::StorageHandle::sub_total_idle_space(needed_space)?;
             T::StorageHandle::add_total_service_space(needed_space)?;
 
@@ -68,7 +68,7 @@ impl<T: Config> Receptionist<T> {
             } else {
                 Pallet::<T>::create_bucket_helper(&deal_info.user.user, &deal_info.user.bucket_name, Some(deal_hash))?;
             }
-            Pallet::<T>::add_user_hold_fileslice(&deal_info.user.user, deal_hash.clone(), needed_space)?;
+            Pallet::<T>::add_user_hold_fileslice(&deal_info.user.user, deal_hash.clone(), needed_space, deal_info.user.territory_name.clone())?;
             <DealMap<T>>::remove(deal_hash);
             Pallet::<T>::deposit_event(Event::<T>::StorageCompleted{ file_hash: deal_hash });
         }

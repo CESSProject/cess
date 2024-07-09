@@ -1,5 +1,5 @@
 use super::*;
-use crate::{Pallet as Audit, *};
+use crate::{Pallet as Audit};
 // // use cp_cess_common::{IpAddress, Hash, DataType};
 // // use codec::{alloc::string::ToString, Decode};
 use frame_benchmarking::{
@@ -137,7 +137,7 @@ pub fn bench_generate_challenge<T: Config>(miner: AccountOf<T>) -> Result<(), &'
 benchmarks! {
     submit_idle_proof {
         log::info!("start submit_idle_proof");
-        pallet_tee_worker::benchmarking::generate_workers::<T>();
+        pallet_tee_worker::benchmarking::generate_workers::<T>()?;
         let miner: AccountOf<T> = account("miner1", 100, SEED);
         pallet_sminer::benchmarking::register_positive_miner::<T>(miner.clone())?;
         let _ = pallet_file_bank::benchmarking::cert_idle_for_miner::<T>(miner.clone())?;
@@ -151,7 +151,7 @@ benchmarks! {
 
     submit_service_proof {
         log::info!("start submit_service_proof");
-        pallet_tee_worker::benchmarking::generate_workers::<T>();
+        pallet_tee_worker::benchmarking::generate_workers::<T>()?;
         let miner: AccountOf<T> = account("miner1", 100, SEED);
         pallet_sminer::benchmarking::register_positive_miner::<T>(miner.clone())?;
         let _ = pallet_file_bank::benchmarking::cert_idle_for_miner::<T>(miner.clone())?;
@@ -165,7 +165,7 @@ benchmarks! {
 
     submit_verify_idle_result {
         log::info!("start submit_verify_idle_result");
-        pallet_tee_worker::benchmarking::generate_workers::<T>();
+        pallet_tee_worker::benchmarking::generate_workers::<T>()?;
         let miner: AccountOf<T> = account("miner1", 100, SEED);
         pallet_sminer::benchmarking::register_positive_miner::<T>(miner.clone())?;
         let _ = pallet_file_bank::benchmarking::cert_idle_for_miner::<T>(miner.clone())?;
@@ -203,7 +203,7 @@ benchmarks! {
 
     submit_verify_service_result {
         log::info!("start submit_verify_service_result");
-        pallet_tee_worker::benchmarking::generate_workers::<T>();
+        pallet_tee_worker::benchmarking::generate_workers::<T>()?;
         let miner: AccountOf<T> = account("miner1", 100, SEED);
         pallet_sminer::benchmarking::register_positive_miner::<T>(miner.clone())?;
         let _ = pallet_file_bank::benchmarking::cert_idle_for_miner::<T>(miner.clone())?;

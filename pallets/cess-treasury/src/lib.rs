@@ -10,7 +10,7 @@ use frame_support::{
 // use sp_std::prelude::*;
 use sp_runtime::{
     SaturatedConversion, Perbill,
-	traits::{CheckedAdd, CheckedSub, CheckedDiv, AccountIdConversion},
+	traits::{CheckedAdd, CheckedSub, AccountIdConversion},
 };
 use frame_system::{
 	pallet_prelude::OriginFor,
@@ -83,7 +83,7 @@ pub mod pallet {
 	pub enum Error<T> {
 		/// Data operation overflow
         Overflow,
-
+		/// Logically speaking, errors that should not occur
 		Unexpected,
     }
 
