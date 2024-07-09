@@ -50,14 +50,14 @@ function build_node() {
 }
 
 function build_ceseal() {
-    if ! [[ $RA_METHOD = "dcap" || $RA_METHOD = "epid" ]]; then
+    if ! [[ $RA_METHOD = "dcap" || $RA_METHOD = "epid" || $RA_METHOD = "any" ]]; then
         echo "[Error] wrong remote attestaion method type in"
         exit 1
     fi
     docker_build_args+=(
             --build-arg RA_METHOD=$RA_METHOD
         )
-    if [ $RA_METHOD = "epid" ]; then
+    if [[ $RA_METHOD = "epid" || $RA_METHOD = "any" ]]; then
         if [[ -z $IAS_API_KEY ]]; then
         echo "the IAS_API_KEY environment variable is missing"
         exit 1

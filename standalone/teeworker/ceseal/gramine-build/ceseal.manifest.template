@@ -72,7 +72,6 @@ ra_client_spid = "{{ ra_client_spid }}"
 trusted_files = [
   "file:{{ libos }}",
   "file:ceseal",
-  "file:{{ arch_libdir }}",
   "file:{{ libdir }}",
 ]
 
