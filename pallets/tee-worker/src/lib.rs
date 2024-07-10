@@ -698,6 +698,16 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		#[pallet::call_index(117)]
+		#[pallet::weight({0})]
+		pub fn force_clear_tee(origin: OriginFor<T>, puk: WorkerPublicKey) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+
+			Self::execute_exit(puk)?;
+
+			Ok(())
+		}
 	}
 
 	impl<T: Config> ces_pallet_mq::MasterPubkeySupplier for Pallet<T> {
