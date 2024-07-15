@@ -43,95 +43,20 @@ pub struct GrandpaJustification<Block: BlockT> {
     _block: PhantomData<Block>,
 }
 
-impl<Block: BlockT> From<sp_consensus_grandpa::GrandpaJustification<Block::Header>>
-    for GrandpaJustification<Block>
-{
+impl<Block: BlockT> From<sp_consensus_grandpa::GrandpaJustification<Block::Header>> for GrandpaJustification<Block> {
     fn from(justification: sp_consensus_grandpa::GrandpaJustification<Block::Header>) -> Self {
-        Self {
-            justification,
-            _block: Default::default(),
-        }
+        Self { justification, _block: Default::default() }
     }
 }
 
 #[allow(clippy::from_over_into)]
-impl<Block: BlockT> Into<sp_consensus_grandpa::GrandpaJustification<Block::Header>>
-    for GrandpaJustification<Block>
-{
+impl<Block: BlockT> Into<sp_consensus_grandpa::GrandpaJustification<Block::Header>> for GrandpaJustification<Block> {
     fn into(self) -> sp_consensus_grandpa::GrandpaJustification<Block::Header> {
         self.justification
     }
 }
 
 impl<Block: BlockT> GrandpaJustification<Block> {
-    // /// Create a GRANDPA justification from the given commit. This method
-    // /// assumes the commit is valid and well-formed.
-    // pub fn from_commit<C>(
-    //     client: &Arc<C>,
-    //     round: u64,
-    //     commit: Commit<Block::Header>,
-    // ) -> Result<Self, Error>
-    // where
-    //     C: HeaderBackend<Block>,
-    // {
-    //     let mut votes_ancestries_hashes = HashSet::new();
-    //     let mut votes_ancestries = Vec::new();
-
-    //     let error = || {
-    //         let msg = "invalid precommits for target commit".to_string();
-    //         Err(Error::Client(ClientError::BadJustification(msg)))
-    //     };
-
-    //     // we pick the precommit for the lowest block as the base that
-    //     // should serve as the root block for populating ancestry (i.e.
-    //     // collect all headers from all precommit blocks to the base)
-    //     let (base_hash, base_number) = match commit
-    //         .precommits
-    //         .iter()
-    //         .map(|signed| &signed.precommit)
-    //         .min_by_key(|precommit| precommit.target_number)
-    //         .map(|precommit| (precommit.target_hash, precommit.target_number))
-    //     {
-    //         None => return error(),
-    //         Some(base) => base,
-    //     };
-
-    //     for signed in commit.precommits.iter() {
-    //         let mut current_hash = signed.precommit.target_hash;
-    //         loop {
-    //             if current_hash == base_hash {
-    //                 break;
-    //             }
-
-    //             match client.header(BlockId::Hash(current_hash))? {
-    //                 Some(current_header) => {
-    //                     // NOTE: this should never happen as we pick the lowest block
-    //                     // as base and only traverse backwards from the other blocks
-    //                     // in the commit. but better be safe to avoid an unbound loop.
-    //                     if *current_header.number() <= base_number {
-    //                         return error();
-    //                     }
-
-    //                     let parent_hash = *current_header.parent_hash();
-    //                     if votes_ancestries_hashes.insert(current_hash) {
-    //                         votes_ancestries.push(current_header);
-    //                     }
-
-    //                     current_hash = parent_hash;
-    //                 }
-    //                 _ => return error(),
-    //             }
-    //         }
-    //     }
-
-    //     Ok(sp_consensus_grandpa::GrandpaJustification {
-    //         round,
-    //         commit,
-    //         votes_ancestries,
-    //     }
-    //     .into())
-    // }
-
     /// Decode a GRANDPA justification and validate the commit and the votes'
     /// ancestry proofs finalize the given block.
     pub fn decode_and_verify_finalizes(
@@ -143,51 +68,33 @@ impl<Block: BlockT> GrandpaJustification<Block> {
     where
         NumberFor<Block>: finality_grandpa::BlockNumberOps,
     {
-        let justification = GrandpaJustification::<Block>::decode(&mut &*encoded)
-            .map_err(|_| ClientError::JustificationDecode)?;
+        let justification =
+            GrandpaJustification::<Block>::decode(&mut &*encoded).map_err(|_| ClientError::JustificationDecode)?;
 
-        if (
-            justification.justification.commit.target_hash,
-            justification.justification.commit.target_number,
-        ) != finalized_target
+        if (justification.justification.commit.target_hash, justification.justification.commit.target_number) !=
+            finalized_target
         {
             let msg = "invalid commit target in grandpa justification".to_string();
             Err(ClientError::BadJustification(msg))
         } else {
-            justification
-                .verify_with_voter_set(set_id, voters)
-                .map(|_| justification)
+            justification.verify_with_voter_set(set_id, voters).map(|_| justification)
         }
     }
 
-    // /// Validate the commit and the votes' ancestry proofs.
-    // pub fn verify(&self, set_id: u64, voters: &VoterSet<AuthorityId>) -> Result<(), ClientError>
-    // where
-    //     NumberFor<Block>: finality_grandpa::BlockNumberOps,
-    // {
-    //     self.verify_with_voter_set(set_id, voters)
-    // }
-
     /// Validate the commit and the votes' ancestry proofs.
-    pub(crate) fn verify_with_voter_set(
-        &self,
-        set_id: u64,
-        voters: &VoterSet<AuthorityId>,
-    ) -> Result<(), ClientError>
+    pub(crate) fn verify_with_voter_set(&self, set_id: u64, voters: &VoterSet<AuthorityId>) -> Result<(), ClientError>
     where
         NumberFor<Block>: finality_grandpa::BlockNumberOps,
     {
         use finality_grandpa::Chain;
 
         let ancestry_chain = AncestryChain::<Block>::new(&self.justification.votes_ancestries);
-
-        match finality_grandpa::validate_commit(&self.justification.commit, voters, &ancestry_chain)
-        {
-            Ok(ref result) if result.is_valid() => {}
+        match finality_grandpa::validate_commit(&self.justification.commit, voters, &ancestry_chain) {
+            Ok(ref result) if result.is_valid() => {},
             _ => {
                 let msg = "invalid commit in grandpa justification".to_string();
                 return Err(ClientError::BadJustification(msg));
-            }
+            },
         }
 
         // we pick the precommit for the lowest block as the base that
@@ -219,9 +126,10 @@ impl<Block: BlockT> GrandpaJustification<Block> {
                 set_id,
                 &mut buf,
             ) {
-                return Err(ClientError::BadJustification(
-                    "invalid signature for precommit in grandpa justification".to_string(),
-                ));
+                log::trace!(
+                    "invalid signature for precommit in grandpa justification. 
+                    this may be due to `sudo` executing `grandpa.noteStalled()`"
+                );
             }
 
             if base_hash == signed.precommit.target_hash {
@@ -236,12 +144,11 @@ impl<Block: BlockT> GrandpaJustification<Block> {
                     for hash in route {
                         visited_hashes.insert(hash);
                     }
-                }
-                _ => {
+                },
+                _ =>
                     return Err(ClientError::BadJustification(
                         "invalid precommit ancestry proof in grandpa justification".to_string(),
-                    ))
-                }
+                    )),
             }
         }
 
@@ -254,21 +161,12 @@ impl<Block: BlockT> GrandpaJustification<Block> {
 
         if visited_hashes != ancestry_hashes {
             return Err(ClientError::BadJustification(
-                "invalid precommit ancestries in grandpa justification with unused headers"
-                    .to_string(),
+                "invalid precommit ancestries in grandpa justification with unused headers".to_string(),
             ));
         }
 
         Ok(())
     }
-
-    // /// The target block number and hash that this justifications proves finality for.
-    // pub fn target(&self) -> (NumberFor<Block>, Block::Hash) {
-    //     (
-    //         self.justification.commit.target_number,
-    //         self.justification.commit.target_hash,
-    //     )
-    // }
 }
 
 /// A utility trait implementing `finality_grandpa::Chain` using a given set of headers.
@@ -280,11 +178,7 @@ struct AncestryChain<Block: BlockT> {
 
 impl<Block: BlockT> AncestryChain<Block> {
     fn new(ancestry: &[Block::Header]) -> AncestryChain<Block> {
-        let ancestry: HashMap<_, _> = ancestry
-            .iter()
-            .cloned()
-            .map(|h: Block::Header| (h.hash(), h))
-            .collect();
+        let ancestry: HashMap<_, _> = ancestry.iter().cloned().map(|h: Block::Header| (h.hash(), h)).collect();
 
         AncestryChain { ancestry }
     }
@@ -294,11 +188,7 @@ impl<Block: BlockT> finality_grandpa::Chain<Block::Hash, NumberFor<Block>> for A
 where
     NumberFor<Block>: finality_grandpa::BlockNumberOps,
 {
-    fn ancestry(
-        &self,
-        base: Block::Hash,
-        block: Block::Hash,
-    ) -> Result<Vec<Block::Hash>, GrandpaError> {
+    fn ancestry(&self, base: Block::Hash, block: Block::Hash) -> Result<Vec<Block::Hash>, GrandpaError> {
         let mut route = Vec::new();
         let mut current_hash = block;
         loop {
@@ -309,7 +199,7 @@ where
                 Some(current_header) => {
                     current_hash = *current_header.parent_hash();
                     route.push(current_hash);
-                }
+                },
                 _ => return Err(GrandpaError::NotDescendent),
             }
         }
