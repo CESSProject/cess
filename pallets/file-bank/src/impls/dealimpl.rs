@@ -29,4 +29,15 @@ impl<T: Config> DealInfo<T> {
 
         Ok(())
     }
+
+    pub fn force_unlock_space(&self) -> DispatchResult {
+        for complete_info in self.complete_list.iter() {
+            let space = FRAGMENT_SIZE  
+                    .checked_mul(self.segment_list.len() as u128)
+                    .ok_or(Error::<T>::Overflow)?;
+            T::MinerControl::unlock_space(&complete_info.miner, space)?;
+        }
+
+        Ok(())
+    }
 }

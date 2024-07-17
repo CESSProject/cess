@@ -2,6 +2,7 @@ use super::*;
 
 pub trait StorageHandle<AccountId> {
     fn check_territry_owner(acc: &AccountId, name: &TerrName) -> DispatchResult;
+    fn check_expired(acc: &AccountId, name: &TerrName) -> bool;
     fn add_territory_used_space(acc: &AccountId, name: &TerrName, size: u128) -> DispatchResult;
     fn sub_territory_used_space(acc: &AccountId, name: &TerrName, size: u128) -> DispatchResult;
     fn add_total_idle_space(increment: u128) -> DispatchResult;
@@ -23,6 +24,20 @@ impl<T: Config> StorageHandle<T::AccountId> for Pallet<T> {
         ensure!(<Territory<T>>::contains_key(acc, name), Error::<T>::NotHaveTerritory);
 
         Ok(())
+    }
+
+    fn check_expired(acc: &T::AccountId, name: &TerrName) -> bool {
+        let territory = <Territory<T>>::try_get(acc, name).map_err(|_| Error::<T>::NotHaveTerritory);
+
+        if let Ok(territory) = territory {
+            if territory.state == TerritoryState::Expired {
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        true
     }
     // fn update_user_space(acc: &T::AccountId, opeartion: u8, size: u128) -> DispatchResult {
     //     Pallet::<T>::update_user_space(acc, opeartion, size)
