@@ -5,7 +5,7 @@ FROM chef AS planner
 ARG https_proxy
 ARG http_proxy
 
-COPY ./scripts/docker/cargo-config.toml /usr/local/cargo/config
+# COPY ./scripts/docker/cargo-config.toml /usr/local/cargo/config
 COPY pallets pallets
 COPY crates crates
 COPY standalone standalone

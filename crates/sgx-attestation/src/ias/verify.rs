@@ -1,13 +1,10 @@
-use core::time::Duration;
-
-use alloc::string::String;
-use alloc::vec::Vec;
-use serde_json::Error as JsonError;
+use pink_json::de::Error as JsonError;
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
-
-use crate::Error;
-
+use core::time::Duration;
+use alloc::string::String;
+use alloc::vec::Vec;
+use crate::Error as SgxError;
 #[derive(Debug, Decode, Encode)]
 pub struct EnclaveQuoteBody {
     pub version: [u8; 2],
@@ -51,10 +48,10 @@ pub struct RaReport {
 }
 
 impl RaReport {
-    pub fn decode_quote(&self) -> Result<EnclaveQuoteBody, Error> {
+    pub fn decode_quote(&self) -> Result<EnclaveQuoteBody, SgxError> {
         let quote_body = base64::decode(&self.isv_enclave_quote_body)
-            .or(Err(Error::CodecError))?;
-        EnclaveQuoteBody::decode(&mut &quote_body[..]).or(Err(Error::CodecError))
+            .or(Err(SgxError::CodecError))?;
+        EnclaveQuoteBody::decode(&mut &quote_body[..]).or(Err(SgxError::CodecError))
     }
 }
 
@@ -68,10 +65,10 @@ pub struct SignedIasReport {
 
 impl SignedIasReport {
     pub fn parse_report(&self) -> Result<RaReport, JsonError> {
-        serde_json::from_str(&self.ra_report)
+        pink_json::from_str(&self.ra_report)
     }
 
-    pub fn verify(&self, now_since_unix_epoch: Duration) -> Result<(), crate::Error> {
+    pub fn verify(&self, now_since_unix_epoch: Duration) -> Result<(), SgxError> {
         let report = self.ra_report.as_str().as_bytes();
         let signature = hex::decode(&self.signature).unwrap();
         let raw_signing_cert = hex::decode(&self.raw_signing_cert).unwrap();
@@ -84,13 +81,13 @@ pub fn verify_signature(
     signature: &[u8],
     raw_cert: &[u8],
     now_since_unix_epoch: Duration,
-) -> Result<(), Error> {
+) -> Result<(), SgxError> {
     let sig_cert_der = webpki::types::CertificateDer::from(raw_cert);
     let sig_cert = webpki::EndEntityCert::try_from(&sig_cert_der);
-    let sig_cert = sig_cert.or(Err(Error::InvalidCertificate))?;
+    let sig_cert = sig_cert.or(Err(SgxError::InvalidCertificate))?;
     let verify_result =
         sig_cert.verify_signature(webpki::RSA_PKCS1_2048_8192_SHA256, message, signature);
-    verify_result.or(Err(Error::InvalidSignature))?;
+    verify_result.or(Err(SgxError::InvalidSignature))?;
     // Validate certificate
     let chain: Vec<webpki::types::CertificateDer> = Vec::new();
     let time_now = webpki::types::UnixTime::since_unix_epoch(now_since_unix_epoch);
@@ -103,7 +100,7 @@ pub fn verify_signature(
             webpki::KeyUsage::server_auth(),
             None,
         )
-        .or(Err(Error::InvalidSignature))?;
+        .or(Err(SgxError::InvalidSignature))?;
     Ok(())
 }
 
@@ -161,7 +158,7 @@ static IAS_SERVER_ROOTS: &[webpki::types::TrustAnchor<'static>; 1] = &[
 mod test {
     use super::*;
 
-    const SAMPLE: &str = include_str!("../sample/ias_attestation.json");
+    const SAMPLE: &str = include_str!("../../sample/ias_attestation.json");
     const ATTESTATION_TIMESTAMP: u64 = 1631441180; // 2021-09-12T18:06:20.402478
 
     #[test]

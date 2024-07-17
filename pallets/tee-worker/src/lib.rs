@@ -60,7 +60,7 @@ pub mod pallet {
 	// Re-export
 	pub use ces_types::AttestationReport;
 	// TODO: Legacy
-	pub use ces_types::attestation::legacy::{Attestation, AttestationValidator, IasFields, IasValidator};
+	pub use ces_types::attestation::legacy::{Attestation, AttestationValidator, SgxFields, IasValidator};
 
 	bind_topic!(MasterKeySubmission, b"^cess/masterkey/submit");
 	#[derive(Encode, Decode, TypeInfo, Clone, Debug)]
@@ -181,6 +181,38 @@ pub mod pallet {
 		InvalidCesealInfoHash,
 
 		NoneAttestationDisabled,
+
+		UnsupportedAttestationType,
+
+		InvalidDCAPQuote,
+
+		InvalidCertificate,
+		CodecError,
+		TCBInfoExpired,
+		KeyLengthIsInvalid,
+		PublicKeyIsInvalid,
+		RsaSignatureIsInvalid,
+		DerEncodingError,
+		UnsupportedDCAPQuoteVersion,
+		UnsupportedDCAPAttestationKeyType,
+		UnsupportedQuoteAuthData,
+		UnsupportedDCAPPckCertFormat,
+		LeafCertificateParsingError,
+		CertificateChainIsInvalid,
+		CertificateChainIsTooShort,
+		IntelExtensionCertificateDecodingError,
+		IntelExtensionAmbiguity,
+		CpuSvnLengthMismatch,
+		CpuSvnDecodingError,
+		PceSvnDecodingError,
+		PceSvnLengthMismatch,
+		FmspcLengthMismatch,
+		FmspcDecodingError,
+		FmspcMismatch,
+		QEReportHashMismatch,
+		IsvEnclaveReportSignatureIsInvalid,
+		DerDecodingError,
+		OidIsMissing,
 
 		WrongTeeType,
 
@@ -666,6 +698,16 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		#[pallet::call_index(117)]
+		#[pallet::weight({0})]
+		pub fn force_clear_tee(origin: OriginFor<T>, puk: WorkerPublicKey) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+
+			Self::execute_exit(puk)?;
+
+			Ok(())
+		}
 	}
 
 	impl<T: Config> ces_pallet_mq::MasterPubkeySupplier for Pallet<T> {
@@ -758,6 +800,40 @@ pub mod pallet {
 				AttestationError::UnknownQuoteBodyFormat => Self::UnknownQuoteBodyFormat,
 				AttestationError::InvalidUserDataHash => Self::InvalidCesealInfoHash,
 				AttestationError::NoneAttestationDisabled => Self::NoneAttestationDisabled,
+				AttestationError::UnsupportedAttestationType => Self::UnsupportedAttestationType,
+				AttestationError::InvalidDCAPQuote(attestation_error) => {
+					match attestation_error {
+						sgx_attestation::Error::InvalidCertificate => Self::InvalidCertificate,
+						sgx_attestation::Error::InvalidSignature => Self::InvalidSignature,
+						sgx_attestation::Error::CodecError => Self::CodecError,
+						sgx_attestation::Error::TCBInfoExpired => Self::TCBInfoExpired,
+						sgx_attestation::Error::KeyLengthIsInvalid => Self::KeyLengthIsInvalid,
+						sgx_attestation::Error::PublicKeyIsInvalid => Self::PublicKeyIsInvalid,
+						sgx_attestation::Error::RsaSignatureIsInvalid => Self::RsaSignatureIsInvalid,
+						sgx_attestation::Error::DerEncodingError => Self::DerEncodingError,
+						sgx_attestation::Error::UnsupportedDCAPQuoteVersion => Self::UnsupportedDCAPQuoteVersion,
+						sgx_attestation::Error::UnsupportedDCAPAttestationKeyType => Self::UnsupportedDCAPAttestationKeyType,
+						sgx_attestation::Error::UnsupportedQuoteAuthData => Self::UnsupportedQuoteAuthData,
+						sgx_attestation::Error::UnsupportedDCAPPckCertFormat => Self::UnsupportedDCAPPckCertFormat,
+						sgx_attestation::Error::LeafCertificateParsingError => Self::LeafCertificateParsingError,
+						sgx_attestation::Error::CertificateChainIsInvalid => Self::CertificateChainIsInvalid,
+						sgx_attestation::Error::CertificateChainIsTooShort => Self::CertificateChainIsTooShort,
+						sgx_attestation::Error::IntelExtensionCertificateDecodingError => Self::IntelExtensionCertificateDecodingError,
+						sgx_attestation::Error::IntelExtensionAmbiguity => Self::IntelExtensionAmbiguity,
+						sgx_attestation::Error::CpuSvnLengthMismatch => Self::CpuSvnLengthMismatch,
+						sgx_attestation::Error::CpuSvnDecodingError => Self::CpuSvnDecodingError,
+						sgx_attestation::Error::PceSvnDecodingError => Self::PceSvnDecodingError,
+						sgx_attestation::Error::PceSvnLengthMismatch => Self::PceSvnLengthMismatch,
+						sgx_attestation::Error::FmspcLengthMismatch => Self::FmspcLengthMismatch,
+						sgx_attestation::Error::FmspcDecodingError => Self::FmspcDecodingError,
+						sgx_attestation::Error::FmspcMismatch => Self::FmspcMismatch,
+						sgx_attestation::Error::QEReportHashMismatch => Self::QEReportHashMismatch,
+						sgx_attestation::Error::IsvEnclaveReportSignatureIsInvalid => Self::IsvEnclaveReportSignatureIsInvalid,
+						sgx_attestation::Error::DerDecodingError => Self::DerDecodingError,
+						sgx_attestation::Error::OidIsMissing => Self::OidIsMissing,
+					
+					}
+				},
 			}
 		}
 	}
