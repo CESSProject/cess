@@ -459,10 +459,20 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
 
         let challenge_handler = ChallengeHandlerInfo { challenge, sgx_local_report, ecdh_pubkey };
         let handler_hash = sp_core::hashing::blake2_256(&challenge_handler.encode());
+
+        let attestation_provider = if let Some(r) = cestory.args.ra_type.clone(){
+            if r == "dcap" {
+                Some(AttestationProvider::Dcap)
+            } else {
+                Some(AttestationProvider::Ias)
+            }
+        } else {
+            Some(AttestationProvider::Ias)
+        };
         let attestation = if !dev_mode {
             Some(create_attestation_report_on(
                 &cestory.platform,
-                Some(AttestationProvider::Ias),
+                attestation_provider,
                 &handler_hash,
                 cestory.args.ra_timeout,
                 cestory.args.ra_max_retries,
