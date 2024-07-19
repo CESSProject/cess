@@ -290,13 +290,16 @@ array-bytes = "6.1"
 assert_cmd = "2.0.2"
 assert_matches = "1.4.0"
 async-trait = "0.1"
+asn1_der = { version = "0.7", default-features = false}
 base64 = { version = "0.13", default-features = false, features = ["alloc"] }
 bigdecimal = "0.4"
-chrono = { version = "0.4", default-features = false }
+byteorder = { version = "1.5.0", default-features = false }
+chrono = { version = "0.4.31", default-features = false }
 clap = { version = "4.5", features = ["derive"] }
 codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false }
 scale-codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false }
 const-str = { version = "0.5", default-features = false }
+const-oid = { version = "0.9.5", default-features = false }
 criterion = { version = "0.5", features = ["async_tokio"] }
 curve25519-dalek = { version = "4.1", default-features = false }
 dashmap = "5.5.3"
@@ -304,6 +307,7 @@ derive_more = { version = "1.0.0-beta.6", default-features = false, features = [
     "display",
 ] }
 derive_wrapper = "0.1.7"
+der = { version = "0.7.8", default-features = false }
 either = "1.6.1"
 env_logger = "0.11"
 ethabi = { version = "18.0", default-features = false }
@@ -349,6 +353,8 @@ prost = { version = "0.11", default-features = false, features = [
 ] }
 prost-build = "0.12"
 prost-types = "0.12"
+pink-json = { version = "0.4", default-features = false }
+pem = { version = "3", default-features = false }
 quote = "1.0"
 rand = "0.8.5"
 rand_chacha = { version = "0.3", default-features = false }
@@ -369,9 +375,9 @@ scale-info = { version = "2.11", default-features = false }
 scale-value = "0.16"
 schnorrkel = { version = "0.11", default-features = false }
 scopeguard = { version = "1.1", default-features = false }
-serde = { version = "1.0", default-features = false }
+serde = { version = "1", default-features = false }
 serde_cbor = "0.11.2"
-serde_json = { version = "1.0", default-features = false }
+serde_json = { version = "1.0.108", default-features = false }
 serde-json-core = { version = "0.5", default-features = false }
 sha2 = { version = "0.10", default-features = false }
 soketto = "0.8"
@@ -397,6 +403,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 trie-db = "0.29"
 typenum = { version = "1.14.0", default-features = false }
 untrusted = { version = "0.9.0" }
+urlencoding = "2"
 vergen = { version = "8.3", default-features = false }
 wait-timeout = "0.2"
 webpki = { git = "https://github.com/rustls/webpki", version = "=0.102.0-alpha.3", package = "rustls-webpki", default-features = false, features = [
@@ -404,6 +411,7 @@ webpki = { git = "https://github.com/rustls/webpki", version = "=0.102.0-alpha.3
     "ring",
 ], rev = "2ed9a4324f48c2c46ffdd7dc9d3eb315af25fce2" } # Release version no-std has bug
 walkdir = "2.5.0"
+x509-cert = { version = "0.2.4", default-features = false }
 # webpki = { version = "0.102.0", package = "rustls-webpki", default-features = false, features = ["alloc", "ring"] }
 # ---- Generic crates end ----
 

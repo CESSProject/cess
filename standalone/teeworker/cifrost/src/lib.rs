@@ -186,6 +186,7 @@ async fn try_register_worker(
         .await?;
         Ok(true)
     } else {
+        info!("No attestation evidence from ceseal runtime_info!");
         Ok(false)
     }
 }

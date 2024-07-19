@@ -44,6 +44,7 @@ ces-types = { path = "../../../crates/ces-types", default-features = false, feat
     "sgx",
 ] }
 sgx-api-lite = { path = "../../../crates/sgx-api-lite" }
+sgx-attestation = { path = "../../../crates/sgx-attestation", features = ["report"] }
 # PODR2
 threadpool = "1.8.1"
 ces-pdp = { path = "../../../crates/ces-pdp" }

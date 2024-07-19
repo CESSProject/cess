@@ -5,6 +5,16 @@ set -e
 if [ "$SGX" -eq 1 ] && [ "$SKIP_AESMD" -eq 0 ]; then
   echo "Starting AESMD"
 
+  if test -f "/opt/conf/aesmd.conf"; then
+    echo "Found custom aesmd.conf, override the default."
+    cp /opt/conf/aesmd.conf /etc/
+  fi
+
+  if test -f "/opt/conf/sgx_default_qcnl.conf"; then
+    echo "Found custom sgx_default_qcnl.conf, override the default."
+    cp /opt/conf/sgx_default_qcnl.conf /etc/
+  fi
+  
   /bin/mkdir -p /var/run/aesmd/
   /bin/chown -R aesmd:aesmd /var/run/aesmd/
   /bin/chmod 0755 /var/run/aesmd/
@@ -20,6 +30,27 @@ if [ "$SGX" -eq 1 ] && [ "$SKIP_AESMD" -eq 0 ]; then
     sleep "${SLEEP_BEFORE_START}"
   fi
 fi
+
+if [ "$RA_METHOD" = "dcap" ]; then
+  if [ -e "/opt/ceseal/releases/current/dcap-ver" ]; then
+    echo "Dcap version found"
+    rm -rf /opt/ceseal/releases/current/dcap-ver/data
+    mv /opt/ceseal/releases/current/dcap-ver/* /opt/ceseal/releases/current/
+  else
+    echo "Dcap version not found but running with 'dcap' RA method. panic..."
+    exit 0
+  fi
+else
+  if [ -e "/opt/ceseal/releases/current/epid-ver" ]; then
+    echo "Epid version found"
+    rm -rf /opt/ceseal/releases/current/epid-ver/data
+    mv /opt/ceseal/releases/current/epid-ver/* /opt/ceseal/releases/current/
+  else
+    echo "Epid version not found but running with 'epid' RA method. panic..."
+    exit 0
+  fi
+fi
+
 
 ./handover
 cd /opt/ceseal/releases/current && SKIP_AESMD=1 ./start.sh
