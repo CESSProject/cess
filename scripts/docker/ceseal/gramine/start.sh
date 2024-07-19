@@ -40,8 +40,25 @@ echo "Data dir '${DATA_DIR}'"
 GRAMINE_SGX_BIN=${GRAMINE_SGX_BIN:-"${WORK_DIR}/gramine-sgx"}
 GRAMINE_DIRECT_BIN=${GRAMINE_DIRECT_BIN:-"gramine-direct"}
 
+##check version need to use this
+if [ "$RA_METHOD" = "dcap" ]; then
+  if [ -e "/opt/ceseal/releases/current/dcap-ver" ]; then
+    echo "Dcap version found"
+    rm -rf /opt/ceseal/releases/current/dcap-ver/data
+    mv /opt/ceseal/releases/current/dcap-ver/* /opt/ceseal/releases/current/
+    rm -rf /opt/ceseal/releases/current/dcap-ver
+  fi
+else
+  if [ -e "/opt/ceseal/releases/current/epid-ver" ]; then
+    echo "Epid version found"
+    rm -rf /opt/ceseal/releases/current/epid-ver/data
+    mv /opt/ceseal/releases/current/epid-ver/* /opt/ceseal/releases/current/
+    rm -rf /opt/ceseal/releases/current/epid-ver
+  fi
+fi
+
 if [ -L ${DATA_DIR} ] && [ ! -e ${DATA_DIR} ]; then
-  mkdir -p $(readlink -f $DATA_DIR)
+  mkdir -p $(readlink $DATA_DIR)
 fi
 mkdir -p "${DATA_DIR}/protected_files"
 mkdir -p "${DATA_DIR}/storage_files"

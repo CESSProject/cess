@@ -50,5 +50,8 @@ pub struct InitArgs {
     /// The max retry times of getting the attestation report.
     pub ra_max_retries: u32,
 
+    /// The type of ceseal's remote attestation method,None means epid.
+    pub ra_type: Option<String>,
+
     pub role: WorkerRole,
 }

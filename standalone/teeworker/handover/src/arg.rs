@@ -62,4 +62,10 @@ pub struct Args {
         default_value = "1888"
     )]
     pub previous_ceseal_port: u64,
+
+    #[arg(
+        long,
+        help = "remote attestation type",
+    )]
+    pub ra_type: String,
 }
