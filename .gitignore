@@ -11,6 +11,7 @@
 
 # The cache for chain data in container
 .local
+local_run
 
 # direnv cache
 .direnv

@@ -1,15 +1,27 @@
 #!/bin/bash
 
-#    -d target/chain-dev-local \
-
 export RUST_LOG=info
-#export RUST_LOG=debug,wasmtime_cranelift=info,netlink_proto
+
+inst_seq=${INST_SEQ:-0}
+rpc_port=$((${RPC_PORT:-9944} + $inst_seq))
+chain_spec=${CHAIN:-dev}
+extra_args=${XARGS:---alice}
+
+base_path_args="-d ./local_run/chain-$chain_spec-$inst_seq"
+getopts ":t" opt
+case ${opt} in
+t)
+    base_path_args="--tmp"
+    ;;
+*) ;;
+esac
+
 ./target/debug/cess-node \
-    --dev --alice \
+    --chain $chain_spec \
+    $base_path_args \
     --rpc-methods=Unsafe \
     --rpc-cors=all \
-    --rpc-port 9944 \
+    --rpc-port $rpc_port \
     --rpc-external \
     --rpc-max-response-size 32 \
-    --validator \
-    --state-pruning archive
+    --state-pruning archive $extra_args
