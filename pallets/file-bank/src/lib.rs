@@ -324,10 +324,7 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(_now: BlockNumberFor<T>) -> Weight {
-<<<<<<< HEAD
-=======
 			let days = T::OneDay::get();
->>>>>>> feat/dcap
 			let mut weight: Weight = Weight::zero();
 			// FOR TESTING
 			let (temp_weight, clear_list) = T::StorageHandle::frozen_task();
