@@ -36,21 +36,17 @@ if [ "$RA_METHOD" = "dcap" ]; then
     echo "Dcap version found"
     rm -rf /opt/ceseal/releases/current/dcap-ver/data
     mv /opt/ceseal/releases/current/dcap-ver/* /opt/ceseal/releases/current/
-  else
-    echo "Dcap version not found but running with 'dcap' RA method. panic..."
-    exit 0
+    rm -rf /opt/ceseal/releases/current/dcap-ver
   fi
 else
   if [ -e "/opt/ceseal/releases/current/epid-ver" ]; then
     echo "Epid version found"
     rm -rf /opt/ceseal/releases/current/epid-ver/data
     mv /opt/ceseal/releases/current/epid-ver/* /opt/ceseal/releases/current/
-  else
-    echo "Epid version not found but running with 'epid' RA method. panic..."
-    exit 0
+    rm -rf /opt/ceseal/releases/current/epid-ver
   fi
 fi
 
 
-./handover
+./handover --ra-type=$RA_METHOD
 cd /opt/ceseal/releases/current && SKIP_AESMD=1 ./start.sh

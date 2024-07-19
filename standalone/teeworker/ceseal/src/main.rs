@@ -59,6 +59,8 @@ struct Args {
     #[arg(long)]
     request_handover_from: Option<String>,
 
+    #[arg(long)]
+    ra_type: Option<String>,
     /// Safe mode level
     ///
     /// - 0, All features enabled.
@@ -130,7 +132,6 @@ fn main() -> Result<()> {
 #[tracing::instrument(name = "main", skip_all)]
 async fn serve(sgx: bool, args: Args) -> Result<()> {
     info!(sgx, "Starting ceseal...");
-
     let sealing_path;
     let storage_path;
     if sgx {
@@ -153,7 +154,6 @@ async fn serve(sgx: bool, args: Args) -> Result<()> {
             fs::create_dir_all(p)?;
         }
     }
-
     let listener_addr = {
         let ip = args.address.as_ref().map_or("0.0.0.0", String::as_str);
         let port = args.port.unwrap_or(8000);
@@ -185,6 +185,7 @@ async fn serve(sgx: bool, args: Args) -> Result<()> {
             no_rcu: args.no_rcu,
             ra_timeout: args.ra_timeout,
             ra_max_retries: args.ra_max_retries,
+            ra_type: args.ra_type,
             role: args.role,
         }
     };

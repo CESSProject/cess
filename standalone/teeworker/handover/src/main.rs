@@ -117,7 +117,10 @@ async fn main() {
 
 	//start current version ceseal
 	let command = Command::new("/opt/ceseal/releases/current/gramine-sgx")
-		.args(&["ceseal", &format!("--request-handover-from=http://localhost:{}", args.previous_ceseal_port)])
+		.args(&["ceseal",
+		&format!("--request-handover-from=http://localhost:{}", args.previous_ceseal_port),
+		&format!("--ra-type={}", args.ra_type),
+		])
 		.current_dir(&args.current_version_ceseal_path)
 		.stdout(Stdio::piped())
 		.stderr(Stdio::piped())

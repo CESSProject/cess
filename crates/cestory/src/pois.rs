@@ -727,12 +727,6 @@ impl PoisVerifierApi for PoisVerifierServer {
         //Concatenate all hashes to calculate the total hash
         let mut total_proof_hash = vec![0u8; 32];
         total_proof_hasher.result(&mut total_proof_hash);
-        info!("-----------------------total_proof_hash:{:?}",total_proof_hash.clone());
-        info!("-----------------------front:{}",front);
-        info!("-----------------------rear:{}",rear);
-        info!("-----------------------acc:{:?}",acc.clone());
-        info!("-----------------------space_chals:{:?}",space_chals.clone());
-        info!("-----------------------result:{}",result);
 
         //compute signature
         let sig_struct = ResponseSpaceProofVerifyTotalSignatureMember {
