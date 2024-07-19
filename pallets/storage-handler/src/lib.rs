@@ -1167,7 +1167,6 @@ impl<T: Config> Pallet<T> {
         let now: BlockNumberFor<T> = <frame_system::Pallet<T>>::block_number();
         let mut weight: Weight = Weight::zero();
 
-        log::info!("Start lease expiration check");
         for (token, _) in <TerritoryFrozen<T>>::iter_prefix(&now) {
             weight = weight.saturating_add(T::DbWeight::get().reads(1 as u64));
             let result = <TerritoryKey<T>>::try_get(&token).map_err(|_| Error::<T>::Unexpected);
@@ -1215,7 +1214,6 @@ impl<T: Config> Pallet<T> {
             }
         }
 
-        log::info!("End lease expiration check");
         (weight, list)
     }
 }

@@ -569,6 +569,13 @@ pub mod pallet {
 			ensure!(is_positive, Error::<T>::MinerStateError);
 
 			let mut deal_info = <DealMap<T>>::try_get(&deal_hash).map_err(|_| Error::<T>::NonExistent)?;
+			let expired_flag = T::StorageHandle::check_expired(&deal_info.user.user, &deal_info.user.territory_name);
+			if expired_flag {
+				deal_info.force_unlock_space()?;
+				<DealMap<T>>::remove(deal_hash);
+				return Ok(());
+			}
+
 			Receptionist::<T>::qualification_report_processing(sender.clone(), deal_hash, &mut deal_info, index)?;
 
 			Self::deposit_event(Event::<T>::TransferReport{acc: sender, deal_hash: deal_hash});
