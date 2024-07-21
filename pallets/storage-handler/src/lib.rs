@@ -252,6 +252,8 @@ pub mod pallet {
         InvalidOrder,
         /// Unable to purchase own consignment
         OwnConsignment,
+        /// When casting a territory, it must be at least 30 days
+        BoundariesNotMet,
     }
 
     #[pallet::storage]
@@ -359,11 +361,13 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::mint_territory())]
 		pub fn mint_territory(
             origin: OriginFor<T>, 
-            gib_count: u32, 
+            gib_count: u32,
             territory_name: TerrName,
+            days: u32,
         ) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(!<Territory<T>>::contains_key(&sender, &territory_name), Error::<T>::PurchasedSpace);
+            ensure!(days >= 30, Error::<T>::BoundariesNotMet);
 
             let now = <frame_system::Pallet<T>>::block_number();
             let seed = (sender.clone(), now, territory_name.clone());
@@ -376,13 +380,15 @@ pub mod pallet {
             ensure!(!<TerritoryKey<T>>::contains_key(&token), Error::<T>::DuplicateTokens);
 
 			let space = G_BYTE.checked_mul(gib_count as u128).ok_or(Error::<T>::Overflow)?;
-			let unit_price = <UnitPrice<T>>::try_get()
-				.map_err(|_e| Error::<T>::BugInvalid)?;
-
-			Self::storage_territory(token, sender.clone(), space, 30, territory_name.clone())?;
+            let day_unit_price = <UnitPrice<T>>::try_get()
+				.map_err(|_e| Error::<T>::BugInvalid)?
+				.checked_div(&30u32.saturated_into()).ok_or(Error::<T>::Overflow)?;
+			Self::storage_territory(token, sender.clone(), space, days, territory_name.clone())?;
 			Self::add_purchased_space(space)?;
-			let price: BalanceOf<T> = unit_price
+			let price: BalanceOf<T> = day_unit_price
 				.checked_mul(&gib_count.saturated_into())
+				.ok_or(Error::<T>::Overflow)?
+                .checked_mul(&days.saturated_into())
 				.ok_or(Error::<T>::Overflow)?;
             
 			ensure!(
