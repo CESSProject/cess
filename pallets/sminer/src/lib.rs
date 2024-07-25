@@ -24,7 +24,7 @@ use frame_support::{
 		Currency,
 		ExistenceRequirement::KeepAlive,
 		Get, ReservableCurrency,
-		schedule::{self, Anon as ScheduleAnon, DispatchTime, Named as ScheduleNamed}, 
+		schedule::{self, v3::Anon as ScheduleAnon, DispatchTime, v3::Named as ScheduleNamed}, 
 	},
 	dispatch::DispatchResult,
 	pallet_prelude::DispatchError,
@@ -40,9 +40,7 @@ use sp_runtime::{
 };
 use sp_staking::StakingInterface;
 use sp_std::{convert::TryInto, prelude::*, marker::PhantomData};
-use sp_core::{
-	ConstU32,
-};
+use sp_core::ConstU32;
 use pallet_tee_worker::TeeWorkerHandler;
 use pallet_reservoir::ReservoirGate;
 use cp_bloom_filter::BloomFilter;
@@ -76,13 +74,14 @@ pub use weights::WeightInfo;
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> =
 	<<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type ProposalCallOf<T> = <T as pallet::Config>::SProposal;
 
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
 	use frame_support::{
 		pallet_prelude::{StorageValue, ValueQuery, *},
-		traits::Get, Blake2_128Concat,
+		traits::{Get, QueryPreimage, StorePreimage}, Blake2_128Concat,
 	};
 	use frame_system::{ensure_signed, pallet_prelude::*};
 
@@ -117,9 +116,9 @@ pub mod pallet {
 
 		type CessTreasuryHandle: TreasuryHandle<AccountOf<Self>, BalanceOf<Self>>;
 
-		type FScheduler: ScheduleNamed<BlockNumberFor<Self>, Self::SProposal, Self::SPalletsOrigin>;
+		type FScheduler: ScheduleNamed<BlockNumberFor<Self>, Self::SProposal, Self::SPalletsOrigin, Hasher = Self::Hashing>;
 
-		type AScheduler: ScheduleAnon<BlockNumberFor<Self>, Self::SProposal, Self::SPalletsOrigin>;
+		type AScheduler: ScheduleAnon<BlockNumberFor<Self>, Self::SProposal, Self::SPalletsOrigin, Hasher = Self::Hashing>;
 		/// Overarching type of all pallets origins.
 		type SPalletsOrigin: From<frame_system::RawOrigin<Self::AccountId>>;
 		/// The SProposal.
@@ -130,6 +129,9 @@ pub mod pallet {
 		type ReservoirGate: ReservoirGate<Self::AccountId, BalanceOf<Self>>;
 
 		type Staking: StakingInterface;
+
+		/// The preimage provider with which we look up call hashes to get the call.
+		type Preimages: QueryPreimage<H = Self::Hashing> + StorePreimage;
 	}
 
 	#[pallet::event]
@@ -686,14 +688,15 @@ pub mod pallet {
 
 			<MinerLock<T>>::insert(&miner, lock_time);
 
-			let task_id: Vec<u8> = miner.encode();
+			let task_id = miner.using_encoded(sp_io::hashing::blake2_256);			
+			let call = T::Preimages::bound(ProposalCallOf::<T>::from(Call::miner_exit { miner: miner.clone() } ))?;
 			T::FScheduler::schedule_named(
                 task_id,
                 DispatchTime::At(lock_time),
                 Option::None,
                 schedule::HARD_DEADLINE,
                 frame_system::RawOrigin::Root.into(),
-                Call::miner_exit{miner: miner.clone()}.into(), 
+                call, 
         	).map_err(|_| Error::<T>::Unexpected)?;
 
 			Self::deposit_event(Event::<T>::MinerExitPrep{ miner: miner });

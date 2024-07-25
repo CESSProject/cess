@@ -1606,6 +1606,7 @@ impl pallet_sminer::Config for Runtime {
 	type MaximumRelease = MaximumRelease;
 	type ReservoirGate = Reservoir;
 	type Staking = Staking;
+	type Preimages = Preimage;
 }
 
 parameter_types! {
@@ -2423,10 +2424,10 @@ impl_runtime_apis! {
 
 	//------------------------- CESS's begin -------------------------
 	impl ces_pallet_mq_runtime_api::MqApi<Block> for Runtime {
-        fn sender_sequence(sender: &ces_types::messaging::MessageOrigin) -> Option<u64> {
-            CesMq::offchain_ingress(sender)
-        }
-    }
+		fn sender_sequence(sender: &ces_types::messaging::MessageOrigin) -> Option<u64> {
+			CesMq::offchain_ingress(sender)
+		}
+	}
 	//------------------------- CESS's end -------------------------
 }
 
