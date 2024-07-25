@@ -295,6 +295,9 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type LastWork<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, BlockNumberFor<T>, ValueQuery>;
 
+	#[pallet::storage]
+	pub type LastRefresh<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, BlockNumberFor<T>, ValueQuery>;
+
 	/// Ceseals whoes version less than MinimumCesealVersion would be forced to quit.
 	#[pallet::storage]
 	pub type MinimumCesealVersion<T: Config> = StorageValue<_, (u32, u32, u32), ValueQuery>;
@@ -356,6 +359,9 @@ pub mod pallet {
 
 				Ok(())
 			})?;
+
+			let now = <frame_system::Pallet<T>>::block_number();
+			<LastRefresh<T>>::insert(&pubkey, now);
 
 			Self::deposit_event(Event::<T>::RefreshStatus {
 				pubkey,
@@ -470,6 +476,7 @@ pub mod pallet {
 			Workers::<T>::insert(&pubkey, worker_info);
 			let now = <frame_system::Pallet<T>>::block_number();
 			<LastWork<T>>::insert(&pubkey, now);
+			<LastRefresh<T>>::insert(&pubkey, now);
 
 			if ceseal_info.role == WorkerRole::Full || ceseal_info.role == WorkerRole::Verifier {
 				ValidationTypeList::<T>::mutate(|puk_list| -> DispatchResult {
@@ -544,6 +551,7 @@ pub mod pallet {
 			Workers::<T>::insert(&pubkey, worker_info);
 			let now = <frame_system::Pallet<T>>::block_number();
 			<LastWork<T>>::insert(&pubkey, now);
+			<LastRefresh<T>>::insert(&pubkey, now);
 
 			if ceseal_info.role == WorkerRole::Full || ceseal_info.role == WorkerRole::Verifier {
 				ValidationTypeList::<T>::mutate(|puk_list| -> DispatchResult {
