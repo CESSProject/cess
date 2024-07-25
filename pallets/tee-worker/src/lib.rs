@@ -148,6 +148,11 @@ pub mod pallet {
 			pubkey: WorkerPublicKey,
 		},
 
+		RefreshStatus {
+			pubkey: WorkerPublicKey,
+			level: u8,
+		},
+
 		MinimumCesealVersionChangedTo(u32, u32, u32),
 
 		CesealBinAdded(H256),
@@ -320,6 +325,45 @@ pub mod pallet {
 	where
 		T: ces_pallet_mq::Config,
 	{
+		#[pallet::call_index(1)]
+		#[pallet::weight({0})]
+		pub fn refresh_tee_status(
+			origin: OriginFor<T>,
+			ceseal_info: WorkerRegistrationInfo<T::AccountId>,
+			attestation: Box<Option<AttestationReport>>,
+		) -> DispatchResult {
+			ensure_signed(origin)?;
+			// Validate RA report & embedded user data
+			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
+			let runtime_info_hash = crate::hashing::blake2_256(&Encode::encode(&ceseal_info));
+			let attestation_report = attestation::validate(
+				*attestation,
+				&runtime_info_hash,
+				now,
+				T::VerifyCeseal::get(),
+				CesealBinAllowList::<T>::get(),
+				T::NoneAttestationEnabled::get(),
+			)
+			.map_err(Into::<Error<T>>::into)?;
+
+			// Update the registry
+			let pubkey = ceseal_info.pubkey;
+
+			Workers::<T>::try_mutate(&pubkey, |worker_opt| -> DispatchResult {
+				let worker = worker_opt.as_mut().ok_or(Error::<T>::NonTeeWorker)?;
+
+				worker.confidence_level = attestation_report.confidence_level;
+
+				Ok(())
+			})?;
+
+			Self::deposit_event(Event::<T>::RefreshStatus {
+				pubkey,
+				level: attestation_report.confidence_level,
+			});
+
+			Ok(())
+		}
 		/// Force register a worker with the given pubkey with sudo permission
 		///
 		/// For test only.
