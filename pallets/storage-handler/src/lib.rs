@@ -5,12 +5,12 @@ use frame_system::{
     pallet_prelude::*,
 };
 use frame_support::{
-    dispatch::{Parameter},
+    dispatch::Parameter,
     Blake2_128Concat, PalletId, weights::Weight, ensure, transactional,
     storage::bounded_vec::BoundedVec,
     traits::{
         StorageVersion, Currency, ReservableCurrency, Randomness, ExistenceRequirement::KeepAlive,
-        schedule::v3::{Named as ScheduleNamed},
+        schedule::v3::Named as ScheduleNamed,
         schedule, schedule::DispatchTime, QueryPreimage, StorePreimage,
     },
     pallet_prelude::*,
@@ -27,7 +27,7 @@ use sp_std::{convert::TryInto, prelude::*, str};
 use codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 use cp_cess_common::*;
-use pallet_cess_treasury::{TreasuryHandle};
+use pallet_cess_treasury::TreasuryHandle;
 use sp_core::H256;
 
 pub mod weights;
