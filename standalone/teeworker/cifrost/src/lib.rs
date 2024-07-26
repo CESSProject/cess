@@ -191,6 +191,36 @@ async fn try_register_worker(
     }
 }
 
+async fn try_update_worker_ra_report(
+    ceseal_client: &mut CesealClient,
+    chain_client: &ChainApi,
+    signer: &mut SrSigner,
+    operator: Option<AccountId32>,
+    longevity: u64,
+    tip: u128,
+) -> Result<bool> {
+    let info = ceseal_client
+        .get_runtime_info(crpc::GetRuntimeInfoRequest::new(false, operator))
+        .await?
+        .into_inner();
+    if let Some(attestation) = info.attestation {
+        info!("Registering worker...");
+        tx::update_worker_ra_report(
+            chain_client,
+            info.encoded_runtime_info,
+            attestation,
+            signer,
+            longevity,
+            tip,
+        )
+        .await?;
+        Ok(true)
+    } else {
+        info!("No attestation evidence from ceseal runtime_info!");
+        Ok(false)
+    }
+}
+
 async fn try_load_chain_state(
     pr: &mut CesealClient,
     chain_api: &ChainApi,
@@ -307,7 +337,7 @@ async fn bridge(
     let mut cc = CesealClient::connect(args.internal_endpoint.clone()).await?;
     let pair = <sr25519::Pair as Pair>::from_string(&args.mnemonic, None)
         .expect("Bad privkey derive path");
-    let mut signer = SrSigner::new(pair);
+    let mut signer = SrSigner::new(pair.clone());
 
     // Try to initialize Ceseal and register on-chain
     let info = cc.get_info(()).await?.into_inner();
@@ -344,6 +374,17 @@ async fn bridge(
         }
     }
 
+    //anyway update ceseal ra report even though not register
+    try_update_worker_ra_report(
+        &mut cc,
+        &chain_api,
+        &mut signer,
+        operator.clone(),
+        args.longevity,
+        args.tip,
+    )
+    .await?;
+
     if args.no_sync {
         let worker_pubkey = hex::decode(
             info.public_key()
@@ -375,6 +416,15 @@ async fn bridge(
     }
 
     block_subscribe::spawn_subscriber(&chain_api, cc.clone()).await?;
+
+    tokio::spawn(schedule_updates_ra_report(
+        cc.clone(),
+        chain_api.clone(),
+        pair.clone(),
+        operator.clone(),
+        args.longevity,
+        args.tip,
+    ));
 
     // Don't just sync message if we want to wait for some block
     let mut sync_state = BlockSyncState {
@@ -825,4 +875,28 @@ async fn bisec_setid_change(
     };
     debug!("bisec_setid_change result: {:?}", result);
     Ok(result)
+}
+
+async fn schedule_updates_ra_report(
+    cc: CesealClient,
+    chain_api: ChainApi,
+    pair: sr25519::Pair,
+    operator: Option<AccountId32>,
+    longevity: u64,
+    tip: u128,
+) -> Result<()> {
+    let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(86400));
+    let mut signer = SrSigner::new(pair.clone());
+    loop {
+        interval.tick().await;
+        try_update_worker_ra_report(
+            &mut cc.clone(),
+            &chain_api,
+            &mut signer,
+            operator.clone(),
+            longevity,
+            tip,
+        )
+        .await?;
+    }
 }
