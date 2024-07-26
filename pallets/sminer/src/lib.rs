@@ -17,38 +17,40 @@
 //! * `claim` - Claim the rewards from storage miner's earnings.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+use ces_types::{TeeSig, WorkerPublicKey};
+use codec::{Decode, Encode};
+use cp_bloom_filter::BloomFilter;
+use cp_cess_common::*;
 use frame_support::{
-	transactional, ensure,
-	storage::bounded_vec::BoundedVec, PalletId,
+	dispatch::DispatchResult,
+	ensure,
+	pallet_prelude::DispatchError,
+	storage::bounded_vec::BoundedVec,
 	traits::{
+		schedule::{
+			self,
+			v3::{Anon as ScheduleAnon, Named as ScheduleNamed},
+			DispatchTime,
+		},
 		Currency,
 		ExistenceRequirement::KeepAlive,
 		Get, ReservableCurrency,
-		schedule::{self, Anon as ScheduleAnon, DispatchTime, Named as ScheduleNamed}, 
 	},
-	dispatch::DispatchResult,
-	pallet_prelude::DispatchError,
+	transactional, PalletId,
 };
 use frame_system::pallet_prelude::BlockNumberFor;
-use cp_cess_common::*;
-use sp_runtime::traits::Zero;
-use codec::{Decode, Encode};
+use pallet_cess_treasury::{RewardPool, TreasuryHandle};
+use pallet_reservoir::ReservoirGate;
+use pallet_storage_handler::StorageHandle;
+use pallet_tee_worker::TeeWorkerHandler;
 use scale_info::TypeInfo;
+use sp_core::ConstU32;
 use sp_runtime::{
-	traits::{AccountIdConversion, CheckedAdd, CheckedSub, CheckedMul, Dispatchable, SaturatedConversion},
-	RuntimeDebug, Perbill
+	traits::{AccountIdConversion, CheckedAdd, CheckedMul, CheckedSub, Dispatchable, SaturatedConversion, Zero},
+	Perbill, RuntimeDebug,
 };
 use sp_staking::StakingInterface;
-use sp_std::{convert::TryInto, prelude::*, marker::PhantomData};
-use sp_core::{
-	ConstU32,
-};
-use pallet_tee_worker::TeeWorkerHandler;
-use pallet_reservoir::ReservoirGate;
-use cp_bloom_filter::BloomFilter;
-use pallet_storage_handler::StorageHandle;
-use pallet_cess_treasury::{RewardPool, TreasuryHandle};
-use ces_types::{WorkerPublicKey, TeeSig};
+use sp_std::{convert::TryInto, marker::PhantomData, prelude::*};
 
 pub use pallet::*;
 
@@ -74,15 +76,16 @@ pub mod weights;
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
-type BalanceOf<T> =
-	<<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type ProposalCallOf<T> = <T as pallet::Config>::SProposal;
 
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
 	use frame_support::{
 		pallet_prelude::{StorageValue, ValueQuery, *},
-		traits::Get, Blake2_128Concat,
+		traits::{Get, QueryPreimage, StorePreimage},
+		Blake2_128Concat,
 	};
 	use frame_system::{ensure_signed, pallet_prelude::*};
 
@@ -117,9 +120,19 @@ pub mod pallet {
 
 		type CessTreasuryHandle: TreasuryHandle<AccountOf<Self>, BalanceOf<Self>>;
 
-		type FScheduler: ScheduleNamed<BlockNumberFor<Self>, Self::SProposal, Self::SPalletsOrigin>;
+		type FScheduler: ScheduleNamed<
+			BlockNumberFor<Self>,
+			Self::SProposal,
+			Self::SPalletsOrigin,
+			Hasher = Self::Hashing,
+		>;
 
-		type AScheduler: ScheduleAnon<BlockNumberFor<Self>, Self::SProposal, Self::SPalletsOrigin>;
+		type AScheduler: ScheduleAnon<
+			BlockNumberFor<Self>,
+			Self::SProposal,
+			Self::SPalletsOrigin,
+			Hasher = Self::Hashing,
+		>;
 		/// Overarching type of all pallets origins.
 		type SPalletsOrigin: From<frame_system::RawOrigin<Self::AccountId>>;
 		/// The SProposal.
@@ -130,6 +143,9 @@ pub mod pallet {
 		type ReservoirGate: ReservoirGate<Self::AccountId, BalanceOf<Self>>;
 
 		type Staking: StakingInterface;
+
+		/// The preimage provider with which we look up call hashes to get the call.
+		type Preimages: QueryPreimage<H = Self::Hashing> + StorePreimage;
 	}
 
 	#[pallet::event]
@@ -179,11 +195,11 @@ pub mod pallet {
 			acc: AccountOf<T>,
 			reward: BalanceOf<T>,
 		},
-		MinerExitPrep{ 
+		MinerExitPrep {
 			miner: AccountOf<T>,
 		},
-		Withdraw { 
-			acc: AccountOf<T> 
+		Withdraw {
+			acc: AccountOf<T>,
 		},
 		IncreaseDeclarationSpace {
 			miner: AccountOf<T>,
@@ -209,9 +225,10 @@ pub mod pallet {
 		AlreadyFrozen,
 		/// The miner is not in a positive state and cannot perform this operation
 		NotpositiveState,
-		/// The capacity of Vec has reached the upper limit, making it impossible to register new miners. In theory, this error should not occur
+		/// The capacity of Vec has reached the upper limit, making it impossible to register new miners. In theory,
+		/// this error should not occur
 		StorageLimitReached,
-		/// Convert bounded vec error 
+		/// Convert bounded vec error
 		BoundedVecError,
 		/// The recording error of the faucet does not occur under normal circumstances
 		DataNotExist,
@@ -245,33 +262,21 @@ pub mod pallet {
 		WrongOrigin,
 		/// Exceeding the maximum release volume of the faucet in one day
 		ExceedRelease,
-		
 	}
 
 	/// The hashmap for info of storage miners.
 	#[pallet::storage]
 	#[pallet::getter(fn miner_items)]
-	pub(super) type MinerItems<T: Config> = CountedStorageMap<
-		_,
-		Blake2_128Concat,
-		T::AccountId,
-		MinerInfo<T>,
-	>;
+	pub(super) type MinerItems<T: Config> = CountedStorageMap<_, Blake2_128Concat, T::AccountId, MinerInfo<T>>;
 
 	/// Store all miner information
 	#[pallet::storage]
 	#[pallet::getter(fn miner_info)]
-	pub(super) type AllMiner<T: Config> =
-		StorageValue<_, BoundedVec<AccountOf<T>, T::ItemLimit>, ValueQuery>;
+	pub(super) type AllMiner<T: Config> = StorageValue<_, BoundedVec<AccountOf<T>, T::ItemLimit>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn reward_map)]
-	pub(super) type RewardMap<T: Config> = StorageMap<
-		_, 
-		Blake2_128Concat, 
-		AccountOf<T>, 
-		Reward<T>,
-	>;
+	pub(super) type RewardMap<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, Reward<T>>;
 
 	/// The hashmap for checking registered or not.
 	#[pallet::storage]
@@ -289,71 +294,58 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn miner_lock)]
-	pub(super) type MinerLock<T: Config> = 
-		StorageMap<_, Blake2_128Concat, AccountOf<T>, BlockNumberFor<T>>;
-	
+	pub(super) type MinerLock<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, BlockNumberFor<T>>;
+
 	#[pallet::storage]
 	#[pallet::getter(fn restoral_target)]
-	pub(super) type RestoralTarget<T: Config> = 
+	pub(super) type RestoralTarget<T: Config> =
 		StorageMap<_, Blake2_128Concat, AccountOf<T>, RestoralTargetInfo<AccountOf<T>, BlockNumberFor<T>>>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn staking_start_block)]
-	pub(super) type StakingStartBlock<T: Config> = 
-		StorageMap<_, Blake2_128Concat, AccountOf<T>, BlockNumberFor<T>>;
+	pub(super) type StakingStartBlock<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, BlockNumberFor<T>>;
 
-	
 	#[pallet::storage]
 	#[pallet::getter(fn pending_replacements)]
-		pub(super) type PendingReplacements<T: Config> = 
-			StorageMap<_, Blake2_128Concat, AccountOf<T>, u128, ValueQuery>;
+	pub(super) type PendingReplacements<T: Config> = StorageMap<_, Blake2_128Concat, AccountOf<T>, u128, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn facuet_release_record)]
-		pub(super) type FacuetReleaseRecord<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
-	
+	pub(super) type FacuetReleaseRecord<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+
 	#[pallet::storage]
 	#[pallet::getter(fn return_staking_schedule)]
-		pub(super) type ReturnStakingSchedule<T: Config> = 
-			StorageMap<
-				_,
-				Blake2_128Concat,
-				BlockNumberFor<T>,
-				BoundedVec<(AccountOf<T>, AccountOf<T>, BalanceOf<T>), T::ItemLimit>,
-				ValueQuery,
-			>;
-	
+	pub(super) type ReturnStakingSchedule<T: Config> = StorageMap<
+		_,
+		Blake2_128Concat,
+		BlockNumberFor<T>,
+		BoundedVec<(AccountOf<T>, AccountOf<T>, BalanceOf<T>), T::ItemLimit>,
+		ValueQuery,
+	>;
+
 	#[pallet::storage]
 	#[pallet::getter(fn complete_snap_shot)]
-		pub(super) type CompleteSnapShot<T: Config> = 
-			StorageMap<
-				_,
-				Blake2_128Concat,
-				u32,
-				CompleteInfo,
-				ValueQuery,
-			>;
-	
+	pub(super) type CompleteSnapShot<T: Config> = StorageMap<_, Blake2_128Concat, u32, CompleteInfo, ValueQuery>;
+
 	#[pallet::storage]
 	#[pallet::getter(fn complete_miner_snap_shot)]
-		pub(super) type CompleteMinerSnapShot<T: Config> = 
-			StorageMap<
-				_,
-				Blake2_128Concat,
-				AccountOf<T>,
-				BoundedVec<MinerCompleteInfo<BlockNumberFor<T>>, ConstU32<{RELEASE_NUMBER as u32}>>,
-				ValueQuery,
-			>;
+	pub(super) type CompleteMinerSnapShot<T: Config> = StorageMap<
+		_,
+		Blake2_128Concat,
+		AccountOf<T>,
+		BoundedVec<MinerCompleteInfo<BlockNumberFor<T>>, ConstU32<{ RELEASE_NUMBER as u32 }>>,
+		ValueQuery,
+	>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn facuet_whitelist)]
-		pub(super) type FacuetWhitelist<T: Config> = StorageValue<_, AccountOf<T>>;
+	pub(super) type FacuetWhitelist<T: Config> = StorageValue<_, AccountOf<T>>;
 
 	#[pallet::pallet]
 	pub struct Pallet<T>(_);
 
 	#[pallet::genesis_config]
-	pub struct GenesisConfig<T: Config>{
+	pub struct GenesisConfig<T: Config> {
 		pub expenders: (u64, u64, u64),
 		_marker: PhantomData<T>,
 	}
@@ -362,7 +354,7 @@ pub mod pallet {
 		fn default() -> Self {
 			Self {
 				// FOR TESTING
-				expenders: (80, 1024*1024, 64),
+				expenders: (80, 1024 * 1024, 64),
 				_marker: PhantomData,
 			}
 		}
@@ -401,12 +393,14 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Register as a Miner and Stake Collateral
 		///
-		/// This function allows an account to register as a Miner in the network and stake a certain amount of collateral to participate in the mining process. 
-		/// The registration also includes specifying a beneficiary account, providing a unique peer ID for network identification, 
-		/// and submitting a proof of space (PoS) key along with a TeeRSA signature for verification.
+		/// This function allows an account to register as a Miner in the network and stake a certain amount of
+		/// collateral to participate in the mining process. The registration also includes specifying a beneficiary
+		/// account, providing a unique peer ID for network identification, and submitting a proof of space (PoS) key
+		/// along with a TeeRSA signature for verification.
 		///
 		/// Parameters:
-		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically, this is the account that wishes to register as a Miner.
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically,
+		///   this is the account that wishes to register as a Miner.
 		/// - `beneficiary`: The account that will receive the rewards for mining.
 		/// - `peer_id`: A unique identifier for the Miner on the network.
 		/// - `staking_val`: The amount of collateral that the Miner is staking to participate in mining.
@@ -426,8 +420,12 @@ pub mod pallet {
 			ensure!(!(<MinerItems<T>>::contains_key(&sender)), Error::<T>::AlreadyRegistered);
 			let declaration_space = T_BYTE.checked_mul(tib_count as u128).ok_or(Error::<T>::Overflow)?;
 			let base_limit: BalanceOf<T> = Self::calculate_limit_by_space(declaration_space)?
-				.try_into().map_err(|_| Error::<T>::Overflow)?;
-			ensure!(staking_val >= base_limit.try_into().map_err(|_| Error::<T>::Overflow)?, Error::<T>::CollateralNotUp);
+				.try_into()
+				.map_err(|_| Error::<T>::Overflow)?;
+			ensure!(
+				staking_val >= base_limit.try_into().map_err(|_| Error::<T>::Overflow)?,
+				Error::<T>::CollateralNotUp
+			);
 			T::Currency::reserve(&sender, staking_val)?;
 
 			let now = <frame_system::Pallet<T>>::block_number();
@@ -438,15 +436,15 @@ pub mod pallet {
 				MinerInfo::<T> {
 					beneficiary: beneficiary.clone(),
 					staking_account: sender.clone(),
-					peer_id: peer_id,
+					peer_id,
 					collaterals: staking_val,
 					debt: BalanceOf::<T>::zero(),
 					state: Self::str_to_bound(STATE_NOT_READY)?,
-					declaration_space: declaration_space,
+					declaration_space,
 					idle_space: u128::MIN,
 					service_space: u128::MIN,
 					lock_space: u128::MIN,
-					space_proof_info: Option::None,			
+					space_proof_info: Option::None,
 					service_bloom_filter: Default::default(),
 					tee_signature: Default::default(), // sp_core::sr25519::Signature([0u8; 64]),
 				},
@@ -454,28 +452,29 @@ pub mod pallet {
 
 			RewardMap::<T>::insert(
 				&sender,
-				Reward::<T>{
+				Reward::<T> {
 					total_reward: 0u32.saturated_into(),
 					reward_issued: 0u32.saturated_into(),
-					order_list: Default::default()
+					order_list: Default::default(),
 				},
 			);
 
-			Self::deposit_event(Event::<T>::Registered {
-				acc: sender,
-			});
-			
+			Self::deposit_event(Event::<T>::Registered { acc: sender });
+
 			Ok(())
 		}
 
 		/// Increase Collateral and Update Miner's State
 		///
-		/// This function allows a registered Miner to increase their staked collateral. 
-		/// The additional collateral is used to support the Miner's participation in the network and may affect the Miner's state.
+		/// This function allows a registered Miner to increase their staked collateral.
+		/// The additional collateral is used to support the Miner's participation in the network and may affect the
+		/// Miner's state.
 		///
 		/// Parameters:
-		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically, this is the account that is a registered Miner.
-		/// - `collaterals`: The amount of additional collateral the Miner wants to stake. It is specified as a `BalanceOf<T>` value, typically a token balance(Miner's TCESS).
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically,
+		///   this is the account that is a registered Miner.
+		/// - `collaterals`: The amount of additional collateral the Miner wants to stake. It is specified as a
+		///   `BalanceOf<T>` value, typically a token balance(Miner's TCESS).
 		#[pallet::call_index(1)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::increase_collateral())]
@@ -495,7 +494,10 @@ pub mod pallet {
 				ensure!(miner_info.state.to_vec() != STATE_OFFLINE.as_bytes().to_vec(), Error::<T>::StateError);
 				ensure!(miner_info.state.to_vec() != STATE_LOCK.as_bytes().to_vec(), Error::<T>::StateError);
 				ensure!(miner_info.state.to_vec() != STATE_EXIT.as_bytes().to_vec(), Error::<T>::StateError);
-				ensure!(miner_info.staking_account == sender || miner_info.staking_account == spec_acc, Error::<T>::NotStakingAcc);
+				ensure!(
+					miner_info.staking_account == sender || miner_info.staking_account == spec_acc,
+					Error::<T>::NotStakingAcc
+				);
 
 				if miner_info.staking_account == spec_acc {
 					ensure!(sender == miner, Error::<T>::NotStakingAcc);
@@ -519,19 +521,19 @@ pub mod pallet {
 						} else {
 							T::CessTreasuryHandle::send_to_pid(sender.clone(), miner_info.debt)?;
 						}
-						
+
 						miner_info.debt = BalanceOf::<T>::zero();
 					}
 				}
 
-				miner_info.collaterals =
-					miner_info.collaterals.checked_add(&remaining).ok_or(Error::<T>::Overflow)?;
+				miner_info.collaterals = miner_info.collaterals.checked_add(&remaining).ok_or(Error::<T>::Overflow)?;
 
 				balance = miner_info.collaterals;
 
 				if miner_info.state == STATE_FROZEN.as_bytes().to_vec() {
 					let limit = Self::calculate_limit_by_space(miner_info.declaration_space)?
-						.try_into().map_err(|_| Error::<T>::Overflow)?;
+						.try_into()
+						.map_err(|_| Error::<T>::Overflow)?;
 					if miner_info.collaterals >= limit {
 						miner_info.state = Self::str_to_bound(STATE_POSITIVE)?;
 					}
@@ -546,7 +548,6 @@ pub mod pallet {
 					T::Currency::reserve(&sender, remaining)?;
 				}
 
-
 				Ok(())
 			})?;
 
@@ -556,19 +557,17 @@ pub mod pallet {
 
 		/// Update Miner's Beneficiary Account
 		///
-		/// This function allows a registered Miner to update their beneficiary account. 
+		/// This function allows a registered Miner to update their beneficiary account.
 		/// The beneficiary account is the recipient of the Miner's rewards and earnings from the network.
 		///
 		/// Parameters:
-		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically, this is the account that is a registered Miner.
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically,
+		///   this is the account that is a registered Miner.
 		/// - `beneficiary`: The new beneficiary account to be associated with the Miner.
 		#[pallet::call_index(2)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_beneficiary())]
-		pub fn update_beneficiary(
-			origin: OriginFor<T>,
-			beneficiary: AccountOf<T>,
-		) -> DispatchResult {
+		pub fn update_beneficiary(origin: OriginFor<T>, beneficiary: AccountOf<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
 
@@ -584,10 +583,12 @@ pub mod pallet {
 
 		/// Update Miner's Peer ID
 		///
-		/// This function allows a registered Miner to update their Peer ID, which is used for network communication and connectivity.
+		/// This function allows a registered Miner to update their Peer ID, which is used for network communication and
+		/// connectivity.
 		///
 		/// Parameters:
-		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically, this is the account that is a registered Miner.
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically,
+		///   this is the account that is a registered Miner.
 		/// - `peer_id`: The new Peer ID to be associated with the Miner for network communication.
 		#[pallet::call_index(3)]
 		#[transactional]
@@ -607,20 +608,18 @@ pub mod pallet {
 			Ok(())
 		}
 
-
 		/// Receive Miner's Reward
 		///
-		/// This function allows a registered Miner in a positive state to receive their available rewards from the reward pool. 
-		/// It transfers the rewards to the Miner's beneficiary.
+		/// This function allows a registered Miner in a positive state to receive their available rewards from the
+		/// reward pool. It transfers the rewards to the Miner's beneficiary.
 		///
 		/// Parameters:
-		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically, this is the account of a registered Miner.
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically,
+		///   this is the account of a registered Miner.
 		#[pallet::call_index(6)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::receive_reward(90))]
-		pub fn receive_reward(
-			origin: OriginFor<T>,
-		) -> DispatchResult {
+		pub fn receive_reward(origin: OriginFor<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
 			if let Ok(miner) = <MinerItems<T>>::try_get(&sender) {
@@ -637,20 +636,18 @@ pub mod pallet {
 
 		/// Prepare Miner Exit
 		///
-		/// This function allows a registered Miner to initiate the process of exiting the system gracefully. 
-		/// It transitions the Miner from a positive state to a locked state, effectively preparing for the exit. 
-		/// During the locked state, the Miner's resources will be locked for a specific period, 
+		/// This function allows a registered Miner to initiate the process of exiting the system gracefully.
+		/// It transitions the Miner from a positive state to a locked state, effectively preparing for the exit.
+		/// During the locked state, the Miner's resources will be locked for a specific period,
 		/// ensuring that they fulfill any existing challenges before they can exit completely.
 		///
 		/// Parameters:
-		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically, this is the account of a registered Miner.
+		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically,
+		///   this is the account of a registered Miner.
 		#[pallet::call_index(7)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::miner_exit_prep())]
-		pub fn miner_exit_prep(
-			origin: OriginFor<T>,
-			miner: AccountOf<T>,
-		) -> DispatchResult {
+		pub fn miner_exit_prep(origin: OriginFor<T>, miner: AccountOf<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 
 			let now = <frame_system::Pallet<T>>::block_number();
@@ -662,7 +659,6 @@ pub mod pallet {
 			ensure!(now > staking_start_block + staking_lock_block, Error::<T>::InsufficientStakingPeriod);
 
 			<MinerItems<T>>::try_mutate(&sender, |miner_info_opt| -> DispatchResult {
-
 				let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::NotExisted)?;
 				if (&sender != &miner) && (&sender != &miner_info.staking_account) {
 					Err(Error::<T>::NotStakingAcc)?;
@@ -681,31 +677,36 @@ pub mod pallet {
 			let now = <frame_system::Pallet<T>>::block_number();
 			// TODO! Develop a lock-in period based on the maximum duration of the current challenge
 			let lock_time = T::OneDayBlock::get()
-				.checked_mul(&15u32.saturated_into()).ok_or(Error::<T>::Overflow)?
-				.checked_add(&now).ok_or(Error::<T>::Overflow)?;
+				.checked_mul(&15u32.saturated_into())
+				.ok_or(Error::<T>::Overflow)?
+				.checked_add(&now)
+				.ok_or(Error::<T>::Overflow)?;
 
 			<MinerLock<T>>::insert(&miner, lock_time);
 
-			let task_id: Vec<u8> = miner.encode();
+			let task_id = miner.using_encoded(sp_io::hashing::blake2_256);
+			let call = T::Preimages::bound(ProposalCallOf::<T>::from(Call::miner_exit { miner: miner.clone() }))?;
 			T::FScheduler::schedule_named(
-                task_id,
-                DispatchTime::At(lock_time),
-                Option::None,
-                schedule::HARD_DEADLINE,
-                frame_system::RawOrigin::Root.into(),
-                Call::miner_exit{miner: miner.clone()}.into(), 
-        	).map_err(|_| Error::<T>::Unexpected)?;
+				task_id,
+				DispatchTime::At(lock_time),
+				Option::None,
+				schedule::HARD_DEADLINE,
+				frame_system::RawOrigin::Root.into(),
+				call,
+			)
+			.map_err(|_| Error::<T>::Unexpected)?;
 
-			Self::deposit_event(Event::<T>::MinerExitPrep{ miner: miner });
+			Self::deposit_event(Event::<T>::MinerExitPrep { miner });
 
 			Ok(())
 		}
 
 		/// Miner Exit
 		///
-		/// This function allows a privileged entity, typically a root user, 
-		/// to finalize the exit process for a Miner who has previously initiated the exit preparation using the `miner_exit_prep` function. 
-		/// It transitions the Miner from a locked state to an exited state, effectively allowing the Miner to leave the system gracefully.
+		/// This function allows a privileged entity, typically a root user,
+		/// to finalize the exit process for a Miner who has previously initiated the exit preparation using the
+		/// `miner_exit_prep` function. It transitions the Miner from a locked state to an exited state, effectively
+		/// allowing the Miner to leave the system gracefully.
 		///
 		/// Parameters:
 		/// - `origin`: The origin from which the function is called, ensuring the caller has root privileges.
@@ -713,14 +714,11 @@ pub mod pallet {
 		#[pallet::call_index(8)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::miner_exit())]
-		pub fn miner_exit(
-			origin: OriginFor<T>,
-			miner: AccountOf<T>,
-		) -> DispatchResult {
+		pub fn miner_exit(origin: OriginFor<T>, miner: AccountOf<T>) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
 			// judge lock state.
-			let miner_info = <MinerItems<T>>::try_get(&miner).map_err(|_| Error::<T>::NotExisted)?;	
+			let miner_info = <MinerItems<T>>::try_get(&miner).map_err(|_| Error::<T>::NotExisted)?;
 			ensure!(miner_info.state.to_vec() == STATE_LOCK.as_bytes().to_vec(), Error::<T>::StateError);
 			// sub network total idle space.
 
@@ -735,8 +733,8 @@ pub mod pallet {
 
 		/// Miner Withdraw
 		///
-		/// This function allows a Miner to withdraw their assets and rights from the network after their exit has been finalized, 
-		/// and any necessary cool-down period has passed.
+		/// This function allows a Miner to withdraw their assets and rights from the network after their exit has been
+		/// finalized, and any necessary cool-down period has passed.
 		///
 		/// Parameters:
 		/// - `origin`: The origin from which the function is called, representing the Miner's account.
@@ -755,13 +753,11 @@ pub mod pallet {
 
 			Self::withdraw(sender.clone())?;
 
-			Self::deposit_event(Event::<T>::Withdraw {
-				acc: sender,
-			});
+			Self::deposit_event(Event::<T>::Withdraw { acc: sender });
 
 			Ok(())
 		}
-		
+
 		/// Punish offline miners.
 		///
 		/// The dispatch origin of this call must be _root_.
@@ -800,7 +796,7 @@ pub mod pallet {
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::faucet())]
 		pub fn faucet(origin: OriginFor<T>, to: AccountOf<T>) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
-			
+
 			let white = <FacuetWhitelist<T>>::try_get().map_err(|_| Error::<T>::NotSetWhite)?;
 			ensure!(sender == white, Error::<T>::WrongOrigin);
 
@@ -809,24 +805,14 @@ pub mod pallet {
 			if !<FaucetRecordMap<T>>::contains_key(&to) {
 				<FaucetRecordMap<T>>::insert(
 					&to,
-					FaucetRecord::<BlockNumberFor<T>> {
-						last_claim_time: BlockNumberFor::<T>::from(0u32),
-					},
+					FaucetRecord::<BlockNumberFor<T>> { last_claim_time: BlockNumberFor::<T>::from(0u32) },
 				);
 
 				let now = <frame_system::Pallet<T>>::block_number();
 				let reward_pot = T::FaucetId::get().into_account_truncating();
 
-				<T as pallet::Config>::Currency::transfer(
-					&reward_pot,
-					&to,
-					facuet_value,
-					KeepAlive,
-				)?;
-				<FaucetRecordMap<T>>::insert(
-					&to,
-					FaucetRecord::<BlockNumberFor<T>> { last_claim_time: now },
-				);
+				<T as pallet::Config>::Currency::transfer(&reward_pot, &to, facuet_value, KeepAlive)?;
+				<FaucetRecordMap<T>>::insert(&to, FaucetRecord::<BlockNumberFor<T>> { last_claim_time: now });
 			} else {
 				let one_day: u32 = T::OneDayBlock::get().saturated_into();
 				let faucet_record = FaucetRecordMap::<T>::try_get(&to).map_err(|e| {
@@ -837,23 +823,16 @@ pub mod pallet {
 
 				let mut flag: bool = true;
 				if now >= one_day.into() {
-					if !(faucet_record.last_claim_time
-						<= now
-							.checked_sub(&BlockNumberFor::<T>::from(one_day))
+					if !(faucet_record.last_claim_time <=
+						now.checked_sub(&BlockNumberFor::<T>::from(one_day))
 							.ok_or(Error::<T>::Overflow)?)
 					{
-						Self::deposit_event(Event::<T>::LessThan24Hours {
-							last: faucet_record.last_claim_time,
-							now,
-						});
+						Self::deposit_event(Event::<T>::LessThan24Hours { last: faucet_record.last_claim_time, now });
 						flag = false;
 					}
 				} else {
 					if !(faucet_record.last_claim_time <= BlockNumberFor::<T>::from(0u32)) {
-						Self::deposit_event(Event::<T>::LessThan24Hours {
-							last: faucet_record.last_claim_time,
-							now,
-						});
+						Self::deposit_event(Event::<T>::LessThan24Hours { last: faucet_record.last_claim_time, now });
 						flag = false;
 					}
 				}
@@ -861,24 +840,17 @@ pub mod pallet {
 
 				let reward_pot = T::FaucetId::get().into_account_truncating();
 				<FacuetReleaseRecord<T>>::try_mutate(|release_amount| -> DispatchResult {
-					let max: BalanceOf<T> = T::MaximumRelease::get().try_into().map_err(|_| Error::<T>::ConversionError)?;
+					let max: BalanceOf<T> =
+						T::MaximumRelease::get().try_into().map_err(|_| Error::<T>::ConversionError)?;
 					*release_amount = release_amount.checked_add(&facuet_value).ok_or(Error::<T>::Overflow)?;
 					ensure!(*release_amount <= max, Error::<T>::ExceedRelease);
 
 					Ok(())
 				})?;
 
-				<T as pallet::Config>::Currency::transfer(
-					&reward_pot,
-					&to,
-					facuet_value,
-					KeepAlive,
-				)?;
+				<T as pallet::Config>::Currency::transfer(&reward_pot, &to, facuet_value, KeepAlive)?;
 
-				<FaucetRecordMap<T>>::insert(
-					&to,
-					FaucetRecord::<BlockNumberFor<T>> { last_claim_time: now },
-				);
+				<FaucetRecordMap<T>>::insert(&to, FaucetRecord::<BlockNumberFor<T>> { last_claim_time: now });
 			}
 
 			Self::deposit_event(Event::<T>::DrawFaucetMoney());
@@ -889,12 +861,7 @@ pub mod pallet {
 		#[pallet::call_index(15)]
 		#[transactional]
 		#[pallet::weight(Weight::zero())]
-		pub fn update_expender(
-			origin: OriginFor<T>, 
-			k: u64, 
-			n: u64, 
-			d: u64,
-		) -> DispatchResult {
+		pub fn update_expender(origin: OriginFor<T>, k: u64, n: u64, d: u64) -> DispatchResult {
 			let _ = ensure_root(origin)?;
 
 			Expenders::<T>::put((k, n, d));
@@ -906,11 +873,11 @@ pub mod pallet {
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::register_pois_key())]
 		pub fn register_pois_key(
-			origin: OriginFor<T>, 
+			origin: OriginFor<T>,
 			pois_key: PoISKey,
 			tee_sig_need_verify: BoundedVec<u8, ConstU32<64>>,
 			tee_sig: BoundedVec<u8, ConstU32<64>>,
-			tee_puk: WorkerPublicKey, 
+			tee_puk: WorkerPublicKey,
 		) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			// Because the next operation consumes system resources, make a judgment in advance.
@@ -932,18 +899,15 @@ pub mod pallet {
 			let original_text = sp_io::hashing::sha2_256(&original);
 			let master_puk = T::TeeWorkerHandler::get_master_publickey()?;
 
-			let sig = 
-				sp_core::sr25519::Signature::try_from(tee_sig_need_verify.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
+			let sig = sp_core::sr25519::Signature::try_from(tee_sig_need_verify.as_slice())
+				.or(Err(Error::<T>::MalformedSignature))?;
 
-			ensure!(
-				sp_io::crypto::sr25519_verify(&sig, &original_text, &master_puk),
-				Error::<T>::VerifyTeeSigFailed
-			);
+			ensure!(sp_io::crypto::sr25519_verify(&sig, &original_text, &master_puk), Error::<T>::VerifyTeeSigFailed);
 
 			let now = <frame_system::Pallet<T>>::block_number();
 			T::TeeWorkerHandler::update_work_block(now, &tee_puk)?;
 
-			let sig = 
+			let sig =
 				sp_core::sr25519::Signature::try_from(tee_sig.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
 
 			MinerPublicKey::<T>::insert(&original_text, sender.clone());
@@ -954,7 +918,8 @@ pub mod pallet {
 
 				miner_info.space_proof_info = Some(space_proof_info);
 				let base_limit: BalanceOf<T> = Self::calculate_limit_by_space(miner_info.declaration_space)?
-					.try_into().map_err(|_| Error::<T>::Overflow)?;
+					.try_into()
+					.map_err(|_| Error::<T>::Overflow)?;
 				if miner_info.collaterals >= base_limit {
 					miner_info.state = Self::str_to_bound(STATE_POSITIVE)?;
 				} else {
@@ -972,9 +937,7 @@ pub mod pallet {
 				Ok(())
 			})?;
 
-			Self::deposit_event(Event::<T>::RegisterPoisKey {
-				miner: sender,
-			});
+			Self::deposit_event(Event::<T>::RegisterPoisKey { miner: sender });
 
 			Ok(())
 		}
@@ -994,11 +957,13 @@ pub mod pallet {
 			let declaration_space = T_BYTE.checked_mul(tib_count as u128).ok_or(Error::<T>::Overflow)?;
 
 			let mut need_staking = BalanceOf::<T>::zero();
-			let spec_acc = T::ReservoirGate::get_reservoir_acc();			
+			let spec_acc = T::ReservoirGate::get_reservoir_acc();
 			if staking_account == spec_acc {
 				need_staking = (tib_count as u128)
-					.checked_mul(BASE_UNIT).ok_or(Error::<T>::Overflow)?
-					.try_into().map_err(|_| Error::<T>::Overflow)?;
+					.checked_mul(BASE_UNIT)
+					.ok_or(Error::<T>::Overflow)?
+					.try_into()
+					.map_err(|_| Error::<T>::Overflow)?;
 				T::ReservoirGate::check_qualification(&sender, need_staking)?;
 				T::ReservoirGate::staking(&sender, need_staking, true)?;
 				let now = <frame_system::Pallet<T>>::block_number();
@@ -1010,15 +975,15 @@ pub mod pallet {
 				MinerInfo::<T> {
 					beneficiary: beneficiary.clone(),
 					staking_account: staking_account.clone(),
-					peer_id: peer_id,
+					peer_id,
 					collaterals: need_staking,
 					debt: BalanceOf::<T>::zero(),
 					state: Self::str_to_bound(STATE_NOT_READY)?,
-					declaration_space: declaration_space,
+					declaration_space,
 					idle_space: u128::MIN,
 					service_space: u128::MIN,
 					lock_space: u128::MIN,
-					space_proof_info: Option::None,	
+					space_proof_info: Option::None,
 					service_bloom_filter: Default::default(),
 					tee_signature: Default::default(), // sp_core::sr25519::Signature([0u8; 64]),
 				},
@@ -1029,15 +994,13 @@ pub mod pallet {
 				Reward::<T> {
 					total_reward: 0u32.saturated_into(),
 					reward_issued: 0u32.saturated_into(),
-					
-					order_list: Default::default()
+
+					order_list: Default::default(),
 				},
 			);
 
-			Self::deposit_event(Event::<T>::Registered {
-				acc: sender,
-			});
-			
+			Self::deposit_event(Event::<T>::Registered { acc: sender });
+
 			Ok(())
 		}
 
@@ -1054,21 +1017,21 @@ pub mod pallet {
 				let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
 
 				ensure!(miner_info.state.to_vec() == STATE_POSITIVE.as_bytes().to_vec(), Error::<T>::StateError);
-				miner_info.declaration_space = miner_info.declaration_space
-					.checked_add(increase_space).ok_or(Error::<T>::Overflow)?;
+				miner_info.declaration_space = miner_info
+					.declaration_space
+					.checked_add(increase_space)
+					.ok_or(Error::<T>::Overflow)?;
 				let base_limit: BalanceOf<T> = Self::calculate_limit_by_space(miner_info.declaration_space)?
-					.try_into().map_err(|_| Error::<T>::Overflow)?;
+					.try_into()
+					.map_err(|_| Error::<T>::Overflow)?;
 				if base_limit > miner_info.collaterals {
 					miner_info.state = Self::str_to_bound(STATE_FROZEN)?;
 				}
-				
+
 				Ok(())
 			})?;
 
-			Self::deposit_event(Event::<T>::IncreaseDeclarationSpace {
-				miner: sender,
-				space: increase_space,
-			});
+			Self::deposit_event(Event::<T>::IncreaseDeclarationSpace { miner: sender, space: increase_space });
 
 			Ok(())
 		}
@@ -1105,9 +1068,21 @@ pub mod pallet {
 }
 
 pub trait MinerControl<AccountId, BlockNumber> {
-	fn add_miner_idle_space(acc: &AccountId, accumulator: Accumulator, check_front: u64, rear: u64, tee_sig: TeeSig) -> Result<u128, DispatchError>;
+	fn add_miner_idle_space(
+		acc: &AccountId,
+		accumulator: Accumulator,
+		check_front: u64,
+		rear: u64,
+		tee_sig: TeeSig,
+	) -> Result<u128, DispatchError>;
 	// fn sub_miner_idle_space(acc: &AccountId, accumulator: Accumulator, rear: u64) -> DispatchResult;
-	fn delete_idle_update_accu(acc: &AccountId, accumulator: Accumulator, front: u64, check_rear: u64, tee_sig: TeeSig) -> Result<u64, DispatchError>;
+	fn delete_idle_update_accu(
+		acc: &AccountId,
+		accumulator: Accumulator,
+		front: u64,
+		check_rear: u64,
+		tee_sig: TeeSig,
+	) -> Result<u64, DispatchError>;
 	fn delete_idle_update_space(acc: &AccountId, idle_space: u128) -> DispatchResult;
 	fn add_miner_service_space(acc: &AccountId, power: u128) -> DispatchResult;
 	fn sub_miner_service_space(acc: &AccountId, power: u128) -> DispatchResult;
@@ -1126,11 +1101,7 @@ pub trait MinerControl<AccountId, BlockNumber> {
 
 	fn get_miner_idle_space(acc: &AccountId) -> Result<u128, DispatchError>;
 	fn get_miner_count() -> u32;
-	fn record_snap_shot(
-		miner: &AccountId,
-		miner_idle_space: u128,
-		miner_service_space: u128,
-	) -> DispatchResult;
+	fn record_snap_shot(miner: &AccountId, miner_idle_space: u128, miner_service_space: u128) -> DispatchResult;
 
 	fn clear_punish(miner: &AccountId, idle_space: u128, service_space: u128, count: u8) -> DispatchResult;
 	fn idle_punish(miner: &AccountId, idle_space: u128, service_space: u128) -> DispatchResult;
@@ -1145,7 +1116,9 @@ pub trait MinerControl<AccountId, BlockNumber> {
 	fn is_lock(miner: &AccountId) -> Result<bool, DispatchError>;
 	fn update_miner_state(miner: &AccountId, state: &str) -> DispatchResult;
 	fn get_expenders() -> Result<(u64, u64, u64), DispatchError>;
-	fn get_miner_snapshot(miner: &AccountId) -> Result<(u128, u128, BloomFilter, SpaceProofInfo<AccountId>, TeeSig), DispatchError>;
+	fn get_miner_snapshot(
+		miner: &AccountId,
+	) -> Result<(u128, u128, BloomFilter, SpaceProofInfo<AccountId>, TeeSig), DispatchError>;
 
 	fn increase_replace_space(miner: &AccountId, space: u128) -> DispatchResult;
 	fn decrease_replace_space(miner: &AccountId, space: u128) -> DispatchResult;
@@ -1153,36 +1126,24 @@ pub trait MinerControl<AccountId, BlockNumber> {
 
 impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumberFor<T>> for Pallet<T> {
 	fn add_miner_idle_space(
-		acc: &<T as frame_system::Config>::AccountId, 
-		accumulator: Accumulator,  
+		acc: &<T as frame_system::Config>::AccountId,
+		accumulator: Accumulator,
 		check_front: u64,
-		rear: u64, 
+		rear: u64,
 		tee_sig: TeeSig,
 	) -> Result<u128, DispatchError> {
-		let idle_space = Pallet::<T>::add_miner_idle_space(
-			acc, 
-			accumulator, 
-			check_front,
-			rear, 
-			tee_sig
-		)?;
+		let idle_space = Pallet::<T>::add_miner_idle_space(acc, accumulator, check_front, rear, tee_sig)?;
 		Ok(idle_space)
 	}
 
 	fn delete_idle_update_accu(
-		acc: &AccountOf<T>, 
-		accumulator: Accumulator, 
+		acc: &AccountOf<T>,
+		accumulator: Accumulator,
 		front: u64,
 		check_rear: u64,
 		tee_sig: TeeSig,
 	) -> Result<u64, DispatchError> {
-		let count = Self::delete_idle_update_accu(
-			acc, 
-			accumulator, 
-			front, 
-			check_rear,
-			tee_sig
-		)?;
+		let count = Self::delete_idle_update_accu(acc, accumulator, front, check_rear, tee_sig)?;
 
 		Ok(count)
 	}
@@ -1201,9 +1162,7 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 		Ok(())
 	}
 
-	fn get_power(
-		acc: &AccountOf<T>,
-	) -> Result<(u128, u128), DispatchError> {
+	fn get_power(acc: &AccountOf<T>) -> Result<(u128, u128), DispatchError> {
 		if !<MinerItems<T>>::contains_key(acc) {
 			Err(Error::<T>::NotMiner)?;
 		}
@@ -1281,23 +1240,15 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 	fn get_miner_count() -> u32 {
 		<MinerItems<T>>::count()
 	}
-	
-	fn record_snap_shot(
-		miner: &AccountOf<T>,
-		miner_idle_space: u128,
-		miner_service_space: u128,
-	) -> DispatchResult {
+
+	fn record_snap_shot(miner: &AccountOf<T>, miner_idle_space: u128, miner_service_space: u128) -> DispatchResult {
 		let now = frame_system::Pallet::<T>::block_number();
 		let era = T::Staking::current_era();
 		let power = Self::calculate_power(miner_idle_space, miner_service_space);
 
 		<CompleteMinerSnapShot<T>>::mutate(miner, |miner_info_list| -> DispatchResult {
-			let snap_shot = MinerCompleteInfo::<BlockNumberFor<T>> {
-				era_index: era,
-				issued: false,
-				finsh_block: now,
-				power: power,
-			};
+			let snap_shot =
+				MinerCompleteInfo::<BlockNumberFor<T>> { era_index: era, issued: false, finsh_block: now, power };
 
 			if miner_info_list.len() == RELEASE_NUMBER as usize {
 				return Ok(())
@@ -1306,7 +1257,7 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 			<CompleteSnapShot<T>>::mutate(&era, |complete_info| -> DispatchResult {
 				complete_info.miner_count = complete_info.miner_count.checked_add(1).ok_or(Error::<T>::Overflow)?;
 				complete_info.total_power = complete_info.total_power.checked_add(power).ok_or(Error::<T>::Overflow)?;
-	
+
 				Ok(())
 			})?;
 
@@ -1318,28 +1269,15 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 		Ok(())
 	}
 
-	fn clear_punish(
-		miner: &AccountOf<T>, 
-		idle_space: u128, 
-		service_space: u128,
-		count: u8,
-	) -> DispatchResult {
+	fn clear_punish(miner: &AccountOf<T>, idle_space: u128, service_space: u128, count: u8) -> DispatchResult {
 		Self::clear_punish(miner, idle_space, service_space, count)
 	}
 
-	fn idle_punish(
-		miner: &AccountOf<T>, 
-		idle_space: u128, 
-		service_space: u128
-	) -> DispatchResult {
+	fn idle_punish(miner: &AccountOf<T>, idle_space: u128, service_space: u128) -> DispatchResult {
 		Self::idle_punish(miner, idle_space, service_space)
 	}
 
-	fn service_punish(
-		miner: &AccountOf<T>, 
-		idle_space: u128, 
-		service_space: u128
-	) -> DispatchResult {
+	fn service_punish(miner: &AccountOf<T>, idle_space: u128, service_space: u128) -> DispatchResult {
 		Self::service_punish(miner, idle_space, service_space)
 	}
 
@@ -1378,14 +1316,22 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 		Ok(expenders)
 	}
 
-	fn get_miner_snapshot(miner: &AccountOf<T>) -> Result<(u128, u128, BloomFilter, SpaceProofInfo<AccountOf<T>>, TeeSig), DispatchError> {
+	fn get_miner_snapshot(
+		miner: &AccountOf<T>,
+	) -> Result<(u128, u128, BloomFilter, SpaceProofInfo<AccountOf<T>>, TeeSig), DispatchError> {
 		if !<MinerItems<T>>::contains_key(miner) {
 			Err(Error::<T>::NotMiner)?;
 		}
 		//There is a judgment on whether the primary key exists above
 		let miner_info = <MinerItems<T>>::try_get(miner).map_err(|_| Error::<T>::NotMiner)?;
 		let space_proof_info = miner_info.space_proof_info.ok_or(Error::<T>::Unexpected)?;
-		Ok((miner_info.idle_space, miner_info.service_space, miner_info.service_bloom_filter, space_proof_info, miner_info.tee_signature))
+		Ok((
+			miner_info.idle_space,
+			miner_info.service_space,
+			miner_info.service_bloom_filter,
+			space_proof_info,
+			miner_info.tee_signature,
+		))
 	}
 
 	fn update_restoral_target(miner: &AccountOf<T>, service_space: u128) -> DispatchResult {
@@ -1398,8 +1344,7 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 
 	fn increase_replace_space(miner: &AccountOf<T>, space: u128) -> DispatchResult {
 		<PendingReplacements<T>>::try_mutate(&miner, |pending_space| -> DispatchResult {
-			*pending_space = pending_space
-                    .checked_add(space).ok_or(Error::<T>::Overflow)?;
+			*pending_space = pending_space.checked_add(space).ok_or(Error::<T>::Overflow)?;
 			Ok(())
 		})
 	}
@@ -1410,8 +1355,7 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 				Err(Error::<T>::InsufficientReplaceable)?;
 			}
 
-			*pending_space = pending_space
-                    .checked_sub(space).ok_or(Error::<T>::Overflow)?;
+			*pending_space = pending_space.checked_sub(space).ok_or(Error::<T>::Overflow)?;
 
 			Ok(())
 		})

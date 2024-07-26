@@ -13,8 +13,8 @@ use tokio::{
 #[tokio::main]
 async fn main() {
 	let args = Args::parse();
-	let mut current_version: u64 = 0;
-	let mut previous_version: u64 = 0;
+	let current_version: u64;
+	let previous_version: u64;
 	match tokio::fs::read_link(&args.current_version_ceseal_path).await {
 		Ok(real_path) =>
 			if let Some(path_str) = real_path.to_str() {
