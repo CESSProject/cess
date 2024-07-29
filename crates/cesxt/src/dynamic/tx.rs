@@ -53,6 +53,14 @@ pub fn register_worker(ceseal_info: Vec<u8>, attestation: Vec<u8>, v2: bool) -> 
     )
 }
 
+pub fn refresh_tee_status(ceseal_info: Vec<u8>, attestation: Vec<u8>) -> EncodedPayload {
+    EncodedPayload::new(
+        "TeeWorker",
+        "refresh_tee_status",
+        (Encoded(ceseal_info), Encoded(attestation)).encode(),
+    )
+}
+
 pub fn update_worker_endpoint(signed_endpoint: Vec<u8>, signature: Vec<u8>) -> EncodedPayload {
     let args = (Encoded(signed_endpoint), signature).encode();
     EncodedPayload::new("TeeWorker", "update_worker_endpoint", args)
