@@ -204,7 +204,6 @@ async fn try_update_worker_ra_report(
         .await?
         .into_inner();
     if let Some(attestation) = info.attestation {
-        info!("Registering worker...");
         tx::update_worker_ra_report(
             chain_client,
             info.encoded_runtime_info,
@@ -374,17 +373,6 @@ async fn bridge(
         }
     }
 
-    //anyway update ceseal ra report even though not register
-    try_update_worker_ra_report(
-        &mut cc,
-        &chain_api,
-        &mut signer,
-        operator.clone(),
-        args.longevity,
-        args.tip,
-    )
-    .await?;
-
     if args.no_sync {
         let worker_pubkey = hex::decode(
             info.public_key()
@@ -417,6 +405,7 @@ async fn bridge(
 
     block_subscribe::spawn_subscriber(&chain_api, cc.clone()).await?;
 
+    info!("Start updating ceseal's ra report task...");
     tokio::spawn(schedule_updates_ra_report(
         cc.clone(),
         chain_api.clone(),
@@ -885,11 +874,11 @@ async fn schedule_updates_ra_report(
     longevity: u64,
     tip: u128,
 ) -> Result<()> {
-    let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(86400));
+    let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(/*86400*/300));
     let mut signer = SrSigner::new(pair.clone());
     loop {
         interval.tick().await;
-        try_update_worker_ra_report(
+        match try_update_worker_ra_report(
             &mut cc.clone(),
             &chain_api,
             &mut signer,
@@ -897,6 +886,13 @@ async fn schedule_updates_ra_report(
             longevity,
             tip,
         )
-        .await?;
+        .await{
+            Ok(result) =>{
+                info!("Scheduled update ceseal ra report successfully!")
+            },
+            Err(error) => {
+                info!("can't update ceseal ra report because :{:?}",error.to_string())
+            },
+        };
     }
 }

@@ -142,7 +142,7 @@ pub struct Args {
     pub tip: u128,
 
     #[arg(
-        default_value = "4",
+        default_value = "16",
         long,
         help = "The transaction longevity, should be a power of two between 4 and 65536. unit: block"
     )]
