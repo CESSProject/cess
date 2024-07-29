@@ -24,10 +24,7 @@ use parity_scale_codec::Encode;
 use prost::Message;
 use rsa::pkcs1::EncodeRsaPublicKey;
 use sp_core::{crypto::AccountId32, sr25519, ByteArray};
-use std::{
-    fmt::{Debug, Display, Formatter},
-    time::Instant,
-};
+use std::{fmt::Debug, time::Instant};
 use tonic::{Request, Response, Status};
 use tracing::info;
 
@@ -753,21 +750,7 @@ impl PoisVerifierApi for PoisVerifierServer {
 }
 
 pub struct PoisChainApi {}
-pub struct ChainError {
-    error_msg: String,
-}
 
-impl Debug for ChainError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ChainError: {:?}", self.error_msg)
-    }
-}
-
-impl Display for ChainError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ChainError: {:?}", self.error_msg)
-    }
-}
 struct BlocksProof {
     left: i64,
     right: i64,
