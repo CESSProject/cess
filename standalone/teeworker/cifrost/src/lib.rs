@@ -874,7 +874,7 @@ async fn schedule_updates_ra_report(
     longevity: u64,
     tip: u128,
 ) -> Result<()> {
-    let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(/*86400*/300));
+    let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(86400));
     let mut signer = SrSigner::new(pair.clone());
     loop {
         interval.tick().await;
