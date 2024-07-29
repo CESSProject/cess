@@ -160,3 +160,69 @@ pub async fn register_worker(
     signer.increment_nonce();
     Ok(())
 }
+
+
+pub async fn update_worker_ra_report(
+    chain_api: &ChainApi,
+    encoded_runtime_info: Vec<u8>,
+    attestation: crpc::Attestation,
+    signer: &mut SrSigner,
+    longevity: u64,
+    tip:u128,
+) -> Result<()> {
+    chain_client::update_signer_nonce(chain_api, signer).await?;
+    let latest_block = chain_api.blocks().at_latest().await?;
+    let tx_params = Params::new()
+        .tip(tip)
+        .mortal(latest_block.header(), longevity)
+        .build();
+    debug!(
+        "tx mortal: (from: {:?}, for_blocks: {:?})",
+        latest_block.header().number,
+        longevity
+    );
+    let attestation = match attestation.payload {
+        Some(payload) => Attestation::SgxIas {
+            ra_report: payload.report.as_bytes().to_vec(),
+            signature: payload.signature,
+            raw_signing_cert: payload.signing_cert,
+        }
+        .encode(),
+        None => attestation.encoded_report,
+    };
+    debug!("encoded attestation: {}", hex::encode(&attestation));
+    let tx = cesxt::dynamic::tx::refresh_tee_status(encoded_runtime_info, attestation);
+
+    let encoded_call_data = tx
+        .encode_call_data(&chain_api.metadata())
+        .expect("should encoded");
+    debug!("register_worker call: 0x{}", hex::encode(encoded_call_data));
+
+    let ret = chain_api
+        .tx()
+        .create_signed_with_nonce(&tx, &signer.signer, signer.nonce(), tx_params)?
+        .submit_and_watch()
+        .await;
+    if ret.is_err() {
+        error!("FailedToCallRegisterWorker: {:?}", ret);
+        return Err(anyhow!(Error::FailedToCallRegisterWorker));
+    }
+    match ret.unwrap().wait_for_finalized_success().await {
+        Ok(e) => {
+            info!(
+                "Tee update ra report successful in block hash:{:?}, and the transaction hash is :{:?}",
+                e.block_hash(),
+                e.extrinsic_hash()
+            )
+        }
+        Err(e) => {
+            error!(
+                "Tee update ra report transaction has been finalized, but registration failed :{:?}",
+                e.to_string()
+            );
+            return Err(anyhow!(Error::FailedToCallRegisterWorker));
+        }
+    };
+    signer.increment_nonce();
+    Ok(())
+}

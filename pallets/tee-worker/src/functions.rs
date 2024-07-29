@@ -21,7 +21,8 @@ impl<T: Config> Pallet<T> {
 			if last_block.saturating_add(least) < now {
 				if let Ok(temp_weight) = Self::execute_exit(pubkey.clone()) {
 					weight.saturating_add(temp_weight);
-					LastWork::<T>::remove(pubkey);
+					LastWork::<T>::remove(pubkey.clone());
+					LastRefresh::<T>::remove(pubkey.clone());
 					Self::deposit_event(Event::<T>::ClearInvalidTee{ pubkey });
 				}
 			}
