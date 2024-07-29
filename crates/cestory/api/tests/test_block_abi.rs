@@ -9,8 +9,8 @@ fn travel_types<T: TypeInfo>() -> String {
 
 #[test]
 fn test_sync_blocks_abi_should_not_change() {
-    insta::assert_display_snapshot!(travel_types::<blocks::SyncHeaderReq>());
-    insta::assert_display_snapshot!(travel_types::<blocks::SyncParachainHeaderReq>());
-    insta::assert_display_snapshot!(travel_types::<blocks::SyncCombinedHeadersReq>());
-    insta::assert_display_snapshot!(travel_types::<blocks::DispatchBlockReq>());
+    insta::assert_snapshot!(travel_types::<blocks::SyncHeaderReq>());
+    insta::assert_snapshot!(travel_types::<blocks::SyncParachainHeaderReq>());
+    insta::assert_snapshot!(travel_types::<blocks::SyncCombinedHeadersReq>());
+    insta::assert_snapshot!(travel_types::<blocks::DispatchBlockReq>());
 }
