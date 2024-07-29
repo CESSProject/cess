@@ -315,7 +315,7 @@ fn show_type_changes_that_affect_the_checkpoint() {
         let _ = T::type_info().into_portable(&mut registry);
         serde_json::to_string_pretty(&PortableRegistry::from(registry).types).unwrap()
     }
-    insta::assert_display_snapshot!(travel_types::<Ceseal<()>>());
+    insta::assert_snapshot!(travel_types::<Ceseal<()>>());
 }
 
 impl<Platform: pal::Platform> Ceseal<Platform> {
