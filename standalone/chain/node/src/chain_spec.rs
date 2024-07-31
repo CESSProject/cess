@@ -199,8 +199,8 @@ fn cess_main_genesis() -> serde_json::Value {
 
 	// generated with secret: subkey inspect "$secret"/fir
 	let root_key: AccountId = array_bytes::hex_n_into_unchecked(
-		// cXffK7BmstE5rXcK8pxKLufkffp9iASMntxUm6ctpR6xS3icV
-		"1e3e1c69dfbd27d398e92da4844a9abdc2786ac01588d87a2e1f5ec06ea2a936",
+		// cXjubUUW33cMzWtA8XLsmZMLMU6yVKzoJzYtGPEjPBdbLacat
+		"da1393ab827176a08c6206fd92f82b84ccbac41681f0025b7e8a679ebbea212e",
 	);
 
 	let endowed_accounts: Vec<AccountId> = vec![
@@ -315,8 +315,8 @@ fn cess_testnet_config_genesis() -> serde_json::Value {
 
 	// generated with secret: subkey inspect "$secret"/fir
 	let root_key: AccountId = array_bytes::hex_n_into_unchecked(
-		// cXffK7BmstE5rXcK8pxKLufkffp9iASMntxUm6ctpR6xS3icV
-		"1e3e1c69dfbd27d398e92da4844a9abdc2786ac01588d87a2e1f5ec06ea2a936",
+		// cXjubUUW33cMzWtA8XLsmZMLMU6yVKzoJzYtGPEjPBdbLacat
+		"da1393ab827176a08c6206fd92f82b84ccbac41681f0025b7e8a679ebbea212e",
 	);
 
 	let endowed_accounts: Vec<AccountId> = vec![

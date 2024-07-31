@@ -325,7 +325,7 @@ pub mod pallet {
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(_now: BlockNumberFor<T>) -> Weight {
 			let mut weight: Weight = Weight::zero();
-			// FOR TESTING
+			
 			let (temp_weight, clear_list) = T::StorageHandle::frozen_task();
 			weight = weight.saturating_add(temp_weight);
 			let temp_acc_list: BoundedVec<(AccountOf<T>, TerrName), ConstU32<2000>> = 
