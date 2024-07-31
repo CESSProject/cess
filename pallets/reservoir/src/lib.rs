@@ -262,7 +262,7 @@ pub mod pallet {
 
         #[pallet::call_index(5)]
         #[pallet::weight(Weight::zero())]
-        pub fn attend_evnet(origin: OriginFor<T>, id: BoundedVec<u8, T::IdLength>) -> DispatchResult {
+        pub fn attend_event(origin: OriginFor<T>, id: BoundedVec<u8, T::IdLength>) -> DispatchResult {
             let sender = ensure_signed(origin)?;
             
             ensure!(Events::<T>::contains_key(&id), Error::<T>::IdNonExistent);
