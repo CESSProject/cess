@@ -1704,6 +1704,7 @@ dependencies = [
  "pallet-election-provider-support-benchmarking",
  "pallet-ethereum",
  "pallet-evm",
+ "pallet-evm-account-mapping",
  "pallet-evm-chain-id",
  "pallet-evm-precompile-modexp",
  "pallet-evm-precompile-sha3fips",

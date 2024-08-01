@@ -146,7 +146,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	// and set impl_version to 0. If only runtime
 	// implementation changes and behavior does not, then leave spec_version as
 	// is and increment impl_version.
-	spec_version: 100,
+	spec_version: 101,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -1406,6 +1406,9 @@ mod runtime {
 
 	#[runtime::pallet_index(110)]
 	pub type Reservoir = pallet_reservoir;
+
+	#[runtime::pallet_index(111)]
+	pub type EvmAccountMapping = pallet_evm_account_mapping;
 	//------------------- CESS's end ---------------------
 }
 
@@ -1530,8 +1533,37 @@ impl pallet_tee_worker::Config for Runtime {
 	type GovernanceOrigin = EnsureRootOrHalfCouncil;
 }
 
+pub struct DealWithServiceFee;
+impl OnUnbalanced<NegativeImbalance> for DealWithServiceFee {
+	fn on_nonzero_unbalanced(amount: NegativeImbalance) {
+		drop(amount);
+	}
+}
+
+parameter_types! {
+	pub EIP712Name: Vec<u8> = b"Substrate".to_vec();
+	pub EIP712Version: Vec<u8> = b"1".to_vec();
+	pub EIP712ChainID: pallet_evm_account_mapping::EIP712ChainID = sp_core::U256::from(0);
+	pub EIP712VerifyingContractAddress: pallet_evm_account_mapping::EIP712VerifyingContractAddress = sp_core::H160::from([0u8; 20]);
+}
+
+impl pallet_evm_account_mapping::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeCall = RuntimeCall;
+	type Currency = Balances;
+	type AddressConverter = pallet_evm_account_mapping::SubstrateAddressConverter;
+	type ServiceFee = ConstU128<10000000000>;
+	type OnUnbalancedForServiceFee = DealWithServiceFee;
+	type CallFilter = frame_support::traits::Everything;
+	type EIP712Name = EIP712Name;
+	type EIP712Version = EIP712Version;
+	type EIP712ChainID = EIP712ChainID;
+	type EIP712VerifyingContractAddress = EIP712VerifyingContractAddress;
+	type WeightInfo = pallet_evm_account_mapping::weights::SubstrateWeight<Runtime>;
+}
+
 pub const SEGMENT_COUNT: u32 = 1000;
-pub const FRAGMENT_COUNT: u32 = cp_cess_common::FRAGMENT_COUNT;
+pub const FRAGMENT_COUNT: u32 = cp_cess_common::FRAGMENT_COUNT; 
 
 parameter_types! {
 	pub const FilbakPalletId: PalletId = PalletId(*b"rewardpt");
