@@ -166,6 +166,20 @@ impl ChainApi {
         Ok(launched)
     }
 
+    pub async fn is_grandpa_note_stalled(&self) -> Result<bool> {
+        let key: Vec<Value> = vec![];
+        let address = subxt::dynamic::storage("TeeWorker", "NoteStalled", key);
+        let note_stalled = self
+            .storage()
+            .at_latest()
+            .await?
+            .fetch(&address)
+            .await
+            .context("Failed to get NoteStalled")?
+            .is_some();
+        Ok(note_stalled)
+    }
+
     async fn fetch<K: Encode, V: Decode>(
         &self,
         pallet: &str,
