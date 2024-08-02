@@ -168,6 +168,8 @@ message InitRuntimeRequest {
   // Attestation provider;
   // @codec scale ces_types::AttestationProvider
   optional bytes attestation_provider = 6;
+  // Has Granpa been note-stalled 
+  bool grandpa_note_stalled = 7;
 }
 
 // Request parameters for GetRuntimeInfo.

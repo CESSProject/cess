@@ -1036,7 +1036,7 @@ dependencies = [
 
 [[package]]
 name = "ceseal"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "anyhow",
  "base64 0.13.1",
@@ -1123,6 +1123,7 @@ dependencies = [
  "pallet-election-provider-support-benchmarking",
  "pallet-ethereum",
  "pallet-evm",
+ "pallet-evm-account-mapping",
  "pallet-evm-chain-id",
  "pallet-evm-precompile-modexp",
  "pallet-evm-precompile-sha3fips",
@@ -2102,6 +2103,20 @@ checksum = "534c5cf6194dfab3db3242765c03bbe257cf92f22b38f6bc0c58d59108a820ba"
 dependencies = [
  "libc",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "ethabi"
+version = "18.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7413c5f74cc903ea37386a8965a936cbeb334bd270862fdece542c1b2dcbc898"
+dependencies = [
+ "ethereum-types",
+ "hex",
+ "serde",
+ "sha3",
+ "thiserror",
+ "uint",
 ]
 
 [[package]]
@@ -4455,6 +4470,25 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "rlp",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std 14.0.0 (git+https://github.com/paritytech/polkadot-sdk.git?branch=release-polkadot-v1.10.1)",
+]
+
+[[package]]
+name = "pallet-evm-account-mapping"
+version = "0.0.1"
+dependencies = [
+ "ethabi",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "hex",
+ "log",
+ "pallet-transaction-payment",
+ "parity-scale-codec",
  "scale-info",
  "sp-core",
  "sp-io",

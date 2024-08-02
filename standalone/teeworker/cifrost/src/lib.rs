@@ -133,6 +133,7 @@ async fn init_runtime(
         info!("Inject key {}", DEV_KEY);
         debug_set_key = Some(hex::decode(DEV_KEY).expect("Invalid dev key"));
     }
+    let grandpa_note_stalled = chain_api.is_grandpa_note_stalled().await?;
 
     let resp = ceseal_client
         .init_runtime(crpc::InitRuntimeRequest::new(
@@ -142,6 +143,7 @@ async fn init_runtime(
             genesis_state,
             operator,
             attestation_provider,
+            grandpa_note_stalled,
         ))
         .await?;
     Ok(resp.into_inner())

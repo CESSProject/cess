@@ -89,6 +89,7 @@ pub struct LightValidation<T: Config> {
         deserialize = "BlockHeader: ::serde::de::DeserializeOwned"
     ))]
     tracked_bridges: BTreeMap<BridgeId, BridgeInfo<T>>,
+    grandpa_note_stalled: bool,
 }
 
 impl<T: Config> LightValidation<T>
@@ -97,7 +98,7 @@ where
 {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-        LightValidation { num_bridges: 0, tracked_bridges: BTreeMap::new() }
+        LightValidation { num_bridges: 0, tracked_bridges: BTreeMap::new(), grandpa_note_stalled: false }
     }
 
     pub fn initialize_bridge(
@@ -105,6 +106,7 @@ where
         block_header: BlockHeader,
         validator_set: AuthoritySet,
         proof: StorageProof,
+        grandpa_note_stalled: bool,
     ) -> Result<BridgeId> {
         let state_root = block_header.state_root();
 
@@ -117,7 +119,8 @@ where
         self.tracked_bridges.insert(new_bridge_id, bridge_info);
 
         self.num_bridges = new_bridge_id;
-
+        self.grandpa_note_stalled = grandpa_note_stalled;
+        
         Ok(new_bridge_id)
     }
 
@@ -150,13 +153,23 @@ where
         let voters = &bridge.current_set;
         let voter_set = VoterSet::new(voters.list.clone()).unwrap();
         let voter_set_id = voters.id;
-        verify_grandpa_proof::<<T as frame_system::Config>::Block>(
-            grandpa_proof,
-            block_hash,
-            block_num.into(),
+
+        // We don't really care about the justification, as long as it's valid
+        match GrandpaJustification::<<T as frame_system::Config>::Block>::decode_and_verify_finalizes(
+            &grandpa_proof,
+            (block_hash, block_num.into()),
             voter_set_id,
             &voter_set,
-        )?;
+            self.grandpa_note_stalled,
+        ) {
+            Ok(_) => {},
+            Err(JustificationError::JustificationDecode) if self.grandpa_note_stalled => {
+                log::debug!("grandpa_note_stalled is true, ignore JustificationDecode error");
+            },
+            Err(e) => {
+                return Err(anyhow::Error::msg(e));
+            },
+        }
 
         match self.tracked_bridges.get_mut(&bridge_id) {
             Some(bridge_info) => {
@@ -323,24 +336,6 @@ where
     }
 
     Err(anyhow::Error::msg(Error::InvalidAncestryProof))
-}
-
-fn verify_grandpa_proof<B>(
-    justification: EncodedJustification,
-    hash: B::Hash,
-    number: NumberFor<B>,
-    set_id: u64,
-    voters: &VoterSet<AuthorityId>,
-) -> Result<()>
-where
-    B: BlockT<Hash = H256>,
-    NumberFor<B>: finality_grandpa::BlockNumberOps,
-{
-    // We don't really care about the justification, as long as it's valid
-    let _ = GrandpaJustification::<B>::decode_and_verify_finalizes(&justification, (hash, number), set_id, voters)
-        .map_err(anyhow::Error::msg)?;
-
-    Ok(())
 }
 
 impl<T: Config> fmt::Debug for LightValidation<T> {

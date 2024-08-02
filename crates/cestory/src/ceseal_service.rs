@@ -202,6 +202,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
             request.decode_operator().map_err(to_status)?,
             request.debug_set_key.clone(),
             request.decode_attestation_provider().map_err(to_status)?,
+            request.grandpa_note_stalled,
         )?;
         Ok(Response::new(result))
     }
@@ -731,6 +732,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         operator: Option<chain::AccountId>,
         debug_set_key: ::core::option::Option<Vec<u8>>,
         attestation_provider: ::core::option::Option<AttestationProvider>,
+        grandpa_note_stalled: bool,
     ) -> CesealResult<pb::InitRuntimeResponse> {
         if self.system.is_some() {
             return Err(from_display("Runtime already initialized"))
@@ -791,7 +793,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         // Initialize bridge
         let mut light_client = LightValidation::new();
         let main_bridge = light_client
-            .initialize_bridge(genesis.block_header.clone(), genesis.authority_set, genesis.proof)
+            .initialize_bridge(genesis.block_header.clone(), genesis.authority_set, genesis.proof, grandpa_note_stalled)
             .expect("Bridge initialize failed");
 
         let storage_synchronizer = Synchronizer::new_solochain(light_client, main_bridge);

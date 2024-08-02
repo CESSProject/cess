@@ -126,6 +126,7 @@ impl crate::crpc::InitRuntimeRequest {
         genesis_state: crate::blocks::StorageState,
         operator: Option<chain::AccountId>,
         attestation_provider: Option<ces_types::AttestationProvider>,
+        grandpa_note_stalled: bool
     ) -> Self {
         Self {
             skip_ra,
@@ -134,6 +135,7 @@ impl crate::crpc::InitRuntimeRequest {
             encoded_genesis_state: genesis_state.encode(),
             encoded_operator: operator.map(|x| x.encode()),
             attestation_provider: attestation_provider.map(|x| x.encode()),
+            grandpa_note_stalled,
         }
     }
 }
