@@ -1,4 +1,4 @@
-# ![CESS](https://raw.githubusercontent.com/Cumulus2021/W3F-illustration/main/banner5.png)
+# ![CESS](https://github.com/CESSProject/doc-v2/blob/main/assets/introduction/banner.jpg)
 
 [![Substrate version](https://img.shields.io/badge/Substrate-3.0.0-blue?logo=Parity%20Substrate)](https://substrate.dev/) [![GitHub license](https://img.shields.io/badge/license-GPL3%2FApache2-blue)](#LICENSE)
 [![build-and-test](https://github.com/CESSProject/cess/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/CESSProject/cess/actions/workflows/build-and-test.yml)
