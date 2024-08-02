@@ -73,7 +73,7 @@ ces-mq = { workspace = true, features = [
 ces-pallet-mq = { workspace = true }
 ces-serde-more = { workspace = true }
 ces-trie-storage = { workspace = true }
-ces-types = { workspace = true, features = ["enable_serde", "sgx"] }
+ces-types = { workspace = true, features = ["enable_serde", "full_crypto"] }
 cestory-api = { workspace = true }
 cestory-pal = { workspace = true }
 pallet-tee-worker = { workspace = true }

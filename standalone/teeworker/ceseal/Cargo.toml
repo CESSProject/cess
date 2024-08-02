@@ -41,7 +41,7 @@ cestory-pal = { path = "../../../crates/cestory/pal" }
 ces-allocator = { path = "../../../crates/ces-allocator" }
 ces-types = { path = "../../../crates/ces-types", default-features = false, features = [
     "enable_serde",
-    "sgx",
+    "full_crypto",
 ] }
 sgx-api-lite = { path = "../../../crates/sgx-api-lite" }
 sgx-attestation = { path = "../../../crates/sgx-attestation", features = ["report"] }
