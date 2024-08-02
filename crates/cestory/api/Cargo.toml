@@ -25,7 +25,7 @@ im = { workspace = true }
 tonic = { workspace = true }
 
 ces-trie-storage = { workspace = true, features = ["serde"] }
-ces-types = { workspace = true, features = ["enable_serde", "sgx"] }
+ces-types = { workspace = true, features = ["enable_serde", "full_crypto"] }
 ces-crypto = { workspace = true }
 chain = { workspace = true }
 ces-mq = { workspace = true }
