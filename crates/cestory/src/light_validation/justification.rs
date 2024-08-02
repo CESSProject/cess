@@ -41,11 +41,12 @@ pub struct GrandpaJustification<Block: BlockT> {
     /// The GRANDPA justification for block finality.
     pub justification: sp_consensus_grandpa::GrandpaJustification<Block::Header>,
     _block: PhantomData<Block>,
+    grandpa_note_stalled: bool,
 }
 
 impl<Block: BlockT> From<sp_consensus_grandpa::GrandpaJustification<Block::Header>> for GrandpaJustification<Block> {
     fn from(justification: sp_consensus_grandpa::GrandpaJustification<Block::Header>) -> Self {
-        Self { justification, _block: Default::default() }
+        Self { justification, _block: Default::default(), grandpa_note_stalled: false }
     }
 }
 
@@ -64,15 +65,25 @@ impl<Block: BlockT> GrandpaJustification<Block> {
         finalized_target: (Block::Hash, NumberFor<Block>),
         set_id: u64,
         voters: &VoterSet<AuthorityId>,
+        grandpa_note_stalled: bool,
     ) -> Result<Self, ClientError>
     where
         NumberFor<Block>: finality_grandpa::BlockNumberOps,
     {
-        let justification =
-            GrandpaJustification::<Block>::decode(&mut &*encoded).map_err(|_| ClientError::JustificationDecode)?;
+        let mut justification = GrandpaJustification::<Block>::decode(&mut &*encoded).map_err(|e| {
+            log::error!(
+                "decode justification error:{:?}, block:{:?}, input(len:{}):{}",
+                e,
+                finalized_target.1,
+                encoded.len(),
+                hex::encode(encoded)
+            );
+            ClientError::JustificationDecode
+        })?;
+        justification.grandpa_note_stalled = grandpa_note_stalled;
 
-        if (justification.justification.commit.target_hash, justification.justification.commit.target_number) !=
-            finalized_target
+        if (justification.justification.commit.target_hash, justification.justification.commit.target_number)
+            != finalized_target
         {
             let msg = "invalid commit target in grandpa justification".to_string();
             Err(ClientError::BadJustification(msg))
@@ -92,8 +103,15 @@ impl<Block: BlockT> GrandpaJustification<Block> {
         match finality_grandpa::validate_commit(&self.justification.commit, voters, &ancestry_chain) {
             Ok(ref result) if result.is_valid() => {},
             _ => {
-                let msg = "invalid commit in grandpa justification".to_string();
-                return Err(ClientError::BadJustification(msg));
+                if self.grandpa_note_stalled {
+                    log::trace!(
+                        "invalid commit in grandpa justification. 
+                        this may be due to `sudo` executing `grandpa.noteStalled()`"
+                    );
+                } else {
+                    let msg = "invalid commit in grandpa justification".to_string();
+                    return Err(ClientError::BadJustification(msg));
+                }
             },
         }
 
@@ -126,10 +144,16 @@ impl<Block: BlockT> GrandpaJustification<Block> {
                 set_id,
                 &mut buf,
             ) {
-                log::trace!(
-                    "invalid signature for precommit in grandpa justification. 
-                    this may be due to `sudo` executing `grandpa.noteStalled()`"
-                );
+                if self.grandpa_note_stalled {
+                    log::trace!(
+                        "invalid signature for precommit in grandpa justification. 
+                        this may be due to `sudo` executing `grandpa.noteStalled()`"
+                    );
+                } else {
+                    return Err(ClientError::BadJustification(
+                        "invalid signature for precommit in grandpa justification".to_string(),
+                    ));
+                }
             }
 
             if base_hash == signed.precommit.target_hash {
@@ -145,10 +169,11 @@ impl<Block: BlockT> GrandpaJustification<Block> {
                         visited_hashes.insert(hash);
                     }
                 },
-                _ =>
+                _ => {
                     return Err(ClientError::BadJustification(
                         "invalid precommit ancestry proof in grandpa justification".to_string(),
-                    )),
+                    ))
+                },
             }
         }
 

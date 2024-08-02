@@ -302,6 +302,10 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type MinimumCesealVersion<T: Config> = StorageValue<_, (u32, u32, u32), ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn is_note_stalled)]
+	pub type NoteStalled<T: Config> = StorageValue<_, bool>;
+
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 	#[pallet::pallet]
@@ -758,6 +762,14 @@ pub mod pallet {
 
 			Self::execute_exit(puk)?;
 
+			Ok(())
+		}
+
+		#[pallet::call_index(118)]
+		#[pallet::weight({0})]
+		pub fn set_note_stalled(origin: OriginFor<T>, note_stalled: bool) -> DispatchResult {
+			ensure_root(origin)?;
+			NoteStalled::<T>::put(note_stalled);
 			Ok(())
 		}
 	}
