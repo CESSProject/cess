@@ -270,6 +270,9 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type OldMasterPubkey<T: Config> = StorageValue<_, MasterPublicKey>;
 
+	#[pallet::storage]
+	pub type OldMasterPubkeyList<T: Config> = StorageValue<_, Vec<MasterPublicKey>, ValueQuery>;
+
 	/// The block number and unix timestamp when the master-key is launched
 	#[pallet::storage]
 	pub type MasterKeyLaunchedAt<T: Config> = StorageValue<_, (BlockNumberFor<T>, u64)>;
@@ -443,7 +446,11 @@ pub mod pallet {
 
 			let old_pubkey = MasterPubkey::<T>::get().ok_or(Error::<T>::WorkerNotFound)?;
 			MasterKeyFirstHolder::<T>::kill();
-			OldMasterPubkey::<T>::put(old_pubkey);
+			let old_pubkey2 = OldMasterPubkey::<T>::get().ok_or(Error::<T>::WorkerNotFound)?;
+			OldMasterPubkeyList::<T>::mutate(|list| {
+				list.push(old_pubkey);
+				list.push(old_pubkey2);
+			});
 			MasterPubkey::<T>::kill();
 			Self::reset_keyfairy_channel_seq();
 
@@ -1017,13 +1024,16 @@ impl<T: Config> TeeWorkerHandler<AccountOf<T>, BlockNumberFor<T>> for Pallet<T> 
 			Err(_) => return false,
 		};
 
-		let old_pubkey = match <OldMasterPubkey<T>>::try_get().map_err(|_| Error::<T>::MasterKeyUninitialized) {
-			Ok(old_pubkey) => old_pubkey,
-			Err(_) => return false,
-		};
-
+		let mut flag = false;
+		let pubkey_list = OldMasterPubkeyList::<T>::get();
+		for pubkey in pubkey_list {
+			if sp_io::crypto::sr25519_verify(&sig, &hash, &pubkey) {
+				flag = true;
+				break;
+			}
+		}
 		
-		if sp_io::crypto::sr25519_verify(&sig, &hash, &cur_pubkey) || sp_io::crypto::sr25519_verify(&sig, &hash, &old_pubkey) {
+		if sp_io::crypto::sr25519_verify(&sig, &hash, &cur_pubkey) || flag {
 			return true;
 		}
 
