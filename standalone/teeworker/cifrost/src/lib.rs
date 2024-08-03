@@ -889,7 +889,7 @@ async fn schedule_updates_ra_report(
             tip,
         )
         .await{
-            Ok(result) =>{
+            Ok(_) =>{
                 info!("Scheduled update ceseal ra report successfully!")
             },
             Err(error) => {
