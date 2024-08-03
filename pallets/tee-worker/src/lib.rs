@@ -41,6 +41,8 @@ use sp_io::hashing;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 
+type SHA256 = [u8; 32];
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -265,6 +267,9 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type MasterPubkey<T: Config> = StorageValue<_, MasterPublicKey>;
 
+	#[pallet::storage]
+	pub type OldMasterPubkey<T: Config> = StorageValue<_, MasterPublicKey>;
+
 	/// The block number and unix timestamp when the master-key is launched
 	#[pallet::storage]
 	pub type MasterKeyLaunchedAt<T: Config> = StorageValue<_, (BlockNumberFor<T>, u64)>;
@@ -425,6 +430,22 @@ pub mod pallet {
 			Self::push_message(MasterKeyLaunch::launch_request(worker_pubkey, worker_info.ecdh_pubkey));
 			// wait for the lead worker to upload the master pubkey
 			Self::deposit_event(Event::<T>::MasterKeyLaunching { holder: worker_pubkey });
+			Ok(())
+		}
+
+		#[pallet::call_index(14)]
+		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
+		pub fn clear_master_key(origin: OriginFor<T>) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+
+			ensure!(MasterPubkey::<T>::get().is_some(), Error::<T>::MasterKeyAlreadyLaunched);
+			ensure!(MasterKeyFirstHolder::<T>::get().is_some(), Error::<T>::MasterKeyLaunching);
+
+			let old_pubkey = MasterPubkey::<T>::get().ok_or(Error::<T>::WorkerNotFound)?;
+			MasterKeyFirstHolder::<T>::kill();
+			OldMasterPubkey::<T>::put(old_pubkey);
+			MasterPubkey::<T>::kill();
+
 			Ok(())
 		}
 
@@ -911,8 +932,8 @@ pub trait TeeWorkerHandler<AccountId, Block> {
 	fn get_stash(pbk: &WorkerPublicKey) -> Result<AccountId, DispatchError>;
 	fn punish_scheduler(pbk: WorkerPublicKey) -> DispatchResult;
 	fn get_pubkey_list() -> Vec<WorkerPublicKey>; // get_controller_list
-	fn get_master_publickey() -> Result<MasterPublicKey, DispatchError>;
 	fn update_work_block(now: Block, pbk: &WorkerPublicKey) -> DispatchResult;
+	fn verify_master_sig(sig: &sp_core::sr25519::Signature, hash: SHA256) -> bool;
 }
 
 impl<T: Config> TeeWorkerHandler<AccountOf<T>, BlockNumberFor<T>> for Pallet<T> {
@@ -985,10 +1006,23 @@ impl<T: Config> TeeWorkerHandler<AccountOf<T>, BlockNumberFor<T>> for Pallet<T> 
 		acc_list
 	}
 
-	fn get_master_publickey() -> Result<MasterPublicKey, DispatchError> {
-		let pk = MasterPubkey::<T>::try_get().map_err(|_| Error::<T>::MasterKeyUninitialized)?;
+	fn verify_master_sig(sig: &sp_core::sr25519::Signature, hash: SHA256)  -> bool {
+		let cur_pubkey = match <MasterPubkey<T>>::try_get().map_err(|_| Error::<T>::MasterKeyUninitialized) {
+			Ok(cur_pubkey) => cur_pubkey,
+			Err(_) => return false,
+		};
 
-		Ok(pk)
+		let old_pubkey = match <OldMasterPubkey<T>>::try_get().map_err(|_| Error::<T>::MasterKeyUninitialized) {
+			Ok(old_pubkey) => old_pubkey,
+			Err(_) => return false,
+		};
+
+		
+		if sp_io::crypto::sr25519_verify(&sig, &hash, &cur_pubkey) || sp_io::crypto::sr25519_verify(&sig, &hash, &old_pubkey) {
+			return true;
+		}
+
+		false
 	}
 
 	fn update_work_block(now: BlockNumberFor<T>, pbk: &WorkerPublicKey) -> DispatchResult {

@@ -501,15 +501,14 @@ pub mod pallet {
 					result: idle_result,
 					tee_puk: tee_puk.clone(),
 				};
-
-				let master_puk = T::TeeWorkerHandler::get_master_publickey()?;
+				
 				let encoding = verify_idle_info.encode();
 				let hashing = sp_io::hashing::sha2_256(&encoding);
 				let sig = 
 					sp_core::sr25519::Signature::try_from(signature.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
-
+					
 				ensure!(
-					sp_io::crypto::sr25519_verify(&sig, &hashing, &master_puk),
+					T::TeeWorkerHandler::verify_master_sig(&sig, hashing),
 					Error::<T>::VerifyTeeSigFailed
 				);
 
@@ -634,14 +633,13 @@ pub mod pallet {
 					service_bloom_filter: s_service_bloom_filter,
 				};
 
-				let master_puk = T::TeeWorkerHandler::get_master_publickey()?;
 				let encoding = verify_service_info.encode();
 				let hashing = sp_io::hashing::sha2_256(&encoding);
 				let sig = 
 					sp_core::sr25519::Signature::try_from(signature.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
 
 				ensure!(
-					sp_io::crypto::sr25519_verify(&sig, &hashing, &master_puk),
+					T::TeeWorkerHandler::verify_master_sig(&sig, hashing),
 					Error::<T>::VerifyTeeSigFailed
 				);
 

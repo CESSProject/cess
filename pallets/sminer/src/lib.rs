@@ -897,12 +897,14 @@ pub mod pallet {
 			original.extend_from_slice(&encoding);
 			original.extend_from_slice(&tee_puk_encode);
 			let original_text = sp_io::hashing::sha2_256(&original);
-			let master_puk = T::TeeWorkerHandler::get_master_publickey()?;
 
 			let sig = sp_core::sr25519::Signature::try_from(tee_sig_need_verify.as_slice())
 				.or(Err(Error::<T>::MalformedSignature))?;
 
-			ensure!(sp_io::crypto::sr25519_verify(&sig, &original_text, &master_puk), Error::<T>::VerifyTeeSigFailed);
+			ensure!(
+				T::TeeWorkerHandler::verify_master_sig(&sig, original_text.clone()),
+				Error::<T>::VerifyTeeSigFailed
+			);
 
 			let now = <frame_system::Pallet<T>>::block_number();
 			T::TeeWorkerHandler::update_work_block(now, &tee_puk)?;
