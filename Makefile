@@ -1,5 +1,13 @@
 BUILD?=release
-XARGS =
+OA?=1
+VC?=1
+XARGS=
+DEV=
+ifeq ($(DEV),1)
+	OA=0
+	VC=0
+	BUILD=debug
+endif
 ifeq ($(BUILD),release)
 	XARGS = --release
 endif

@@ -11,7 +11,7 @@ image_id=
 image_tag=
 publish=0
 OA=1
-VC=0
+VC=1
 
 function usage() {
     cat <<EOF
@@ -27,7 +27,7 @@ Options:
     -t <image tag>  specific the tag name of the image, exclusion from option -s
     -x <proxy address>  use proxy access network in build
     -o <enable 'only-attestation' feature to build>  options: 1(default) or 0
-    -v <enable 'verify-cesealbin' feature to build>  options: 1 or 0(default)
+    -v <enable 'verify-cesealbin' feature to build>  options: 1(default) or 0
     -m <method of ceseal attestation> options:dcap or epid(default)
     -l <docker build runtime log print out> options: 1 or 0(default)
     -c <ceseal build version>  8-digit integer, date +%y%m%d%H for default value
