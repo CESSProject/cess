@@ -445,6 +445,7 @@ pub mod pallet {
 			MasterKeyFirstHolder::<T>::kill();
 			OldMasterPubkey::<T>::put(old_pubkey);
 			MasterPubkey::<T>::kill();
+			Self::reset_keyfairy_channel_seq();
 
 			Ok(())
 		}
@@ -838,6 +839,10 @@ pub mod pallet {
 			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
 			MasterKeyLaunchedAt::<T>::put((block_number, now));
 			Self::deposit_event(Event::<T>::MasterKeyLaunched);
+		}
+
+		fn reset_keyfairy_channel_seq() {
+			Self::reset_ingress_channel_seq(MessageOrigin::Keyfairy);
 		}
 	}
 
