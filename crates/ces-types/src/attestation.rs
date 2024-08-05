@@ -67,15 +67,8 @@ fn fixed_measurement(mr_enclave: &[u8], isv_prod_id: &[u8], isv_svn: &[u8], mr_s
 	data
 }
 
-#[cfg(feature = "full_crypto")]
 fn fixed_measurement_hash(data: &[u8]) -> H256 {
-	H256(sp_core::blake2_256(data))
-}
-
-#[cfg(not(feature = "full_crypto"))]
-fn fixed_measurement_hash(_data: &[u8]) -> H256 {
-	log::error!("The measurement hash must be in SGX enviroment with \"full_crypto\" feature, now return zero");
-	H256::default()
+	H256(sp_crypto_hashing::blake2_256(data))
 }
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]

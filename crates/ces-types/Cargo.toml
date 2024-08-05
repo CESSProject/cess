@@ -14,6 +14,7 @@ serde = { workspace = true, optional = true }
 serde_json = { workspace = true, features = ["alloc"] }
 sp-core = { workspace = true }
 sp-std = { workspace = true }
+sp-crypto-hashing = { workspace = true }
 
 ces-mq = { workspace = true  }
 sgx-attestation = { workspace = true, features = ["verify"] }
@@ -40,9 +41,6 @@ enable_serde = [
 	"serde/derive",
 	"serde/alloc",
 	"scale-info/serde",
-]
-sgx = [
-	"full_crypto",
 ]
 full_crypto = [
 	"sp-core/full_crypto",

@@ -1,4 +1,6 @@
 BUILD?=release
+OA?=1
+VC?=1
 ifeq ($(BUILD),release)
 	XARGS=--release
 endif
