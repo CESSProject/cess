@@ -180,6 +180,10 @@ pub mod pallet {
 		pub fn offchain_ingress(sender: &MessageOrigin) -> Option<u64> {
 			OffchainIngress::<T>::get(sender)
 		}
+
+		pub fn reset_ingress_channel_seq(sender: MessageOrigin) {
+			OffchainIngress::<T>::remove(sender);
+		}
 	}
 
 	#[pallet::hooks]
@@ -262,6 +266,10 @@ pub mod pallet {
 		/// Enqueues a message to push in the beginning of the next block
 		fn queue_message(payload: impl Encode + BindTopic) {
 			Pallet::<Self::Config>::queue_bound_message(Self::message_origin(), payload);
+		}
+
+		fn reset_ingress_channel_seq(sender: MessageOrigin) {
+			Pallet::<Self::Config>::reset_ingress_channel_seq(sender);
 		}
 	}
 

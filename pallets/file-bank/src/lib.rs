@@ -594,13 +594,12 @@ pub mod pallet {
 
 			let idle_sig_info_encode = tag_sig_info.encode();
 			let original = sp_io::hashing::sha2_256(&idle_sig_info_encode);
-			let master_puk = T::TeeWorkerHandler::get_master_publickey()?;
 
 			let sig = 
 				sp_core::sr25519::Signature::try_from(tee_sig.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
 
 			ensure!(
-				sp_io::crypto::sr25519_verify(&sig, &original, &master_puk),
+				T::TeeWorkerHandler::verify_master_sig(&sig, original),
 				Error::<T>::VerifyTeeSigFailed
 			);
 			ensure!(tag_sig_info.miner == sender, Error::<T>::MinerError);
@@ -721,13 +720,12 @@ pub mod pallet {
 			original.extend_from_slice(&idle_sig_info_encode);
 			original.extend_from_slice(&tee_puk_encode);
 			let original = sp_io::hashing::sha2_256(&original);
-			let master_puk = T::TeeWorkerHandler::get_master_publickey()?;
 
 			let sig = 
 				sp_core::sr25519::Signature::try_from(tee_sig_need_verify.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
 
 			ensure!(
-				sp_io::crypto::sr25519_verify(&sig, &original, &master_puk),
+				T::TeeWorkerHandler::verify_master_sig(&sig, original),
 				Error::<T>::VerifyTeeSigFailed
 			);
 
@@ -816,13 +814,11 @@ pub mod pallet {
 			original.extend_from_slice(&tee_puk_encode);
 			let original = sp_io::hashing::sha2_256(&original);
 
-			let master_puk = T::TeeWorkerHandler::get_master_publickey()?;
-
 			let sig = 
 				sp_core::sr25519::Signature::try_from(tee_sig_need_verify.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
 
 			ensure!(
-				sp_io::crypto::sr25519_verify(&sig, &original, &master_puk),
+				T::TeeWorkerHandler::verify_master_sig(&sig, original),
 				Error::<T>::VerifyTeeSigFailed
 			);
 
@@ -1181,9 +1177,9 @@ pub mod pallet {
 			let _ = ensure_root(origin)?;
 
 			let file = <File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::NonExistent)?;
+			let _ = Self::delete_user_file(&file_hash, &owner, &file)?;
 			Self::bucket_remove_file(&file_hash, &owner, &file)?;
 			Self::remove_user_hold_file_list(&file_hash, &owner)?;
-			<File<T>>::remove(file_hash);
 
 			Ok(())
 		}

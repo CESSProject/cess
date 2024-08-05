@@ -41,6 +41,8 @@ use sp_io::hashing;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 
+type SHA256 = [u8; 32];
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -265,6 +267,12 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type MasterPubkey<T: Config> = StorageValue<_, MasterPublicKey>;
 
+	#[pallet::storage]
+	pub type OldMasterPubkey<T: Config> = StorageValue<_, MasterPublicKey>;
+
+	#[pallet::storage]
+	pub type OldMasterPubkeyList<T: Config> = StorageValue<_, Vec<MasterPublicKey>, ValueQuery>;
+
 	/// The block number and unix timestamp when the master-key is launched
 	#[pallet::storage]
 	pub type MasterKeyLaunchedAt<T: Config> = StorageValue<_, (BlockNumberFor<T>, u64)>;
@@ -425,6 +433,27 @@ pub mod pallet {
 			Self::push_message(MasterKeyLaunch::launch_request(worker_pubkey, worker_info.ecdh_pubkey));
 			// wait for the lead worker to upload the master pubkey
 			Self::deposit_event(Event::<T>::MasterKeyLaunching { holder: worker_pubkey });
+			Ok(())
+		}
+
+		#[pallet::call_index(14)]
+		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
+		pub fn clear_master_key(origin: OriginFor<T>) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+
+			ensure!(MasterPubkey::<T>::get().is_some(), Error::<T>::MasterKeyAlreadyLaunched);
+			ensure!(MasterKeyFirstHolder::<T>::get().is_some(), Error::<T>::MasterKeyLaunching);
+
+			let old_pubkey = MasterPubkey::<T>::get().ok_or(Error::<T>::WorkerNotFound)?;
+			MasterKeyFirstHolder::<T>::kill();
+			let old_pubkey2 = OldMasterPubkey::<T>::get().ok_or(Error::<T>::WorkerNotFound)?;
+			OldMasterPubkeyList::<T>::mutate(|list| {
+				list.push(old_pubkey);
+				list.push(old_pubkey2);
+			});
+			MasterPubkey::<T>::kill();
+			Self::reset_keyfairy_channel_seq();
+
 			Ok(())
 		}
 
@@ -818,6 +847,10 @@ pub mod pallet {
 			MasterKeyLaunchedAt::<T>::put((block_number, now));
 			Self::deposit_event(Event::<T>::MasterKeyLaunched);
 		}
+
+		fn reset_keyfairy_channel_seq() {
+			Self::reset_ingress_channel_seq(MessageOrigin::Keyfairy);
+		}
 	}
 
 	impl<T: Config + ces_pallet_mq::Config> MessageOriginInfo for Pallet<T> {
@@ -911,8 +944,8 @@ pub trait TeeWorkerHandler<AccountId, Block> {
 	fn get_stash(pbk: &WorkerPublicKey) -> Result<AccountId, DispatchError>;
 	fn punish_scheduler(pbk: WorkerPublicKey) -> DispatchResult;
 	fn get_pubkey_list() -> Vec<WorkerPublicKey>; // get_controller_list
-	fn get_master_publickey() -> Result<MasterPublicKey, DispatchError>;
 	fn update_work_block(now: Block, pbk: &WorkerPublicKey) -> DispatchResult;
+	fn verify_master_sig(sig: &sp_core::sr25519::Signature, hash: SHA256) -> bool;
 }
 
 impl<T: Config> TeeWorkerHandler<AccountOf<T>, BlockNumberFor<T>> for Pallet<T> {
@@ -985,10 +1018,26 @@ impl<T: Config> TeeWorkerHandler<AccountOf<T>, BlockNumberFor<T>> for Pallet<T> 
 		acc_list
 	}
 
-	fn get_master_publickey() -> Result<MasterPublicKey, DispatchError> {
-		let pk = MasterPubkey::<T>::try_get().map_err(|_| Error::<T>::MasterKeyUninitialized)?;
+	fn verify_master_sig(sig: &sp_core::sr25519::Signature, hash: SHA256)  -> bool {
+		let cur_pubkey = match <MasterPubkey<T>>::try_get().map_err(|_| Error::<T>::MasterKeyUninitialized) {
+			Ok(cur_pubkey) => cur_pubkey,
+			Err(_) => return false,
+		};
 
-		Ok(pk)
+		let mut flag = false;
+		let pubkey_list = OldMasterPubkeyList::<T>::get();
+		for pubkey in pubkey_list {
+			if sp_io::crypto::sr25519_verify(&sig, &hash, &pubkey) {
+				flag = true;
+				break;
+			}
+		}
+		
+		if sp_io::crypto::sr25519_verify(&sig, &hash, &cur_pubkey) || flag {
+			return true;
+		}
+
+		false
 	}
 
 	fn update_work_block(now: BlockNumberFor<T>, pbk: &WorkerPublicKey) -> DispatchResult {
