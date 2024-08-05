@@ -1558,7 +1558,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node"
-version = "0.7.7"
+version = "0.7.8-Venus"
 dependencies = [
  "array-bytes 6.2.3",
  "async-trait",
@@ -1662,7 +1662,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node-runtime"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "ces-pallet-mq",
  "ces-pallet-mq-runtime-api",
