@@ -254,6 +254,8 @@ pub mod pallet {
         OwnConsignment,
         /// When casting a territory, it must be at least 30 days
         BoundariesNotMet,
+        /// The redefined name is repeated and new_name cannot be used instead
+        DuplicateName,
     }
 
     #[pallet::storage]
@@ -779,6 +781,7 @@ pub mod pallet {
         ) -> DispatchResult {
             let sender = ensure_signed(origin)?;
             let territory = <Territory<T>>::try_get(&sender, &old_name).map_err(|_| Error::<T>::NotHaveTerritory)?;
+            ensure!(!<Territory<T>>::contains_key(&sender, &new_name), Error::<T>::DuplicateName);
             ensure!(territory.state == TerritoryState::Active, Error::<T>::NotActive);
             ensure!(territory.total_space == territory.remaining_space, Error::<T>::ObjectNotZero);
             <Territory<T>>::remove(&sender, &old_name);
