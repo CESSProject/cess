@@ -205,6 +205,10 @@ pub mod pallet {
 			miner: AccountOf<T>,
 			space: u128,
 		},
+		DecreaseDeclarationSpace {
+			miner: AccountOf<T>,
+			space: u128,
+		},
 	}
 
 	/// Error for the sminer pallet.
@@ -262,6 +266,8 @@ pub mod pallet {
 		WrongOrigin,
 		/// Exceeding the maximum release volume of the faucet in one day
 		ExceedRelease,
+		/// The reduced declared space is smaller than the currently certified space
+		UnableReduceDeclaration,
 	}
 
 	/// The hashmap for info of storage miners.
@@ -605,6 +611,51 @@ pub mod pallet {
 			})?;
 
 			Self::deposit_event(Event::<T>::UpdatePeerId { acc: sender, old, new: peer_id.into() });
+			Ok(())
+		}
+
+		#[pallet::call_index(4)]
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::increase_collateral())]
+		pub fn decrease_declaration_space(origin: OriginFor<T>, tib_count: u32) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
+			let decrease_space = T_BYTE.checked_mul(tib_count as u128).ok_or(Error::<T>::Overflow)?;
+
+			<MinerItems<T>>::try_mutate(&sender, |miner_info_opt| -> DispatchResult {
+				let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
+
+				ensure!(
+					miner_info.state.to_vec() == STATE_POSITIVE.as_bytes().to_vec() || miner_info.state.to_vec() == STATE_FROZEN.as_bytes().to_vec(),
+					Error::<T>::StateError
+				);
+
+				let estimate_space = miner_info
+					.declaration_space
+					.checked_sub(decrease_space)
+					.ok_or(Error::<T>::Overflow)?;
+
+				ensure!(
+					estimate_space >= miner_info.idle_space + miner_info.service_space + miner_info.lock_space, 
+					Error::<T>::UnableReduceDeclaration
+				);
+
+				miner_info.declaration_space = estimate_space;
+
+				let base_limit: BalanceOf<T> = Self::calculate_limit_by_space(miner_info.declaration_space)?
+					.try_into()
+					.map_err(|_| Error::<T>::Overflow)?;
+				
+				if base_limit <= miner_info.collaterals {
+					miner_info.state = Self::str_to_bound(STATE_POSITIVE)?;
+				}
+
+				Ok(())
+			})?;
+
+			Self::deposit_event(Event::<T>::DecreaseDeclarationSpace { miner: sender, space: decrease_space });
+
 			Ok(())
 		}
 
