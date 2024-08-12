@@ -16,7 +16,10 @@ pub async fn run_ceseal_server<Platform>(
 where
     Platform: pal::Platform + Serialize + DeserializeOwned,
 {
-    const MAX_ENCODED_MSG_SIZE: usize = 16 << 20; // 16MiB
+    // TODO(billw): If `cifrost` turns on the `fast-sync` switch, 
+    // it will load the current chain state to `ceseal`, and the chain state increases over time, 
+    // so increasing the size of the request packet is not the final solution.
+    const MAX_ENCODED_MSG_SIZE: usize = 48 << 20; // 48MiB
     const MAX_DECODED_MSG_SIZE: usize = MAX_ENCODED_MSG_SIZE;
 
     let (expert_cmd_tx, expert_cmd_rx) = mpsc::channel(16);

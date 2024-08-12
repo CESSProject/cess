@@ -1037,7 +1037,7 @@ dependencies = [
 
 [[package]]
 name = "ceseal"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "anyhow",
  "base64 0.13.1",
@@ -1081,7 +1081,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node-runtime"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "ces-pallet-mq",
  "ces-pallet-mq-runtime-api",
