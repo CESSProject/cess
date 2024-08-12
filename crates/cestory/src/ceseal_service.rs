@@ -635,7 +635,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
             git_revision: self.args.git_revision.clone(),
             memory_usage: Some(self.platform.memory_usage()),
             system: system_info,
-            can_load_chain_state: self.can_load_chain_state,
+            can_load_chain_state: self.can_load_chain_state(),
             safe_mode_level: self.args.safe_mode_level as _,
             current_block_time,
             external_server_state,
@@ -654,7 +654,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
             ),
             "sync_header",
         );
-        self.can_load_chain_state = false;
         let last_header = self
             .runtime_state()?
             .storage_synchronizer
@@ -1083,7 +1082,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
     }
 
     pub fn load_chain_state(&mut self, block: chain::BlockNumber, storage: StorageState) -> anyhow::Result<()> {
-        if !self.can_load_chain_state {
+        if !self.can_load_chain_state() {
             anyhow::bail!("Can not load chain state");
         }
         if block == 0 {
@@ -1105,7 +1104,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
             .map_err(|e| anyhow!("Failed to set synchronizer state:{e}"))?;
         state.chain_storage = Arc::new(parking_lot::RwLock::new(chain_storage));
         system.genesis_block = block;
-        self.can_load_chain_state = false;
         Ok(())
     }
 
