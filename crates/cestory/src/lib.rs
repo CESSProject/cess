@@ -288,11 +288,7 @@ pub struct Ceseal<Platform> {
     #[serde(skip)]
     #[serde(default = "Instant::now")]
     last_checkpoint: Instant,
-
-    #[codec(skip)]
-    #[serde(skip)]
-    can_load_chain_state: bool,
-
+    
     #[codec(skip)]
     #[serde(skip)]
     trusted_sk: bool,
@@ -337,7 +333,6 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
             handover_ecdh_key: None,
             handover_last_challenge: None,
             last_checkpoint: Instant::now(),
-            can_load_chain_state: false,
             trusted_sk: false,
             rcu_dispatching: false,
             started_at: Instant::now(),
@@ -349,7 +344,6 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
     }
 
     pub fn init(&mut self, args: InitArgs) {
-        self.can_load_chain_state = !system::is_master_key_exists_on_local(&args.sealing_path);
         self.args = Arc::new(args);
     }
 
@@ -376,6 +370,18 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
         } else {
             return Err(types::Error::SystemNotReady)
         }
+    }
+
+    fn is_keyfairy_ready(&self) -> bool {
+        if let Some(ref system) = self.system {
+            system.keyfairy.is_some()
+        } else {
+            false
+        }
+    }
+
+    fn can_load_chain_state(&self) -> bool {
+        !self.is_keyfairy_ready()
     }
 
     fn init_runtime_data(
