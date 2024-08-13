@@ -146,7 +146,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	// and set impl_version to 0. If only runtime
 	// implementation changes and behavior does not, then leave spec_version as
 	// is and increment impl_version.
-	spec_version: 116,
+	spec_version: 117,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -1515,7 +1515,7 @@ parameter_types! {
 	pub const MaxWhitelist: u32 = 200;
 	pub const NoneAttestationEnabled: bool = if cfg!(not(feature = "only-attestation")) { true } else { false };
 	pub const VerifyCeseal: bool = if cfg!(not(feature = "verify-cesealbin")) { false } else { true };
-	pub const AtLeastWorkBlock: BlockNumber = DAYS;
+	pub const AtLeastWorkBlock: BlockNumber = DAYS / 2;
 }
 
 impl pallet_tee_worker::Config for Runtime {
