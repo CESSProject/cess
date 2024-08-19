@@ -14,9 +14,9 @@ pub(super) const STATE_OFFLINE: &str = "offline";
 
 pub(super) const FAUCET_VALUE: u128 = 10_000_000_000_000_000_000_000;
 
-pub(super) const IDLE_MUTI: Perbill = Perbill::from_percent(30);
+pub(super) const IDLE_MUTI: Perbill = Perbill::from_percent(5);
 
-pub(super) const SERVICE_MUTI: Perbill = Perbill::from_percent(70);
+pub(super) const SERVICE_MUTI: Perbill = Perbill::from_percent(95);
 
 pub(super) const RELEASE_NUMBER: u8 = 90;
 
