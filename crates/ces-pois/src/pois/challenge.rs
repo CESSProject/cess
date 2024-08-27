@@ -39,7 +39,7 @@ pub fn new_challenge_handle(
         let v = expanders::bytes_to_node_value(&hash, max) as i64;
         let mut l = (start + count * group_size + v) * file_num + 1;
         let r = ((l - 1) / file_num + 1) * file_num + 1;
-        if l < front {
+        if l <= front {
             l = front + 1;
         }
         count += 1;
