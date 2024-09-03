@@ -1019,7 +1019,7 @@ pub mod pallet {
 				return weight;
 			}
 
-			if now % 10u32.saturated_into() != 0u32.saturated_into() {
+			if now % 4u32.saturated_into() != 0u32.saturated_into() {
 				return weight;
 			}
 
@@ -1040,6 +1040,7 @@ pub mod pallet {
 			};
 			let index = factor % miner_count;
 			let miner = &miner_list[index as usize];
+			log::info!("generate challenge index: {:?}", index);
 
 			if <ChallengeSnapShot<T>>::contains_key(miner) {
 				log::info!("audit: Select invalid miner");
