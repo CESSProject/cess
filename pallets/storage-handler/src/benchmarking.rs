@@ -20,7 +20,7 @@ benchmarks! {
         T::Currency::make_free_balance_be(&caller, free);
         increase_idle_space::<T>(100 * G_BYTE);
         let terr_name: TerrName = "t1".as_bytes().to_vec().try_into().map_err(|_| "boundedvec error")?;
-    }: _(RawOrigin::Signed(caller.clone()), 10, terr_name.clone())
+    }: _(RawOrigin::Signed(caller.clone()), 10, terr_name.clone(), 30)
     verify {
         assert!(<Territory<T>>::contains_key(&caller, &terr_name))
     }
@@ -31,7 +31,7 @@ benchmarks! {
         T::Currency::make_free_balance_be(&caller, free);
         increase_idle_space::<T>(100 * G_BYTE);
         let terr_name: TerrName = "t1".as_bytes().to_vec().try_into().map_err(|_| "boundedvec error")?;
-        StorageHandler::<T>::mint_territory(RawOrigin::Signed(caller.clone()).into(), 10, terr_name.clone())?;
+        StorageHandler::<T>::mint_territory(RawOrigin::Signed(caller.clone()).into(), 10, terr_name.clone(), 30)?;
     }: _(RawOrigin::Signed(caller.clone()), terr_name.clone(), 10)
     verify {
         assert!(<Territory<T>>::contains_key(&caller, &terr_name));
@@ -46,7 +46,7 @@ benchmarks! {
         let free: BalanceOf<T> = 365_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
         T::Currency::make_free_balance_be(&caller, free);
         increase_idle_space::<T>(100 * G_BYTE);
-        StorageHandler::<T>::mint_territory(RawOrigin::Signed(caller.clone()).into(), 10, terr_name.clone())?;
+        StorageHandler::<T>::mint_territory(RawOrigin::Signed(caller.clone()).into(), 10, terr_name.clone(), 30)?;
     }: _(RawOrigin::Signed(caller.clone()), terr_name.clone(), 10)
     verify {
         assert!(<Territory<T>>::contains_key(&caller, &terr_name));
@@ -60,7 +60,7 @@ benchmarks! {
         let free: BalanceOf<T> = 365_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
         T::Currency::make_free_balance_be(&caller, free);
         increase_idle_space::<T>(100 * G_BYTE);
-        StorageHandler::<T>::mint_territory(RawOrigin::Signed(caller.clone()).into(), 10, terr_name.clone())?;
+        StorageHandler::<T>::mint_territory(RawOrigin::Signed(caller.clone()).into(), 10, terr_name.clone(), 30)?;
         let price: BalanceOf<T> = 100_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
     }: _(RawOrigin::Signed(caller.clone()), terr_name.clone(), price)
     verify {
@@ -76,9 +76,9 @@ benchmarks! {
         let free: BalanceOf<T> = 365_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
         T::Currency::make_free_balance_be(&caller, free);
         increase_idle_space::<T>(100 * G_BYTE);
-        StorageHandler::<T>::mint_territory(RawOrigin::Signed(caller.clone()).into(), 10, terr_name.clone())?;
+        StorageHandler::<T>::mint_territory(RawOrigin::Signed(caller.clone()).into(), 10, terr_name.clone(), 30)?;
         let price: BalanceOf<T> = 100_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
-        StorageHandler::<T>::treeitory_consignment(RawOrigin::Signed(caller.clone()).into(), terr_name.clone(), price)?;
+        StorageHandler::<T>::territory_consignment(RawOrigin::Signed(caller.clone()).into(), terr_name.clone(), price)?;
         let buyer: AccountOf<T> = account("user2", 100, SEED);
         T::Currency::make_free_balance_be(&buyer, free);
         let territory_info = <Territory<T>>::try_get(&caller, &terr_name).unwrap();
@@ -95,9 +95,9 @@ benchmarks! {
         let free: BalanceOf<T> = 365_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
         T::Currency::make_free_balance_be(&caller, free);
         increase_idle_space::<T>(100 * G_BYTE);
-        StorageHandler::<T>::mint_territory(RawOrigin::Signed(caller.clone()).into(), 10, terr_name.clone())?;
+        StorageHandler::<T>::mint_territory(RawOrigin::Signed(caller.clone()).into(), 10, terr_name.clone(), 30)?;
         let price: BalanceOf<T> = 100_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
-        StorageHandler::<T>::treeitory_consignment(RawOrigin::Signed(caller.clone()).into(), terr_name.clone(), price)?;
+        StorageHandler::<T>::territory_consignment(RawOrigin::Signed(caller.clone()).into(), terr_name.clone(), price)?;
         let buyer: AccountOf<T> = account("user2", 100, SEED);
         T::Currency::make_free_balance_be(&buyer, free);
         let territory_info = <Territory<T>>::try_get(&caller, &terr_name).unwrap();
@@ -113,9 +113,9 @@ benchmarks! {
         let free: BalanceOf<T> = 365_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
         T::Currency::make_free_balance_be(&caller, free);
         increase_idle_space::<T>(100 * G_BYTE);
-        StorageHandler::<T>::mint_territory(RawOrigin::Signed(caller.clone()).into(), 10, terr_name.clone())?;
+        StorageHandler::<T>::mint_territory(RawOrigin::Signed(caller.clone()).into(), 10, terr_name.clone(), 30)?;
         let price: BalanceOf<T> = 100_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
-        StorageHandler::<T>::treeitory_consignment(RawOrigin::Signed(caller.clone()).into(), terr_name.clone(), price)?;
+        StorageHandler::<T>::territory_consignment(RawOrigin::Signed(caller.clone()).into(), terr_name.clone(), price)?;
         let territory_info = <Territory<T>>::try_get(&caller, &terr_name).unwrap();
     }: _(RawOrigin::Signed(caller.clone()), terr_name.clone())
     verify {
@@ -128,9 +128,9 @@ benchmarks! {
         let free: BalanceOf<T> = 365_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
         T::Currency::make_free_balance_be(&caller, free);
         increase_idle_space::<T>(100 * G_BYTE);
-        StorageHandler::<T>::mint_territory(RawOrigin::Signed(caller.clone()).into(), 10, terr_name.clone())?;
+        StorageHandler::<T>::mint_territory(RawOrigin::Signed(caller.clone()).into(), 10, terr_name.clone(), 30)?;
         let price: BalanceOf<T> = 100_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
-        StorageHandler::<T>::treeitory_consignment(RawOrigin::Signed(caller.clone()).into(), terr_name.clone(), price)?;
+        StorageHandler::<T>::territory_consignment(RawOrigin::Signed(caller.clone()).into(), terr_name.clone(), price)?;
         let buyer: AccountOf<T> = account("user2", 100, SEED);
         T::Currency::make_free_balance_be(&buyer, free);
         let territory_info = <Territory<T>>::try_get(&caller, &terr_name).unwrap();
@@ -149,7 +149,7 @@ benchmarks! {
         let free: BalanceOf<T> = 365_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
         T::Currency::make_free_balance_be(&caller, free);
         increase_idle_space::<T>(100 * G_BYTE);
-        StorageHandler::<T>::mint_territory(RawOrigin::Signed(caller.clone()).into(), 10, terr_name.clone())?;
+        StorageHandler::<T>::mint_territory(RawOrigin::Signed(caller.clone()).into(), 10, terr_name.clone(), 30)?;
         let receiver: AccountOf<T> = account("user2", 100, SEED);
         assert!(<Territory<T>>::contains_key(&caller, &terr_name));
         let territory_info = <Territory<T>>::try_get(&caller, &terr_name).unwrap();
@@ -166,7 +166,7 @@ benchmarks! {
         let free: BalanceOf<T> = 365_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
         T::Currency::make_free_balance_be(&caller, free);
         increase_idle_space::<T>(100 * G_BYTE);
-        StorageHandler::<T>::mint_territory(RawOrigin::Signed(caller.clone()).into(), 10, terr_name.clone())?;
+        StorageHandler::<T>::mint_territory(RawOrigin::Signed(caller.clone()).into(), 10, terr_name.clone(), 30)?;
         let new_name: TerrName = "t2".as_bytes().to_vec().try_into().map_err(|_| "boundedvec error")?;
         assert!(<Territory<T>>::contains_key(&caller, &terr_name));
     }: _(RawOrigin::Signed(caller.clone()), terr_name.clone(), new_name.clone())
@@ -209,7 +209,7 @@ benchmarks! {
         let free: BalanceOf<T> = 365_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
         T::Currency::make_free_balance_be(&caller, free);
         increase_idle_space::<T>(100 * G_BYTE);
-        StorageHandler::<T>::mint_territory(RawOrigin::Signed(caller.clone()).into(), 10, terr_name.clone())?;
+        StorageHandler::<T>::mint_territory(RawOrigin::Signed(caller.clone()).into(), 10, terr_name.clone(), 30)?;
         <Territory<T>>::try_mutate(&caller, &terr_name, |territory_info_opt| -> DispatchResult {
             let territory_info = territory_info_opt.as_mut().unwrap();
             territory_info.state = TerritoryState::Expired;

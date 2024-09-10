@@ -8307,6 +8307,7 @@ dependencies = [
  "hex",
  "log",
  "pallet-balances",
+ "pallet-evm-account-mapping",
  "parity-scale-codec",
  "scale-info",
  "sp-core 28.0.0",

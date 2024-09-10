@@ -86,7 +86,7 @@ pub fn buy_space<T: Config>(user: T::AccountId) -> Result<(), &'static str> {
 		365_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!"),
 	);
 
-	pallet_storage_handler::Pallet::<T>::mint_territory(RawOrigin::Signed(user).into(), 10, territory_name)?;
+	pallet_storage_handler::Pallet::<T>::mint_territory(RawOrigin::Signed(user).into(), 10, territory_name, 30)?;
 
 	Ok(())
 }
