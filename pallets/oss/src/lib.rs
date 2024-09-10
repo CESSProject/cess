@@ -22,11 +22,15 @@ use cp_cess_common::*;
 use sp_std::vec::Vec;
 use sp_runtime::traits::TrailingZeroInput;
 use sp_runtime::SaturatedConversion;
+use pallet_evm_account_mapping::{AddressConversion, Secp256K1PublicKeyForm};
 pub use pallet::*;
 
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
+
+pub type Keccak256Signature = [u8; 32];
+pub type EIP712Signature = [u8; 65];
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -48,6 +52,8 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type PayloadExpired: Get<u32> + Clone;
+
+		type AddressConverter: AddressConversion<Self::AccountId>;
 
 		// type AccountIdConvertor: AccountIdConvertor<Self::AccountId>;
 	}
@@ -87,6 +93,8 @@ pub mod pallet {
 		VerifySigFailed,
 		/// The user's authorized signature has expired
 		Expired,
+		/// Public key conversion address failed
+		ConvertError,
 	}
 
 	#[pallet::storage]
@@ -258,12 +266,12 @@ pub mod pallet {
 
 			let now = frame_system::Pallet::<T>::block_number();
 			let expirtion: BlockNumberFor<T> = T::PayloadExpired::get().saturated_into();
-			ensure!(payload.exp < now + expirtion, Error::<T>::Expired);
+			ensure!(payload.exp + expirtion > now, Error::<T>::Expired);
 
-			let account = auth_puk.using_encoded(|entropy| {
-				AccountOf::<T>::decode(&mut TrailingZeroInput::new(entropy))
-					.expect("infinite input; no invalid input; qed")
-			});
+			let account = auth_puk.using_encoded(|entropy| -> Result<AccountOf<T>, DispatchError> {
+				Ok(AccountOf::<T>::decode(&mut TrailingZeroInput::new(entropy))
+					.map_err(|_| Error::<T>::ConvertError)?)
+			})?;
 
 			let sig = 
 				sp_core::sr25519::Signature::try_from(sig.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
@@ -282,6 +290,85 @@ pub mod pallet {
 			})?; 
 
 			Ok(())
+		}
+
+		#[pallet::call_index(6)]
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::evm_proxy_authorzie())]
+		pub fn evm_proxy_authorzie(origin: OriginFor<T>, auth_puk: sp_core::sr25519::Public, sig: EIP712Signature, payload: ProxyAuthPayload<T>) -> DispatchResult {
+			let _ = ensure_signed(origin)?;
+
+			let mut payload_encode = payload.encode();
+			let mut b1 = "<Bytes>".to_string().as_bytes().to_vec();
+			let mut b2 = "</Bytes>".to_string().as_bytes().to_vec();
+
+			let mut origin: Vec<u8> = Default::default();
+			origin.append(&mut b1);
+			origin.append(&mut payload_encode);
+			origin.append(&mut b2);
+			let message_hash = Self::eip191_message_hash(&mut origin);
+
+			let now = frame_system::Pallet::<T>::block_number();
+			let expirtion: BlockNumberFor<T> = T::PayloadExpired::get().saturated_into();
+			ensure!(payload.exp + expirtion > now, Error::<T>::Expired);
+
+			let account = auth_puk.using_encoded(|entropy| -> Result<AccountOf<T>, DispatchError> {
+				Ok(AccountOf::<T>::decode(&mut TrailingZeroInput::new(entropy))
+					.map_err(|_| Error::<T>::ConvertError)?)
+			})?;
+
+			ensure!(
+				Self::eip712_verify_sign(&account, &sig, message_hash),
+				Error::<T>::VerifySigFailed
+			);
+
+			AuthorityList::<T>::try_mutate(&account, |list| -> DispatchResult {
+				ensure!(!list.contains(&payload.oss), Error::<T>::Existed);
+
+				list.try_push(payload.oss).map_err(|_| Error::<T>::BoundedVecError)?;
+
+				Ok(())
+			})?; 
+
+			Ok(())
+		}
+	}
+
+	impl<T: Config> Pallet<T> {
+		pub(crate) fn eip712_verify_sign(auth_puk: &AccountOf<T>, signature: &EIP712Signature, message_hash: Keccak256Signature) -> bool {
+			let Ok(recovered_public_key) = (match <T as Config>::AddressConverter::SECP256K1_PUBLIC_KEY_FORM {
+				Secp256K1PublicKeyForm::Compressed => {
+					sp_io::crypto::secp256k1_ecdsa_recover_compressed(signature, &message_hash)
+						.map(|i| i.to_vec())
+				},
+				Secp256K1PublicKeyForm::Uncompressed => {
+					sp_io::crypto::secp256k1_ecdsa_recover(signature, &message_hash)
+						.map(|i| i.to_vec())
+				}
+			}) else {
+				return false;
+			};
+
+			// Deserialize the actual caller
+			let Some(decoded_account) =
+				<T as Config>::AddressConverter::try_convert(&recovered_public_key) else {
+				return false;
+			};
+			if auth_puk != &decoded_account {
+				return false;
+			}
+
+			true
+		}
+
+		pub(crate) fn eip191_message_hash(
+			msg: &mut Vec<u8>,
+		) -> Keccak256Signature {
+			// let msg = String::from_utf8(msg);
+			let mut msg_hash: Vec<u8> = "\x19Ethereum Signed Message:\n".as_bytes().to_vec();
+			msg_hash.append(&mut msg.len().to_string().as_bytes().to_vec());
+			msg_hash.append(msg);
+			sp_io::hashing::keccak_256(&msg_hash)
 		}
 	}
 }

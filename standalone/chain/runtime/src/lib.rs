@@ -46,7 +46,7 @@ use frame_support::{
 	},
 	weights::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_REF_TIME_PER_MILLIS},
-		ConstantMultiplier, IdentityFee, Weight,
+		ConstantMultiplier, Weight,
 	},
 	PalletId,
 };
@@ -146,7 +146,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	// and set impl_version to 0. If only runtime
 	// implementation changes and behavior does not, then leave spec_version as
 	// is and increment impl_version.
-	spec_version: 118,
+	spec_version: 119,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -1732,6 +1732,7 @@ impl pallet_oss::Config for Runtime {
 	type P2PLength = P2PLength;
 	type AuthorLimit = AuthorLimit;
 	type PayloadExpired = PayloadExpired;
+	type AddressConverter = pallet_evm_account_mapping::SubstrateAddressConverter;
 }
 
 impl pallet_cacher::Config for Runtime {
