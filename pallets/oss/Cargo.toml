@@ -18,6 +18,7 @@ sp-runtime = { workspace = true }
 
 #local dependencies
 cp-cess-common = { workspace = true }
+pallet-evm-account-mapping = { workspace = true }
 
 [dev-dependencies]
 sp-core = { workspace = true }

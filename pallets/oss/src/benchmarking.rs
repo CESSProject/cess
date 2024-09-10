@@ -122,4 +122,34 @@ benchmarks! {
 		let authorty_list = <AuthorityList<T>>::try_get(&account).unwrap();
 		assert!(authorty_list.contains(&oss))
 	}
+
+	evm_proxy_authorzie {
+		let sender = account("origin", 100, SEED);
+
+		let auth_puk = hex::decode("dfa6d7b776c4cac2e9a506e1b9def79c75a53488e3dc320643bb792fbdbe90d1").expect("Valid");
+		let auth_puk: sp_core::sr25519::Public = sp_core::sr25519::Public::from_raw(auth_puk.try_into().unwrap());
+		let account = auth_puk.using_encoded(|entropy| {
+			AccountOf::<T>::decode(&mut TrailingZeroInput::new(entropy))
+				.expect("infinite input; no invalid input; qed")
+		});
+
+		let oss = hex::decode("02f17b57f801914fd35f95b73b199efe4e37d121f79e39f20ba29f6acd9e355b").expect("Valid");
+		let oss: sp_core::sr25519::Public = sp_core::sr25519::Public::from_raw(oss.try_into().unwrap());
+		let oss_acc = oss.using_encoded(|entropy| {
+			AccountOf::<T>::decode(&mut TrailingZeroInput::new(entropy))
+				.expect("infinite input; no invalid input; qed")
+		});
+
+		let payload = ProxyAuthPayload::<T> {
+			oss: oss_acc.clone(),
+			exp: 583561u32.saturated_into(),
+		};
+
+		let sig = hex::decode("65665a76bd886775766c77c8c5b43edb3ebb9b5f9860d4ded786b6537cf0fc4e00a5625d8a83d86c02435c82e70132bdb265a7fdb0fb14f7d724540be58b148b1c").expect("Valid");
+		let sig: EIP712Signature = sig.try_into().unwrap();
+	}: _(RawOrigin::Signed(sender), auth_puk, sig, payload)
+	verify {
+		let authorty_list = <AuthorityList<T>>::try_get(&account).unwrap();
+		assert!(authorty_list.contains(&oss_acc))
+	}
 }
