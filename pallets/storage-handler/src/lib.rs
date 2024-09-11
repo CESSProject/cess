@@ -967,6 +967,18 @@ pub mod pallet {
 
             Ok(())
         }
+
+        // FOR TEST
+		#[pallet::call_index(9)]
+		#[transactional]
+		#[pallet::weight(Weight::zero())]
+		pub fn define_update_price(origin: OriginFor<T>, price: u128) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+			let default_price: BalanceOf<T> = price.try_into().map_err(|_| Error::<T>::Overflow)?;
+			UnitPrice::<T>::put(default_price);
+
+			Ok(())
+		}
     }
 }
 
