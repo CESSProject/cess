@@ -308,7 +308,8 @@ pub mod pallet {
             TokenId,
             bool,
         >;
- 
+
+ 	// price / gib / days
 	#[pallet::storage]
 	#[pallet::getter(fn unit_price)]
     pub(super) type UnitPrice<T: Config> = StorageValue<_, BalanceOf<T>>;
@@ -337,7 +338,7 @@ pub mod pallet {
 
     #[pallet::genesis_config]
 	pub struct GenesisConfig<T: Config> {
-		// price / gib / 30days
+		// price / gib / days
 		pub price: BalanceOf<T>,
 	}
 
@@ -382,16 +383,9 @@ pub mod pallet {
             ensure!(!<TerritoryKey<T>>::contains_key(&token), Error::<T>::DuplicateTokens);
 
 			let space = G_BYTE.checked_mul(gib_count as u128).ok_or(Error::<T>::Overflow)?;
-            let day_unit_price = <UnitPrice<T>>::try_get()
-				.map_err(|_e| Error::<T>::BugInvalid)?
-				.checked_div(&30u32.saturated_into()).ok_or(Error::<T>::Overflow)?;
 			Self::storage_territory(token, sender.clone(), space, days, territory_name.clone())?;
 			Self::add_purchased_space(space)?;
-			let price: BalanceOf<T> = day_unit_price
-				.checked_mul(&gib_count.saturated_into())
-				.ok_or(Error::<T>::Overflow)?
-                .checked_mul(&days.saturated_into())
-				.ok_or(Error::<T>::Overflow)?;
+            let price = Self::calculate_price(gib_count, days)?;
             
 			ensure!(
 				<T as pallet::Config>::Currency::can_slash(&sender, price.clone()),
@@ -428,9 +422,6 @@ pub mod pallet {
 			);
 			// The unit price recorded in UnitPrice is the unit price of one month.
 			// Here, the daily unit price is calculated.
-			let day_unit_price = <UnitPrice<T>>::try_get()
-				.map_err(|_e| Error::<T>::BugInvalid)?
-				.checked_div(&30u32.saturated_into()).ok_or(Error::<T>::Overflow)?;
 			let space = G_BYTE.checked_mul(gib_count as u128).ok_or(Error::<T>::Overflow)?;
 			//Calculate remaining days.
 			let block_oneday: BlockNumberFor<T> = <T as pallet::Config>::OneDay::get();
@@ -446,13 +437,7 @@ pub mod pallet {
 					.saturated_into();
 			}
 			//Calculate the final price difference to be made up.
-			let price: BalanceOf<T> = day_unit_price
-				.checked_mul(&gib_count.saturated_into())
-				.ok_or(Error::<T>::Overflow)?
-				.checked_mul(&remain_day.saturated_into())
-				.ok_or(Error::<T>::Overflow)?
-				.try_into()
-				.map_err(|_e| Error::<T>::Overflow)?;
+            let price = Self::calculate_price(gib_count, remain_day)?;
 			//Judge whether the balance is sufficient
 			ensure!(
 				<T as pallet::Config>::Currency::can_slash(&sender, price.clone()),
@@ -490,18 +475,8 @@ pub mod pallet {
                 Error::<T>::StateError,
             );
 
-			let days_unit_price = <UnitPrice<T>>::try_get()
-				.map_err(|_e| Error::<T>::BugInvalid)?
-				.checked_div(&30u32.saturated_into())
-				.ok_or(Error::<T>::Overflow)?;
 			let gib_count = cur_owned_space.total_space.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
-			let price: BalanceOf<T> = days_unit_price
-				.checked_mul(&gib_count.saturated_into())
-				.ok_or(Error::<T>::Overflow)?
-				.checked_mul(&days.saturated_into())
-				.ok_or(Error::<T>::Overflow)?
-				.try_into()
-				.map_err(|_e| Error::<T>::Overflow)?;
+            let price = Self::calculate_price(gib_count as u32, days)?;
 
 			ensure!(
 				<T as pallet::Config>::Currency::can_slash(&sender, price.clone()),
@@ -998,6 +973,7 @@ pub mod pallet {
 impl<T: Config> Pallet<T> {
     fn calculate_price(gib_count: u32, days: u32) -> Result<BalanceOf<T>, DispatchError> {
         let unit_price: u128 = <UnitPrice<T>>::get().unwrap().try_into().map_err(|_| Error::<T>::Overflow)?;
+
         let gib_count: u128 = gib_count.into();
         let days: u128 = days.into();
         let price = gib_count
