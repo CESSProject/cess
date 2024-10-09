@@ -1601,7 +1601,6 @@ impl pallet_file_bank::Config for Runtime {
 	type OneDay = OneDay;
 	type CreditCounter = SchedulerCredit;
 	type OssFindAuthor = Oss;
-	type BucketLimit = BucketLimit;
 	type NameStrLimit = NameStrLimit;
 	type SegmentCount = SegmentCount;
 	type FragmentCount = FragmentCount;
