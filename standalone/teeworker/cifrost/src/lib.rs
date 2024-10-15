@@ -24,7 +24,7 @@ use parity_scale_codec::Decode;
 use sp_consensus_grandpa::SetId;
 use sp_core::crypto::AccountId32;
 use std::str::FromStr;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::time::sleep;
 use tonic::Request;
 
@@ -518,10 +518,14 @@ async fn bridge(
 
             if chain_api.is_master_key_launched().await?
                 && !info.is_master_key_holded()
-                && !flags.master_key_apply_sent
+                && (flags.master_key_apply_sent.is_none()
+                    || flags
+                        .master_key_apply_sent
+                        .is_some_and(|s| s.elapsed().as_secs() > 15))
             {
-                let sent = tx::try_apply_master_key(&mut cc, &chain_api, &mut signer, args).await?;
-                flags.master_key_apply_sent = sent;
+                if tx::try_apply_master_key(&mut cc, &chain_api, &mut signer, args).await? {
+                    flags.master_key_apply_sent.replace(Instant::now());
+                }
             }
 
             if info.is_master_key_holded() && !info.is_external_server_running() {
@@ -615,7 +619,7 @@ pub async fn run() {
     let mut flags = RunningFlags {
         worker_register_sent: false,
         endpoint_registered: false,
-        master_key_apply_sent: false,
+        master_key_apply_sent: None,
         restart_failure_count: 0,
         checkpoint_taked: false,
     };

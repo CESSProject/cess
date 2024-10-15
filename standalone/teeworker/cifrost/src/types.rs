@@ -213,7 +213,7 @@ impl From<RaOption> for Option<AttestationProvider> {
 pub struct RunningFlags {
     pub worker_register_sent: bool,
     pub endpoint_registered: bool,
-    pub master_key_apply_sent: bool,
+    pub master_key_apply_sent: Option<std::time::Instant>,
     pub restart_failure_count: u32,
     pub checkpoint_taked: bool,
 }
