@@ -67,7 +67,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 	fn regnstk() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `183`
-		//  Estimated: `206644`
+		//  Estimated: `206644`  0.04
 		// Minimum execution time: 40_185_000 picoseconds.
 		Weight::from_parts(61_828_000, 206644)
 			.saturating_add(T::DbWeight::get().reads(3_u64))
