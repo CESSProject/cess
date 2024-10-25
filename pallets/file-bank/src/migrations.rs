@@ -1,15 +1,10 @@
-use crate::{AccountOf, Config, Pallet, Weight, BoundedString};
-use codec::{Decode, Encode};
-use frame_support::{
-	codec, generate_storage_alias,
-	pallet_prelude::*,
-	traits::{Get},
-};
+use super::*;
 use frame_support::traits::OnRuntimeUpgrade;
+use sp_runtime::Saturating;
 
 /// A struct that does not migration, but only checks that the counter prefix exists and is correct.
-pub struct TestMigrationFileBank<T: crate::Config>(sp_std::marker::PhantomData<T>);
-impl<T: crate::Config> OnRuntimeUpgrade for TestMigrationFileBank<T> {
+pub struct MigrationFileBank<T: crate::Config>(sp_std::marker::PhantomData<T>);
+impl<T: crate::Config> OnRuntimeUpgrade for MigrationFileBank<T> {
 	fn on_runtime_upgrade() -> Weight {
 		migrate::<T>()
 	}
@@ -31,197 +26,94 @@ pub fn migrate<T: Config>() -> Weight {
 	use frame_support::traits::StorageVersion;
 
 	let version = StorageVersion::get::<Pallet<T>>();
-	let mut weight: Weight = 0;
+	let mut weight: Weight = Weight::zero();
 
-	if version < 2 {
-        weight = weight.saturating_add(v2::migrate::<T>());
-        StorageVersion::new(2).put::<Pallet<T>>();
+	if version < 3 {
+		weight = weight.saturating_add(v3::migrate::<T>());
+        StorageVersion::new(3).put::<Pallet<T>>();
 	}
 
 	weight
 }
 
-mod example {
-    use super::*;
-
-    #[derive(Decode, Encode)]
-    struct OldFillerInfo<T: Config> {
-        filler_size: u64,
-        index: u32,
-        block_num: u32,
-        segment_size: u32,
-        scan_size: u32,
-        miner_address: AccountOf<T>,
-        filler_id: BoundedVec<u8, T::StringLimit>,
-        filler_hash: BoundedVec<u8, T::StringLimit>,
-    }
-
-    #[derive(Decode, Encode)]
-    struct NewFillerInfo<T: Config> {
-        filler_size: u64,
-        index: u32,
-        block_num: u32,
-        segment_size: u32,
-        miner_address: AccountOf<T>,
-        filler_id: BoundedVec<u8, T::StringLimit>,
-        filler_hash: BoundedVec<u8, T::StringLimit>,
-        is_delete: bool,
-    }
-
-    generate_storage_alias!(
-		FileBank,
-		FillerMap<T: Config> => DoubleMap<
-            (Blake2_128Concat, T::AccountId),
-            (Blake2_128Concat, BoundedString<T>),
-            NewFillerInfo<T>
-        >
-	);
-
-    pub fn migrate<T: Config>() -> Weight {
-        let mut weight: Weight = 0;
-
-        <FillerMap<T>>::translate(|_key1, _key2, old: OldFillerInfo<T>| {
-            weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-            Some(NewFillerInfo::<T>{
-                filler_size: old.filler_size,
-                index: old.index,
-                block_num: old.block_num,
-                segment_size: old.segment_size,
-                miner_address: old.miner_address,
-                filler_id: old.filler_id,
-                filler_hash: old.filler_hash,
-                is_delete: false,
-            })
-        });
-
-        weight
-    }
-}
-
-mod v2 {
+mod v3 {
 	use super::*;
-	use cp_cess_common::Hash;
-	use crate::{FillerInfo, FillerMap as NewFillerMap};
 
-	#[derive(Decode, Encode)]
-	struct OldFillerInfo<T: crate::Config> {
-		filler_size: u64,
-		index: u32,
-		block_num: u32,
-		segment_size: u32,
-		scan_size: u32,
-		miner_address: AccountOf<T>,
-		filler_id: BoundedVec<u8, T::StringLimit>,
-		filler_hash: BoundedVec<u8, T::StringLimit>,
+	#[derive(Decode)]
+	struct OldUserBrief<T: Config> {
+		pub user: AccountOf<T>,
+		pub file_name: BoundedVec<u8, T::NameStrLimit>,
+		pub bucket_name: BoundedVec<u8, T::NameStrLimit>,
+		pub territory_name: TerrName,
 	}
 
-	#[derive(Decode, Encode)]
-	struct NewFillerInfo<T: Config> {
-		filler_size: u64,
-		index: u32,
-		block_num: u32,
-		segment_size: u32,
-		scan_size: u32,
-		miner_address: AccountOf<T>,
-		filler_hash: Hash,
+	#[derive(Decode)]
+	struct OldFileInfo<T: Config> {
+		pub(super) segment_list: BoundedVec<SegmentInfo<T>, T::SegmentCount>,
+		pub(super) owner: BoundedVec<OldUserBrief<T>, T::OwnerLimit>,
+		pub(super) file_size: u128,
+		pub(super) completion: BlockNumberFor<T>,
+		pub(super) stat: FileState,
 	}
 
-	generate_storage_alias!(
-		FileBank,
-		FillerMap<T: Config> => DoubleMap<
-            (Blake2_128Concat, AccountOf<T>),
-            (Blake2_128Concat, BoundedVec<u8, T::StringLimit>),
-            OldFillerInfo<T>
-        >
-	);
-
-	// generate_storage_alias!(
-	// 	FileBank,
-	// 	FillerMap<T: Config> => DoubleMap<
-  //           (Blake2_128Concat, T::AccountId),
-  //           (Blake2_128Concat, Hash),
-  //           NewFillerInfo<T>
-  //       >
-	// );
-
-	// #[derive(Decode, Encode)]
-	// struct OldSliceInfo<T: Config> {
-	// 	miner_id: u64,
-	// 	shard_size: u64,
-	// 	block_num: u32,
-	// 	shard_id: BoundedVec<u8, T::StringLimit>,
-	// 	miner_ip: BoundedVec<u8, T::StringLimit>,
-	// 	miner_acc: AccountOf<T>,
-	// }
-	//
-	// #[derive(Decode, Encode)]
-	// struct NewSliceInfo<T: Config> {
-	// 	miner_id: u64,
-	// 	shard_size: u64,
-	// 	block_num: u32,
-	// 	shard_id: [u8; 72],
-	// 	miner_ip: BoundedVec<u8, T::StringLimit>,
-	// 	miner_acc: AccountOf<T>,
-	// }
-	//
-	// generate_storage_alias!(
-	// 	FileBank,
-	// 	File
-	// );
-	//
-	// struct OldPackageDetails<T: Config> {
-	// 	pub(super) space: u128,
-	// 	pub(super) used_space: u128,
-	// 	pub(super) remaining_space: u128,
-	// 	pub(super) tenancy: u32,
-	// 	pub(super) package_type: u8,
-	// 	pub(super) start: BlockNumberOf<T>,
-	// 	pub(super) deadline: BlockNumberOf<T>,
-	// 	pub(super) state: BoundedVec<u8, T::StringLimit>,
-	// }
-	//
-	// struct NewPackageDetails<T: Config> {
-	// 	pub(super) space: u128,
-	// 	pub(super) used_space: u128,
-	// 	pub(super) remaining_space: u128,
-	// 	pub(super) tenancy: u32,
-	// 	pub(super) package_type: PackageType,
-	// 	pub(super) start: BlockNumberOf<T>,
-	// 	pub(super) deadline: BlockNumberOf<T>,
-	// 	pub(super) state: BoundedVec<u8, T::StringLimit>,
-	// }
+	#[derive(Decode)]
+	struct OldDealInfo<T: Config> {
+		pub(super) file_size: u128,
+		pub(super) segment_list: BoundedVec<SegmentList<T>, T::SegmentCount>,
+		pub(super) user: OldUserBrief<T>,
+		pub(super) complete_list: BoundedVec<CompleteInfo<T>, T::FragmentCount>,
+	}
 
 	pub fn migrate<T: Config>() -> Weight {
-		let mut weight: Weight = 0;
-		log::info!("-----------------------------test migrations start-----------------------------------");
-		for (miner_acc, filler_id, old) in <FillerMap<T>>::iter() {
-			log::info!("-----------------------------migrations value filler_id:{:?}, len: {}", filler_id.clone(), filler_id.as_slice().len());
-			log::info!("old value filler_size: {}, index: {}, block_num: {}", old.filler_size, old.index, old.block_num);
-			weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
-			let filler_hash = Hash::slice_to_array_64(&filler_id).expect("error!");
-			// {
-			// 	Ok(slice) => slice,
-			// 	Err(e) => {
-			// 		log::info!("convert err: {:?}", e);
-			// 		continue;
-			// 	},
-			// };
-			log::info!("convert success!");
-			let filler_hash = Hash(filler_hash);
-			let new_value = FillerInfo::<T>{
-				filler_size: old.filler_size,
-				index: old.index,
-				block_num: old.block_num,
-				segment_size: old.segment_size,
-				scan_size: old.scan_size,
-				miner_address: old.miner_address.clone(),
-				filler_hash: filler_hash.clone(),
-			};
-			log::info!("start insert");
-			<NewFillerMap<T>>::insert(miner_acc, filler_hash, new_value);
-			log::info!("end insert");
-		}
-		log::info!("migrations end!");
-		weight
+		let mut weight: Weight = Weight::zero();
+		let mut translated = 0u64;
+
+		log::info!("File-Bank migrate start");
+
+		File::<T>::translate::<OldFileInfo<T>, _>(|_key, old_value| {
+			translated.saturating_inc();
+
+			let mut owner_list: BoundedVec<UserBrief<T>, T::OwnerLimit> = Default::default();
+			for owner in old_value.owner {
+				let new_owner = UserBrief::<T>{
+					user: owner.user,
+					file_name: owner.file_name,
+					territory_name: owner.territory_name,
+				};
+
+				owner_list.try_push(new_owner).unwrap();
+			}
+
+			Some(FileInfo::<T>{
+				segment_list: old_value.segment_list,
+				owner: owner_list,
+				file_size: old_value.file_size,
+				completion: old_value.completion,
+				stat: old_value.stat,
+			})
+		});
+
+		DealMap::<T>::translate::<OldDealInfo<T>, _>(|_key, old_value| {
+			translated.saturating_inc();
+
+			Some(DealInfo::<T>{
+				file_size: old_value.file_size,
+				segment_list: old_value.segment_list,
+				user: UserBrief::<T>{
+					user: old_value.user.user,
+					file_name: old_value.user.file_name,
+					territory_name: old_value.user.territory_name,
+				},
+				complete_list: old_value.complete_list,
+			})
+		});
+
+		log::info!(
+			"Upgraded {} pools, storage to version {}",
+			translated,
+			3,
+		);
+
+		T::DbWeight::get().reads_writes(translated + 1, translated + 1)
 	}
 }
