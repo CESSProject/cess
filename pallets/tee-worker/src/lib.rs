@@ -235,6 +235,7 @@ pub mod pallet {
 		InvalidMasterKeyFirstHolder,
 		MasterKeyFirstHolderNotFound,
 		MasterKeyAlreadyLaunched,
+		MasterKeyUnlaunched,
 		MasterKeyLaunching,
 		MasterKeyMismatch,
 		MasterKeyUninitialized,
@@ -266,9 +267,6 @@ pub mod pallet {
 	/// Master public key
 	#[pallet::storage]
 	pub type MasterPubkey<T: Config> = StorageValue<_, MasterPublicKey>;
-
-	#[pallet::storage]
-	pub type OldMasterPubkey<T: Config> = StorageValue<_, MasterPublicKey>;
 
 	#[pallet::storage]
 	pub type OldMasterPubkeyList<T: Config> = StorageValue<_, Vec<MasterPublicKey>, ValueQuery>;
@@ -441,15 +439,16 @@ pub mod pallet {
 		pub fn clear_master_key(origin: OriginFor<T>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
-			ensure!(MasterPubkey::<T>::get().is_some(), Error::<T>::MasterKeyAlreadyLaunched);
+			ensure!(MasterPubkey::<T>::get().is_some(), Error::<T>::MasterKeyUnlaunched);
 			ensure!(MasterKeyFirstHolder::<T>::get().is_some(), Error::<T>::MasterKeyLaunching);
 
 			let old_pubkey = MasterPubkey::<T>::get().ok_or(Error::<T>::WorkerNotFound)?;
 			MasterKeyFirstHolder::<T>::kill();
-			let old_pubkey2 = OldMasterPubkey::<T>::get().ok_or(Error::<T>::WorkerNotFound)?;
+
 			OldMasterPubkeyList::<T>::mutate(|list| {
-				list.push(old_pubkey);
-				list.push(old_pubkey2);
+				if !list.contains(&old_pubkey) {
+					list.push(old_pubkey);
+				}
 			});
 			MasterPubkey::<T>::kill();
 			Self::reset_keyfairy_channel_seq();
