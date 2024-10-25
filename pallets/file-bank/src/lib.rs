@@ -34,7 +34,7 @@ pub use pallet::*;
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 pub mod weights;
-// pub mod migrations;
+pub mod migrations;
 
 mod types;
 pub use types::*;
@@ -83,7 +83,7 @@ pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 
-const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
+const STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -129,8 +129,6 @@ pub mod pallet {
 		#[pallet::constant]
 		type NameStrLimit: Get<u32> + Clone + Eq + PartialEq;
 		// Maximum number of containers that users can create.
-		#[pallet::constant]
-		type BucketLimit: Get<u32> + Clone + Eq + PartialEq;
 		// Minimum length of bucket name.
 		#[pallet::constant]
 		type NameMinLength: Get<u32> + Clone + Eq + PartialEq;
@@ -170,10 +168,6 @@ pub mod pallet {
 		IdleSpaceCert { acc: AccountOf<T>, space: u128 },
 
 		ReplaceIdleSpace { acc: AccountOf<T>, space: u128 },
-		//Event to successfully create a bucket
-		CreateBucket { operator: AccountOf<T>, owner: AccountOf<T>, bucket_name: Vec<u8>},
-		//Successfully delete the bucket event
-		DeleteBucket { operator: AccountOf<T>, owner: AccountOf<T>, bucket_name: Vec<u8>},
 
 		GenerateRestoralOrder { miner: AccountOf<T>, fragment_hash: Hash },
 
@@ -219,8 +213,6 @@ pub mod pallet {
 		ConvertHashError,
 		/// No operation permission. Perhaps it was not authorized
 		NoPermission,
-		/// User had same name bucket
-		SameBucketName,
 		/// Bucket, file, and scheduling errors do not exist
 		NonExistent,
 		/// Logically speaking, errors that should not occur
@@ -278,29 +270,6 @@ pub mod pallet {
 		BoundedVec<UserFileSliceInfo, T::UserFileLimit>,
 		ValueQuery,
 	>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn bucket)]
-	pub(super) type Bucket<T: Config> =
-		StorageDoubleMap<
-			_,
-			Blake2_128Concat,
-			AccountOf<T>,
-			Blake2_128Concat,
-			BoundedVec<u8, T::NameStrLimit>,
-			BucketInfo<T>,
-		>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn user_bucket_list)]
-	pub(super) type UserBucketList<T: Config> = 
-		StorageMap<
-			_,
-			Blake2_128Concat,
-			AccountOf<T>,
-			BoundedVec<BoundedVec<u8, T::NameStrLimit>, T::BucketLimit>,
-			ValueQuery,
-		>;
 	
 	#[pallet::storage]
 	#[pallet::getter(fn restoral_order)]
@@ -365,16 +334,10 @@ pub mod pallet {
 									weight = weight.saturating_add(temp_weight);
 								}
 							}
-
-							if let Err(e) = Self::bucket_remove_file(&file_info.file_hash, &acc, &file) {
-								log::error!("[FileBank]: space lease, delete file from bucket report a bug! {:?}", e);
-							}
 						} else {
 							log::error!("space lease, delete file bug!");
 							log::error!("acc: {:?}, file_hash: {:?}", &acc, &file_info.file_hash);
 						}
-
-
 					}
 
 					ClearUserList::<T>::mutate(|target_list| {
@@ -419,7 +382,6 @@ pub mod pallet {
 
 			let minimum = T::NameMinLength::get();
 			ensure!(user_brief.file_name.len() as u32 >= minimum, Error::<T>::SpecError);
-			ensure!(user_brief.bucket_name.len() as u32 >= minimum, Error::<T>::SpecError);
 
 			if <File<T>>::contains_key(&file_hash) {
 				Receptionist::<T>::fly_upload_file(file_hash, user_brief.clone())?;
@@ -775,7 +737,6 @@ pub mod pallet {
 
 			let file = <File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::NonExistent)?;
 			let _ = Self::delete_user_file(&file_hash, &owner, &file)?;
-			Self::bucket_remove_file(&file_hash, &owner, &file)?;
 			Self::remove_user_hold_file_list(&file_hash, &owner)?;
 			Self::deposit_event(Event::<T>::DeleteFile{ operator: sender, owner, file_hash });
 
@@ -845,80 +806,6 @@ pub mod pallet {
 
 			Self::deposit_event(Event::<T>::IdleSpaceCert{ acc: sender, space: idle_space });
 
-			Ok(())
-		}
-
-		/// Create a Data Storage Bucket
-		///
-		/// This function allows a user with appropriate permissions to create a new data storage bucket.
-		///
-		/// Parameters:
-		/// - `origin`: The origin of the transaction.
-		/// - `owner`: The account identifier of the bucket owner.
-		/// - `name`: The name of the new bucket.
-		#[pallet::call_index(11)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::create_bucket())]
-		pub fn create_bucket(
-			origin: OriginFor<T>,
-			owner: AccountOf<T>,
-			name: BoundedVec<u8, T::NameStrLimit>,
-		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			ensure!(Self::check_permission(sender.clone(), owner.clone()), Error::<T>::NoPermission);
-			
-			Self::create_bucket_helper(&owner, &name, None)?;
-
-			Self::deposit_event(Event::<T>::CreateBucket {
-				operator: sender,
-				owner,
-				bucket_name: name.to_vec(),
-			});
-
-			Ok(())
-		}
-
-		/// Delete a Bucket
-		///
-		/// This function allows a user to delete an empty storage bucket that they own. 
-		/// Deleting a bucket is only possible if it contains no files.
-		///
-		/// Parameters:
-		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization.
-		/// - `owner`: The owner's account for whom the bucket should be deleted.
-		/// - `name`: The name of the bucket to be deleted.
-		#[pallet::call_index(12)]
-		#[transactional]
-		#[pallet::weight(<T as pallet::Config>::WeightInfo::delete_bucket())]
-		pub fn delete_bucket(
-			origin: OriginFor<T>,
-			owner: AccountOf<T>,
-			name: BoundedVec<u8, T::NameStrLimit>,
-		) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			ensure!(Self::check_permission(sender.clone(), owner.clone()), Error::<T>::NoPermission);
-			ensure!(<Bucket<T>>::contains_key(&owner, &name), Error::<T>::NonExistent);
-			let bucket = <Bucket<T>>::try_get(&owner, &name).map_err(|_| Error::<T>::Unexpected)?;
-			ensure!(bucket.object_list.len() == 0, Error::<T>::NotEmpty);
-
-			<Bucket<T>>::remove(&owner, &name);
-			<UserBucketList<T>>::try_mutate(&owner, |bucket_list| -> DispatchResult {
-				let mut index = 0;
-				for name_tmp in bucket_list.iter() {
-					if *name_tmp == name {
-						break;
-					}
-					index = index.checked_add(&1).ok_or(Error::<T>::Overflow)?;
-				}
-				bucket_list.remove(index);
-				Ok(())
-			})?;
-
-			Self::deposit_event(Event::<T>::DeleteBucket {
-				operator: sender,
-				owner,
-				bucket_name: name.to_vec(),
-			});
 			Ok(())
 		}
 
@@ -1178,7 +1065,6 @@ pub mod pallet {
 
 			let file = <File<T>>::try_get(&file_hash).map_err(|_| Error::<T>::NonExistent)?;
 			let _ = Self::delete_user_file(&file_hash, &owner, &file)?;
-			Self::bucket_remove_file(&file_hash, &owner, &file)?;
 			Self::remove_user_hold_file_list(&file_hash, &owner)?;
 
 			Ok(())

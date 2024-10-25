@@ -91,18 +91,9 @@ pub struct UserFileSliceInfo {
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
 #[scale_info(skip_type_params(T))]
 #[codec(mel_bound())]
-pub struct BucketInfo<T: Config> {
-	pub(super) object_list: BoundedVec<Hash, T::UserFileLimit>,
-	pub(super) authority: BoundedVec<AccountOf<T>, ConstU32<1032>>,
-}
-
-#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, MaxEncodedLen, TypeInfo)]
-#[scale_info(skip_type_params(T))]
-#[codec(mel_bound())]
 pub struct UserBrief<T: Config> {
 	pub user: AccountOf<T>,
 	pub file_name: BoundedVec<u8, T::NameStrLimit>,
-	pub bucket_name: BoundedVec<u8, T::NameStrLimit>,
 	pub territory_name: TerrName,
 }
 
