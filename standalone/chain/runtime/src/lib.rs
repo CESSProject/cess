@@ -146,7 +146,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	// and set impl_version to 0. If only runtime
 	// implementation changes and behavior does not, then leave spec_version as
 	// is and increment impl_version.
-	spec_version: 121,
+	spec_version: 101,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -1447,7 +1447,12 @@ pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
 pub type CheckedExtrinsic = fp_self_contained::CheckedExtrinsic<AccountId, RuntimeCall, SignedExtra, H160>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive =
-	frame_executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllPalletsWithSystem>;
+	frame_executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllPalletsWithSystem, Migrations>;
+
+type Migrations = (
+	pallet_file_bank::migrations::MigrationFileBank<Runtime>,
+	pallet_sminer::migrations::MigrationSminer<Runtime>,
+);
 
 type EventRecord =
 	frame_system::EventRecord<<Runtime as frame_system::Config>::RuntimeEvent, <Runtime as frame_system::Config>::Hash>;
@@ -1601,7 +1606,6 @@ impl pallet_file_bank::Config for Runtime {
 	type OneDay = OneDay;
 	type CreditCounter = SchedulerCredit;
 	type OssFindAuthor = Oss;
-	type BucketLimit = BucketLimit;
 	type NameStrLimit = NameStrLimit;
 	type SegmentCount = SegmentCount;
 	type FragmentCount = FragmentCount;
