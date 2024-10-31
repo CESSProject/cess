@@ -1,6 +1,6 @@
 use super::*;
 use frame_support::traits::OnRuntimeUpgrade;
-use sp_runtime::Saturating;
+use sp_runtime::{TryRuntimeError, Saturating};
 
 pub struct MigrationSminer<T: crate::Config>(sp_std::marker::PhantomData<T>);
 impl<T: crate::Config> OnRuntimeUpgrade for MigrationSminer<T> {
@@ -9,13 +9,13 @@ impl<T: crate::Config> OnRuntimeUpgrade for MigrationSminer<T> {
 	}
 
 	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
+	fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
 		log::info!("sminer check access");
-		return Ok(())
+		return Ok(Default::default())
 	}
 
 	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
+	fn post_upgrade(_state: Vec<u8>) -> Result<(), TryRuntimeError> {
 		let weights = migrate::<T>();
 		return Ok(())
 	}
