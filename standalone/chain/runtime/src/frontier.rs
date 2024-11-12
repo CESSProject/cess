@@ -43,6 +43,7 @@ parameter_types! {
 }
 
 impl pallet_evm::Config for Runtime {
+	type AccountProvider = pallet_evm::FrameSystemAccountProvider<Self>;
 	type FeeCalculator = BaseFee;
 	type GasWeightMapping = pallet_evm::FixedGasWeightMapping<Self>;
 	type WeightPerGas = WeightPerGas;
@@ -72,7 +73,7 @@ parameter_types! {
 
 impl pallet_ethereum::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type StateRoot = pallet_ethereum::IntermediateStateRoot<Self>;
+	type StateRoot = pallet_ethereum::IntermediateStateRoot<Self::Version>;
 	type PostLogContent = PostBlockAndTxnHashes;
 	type ExtraDataLength = ConstU32<30>;
 }
@@ -180,6 +181,7 @@ impl fp_self_contained::SelfContainedCall for RuntimeCall {
 
 #[cfg(test)]
 mod tests {
+	use polkadot_sdk::*;
 	use crate::Runtime;
 	use super::WeightPerGas;
 

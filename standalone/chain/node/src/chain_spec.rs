@@ -1,3 +1,4 @@
+use polkadot_sdk::*;
 use cess_node_primitives::{AccountId, Balance, Block, Signature};
 use cess_node_runtime::{constants::currency::DOLLARS, wasm_binary_unwrap, MaxNominations, SessionKeys, StakerStatus};
 /// Added a graph view on the functions relationship in this file, refer to the github-rendered view at:
@@ -17,8 +18,6 @@ use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
 	Perbill,
 };
-
-pub use cess_node_runtime::RuntimeGenesisConfig;
 
 // The URL for the telemetry server.
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
@@ -44,7 +43,7 @@ pub struct Extensions {
 }
 
 /// Specialized `ChainSpec`.
-pub type ChainSpec = sc_service::GenericChainSpec<RuntimeGenesisConfig, Extensions>;
+pub type ChainSpec = sc_service::GenericChainSpec<Extensions>;
 
 type AccountPublic = <Signature as Verify>::Signer;
 

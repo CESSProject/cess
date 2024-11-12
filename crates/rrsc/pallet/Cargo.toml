@@ -1,6 +1,6 @@
 [package]
 name = "pallet-rrsc"
-version = "4.0.0-dev"
+version = "38.0.0"
 authors = ["CESS"]
 edition = "2021"
 license = "Apache-2.0"
@@ -13,7 +13,7 @@ readme = "README.md"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false, features = ["derive"] }
+codec = { workspace = true, default-features = false, features = ["derive"] }
 log = { workspace = true }
 scale-info = { workspace = true, features = ["derive", "serde"] }
 frame-benchmarking = { workspace = true, optional = true }

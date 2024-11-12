@@ -22,6 +22,11 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limits.
 #![recursion_limit = "1024"]
 
+extern crate alloc;
+
+use polkadot_sdk::*;
+
+use alloc::{vec, vec::Vec};
 pub use cess_node_primitives::{AccountId, AccountIndex, Balance, BlockNumber, Hash, Moment, Nonce, Signature};
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_election_provider_support::{
@@ -32,7 +37,7 @@ use frame_support::{
 	derive_impl,
 	dispatch::DispatchClass,
 	dynamic_params::{dynamic_pallet_params, dynamic_params},
-	genesis_builder_helper::{build_config, create_default_config},
+	genesis_builder_helper::{build_state, get_preset},
 	instances::{Instance1, Instance2},
 	ord_parameter_types,
 	pallet_prelude::Get,
@@ -42,7 +47,7 @@ use frame_support::{
 		tokens::{imbalance::ResolveAssetTo, pay::PayAssetFromAccount},
 		AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU32, Currency, EitherOfDiverse, EnsureOriginWithArg,
 		EqualPrivilegeOnly, Imbalance, InstanceFilter, KeyOwnerProofSystem, LinearStoragePrice, Nothing, OnFinalize,
-		OnUnbalanced,
+		OnUnbalanced, VariantCountOf,
 	},
 	weights::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_REF_TIME_PER_MILLIS},
@@ -54,10 +59,12 @@ use frame_system::{
 	limits::{BlockLength, BlockWeights},
 	EnsureRoot, EnsureSigned, EnsureSignedBy, EnsureWithSuccess,
 };
-use pallet_asset_conversion::{Ascending, Chain, WithFirstAsset};
+use pallet_asset_conversion::{AccountIdConverter, Ascending, Chain, WithFirstAsset};
+use pallet_asset_conversion_tx_payment::SwapAssetAdapter;
 use pallet_election_provider_multi_phase::{GeometricDepositBase, SolutionAccuracyOf};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical as pallet_session_historical;
+#[allow(deprecated)]
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier, TargetedFeeAdjustment};
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use sp_api::impl_runtime_apis;
@@ -75,7 +82,6 @@ use sp_runtime::{
 	ApplyExtrinsicResult, FixedPointNumber, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
 };
 use sp_staking::currency_to_vote::CurrencyToVote;
-use sp_std::prelude::*;
 #[cfg(any(feature = "std", test))]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
@@ -136,7 +142,7 @@ pub fn wasm_binary_unwrap() -> &'static [u8] {
 	)
 }
 
-/// Runtime version.	
+/// Runtime version.
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("cess-node"),
@@ -170,7 +176,7 @@ type NegativeImbalance = <Balances as Currency<AccountId>>::NegativeImbalance;
 
 pub struct DealWithFees;
 impl OnUnbalanced<NegativeImbalance> for DealWithFees {
-	fn on_unbalanceds<B>(mut fees_then_tips: impl Iterator<Item = NegativeImbalance>) {
+	fn on_unbalanceds(mut fees_then_tips: impl Iterator<Item = NegativeImbalance>) {
 		if let Some(fees) = fees_then_tips.next() {
 			// for fees, 80% to treasury, 20% to author
 			let mut split = fees.ration(80, 20);
@@ -428,7 +434,7 @@ impl pallet_balances::Config for Runtime {
 	type AccountStore = frame_system::Pallet<Runtime>;
 	type WeightInfo = pallet_balances::weights::SubstrateWeight<Runtime>;
 	type FreezeIdentifier = RuntimeFreezeReason;
-	type MaxFreezes = ConstU32<1>;
+	type MaxFreezes = VariantCountOf<RuntimeFreezeReason>;
 }
 
 parameter_types! {
@@ -440,6 +446,9 @@ parameter_types! {
 	pub MaximumMultiplier: Multiplier = Bounded::max_value();
 }
 
+// Can't use `FungibleAdapter` here until Treasury pallet migrates to fungibles
+// <https://github.com/paritytech/polkadot-sdk/issues/226>
+#[allow(deprecated)]
 impl pallet_transaction_payment::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees>;
@@ -461,9 +470,13 @@ impl pallet_asset_tx_payment::Config for Runtime {
 
 impl pallet_asset_conversion_tx_payment::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type Fungibles = Assets;
-	type OnChargeAssetTransaction =
-		pallet_asset_conversion_tx_payment::AssetConversionAdapter<Balances, AssetConversion, Native>;
+	type AssetId = NativeOrWithId<u32>;
+	type OnChargeAssetTransaction = SwapAssetAdapter<
+		Native,
+		NativeAndAssets,
+		AssetConversion,
+		ResolveAssetTo<TreasuryAccount, NativeAndAssets>,
+	>;
 }
 
 parameter_types! {
@@ -513,7 +526,6 @@ parameter_types! {
 	pub const BondingDuration: sp_staking::EraIndex = 24 * 28;
 	pub const SlashDeferDuration: sp_staking::EraIndex = 24 * 7; // 1/4 the bonding duration.
 	pub const MaxNominators: u32 = 64;
-	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	pub const MaxControllersInDeprecationBatch: u32 = 5900;
 	pub OffchainRepeat: BlockNumber = 5;
 	pub HistoryDepth: u32 = 84;
@@ -549,7 +561,6 @@ impl pallet_cess_staking::Config for Runtime {
 	type EraPayout = (); // pallet_cess_staking::ConvertCurve<RewardCurve>;
 	type NextNewSession = Session;
 	type MaxExposurePageSize = ConstU32<256>;
-	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type GenesisElectionProvider = onchain::OnChainExecution<OnChainVrf>;
 	type VoterList = VoterList;
@@ -562,6 +573,7 @@ impl pallet_cess_staking::Config for Runtime {
 	type EventListeners = (); // NominationPools;
 	type WeightInfo = pallet_cess_staking::weights::SubstrateWeight<Runtime>;
 	type BenchmarkingConfig = StakingBenchmarkingConfig;
+	type DisablingStrategy = pallet_cess_staking::UpToLimitDisablingStrategy;
 
 	const ERAS_PER_YEAR: u64 = ERAS_PER_YEAR;
 	const FIRST_YEAR_VALIDATOR_REWARDS: Balance = 238_500_000 * DOLLARS;
@@ -802,19 +814,11 @@ parameter_types! {
 impl pallet_treasury::Config for Runtime {
 	type PalletId = TreasuryPalletId;
 	type Currency = Balances;
-	type ApproveOrigin = EitherOfDiverse<
-		EnsureRoot<AccountId>,
-		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 5>,
-	>;
 	type RejectOrigin = EitherOfDiverse<
 		EnsureRoot<AccountId>,
 		pallet_collective::EnsureProportionMoreThan<AccountId, CouncilCollective, 1, 2>,
 	>;
 	type RuntimeEvent = RuntimeEvent;
-	type OnSlash = ();
-	type ProposalBond = ProposalBond;
-	type ProposalBondMinimum = ProposalBondMinimum;
-	type ProposalBondMaximum = ();
 	type SpendPeriod = SpendPeriod;
 	type Burn = Burn;
 	type BurnDestination = ();
@@ -877,9 +881,10 @@ impl pallet_contracts::Config for Runtime {
 	type UploadOrigin = EnsureSigned<Self::AccountId>;
 	type InstantiateOrigin = EnsureSigned<Self::AccountId>;
 	type MaxDebugBufferLen = ConstU32<{ 2 * 1024 * 1024 }>;
+	type MaxTransientStorageSize = ConstU32<{ 1 * 1024 * 1024 }>;
 	type RuntimeHoldReason = RuntimeHoldReason;
 	#[cfg(not(feature = "runtime-benchmarks"))]
-	type Migrations = ();
+	type Migrations = (pallet_contracts::migration::v16::Migration<Runtime>,);
 	#[cfg(feature = "runtime-benchmarks")]
 	type Migrations = pallet_contracts::migration::codegen::BenchMigrations;
 	type MaxDelegateDependencies = ConstU32<32>;
@@ -1001,7 +1006,10 @@ impl pallet_mmr::Config for Runtime {
 	type Hashing = Keccak256;
 	type LeafData = pallet_mmr::ParentNumberAndHash<Self>;
 	type OnNewRoot = ();
+	type BlockHashProvider = pallet_mmr::DefaultBlockHashProvider<Runtime>;
 	type WeightInfo = ();
+	#[cfg(feature = "runtime-benchmarks")]
+	type BenchmarkHelper = ();
 }
 
 parameter_types! {
@@ -1070,15 +1078,29 @@ parameter_types! {
 	pub const Native: NativeOrWithId<u32> = NativeOrWithId::Native;
 }
 
+pub type NativeAndAssets =
+	UnionOf<Balances, Assets, NativeFromLeft, NativeOrWithId<u32>, AccountId>;
+
 impl pallet_asset_conversion::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Balance = u128;
 	type HigherPrecisionBalance = sp_core::U256;
 	type AssetKind = NativeOrWithId<u32>;
-	type Assets = UnionOf<Balances, Assets, NativeFromLeft, NativeOrWithId<u32>, AccountId>;
+	type Assets = NativeAndAssets;
 	type PoolId = (Self::AssetKind, Self::AssetKind);
-	type PoolLocator =
-		Chain<WithFirstAsset<Native, AccountId, NativeOrWithId<u32>>, Ascending<AccountId, NativeOrWithId<u32>>>;
+	type PoolLocator = Chain<
+		WithFirstAsset<
+			Native,
+			AccountId,
+			NativeOrWithId<u32>,
+			AccountIdConverter<AssetConversionPalletId, Self::PoolId>,
+		>,
+		Ascending<
+			AccountId,
+			NativeOrWithId<u32>,
+			AccountIdConverter<AssetConversionPalletId, Self::PoolId>,
+		>,
+	>;
 	type PoolAssetId = <Self as pallet_assets::Config<Instance2>>::AssetId;
 	type PoolAssets = PoolAssets;
 	type PoolSetupFee = PoolSetupFee;
@@ -1202,7 +1224,7 @@ impl EnsureOriginWithArg<RuntimeOrigin, RuntimeParametersKey> for DynamicParamet
 				frame_system::ensure_root(origin.clone()).map_err(|_| origin)?;
 				return Ok(())
 			},
-			RuntimeParametersKey::Contract(_) => {
+			RuntimeParametersKey::Contracts(_) => {
 				frame_system::ensure_root(origin.clone()).map_err(|_| origin)?;
 				return Ok(())
 			},
@@ -1239,176 +1261,176 @@ mod runtime {
 	pub struct Runtime;
 
 	#[runtime::pallet_index(0)]
-	pub type System = frame_system;
+	pub type System = frame_system::Pallet<Runtime>;
 
 	#[runtime::pallet_index(1)]
-	pub type Utility = pallet_utility;
+	pub type Utility = pallet_utility::Pallet<Runtime>;
 
 	#[runtime::pallet_index(2)]
-	pub type Babe = pallet_rrsc;
+	pub type Babe = pallet_rrsc::Pallet<Runtime>;
 
 	#[runtime::pallet_index(3)]
-	pub type Timestamp = pallet_timestamp;
+	pub type Timestamp = pallet_timestamp::Pallet<Runtime>;
 
 	// Authorship must be before session in order to note author in the correct session and era
 	// for im-online and staking.
 	#[runtime::pallet_index(4)]
-	pub type Authorship = pallet_authorship;
+	pub type Authorship = pallet_authorship::Pallet<Runtime>;
 
 	#[runtime::pallet_index(5)]
-	pub type Indices = pallet_indices;
+	pub type Indices = pallet_indices::Pallet<Runtime>;
 
 	#[runtime::pallet_index(6)]
-	pub type Balances = pallet_balances;
+	pub type Balances = pallet_balances::Pallet<Runtime>;
 
 	#[runtime::pallet_index(7)]
-	pub type TransactionPayment = pallet_transaction_payment;
+	pub type TransactionPayment = pallet_transaction_payment::Pallet<Runtime>;
 
 	#[runtime::pallet_index(8)]
-	pub type AssetTxPayment = pallet_asset_tx_payment;
+	pub type AssetTxPayment = pallet_asset_tx_payment::Pallet<Runtime>;
 
 	#[runtime::pallet_index(9)]
-	pub type AssetConversionTxPayment = pallet_asset_conversion_tx_payment;
+	pub type AssetConversionTxPayment = pallet_asset_conversion_tx_payment::Pallet<Runtime>;
 
 	#[runtime::pallet_index(10)]
-	pub type ElectionProviderMultiPhase = pallet_election_provider_multi_phase;
+	pub type ElectionProviderMultiPhase = pallet_election_provider_multi_phase::Pallet<Runtime>;
 
 	#[runtime::pallet_index(11)]
-	pub type Staking = pallet_cess_staking;
+	pub type Staking = pallet_cess_staking::Pallet<Runtime>;
 
 	#[runtime::pallet_index(12)]
-	pub type Session = pallet_session;
+	pub type Session = pallet_session::Pallet<Runtime>;
 
 	#[runtime::pallet_index(13)]
-	pub type Council = pallet_collective<Instance1>;
+	pub type Council = pallet_collective::Pallet<Runtime, Instance1>;
 
 	#[runtime::pallet_index(14)]
-	pub type TechnicalCommittee = pallet_collective<Instance2>;
+	pub type TechnicalCommittee = pallet_collective::Pallet<Runtime, Instance2>;
 
 	#[runtime::pallet_index(16)]
-	pub type Grandpa = pallet_grandpa;
+	pub type Grandpa = pallet_grandpa::Pallet<Runtime>;
 
 	#[runtime::pallet_index(17)]
-	pub type Treasury = pallet_treasury;
+	pub type Treasury = pallet_treasury::Pallet<Runtime>;
 
 	#[runtime::pallet_index(20)]
-	pub type AssetRate = pallet_asset_rate;
+	pub type AssetRate = pallet_asset_rate::Pallet<Runtime>;
 
 	#[runtime::pallet_index(21)]
-	pub type Contracts = pallet_contracts;
+	pub type Contracts = pallet_contracts::Pallet<Runtime>;
 
 	#[runtime::pallet_index(22)]
-	pub type Sudo = pallet_sudo;
+	pub type Sudo = pallet_sudo::Pallet<Runtime>;
 
 	#[runtime::pallet_index(23)]
-	pub type ImOnline = pallet_im_online;
+	pub type ImOnline = pallet_im_online::Pallet<Runtime>;
 
 	#[runtime::pallet_index(24)]
-	pub type AuthorityDiscovery = pallet_authority_discovery;
+	pub type AuthorityDiscovery = pallet_authority_discovery::Pallet<Runtime>;
 
 	#[runtime::pallet_index(25)]
-	pub type Offences = pallet_offences;
+	pub type Offences = pallet_offences::Pallet<Runtime>;
 
 	#[runtime::pallet_index(26)]
-	pub type Historical = pallet_session_historical;
+	pub type Historical = pallet_session_historical::Pallet<Runtime>;
 
 	#[runtime::pallet_index(27)]
-	pub type RandomnessCollectiveFlip = pallet_insecure_randomness_collective_flip;
+	pub type RandomnessCollectiveFlip = pallet_insecure_randomness_collective_flip::Pallet<Runtime>;
 
 	#[runtime::pallet_index(32)]
-	pub type Scheduler = pallet_scheduler;
+	pub type Scheduler = pallet_scheduler::Pallet<Runtime>;
 
 	#[runtime::pallet_index(34)]
-	pub type Preimage = pallet_preimage;
+	pub type Preimage = pallet_preimage::Pallet<Runtime>;
 
 	#[runtime::pallet_index(35)]
-	pub type Proxy = pallet_proxy;
+	pub type Proxy = pallet_proxy::Pallet<Runtime>;
 
 	#[runtime::pallet_index(36)]
-	pub type Multisig = pallet_multisig;
+	pub type Multisig = pallet_multisig::Pallet<Runtime>;
 
 	#[runtime::pallet_index(39)]
-	pub type Assets = pallet_assets<Instance1>;
+	pub type Assets = pallet_assets::Pallet<Runtime, Instance1>;
 
 	#[runtime::pallet_index(40)]
-	pub type PoolAssets = pallet_assets<Instance2>;
+	pub type PoolAssets = pallet_assets::Pallet<Runtime, Instance2>;
 
 	// MMR leaf construction must be after session in order to have a leaf's next_auth_set
 	// refer to block<N>. See issue polkadot-fellows/runtimes#160 for details.
 	#[runtime::pallet_index(42)]
-	pub type Mmr = pallet_mmr;
+	pub type Mmr = pallet_mmr::Pallet<Runtime>;
 
 	#[runtime::pallet_index(51)]
-	pub type TransactionStorage = pallet_transaction_storage;
+	pub type TransactionStorage = pallet_transaction_storage::Pallet<Runtime>;
 
 	#[runtime::pallet_index(52)]
-	pub type VoterList = pallet_bags_list<Instance1>;
+	pub type VoterList = pallet_bags_list::Pallet<Runtime, Instance1>;
 
 	#[runtime::pallet_index(53)]
-	pub type StateTrieMigration = pallet_state_trie_migration;
+	pub type StateTrieMigration = pallet_state_trie_migration::Pallet<Runtime>;
 
 	#[runtime::pallet_index(65)]
-	pub type AssetConversion = pallet_asset_conversion;
+	pub type AssetConversion = pallet_asset_conversion::Pallet<Runtime>;
 
 	#[runtime::pallet_index(66)]
-	pub type FastUnstake = pallet_fast_unstake;
+	pub type FastUnstake = pallet_fast_unstake::Pallet<Runtime>;
 
 	#[runtime::pallet_index(72)]
-	pub type MultiBlockMigrations = pallet_migrations;
+	pub type MultiBlockMigrations = pallet_migrations::Pallet<Runtime>;
 
 	#[runtime::pallet_index(76)]
-	pub type Parameters = pallet_parameters;
+	pub type Parameters = pallet_parameters::Pallet<Runtime>;
 
 	//------------------- Frontier's begin ---------------------
 	#[runtime::pallet_index(81)]
-	pub type Ethereum = pallet_ethereum;
+	pub type Ethereum = pallet_ethereum::Pallet<Runtime>;
 
 	#[runtime::pallet_index(82)]
-	pub type EVM = pallet_evm;
+	pub type EVM = pallet_evm::Pallet<Runtime>;
 
 	#[runtime::pallet_index(83)]
-	pub type EVMChainId = pallet_evm_chain_id;
+	pub type EVMChainId = pallet_evm_chain_id::Pallet<Runtime>;
 
 	#[runtime::pallet_index(84)]
-	pub type BaseFee = pallet_base_fee;
+	pub type BaseFee = pallet_base_fee::Pallet<Runtime>;
 	//------------------- Frontier's end ---------------------
 
 	//------------------- CESS's begin ---------------------
 	#[runtime::pallet_index(100)]
-	pub type CessTreasury = pallet_cess_treasury;
+	pub type CessTreasury = pallet_cess_treasury::Pallet<Runtime>;
 
 	#[runtime::pallet_index(101)]
-	pub type SchedulerCredit = pallet_scheduler_credit;
+	pub type SchedulerCredit = pallet_scheduler_credit::Pallet<Runtime>;
 
 	#[runtime::pallet_index(102)]
-	pub type CesMq = ces_pallet_mq;
+	pub type CesMq = ces_pallet_mq::Pallet<Runtime>;
 
 	#[runtime::pallet_index(103)]
-	pub type TeeWorker = pallet_tee_worker;
+	pub type TeeWorker = pallet_tee_worker::Pallet<Runtime>;
 
 	#[runtime::pallet_index(104)]
-	pub type FileBank = pallet_file_bank;
+	pub type FileBank = pallet_file_bank::Pallet<Runtime>;
 
 	#[runtime::pallet_index(105)]
-	pub type Sminer = pallet_sminer;
+	pub type Sminer = pallet_sminer::Pallet<Runtime>;
 
 	#[runtime::pallet_index(106)]
-	pub type Audit = pallet_audit;
+	pub type Audit = pallet_audit::Pallet<Runtime>;
 
 	#[runtime::pallet_index(107)]
-	pub type StorageHandler = pallet_storage_handler;
+	pub type StorageHandler = pallet_storage_handler::Pallet<Runtime>;
 
 	#[runtime::pallet_index(108)]
-	pub type Oss = pallet_oss;
+	pub type Oss = pallet_oss::Pallet<Runtime>;
 
 	#[runtime::pallet_index(109)]
-	pub type Cacher = pallet_cacher;
+	pub type Cacher = pallet_cacher::Pallet<Runtime>;
 
 	#[runtime::pallet_index(110)]
-	pub type Reservoir = pallet_reservoir;
+	pub type Reservoir = pallet_reservoir::Pallet<Runtime>;
 
 	#[runtime::pallet_index(111)]
-	pub type EvmAccountMapping = pallet_evm_account_mapping;
+	pub type EvmAccountMapping = pallet_evm_account_mapping::Pallet<Runtime>;
 	//------------------- CESS's end ---------------------
 }
 
@@ -1446,14 +1468,31 @@ pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = fp_self_contained::CheckedExtrinsic<AccountId, RuntimeCall, SignedExtra, H160>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive =
-	frame_executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllPalletsWithSystem>;
+pub type Executive = frame_executive::Executive<
+	Runtime,
+	Block,
+	frame_system::ChainContext<Runtime>,
+	Runtime,
+	AllPalletsWithSystem,
+	Migrations,
+>;
 
-type EventRecord =
-	frame_system::EventRecord<<Runtime as frame_system::Config>::RuntimeEvent, <Runtime as frame_system::Config>::Hash>;
+// All migrations executed on runtime upgrade as a nested tuple of types implementing
+// `OnRuntimeUpgrade`. Note: These are examples and do not need to be run directly
+// after the genesis block.
+type Migrations = (
+	pallet_contracts::Migration<Runtime>,
+	pallet_cess_staking::migrations::v15::MigrateV14ToV15<Runtime>,
+);
+
+type EventRecord = frame_system::EventRecord<
+	<Runtime as frame_system::Config>::RuntimeEvent,
+	<Runtime as frame_system::Config>::Hash,
+>;
 
 /// MMR helper types.
 mod mmr {
+	use polkadot_sdk::*;
 	use super::Runtime;
 	pub use pallet_mmr::primitives::*;
 
@@ -1824,7 +1863,7 @@ impl_runtime_apis! {
 			Runtime::metadata_at_version(version)
 		}
 
-		fn metadata_versions() -> sp_std::vec::Vec<u32> {
+		fn metadata_versions() -> Vec<u32> {
 			Runtime::metadata_versions()
 		}
 	}
@@ -2116,7 +2155,7 @@ impl_runtime_apis! {
 		fn generate_proof(
 			block_numbers: Vec<BlockNumber>,
 			best_known_block_number: Option<BlockNumber>,
-		) -> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::Proof<mmr::Hash>), mmr::Error> {
+		) -> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::LeafProof<mmr::Hash>), mmr::Error> {
 			Mmr::generate_proof(block_numbers, best_known_block_number).map(
 				|(leaves, proof)| {
 					(
@@ -2130,7 +2169,7 @@ impl_runtime_apis! {
 			)
 		}
 
-		fn verify_proof(leaves: Vec<mmr::EncodableOpaqueLeaf>, proof: mmr::Proof<mmr::Hash>)
+		fn verify_proof(leaves: Vec<mmr::EncodableOpaqueLeaf>, proof: mmr::LeafProof<mmr::Hash>)
 			-> Result<(), mmr::Error>
 		{
 			let leaves = leaves.into_iter().map(|leaf|
@@ -2143,7 +2182,7 @@ impl_runtime_apis! {
 		fn verify_proof_stateless(
 			root: mmr::Hash,
 			leaves: Vec<mmr::EncodableOpaqueLeaf>,
-			proof: mmr::Proof<mmr::Hash>
+			proof: mmr::LeafProof<mmr::Hash>
 		) -> Result<(), mmr::Error> {
 			let nodes = leaves.into_iter().map(|leaf|mmr::DataOrHash::Data(leaf.into_opaque_leaf())).collect();
 			pallet_mmr::verify_leaves_proof::<mmr::Hashing, _>(root, nodes, proof)
@@ -2248,12 +2287,16 @@ impl_runtime_apis! {
 	}
 
 	impl sp_genesis_builder::GenesisBuilder<Block> for Runtime {
-		fn create_default_config() -> Vec<u8> {
-			create_default_config::<RuntimeGenesisConfig>()
+		fn build_state(config: Vec<u8>) -> sp_genesis_builder::Result {
+			build_state::<RuntimeGenesisConfig>(config)
 		}
 
-		fn build_config(config: Vec<u8>) -> sp_genesis_builder::Result {
-			build_config::<RuntimeGenesisConfig>(config)
+		fn get_preset(id: &Option<sp_genesis_builder::PresetId>) -> Option<Vec<u8>> {
+			get_preset::<RuntimeGenesisConfig>(id, |_| None)
+		}
+
+		fn preset_names() -> Vec<sp_genesis_builder::PresetId> {
+			vec![]
 		}
 	}
 
@@ -2442,6 +2485,10 @@ impl_runtime_apis! {
 				pallet_ethereum::CurrentBlock::<Runtime>::get(),
 				pallet_ethereum::CurrentTransactionStatuses::<Runtime>::get()
 			)
+		}
+
+		fn initialize_pending_block(header: &<Block as BlockT>::Header) {
+			Executive::initialize_block(header);
 		}
 	}
 
