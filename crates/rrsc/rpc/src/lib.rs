@@ -25,12 +25,13 @@ use jsonrpsee::{
 	core::async_trait,
 	proc_macros::rpc,
 	types::{ErrorObject, ErrorObjectOwned},
+	Extensions,
 };
 use serde::{Deserialize, Serialize};
 
 use cessc_consensus_rrsc::{authorship, RRSCWorkerHandle};
 use sc_consensus_epochs::Epoch as EpochT;
-use sc_rpc_api::{DenyUnsafe, UnsafeRpcError};
+use sc_rpc_api::{check_if_safe, UnsafeRpcError};
 use sp_api::ProvideRuntimeApi;
 use sp_application_crypto::AppCrypto;
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
@@ -47,7 +48,7 @@ const RRSC_ERROR: i32 = 9000;
 pub trait RRSCApi {
 	/// Returns data about which slots (primary or secondary) can be claimed in the current epoch
 	/// with the keys in the keystore.
-	#[method(name = "rrsc_epochAuthorship")]
+	#[method(name = "rrsc_epochAuthorship", with_extensions)]
 	async fn epoch_authorship(&self) -> Result<HashMap<AuthorityId, EpochAuthorship>, Error>;
 }
 
@@ -61,8 +62,6 @@ pub struct RRSC<B: BlockT, C, SC> {
 	keystore: KeystorePtr,
 	/// The SelectChain strategy
 	select_chain: SC,
-	/// Whether to deny unsafe calls
-	deny_unsafe: DenyUnsafe,
 }
 
 impl<B: BlockT, C, SC> RRSC<B, C, SC> {
@@ -72,9 +71,8 @@ impl<B: BlockT, C, SC> RRSC<B, C, SC> {
 		rrsc_worker_handle: RRSCWorkerHandle<B>,
 		keystore: KeystorePtr,
 		select_chain: SC,
-		deny_unsafe: DenyUnsafe,
 	) -> Self {
-		Self { client, rrsc_worker_handle, keystore, select_chain, deny_unsafe }
+		Self { client, rrsc_worker_handle, keystore, select_chain }
 	}
 }
 
@@ -89,8 +87,11 @@ where
 	C::Api: RRSCRuntimeApi<B>,
 	SC: SelectChain<B> + Clone + 'static,
 {
-	async fn epoch_authorship(&self) -> Result<HashMap<AuthorityId, EpochAuthorship>, Error> {
-		self.deny_unsafe.check_if_safe()?;
+	async fn epoch_authorship(
+		&self,
+		ext: &Extensions,
+	) -> Result<HashMap<AuthorityId, EpochAuthorship>, Error> {
+		check_if_safe(ext)?;
 
 		let best_header = self.select_chain.best_chain().map_err(Error::SelectChain).await?;
 
@@ -193,8 +194,9 @@ impl From<Error> for ErrorObjectOwned {
 mod tests {
 	use super::*;
 	use cessc_consensus_rrsc::ImportQueueParams;
+	use sc_rpc_api::DenyUnsafe;
 	use sc_transaction_pool_api::{OffchainTransactionPoolFactory, RejectAllTxPool};
-	use cessp_consensus_rrsc::{inherents::InherentDataProvider, KEY_TYPE as RRSC};
+	use cessp_consensus_rrsc::{inherents::InherentDataProvider, KEY_TYPE as RRSC_KEY};
 	use sp_core::testing::TaskExecutor;
 	use sp_keyring::Sr25519Keyring;
 	use sp_keystore::{testing::MemoryKeystore, Keystore};
@@ -206,14 +208,13 @@ mod tests {
 	fn create_keystore(authority: Sr25519Keyring) -> KeystorePtr {
 		let keystore = MemoryKeystore::new();
 		keystore
-			.sr25519_generate_new(RRSC, Some(&authority.to_seed()))
+			.sr25519_generate_new(RRSC_KEY, Some(&authority.to_seed()))
 			.expect("Creates authority key");
 		keystore.into()
 	}
 
-	fn test_rrsc_rpc_module(
-		deny_unsafe: DenyUnsafe,
-	) -> RRSC<Block, TestClient, sc_consensus::LongestChain<Backend, Block>> {
+	fn test_rrsc_rpc_module() -> RRSC<Block, TestClient, sc_consensus::LongestChain<Backend, Block>>
+	{
 		let builder = TestClientBuilder::new();
 		let (client, longest_chain) = builder.build_with_longest_chain();
 		let client = Arc::new(client);
@@ -248,30 +249,32 @@ mod tests {
 		})
 		.unwrap();
 
-		RRSC::new(client.clone(), rrsc_worker_handle, keystore, longest_chain, deny_unsafe)
+		RRSC::new(client.clone(), rrsc_worker_handle, keystore, longest_chain)
 	}
 
 	#[tokio::test]
 	async fn epoch_authorship_works() {
-		let rrsc_rpc = test_rrsc_rpc_module(DenyUnsafe::No);
-		let api = rrsc_rpc.into_rpc();
+		let rrsc_rpc = test_rrsc_rpc_module();
+		let mut api = rrsc_rpc.into_rpc();
+		api.extensions_mut().insert(DenyUnsafe::No);
 
-		let request = r#"{"jsonrpc":"2.0","method":"rrsc_epochAuthorship","params": [],"id":1}"#;
-		let (response, _) = api.raw_json_request(request).await.unwrap();
-		let expected = r#"{"jsonrpc":"2.0","result":{"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY":{"primary":[0],"secondary":[1,2,4],"secondary_vrf":[]}},"id":1}"#;
+		let request = r#"{"jsonrpc":"2.0","id":1,"method":"rrsc_epochAuthorship","params":[]}"#;
+		let (response, _) = api.raw_json_request(request, 1).await.unwrap();
+		let expected = r#"{"jsonrpc":"2.0","id":1,"result":{"5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY":{"primary":[0],"secondary":[],"secondary_vrf":[1,2,4]}}}"#;
 
-		assert_eq!(&response.result, expected);
+		assert_eq!(response, expected);
 	}
 
 	#[tokio::test]
 	async fn epoch_authorship_is_unsafe() {
-		let rrsc_rpc = test_rrsc_rpc_module(DenyUnsafe::Yes);
-		let api = rrsc_rpc.into_rpc();
+		let rpc = test_rrsc_rpc_module();
+		let mut api = rpc.into_rpc();
+		api.extensions_mut().insert(DenyUnsafe::Yes);
 
 		let request = r#"{"jsonrpc":"2.0","method":"rrsc_epochAuthorship","params":[],"id":1}"#;
-		let (response, _) = api.raw_json_request(request).await.unwrap();
-		let expected = r#"{"jsonrpc":"2.0","error":{"code":-32601,"message":"RPC call is unsafe to be called externally"},"id":1}"#;
+		let (response, _) = api.raw_json_request(request, 1).await.unwrap();
+		let expected = r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"RPC call is unsafe to be called externally"}}"#;
 
-		assert_eq!(&response.result, expected);
+		assert_eq!(response, expected);
 	}
 }

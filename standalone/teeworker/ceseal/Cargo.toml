@@ -16,7 +16,7 @@ hex_fmt = "0.3.0"
 humantime = "2.1.0"
 lazy_static = { version = "1.4.0", default-features = false }
 num_cpus = "1.13"
-parity-scale-codec = { version = "3.6.1", default-features = false }
+parity-scale-codec = { version = "3.6.12", default-features = false }
 reqwest = { version = "0.12", default-features = false, features = [
     "rustls-tls",
     "socks",

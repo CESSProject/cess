@@ -92,7 +92,7 @@ mod storage_ext {
         }
 
         pub fn timestamp_now(&self) -> chain::Moment {
-            self.execute_with(chain::Timestamp::now)
+            self.execute_with(|| chain::Timestamp::get())
         }
 
         /// Get the next mq sequnce number for given sender. Default to 0 if no message sent.
