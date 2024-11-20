@@ -320,17 +320,29 @@ impl Podr2VerifierApi for Podr2VerifierServer {
                     ))
                 })?;
         }
-
+        info!("[Batch verify]q_elements random_index_list:{:?}",q_elements.1.random_index_list.clone());
+        info!("[Batch verify]q_elements random_list:{:?}",q_elements.1.random_list.clone());
         let raw = VerifyServiceResultInfo {
-            miner_pbk: miner_id,
+            miner_pbk: miner_id.clone(),
             tee_account_id: self.ceseal_identity_key.into(),
             result: result.batch_verify_result,
-            sigma: agg_proof.sigma.into_bytes(),
+            sigma: agg_proof.sigma.clone().into_bytes(),
             chal: q_elements.1,
             service_bloom_filter: service_bloom_filter.clone(),
         };
+        info!("[Batch verify]miner id is :{:?}miner_pbk:{:?}",crate::pois::get_ss58_address(&miner_id.clone().to_raw_vec()).unwrap(),hex::encode(miner_id.to_raw_vec()));
+        info!("[Batch verify]tee_account_id:{:?}",hex::encode(self.ceseal_identity_key.clone()));
+        info!("[Batch verify]batch_verify_result:{}",result.batch_verify_result);
+        info!("[Batch verify]agg_proof.sigma:{:?}",hex::encode(agg_proof.sigma.into_bytes()));
+        
+        info!("[Batch verify]service_bloom_filter:{:?}",service_bloom_filter.0);
+
+        info!("[Batch verify]encode value:{:?}",hex::encode(&raw.encode()));
+        info!("[Batch verify]encode value hash:{:?}",hex::encode(&calculate_hash(&raw.encode())));
+
         //using podr2 keypair sign
         let podr2_sign = self.master_key.sign_data(&calculate_hash(&raw.encode())).0.to_vec();
+        info!("[Batch verify]podr2_sign:{:?}",hex::encode(podr2_sign.clone()));
 
         result.tee_account_id = self.ceseal_identity_key.to_vec();
         result.service_bloom_filter = service_bloom_filter.0.to_vec();
