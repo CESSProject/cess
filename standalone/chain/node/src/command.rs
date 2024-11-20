@@ -240,15 +240,6 @@ pub fn run() -> sc_cli::Result<()> {
 				cmd.run(client, frontier_backend)
 			})
 		},
-<<<<<<< HEAD
-		#[cfg(feature = "try-runtime")]
-		Some(Subcommand::TryRuntime) => Err(try_runtime_cli::DEPRECATION_NOTICE.into()),
-		#[cfg(not(feature = "try-runtime"))]
-		Some(Subcommand::TryRuntime) => Err("TryRuntime wasn't enabled when building the node. \
-				You can enable it with `--features try-runtime`."
-			.into()),
-=======
->>>>>>> main
 		Some(Subcommand::ChainInfo(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.sync_run(|config| cmd.run::<Block>(&config))
