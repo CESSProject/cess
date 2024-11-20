@@ -61,7 +61,7 @@
 //! blocks) and will go with the longest one in case of a tie.
 //!
 //! An in-depth description and analysis of the protocol can be found here:
-//! <https://research.web3.foundation/en/latest/polkadot/block-production/RRSC.html>
+//! <https://research.web3.foundation/Polkadot/protocols/block-production/Babe>
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -69,6 +69,7 @@
 use std::{
 	collections::HashSet,
 	future::Future,
+	ops::{Deref, DerefMut},
 	pin::Pin,
 	sync::Arc,
 	task::{Context, Poll},
@@ -156,20 +157,27 @@ const AUTHORING_SCORE_VRF_CONTEXT: &[u8] = b"substrate-rrsc-vrf";
 const AUTHORING_SCORE_LENGTH: usize = 16;
 
 /// RRSC epoch information
-#[derive(Decode, Encode, PartialEq, Eq, Clone, Debug, scale_info::TypeInfo)]
-pub struct Epoch {
-	/// The epoch index.
-	pub epoch_index: u64,
-	/// The starting slot of the epoch.
-	pub start_slot: Slot,
-	/// The duration of this epoch.
-	pub duration: u64,
-	/// The authorities and their weights.
-	pub authorities: Vec<(AuthorityId, RRSCAuthorityWeight)>,
-	/// Randomness for this epoch.
-	pub randomness: Randomness,
-	/// Configuration of the epoch.
-	pub config: RRSCEpochConfiguration,
+#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode)]
+pub struct Epoch(cessp_consensus_rrsc::Epoch);
+
+impl Deref for Epoch {
+	type Target = cessp_consensus_rrsc::Epoch;
+
+	fn deref(&self) -> &Self::Target {
+		&self.0
+	}
+}
+
+impl DerefMut for Epoch {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.0
+	}
+}
+
+impl From<cessp_consensus_rrsc::Epoch> for Epoch {
+	fn from(epoch: cessp_consensus_rrsc::Epoch) -> Self {
+		Epoch(epoch)
+	}
 }
 
 impl EpochT for Epoch {
@@ -180,7 +188,7 @@ impl EpochT for Epoch {
 		&self,
 		(descriptor, config): (NextEpochDescriptor, RRSCEpochConfiguration),
 	) -> Epoch {
-		Epoch {
+		cessp_consensus_rrsc::Epoch {
 			epoch_index: self.epoch_index + 1,
 			start_slot: self.start_slot + self.duration,
 			duration: self.duration,
@@ -188,6 +196,7 @@ impl EpochT for Epoch {
 			randomness: descriptor.randomness,
 			config,
 		}
+		.into()
 	}
 
 	fn start_slot(&self) -> Slot {
@@ -199,25 +208,12 @@ impl EpochT for Epoch {
 	}
 }
 
-impl From<cessp_consensus_rrsc::Epoch> for Epoch {
-	fn from(epoch: cessp_consensus_rrsc::Epoch) -> Self {
-		Epoch {
-			epoch_index: epoch.epoch_index,
-			start_slot: epoch.start_slot,
-			duration: epoch.duration,
-			authorities: epoch.authorities,
-			randomness: epoch.randomness,
-			config: epoch.config,
-		}
-	}
-}
-
 impl Epoch {
 	/// Create the genesis epoch (epoch #0).
 	///
 	/// This is defined to start at the slot of the first block, so that has to be provided.
 	pub fn genesis(genesis_config: &RRSCConfiguration, slot: Slot) -> Epoch {
-		Epoch {
+		cessp_consensus_rrsc::Epoch {
 			epoch_index: 0,
 			start_slot: slot,
 			duration: genesis_config.epoch_length,
@@ -228,6 +224,7 @@ impl Epoch {
 				allowed_slots: genesis_config.allowed_slots,
 			},
 		}
+		.into()
 	}
 
 	/// Clone and tweak epoch information to refer to the specified slot.
@@ -565,9 +562,10 @@ fn aux_storage_cleanup<C: HeaderMetadata<Block> + HeaderBackend<Block>, Block: B
 	// Cleans data for stale forks.
 	let stale_forks = match client.expand_forks(&notification.stale_heads) {
 		Ok(stale_forks) => stale_forks,
-		Err((stale_forks, e)) => {
+		Err(e) => {
 			warn!(target: LOG_TARGET, "{:?}", e);
-			stale_forks
+
+			Default::default()
 		},
 	};
 	hashes.extend(stale_forks.iter());
@@ -1130,7 +1128,7 @@ where
 	CIDP::InherentDataProviders: InherentDataProviderExt + Send + Sync,
 {
 	async fn verify(
-		&mut self,
+		&self,
 		mut block: BlockImportParams<Block>,
 	) -> Result<BlockImportParams<Block>, String> {
 		trace!(
@@ -1344,7 +1342,7 @@ where
 	// This function makes multiple transactions to the DB. If one of them fails we may
 	// end up in an inconsistent state and have to resync.
 	async fn import_state(
-		&mut self,
+		&self,
 		mut block: BlockImportParams<Block>,
 	) -> Result<ImportResult, ConsensusError> {
 		let hash = block.post_hash();
@@ -1407,7 +1405,7 @@ where
 	type Error = ConsensusError;
 
 	async fn import_block(
-		&mut self,
+		&self,
 		mut block: BlockImportParams<Block>,
 	) -> Result<ImportResult, Self::Error> {
 		let hash = block.post_hash();
@@ -1683,7 +1681,7 @@ where
 	}
 
 	async fn check_block(
-		&mut self,
+		&self,
 		block: BlockCheckParams<Block>,
 	) -> Result<ImportResult, Self::Error> {
 		self.inner.check_block(block).await.map_err(Into::into)

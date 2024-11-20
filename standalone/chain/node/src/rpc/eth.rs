@@ -1,5 +1,5 @@
 use std::{collections::BTreeMap, sync::Arc};
-
+use polkadot_sdk::*;
 use jsonrpsee::RpcModule;
 // Substrate
 use sc_client_api::{
@@ -7,7 +7,7 @@ use sc_client_api::{
 	client::BlockchainEvents,
 	AuxStore, UsageProvider,
 };
-use sc_network::NetworkService;
+use sc_network::service::traits::NetworkService;
 use sc_network_sync::SyncingService;
 use sc_rpc::SubscriptionTaskExecutor;
 use sc_transaction_pool::{ChainApi, Pool};
@@ -19,9 +19,9 @@ use sp_core::H256;
 use sp_inherents::CreateInherentDataProviders;
 use sp_runtime::traits::Block as BlockT;
 // Frontier
-pub use fc_rpc::{EthBlockDataCacheTask, EthConfig, OverrideHandle};
+pub use fc_rpc::{EthBlockDataCacheTask, EthConfig};
 pub use fc_rpc_core::types::{FeeHistoryCache, FeeHistoryCacheLimit, FilterPool};
-pub use fc_storage::overrides_handle;
+use fc_storage::StorageOverride;
 use fp_rpc::{ConvertTransaction, ConvertTransactionRuntimeApi, EthereumRuntimeRPCApi};
 
 /// Extra dependencies for Ethereum compatibility.
@@ -39,13 +39,13 @@ pub struct EthDeps<B: BlockT, C, P, A: ChainApi, CT, CIDP> {
 	/// Whether to enable dev signer
 	pub enable_dev_signer: bool,
 	/// Network service
-	pub network: Arc<NetworkService<B, B::Hash>>,
+	pub network: Arc<dyn NetworkService>,
 	/// Chain syncing service
 	pub sync: Arc<SyncingService<B>>,
 	/// Frontier Backend.
 	pub frontier_backend: Arc<dyn fc_api::Backend<B>>,
 	/// Ethereum data access overrides.
-	pub overrides: Arc<OverrideHandle<B>>,
+	pub storage_override: Arc<dyn StorageOverride<B>>,
 	/// Cache for Ethereum block data.
 	pub block_data_cache: Arc<EthBlockDataCacheTask<B>>,
 	/// EthFilterApi pool.
@@ -63,44 +63,18 @@ pub struct EthDeps<B: BlockT, C, P, A: ChainApi, CT, CIDP> {
 	pub forced_parent_hashes: Option<BTreeMap<H256, H256>>,
 	/// Something that can create the inherent data providers for pending state
 	pub pending_create_inherent_data_providers: CIDP,
-}
-
-impl<B: BlockT, C, P, A: ChainApi, CT: Clone, CIDP: Clone> Clone for EthDeps<B, C, P, A, CT, CIDP> {
-	fn clone(&self) -> Self {
-		Self {
-			client: self.client.clone(),
-			pool: self.pool.clone(),
-			graph: self.graph.clone(),
-			converter: self.converter.clone(),
-			is_authority: self.is_authority,
-			enable_dev_signer: self.enable_dev_signer,
-			network: self.network.clone(),
-			sync: self.sync.clone(),
-			frontier_backend: self.frontier_backend.clone(),
-			overrides: self.overrides.clone(),
-			block_data_cache: self.block_data_cache.clone(),
-			filter_pool: self.filter_pool.clone(),
-			max_past_logs: self.max_past_logs,
-			fee_history_cache: self.fee_history_cache.clone(),
-			fee_history_cache_limit: self.fee_history_cache_limit,
-			execute_gas_limit_multiplier: self.execute_gas_limit_multiplier,
-			forced_parent_hashes: self.forced_parent_hashes.clone(),
-			pending_create_inherent_data_providers: self.pending_create_inherent_data_providers.clone(),
-		}
-	}
+	/// Sinks for pubsub notifications
+	pub pubsub_notification_sinks: Arc<fc_mapping_sync::EthereumBlockNotificationSinks<fc_mapping_sync::EthereumBlockNotification<B>>>
 }
 
 /// Instantiate Ethereum-compatible RPC extensions.
 pub fn create_eth<B, C, BE, P, A, CT, CIDP, EC>(
 	mut io: RpcModule<()>,
 	deps: EthDeps<B, C, P, A, CT, CIDP>,
-	subscription_task_executor: SubscriptionTaskExecutor,
-	pubsub_notification_sinks: Arc<
-		fc_mapping_sync::EthereumBlockNotificationSinks<fc_mapping_sync::EthereumBlockNotification<B>>,
-	>,
+	subscription_task_executor: SubscriptionTaskExecutor,	
 ) -> Result<RpcModule<()>, Box<dyn std::error::Error + Send + Sync>>
 where
-	B: BlockT<Hash = H256>,
+	B: BlockT,
 	C: CallApiAt<B> + ProvideRuntimeApi<B>,
 	C::Api: BlockBuilderApi<B> + ConvertTransactionRuntimeApi<B> + EthereumRuntimeRPCApi<B>,
 	C: HeaderBackend<B> + HeaderMetadata<B, Error = BlockChainError>,
@@ -113,8 +87,9 @@ where
 	EC: EthConfig<B, C>,
 {
 	use fc_rpc::{
-		Eth, EthApiServer, EthDevSigner, EthFilter, EthFilterApiServer, EthPubSub, EthPubSubApiServer, EthSigner, Net,
-		NetApiServer, Web3, Web3ApiServer,
+		Debug, DebugApiServer, Eth, EthApiServer, EthDevSigner,
+		EthFilter, EthFilterApiServer, EthPubSub, EthPubSubApiServer, EthSigner, Net, NetApiServer,
+		Web3, Web3ApiServer,
 	};
 	#[cfg(feature = "txpool")]
 	use fc_rpc::{TxPool, TxPoolApiServer};
@@ -129,7 +104,7 @@ where
 		network,
 		sync,
 		frontier_backend,
-		overrides,
+		storage_override,
 		block_data_cache,
 		filter_pool,
 		max_past_logs,
@@ -138,6 +113,7 @@ where
 		execute_gas_limit_multiplier,
 		forced_parent_hashes,
 		pending_create_inherent_data_providers,
+		pubsub_notification_sinks,
 	} = deps;
 
 	let mut signers = Vec::new();
@@ -153,7 +129,7 @@ where
 			converter,
 			sync.clone(),
 			signers,
-			overrides.clone(),
+			storage_override.clone(),
 			frontier_backend.clone(),
 			is_authority,
 			block_data_cache.clone(),
@@ -172,20 +148,27 @@ where
 		io.merge(
 			EthFilter::new(
 				client.clone(),
-				frontier_backend,
+				frontier_backend.clone(),
 				graph.clone(),
 				filter_pool,
 				500_usize, // max stored filters
 				max_past_logs,
-				block_data_cache,
+				block_data_cache.clone(),
 			)
 			.into_rpc(),
 		)?;
 	}
 
 	io.merge(
-		EthPubSub::new(pool, client.clone(), sync, subscription_task_executor, overrides, pubsub_notification_sinks)
-			.into_rpc(),
+		EthPubSub::new(
+			pool,
+			client.clone(),
+			sync,
+			subscription_task_executor,
+			storage_override.clone(),
+			pubsub_notification_sinks,
+		)
+		.into_rpc(),
 	)?;
 
 	io.merge(
@@ -199,6 +182,16 @@ where
 	)?;
 
 	io.merge(Web3::new(client.clone()).into_rpc())?;
+
+	io.merge(
+		Debug::new(
+			client.clone(),
+			frontier_backend,
+			storage_override,
+			block_data_cache,
+		)
+		.into_rpc(),
+	)?;
 
 	#[cfg(feature = "txpool")]
 	io.merge(TxPool::new(client, graph).into_rpc())?;

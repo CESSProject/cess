@@ -1,4 +1,5 @@
 use crate::eth::EthConfiguration;
+use polkadot_sdk::*;
 
 /// An overarching CLI command definition.
 #[derive(Debug, clap::Parser)]
@@ -8,7 +9,7 @@ pub struct Cli {
 	pub subcommand: Option<Subcommand>,
 
 	#[allow(missing_docs)]
-	#[command(flatten)]
+	#[clap(flatten)]
 	pub run: sc_cli::RunCmd,
 
 	#[command(flatten)]
@@ -22,12 +23,26 @@ pub struct Cli {
 	/// telemetry, if telemetry is enabled.
 	#[arg(long)]
 	pub no_hardware_benchmarks: bool,
+
+	#[allow(missing_docs)]
+	#[clap(flatten)]
+	pub storage_monitor: sc_storage_monitor::StorageMonitorParams,
 }
 
 /// Possible subcommands of the main binary.
 #[derive(Debug, clap::Subcommand)]
 pub enum Subcommand {
-	TryRuntime,
+	/// The custom inspect subcommand for decoding blocks and extrinsics.
+	#[command(
+		name = "inspect",
+		about = "Decode given block or extrinsic using current native runtime."
+	)]
+	Inspect(staging_node_inspect::cli::InspectCmd),
+
+	/// Sub-commands concerned with benchmarking.
+	/// The pallet benchmarking moved to the `pallet` sub-command.
+	#[command(subcommand)]
+	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
 
 	/// Key management cli utilities
 	#[command(subcommand)]
@@ -59,15 +74,6 @@ pub enum Subcommand {
 
 	/// Remove the whole chain.
 	PurgeChain(sc_cli::PurgeChainCmd),
-
-	/// Sub-commands concerned with benchmarking.
-	#[cfg(feature = "runtime-benchmarks")]
-	#[command(subcommand)]
-	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
-
-	/// Sub-commands concerned with benchmarking.
-	#[cfg(not(feature = "runtime-benchmarks"))]
-	Benchmark,
 
 	/// Revert the chain to a previous state.
 	Revert(sc_cli::RevertCmd),

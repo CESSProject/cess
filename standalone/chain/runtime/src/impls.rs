@@ -16,7 +16,7 @@
 // limitations under the License.
 
 //! Some configurable implementations as associated type for the substrate runtime.
-
+use polkadot_sdk::*;
 use frame_support::traits::{
 	fungibles::{Balanced, Credit},
 	Currency, OnUnbalanced,
@@ -63,6 +63,7 @@ impl cp_scheduler_credit::SchedulerStashAccountFinder<AccountId> for SchedulerSt
 
 #[cfg(test)]
 mod multiplier_tests {
+	use polkadot_sdk::*;
 	use frame_support::{
 		dispatch::DispatchClass,
 		weights::{Weight, WeightToFee},
