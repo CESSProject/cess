@@ -1798,6 +1798,8 @@ impl pallet_reservoir::Config for Runtime {
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benches {
+	use polkadot_sdk::*;
+
 	frame_benchmarking::define_benchmarks!(
 		[frame_benchmarking, BaselineBench::<Runtime>]
 		[pallet_assets, Assets]
@@ -2254,7 +2256,7 @@ impl_runtime_apis! {
 			config: frame_benchmarking::BenchmarkConfig
 		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, sp_runtime::RuntimeString> {
 			use frame_benchmarking::{baseline, Benchmarking, BenchmarkBatch};
-			use sp_storage::TrackedStorageKey;
+			use polkadot_sdk::sp_storage::TrackedStorageKey;
 
 			use pallet_election_provider_support_benchmarking::Pallet as EPSBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
