@@ -2051,6 +2051,7 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "serde_json",
+ "substrate-build-script-utils",
 ]
 
 [[package]]
@@ -5840,20 +5841,6 @@ name = "gcc"
 version = "0.3.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f5f3913fa0bfe7ee1fd8248b6b9f42a5af4b9d65ec2dd2c3c26132b950ecfc2"
-
-[[package]]
-name = "generate-bags"
-version = "38.0.0"
-source = "git+https://github.com/paritytech/polkadot-sdk.git?branch=stable2409#dba2dd59101617aad64d167e400b19e2c35052b1"
-dependencies = [
- "chrono",
- "frame-election-provider-support",
- "frame-support",
- "frame-system",
- "num-format",
- "pallet-staking",
- "sp-staking",
-]
 
 [[package]]
 name = "generic-array"
@@ -13021,7 +13008,6 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
- "generate-bags",
  "mmr-rpc",
  "pallet-alliance",
  "pallet-asset-conversion",

@@ -173,7 +173,11 @@ std = [
 	"pallet-tee-worker/std",
 ]
 runtime-benchmarks = [
+	"polkadot-sdk/frame-benchmarking",
+	"polkadot-sdk/frame-system-benchmarking",
+	"polkadot-sdk/pallet-election-provider-support-benchmarking",
 	"polkadot-sdk/runtime-benchmarks",
+	"polkadot-sdk/sp-storage",
 	# Frontier
 	"pallet-ethereum/runtime-benchmarks",
 	"pallet-evm/runtime-benchmarks",
