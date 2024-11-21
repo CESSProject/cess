@@ -34,7 +34,7 @@ impl<T: Config, W: weights::WeightInfo> SteppedMigration for SteppedFileBank<T, 
 			}
 
 			let mut iter = if let Some(last_key) = cursor {
-				v3::File::<T>::iter_from(File::<T>::hashed_key_for(last_key))
+				v3::File::<T>::iter_from(v3::File::<T>::hashed_key_for(last_key))
 			} else {
 				v3::File::<T>::iter()
 			};
@@ -67,6 +67,32 @@ impl<T: Config, W: weights::WeightInfo> SteppedMigration for SteppedFileBank<T, 
 		}
 
 		Ok(cursor)
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<Vec<u8>, frame_support::sp_runtime::TryRuntimeError> {
+		use codec::Encode;
+
+		// Return the state of the storage before the migration.
+		Ok(v3::File::<T>::iter().collect::<BTreeMap<_, _>>().encode())
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade(prev: Vec<u8>) -> Result<(), frame_support::sp_runtime::TryRuntimeError> {
+		use codec::Decode;
+
+		// Check the state of the storage after the migration.
+		let prev_map = BTreeMap::<Hash, OldFileInfo>::decode(&mut &prev[..])
+			.expect("Failed to decode the previous storage state");
+
+		// Check the len of prev and post are the same.
+		assert_eq!(
+			File::<T>::iter().count(),
+			prev_map.len(),
+			"Migration failed: the number of items in the storage after the migration is not the same as before"
+		);
+
+		Ok(())
 	}
 }
 
@@ -104,14 +130,14 @@ pub fn migrate<T: Config>() -> Weight {
 	weight
 }
 
-mod v3 {
+pub mod v3 {
 	use super::*;
 
 	#[storage_alias]
 	pub type File<T: Config> = StorageMap<Pallet<T>, Blake2_128Concat, Hash, OldFileInfo<T>>;
 
 	#[derive(Encode, Decode, TypeInfo)]
-	struct OldUserBrief<T: Config> {
+	pub struct OldUserBrief<T: Config> {
 		pub user: AccountOf<T>,
 		pub file_name: BoundedVec<u8, T::NameStrLimit>,
 		pub bucket_name: BoundedVec<u8, T::NameStrLimit>,
@@ -119,20 +145,20 @@ mod v3 {
 	}
 
 	#[derive(Encode, Decode, TypeInfo)]
-	struct OldFileInfo<T: Config> {
-		pub(super) segment_list: BoundedVec<SegmentInfo<T>, T::SegmentCount>,
-		pub(super) owner: BoundedVec<OldUserBrief<T>, T::OwnerLimit>,
-		pub(super) file_size: u128,
-		pub(super) completion: BlockNumberFor<T>,
-		pub(super) stat: FileState,
+	pub struct OldFileInfo<T: Config> {
+		pub segment_list: BoundedVec<SegmentInfo<T>, T::SegmentCount>,
+		pub owner: BoundedVec<OldUserBrief<T>, T::OwnerLimit>,
+		pub file_size: u128,
+		pub completion: BlockNumberFor<T>,
+		pub stat: FileState,
 	}
 
 	#[derive(Encode, Decode, TypeInfo)]
-	struct OldDealInfo<T: Config> {
-		pub(super) file_size: u128,
-		pub(super) segment_list: BoundedVec<SegmentList<T>, T::SegmentCount>,
-		pub(super) user: OldUserBrief<T>,
-		pub(super) complete_list: BoundedVec<CompleteInfo<T>, T::FragmentCount>,
+	pub struct OldDealInfo<T: Config> {
+		pub file_size: u128,
+		pub segment_list: BoundedVec<SegmentList<T>, T::SegmentCount>,
+		pub user: OldUserBrief<T>,
+		pub complete_list: BoundedVec<CompleteInfo<T>, T::FragmentCount>,
 	}
 }
 
