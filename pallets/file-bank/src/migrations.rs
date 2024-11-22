@@ -136,7 +136,7 @@ pub mod v3 {
 	#[storage_alias]
 	pub type File<T: Config> = StorageMap<Pallet<T>, Blake2_128Concat, Hash, OldFileInfo<T>>;
 
-	#[derive(Encode, Decode, TypeInfo)]
+	#[derive(Encode, Decode, RuntimeDebug, TypeInfo)]
 	pub struct OldUserBrief<T: Config> {
 		pub user: AccountOf<T>,
 		pub file_name: BoundedVec<u8, T::NameStrLimit>,
@@ -144,7 +144,7 @@ pub mod v3 {
 		pub territory_name: TerrName,
 	}
 
-	#[derive(Encode, Decode, TypeInfo)]
+	#[derive(Encode, Decode, RuntimeDebug, TypeInfo)]
 	pub struct OldFileInfo<T: Config> {
 		pub segment_list: BoundedVec<SegmentInfo<T>, T::SegmentCount>,
 		pub owner: BoundedVec<OldUserBrief<T>, T::OwnerLimit>,
@@ -153,7 +153,7 @@ pub mod v3 {
 		pub stat: FileState,
 	}
 
-	#[derive(Encode, Decode, TypeInfo)]
+	#[derive(Encode, Decode, RuntimeDebug, TypeInfo)]
 	pub struct OldDealInfo<T: Config> {
 		pub file_size: u128,
 		pub segment_list: BoundedVec<SegmentList<T>, T::SegmentCount>,

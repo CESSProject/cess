@@ -31,7 +31,7 @@ pub fn register_miner<T: Config>(account: AccountOf<T>) -> Result<(), &'static s
         &account,
         160_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!"),
     );
-    let peer_id: PeerId = [5u8; 38];
+    let peer_id: EndPoint = "https://123123:123".as_bytes().to_vec().try_into().unwrap();
     let staking_val: BalanceOf<T> = 4_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
     let tib_count = 1;
     Sminer::<T>::regnstk(RawOrigin::Signed(account.clone()).into(), account.clone(), peer_id, staking_val, tib_count).map_err(|_| "miner register prep failed")?;
@@ -76,7 +76,7 @@ benchmarks! {
         log::info!("regnstk start");
         pallet_tee_worker::benchmarking::generate_workers::<T>();
         let caller = account("user1", 100, SEED);
-        let peer_id: PeerId = [5u8; 38];
+        let peer_id: EndPoint = "https://123123:123".as_bytes().to_vec().try_into().unwrap();
         <T as crate::Config>::Currency::make_free_balance_be(
             &caller,
             160_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!"),
@@ -145,16 +145,16 @@ benchmarks! {
         assert_eq!(miner_info.beneficiary, beneficiary)
     }
 
-    update_peer_id {
+    update_endpoint {
         log::info!("update peer id start");
         let caller: AccountOf<T> = account("user1", 100, SEED);
         register_miner::<T>(caller.clone())?;
-        let new_peer_id: PeerId = [5u8; 38];
-    }: _(RawOrigin::Signed(caller.clone()), new_peer_id)
+        let new_peer_id: EndPoint = "https://123123:123".as_bytes().to_vec().try_into().unwrap();
+    }: _(RawOrigin::Signed(caller.clone()), new_peer_id.clone())
     verify {
         assert!(<MinerItems<T>>::contains_key(&caller));
         let miner_info = <MinerItems<T>>::get(caller).unwrap();
-        assert_eq!(miner_info.peer_id, new_peer_id)
+        assert_eq!(miner_info.endpoint, new_peer_id)
     }
 
     receive_reward {
@@ -282,7 +282,7 @@ benchmarks! {
         pallet_tee_worker::benchmarking::generate_workers::<T>();
         let caller = account("user1", 100, SEED);
         let staking_account = account("user2", 100, SEED);
-        let peer_id: PeerId = [5u8; 38];
+        let peer_id: EndPoint = "https://123123:123".as_bytes().to_vec().try_into().unwrap();
         <T as crate::Config>::Currency::make_free_balance_be(
             &caller,
             160_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!"),
