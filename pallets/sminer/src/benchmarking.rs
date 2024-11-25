@@ -1,12 +1,20 @@
 #![cfg(feature = "runtime-benchmarks")]
 
 use super::*;
-use crate::{Pallet as Sminer};
+use crate::{Pallet as Sminer,
+	migrations::{
+		SteppedSminer, 
+		v2::{MinerItems as OldMinerItems, OldMinerInfo}, 
+	},
+};
 // use codec::{alloc::string::ToString, Decode};
+use frame_support::{weights::WeightMeter, migrations::SteppedMigration};
 pub use frame_benchmarking::{
 	account, benchmarks, impl_benchmark_test_suite, whitelist_account, whitelisted_caller,
 };
 use frame_system::RawOrigin;
+use frame_benchmarking::v2::{*, benchmarks as benchmarksV2};
+
 // use frame_support::{
 // 	traits::{Currency, Get},
 // };
@@ -71,241 +79,282 @@ pub fn set_facuet_whitelist_for_bench<T: Config>(acc: AccountOf<T>) -> Result<()
     Ok(())
 }
 
-benchmarks! {
-    regnstk {
-        log::info!("regnstk start");
-        pallet_tee_worker::benchmarking::generate_workers::<T>();
+#[benchmarksV2]
+mod migrate {
+	use super::*;
+	// use frame_benchmarking::v2::benchmarks;
+
+	#[benchmark]
+	fn migration_step() {
         let caller = account("user1", 100, SEED);
-        let peer_id: EndPoint = "https://123123:123".as_bytes().to_vec().try_into().unwrap();
         <T as crate::Config>::Currency::make_free_balance_be(
             &caller,
             160_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!"),
         );
-
+        // let peer_id: EndPoint = "https://123123:123".as_bytes().to_vec().try_into().unwrap();
         let staking_val: BalanceOf<T> = 4_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
-        let tib_count = 1;
-    }: _(RawOrigin::Signed(caller.clone()), caller.clone(), peer_id, staking_val, tib_count)
-    verify {
-        assert!(<MinerItems<T>>::contains_key(&caller))
-    }
-
-    increase_collateral {
-        log::info!("increase_collateral start");
-        let caller: AccountOf<T> = account("user1", 100, SEED);
-        register_miner::<T>(caller.clone())?;
-        let staking_val: BalanceOf<T> = 4_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
-    }: _(RawOrigin::Signed(caller.clone()), caller.clone(), staking_val)
-    verify {
-        assert!(<MinerItems<T>>::contains_key(&caller));
-        let miner_info = <MinerItems<T>>::get(caller).unwrap();
-        assert_eq!(miner_info.collaterals, 8_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!"))
-    }
-
-    register_pois_key {
-        log::info!("register pois key start");
-        pallet_tee_worker::benchmarking::generate_workers::<T>();
-        let caller: AccountOf<T> = account("user1", 100, SEED);
-        register_miner::<T>(caller.clone())?;
-        let pois_key = PoISKey {
-            g: [5u8; 256],
-            n: [6u8; 256],
-        };
-        let space_proof_info = SpaceProofInfo::<AccountOf<T>> {
-            miner: caller.clone(),
-            front: u64::MIN,
-            rear: u64::MIN,
-            pois_key: pois_key.clone(),
-            accumulator: pois_key.g,
-        };
-        let encoding = space_proof_info.encode();
-        let tee_puk = pallet_tee_worker::benchmarking::get_pubkey::<T>();
-		let tee_puk_encode = tee_puk.encode();
-		let mut original = Vec::new();
-		original.extend_from_slice(&encoding);
-		original.extend_from_slice(&tee_puk_encode);
-		let original_text = sp_io::hashing::sha2_256(&original);
-        let sig = pallet_tee_worker::benchmarking::sign_message::<T>(&original_text);
-        let sig: BoundedVec<u8, ConstU32<64>> = sig.0.to_vec().try_into().map_err(|_| "bounded convert error")?;
-    }: _(RawOrigin::Signed(caller.clone()), pois_key, sig.clone(), sig, tee_puk)
-    verify {
-        assert!(<MinerItems<T>>::contains_key(&caller));
-        let miner_info = <MinerItems<T>>::get(caller).unwrap();
-        assert_eq!(miner_info.state, Sminer::<T>::str_to_bound(STATE_POSITIVE)?)
-    }
-
-    update_beneficiary {
-        log::info!("update beneficiary start");
-        let caller: AccountOf<T> = account("user1", 100, SEED);
-        register_miner::<T>(caller.clone())?;
-        let beneficiary: AccountOf<T> = account("user2", 100, SEED);
-    }: _(RawOrigin::Signed(caller.clone()), beneficiary.clone())
-    verify {
-        assert!(<MinerItems<T>>::contains_key(&caller));
-        let miner_info = <MinerItems<T>>::get(caller).unwrap();
-        assert_eq!(miner_info.beneficiary, beneficiary)
-    }
-
-    update_endpoint {
-        log::info!("update peer id start");
-        let caller: AccountOf<T> = account("user1", 100, SEED);
-        register_miner::<T>(caller.clone())?;
-        let new_peer_id: EndPoint = "https://123123:123".as_bytes().to_vec().try_into().unwrap();
-    }: _(RawOrigin::Signed(caller.clone()), new_peer_id.clone())
-    verify {
-        assert!(<MinerItems<T>>::contains_key(&caller));
-        let miner_info = <MinerItems<T>>::get(caller).unwrap();
-        assert_eq!(miner_info.endpoint, new_peer_id)
-    }
-
-    receive_reward {
-        let v in 1 .. 80;
-        log::info!("receive_reward start");
-        pallet_tee_worker::benchmarking::generate_workers::<T>();
-        pallet_cess_treasury::benchmarking::initialize_reward::<T>();
-        let caller: AccountOf<T> = account("user1", 100, SEED);
-        register_positive_miner::<T>(caller.clone())?;
-        let mut total_reward: BalanceOf<T> = BalanceOf::<T>::zero();
-        let mut order_list: BoundedVec<RewardOrder<BalanceOf<T>, BlockNumberFor<T>>, ConstU32<90>> = Default::default();
-        let order_reward: BalanceOf<T> = 1_800_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
-        let each_amount: BalanceOf<T> = 10_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
-        for i in 0 .. v {
-            let reward_order = RewardOrder::<BalanceOf<T>, BlockNumberFor<T>> {
-                receive_count: 0,
-                max_count: 90,
-                atonce: false,
-                order_reward: order_reward,
-                each_amount: each_amount,
-                last_receive_block: 1u32.saturated_into(),
-            };
-            total_reward = total_reward + order_reward;
-            order_list.try_push(reward_order).unwrap();
-        }
-
-        let reward = Reward::<T> {
-            total_reward: total_reward,
-            reward_issued: BalanceOf::<T>::zero(),
-            order_list: order_list,
+        let old_miner_items = OldMinerInfo::<T>{
+            beneficiary: caller.clone(),
+            staking_account: caller.clone(),
+            peer_id: [0u8; 38],
+            collaterals: staking_val,
+            debt: 0u64.saturated_into(),
+            state: Sminer::<T>::str_to_bound(STATE_POSITIVE).unwrap(),
+            declaration_space: 0,
+            idle_space: 0,
+            service_space: 0,
+            lock_space: 0,
+            space_proof_info: Option::None,
+            service_bloom_filter: Default::default(),
+            tee_signature: Default::default(),
         };
 
-        <RewardMap<T>>::insert(&caller, reward);
-        frame_system::Pallet::<T>::set_block_number(28805u32.into());
-    }: _(RawOrigin::Signed(caller.clone()))
-    verify {
-        let reward_info = <RewardMap<T>>::get(&caller).unwrap();
-        let vreward: BalanceOf<T> = (((900 * BASE_UNIT) + (20 * BASE_UNIT)) * v as u128).try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
-        assert_eq!(reward_info.reward_issued, vreward);
-    }
+        OldMinerItems::<T>::insert(&caller, old_miner_items);
 
-    miner_exit_prep {
-        log::info!("miner exit prep start");
-        pallet_tee_worker::benchmarking::generate_workers::<T>();
-        pallet_cess_treasury::benchmarking::initialize_reward::<T>();
-        let caller: AccountOf<T> = account("user1", 100, SEED);
-        register_positive_miner::<T>(caller.clone())?;
-        frame_system::Pallet::<T>::set_block_number(28805000u32.into());
-    }: _(RawOrigin::Signed(caller.clone()), caller.clone()) 
-    verify {
-        assert!(<MinerItems<T>>::contains_key(&caller));
-        let miner_info = <MinerItems<T>>::get(caller).unwrap();
-        assert_eq!(miner_info.state, Sminer::<T>::str_to_bound(STATE_LOCK)?)
-    }
+        let mut meter = WeightMeter::new();
 
-    miner_exit {
-        log::info!("miner exit start");
-        pallet_tee_worker::benchmarking::generate_workers::<T>();
-        pallet_cess_treasury::benchmarking::initialize_reward::<T>();
-        let caller: AccountOf<T> = account("user1", 100, SEED);
-        register_positive_miner::<T>(caller.clone())?;
-        frame_system::Pallet::<T>::set_block_number(28805000u32.into());
-        Sminer::<T>::miner_exit_prep(RawOrigin::Signed(caller.clone()).into(), caller.clone())?;
-    }: _(RawOrigin::Root, caller.clone())
-    verify {
-        assert!(<RestoralTarget<T>>::contains_key(&caller));
-    }
-
-    miner_withdraw {
-        log::info!("miner miner_exit");
-        log::info!("miner exit start");
-        pallet_tee_worker::benchmarking::generate_workers::<T>();
-        pallet_cess_treasury::benchmarking::initialize_reward::<T>();
-        let caller: AccountOf<T> = account("user1", 100, SEED);
-        register_positive_miner::<T>(caller.clone())?;
-        frame_system::Pallet::<T>::set_block_number(28805000u32.into());
-        Sminer::<T>::miner_exit_prep(RawOrigin::Signed(caller.clone()).into(), caller.clone())?;
-        Sminer::<T>::miner_exit(RawOrigin::Root.into(), caller.clone());
-        frame_system::Pallet::<T>::set_block_number(28835000u32.into());
-        let origin_free_balance = <T as pallet::Config>::Currency::free_balance(&caller);
-    }: _(RawOrigin::Signed(caller.clone()))
-    verify {
-        let current_free_balance = <T as pallet::Config>::Currency::free_balance(&caller);
-        let staking_val: BalanceOf<T> = 4_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
-        assert_eq!(current_free_balance, origin_free_balance + staking_val);
-    }
-
-    faucet_top_up {
-        let caller: T::AccountId = whitelisted_caller();
-        let existential_deposit = <T as crate::Config>::Currency::minimum_balance();
-        let faucet_reward: BalanceOf<T> = 365_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
-        <T as crate::Config>::Currency::make_free_balance_be(
-	 		&caller,
-	 		faucet_reward,
-	 	);
-         let fa: BalanceOf<T> =  existential_deposit.checked_mul(&10u32.saturated_into()).ok_or("over flow")?;
-     }: _(RawOrigin::Signed(caller), fa)
-     verify {
-        let pallet_acc = <T as crate::Config>::FaucetId::get().into_account_truncating();
-        let free = <T as crate::Config>::Currency::free_balance(&pallet_acc);
-        assert_eq!(free, fa)
-     }
-
-    faucet {
-        let caller: T::AccountId = whitelisted_caller();
-        let faucet_acc: AccountOf<T> = T::FaucetId::get().into_account_truncating();
-        let existential_deposit = <T as crate::Config>::Currency::minimum_balance();
-        let faucet_reward: BalanceOf<T> = 365_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
-        <T as crate::Config>::Currency::make_free_balance_be(
-            &caller,
-            existential_deposit,
-        );
-        <T as crate::Config>::Currency::make_free_balance_be(
-            &faucet_acc,
-            faucet_reward,
-        );
-        set_facuet_whitelist_for_bench::<T>(caller.clone());
-    }: _(RawOrigin::Signed(caller.clone()), caller.clone())
-    verify {
-        assert!(<FaucetRecordMap<T>>::contains_key(&caller))
-    }
-
-    regnstk_assign_staking {
-        log::info!("regnstk_assign_staking start");
-        pallet_tee_worker::benchmarking::generate_workers::<T>();
-        let caller = account("user1", 100, SEED);
-        let staking_account = account("user2", 100, SEED);
-        let peer_id: EndPoint = "https://123123:123".as_bytes().to_vec().try_into().unwrap();
-        <T as crate::Config>::Currency::make_free_balance_be(
-            &caller,
-            160_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!"),
-        );
-
-        let staking_val: BalanceOf<T> = 4_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
-        let tib_count = 1;
-    }: _(RawOrigin::Signed(caller.clone()), caller.clone(), peer_id, staking_account, tib_count)
-    verify {
-        assert!(<MinerItems<T>>::contains_key(&caller))
-    }
-
-    increase_declaration_space {
-        log::info!("increase_declaration_space start");
-        pallet_tee_worker::benchmarking::generate_workers::<T>();
-        pallet_cess_treasury::benchmarking::initialize_reward::<T>();
-        let caller: AccountOf<T> = account("user1", 100, SEED);
-        register_positive_miner::<T>(caller.clone())?;
-        let tib_count = 5;
-    }: _(RawOrigin::Signed(caller.clone()), tib_count)
-    verify {
-        assert!(<MinerItems<T>>::contains_key(&caller));
-        let miner_info = <MinerItems<T>>::get(caller).unwrap();
-        assert_eq!(miner_info.state, Sminer::<T>::str_to_bound(STATE_FROZEN)?)
-    }
+		#[block]
+		{
+			SteppedSminer::<T, weights::SubstrateWeight<T>>::step(None, &mut meter).unwrap();
+		}
+	}
 }
+
+// benchmarks! {
+//     regnstk {
+//         log::info!("regnstk start");
+//         pallet_tee_worker::benchmarking::generate_workers::<T>();
+//         let caller = account("user1", 100, SEED);
+//         let peer_id: EndPoint = "https://123123:123".as_bytes().to_vec().try_into().unwrap();
+//         <T as crate::Config>::Currency::make_free_balance_be(
+//             &caller,
+//             160_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!"),
+//         );
+
+//         let staking_val: BalanceOf<T> = 4_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
+//         let tib_count = 1;
+//     }: _(RawOrigin::Signed(caller.clone()), caller.clone(), peer_id, staking_val, tib_count)
+//     verify {
+//         assert!(<MinerItems<T>>::contains_key(&caller))
+//     }
+
+//     increase_collateral {
+//         log::info!("increase_collateral start");
+//         let caller: AccountOf<T> = account("user1", 100, SEED);
+//         register_miner::<T>(caller.clone())?;
+//         let staking_val: BalanceOf<T> = 4_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
+//     }: _(RawOrigin::Signed(caller.clone()), caller.clone(), staking_val)
+//     verify {
+//         assert!(<MinerItems<T>>::contains_key(&caller));
+//         let miner_info = <MinerItems<T>>::get(caller).unwrap();
+//         assert_eq!(miner_info.collaterals, 8_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!"))
+//     }
+
+//     register_pois_key {
+//         log::info!("register pois key start");
+//         pallet_tee_worker::benchmarking::generate_workers::<T>();
+//         let caller: AccountOf<T> = account("user1", 100, SEED);
+//         register_miner::<T>(caller.clone())?;
+//         let pois_key = PoISKey {
+//             g: [5u8; 256],
+//             n: [6u8; 256],
+//         };
+//         let space_proof_info = SpaceProofInfo::<AccountOf<T>> {
+//             miner: caller.clone(),
+//             front: u64::MIN,
+//             rear: u64::MIN,
+//             pois_key: pois_key.clone(),
+//             accumulator: pois_key.g,
+//         };
+//         let encoding = space_proof_info.encode();
+//         let tee_puk = pallet_tee_worker::benchmarking::get_pubkey::<T>();
+// 		let tee_puk_encode = tee_puk.encode();
+// 		let mut original = Vec::new();
+// 		original.extend_from_slice(&encoding);
+// 		original.extend_from_slice(&tee_puk_encode);
+// 		let original_text = sp_io::hashing::sha2_256(&original);
+//         let sig = pallet_tee_worker::benchmarking::sign_message::<T>(&original_text);
+//         let sig: BoundedVec<u8, ConstU32<64>> = sig.0.to_vec().try_into().map_err(|_| "bounded convert error")?;
+//     }: _(RawOrigin::Signed(caller.clone()), pois_key, sig.clone(), sig, tee_puk)
+//     verify {
+//         assert!(<MinerItems<T>>::contains_key(&caller));
+//         let miner_info = <MinerItems<T>>::get(caller).unwrap();
+//         assert_eq!(miner_info.state, Sminer::<T>::str_to_bound(STATE_POSITIVE)?)
+//     }
+
+//     update_beneficiary {
+//         log::info!("update beneficiary start");
+//         let caller: AccountOf<T> = account("user1", 100, SEED);
+//         register_miner::<T>(caller.clone())?;
+//         let beneficiary: AccountOf<T> = account("user2", 100, SEED);
+//     }: _(RawOrigin::Signed(caller.clone()), beneficiary.clone())
+//     verify {
+//         assert!(<MinerItems<T>>::contains_key(&caller));
+//         let miner_info = <MinerItems<T>>::get(caller).unwrap();
+//         assert_eq!(miner_info.beneficiary, beneficiary)
+//     }
+
+//     update_endpoint {
+//         log::info!("update peer id start");
+//         let caller: AccountOf<T> = account("user1", 100, SEED);
+//         register_miner::<T>(caller.clone())?;
+//         let new_peer_id: EndPoint = "https://123123:123".as_bytes().to_vec().try_into().unwrap();
+//     }: _(RawOrigin::Signed(caller.clone()), new_peer_id.clone())
+//     verify {
+//         assert!(<MinerItems<T>>::contains_key(&caller));
+//         let miner_info = <MinerItems<T>>::get(caller).unwrap();
+//         assert_eq!(miner_info.endpoint, new_peer_id)
+//     }
+
+//     receive_reward {
+//         let v in 1 .. 80;
+//         log::info!("receive_reward start");
+//         pallet_tee_worker::benchmarking::generate_workers::<T>();
+//         pallet_cess_treasury::benchmarking::initialize_reward::<T>();
+//         let caller: AccountOf<T> = account("user1", 100, SEED);
+//         register_positive_miner::<T>(caller.clone())?;
+//         let mut total_reward: BalanceOf<T> = BalanceOf::<T>::zero();
+//         let mut order_list: BoundedVec<RewardOrder<BalanceOf<T>, BlockNumberFor<T>>, ConstU32<90>> = Default::default();
+//         let order_reward: BalanceOf<T> = 1_800_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
+//         let each_amount: BalanceOf<T> = 10_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
+//         for i in 0 .. v {
+//             let reward_order = RewardOrder::<BalanceOf<T>, BlockNumberFor<T>> {
+//                 receive_count: 0,
+//                 max_count: 90,
+//                 atonce: false,
+//                 order_reward: order_reward,
+//                 each_amount: each_amount,
+//                 last_receive_block: 1u32.saturated_into(),
+//             };
+//             total_reward = total_reward + order_reward;
+//             order_list.try_push(reward_order).unwrap();
+//         }
+
+//         let reward = Reward::<T> {
+//             total_reward: total_reward,
+//             reward_issued: BalanceOf::<T>::zero(),
+//             order_list: order_list,
+//         };
+
+//         <RewardMap<T>>::insert(&caller, reward);
+//         frame_system::Pallet::<T>::set_block_number(28805u32.into());
+//     }: _(RawOrigin::Signed(caller.clone()))
+//     verify {
+//         let reward_info = <RewardMap<T>>::get(&caller).unwrap();
+//         let vreward: BalanceOf<T> = (((900 * BASE_UNIT) + (20 * BASE_UNIT)) * v as u128).try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
+//         assert_eq!(reward_info.reward_issued, vreward);
+//     }
+
+//     miner_exit_prep {
+//         log::info!("miner exit prep start");
+//         pallet_tee_worker::benchmarking::generate_workers::<T>();
+//         pallet_cess_treasury::benchmarking::initialize_reward::<T>();
+//         let caller: AccountOf<T> = account("user1", 100, SEED);
+//         register_positive_miner::<T>(caller.clone())?;
+//         frame_system::Pallet::<T>::set_block_number(28805000u32.into());
+//     }: _(RawOrigin::Signed(caller.clone()), caller.clone()) 
+//     verify {
+//         assert!(<MinerItems<T>>::contains_key(&caller));
+//         let miner_info = <MinerItems<T>>::get(caller).unwrap();
+//         assert_eq!(miner_info.state, Sminer::<T>::str_to_bound(STATE_LOCK)?)
+//     }
+
+//     miner_exit {
+//         log::info!("miner exit start");
+//         pallet_tee_worker::benchmarking::generate_workers::<T>();
+//         pallet_cess_treasury::benchmarking::initialize_reward::<T>();
+//         let caller: AccountOf<T> = account("user1", 100, SEED);
+//         register_positive_miner::<T>(caller.clone())?;
+//         frame_system::Pallet::<T>::set_block_number(28805000u32.into());
+//         Sminer::<T>::miner_exit_prep(RawOrigin::Signed(caller.clone()).into(), caller.clone())?;
+//     }: _(RawOrigin::Root, caller.clone())
+//     verify {
+//         assert!(<RestoralTarget<T>>::contains_key(&caller));
+//     }
+
+//     miner_withdraw {
+//         log::info!("miner miner_exit");
+//         log::info!("miner exit start");
+//         pallet_tee_worker::benchmarking::generate_workers::<T>();
+//         pallet_cess_treasury::benchmarking::initialize_reward::<T>();
+//         let caller: AccountOf<T> = account("user1", 100, SEED);
+//         register_positive_miner::<T>(caller.clone())?;
+//         frame_system::Pallet::<T>::set_block_number(28805000u32.into());
+//         Sminer::<T>::miner_exit_prep(RawOrigin::Signed(caller.clone()).into(), caller.clone())?;
+//         Sminer::<T>::miner_exit(RawOrigin::Root.into(), caller.clone());
+//         frame_system::Pallet::<T>::set_block_number(28835000u32.into());
+//         let origin_free_balance = <T as pallet::Config>::Currency::free_balance(&caller);
+//     }: _(RawOrigin::Signed(caller.clone()))
+//     verify {
+//         let current_free_balance = <T as pallet::Config>::Currency::free_balance(&caller);
+//         let staking_val: BalanceOf<T> = 4_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
+//         assert_eq!(current_free_balance, origin_free_balance + staking_val);
+//     }
+
+//     faucet_top_up {
+//         let caller: T::AccountId = whitelisted_caller();
+//         let existential_deposit = <T as crate::Config>::Currency::minimum_balance();
+//         let faucet_reward: BalanceOf<T> = 365_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
+//         <T as crate::Config>::Currency::make_free_balance_be(
+// 	 		&caller,
+// 	 		faucet_reward,
+// 	 	);
+//          let fa: BalanceOf<T> =  existential_deposit.checked_mul(&10u32.saturated_into()).ok_or("over flow")?;
+//      }: _(RawOrigin::Signed(caller), fa)
+//      verify {
+//         let pallet_acc = <T as crate::Config>::FaucetId::get().into_account_truncating();
+//         let free = <T as crate::Config>::Currency::free_balance(&pallet_acc);
+//         assert_eq!(free, fa)
+//      }
+
+//     faucet {
+//         let caller: T::AccountId = whitelisted_caller();
+//         let faucet_acc: AccountOf<T> = T::FaucetId::get().into_account_truncating();
+//         let existential_deposit = <T as crate::Config>::Currency::minimum_balance();
+//         let faucet_reward: BalanceOf<T> = 365_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
+//         <T as crate::Config>::Currency::make_free_balance_be(
+//             &caller,
+//             existential_deposit,
+//         );
+//         <T as crate::Config>::Currency::make_free_balance_be(
+//             &faucet_acc,
+//             faucet_reward,
+//         );
+//         set_facuet_whitelist_for_bench::<T>(caller.clone());
+//     }: _(RawOrigin::Signed(caller.clone()), caller.clone())
+//     verify {
+//         assert!(<FaucetRecordMap<T>>::contains_key(&caller))
+//     }
+
+//     regnstk_assign_staking {
+//         log::info!("regnstk_assign_staking start");
+//         pallet_tee_worker::benchmarking::generate_workers::<T>();
+//         let caller = account("user1", 100, SEED);
+//         let staking_account = account("user2", 100, SEED);
+//         let peer_id: EndPoint = "https://123123:123".as_bytes().to_vec().try_into().unwrap();
+//         <T as crate::Config>::Currency::make_free_balance_be(
+//             &caller,
+//             160_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!"),
+//         );
+
+//         let staking_val: BalanceOf<T> = 4_000_000_000_000_000_000_000u128.try_into().map_err(|_| "tryinto error!").expect("tryinto error!");
+//         let tib_count = 1;
+//     }: _(RawOrigin::Signed(caller.clone()), caller.clone(), peer_id, staking_account, tib_count)
+//     verify {
+//         assert!(<MinerItems<T>>::contains_key(&caller))
+//     }
+
+//     increase_declaration_space {
+//         log::info!("increase_declaration_space start");
+//         pallet_tee_worker::benchmarking::generate_workers::<T>();
+//         pallet_cess_treasury::benchmarking::initialize_reward::<T>();
+//         let caller: AccountOf<T> = account("user1", 100, SEED);
+//         register_positive_miner::<T>(caller.clone())?;
+//         let tib_count = 5;
+//     }: _(RawOrigin::Signed(caller.clone()), tib_count)
+//     verify {
+//         assert!(<MinerItems<T>>::contains_key(&caller));
+//         let miner_info = <MinerItems<T>>::get(caller).unwrap();
+//         assert_eq!(miner_info.state, Sminer::<T>::str_to_bound(STATE_FROZEN)?)
+//     }
+// }

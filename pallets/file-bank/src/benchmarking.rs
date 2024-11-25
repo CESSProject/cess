@@ -2,7 +2,7 @@ use super::*;
 use crate::{Pallet as FileBank, *, 
 	migrations::{
 		SteppedFileBank, 
-		v3::{File as FileV3, OldFileInfo, OldUserBrief}, 
+		v3::{File as FileV3, DealMap as DealMapV3, OldFileInfo, OldUserBrief, OldDealInfo}, 
 	},
 };
 // use cp_cess_common::{Hash, IpAddress};
@@ -190,7 +190,7 @@ mod migrate {
 
 		let file_info = OldFileInfo::<T>{
 			segment_list: vec![segment_info].try_into().unwrap(),
-			owner: vec![user_brief].try_into().unwrap(),
+			owner: vec![user_brief.clone()].try_into().unwrap(),
 			file_size: 1086574,
 			completion: 1u64.saturated_into(),
 			stat: FileState::Active,
@@ -198,12 +198,43 @@ mod migrate {
 
 		FileV3::<T>::insert(Hash([66u8; 64]), file_info);
 
+		let segment_list = SegmentList::<T> {
+							hash: Hash([65u8; 64]),
+							fragment_list: [
+								Hash([66u8; 64]),
+								Hash([67u8; 64]),
+								Hash([68u8; 64]),
+								Hash([69u8; 64]),
+								Hash([70u8; 64]),
+								Hash([71u8; 64]),
+								Hash([72u8; 64]),
+								Hash([73u8; 64]),
+								Hash([74u8; 64]),
+								Hash([75u8; 64]),
+								Hash([76u8; 64]),
+								Hash([77u8; 64]),
+							].to_vec().try_into().unwrap(),
+						};
+
+		let old_deal_info = OldDealInfo::<T> {
+			file_size: file_size,
+			segment_list: vec![segment_list].try_into().unwrap(),
+			user: user_brief,
+			complete_list: Default::default(),
+		};
+
+		DealMapV3::<T>::insert(Hash([97u8; 64]), old_deal_info);
+
+		assert!(DealMapV3::<T>::contains_key(Hash([97u8; 64])));
+
 		let mut meter = WeightMeter::new();
 
 		#[block]
 		{
 			SteppedFileBank::<T, weights::SubstrateWeight<T>>::step(None, &mut meter).unwrap();
 		}
+
+		assert!(DealMap::<T>::try_get(Hash([97u8; 64])).is_ok());
 	}
 }
 

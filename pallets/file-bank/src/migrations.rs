@@ -1,5 +1,6 @@
 use super::*;
 use frame_support::traits::OnRuntimeUpgrade;
+use sp_std::collections::btree_map::BTreeMap;
 use sp_runtime::{TryRuntimeError, Saturating};
 use frame_support::{
 	storage_alias, weights::WeightMeter,
@@ -10,7 +11,7 @@ pub const PALLET_MIGRATIONS_ID: &[u8; 26] = b"pallet-file-bank-migration";
 
 pub struct SteppedFileBank<T: Config, W: weights::WeightInfo>(PhantomData<(T, W)>);
 impl<T: Config, W: weights::WeightInfo> SteppedMigration for SteppedFileBank<T, W> {
-	type Cursor = Hash;
+	type Cursor = (Option<Hash>, Option<Hash>);
 
 	type Identifier = MigrationId<26>;
 
@@ -22,7 +23,7 @@ impl<T: Config, W: weights::WeightInfo> SteppedMigration for SteppedFileBank<T, 
 		mut cursor: Option<Self::Cursor>, 
 		meter: &mut WeightMeter
 	) -> Result<Option<Self::Cursor>, SteppedMigrationError> {
-		let required = Weight::zero();
+		let required = W::migration_step();
 
 		if meter.remaining().any_lt(required) {
 			return Err(SteppedMigrationError::InsufficientWeight { required });
@@ -33,66 +34,27 @@ impl<T: Config, W: weights::WeightInfo> SteppedMigration for SteppedFileBank<T, 
 				break;
 			}
 
-			let mut iter = if let Some(last_key) = cursor {
-				v3::File::<T>::iter_from(v3::File::<T>::hashed_key_for(last_key))
+			let (file_key_opt, deal_key_opt) = if let Some((file_key_opt, deal_key_opt)) = cursor {
+				(
+					v3::file_step_migration::<T>(true, file_key_opt),
+					v3::dealmap_step_migration::<T>(true, deal_key_opt),
+				)
 			} else {
-				v3::File::<T>::iter()
+				(
+					v3::file_step_migration::<T>(false, None),
+					v3::dealmap_step_migration::<T>(false, None),
+				)
 			};
 
-			if let Some((last_key, value)) = iter.next() {
-				let mut new_owner: BoundedVec<UserBrief<T>, T::OwnerLimit> = Default::default();
-				for owner in value.owner {
-					new_owner.try_push(UserBrief::<T>{
-						user: owner.user,
-						file_name: owner.file_name,
-						territory_name: owner.territory_name,
-					}).unwrap();
-				}
-
-				File::<T>::try_mutate(last_key, |info_opt| {
-					if let Some(info) = info_opt.as_mut() {
-						info.owner = new_owner;
-					} else {
-						log::info!("mutate file error: {:?}", last_key);
-					}
-
-					Ok(())
-				})?;
-
-				cursor = Some(last_key);
-			} else {
+			if file_key_opt.is_none() && deal_key_opt.is_none() {
 				cursor = None;
 				break
+			} else {
+				cursor = Some((file_key_opt, deal_key_opt));
 			}
 		}
 
 		Ok(cursor)
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<Vec<u8>, frame_support::sp_runtime::TryRuntimeError> {
-		use codec::Encode;
-
-		// Return the state of the storage before the migration.
-		Ok(v3::File::<T>::iter().collect::<BTreeMap<_, _>>().encode())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade(prev: Vec<u8>) -> Result<(), frame_support::sp_runtime::TryRuntimeError> {
-		use codec::Decode;
-
-		// Check the state of the storage after the migration.
-		let prev_map = BTreeMap::<Hash, OldFileInfo>::decode(&mut &prev[..])
-			.expect("Failed to decode the previous storage state");
-
-		// Check the len of prev and post are the same.
-		assert_eq!(
-			File::<T>::iter().count(),
-			prev_map.len(),
-			"Migration failed: the number of items in the storage after the migration is not the same as before"
-		);
-
-		Ok(())
 	}
 }
 
@@ -131,12 +93,15 @@ pub fn migrate<T: Config>() -> Weight {
 }
 
 pub mod v3 {
-	use super::*;
+	use super::{*, DealMap as NewDealMap, File as NewFile};
 
 	#[storage_alias]
 	pub type File<T: Config> = StorageMap<Pallet<T>, Blake2_128Concat, Hash, OldFileInfo<T>>;
 
-	#[derive(Encode, Decode, RuntimeDebug, TypeInfo)]
+	#[storage_alias]
+	pub type DealMap<T: Config> = StorageMap<Pallet<T>, Blake2_128Concat, Hash, OldDealInfo<T>>;
+
+	#[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 	pub struct OldUserBrief<T: Config> {
 		pub user: AccountOf<T>,
 		pub file_name: BoundedVec<u8, T::NameStrLimit>,
@@ -144,7 +109,7 @@ pub mod v3 {
 		pub territory_name: TerrName,
 	}
 
-	#[derive(Encode, Decode, RuntimeDebug, TypeInfo)]
+	#[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 	pub struct OldFileInfo<T: Config> {
 		pub segment_list: BoundedVec<SegmentInfo<T>, T::SegmentCount>,
 		pub owner: BoundedVec<OldUserBrief<T>, T::OwnerLimit>,
@@ -153,12 +118,84 @@ pub mod v3 {
 		pub stat: FileState,
 	}
 
-	#[derive(Encode, Decode, RuntimeDebug, TypeInfo)]
+	#[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 	pub struct OldDealInfo<T: Config> {
 		pub file_size: u128,
 		pub segment_list: BoundedVec<SegmentList<T>, T::SegmentCount>,
 		pub user: OldUserBrief<T>,
 		pub complete_list: BoundedVec<CompleteInfo<T>, T::FragmentCount>,
+	}
+
+	pub fn dealmap_step_migration<T: Config>(done_flag: bool, mut cursor: Option<Hash>) -> Option<Hash> {
+		let mut iter = if let Some(last_key) = cursor {
+			v3::DealMap::<T>::iter_from(v3::DealMap::<T>::hashed_key_for(last_key))
+		} else {
+			if done_flag {
+				return None;
+			}
+			v3::DealMap::<T>::iter()
+		};
+
+		if let Some((last_key, value)) = iter.next() {
+			let user_brief = UserBrief::<T>{
+				user: value.user.user,
+				file_name: value.user.file_name,
+				territory_name: value.user.territory_name,
+			};
+
+			let new_info = DealInfo::<T>{
+				file_size: value.file_size,
+				segment_list: value.segment_list,
+				user: user_brief, 
+				complete_list: value.complete_list,
+			};
+
+			NewDealMap::<T>::insert(last_key, new_info);
+
+			cursor = Some(last_key);
+		} else {
+			cursor = None;
+		}
+
+		cursor
+	}
+	
+	pub fn file_step_migration<T: Config>(done_flag: bool, mut cursor: Option<Hash>) -> Option<Hash> {
+		let mut iter = if let Some(last_key) = cursor {
+			v3::File::<T>::iter_from(v3::File::<T>::hashed_key_for(last_key))
+		} else {
+			if done_flag {
+				return None;
+			}
+			v3::File::<T>::iter()
+		};
+
+		if let Some((last_key, value)) = iter.next() {
+			let mut new_owner: BoundedVec<UserBrief<T>, T::OwnerLimit> = Default::default();
+			for owner in value.owner {
+				new_owner.try_push(UserBrief::<T>{
+					user: owner.user,
+					file_name: owner.file_name,
+					territory_name: owner.territory_name,
+				}).unwrap();
+			}
+
+			let file = FileInfo::<T>{
+				segment_list: value.segment_list,
+				owner: new_owner,
+				file_size: value.file_size,
+				completion: value.completion,
+				stat: value.stat,
+			};
+
+			NewFile::<T>::insert(last_key, file);
+
+			cursor = Some(last_key);
+		} else {
+			cursor = None;
+		}
+
+		cursor
 	}
 }
 

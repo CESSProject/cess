@@ -91,6 +91,8 @@ use static_assertions::const_assert;
 use fp_rpc::TransactionStatus;
 use pallet_ethereum::{Call::transact, Transaction as EthereumTransaction, TransactionAction, TransactionData};
 use pallet_evm::{Account as EVMAccount, FeeCalculator, Runner};
+use pallet_file_bank::migrations::SteppedFileBank;
+use pallet_sminer::migrations::SteppedSminer;
 
 #[cfg(any(feature = "std", test))]
 pub use frame_system::Call as SystemCall;
@@ -152,7 +154,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	// and set impl_version to 0. If only runtime
 	// implementation changes and behavior does not, then leave spec_version as
 	// is and increment impl_version.
-	spec_version: 122,
+	spec_version: 124,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -1160,7 +1162,7 @@ parameter_types! {
 impl pallet_migrations::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	#[cfg(not(feature = "runtime-benchmarks"))]
-	type Migrations = ();
+	type Migrations = (SteppedFileBank<Runtime, <Self as pallet_file_bank::Config>::WeightInfo>, SteppedSminer<Runtime, <Self as pallet_sminer::Config>::WeightInfo>);
 	// Benchmarks need mocked migrations to guarantee that they succeed.
 	#[cfg(feature = "runtime-benchmarks")]
 	type Migrations = pallet_migrations::mock_helpers::MockedMigrations;

@@ -49,6 +49,7 @@ pub trait WeightInfo {
 	fn faucet() -> Weight;
 	fn regnstk_assign_staking() -> Weight;
 	fn increase_declaration_space() -> Weight;
+	fn migration_step() -> Weight;
 }
 
 /// Weights for `pallet_sminer` using the Substrate node and recommended hardware.
@@ -256,6 +257,17 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 			.saturating_add(T::DbWeight::get().reads(1_u64))
 			.saturating_add(T::DbWeight::get().writes(1_u64))
 	}
+	/// Storage: `Sminer::MinerItems` (r:2 w:1)
+	/// Proof: `Sminer::MinerItems` (`max_values`: None, `max_size`: Some(203243), added: 205718, mode: `MaxEncodedLen`)
+	fn migration_step() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `2582`
+		//  Estimated: `412426`
+		// Minimum execution time: 19_449_000 picoseconds.
+		Weight::from_parts(20_632_000, 412426)
+			.saturating_add(RocksDbWeight::get().reads(2_u64))
+			.saturating_add(RocksDbWeight::get().writes(1_u64))
+	}
 }
 
 // For backwards compatibility and tests.
@@ -460,6 +472,17 @@ impl WeightInfo for () {
 		// Minimum execution time: 25_368_000 picoseconds.
 		Weight::from_parts(29_511_000, 206644)
 			.saturating_add(RocksDbWeight::get().reads(1_u64))
+			.saturating_add(RocksDbWeight::get().writes(1_u64))
+	}
+	/// Storage: `Sminer::MinerItems` (r:2 w:1)
+	/// Proof: `Sminer::MinerItems` (`max_values`: None, `max_size`: Some(203243), added: 205718, mode: `MaxEncodedLen`)
+	fn migration_step() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `2582`
+		//  Estimated: `412426`
+		// Minimum execution time: 19_449_000 picoseconds.
+		Weight::from_parts(20_632_000, 412426)
+			.saturating_add(RocksDbWeight::get().reads(2_u64))
 			.saturating_add(RocksDbWeight::get().writes(1_u64))
 	}
 }
