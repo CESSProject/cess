@@ -6,7 +6,7 @@ edition = '2021'
 license = 'Unlicense'
 name = 'cess-node'
 repository = 'https://github.com/CESSProject/cess'
-version = '0.7.8-Venus'
+version = '0.8.0'
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
@@ -15,96 +15,94 @@ targets = ["x86_64-unknown-linux-gnu"]
 name = "cess-node"
 
 [dependencies]
-# third-party dependencies
 array-bytes = { workspace = true }
 async-trait = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
-codec = { package = "parity-scale-codec", version = "3.6.1", default-features = false }
+codec = { workspace = true, default-features = false }
 serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 jsonrpsee = { workspace = true, features = ["server"] }
 futures = { workspace = true, features = ["thread-pool"] }
 log = { workspace = true }
 rand = { workspace = true }
 
-# primitives
-sp-api = { workspace = true, features = ["std", "frame-metadata"] }
-sp-authority-discovery = { workspace = true, features = ["default"] }
-sp-core = { workspace = true, features = ["default"] }
-sp-consensus = { workspace = true, features = ["default"] }
+polkadot-sdk = { workspace = true, default-features = true, features = [
+	"experimental",
+	"frame-benchmarking-cli",
+	"frame-remote-externalities",
+	"frame-support-procedural-tools",
+	"mmr-rpc",
+	"pallet-transaction-payment-rpc",
+	"sc-allocator",
+	"sc-authority-discovery",
+	"sc-basic-authorship",
+	"sc-block-builder",
+	"sc-chain-spec",
+	"sc-cli",
+	"sc-client-api",
+	"sc-client-db",
+	"sc-consensus-epochs",
+	"sc-consensus-grandpa-rpc",
+	"sc-consensus-grandpa",
+	"sc-consensus-slots",
+	"sc-consensus",
+	"sc-executor-common",
+	"sc-executor-wasmtime",
+	"sc-executor",
+	"sc-keystore",
+	"sc-network-common",
+	"sc-network-gossip",
+	"sc-network-light",
+	"sc-network-sync",
+	"sc-network-transactions",
+	"sc-network",
+	"sc-offchain",
+	"sc-proposer-metrics",
+	"sc-rpc-api",
+	"sc-rpc-server",
+	"sc-rpc-spec-v2",
+	"sc-rpc",
+	"sc-service",
+	"sc-state-db",
+	"sc-storage-monitor",
+	"sc-sync-state-rpc",
+	"sc-sysinfo",
+	"sc-telemetry",
+	"sc-tracing",
+	"sc-transaction-pool-api",
+	"sc-transaction-pool",
+	"sc-utils",
+	"sp-blockchain",
+	"sp-consensus-slots",
+	"sp-consensus",
+	"sp-keyring",
+	"sp-keystore",
+	"sp-panic-handler",
+	"sp-rpc",
+	"sp-timestamp",
+	"sp-transaction-storage-proof",
+	"staging-chain-spec-builder",
+	"staging-node-inspect",
+	"staging-tracking-allocator",
+	"std",
+	"substrate-build-script-utils",
+	"substrate-frame-rpc-support",
+	"substrate-frame-rpc-system",
+	"substrate-prometheus-endpoint",
+	"substrate-rpc-client",
+	"substrate-state-trie-migration-rpc",
+] }
+
 cessp-consensus-rrsc = { workspace = true, features = ["default"] }
-sp-consensus-grandpa = { workspace = true, features = ["default"] }
-sp-runtime = { workspace = true, features = ["default"] }
-sp-timestamp = { workspace = true, features = ["default"] }
-sp-transaction-pool = { workspace = true, features = ["default"] }
-sp-inherents = { workspace = true, features = ["default"] }
-sp-keyring = { workspace = true }
-sp-keystore = { workspace = true, features = ["default"] }
-sp-transaction-storage-proof = { workspace = true, features = ["default"] }
-sp-offchain = { workspace = true, features = ["default"] }
-sp-session = { workspace = true, features = ["default"] }
-sp-trie = { workspace = true, features = ["default"] }
-
-# client dependencies
-ces-pallet-mq = { workspace = true }
 cessc-consensus-rrsc = { workspace = true }
+cessc-consensus-rrsc-rpc = { workspace = true }
 cessc-sync-state-rpc = { workspace = true }
-grandpa = { workspace = true }
-prometheus-endpoint = { workspace = true }
-sc-authority-discovery = { workspace = true }
-sc-basic-authorship = { workspace = true }
-sc-chain-spec = { workspace = true }
-sc-client-api = { workspace = true }
-sc-client-db = { workspace = true }
-sc-consensus = { workspace = true }
-sc-consensus-manual-seal = { workspace = true }
-sc-consensus-slots = { workspace = true }
-sc-executor = { workspace = true }
-sc-network = { workspace = true }
-sc-network-common = { workspace = true }
-sc-network-sync = { workspace = true }
-sc-offchain = { workspace = true }
-sc-rpc = { workspace = true }
-sc-service = { workspace = true }
-sc-sysinfo = { workspace = true }
-sc-telemetry = { workspace = true }
-sc-transaction-pool = { workspace = true }
-sc-transaction-pool-api = { workspace = true }
-
-# frame dependencies
-frame-system = { workspace = true }
-frame-system-rpc-runtime-api = { workspace = true }
-pallet-transaction-payment = { workspace = true }
-pallet-transaction-payment-rpc = { workspace = true }
-pallet-transaction-payment-rpc-runtime-api = { workspace = true }
-pallet-im-online = { workspace = true, features = ["default"] }
-
-# node-specific dependencies
 cess-node-primitives = { workspace = true, features = ["std"] }
 cess-node-runtime = { workspace = true, features = ["std"] }
 ces-node-rpc-ext = { workspace = true }
+ces-pallet-mq = { workspace = true }
 ces-pallet-mq-runtime-api = { workspace = true }
-
-# CLI-specific dependencies
-sc-cli = { workspace = true }
-frame-benchmarking-cli = { workspace = true }
-try-runtime-cli = { workspace = true, optional = true }
-serde_json = { workspace = true }
-
-# Other
-frame-benchmarking = { workspace = true }
-mmr-rpc = { workspace = true }
-substrate-state-trie-migration-rpc = { workspace = true }
-sc-keystore = { workspace = true }
-sc-rpc-api = { workspace = true }
-sp-block-builder = { workspace = true, features = ["default"] }
-sp-blockchain = { workspace = true }
-substrate-frame-rpc-system = { workspace = true }
-sc-rpc-spec-v2 = { workspace = true }
 pallet-audit = { workspace = true, features = ["default"] }
-sc-consensus-grandpa-rpc = { workspace = true }
-cessc-consensus-rrsc-rpc = { workspace = true }
-sc-consensus-epochs = { workspace = true }
-pallet-contracts = { workspace = true, features = ["default"] }
 
 # Frontier
 fc-api = { workspace = true }
@@ -121,14 +119,11 @@ fp-evm = { workspace = true, features = ["default"] }
 fp-rpc = { workspace = true, features = ["default"] }
 
 [build-dependencies]
-try-runtime-cli = { workspace = true, optional = true }
-substrate-build-script-utils = { workspace = true }
+substrate-build-script-utils = { workspace = true, default-features = true }
 
 [features]
 default = ["rocksdb", "sql", "txpool"]
 rocksdb = [
-	"sc-cli/rocksdb",
-	"sc-service/rocksdb",
 	"fc-cli/rocksdb",
 	"fc-db/rocksdb",
 	"fc-mapping-sync/rocksdb",
@@ -137,10 +132,9 @@ rocksdb = [
 sql = ["fc-db/sql", "fc-mapping-sync/sql"]
 txpool = ["fc-rpc/txpool"]
 runtime-benchmarks = [
-	'cess-node-runtime/runtime-benchmarks',
-	"frame-benchmarking/runtime-benchmarks",
-	"frame-benchmarking-cli/runtime-benchmarks",
+	"polkadot-sdk/runtime-benchmarks",
+	"cess-node-runtime/runtime-benchmarks",
 ]
-try-runtime = ["cess-node-runtime/try-runtime", "try-runtime-cli/try-runtime"]
+try-runtime = ["cess-node-runtime/try-runtime"]
 only-attestation = ["cess-node-runtime/only-attestation"]
 verify-cesealbin = ["cess-node-runtime/verify-cesealbin"]

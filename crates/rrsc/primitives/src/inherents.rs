@@ -18,7 +18,6 @@
 //! Inherents for RRSC
 
 use sp_inherents::{Error, InherentData, InherentIdentifier};
-use sp_std::result::Result;
 
 /// The RRSC inherent identifier.
 pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"rrscslot";
@@ -75,7 +74,7 @@ impl InherentDataProvider {
 }
 
 #[cfg(feature = "std")]
-impl sp_std::ops::Deref for InherentDataProvider {
+impl core::ops::Deref for InherentDataProvider {
 	type Target = InherentType;
 
 	fn deref(&self) -> &Self::Target {

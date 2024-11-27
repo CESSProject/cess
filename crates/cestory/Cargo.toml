@@ -8,7 +8,7 @@ resolver = "2"
 anyhow = { workspace = true }
 async-trait = { workspace = true }
 base64 = { workspace = true }
-chrono = { workspace = true }
+chrono = { workspace = true, features = ["now"] }
 environmental = { workspace = true }
 glob = { workspace = true }
 hex = { workspace = true, features = ["alloc"] }

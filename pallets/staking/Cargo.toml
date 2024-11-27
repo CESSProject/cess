@@ -1,6 +1,6 @@
 [package]
 name = "pallet-cess-staking"
-version = "4.0.0-dev"
+version = "38.0.0"
 authors = ["CESS LAB"]
 edition = "2021"
 license = "Apache-2.0"

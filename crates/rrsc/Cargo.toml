@@ -15,7 +15,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 async-trait = { workspace = true }
 scale-info = { workspace = true, features = ["derive"] }
-codec = { package = "parity-scale-codec", version = "3.6.1", features = ["derive"] }
+codec = { workspace = true, default-features = true, features = ["derive"] }
 futures = { workspace = true }
 log = { workspace = true }
 num-bigint = { workspace = true }
@@ -29,6 +29,7 @@ sc-client-api = { workspace = true }
 sc-consensus = { workspace = true }
 sc-consensus-epochs = { workspace = true }
 sc-consensus-slots = { workspace = true }
+sp-crypto-hashing = { workspace = true, default-features = true }
 sc-keystore = { workspace = true }
 sc-telemetry = { workspace = true }
 sc-transaction-pool-api = { workspace = true }
