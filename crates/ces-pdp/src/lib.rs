@@ -204,7 +204,7 @@ impl Keys {
                     "The size of file {:?} is {}, which cannot be divisible by {} blocks",
                     name, file_size, n_blocks
                 )),
-            })
+            });
         };
 
         let each_chunks_size = file_size / n_blocks;
@@ -218,10 +218,11 @@ impl Keys {
             let _ = f.seek(SeekFrom::Start(offset));
             match f.read_exact(&mut chunks) {
                 Ok(_) => {},
-                Err(e) =>
+                Err(e) => {
                     return Err(PDPError {
                         error_code: FailCode::InternalError(format!("Fail in read file :{:?}", e.to_string())),
-                    }),
+                    })
+                },
             };
 
             let tx = tx.clone();
@@ -284,7 +285,7 @@ impl Keys {
                     "The size of file {:?} is {}, which cannot be divisible by {} blocks",
                     name, file_size, n_blocks
                 )),
-            })
+            });
         };
 
         let each_chunks_size = file_size / n_blocks;
@@ -419,6 +420,22 @@ impl Keys {
             }
             sigma = sigma.mod_floor(&n);
         }
+        Ok(sigma.to_string())
+    }
+
+    pub fn aggr_append_proof(&self, mut aggr_sigma: String, mut sub_sigma: String) -> Result<String, PDPError> {
+        let n = num_bigint::BigUint::from_bytes_be(&self.pkey.n().to_bytes_be());
+        if aggr_sigma == "".to_string() {
+            aggr_sigma = "1".to_string()
+        }
+        let mut sigma = num_bigint::BigUint::from_str(&aggr_sigma)
+            .map_err(|e| PDPError { error_code: FailCode::InternalError(e.to_string()) })?;
+
+        let mut sub_sigma = num_bigint::BigUint::from_str(&aggr_sigma)
+            .map_err(|e| PDPError { error_code: FailCode::InternalError(e.to_string()) })?;
+        sigma = sigma * sub_sigma;
+        sigma = sigma.mod_floor(&n);
+
         Ok(sigma.to_string())
     }
 
@@ -579,7 +596,7 @@ pub fn gen_chall(n: u64) -> Vec<QElement> {
                 q.v = v.to_bytes_be();
                 challenge[index] = q;
                 index += 1;
-                break
+                break;
             }
         }
     }

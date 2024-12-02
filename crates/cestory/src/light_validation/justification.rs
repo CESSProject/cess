@@ -71,13 +71,13 @@ impl<Block: BlockT> GrandpaJustification<Block> {
         NumberFor<Block>: finality_grandpa::BlockNumberOps,
     {
         let mut justification = GrandpaJustification::<Block>::decode(&mut &*encoded).map_err(|e| {
-            log::error!(
-                "decode justification error:{:?}, block:{:?}, input(len:{}):{}",
-                e,
-                finalized_target.1,
-                encoded.len(),
-                hex::encode(encoded)
-            );
+            // log::error!(
+            //     "decode justification error:{:?}, block:{:?}, input(len:{}):{}",
+            //     e,
+            //     finalized_target.1,
+            //     encoded.len(),
+            //     hex::encode(encoded)
+            // );
             ClientError::JustificationDecode
         })?;
         justification.grandpa_note_stalled = grandpa_note_stalled;
