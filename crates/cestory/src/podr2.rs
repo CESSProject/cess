@@ -5,7 +5,6 @@ use crate::{
 use anyhow::{anyhow, Result};
 use ces_crypto::sr25519::Signing;
 use ces_pdp::{HashSelf, Keys, QElement, Tag as PdpTag};
-use ces_pois::pois::verify;
 use cestory_api::podr2::{
     podr2_api_server::{self, Podr2Api},
     podr2_verifier_api_server::{self, Podr2VerifierApi},
@@ -328,8 +327,7 @@ impl Podr2VerifierApi for Podr2VerifierServer {
                     ))
                 })?;
         }
-        info!("[Batch verify]q_elements random_index_list:{:?}", q_elements.1.random_index_list.clone());
-        info!("[Batch verify]q_elements random_list:{:?}", q_elements.1.random_list.clone());
+
         let raw = VerifyServiceResultInfo {
             miner_pbk: miner_id.clone(),
             tee_account_id: self.ceseal_identity_key.into(),
@@ -344,13 +342,9 @@ impl Podr2VerifierApi for Podr2VerifierServer {
             hex::encode(miner_id.to_raw_vec())
         );
         info!("[Batch verify]tee_account_id:{:?}", hex::encode(self.ceseal_identity_key.clone()));
-        info!("[Batch verify]batch_verify_result:{}", result.batch_verify_result);
-        info!("[Batch verify]agg_proof.sigma:{:?}", hex::encode(agg_proof.sigma.into_bytes()));
-
-        info!("[Batch verify]service_bloom_filter:{:?}", service_bloom_filter.0);
-
-        info!("[Batch verify]encode value:{:?}", hex::encode(&raw.encode()));
-        info!("[Batch verify]encode value hash:{:?}", hex::encode(&calculate_hash(&raw.encode())));
+        info!("[Batch verify]raw.result:{}", raw.result);
+        info!("[Batch verify]raw.sigma:{:?}", hex::encode(raw.sigma.clone()));
+        info!("[Batch verify]service_bloom_filter:{:?}", raw.service_bloom_filter.0);
 
         //using podr2 keypair sign
         let podr2_sign = self.master_key.sign_data(&calculate_hash(&raw.encode())).0.to_vec();
@@ -382,13 +376,17 @@ impl Podr2VerifierApi for Podr2VerifierServer {
 
         let tee_account_id: [u8; 32] = self.ceseal_identity_key.clone();
 
-        let mut service_bloom_filter = BloomFilter::default();
-
         // Important:Miners need to submit 'verify_inservice_file_history' in the order of verification during request 'request_batch_verify'api!
         let verify_inservice_file_structure_list = request.verify_inservice_file_history;
-        let verify_inservice_file_structure_list_lenth = verify_inservice_file_structure_list.len();
 
-        let mut conter = 0;
+        //The last Bloom filter must be the most complete
+        let service_bloom_filter: BloomFilter = verify_inservice_file_structure_list
+            [verify_inservice_file_structure_list.len() - 1]
+            .service_bloom_filter
+            .clone()
+            .try_into()
+            .unwrap();
+
         for el in verify_inservice_file_structure_list {
             miner_id = el.miner_id.clone().try_into().map_err(|_| {
                 Status::invalid_argument(format!("the miner id {:?} is length is incorrect", &el.miner_id))
@@ -402,8 +400,19 @@ impl Podr2VerifierApi for Podr2VerifierServer {
                 chal: q_elements.1.clone(),
                 service_bloom_filter: el.service_bloom_filter.clone().try_into().unwrap(),
             };
+            info!(
+                "-----------------------------miner id is :{:?}miner_pbk:{:?}",
+                crate::pois::get_ss58_address(&miner_id.clone().to_vec()).unwrap(),
+                hex::encode(miner_id.to_vec())
+            );
+            info!("-----------------------------tee_account_id:{:?}", hex::encode(self.ceseal_identity_key.clone()));
+            info!("-----------------------------raw.result:{:?}", raw.result);
+            info!("-----------------------------raw.sigma:{:?}", hex::encode(raw.sigma.clone()));
+            info!("-----------------------------service_bloom_filter:{:?}", raw.service_bloom_filter.clone());
+            info!("-----------------------------encode value:{:?}", hex::encode(&raw.encode()));
+            info!("-----------------------------encode value hash:{:?}", hex::encode(&calculate_hash(&raw.encode())));
 
-            if self.master_key.verify_data(
+            if !self.master_key.verify_data(
                 &sr25519::Signature::from_raw(
                     el.signature
                         .try_into()
@@ -423,13 +432,16 @@ impl Podr2VerifierApi for Podr2VerifierServer {
                         &sigma, &el.sigma
                     ))
                 })?;
-
-            //The last Bloom filter must be the most complete
-            conter += 1;
-            if conter == verify_inservice_file_structure_list_lenth {
-                service_bloom_filter = el.service_bloom_filter.try_into().unwrap();
-            }
         }
+
+        info!(
+            "[aggregate verify]miner id is :{:?}miner_pbk:{:?}",
+            crate::pois::get_ss58_address(&miner_id.clone().to_vec()).unwrap(),
+            hex::encode(miner_id.to_vec())
+        );
+        info!("[aggregate verify]tee_account_id:{:?}", hex::encode(self.ceseal_identity_key.clone()));
+        info!("[aggregate verify]agg_proof.sigma:{:?}", hex::encode(sigma.clone().into_bytes()));
+        info!("[aggregate verify]service_bloom_filter:{:?}", service_bloom_filter.0);
 
         let raw = VerifyServiceResultInfo {
             miner_pbk: miner_id.into(),
