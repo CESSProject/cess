@@ -34,7 +34,7 @@ pub use pallet::*;
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 pub mod weights;
-pub mod migrations;
+pub mod migration;
 
 mod types;
 pub use types::*;
@@ -47,6 +47,7 @@ use constants::*;
 mod impls;
 use impls::receptionist::Receptionist;
 
+pub use crate::migration::{MigrateSequence, Migration};
 use codec::{Decode, Encode};
 use frame_support::{
 	// bounded_vec, 
@@ -54,7 +55,7 @@ use frame_support::{
 	PalletId, 
 	dispatch::DispatchResult, 
 	pallet_prelude::*,
-	weights::Weight,
+	weights::{Weight, WeightMeter},
 };
 use frame_system::pallet_prelude::*;
 use scale_info::TypeInfo;
@@ -151,6 +152,8 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type MissionCount: Get<u32> + Clone + Eq + PartialEq;
+
+		type Migrations: MigrateSequence;
 	}
 
 	#[pallet::event]
@@ -249,6 +252,8 @@ pub mod pallet {
 		RulesNotAllowed,
 		/// The status of the file needs to be Active
 		NotActive,
+		/// Error in multi-block migration process
+		MigrationInProgress,
 	}
 
 	#[pallet::storage]
@@ -285,6 +290,12 @@ pub mod pallet {
 	#[pallet::getter(fn task_failed_count)]
 	pub(super) type TaskFailedCount<T: Config> = 
 		StorageMap<_, Blake2_128Concat, AccountOf<T>, u8, ValueQuery>;
+
+	/// A migration can span across multiple blocks. This storage defines a cursor to track the
+	/// progress of the migration, enabling us to resume from the last completed position.
+	#[pallet::storage]
+	pub(crate) type MigrationInProgress<T: Config> =
+		StorageValue<_, migration::Cursor, OptionQuery>;
 
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
@@ -347,6 +358,26 @@ pub mod pallet {
 			}
 			
 			weight
+		}
+
+		fn on_idle(_block: BlockNumberFor<T>, limit: Weight) -> Weight {
+			use migration::MigrateResult::*;
+			let mut meter = WeightMeter::with_limit(limit);
+
+			loop {
+				match Migration::<T>::migrate(&mut meter) {
+					// There is not enough weight to perform a migration.
+					// We can't do anything more, so we return the used weight.
+					NoMigrationPerformed | InProgress { steps_done: 0 } => return meter.consumed(),
+					// Migration is still in progress, we can start the next step.
+					InProgress { .. } => continue,
+					// Either no migration is in progress, or we are done with all migrations, we
+					// can do some more other work with the remaining weight.
+					Completed | NoMigrationInProgress => break,
+				}
+			}
+
+			meter.consumed()
 		}
 	}
 

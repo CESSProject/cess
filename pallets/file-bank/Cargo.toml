@@ -18,6 +18,7 @@ serde_json = { workspace = true, features = ['alloc'] }
 log = { workspace = true }
 rand_chacha = { workspace = true, optional = true }
 hex = { workspace = true }
+impl-trait-for-tuples = { workspace = true }
 
 sp-io = { workspace = true }
 sp-std = { workspace = true }

@@ -1,8 +1,7 @@
 use super::*;
 use crate::{Pallet as FileBank, *, 
-	migrations::{
-		SteppedFileBank, 
-		v3::{File as FileV3, DealMap as DealMapV3, OldFileInfo, OldUserBrief, OldDealInfo}, 
+	migration::{
+		v03::{File as FileV3, DealMap as DealMapV3, OldFileInfo, OldUserBrief, OldDealInfo}, 
 	},
 };
 // use cp_cess_common::{Hash, IpAddress};
@@ -10,6 +9,7 @@ use crate::{Pallet as FileBank, *,
 pub use frame_benchmarking::{
 	account, benchmarks, impl_benchmark_test_suite, whitelist_account, whitelisted_caller, 
 };
+use crate::migration::MigrationStep;
 use frame_support::{migrations::SteppedMigration, weights::WeightMeter, traits::Currency};
 use frame_benchmarking::v2::{*, benchmarks as benchmarksV2};
 // use frame_support::{
@@ -148,93 +148,162 @@ pub fn initialize_file_from_scratch<T: Config>() -> Result<(), &'static str> {
 	Ok(())
 }
 
+fn create_file_for_v3_migrate<T: Config>() {
+	let user: AccountOf<T> = account("user1", 100, SEED);
+	let file_name = "test-file".as_bytes().to_vec();
+	let bucket_name = "bucket-name".as_bytes().to_vec();
+	let file_hash: Hash = Hash([80u8; 64]);
+	let file_size: u128 = SEGMENT_SIZE * 3;
+	let territory_name: TerrName = "t1".as_bytes().to_vec().try_into().unwrap();
+	let user_brief = OldUserBrief::<T> {
+		user: user.clone(),
+		file_name: file_name.try_into().unwrap(),
+		bucket_name: bucket_name.try_into().unwrap(),
+		territory_name,
+	};
+
+	// let mut deal_info: BoundedVec<SegmentList<T>, T::SegmentCount> = Default::default();
+	let segment_info = SegmentInfo::<T>{
+		hash: Hash([65u8; 64]),
+		fragment_list: vec![
+			FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() }, 
+			FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() },
+			FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() },
+			FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() },
+			FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() },
+			FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() },
+			FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() },
+			FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() },
+			FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() },
+			FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() },
+			FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() },
+			FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() },
+		].try_into().unwrap(),
+	};
+	// deal_info.try_push(segment_list).unwrap();
+
+	let file_info = OldFileInfo::<T>{
+		segment_list: vec![segment_info].try_into().unwrap(),
+		owner: vec![user_brief.clone()].try_into().unwrap(),
+		file_size: 1086574,
+		completion: 1u64.saturated_into(),
+		stat: FileState::Active,
+	};
+
+	FileV3::<T>::insert(Hash([66u8; 64]), file_info);
+}
+
+fn create_deal_for_v3_migrate<T: Config>() {
+	let user: AccountOf<T> = account("user1", 100, SEED);
+	let file_name = "test-file".as_bytes().to_vec();
+	let bucket_name = "bucket-name".as_bytes().to_vec();
+	let file_hash: Hash = Hash([80u8; 64]);
+	let file_size: u128 = SEGMENT_SIZE * 3;
+	let territory_name: TerrName = "t1".as_bytes().to_vec().try_into().unwrap();
+	let user_brief = OldUserBrief::<T> {
+		user: user.clone(),
+		file_name: file_name.try_into().unwrap(),
+		bucket_name: bucket_name.try_into().unwrap(),
+		territory_name,
+	};
+
+	let segment_list = SegmentList::<T> {
+		hash: Hash([65u8; 64]),
+		fragment_list: [
+			Hash([66u8; 64]),
+			Hash([67u8; 64]),
+			Hash([68u8; 64]),
+			Hash([69u8; 64]),
+			Hash([70u8; 64]),
+			Hash([71u8; 64]),
+			Hash([72u8; 64]),
+			Hash([73u8; 64]),
+			Hash([74u8; 64]),
+			Hash([75u8; 64]),
+			Hash([76u8; 64]),
+			Hash([77u8; 64]),
+		].to_vec().try_into().unwrap(),
+	};
+
+	let old_deal_info = OldDealInfo::<T> {
+	file_size: file_size,
+	segment_list: vec![segment_list].try_into().unwrap(),
+	user: user_brief,
+	complete_list: Default::default(),
+	};
+
+	DealMapV3::<T>::insert(Hash([97u8; 64]), old_deal_info);
+}
+
 #[benchmarksV2]
 mod migrate {
 	use super::*;
 	// use frame_benchmarking::v2::benchmarks;
 
-	#[benchmark]
-	fn migration_step() {
-		let user: AccountOf<T> = account("user1", 100, SEED);
-		let file_name = "test-file".as_bytes().to_vec();
-		let bucket_name = "bucket-name".as_bytes().to_vec();
-		let file_hash: Hash = Hash([80u8; 64]);
-		let file_size: u128 = SEGMENT_SIZE * 3;
-		let territory_name: TerrName = "t1".as_bytes().to_vec().try_into().unwrap();
-		let user_brief = OldUserBrief::<T> {
-			user: user.clone(),
-			file_name: file_name.try_into().unwrap(),
-			bucket_name: bucket_name.try_into().unwrap(),
-			territory_name,
-		};
-	
-		// let mut deal_info: BoundedVec<SegmentList<T>, T::SegmentCount> = Default::default();
-		let segment_info = SegmentInfo::<T>{
-			hash: Hash([65u8; 64]),
-			fragment_list: vec![
-				FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() }, 
-				FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() },
-				FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() },
-				FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() },
-				FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() },
-				FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() },
-				FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() },
-				FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() },
-				FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() },
-				FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() },
-				FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() },
-				FragmentInfo::<T>{hash: Hash([97u8; 64]), avail: true,  tag: Some(1u64.saturated_into()), miner: user.clone() },
-			].try_into().unwrap(),
-		};
-		// deal_info.try_push(segment_list).unwrap();
-
-		let file_info = OldFileInfo::<T>{
-			segment_list: vec![segment_info].try_into().unwrap(),
-			owner: vec![user_brief.clone()].try_into().unwrap(),
-			file_size: 1086574,
-			completion: 1u64.saturated_into(),
-			stat: FileState::Active,
-		};
-
-		FileV3::<T>::insert(Hash([66u8; 64]), file_info);
-
-		let segment_list = SegmentList::<T> {
-							hash: Hash([65u8; 64]),
-							fragment_list: [
-								Hash([66u8; 64]),
-								Hash([67u8; 64]),
-								Hash([68u8; 64]),
-								Hash([69u8; 64]),
-								Hash([70u8; 64]),
-								Hash([71u8; 64]),
-								Hash([72u8; 64]),
-								Hash([73u8; 64]),
-								Hash([74u8; 64]),
-								Hash([75u8; 64]),
-								Hash([76u8; 64]),
-								Hash([77u8; 64]),
-							].to_vec().try_into().unwrap(),
-						};
-
-		let old_deal_info = OldDealInfo::<T> {
-			file_size: file_size,
-			segment_list: vec![segment_list].try_into().unwrap(),
-			user: user_brief,
-			complete_list: Default::default(),
-		};
-
-		DealMapV3::<T>::insert(Hash([97u8; 64]), old_deal_info);
-
-		assert!(DealMapV3::<T>::contains_key(Hash([97u8; 64])));
-
-		let mut meter = WeightMeter::new();
+	#[benchmark(pov_mode = Measured)]
+	fn v03_migration_step() -> Result<(), BenchmarkError> {
+		create_deal_for_v3_migrate::<T>();
+		create_file_for_v3_migrate::<T>();
+		let mut m = crate::migration::v03::Migration::<T>::default();
 
 		#[block]
 		{
-			SteppedFileBank::<T, weights::SubstrateWeight<T>>::step(None, &mut meter).unwrap();
+			m.step(&mut WeightMeter::new());
 		}
 
-		assert!(DealMap::<T>::try_get(Hash([97u8; 64])).is_ok());
+		assert!(File::<T>::contains_key(&Hash([66u8; 64])));
+		Ok(())
+	}
+
+	#[benchmark]
+	fn migration_noop() {
+		create_deal_for_v3_migrate::<T>();
+		create_file_for_v3_migrate::<T>();
+		#[block]
+		{
+			Migration::<T>::migrate(&mut WeightMeter::new());
+		}
+
+		assert_eq!(StorageVersion::get::<FileBank<T>>(), 3);
+	}
+
+	#[benchmark]
+	fn on_runtime_upgrade_noop() {
+		create_deal_for_v3_migrate::<T>();
+		create_file_for_v3_migrate::<T>();
+		#[block]
+		{
+			<Migration<T, false> as frame_support::traits::OnRuntimeUpgrade>::on_runtime_upgrade();
+		}
+		assert!(MigrationInProgress::<T>::get().is_none());
+	}
+
+	#[benchmark]
+	fn on_runtime_upgrade_in_progress() {
+		create_deal_for_v3_migrate::<T>();
+		create_file_for_v3_migrate::<T>();
+		let v = vec![42u8].try_into().ok();
+		MigrationInProgress::<T>::set(v.clone());
+		#[block]
+		{
+			<Migration<T, false> as frame_support::traits::OnRuntimeUpgrade>::on_runtime_upgrade();
+		}
+		assert!(MigrationInProgress::<T>::get().is_some());
+		assert_eq!(MigrationInProgress::<T>::get(), v);
+	}
+
+	// This benchmarks the weight of running on_runtime_upgrade when there is a migration to
+	// process.
+	#[benchmark(pov_mode = Measured)]
+	fn on_runtime_upgrade() {
+		StorageVersion::new(2).put::<FileBank<T>>();
+		create_deal_for_v3_migrate::<T>();
+		create_file_for_v3_migrate::<T>();
+		#[block]
+		{
+			<Migration<T, false> as frame_support::traits::OnRuntimeUpgrade>::on_runtime_upgrade();
+		}
+		assert!(MigrationInProgress::<T>::get().is_some());
 	}
 }
 

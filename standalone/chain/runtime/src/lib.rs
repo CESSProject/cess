@@ -91,8 +91,6 @@ use static_assertions::const_assert;
 use fp_rpc::TransactionStatus;
 use pallet_ethereum::{Call::transact, Transaction as EthereumTransaction, TransactionAction, TransactionData};
 use pallet_evm::{Account as EVMAccount, FeeCalculator, Runner};
-use pallet_file_bank::migrations::SteppedFileBank;
-use pallet_sminer::migrations::SteppedSminer;
 
 #[cfg(any(feature = "std", test))]
 pub use frame_system::Call as SystemCall;
@@ -1162,7 +1160,7 @@ parameter_types! {
 impl pallet_migrations::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	#[cfg(not(feature = "runtime-benchmarks"))]
-	type Migrations = (SteppedFileBank<Runtime, <Self as pallet_file_bank::Config>::WeightInfo>, SteppedSminer<Runtime, <Self as pallet_sminer::Config>::WeightInfo>);
+	type Migrations = ();
 	// Benchmarks need mocked migrations to guarantee that they succeed.
 	#[cfg(feature = "runtime-benchmarks")]
 	type Migrations = pallet_migrations::mock_helpers::MockedMigrations;
@@ -1476,16 +1474,8 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	Migrations,
+	pallet_file_bank::Migration<Runtime>,
 >;
-
-// All migrations executed on runtime upgrade as a nested tuple of types implementing
-// `OnRuntimeUpgrade`. Note: These are examples and do not need to be run directly
-// after the genesis block.
-type Migrations = (
-	pallet_contracts::Migration<Runtime>,
-	pallet_cess_staking::migrations::v15::MigrateV14ToV15<Runtime>,
-);
 
 type EventRecord = frame_system::EventRecord<
 	<Runtime as frame_system::Config>::RuntimeEvent,
@@ -1649,6 +1639,7 @@ impl pallet_file_bank::Config for Runtime {
 	type NameMinLength = NameMinLength;
 	type RestoralOrderLife = RestoralOrderLife;
 	type MissionCount = MissionCount;
+	type Migrations = (pallet_file_bank::migration::v03::Migration<Runtime>,);
 }
 
 parameter_types! {
