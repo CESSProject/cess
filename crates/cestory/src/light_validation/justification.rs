@@ -37,6 +37,7 @@ use sp_runtime::traits::{Block as BlockT, Header as HeaderT, NumberFor};
 /// This is meant to be stored in the db and passed around the network to other
 /// nodes, and are used by syncing nodes to prove authority set handoffs.
 #[derive(Clone, Encode, Decode, PartialEq, Eq, Debug)]
+#[allow(dead_code)]
 pub struct GrandpaJustification<Block: BlockT> {
     /// The GRANDPA justification for block finality.
     pub justification: sp_consensus_grandpa::GrandpaJustification<Block::Header>,
@@ -60,6 +61,7 @@ impl<Block: BlockT> Into<sp_consensus_grandpa::GrandpaJustification<Block::Heade
 impl<Block: BlockT> GrandpaJustification<Block> {
     /// Decode a GRANDPA justification and validate the commit and the votes'
     /// ancestry proofs finalize the given block.
+    #[allow(dead_code)]
     pub fn decode_and_verify_finalizes(
         encoded: &[u8],
         finalized_target: (Block::Hash, NumberFor<Block>),
@@ -70,16 +72,7 @@ impl<Block: BlockT> GrandpaJustification<Block> {
     where
         NumberFor<Block>: finality_grandpa::BlockNumberOps,
     {
-        let mut justification = GrandpaJustification::<Block>::decode(&mut &*encoded).map_err(|_| {
-            // log::error!(
-            //     "decode justification error:{:?}, block:{:?}, input(len:{}):{}",
-            //     e,
-            //     finalized_target.1,
-            //     encoded.len(),
-            //     hex::encode(encoded)
-            // );
-            ClientError::JustificationDecode
-        })?;
+        let mut justification = GrandpaJustification::<Block>::decode(&mut &*encoded).map_err(|_| ClientError::JustificationDecode)?;
         justification.grandpa_note_stalled = grandpa_note_stalled;
 
         if (justification.justification.commit.target_hash, justification.justification.commit.target_number)
@@ -197,6 +190,7 @@ impl<Block: BlockT> GrandpaJustification<Block> {
 /// A utility trait implementing `finality_grandpa::Chain` using a given set of headers.
 /// This is useful when validating commits, using the given set of headers to
 /// verify a valid ancestry route to the target commit block.
+#[allow(dead_code)]
 struct AncestryChain<Block: BlockT> {
     ancestry: HashMap<Block::Hash, Block::Header>,
 }
