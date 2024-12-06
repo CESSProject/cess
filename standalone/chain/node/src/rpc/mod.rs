@@ -16,8 +16,13 @@ pub use sc_rpc::SubscriptionTaskExecutor;
 use sc_service::TransactionPool;
 use sc_transaction_pool::ChainApi;
 use sp_api::{CallApiAt, ProvideRuntimeApi};
+use sp_application_crypto::RuntimeAppPublic;
 use sp_blockchain::{Error as BlockChainError, HeaderBackend, HeaderMetadata};
 use sp_consensus::SelectChain;
+use sp_consensus_beefy::AuthorityIdBound;
+use sc_consensus_beefy::communication::notification::{
+	BeefyBestBlockStream, BeefyVersionedFinalityProofStream,
+};
 use sp_inherents::CreateInherentDataProviders;
 use sp_keystore::KeystorePtr;
 use sp_runtime::traits::Block as BlockT;
@@ -48,8 +53,18 @@ pub struct GrandpaDeps<B> {
 	pub finality_provider: Arc<FinalityProofProvider<B, Block>>,
 }
 
+/// Dependencies for BEEFY
+pub struct BeefyDeps<AuthorityId: AuthorityIdBound> {
+	/// Receives notifications about finality proof events from BEEFY.
+	pub beefy_finality_proof_stream: BeefyVersionedFinalityProofStream<Block, AuthorityId>,
+	/// Receives notifications about best block events from BEEFY.
+	pub beefy_best_block_stream: BeefyBestBlockStream<Block>,
+	/// Executor to drive the subscription manager in the BEEFY RPC handler.
+	pub subscription_executor: SubscriptionTaskExecutor,
+}
+
 /// Full client dependencies.
-pub struct FullDeps<C, P, SC, B> {
+pub struct FullDeps<C, P, SC, B, AuthorityId: AuthorityIdBound> {
 	/// The client instance to use.
 	pub client: Arc<C>,
 	/// Transaction pool instance.
@@ -62,6 +77,8 @@ pub struct FullDeps<C, P, SC, B> {
 	pub rrsc: RRSCDeps,
 	/// GRANDPA specific dependencies.
 	pub grandpa: GrandpaDeps<B>,
+	/// BEEFY specific dependencies.
+	pub beefy: BeefyDeps<AuthorityId>,
 	/// The backend used by the node.
 	pub backend: Arc<B>,
 }
@@ -77,7 +94,7 @@ where
 }
 
 /// Instantiate all Full RPC extensions.
-pub fn create_full<C, B, SC, P, A, CT, CIDP>(
+pub fn create_full<C, B, SC, P, A, CT, CIDP, AuthorityId>(
 	FullDeps { 
 		client, 
 		pool, 
@@ -85,8 +102,9 @@ pub fn create_full<C, B, SC, P, A, CT, CIDP>(
 		chain_spec, 
 		rrsc, 
 		grandpa, 
+		beefy,
 		backend 
-	}: FullDeps<C, P, SC, B>,
+	}: FullDeps<C, P, SC, B, AuthorityId>,
 	eth_deps: EthDeps<Block, C, P, A, CT, CIDP>,
 	subscription_task_executor: SubscriptionTaskExecutor,	
 ) -> Result<RpcModule<()>, Box<dyn std::error::Error + Send + Sync>>
@@ -111,11 +129,14 @@ where
 	A: ChainApi<Block = Block> + 'static,
 	CIDP: CreateInherentDataProviders<Block, ()> + Send + 'static,
 	CT: fp_rpc::ConvertTransaction<<Block as BlockT>::Extrinsic> + Send + Sync + 'static,
+	AuthorityId: AuthorityIdBound,
+	<AuthorityId as RuntimeAppPublic>::Signature: Send + Sync,
 {
 	use ces_node_rpc_ext::{NodeRpcExt, NodeRpcExtApiServer};
 	use cessc_sync_state_rpc::{SyncState, SyncStateApiServer};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
 	use sc_consensus_grandpa_rpc::{Grandpa, GrandpaApiServer};
+	use sc_consensus_beefy_rpc::{Beefy, BeefyApiServer};
 	use substrate_frame_rpc_system::{System, SystemApiServer};
 	use substrate_state_trie_migration_rpc::{StateMigration, StateMigrationApiServer};
 
@@ -151,6 +172,15 @@ where
 	io.merge(StateMigration::new(client.clone(), backend.clone()).into_rpc())?;
 	io.merge(NodeRpcExt::new(client, backend, pool).into_rpc())
 		.expect("Initialize CESS node RPC ext failed.");
+
+	io.merge(
+		Beefy::<Block, AuthorityId>::new(
+			beefy.beefy_finality_proof_stream,
+			beefy.beefy_best_block_stream,
+			beefy.subscription_executor,
+		)?
+		.into_rpc(),
+	)?;
 
 	// Ethereum compatibility RPCs
 	let io = create_eth::<_, _, _, _, _, _, _, DefaultEthConfig<C, B>>(

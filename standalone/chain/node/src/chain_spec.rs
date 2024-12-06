@@ -1,10 +1,8 @@
 use polkadot_sdk::*;
 use cess_node_primitives::{AccountId, Balance, Block, Signature};
 use cess_node_runtime::{constants::currency::DOLLARS, wasm_binary_unwrap, MaxNominations, SessionKeys, StakerStatus};
-/// Added a graph view on the functions relationship in this file, refer to the github-rendered view at:
-//    https://github.com/CESSProject/cess/blob/main/docs/on-src/node/src/chain_spec.rs.md
+use sp_consensus_beefy::ecdsa_crypto::AuthorityId as BeefyId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
-
 use cessp_consensus_rrsc::AuthorityId as RRSCId;
 use pallet_audit::sr25519::AuthorityId as SegmentBookId;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
@@ -52,8 +50,9 @@ fn session_keys(
 	rrsc: RRSCId,
 	im_online: ImOnlineId,
 	authority_discovery: AuthorityDiscoveryId,
+	beefy: BeefyId,
 ) -> SessionKeys {
-	SessionKeys { grandpa, babe: rrsc, im_online, authority_discovery }
+	SessionKeys { grandpa, babe: rrsc, im_online, authority_discovery, beefy }
 }
 
 /// Generate an account ID from seed.
@@ -67,7 +66,7 @@ where
 /// Helper function to generate stash, controller and session key from seed
 pub fn authority_keys_from_seed(
 	seed: &str,
-) -> (AccountId, AccountId, GrandpaId, RRSCId, ImOnlineId, AuthorityDiscoveryId, SegmentBookId) {
+) -> (AccountId, AccountId, GrandpaId, RRSCId, ImOnlineId, AuthorityDiscoveryId, SegmentBookId, BeefyId) {
 	(
 		get_account_id_from_seed::<sr25519::Public>(&format!("{}//stash", seed)),
 		get_account_id_from_seed::<sr25519::Public>(seed),
@@ -76,6 +75,7 @@ pub fn authority_keys_from_seed(
 		get_from_seed::<ImOnlineId>(seed),
 		get_from_seed::<AuthorityDiscoveryId>(seed),
 		get_from_seed::<SegmentBookId>(seed),
+		get_from_seed::<BeefyId>(seed),
 	)
 }
 
@@ -89,7 +89,7 @@ fn properties() -> Properties {
 
 fn cess_main_genesis() -> serde_json::Value {
 	#[rustfmt::skip]
-		let initial_authorities: Vec<(
+	let initial_authorities: Vec<(
 		AccountId,
 		AccountId,
 		GrandpaId,
@@ -97,6 +97,7 @@ fn cess_main_genesis() -> serde_json::Value {
 		ImOnlineId,
 		AuthorityDiscoveryId,
 		SegmentBookId,
+		BeefyId,
 	)> = vec![
 		(
 			// cXfg2SYcq85nyZ1U4ccx6QnAgSeLQB8aXZ2jstbw9CPGSmhXY
@@ -117,6 +118,8 @@ fn cess_main_genesis() -> serde_json::Value {
 				.unchecked_into(),
 			array_bytes::hex2array_unchecked("2a4d86b50b2d98c3bfb02c00f9731753b01f8151774544f4e78e11ef4bb1eb79")
 				.unchecked_into(),
+			array_bytes::hex2array_unchecked("035cea616c14eef7250f8e08a8609b49acdefb2c8dd56ac92f83475b520f4bc673")
+				.unchecked_into(),
 		),
 		(
 			// cXiHpiCFn6xkypa2Q8SroghuME1hBtDDrJYEEAXLwkfy6y277
@@ -136,6 +139,8 @@ fn cess_main_genesis() -> serde_json::Value {
 			array_bytes::hex2array_unchecked("2a20b3a025722789f18ca7e459ec21d4f232b1a1d245272f14248d3cfa8b412a")
 				.unchecked_into(),
 			array_bytes::hex2array_unchecked("2a20b3a025722789f18ca7e459ec21d4f232b1a1d245272f14248d3cfa8b412a")
+				.unchecked_into(),
+			array_bytes::hex2array_unchecked("026cf46275ef5df7d320cc5c959fec34636a9b8ba51334d54b6c19380e0643dc31")
 				.unchecked_into(),
 		),
 		(
@@ -158,6 +163,8 @@ fn cess_main_genesis() -> serde_json::Value {
 			//cXfwFY2GaMueyyaSrjMRSQM48mLU7Z5JRmdB4FJE7weicJ7pu
 			array_bytes::hex2array_unchecked("2a66038471e6a62a2df2195efef9d25263858711337cf8dc31804f196bdb7840")
 				.unchecked_into(),
+			array_bytes::hex2array_unchecked("034455f01992d48e2e28ac521930a03865324447ce5ba1e8331a42d17315a27f22")
+				.unchecked_into(),
 		),
 		(
 			// cXik7GNf8qYgt6TtGajELHN8QRjd9iy4pd6soPnjcccsenSuh
@@ -179,6 +186,8 @@ fn cess_main_genesis() -> serde_json::Value {
 			// cXgqJbnKuaHXi6ssKaLRBK7BsHMYyqnQkhiPuhjjSF1TGZWsF
 			array_bytes::hex2array_unchecked("521917850191d8787c10d9e35a0f3ff218e992e4ed476e5c33f7de5ab04f1a38")
 				.unchecked_into(),
+			array_bytes::hex2array_unchecked("02dcbd5374c49be753cfd8935b9efa0d42eeff7235c3f4a552b7877ef9a50fcbb9")
+				.unchecked_into(),
 		),
 		(
 			array_bytes::hex_n_into_unchecked("3aa51ef77986966c8aa4c801229e3d0210500bc92be5c7c6542fc540826dad7e"),
@@ -192,6 +201,8 @@ fn cess_main_genesis() -> serde_json::Value {
 			array_bytes::hex2array_unchecked("fa93c04ccad2297b8f231291d46599fe9ef54db4c2b41f2a5fdd469adf5dfd18")
 				.unchecked_into(),
 			array_bytes::hex2array_unchecked("fa93c04ccad2297b8f231291d46599fe9ef54db4c2b41f2a5fdd469adf5dfd18")
+				.unchecked_into(),
+			array_bytes::hex2array_unchecked("038ac7eac0aa202a33797544dec561b3837fe2bbedb8b1553bfbf08184e0cb9b5d")
 				.unchecked_into(),
 		),
 	];
@@ -249,6 +260,7 @@ fn cess_testnet_config_genesis() -> serde_json::Value {
 		ImOnlineId,
 		AuthorityDiscoveryId,
 		SegmentBookId,
+		BeefyId,
 	)> = vec![
 		(
 			// cXfg2SYcq85nyZ1U4ccx6QnAgSeLQB8aXZ2jstbw9CPGSmhXY
@@ -268,6 +280,8 @@ fn cess_testnet_config_genesis() -> serde_json::Value {
 			array_bytes::hex2array_unchecked("2a4d86b50b2d98c3bfb02c00f9731753b01f8151774544f4e78e11ef4bb1eb79")
 				.unchecked_into(),
 			array_bytes::hex2array_unchecked("2a4d86b50b2d98c3bfb02c00f9731753b01f8151774544f4e78e11ef4bb1eb79")
+				.unchecked_into(),
+			array_bytes::hex2array_unchecked("035cea616c14eef7250f8e08a8609b49acdefb2c8dd56ac92f83475b520f4bc673")
 				.unchecked_into(),
 		),
 		(
@@ -289,6 +303,8 @@ fn cess_testnet_config_genesis() -> serde_json::Value {
 				.unchecked_into(),
 			array_bytes::hex2array_unchecked("2a20b3a025722789f18ca7e459ec21d4f232b1a1d245272f14248d3cfa8b412a")
 				.unchecked_into(),
+			array_bytes::hex2array_unchecked("026cf46275ef5df7d320cc5c959fec34636a9b8ba51334d54b6c19380e0643dc31")
+				.unchecked_into(),
 		),
 		(
 			// cXic3WhctsJ9cExmjE9vog49xaLuVbDLcFi2odeEnvV5Sbq4f
@@ -308,6 +324,8 @@ fn cess_testnet_config_genesis() -> serde_json::Value {
 			array_bytes::hex2array_unchecked("2a66038471e6a62a2df2195efef9d25263858711337cf8dc31804f196bdb7840")
 				.unchecked_into(),
 			array_bytes::hex2array_unchecked("2a66038471e6a62a2df2195efef9d25263858711337cf8dc31804f196bdb7840")
+				.unchecked_into(),
+			array_bytes::hex2array_unchecked("034455f01992d48e2e28ac521930a03865324447ce5ba1e8331a42d17315a27f22")
 				.unchecked_into(),
 		),
 	];
@@ -423,6 +441,7 @@ fn testnet_genesis(
 		ImOnlineId,
 		AuthorityDiscoveryId,
 		SegmentBookId,
+		BeefyId,
 	)>,
 	initial_nominators: Vec<AccountId>,
 	root_key: AccountId,
@@ -491,7 +510,7 @@ fn testnet_genesis(
 		"session": {
 			"keys": initial_authorities
 				.iter()
-				.map(|x| (x.0.clone(), x.0.clone(), session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone())))
+				.map(|x| (x.0.clone(), x.0.clone(), session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.7.clone())))
 				.collect::<Vec<_>>()
 		},
 		"staking": {
