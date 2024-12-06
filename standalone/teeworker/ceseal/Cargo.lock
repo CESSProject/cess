@@ -1394,6 +1394,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "ces-rrsc-vrf-solver"
+version = "0.1.0"
+dependencies = [
+ "frame-election-provider-support",
+ "frame-support",
+ "log",
+ "pallet-babe",
+ "parity-scale-codec",
+ "sp-npos-elections",
+ "sp-std",
+]
+
+[[package]]
 name = "ces-sanitized-logger"
 version = "0.1.0"
 dependencies = [
@@ -1498,9 +1511,9 @@ version = "0.9.0"
 dependencies = [
  "ces-pallet-mq",
  "ces-pallet-mq-runtime-api",
+ "ces-rrsc-vrf-solver",
  "ces-types",
  "cess-node-primitives",
- "cessp-consensus-rrsc",
  "cp-cess-common",
  "cp-scheduler-credit",
  "fp-account",
@@ -1524,7 +1537,6 @@ dependencies = [
  "pallet-file-bank",
  "pallet-oss",
  "pallet-reservoir",
- "pallet-rrsc",
  "pallet-scheduler-credit",
  "pallet-sminer",
  "pallet-storage-handler",
@@ -1536,24 +1548,6 @@ dependencies = [
  "serde_json",
  "static_assertions",
  "substrate-wasm-builder",
-]
-
-[[package]]
-name = "cessp-consensus-rrsc"
-version = "0.10.0-dev"
-dependencies = [
- "async-trait",
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-api",
- "sp-application-crypto",
- "sp-consensus-slots",
- "sp-core",
- "sp-inherents",
- "sp-runtime",
- "sp-std",
- "sp-timestamp",
 ]
 
 [[package]]
@@ -6778,31 +6772,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-rrsc"
-version = "38.0.0"
-dependencies = [
- "cessp-consensus-rrsc",
- "frame-benchmarking",
- "frame-election-provider-support",
- "frame-support",
- "frame-system",
- "log",
- "pallet-authorship",
- "pallet-session",
- "pallet-timestamp",
- "parity-scale-codec",
- "scale-info",
- "sp-application-crypto",
- "sp-core",
- "sp-io",
- "sp-npos-elections",
- "sp-runtime",
- "sp-session",
- "sp-staking",
- "sp-std",
-]
-
-[[package]]
 name = "pallet-safe-mode"
 version = "19.0.0"
 source = "git+https://github.com/paritytech/polkadot-sdk.git?branch=stable2409#dba2dd59101617aad64d167e400b19e2c35052b1"
@@ -6859,7 +6828,7 @@ dependencies = [
 name = "pallet-scheduler-credit"
 version = "0.1.0"
 dependencies = [
- "cessp-consensus-rrsc",
+ "ces-rrsc-vrf-solver",
  "cp-cess-common",
  "cp-scheduler-credit",
  "frame-support",

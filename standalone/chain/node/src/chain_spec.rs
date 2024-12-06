@@ -3,7 +3,7 @@ use cess_node_primitives::{AccountId, Balance, Block, Signature};
 use cess_node_runtime::{constants::currency::DOLLARS, wasm_binary_unwrap, MaxNominations, SessionKeys, StakerStatus};
 use sp_consensus_beefy::ecdsa_crypto::AuthorityId as BeefyId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
-use cessp_consensus_rrsc::AuthorityId as RRSCId;
+use sp_consensus_babe::AuthorityId as BabeId;
 use pallet_audit::sr25519::AuthorityId as SegmentBookId;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use sc_chain_spec::{ChainSpecExtension, Properties};
@@ -37,7 +37,7 @@ pub struct Extensions {
 	/// Known bad block hashes.
 	pub bad_blocks: sc_client_api::BadBlocks<Block>,
 	/// The light sync state extension used by the sync-state rpc.
-	pub light_sync_state: cessc_sync_state_rpc::LightSyncStateExtension,
+	pub light_sync_state: sc_sync_state_rpc::LightSyncStateExtension,
 }
 
 /// Specialized `ChainSpec`.
@@ -47,12 +47,12 @@ type AccountPublic = <Signature as Verify>::Signer;
 
 fn session_keys(
 	grandpa: GrandpaId,
-	rrsc: RRSCId,
+	babe: BabeId,
 	im_online: ImOnlineId,
 	authority_discovery: AuthorityDiscoveryId,
 	beefy: BeefyId,
 ) -> SessionKeys {
-	SessionKeys { grandpa, babe: rrsc, im_online, authority_discovery, beefy }
+	SessionKeys { grandpa, babe: babe, im_online, authority_discovery, beefy }
 }
 
 /// Generate an account ID from seed.
@@ -66,12 +66,12 @@ where
 /// Helper function to generate stash, controller and session key from seed
 pub fn authority_keys_from_seed(
 	seed: &str,
-) -> (AccountId, AccountId, GrandpaId, RRSCId, ImOnlineId, AuthorityDiscoveryId, SegmentBookId, BeefyId) {
+) -> (AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId, SegmentBookId, BeefyId) {
 	(
 		get_account_id_from_seed::<sr25519::Public>(&format!("{}//stash", seed)),
 		get_account_id_from_seed::<sr25519::Public>(seed),
 		get_from_seed::<GrandpaId>(seed),
-		get_from_seed::<RRSCId>(seed),
+		get_from_seed::<BabeId>(seed),
 		get_from_seed::<ImOnlineId>(seed),
 		get_from_seed::<AuthorityDiscoveryId>(seed),
 		get_from_seed::<SegmentBookId>(seed),
@@ -93,7 +93,7 @@ fn cess_main_genesis() -> serde_json::Value {
 		AccountId,
 		AccountId,
 		GrandpaId,
-		RRSCId,
+		BabeId,
 		ImOnlineId,
 		AuthorityDiscoveryId,
 		SegmentBookId,
@@ -256,7 +256,7 @@ fn cess_testnet_config_genesis() -> serde_json::Value {
 		AccountId,
 		AccountId,
 		GrandpaId,
-		RRSCId,
+		BabeId,
 		ImOnlineId,
 		AuthorityDiscoveryId,
 		SegmentBookId,
@@ -437,7 +437,7 @@ fn testnet_genesis(
 		AccountId,
 		AccountId,
 		GrandpaId,
-		RRSCId,
+		BabeId,
 		ImOnlineId,
 		AuthorityDiscoveryId,
 		SegmentBookId,

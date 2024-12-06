@@ -2,9 +2,9 @@
 use polkadot_sdk::*;
 use sc_consensus_grandpa as grandpa;
 use cess_node_primitives::{opaque::Block, AccountId, Balance, BlockNumber, Hash, Nonce};
-use cessc_consensus_rrsc::RRSCWorkerHandle;
-use cessc_consensus_rrsc_rpc::{RRSCApiServer, RRSC};
-use cessp_consensus_rrsc::RRSCApi;
+use sc_consensus_babe::BabeWorkerHandle;
+use sc_consensus_babe_rpc::{BabeApiServer, Babe};
+use sp_consensus_babe::BabeApi;
 use grandpa::{FinalityProofProvider, GrandpaJustificationStream, SharedAuthoritySet, SharedVoterState};
 use jsonrpsee::RpcModule;
 use sc_client_api::{
@@ -31,10 +31,10 @@ use std::sync::Arc;
 mod eth;
 pub use self::eth::{create_eth, EthDeps};
 
-/// Extra dependencies for RRSC.
-pub struct RRSCDeps {
-	/// A handle to the RRSC worker for issuing requests.
-	pub rrsc_worker_handle: RRSCWorkerHandle<Block>,
+/// Extra dependencies for Babe.
+pub struct BabeDeps {
+	/// A handle to the Babe worker for issuing requests.
+	pub babe_worker_handle: BabeWorkerHandle<Block>,
 	/// The keystore that manages the keys of the node.
 	pub keystore: KeystorePtr,
 }
@@ -73,8 +73,8 @@ pub struct FullDeps<C, P, SC, B, AuthorityId: AuthorityIdBound> {
 	pub select_chain: SC,
 	/// A copy of the chain spec.
 	pub chain_spec: Box<dyn sc_chain_spec::ChainSpec>,
-	/// RRSC specific dependencies.
-	pub rrsc: RRSCDeps,
+	/// Babe specific dependencies.
+	pub babe: BabeDeps,
 	/// GRANDPA specific dependencies.
 	pub grandpa: GrandpaDeps<B>,
 	/// BEEFY specific dependencies.
@@ -100,7 +100,7 @@ pub fn create_full<C, B, SC, P, A, CT, CIDP, AuthorityId>(
 		pool, 
 		select_chain, 
 		chain_spec, 
-		rrsc, 
+		babe, 
 		grandpa, 
 		beefy,
 		backend 
@@ -117,7 +117,7 @@ where
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
 	C::Api: fp_rpc::ConvertTransactionRuntimeApi<Block>,
 	C::Api: fp_rpc::EthereumRuntimeRPCApi<Block>,
-	C::Api: RRSCApi<Block>,
+	C::Api: BabeApi<Block>,
 	C::Api: ces_pallet_mq_runtime_api::MqApi<Block>,
 	C: BlockchainEvents<Block> + 'static,
 	C: HeaderBackend<Block> + HeaderMetadata<Block, Error = BlockChainError> + 'static,
@@ -133,7 +133,7 @@ where
 	<AuthorityId as RuntimeAppPublic>::Signature: Send + Sync,
 {
 	use ces_node_rpc_ext::{NodeRpcExt, NodeRpcExtApiServer};
-	use cessc_sync_state_rpc::{SyncState, SyncStateApiServer};
+	use sc_sync_state_rpc::{SyncState, SyncStateApiServer};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
 	use sc_consensus_grandpa_rpc::{Grandpa, GrandpaApiServer};
 	use sc_consensus_beefy_rpc::{Beefy, BeefyApiServer};
@@ -141,7 +141,7 @@ where
 	use substrate_state_trie_migration_rpc::{StateMigration, StateMigrationApiServer};
 
 	let mut io = RpcModule::new(());
-	let RRSCDeps { keystore, rrsc_worker_handle } = rrsc;
+	let BabeDeps { keystore, babe_worker_handle } = babe;
 	let GrandpaDeps {
 		shared_voter_state,
 		shared_authority_set,
@@ -155,7 +155,7 @@ where
 	// more context: https://github.com/paritytech/substrate/pull/3480
 	// These RPCs should use an asynchronous caller instead.
 	io.merge(TransactionPayment::new(client.clone()).into_rpc())?;
-	io.merge(RRSC::new(client.clone(), rrsc_worker_handle.clone(), keystore, select_chain).into_rpc())?;
+	io.merge(Babe::new(client.clone(), babe_worker_handle.clone(), keystore, select_chain).into_rpc())?;
 	io.merge(
 		Grandpa::new(
 			subscription_executor,
@@ -167,7 +167,7 @@ where
 		.into_rpc(),
 	)?;
 
-	io.merge(SyncState::new(chain_spec, client.clone(), shared_authority_set, rrsc_worker_handle)?.into_rpc())?;
+	io.merge(SyncState::new(chain_spec, client.clone(), shared_authority_set, babe_worker_handle)?.into_rpc())?;
 
 	io.merge(StateMigration::new(client.clone(), backend.clone()).into_rpc())?;
 	io.merge(NodeRpcExt::new(client, backend, pool).into_rpc())

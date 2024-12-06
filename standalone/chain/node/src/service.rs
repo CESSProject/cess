@@ -5,17 +5,20 @@ use polkadot_sdk::{
 	sp_consensus_beefy as beefy_primitives, *,
 };
 
-use std::{path::Path, sync::Arc};
 use futures::prelude::*;
+use std::{path::Path, sync::Arc};
 // Substrate
 use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use sc_client_api::{Backend, BlockBackend};
 use sc_consensus::BasicQueue;
+use sc_consensus_babe::{self, SlotProportion};
 use sc_network::{
 	event::Event, service::traits::NetworkService, NetworkBackend, NetworkEventStream,
 };
 use sc_network_sync::{strategy::warp::WarpSyncConfig, SyncingService};
-use sc_service::{error::Error as ServiceError, Configuration, PartialComponents, RpcHandlers, TaskManager};
+use sc_service::{
+	error::Error as ServiceError, Configuration, PartialComponents, RpcHandlers, TaskManager,
+};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_transaction_pool_api::OffchainTransactionPoolFactory;
 use sp_core::U256;
@@ -27,20 +30,16 @@ use cess_node_runtime::{RuntimeApi, TransactionConverter};
 use crate::{
 	client::{FullBackend as FullBackendT, FullClient as FullClientT},
 	eth::{
-		self, db_config_dir, EthConfiguration, FrontierBackend,
-		FrontierPartialComponents, StorageOverrideHandler
+		self, db_config_dir, EthConfiguration, FrontierBackend, FrontierPartialComponents,
+		StorageOverrideHandler,
 	},
 	rpc::{self as node_rpc, EthDeps},
 };
 
-use cessc_consensus_rrsc::{self, SlotProportion};
-
 /// Only enable the benchmarking host functions when we actually want to benchmark.
 #[cfg(feature = "runtime-benchmarks")]
-pub type HostFunctions = (
-	sp_io::SubstrateHostFunctions,
-	frame_benchmarking::benchmarking::HostFunctions,
-);
+pub type HostFunctions =
+	(sp_io::SubstrateHostFunctions, frame_benchmarking::benchmarking::HostFunctions);
 /// Otherwise we use empty host functions for ext host functions.
 #[cfg(not(feature = "runtime-benchmarks"))]
 pub type HostFunctions = sp_io::SubstrateHostFunctions;
@@ -48,7 +47,8 @@ pub type HostFunctions = sp_io::SubstrateHostFunctions;
 pub type FullClient = FullClientT<Block, RuntimeApi, HostFunctions>;
 type FullBackend = FullBackendT<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
-type FullGrandpaBlockImport = grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>;
+type FullGrandpaBlockImport =
+	grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>;
 
 type BeefyAuthorityId = beefy_primitives::ecdsa_crypto::AuthorityId;
 type FullBeefyBlockImport = beefy::import::BeefyBlockImport<
@@ -72,9 +72,9 @@ pub type TransactionPool = sc_transaction_pool::FullPool<Block, FullClient>;
 /// imported and generated.
 const GRANDPA_JUSTIFICATION_PERIOD: u32 = 4;
 
-type RrscBlockImport = cessc_consensus_rrsc::RRSCBlockImport<Block, FullClient, FullBeefyBlockImport>;
-type RrscWorkerHandle = cessc_consensus_rrsc::RRSCWorkerHandle<Block>;
-type RrscLink = cessc_consensus_rrsc::RRSCLink<Block>;
+type BabeBlockImport = sc_consensus_babe::BabeBlockImport<Block, FullClient, FullBeefyBlockImport>;
+type BabeWorkerHandle = sc_consensus_babe::BabeWorkerHandle<Block>;
+type BabeLink = sc_consensus_babe::BabeLink<Block>;
 
 pub fn new_partial(
 	config: &Configuration,
@@ -86,9 +86,9 @@ pub fn new_partial(
 		BasicImportQueue,
 		FullPool,
 		(
-			RrscBlockImport,
-			RrscWorkerHandle,
-			RrscLink,
+			BabeBlockImport,
+			BabeWorkerHandle,
+			BabeLink,
 			FullGrandpaLinkHalf,
 			FullBeefyVoterLinks,
 			FullBeefyRpcLinks,
@@ -96,8 +96,7 @@ pub fn new_partial(
 		),
 	>,
 	ServiceError,
->
-{
+> {
 	let telemetry = config
 		.telemetry_endpoints
 		.clone()
@@ -151,16 +150,16 @@ pub fn new_partial(
 			config.prometheus_registry().cloned(),
 		);
 
-	let (block_import, rrsc_link) = cessc_consensus_rrsc::block_import(
-		cessc_consensus_rrsc::configuration(&*client)?,
+	let (block_import, babe_link) = sc_consensus_babe::block_import(
+		sc_consensus_babe::configuration(&*client)?,
 		beefy_block_import,
 		client.clone(),
 	)?;
-	
-	let slot_duration = rrsc_link.config().slot_duration();
-	let (import_queue, rrsc_worker_handle) = {
-		let param = cessc_consensus_rrsc::ImportQueueParams {
-			link: rrsc_link.clone(),
+
+	let slot_duration = babe_link.config().slot_duration();
+	let (import_queue, babe_worker_handle) = {
+		let param = sc_consensus_babe::ImportQueueParams {
+			link: babe_link.clone(),
 			block_import: block_import.clone(),
 			justification_import: Some(Box::new(justification_import)),
 			client: client.clone(),
@@ -168,7 +167,7 @@ pub fn new_partial(
 			create_inherent_data_providers: move |_, ()| async move {
 				let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
-				let slot = cessp_consensus_rrsc::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+				let slot = sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 					*timestamp,
 					slot_duration,
 				);
@@ -180,7 +179,7 @@ pub fn new_partial(
 			telemetry: telemetry.as_ref().map(|x| x.handle()),
 			offchain_tx_pool_factory: OffchainTransactionPoolFactory::new(transaction_pool.clone()),
 		};
-		cessc_consensus_rrsc::import_queue(param).map_err::<ServiceError, _>(Into::into)?
+		sc_consensus_babe::import_queue(param).map_err::<ServiceError, _>(Into::into)?
 	};
 
 	Ok(PartialComponents {
@@ -193,8 +192,8 @@ pub fn new_partial(
 		transaction_pool,
 		other: (
 			block_import,
-			rrsc_worker_handle,
-			rrsc_link,
+			babe_worker_handle,
+			babe_link,
 			grandpa_link,
 			beefy_voter_links,
 			beefy_rpc_links,
@@ -224,7 +223,7 @@ pub struct NewFullBase {
 pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 	mut config: Configuration,
 	eth_config: EthConfiguration,
-	disable_hardware_benchmarks: bool,	
+	disable_hardware_benchmarks: bool,
 ) -> Result<NewFullBase, ServiceError> {
 	let is_offchain_indexing_enabled = config.offchain_worker.indexing_enabled;
 	let role = config.role;
@@ -241,7 +240,7 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 			let _ = std::fs::create_dir_all(&database_path);
 			sc_sysinfo::gather_hwbench(Some(database_path), &SUBSTRATE_REFERENCE_HARDWARE)
 		}))
-		.flatten();		
+		.flatten();
 
 	let sc_service::PartialComponents {
 		client,
@@ -251,17 +250,18 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 		keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (
-			block_import, 
-			rrsc_worker_handle,
-			rrsc_link,
-			grandpa_link,
-			beefy_voter_links,
-			beefy_rpc_links,
-			mut telemetry, 
-		),
+		other:
+			(
+				block_import,
+				babe_worker_handle,
+				babe_link,
+				grandpa_link,
+				beefy_voter_links,
+				beefy_rpc_links,
+				mut telemetry,
+			),
 	} = new_partial(&config)?;
-	
+
 	let metrics = N::register_notification_metrics(
 		config.prometheus_config.as_ref().map(|cfg| &cfg.registry),
 	);
@@ -327,13 +327,9 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 			block_relay: None,
 			metrics,
 		})?;
-	
+
 	let (
-		FrontierPartialComponents {
-			filter_pool,
-			fee_history_cache, 
-			fee_history_cache_limit 
-		},
+		FrontierPartialComponents { filter_pool, fee_history_cache, fee_history_cache_limit },
 		eth_block_data_cache,
 		eth_block_notification_sink,
 		storage_override,
@@ -342,15 +338,15 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 	) = new_frontier_and_rpc_dep_partial(
 		&mut config,
 		&eth_config,
-		rrsc_link.config().slot_duration(),
+		babe_link.config().slot_duration(),
 		client.clone(),
 		backend.clone(),
 		&mut task_manager,
 		sync_service.clone(),
-		prometheus_registry.clone()
+		prometheus_registry.clone(),
 	)?;
 
-	let shared_voter_state = grandpa::SharedVoterState::empty();	
+	let shared_voter_state = grandpa::SharedVoterState::empty();
 	let rpc_builder = {
 		let client = client.clone();
 		let backend = backend.clone();
@@ -399,9 +395,9 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 				pool: transaction_pool.clone(),
 				select_chain: select_chain.clone(),
 				chain_spec: chain_spec.cloned_box(),
-				rrsc: node_rpc::RRSCDeps {
+				babe: node_rpc::BabeDeps {
 					keystore: keystore.clone(),
-					rrsc_worker_handle: rrsc_worker_handle.clone(),
+					babe_worker_handle: babe_worker_handle.clone(),
 				},
 				grandpa: node_rpc::GrandpaDeps {
 					shared_voter_state: shared_voter_state.clone(),
@@ -411,22 +407,14 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 					finality_provider: finality_proof_provider.clone(),
 				},
 				beefy: node_rpc::BeefyDeps::<BeefyAuthorityId> {
-					beefy_finality_proof_stream: beefy_rpc_links
-						.from_voter_justif_stream
-						.clone(),
-					beefy_best_block_stream: beefy_rpc_links
-						.from_voter_best_beefy_stream
-						.clone(),
+					beefy_finality_proof_stream: beefy_rpc_links.from_voter_justif_stream.clone(),
+					beefy_best_block_stream: beefy_rpc_links.from_voter_best_beefy_stream.clone(),
 					subscription_executor: subscription_executor.clone(),
 				},
 				backend: backend.clone(),
 			};
 
-			node_rpc::create_full(
-				deps,
-				eth_rpc_deps,
-				subscription_executor,
-			).map_err(Into::into)
+			node_rpc::create_full(deps, eth_rpc_deps, subscription_executor).map_err(Into::into)
 		};
 		rpc_builder
 	};
@@ -478,8 +466,8 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 		);
 
 		let client_clone = client.clone();
-		let slot_duration = rrsc_link.config().slot_duration();
-		let babe_config = cessc_consensus_rrsc::RRSCParams {
+		let slot_duration = babe_link.config().slot_duration();
+		let babe_config = sc_consensus_babe::BabeParams {
 			keystore: keystore_container.keystore(),
 			client: client.clone(),
 			select_chain,
@@ -493,7 +481,7 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
 					let slot =
-						cessp_consensus_rrsc::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+						sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 							*timestamp,
 							slot_duration,
 						);
@@ -509,13 +497,13 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 			},
 			force_authoring,
 			backoff_authoring_blocks,
-			rrsc_link,
+			babe_link,
 			block_proposal_slot_portion: SlotProportion::new(0.5),
 			max_block_proposal_slot_portion: None,
 			telemetry: telemetry.as_ref().map(|x| x.handle()),
 		};
 
-		let babe = cessc_consensus_rrsc::start_rrsc(babe_config)?;
+		let babe = sc_consensus_babe::start_babe(babe_config)?;
 		task_manager.spawn_essential_handle().spawn_blocking(
 			"babe-proposer",
 			Some("block-authoring"),
@@ -683,9 +671,9 @@ struct EthPendingCreateInherentDataProvider {
 #[async_trait::async_trait]
 impl sp_inherents::CreateInherentDataProviders<Block, ()> for EthPendingCreateInherentDataProvider {
 	type InherentDataProviders = (
-		cessp_consensus_rrsc::inherents::InherentDataProvider,
+		sp_consensus_babe::inherents::InherentDataProvider,
 		sp_timestamp::InherentDataProvider,
-		fp_dynamic_fee::InherentDataProvider
+		fp_dynamic_fee::InherentDataProvider,
 	);
 	async fn create_inherent_data_providers(
 		&self,
@@ -695,18 +683,28 @@ impl sp_inherents::CreateInherentDataProviders<Block, ()> for EthPendingCreateIn
 		let current = sp_timestamp::InherentDataProvider::from_system_time();
 		let next_slot = current.timestamp().as_millis() + self.slot_duration.as_millis();
 		let timestamp = sp_timestamp::InherentDataProvider::new(next_slot.into());
-		let slot = cessp_consensus_rrsc::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
-			*timestamp,
-			self.slot_duration,
-		);
+		let slot =
+			sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+				*timestamp,
+				self.slot_duration,
+			);
 		let dynamic_fee = fp_dynamic_fee::InherentDataProvider(U256::from(self.target_gas_price));
 		Ok((slot, timestamp, dynamic_fee))
 	}
 }
 
 type FullChainApi = sc_transaction_pool::FullChainApi<FullClient, Block>;
-type FullEthDeps = EthDeps<Block, FullClient, TransactionPool, FullChainApi, TransactionConverter, EthPendingCreateInherentDataProvider>;
-type FullEthBlockNotificationSinks = fc_mapping_sync::EthereumBlockNotificationSinks<fc_mapping_sync::EthereumBlockNotification<Block>>;
+type FullEthDeps = EthDeps<
+	Block,
+	FullClient,
+	TransactionPool,
+	FullChainApi,
+	TransactionConverter,
+	EthPendingCreateInherentDataProvider,
+>;
+type FullEthBlockNotificationSinks = fc_mapping_sync::EthereumBlockNotificationSinks<
+	fc_mapping_sync::EthereumBlockNotification<Block>,
+>;
 type FullStorageOverrideHandler = StorageOverrideHandler<Block, FullClient, FullBackend>;
 type FullFrontierBackend = FrontierBackend<Block, FullClient>;
 
@@ -719,14 +717,17 @@ fn new_frontier_and_rpc_dep_partial(
 	task_manager: &TaskManager,
 	sync_service: Arc<SyncingService<Block>>,
 	prometheus_registry: Option<substrate_prometheus_endpoint::Registry>,
-) -> Result<(	
-	FrontierPartialComponents,
-	Arc<fc_rpc::EthBlockDataCacheTask<Block>>,
-	Arc<FullEthBlockNotificationSinks>,
-	Arc<FullStorageOverrideHandler>,
-	EthPendingCreateInherentDataProvider,
-	Arc<FullFrontierBackend>,
-), ServiceError> {
+) -> Result<
+	(
+		FrontierPartialComponents,
+		Arc<fc_rpc::EthBlockDataCacheTask<Block>>,
+		Arc<FullEthBlockNotificationSinks>,
+		Arc<FullStorageOverrideHandler>,
+		EthPendingCreateInherentDataProvider,
+		Arc<FullFrontierBackend>,
+	),
+	ServiceError,
+> {
 	// for ethereum-compatibility rpc.
 	config.rpc.id_provider = Some(Box::new(fc_rpc::EthereumSubIdProvider));
 
@@ -738,7 +739,7 @@ fn new_frontier_and_rpc_dep_partial(
 	)?);
 	let FrontierPartialComponents { filter_pool, fee_history_cache, fee_history_cache_limit } =
 		eth::new_frontier_partial(&eth_config)?;
-	
+
 	// Sinks for pubsub notifications.
 	// Everytime a new subscription is created, a new mpsc channel is added to the sink pool.
 	// The MappingSyncWorker sends through the channel on block import and the subscription emits a notification to the
@@ -751,7 +752,7 @@ fn new_frontier_and_rpc_dep_partial(
 
 	let pending_create_inherent_data_providers = EthPendingCreateInherentDataProvider {
 		slot_duration,
-		target_gas_price: eth_config.target_gas_price
+		target_gas_price: eth_config.target_gas_price,
 	};
 	let block_data_cache = Arc::new(fc_rpc::EthBlockDataCacheTask::new(
 		task_manager.spawn_handle(),
@@ -759,7 +760,7 @@ fn new_frontier_and_rpc_dep_partial(
 		eth_config.eth_log_block_cache,
 		eth_config.eth_statuses_cache,
 		prometheus_registry.clone(),
-	));	
+	));
 
 	eth::spawn_frontier_tasks(
 		task_manager,
@@ -775,11 +776,7 @@ fn new_frontier_and_rpc_dep_partial(
 	);
 
 	Ok((
-		FrontierPartialComponents{
-			filter_pool,
-			fee_history_cache,
-			fee_history_cache_limit,
-		},
+		FrontierPartialComponents { filter_pool, fee_history_cache, fee_history_cache_limit },
 		block_data_cache,
 		pubsub_notification_sinks,
 		storage_override,
@@ -791,7 +788,7 @@ fn new_frontier_and_rpc_dep_partial(
 /// Builds a new service for a full client.
 pub fn new_full(config: Configuration, cli: crate::cli::Cli) -> Result<TaskManager, ServiceError> {
 	let database_path = config.database.path().map(Path::to_path_buf);
-	let eth_config = cli.eth; 
+	let eth_config = cli.eth;
 	let task_manager = match config.network.network_backend {
 		sc_network::config::NetworkBackendType::Libp2p => {
 			let task_manager = new_full_base::<sc_network::NetworkWorker<_, _>>(
@@ -838,15 +835,8 @@ pub fn new_chain_ops(
 	ServiceError,
 > {
 	config.keystore = sc_service::config::KeystoreConfig::InMemory;
-	let PartialComponents {
-		client,
-		backend,
-		import_queue,
-		task_manager,
-		..
-	} = new_partial(
-		&config,
-	)?;
+	let PartialComponents { client, backend, import_queue, task_manager, .. } =
+		new_partial(&config)?;
 	let frontier_backend = Arc::new(fc_db::kv::Backend::open(
 		Arc::clone(&client),
 		&config.database,

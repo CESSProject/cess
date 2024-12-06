@@ -42,6 +42,8 @@ polkadot-sdk = { workspace = true, default-features = true, features = [
 	"sc-cli",
 	"sc-client-api",
 	"sc-client-db",
+	"sc-consensus-babe-rpc",
+	"sc-consensus-babe",
 	"sc-consensus-beefy-rpc",
 	"sc-consensus-beefy",
 	"sc-consensus-epochs",
@@ -80,9 +82,9 @@ polkadot-sdk = { workspace = true, default-features = true, features = [
 	"sp-consensus-beefy",
 	"sp-consensus-slots",
 	"sp-consensus",
-	"sp-mmr-primitives",
 	"sp-keyring",
 	"sp-keystore",
+	"sp-mmr-primitives",
 	"sp-panic-handler",
 	"sp-rpc",
 	"sp-timestamp",
@@ -99,10 +101,6 @@ polkadot-sdk = { workspace = true, default-features = true, features = [
 	"substrate-state-trie-migration-rpc",
 ] }
 
-cessp-consensus-rrsc = { workspace = true, features = ["default"] }
-cessc-consensus-rrsc = { workspace = true }
-cessc-consensus-rrsc-rpc = { workspace = true }
-cessc-sync-state-rpc = { workspace = true }
 cess-node-primitives = { workspace = true, features = ["std"] }
 cess-node-runtime = { workspace = true, features = ["std"] }
 ces-node-rpc-ext = { workspace = true }
