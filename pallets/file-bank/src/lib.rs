@@ -365,6 +365,7 @@ pub mod pallet {
 			let mut meter = WeightMeter::with_limit(limit);
 
 			loop {
+				log::info!("meter is: {:?}, limit is: {:?}", meter, limit);
 				match Migration::<T>::migrate(&mut meter) {
 					// There is not enough weight to perform a migration.
 					// We can't do anything more, so we return the used weight.

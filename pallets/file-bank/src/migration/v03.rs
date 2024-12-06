@@ -2,7 +2,7 @@
 use super::{*, DealMap as NewDealMap, File as NewFile};
 use crate::WeightInfo;
 use frame_support::{
-	traits::OnRuntimeUpgrade, storage_alias, DebugNoBound, DefaultNoBound,
+	storage_alias, DebugNoBound, DefaultNoBound,
 };
 use sp_std::collections::btree_map::BTreeMap;
 use sp_runtime::{TryRuntimeError, Saturating};
@@ -25,8 +25,6 @@ impl<T: Config> MigrationStep for Migration<T> {
 		&mut self, 
 		meter: &mut WeightMeter
 	) -> IsFinished {
-		log::info!("---------------------start step migrations-------------");
-
 		let (file_key_opt, deal_key_opt) = if let Some((file_key_opt, deal_key_opt)) = self.last_key.take() {
 			(
 				file_step_migration::<T>(true, file_key_opt),
