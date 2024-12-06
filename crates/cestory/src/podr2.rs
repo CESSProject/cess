@@ -8,8 +8,8 @@ use ces_pdp::{HashSelf, Keys, QElement, Tag as PdpTag};
 use cestory_api::podr2::{
     podr2_api_server::{self, Podr2Api},
     podr2_verifier_api_server::{self, Podr2VerifierApi},
-    request_batch_verify::Qslice,
-    tag, EchoMessage, GenTagMsg, RequestBatchVerify, RequestGenTag, ResponseBatchVerify, ResponseGenTag, Tag as ApiTag,
+    tag, EchoMessage, GenTagMsg, Qslice, RequestAggregateSignature, RequestBatchVerify, RequestGenTag,
+    ResponseAggregateSignature, ResponseBatchVerify, ResponseGenTag, Tag as ApiTag,
 };
 use cp_bloom_filter::{binary, BloomFilter};
 use crypto::{digest::Digest, sha2::Sha256};
@@ -115,7 +115,7 @@ struct VerifyServiceResultInfo {
     pub service_bloom_filter: BloomFilter,
 }
 
-#[derive(Encode)]
+#[derive(Encode, Clone)]
 pub struct Challenge {
     pub random_index_list: BoundedVec<u32, ConstU32<1024>>,
     pub random_list: BoundedVec<[u8; 20], ConstU32<1024>>,
@@ -167,7 +167,7 @@ impl Podr2Api for Podr2Server {
                             .send(Err(Status::internal(err.to_string())))
                             .await
                             .expect("send failure of permit locking msg fail");
-                        return
+                        return;
                     },
                 };
                 match result {
@@ -185,7 +185,7 @@ impl Podr2Api for Podr2Server {
                                 .await
                                 .expect("Sending GenTagMsg with processing true fail!");
                             stream_rec_times += 1;
-                            continue
+                            continue;
                         };
                         if !v.fragment_data.is_empty() && stream_rec_times == 1 {
                             match new_self.process_gen_tag_request(v).await {
@@ -198,7 +198,7 @@ impl Podr2Api for Podr2Server {
                                     .await
                                     .expect("Sending GenTagMsg failure msg to miner fail!"),
                             };
-                            break
+                            break;
                         };
                         resp_tx
                             .send(Err(Status::invalid_argument(
@@ -206,13 +206,13 @@ impl Podr2Api for Podr2Server {
                             )))
                             .await
                             .expect("Sending error msg when gen tag fail!");
-                        break
+                        break;
                     },
                     Err(err) => {
                         if let Some(io_err) = match_for_io_error(&err) {
                             if io_err.kind() == ErrorKind::BrokenPipe {
                                 info!("The connection to the miner is interrupted");
-                                break
+                                break;
                             }
                         }
 
@@ -238,6 +238,8 @@ impl Podr2Api for Podr2Server {
 
 #[tonic::async_trait]
 impl Podr2VerifierApi for Podr2VerifierServer {
+    /// By passing in the Bloom filter, you can verify it in batches,
+    /// And finally get the on-chain signature through the aggregation methods
     #[must_use]
     async fn request_batch_verify(
         &self,
@@ -249,15 +251,18 @@ impl Podr2VerifierApi for Podr2VerifierServer {
         let agg_proof = if let Some(agg_proof) = request.agg_proof {
             agg_proof
         } else {
-            return Err(Status::invalid_argument("Lack of request parameter agg_proof"))
+            return Err(Status::invalid_argument("Lack of request parameter agg_proof"));
         };
         let qslices = if let Some(qslices) = request.qslices {
             qslices
         } else {
-            return Err(Status::invalid_argument("Lack of request parameter qslices"))
+            return Err(Status::invalid_argument("Lack of request parameter qslices"));
         };
         let q_elements = convert_to_q_elements(qslices.clone())?;
-        let mut service_bloom_filter = BloomFilter([0u64; 256]);
+        let mut service_bloom_filter: BloomFilter = request
+            .service_bloom_filter
+            .try_into()
+            .unwrap_or_else(|_| BloomFilter::default());
         let miner_id: [u8; 32] = request
             .miner_id
             .clone()
@@ -300,7 +305,9 @@ impl Podr2VerifierApi for Podr2VerifierServer {
                     false
                 },
             }) {
-                return Err(Status::internal("The u_sig passed in is inconsistent with the u in the corresponding tag."))
+                return Err(Status::internal(
+                    "The u_sig passed in is inconsistent with the u in the corresponding tag.",
+                ));
             }
 
             result.batch_verify_result = self
@@ -322,20 +329,133 @@ impl Podr2VerifierApi for Podr2VerifierServer {
         }
 
         let raw = VerifyServiceResultInfo {
-            miner_pbk: miner_id,
+            miner_pbk: miner_id.clone(),
             tee_account_id: self.ceseal_identity_key.into(),
             result: result.batch_verify_result,
-            sigma: agg_proof.sigma.into_bytes(),
+            sigma: agg_proof.sigma.clone().into_bytes(),
             chal: q_elements.1,
             service_bloom_filter: service_bloom_filter.clone(),
         };
+        info!(
+            "[Batch verify]miner id is :{:?}miner_pbk:{:?}",
+            crate::pois::get_ss58_address(&miner_id.clone().to_raw_vec()).unwrap(),
+            hex::encode(miner_id.to_raw_vec())
+        );
+        info!("[Batch verify]tee_account_id:{:?}", hex::encode(self.ceseal_identity_key.clone()));
+        info!("[Batch verify]raw.result:{}", raw.result);
+        info!("[Batch verify]raw.sigma:{:?}", hex::encode(raw.sigma.clone()));
+        info!("[Batch verify]service_bloom_filter:{:?}", raw.service_bloom_filter.0);
+
         //using podr2 keypair sign
         let podr2_sign = self.master_key.sign_data(&calculate_hash(&raw.encode())).0.to_vec();
+        info!("[Batch verify]podr2_sign:{:?}", hex::encode(podr2_sign.clone()));
 
         result.tee_account_id = self.ceseal_identity_key.to_vec();
         result.service_bloom_filter = service_bloom_filter.0.to_vec();
         result.signature = podr2_sign;
         info!("[Batch verify] Batch Verify Completed in: {:.2?}.", now.elapsed());
+        Ok(Response::new(result))
+    }
+
+    #[must_use]
+    async fn request_aggregate_signature(
+        &self,
+        request: tonic::Request<RequestAggregateSignature>,
+    ) -> Podr2Result<ResponseAggregateSignature> {
+        let request = request.into_inner();
+        let qslices = if let Some(qslices) = request.qslices {
+            qslices
+        } else {
+            return Err(Status::invalid_argument("Lack of request parameter qslices"));
+        };
+        let q_elements = convert_to_q_elements(qslices.clone())?;
+
+        let mut sigma = "".to_string();
+
+        let mut miner_id = [0u8; 32];
+
+        let tee_account_id: [u8; 32] = self.ceseal_identity_key.clone();
+
+        // Important:Miners need to submit 'verify_inservice_file_history' in the order of verification during request 'request_batch_verify'api!
+        let verify_inservice_file_structure_list = request.verify_inservice_file_history;
+
+        //The last Bloom filter must be the most complete
+        let service_bloom_filter: BloomFilter = verify_inservice_file_structure_list
+            [verify_inservice_file_structure_list.len() - 1]
+            .service_bloom_filter
+            .clone()
+            .try_into()
+            .unwrap();
+
+        for el in verify_inservice_file_structure_list {
+            miner_id = el.miner_id.clone().try_into().map_err(|_| {
+                Status::invalid_argument(format!("the miner id {:?} is length is incorrect", &el.miner_id))
+            })?;
+
+            let raw = VerifyServiceResultInfo {
+                miner_pbk: miner_id.into(),
+                tee_account_id: tee_account_id.into(),
+                result: el.result,
+                sigma: el.sigma.clone().into_bytes(),
+                chal: q_elements.1.clone(),
+                service_bloom_filter: el.service_bloom_filter.clone().try_into().unwrap(),
+            };
+            info!(
+                "-----------------------------miner id is :{:?}miner_pbk:{:?}",
+                crate::pois::get_ss58_address(&miner_id.clone().to_vec()).unwrap(),
+                hex::encode(miner_id.to_vec())
+            );
+            info!("-----------------------------tee_account_id:{:?}", hex::encode(self.ceseal_identity_key.clone()));
+            info!("-----------------------------raw.result:{:?}", raw.result);
+            info!("-----------------------------raw.sigma:{:?}", hex::encode(raw.sigma.clone()));
+            info!("-----------------------------service_bloom_filter:{:?}", raw.service_bloom_filter.clone());
+            info!("-----------------------------encode value:{:?}", hex::encode(&raw.encode()));
+            info!("-----------------------------encode value hash:{:?}", hex::encode(&calculate_hash(&raw.encode())));
+
+            if !self.master_key.verify_data(
+                &sr25519::Signature::from_raw(
+                    el.signature
+                        .try_into()
+                        .map_err(|_| Status::invalid_argument("The signature format is not correct".to_string()))?,
+                ),
+                &calculate_hash(&raw.encode()),
+            ) {
+                return Err(Status::invalid_argument("Verify service result signature fail!"));
+            };
+
+            sigma = self
+                .podr2_keys
+                .aggr_append_proof(sigma.clone(), el.sigma.clone())
+                .map_err(|_| {
+                    Status::invalid_argument(format!(
+                        "Error when calculating aggregate proof accumulation,sigma is :{:?},sub sigma is :{:?}",
+                        &sigma, &el.sigma
+                    ))
+                })?;
+        }
+
+        info!(
+            "[aggregate verify]miner id is :{:?}miner_pbk:{:?}",
+            crate::pois::get_ss58_address(&miner_id.clone().to_vec()).unwrap(),
+            hex::encode(miner_id.to_vec())
+        );
+        info!("[aggregate verify]tee_account_id:{:?}", hex::encode(self.ceseal_identity_key.clone()));
+        info!("[aggregate verify]agg_proof.sigma:{:?}", hex::encode(sigma.clone().into_bytes()));
+        info!("[aggregate verify]service_bloom_filter:{:?}", service_bloom_filter.0);
+
+        let raw = VerifyServiceResultInfo {
+            miner_pbk: miner_id.into(),
+            tee_account_id: tee_account_id.into(),
+            result: true,
+            sigma: sigma.into_bytes(),
+            chal: q_elements.1,
+            service_bloom_filter,
+        };
+        let podr2_sign = self.master_key.sign_data(&calculate_hash(&raw.encode())).0.to_vec();
+
+        let result =
+            ResponseAggregateSignature { tee_account_id: self.ceseal_identity_key.to_vec(), signature: podr2_sign };
+
         Ok(Response::new(result))
     }
 }
@@ -400,7 +520,7 @@ impl Podr2Server {
             return Err(Status::invalid_argument(format!(
                 "fragment: {:?} hash is :{:?}",
                 &request.fragment_name, &fragment_data_hash_string
-            )))
+            )));
         }
 
         let mut tag_sig_info_history = TagSigInfo {
@@ -434,7 +554,7 @@ impl Podr2Server {
                 })?),
                 &calculate_hash(&tag_sig_info_history.encode()),
             ) {
-                return Err(Status::invalid_argument("The last_tee_signature you provided is incorrect".to_string()))
+                return Err(Status::invalid_argument("The last_tee_signature you provided is incorrect".to_string()));
             };
         };
 
@@ -489,12 +609,12 @@ fn match_for_io_error(err_status: &Status) -> Option<&std::io::Error> {
     let mut err: &(dyn Error + 'static) = err_status;
     loop {
         if let Some(io_err) = err.downcast_ref::<std::io::Error>() {
-            return Some(io_err)
+            return Some(io_err);
         }
 
         if let Some(h2_err) = err.downcast_ref::<h2::Error>() {
             if let Some(io_err) = h2_err.get_io() {
-                return Some(io_err)
+                return Some(io_err);
             }
         }
 

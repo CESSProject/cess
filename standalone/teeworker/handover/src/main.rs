@@ -77,7 +77,7 @@ async fn main() {
 	};
 
 	let previous_ceseal_path = Path::new(&args.previous_version_ceseal_path).join(previous_version.to_string());
-	log(format!("Previous ${previous_version}"));
+	log(format!("Previous {previous_version}"));
 
 	if let Err(err) = tokio::fs::remove_file(&args.previous_ceseal_log_path).await {
 		log(format!("remove old ceseal log file fail : {err}"))
@@ -195,7 +195,7 @@ pub async fn redirect_ceseal_runtime_log(stdout: ChildStdout, log_path: String) 
 
 pub async fn wait_for_ceseal_to_run_successfully(log_path: String, flag: &str) -> Result<(), Error> {
 	let sleep_for_ceseal_running = tokio::time::Duration::from_secs(5);
-	let mut sleep_times = 3;
+	let mut sleep_times = 60;  //TODO! To extract the hard code into configured parameters
 	let log_file = tokio::fs::File::open(&log_path)
 		.await
 		.map_err(|e| Error::DetectCesealRunningStatueFailed(e.to_string()))?;
@@ -207,6 +207,7 @@ pub async fn wait_for_ceseal_to_run_successfully(log_path: String, flag: &str) -
 				log(format!("{}:{}", &log_path, line));
 
 				if line.contains(flag) {
+					log(format!("remain sleep time: {sleep_times}"));
 					return Ok(())
 				}
 				line.clear();

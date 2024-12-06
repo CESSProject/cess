@@ -993,9 +993,9 @@ use sp_core::crypto::{Ss58AddressFormat, Ss58AddressFormatRegistry, Ss58Codec};
 
 #[derive(thiserror::Error, Debug)]
 #[error("{0}")]
-struct AccountConvertError(String);
+pub struct AccountConvertError(String);
 
-fn get_ss58_address(account: &[u8]) -> std::result::Result<String, AccountConvertError> {
+pub fn get_ss58_address(account: &[u8]) -> std::result::Result<String, AccountConvertError> {
     if account.len() != 32 {
         return Err(AccountConvertError("The length of raw account bytes must be 32".to_string()))
     }

@@ -16,6 +16,7 @@ message EchoMessage {
 
 service Podr2VerifierApi {
     rpc request_batch_verify(RequestBatchVerify) returns (ResponseBatchVerify) {}
+    rpc request_aggregate_signature(RequestAggregateSignature) returns (ResponseAggregateSignature) {}
 }
 
 message Tag {
@@ -54,12 +55,12 @@ message GenTagMsg {
   bytes u_sig = 2;
   bytes signature = 3;
 }
-
-message RequestBatchVerify {
-  message Qslice {
+message Qslice {
     repeated uint32 random_index_list = 1;
     repeated bytes random_list = 2;
-  }
+}
+
+message RequestBatchVerify {
   message BatchVerifyParam {
     repeated string names = 1;
     repeated string us = 2;
@@ -70,6 +71,7 @@ message RequestBatchVerify {
   Qslice qslices = 2;
   repeated bytes u_sigs = 3;
   bytes miner_id = 4;
+  repeated uint64 service_bloom_filter = 5;
 }
 
 message ResponseBatchVerify {
@@ -78,6 +80,26 @@ message ResponseBatchVerify {
   repeated uint64 service_bloom_filter = 3;
   bytes signature = 4;
 }
+
+
+message RequestAggregateSignature {
+  message VerifyInServiceFileStructure {
+    bytes miner_id = 1;
+    bool result =2;
+    string sigma = 3;
+    repeated uint64 service_bloom_filter = 4;
+    bytes signature = 5;
+  }
+  repeated VerifyInServiceFileStructure verify_inservice_file_history = 1;
+  Qslice qslices = 2;
+}
+
+message ResponseAggregateSignature {
+  bytes tee_account_id = 1;
+  bytes signature = 2;
+}
+
+
 
 enum StatusCode {
   Success = 0;
