@@ -1514,13 +1514,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	Migrations,
 >;
-
-type Migrations = (
-	pallet_file_bank::Migration<Runtime>,
-	pallet_sminer::Migration<Runtime>,
-);
 
 type EventRecord = frame_system::EventRecord<
 	<Runtime as frame_system::Config>::RuntimeEvent,

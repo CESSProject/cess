@@ -359,27 +359,6 @@ pub mod pallet {
 			
 			weight
 		}
-
-		fn on_idle(_block: BlockNumberFor<T>, limit: Weight) -> Weight {
-			use migration::MigrateResult::*;
-			let mut meter = WeightMeter::with_limit(limit);
-
-			loop {
-				log::info!("meter is: {:?}, limit is: {:?}", meter, limit);
-				match Migration::<T>::migrate(&mut meter) {
-					// There is not enough weight to perform a migration.
-					// We can't do anything more, so we return the used weight.
-					NoMigrationPerformed | InProgress { steps_done: 0 } => return meter.consumed(),
-					// Migration is still in progress, we can start the next step.
-					InProgress { .. } => continue,
-					// Either no migration is in progress, or we are done with all migrations, we
-					// can do some more other work with the remaining weight.
-					Completed | NoMigrationInProgress => break,
-				}
-			}
-
-			meter.consumed()
-		}
 	}
 
 	#[pallet::call]
