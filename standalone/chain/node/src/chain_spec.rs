@@ -87,7 +87,7 @@ fn properties() -> Properties {
 	properties
 }
 
-fn cess_main_genesis() -> serde_json::Value {
+fn cess_testnet_genesis() -> serde_json::Value {
 	#[rustfmt::skip]
 		let initial_authorities: Vec<(
 		AccountId,
@@ -343,11 +343,11 @@ pub fn cess_testnet_config() -> ChainSpec {
 	ChainSpec::from_json_bytes(&include_bytes!("../ccg/cess-testnet-spec-raw.json")[..]).unwrap()
 }
 
-pub fn cess_develop_config() -> ChainSpec {
+pub fn cess_devnet_config() -> ChainSpec {
 	ChainSpec::from_json_bytes(&include_bytes!("../ccg/cess-develop-spec-raw.json")[..]).unwrap()
 }
 
-pub fn cess_testnet_generate_config() -> ChainSpec {
+pub fn cess_devnet_generate_config() -> ChainSpec {
 	ChainSpec::builder(wasm_binary_unwrap(), Default::default())
 		.with_name("cess-devnet")
 		.with_id("cess-devnet")
@@ -361,13 +361,13 @@ pub fn cess_testnet_generate_config() -> ChainSpec {
 		.build()
 }
 
-pub fn cess_main() -> ChainSpec {
+pub fn cess_testnet() -> ChainSpec {
 	ChainSpec::builder(wasm_binary_unwrap(), Default::default())
 		.with_name("cess-testnet")
 		.with_id("cess-testnet")
 		.with_chain_type(ChainType::Live)
 		.with_properties(properties())
-		.with_genesis_config_patch(cess_main_genesis())
+		.with_genesis_config_patch(cess_testnet_genesis())
 		.with_telemetry_endpoints(
 			TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
 				.expect("Staging telemetry url is valid; qed"),
