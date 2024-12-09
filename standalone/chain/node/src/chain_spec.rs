@@ -1,16 +1,18 @@
-use polkadot_sdk::*;
 use cess_node_primitives::{AccountId, Balance, Block, Signature};
-use cess_node_runtime::{constants::currency::DOLLARS, wasm_binary_unwrap, MaxNominations, SessionKeys, StakerStatus};
-use sp_consensus_beefy::ecdsa_crypto::AuthorityId as BeefyId;
-use sp_consensus_grandpa::AuthorityId as GrandpaId;
-use sp_consensus_babe::AuthorityId as BabeId;
+use cess_node_runtime::{
+	constants::currency::DOLLARS, wasm_binary_unwrap, MaxNominations, SS58Prefix, SessionKeys, StakerStatus,
+};
 use pallet_audit::sr25519::AuthorityId as SegmentBookId;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
+use polkadot_sdk::*;
 use sc_chain_spec::{ChainSpecExtension, Properties};
 use sc_service::ChainType;
 use sc_telemetry::TelemetryEndpoints;
 use serde::{Deserialize, Serialize};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
+use sp_consensus_babe::AuthorityId as BabeId;
+use sp_consensus_beefy::ecdsa_crypto::AuthorityId as BeefyId;
+use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public};
 use sp_runtime::{
 	traits::{IdentifyAccount, Verify},
@@ -44,6 +46,8 @@ pub struct Extensions {
 pub type ChainSpec = sc_service::GenericChainSpec<Extensions>;
 
 type AccountPublic = <Signature as Verify>::Signer;
+type AuthorityKeys =
+	(AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId, SegmentBookId, BeefyId);
 
 fn session_keys(
 	grandpa: GrandpaId,
@@ -52,7 +56,7 @@ fn session_keys(
 	authority_discovery: AuthorityDiscoveryId,
 	beefy: BeefyId,
 ) -> SessionKeys {
-	SessionKeys { grandpa, babe: babe, im_online, authority_discovery, beefy }
+	SessionKeys { grandpa, babe, im_online, authority_discovery, beefy }
 }
 
 /// Generate an account ID from seed.
@@ -64,9 +68,7 @@ where
 }
 
 /// Helper function to generate stash, controller and session key from seed
-pub fn authority_keys_from_seed(
-	seed: &str,
-) -> (AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId, SegmentBookId, BeefyId) {
+pub fn authority_keys_from_seed(seed: &str) -> AuthorityKeys {
 	(
 		get_account_id_from_seed::<sr25519::Public>(&format!("{}//stash", seed)),
 		get_account_id_from_seed::<sr25519::Public>(seed),
@@ -83,22 +85,13 @@ fn properties() -> Properties {
 	let mut properties = Properties::new();
 	properties.insert("tokenSymbol".into(), "TCESS".into());
 	properties.insert("tokenDecimals".into(), 18.into());
-	properties.insert("ss58Format".into(), 11330.into());
+	properties.insert("ss58Format".into(), SS58Prefix::get().into());
 	properties
 }
 
 fn cess_testnet_genesis() -> serde_json::Value {
 	#[rustfmt::skip]
-	let initial_authorities: Vec<(
-		AccountId,
-		AccountId,
-		GrandpaId,
-		BabeId,
-		ImOnlineId,
-		AuthorityDiscoveryId,
-		SegmentBookId,
-		BeefyId,
-	)> = vec![
+	let initial_authorities: Vec<AuthorityKeys> = vec![
 		(
 			// cXfg2SYcq85nyZ1U4ccx6QnAgSeLQB8aXZ2jstbw9CPGSmhXY
 			array_bytes::hex_n_into_unchecked("1ec940be673d3613e94c4d44e3f4621422c1a0778a53a34b2b45f3118f823c03"),
@@ -252,16 +245,7 @@ fn cess_testnet_config_genesis() -> serde_json::Value {
 	//
 	// for i in 1 2 3 4 ; do for j in session; do subkey --ed25519 inspect "$secret"//fir//$j//$i; done; done
 
-	let initial_authorities: Vec<(
-		AccountId,
-		AccountId,
-		GrandpaId,
-		BabeId,
-		ImOnlineId,
-		AuthorityDiscoveryId,
-		SegmentBookId,
-		BeefyId,
-	)> = vec![
+	let initial_authorities: Vec<AuthorityKeys> = vec![
 		(
 			// cXfg2SYcq85nyZ1U4ccx6QnAgSeLQB8aXZ2jstbw9CPGSmhXY
 			array_bytes::hex_n_into_unchecked("1ec940be673d3613e94c4d44e3f4621422c1a0778a53a34b2b45f3118f823c03"),
@@ -393,32 +377,19 @@ pub fn cess_testnet() -> ChainSpec {
 		.build()
 }
 
-fn development_config_genesis() -> serde_json::Value {
-	testnet_genesis(
-		vec![authority_keys_from_seed("Alice")],
-		vec![],
-		get_account_id_from_seed::<sr25519::Public>("Alice"),
-		None,
-	)
-}
-
 pub fn development_config() -> ChainSpec {
 	ChainSpec::builder(wasm_binary_unwrap(), Default::default())
 		.with_name("Development")
 		.with_id("dev")
 		.with_chain_type(ChainType::Development)
 		.with_properties(properties())
-		.with_genesis_config_patch(development_config_genesis())
+		.with_genesis_config_patch(testnet_genesis(
+			vec![authority_keys_from_seed("Alice")],
+			vec![],
+			get_account_id_from_seed::<sr25519::Public>("Alice"),
+			None,
+		))
 		.build()
-}
-
-fn local_testnet_genesis() -> serde_json::Value {
-	testnet_genesis(
-		vec![authority_keys_from_seed("Alice"), authority_keys_from_seed("Bob")],
-		vec![],
-		get_account_id_from_seed::<sr25519::Public>("Alice"),
-		None,
-	)
 }
 
 pub fn local_testnet_config() -> ChainSpec {
@@ -427,22 +398,18 @@ pub fn local_testnet_config() -> ChainSpec {
 		.with_id("local_testnet")
 		.with_chain_type(ChainType::Local)
 		.with_properties(properties())
-		.with_genesis_config_patch(local_testnet_genesis())
+		.with_genesis_config_patch(testnet_genesis(
+			vec![authority_keys_from_seed("Alice"), authority_keys_from_seed("Bob")],
+			vec![],
+			get_account_id_from_seed::<sr25519::Public>("Alice"),
+			None,
+		))
 		.build()
 }
 
 /// Configure initial storage state for FRAME modules.
 fn testnet_genesis(
-	initial_authorities: Vec<(
-		AccountId,
-		AccountId,
-		GrandpaId,
-		BabeId,
-		ImOnlineId,
-		AuthorityDiscoveryId,
-		SegmentBookId,
-		BeefyId,
-	)>,
+	initial_authorities: Vec<AuthorityKeys>,
 	initial_nominators: Vec<AccountId>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
@@ -494,6 +461,7 @@ fn testnet_genesis(
 		.collect::<Vec<_>>();
 
 	let num_endowed_accounts = endowed_accounts.len();
+	let evm_chain_id = SS58Prefix::get();
 
 	const ENDOWMENT: Balance = 100_000_000 * DOLLARS;
 	const STASH: Balance = 3_000_000 * DOLLARS;
@@ -527,7 +495,7 @@ fn testnet_genesis(
 			"epochConfig": Some(cess_node_runtime::BABE_GENESIS_EPOCH_CONFIG)
 		},
 		"evmChainId": {
-			"chainId": 11330
+			"chainId": evm_chain_id
 		},
 		"storageHandler": {
 			"price": 30 * DOLLARS
