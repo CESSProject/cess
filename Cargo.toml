@@ -368,6 +368,7 @@ humantime = "2.1.0"
 h2 = { version = "0.4" }
 im = { version = "15", default-features = false }
 impl-serde = "0.4.0"
+impl-trait-for-tuples = { version = "0.2.2" }
 insta = "1"
 itertools = { version = "0.13", default-features = false }
 jsonrpsee = { version = "0.24.3" }

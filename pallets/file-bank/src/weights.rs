@@ -48,6 +48,11 @@ pub trait WeightInfo {
 	fn claim_restoral_order() -> Weight;
 	fn claim_restoral_noexist_order() -> Weight;
 	fn restoral_order_complete() -> Weight;
+	fn v03_migration_step() -> Weight;
+	fn migration_noop() -> Weight;
+	fn on_runtime_upgrade_noop() -> Weight;
+	fn on_runtime_upgrade_in_progress() -> Weight;
+	fn on_runtime_upgrade() -> Weight;
 }
 
 /// Weights for `pallet_file_bank` using the Substrate node and recommended hardware.
@@ -278,6 +283,64 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 			.saturating_add(T::DbWeight::get().reads(6_u64))
 			.saturating_add(T::DbWeight::get().writes(5_u64))
 	}
+	
+	/// Storage: `FileBank::File` (r:2 w:1)
+	/// Proof: `FileBank::File` (`max_values`: None, `max_size`: Some(9289107), added: 9291582, mode: `Measured`)
+	/// Storage: `FileBank::DealMap` (r:2 w:1)
+	/// Proof: `FileBank::DealMap` (`max_values`: None, `max_size`: Some(833655), added: 836130, mode: `Measured`)
+	fn v03_migration_step() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `2666`
+		//  Estimated: `8606`
+		// Minimum execution time: 23_442_000 picoseconds.
+		Weight::from_parts(31_331_000, 8606)
+			.saturating_add(T::DbWeight::get().reads(4_u64))
+			.saturating_add(T::DbWeight::get().writes(2_u64))
+	}
+	/// Storage: `FileBank::MigrationInProgress` (r:1 w:1)
+	/// Proof: `FileBank::MigrationInProgress` (`max_values`: Some(1), `max_size`: Some(1026), added: 1521, mode: `MaxEncodedLen`)
+	fn migration_noop() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `246`
+		//  Estimated: `2511`
+		// Minimum execution time: 3_591_000 picoseconds.
+		Weight::from_parts(3_973_000, 2511)
+			.saturating_add(T::DbWeight::get().reads(1_u64))
+			.saturating_add(T::DbWeight::get().writes(1_u64))
+	}
+	/// Storage: UNKNOWN KEY `0xa3c62a50675125d74bc9f59e3f75adc94e7b9012096b41c4eb3aaf947f6ea429` (r:1 w:0)
+	/// Proof: UNKNOWN KEY `0xa3c62a50675125d74bc9f59e3f75adc94e7b9012096b41c4eb3aaf947f6ea429` (r:1 w:0)
+	fn on_runtime_upgrade_noop() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `246`
+		//  Estimated: `3711`
+		// Minimum execution time: 5_602_000 picoseconds.
+		Weight::from_parts(6_747_000, 3711)
+			.saturating_add(T::DbWeight::get().reads(1_u64))
+	}
+	/// Storage: UNKNOWN KEY `0xa3c62a50675125d74bc9f59e3f75adc94e7b9012096b41c4eb3aaf947f6ea429` (r:1 w:0)
+	/// Proof: UNKNOWN KEY `0xa3c62a50675125d74bc9f59e3f75adc94e7b9012096b41c4eb3aaf947f6ea429` (r:1 w:0)
+	fn on_runtime_upgrade_in_progress() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `267`
+		//  Estimated: `3732`
+		// Minimum execution time: 4_107_000 picoseconds.
+		Weight::from_parts(4_577_000, 3732)
+			.saturating_add(T::DbWeight::get().reads(1_u64))
+	}
+	/// Storage: UNKNOWN KEY `0xa3c62a50675125d74bc9f59e3f75adc94e7b9012096b41c4eb3aaf947f6ea429` (r:1 w:0)
+	/// Proof: UNKNOWN KEY `0xa3c62a50675125d74bc9f59e3f75adc94e7b9012096b41c4eb3aaf947f6ea429` (r:1 w:0)
+	/// Storage: `FileBank::MigrationInProgress` (r:1 w:1)
+	/// Proof: `FileBank::MigrationInProgress` (`max_values`: Some(1), `max_size`: Some(1026), added: 1521, mode: `Measured`)
+	fn on_runtime_upgrade() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `246`
+		//  Estimated: `3711`
+		// Minimum execution time: 5_252_000 picoseconds.
+		Weight::from_parts(5_961_000, 3711)
+			.saturating_add(T::DbWeight::get().reads(2_u64))
+			.saturating_add(T::DbWeight::get().writes(1_u64))
+	}
 }
 
 // For backwards compatibility and tests.
@@ -506,5 +569,62 @@ impl WeightInfo for () {
 		Weight::from_parts(92_463_000, 12492572)
 			.saturating_add(RocksDbWeight::get().reads(6_u64))
 			.saturating_add(RocksDbWeight::get().writes(5_u64))
+	}
+	/// Storage: `FileBank::File` (r:2 w:1)
+	/// Proof: `FileBank::File` (`max_values`: None, `max_size`: Some(9289107), added: 9291582, mode: `Measured`)
+	/// Storage: `FileBank::DealMap` (r:2 w:1)
+	/// Proof: `FileBank::DealMap` (`max_values`: None, `max_size`: Some(833655), added: 836130, mode: `Measured`)
+	fn v03_migration_step() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `2666`
+		//  Estimated: `8606`
+		// Minimum execution time: 23_442_000 picoseconds.
+		Weight::from_parts(31_331_000, 8606)
+			.saturating_add(RocksDbWeight::get().reads(4_u64))
+			.saturating_add(RocksDbWeight::get().writes(2_u64))
+	}
+	/// Storage: `FileBank::MigrationInProgress` (r:1 w:1)
+	/// Proof: `FileBank::MigrationInProgress` (`max_values`: Some(1), `max_size`: Some(1026), added: 1521, mode: `MaxEncodedLen`)
+	fn migration_noop() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `246`
+		//  Estimated: `2511`
+		// Minimum execution time: 3_591_000 picoseconds.
+		Weight::from_parts(3_973_000, 2511)
+			.saturating_add(RocksDbWeight::get().reads(1_u64))
+			.saturating_add(RocksDbWeight::get().writes(1_u64))
+	}
+	/// Storage: UNKNOWN KEY `0xa3c62a50675125d74bc9f59e3f75adc94e7b9012096b41c4eb3aaf947f6ea429` (r:1 w:0)
+	/// Proof: UNKNOWN KEY `0xa3c62a50675125d74bc9f59e3f75adc94e7b9012096b41c4eb3aaf947f6ea429` (r:1 w:0)
+	fn on_runtime_upgrade_noop() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `246`
+		//  Estimated: `3711`
+		// Minimum execution time: 5_602_000 picoseconds.
+		Weight::from_parts(6_747_000, 3711)
+			.saturating_add(RocksDbWeight::get().reads(1_u64))
+	}
+	/// Storage: UNKNOWN KEY `0xa3c62a50675125d74bc9f59e3f75adc94e7b9012096b41c4eb3aaf947f6ea429` (r:1 w:0)
+	/// Proof: UNKNOWN KEY `0xa3c62a50675125d74bc9f59e3f75adc94e7b9012096b41c4eb3aaf947f6ea429` (r:1 w:0)
+	fn on_runtime_upgrade_in_progress() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `267`
+		//  Estimated: `3732`
+		// Minimum execution time: 4_107_000 picoseconds.
+		Weight::from_parts(4_577_000, 3732)
+			.saturating_add(RocksDbWeight::get().reads(1_u64))
+	}
+	/// Storage: UNKNOWN KEY `0xa3c62a50675125d74bc9f59e3f75adc94e7b9012096b41c4eb3aaf947f6ea429` (r:1 w:0)
+	/// Proof: UNKNOWN KEY `0xa3c62a50675125d74bc9f59e3f75adc94e7b9012096b41c4eb3aaf947f6ea429` (r:1 w:0)
+	/// Storage: `FileBank::MigrationInProgress` (r:1 w:1)
+	/// Proof: `FileBank::MigrationInProgress` (`max_values`: Some(1), `max_size`: Some(1026), added: 1521, mode: `Measured`)
+	fn on_runtime_upgrade() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `246`
+		//  Estimated: `3711`
+		// Minimum execution time: 5_252_000 picoseconds.
+		Weight::from_parts(5_961_000, 3711)
+			.saturating_add(RocksDbWeight::get().reads(2_u64))
+			.saturating_add(RocksDbWeight::get().writes(1_u64))
 	}
 }

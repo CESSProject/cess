@@ -17,6 +17,7 @@ codec = { package = "parity-scale-codec", version = "3.6.1", default-features = 
 scale-info = { workspace = true, features = ["derive"] }
 rand_chacha = { workspace = true, optional = true }
 pallet-preimage = { workspace = true }
+impl-trait-for-tuples = { workspace = true }
 
 #local crate
 pallet-reservoir = { workspace = true }
@@ -70,4 +71,4 @@ runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"pallet-cess-staking/runtime-benchmarks",
 ]
-try-runtime = []
+try-runtime = ["frame-support/try-runtime"]

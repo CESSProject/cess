@@ -59,48 +59,6 @@ impl<T: Config> Pallet<T> {
         Ok(())
     }
 
-    pub fn create_bucket_helper(
-        user: &AccountOf<T>, 
-        bucket_name: &BoundedVec<u8, T::NameStrLimit>, 
-        file_hash: Option<Hash>,
-    ) -> DispatchResult {
-        // TODO! len() & ?
-        ensure!(bucket_name.len() >= 3, Error::<T>::LessMinLength);
-        ensure!(!<Bucket<T>>::contains_key(user, bucket_name), Error::<T>::Existed);
-        ensure!(Self::check_bucket_name_spec((*bucket_name).to_vec()), Error::<T>::SpecError);
-
-        let mut bucket = BucketInfo::<T> {
-            object_list: Default::default(),
-            authority: vec![user.clone()].try_into().map_err(|_e| Error::<T>::BoundedVecError)?,
-        };
-
-        if let Some(hash) = file_hash {
-            bucket.object_list.try_push(hash).map_err(|_e| Error::<T>::BoundedVecError)?;
-        }
-
-        <Bucket<T>>::insert(user, bucket_name.clone(), bucket);
-
-        <UserBucketList<T>>::try_mutate(&user, |bucket_list| -> DispatchResult{
-            bucket_list.try_push(bucket_name.clone()).map_err(|_e| Error::<T>::LengthExceedsLimit)?;
-            Ok(())
-        })?;
-
-        Ok(())
-    }
-
-    pub fn add_file_to_bucket(
-        user: &AccountOf<T>, 
-        bucket_name: &BoundedVec<u8, T::NameStrLimit>, 
-        file_hash: &Hash,
-    ) -> DispatchResult {
-        <Bucket<T>>::try_mutate(user, bucket_name, |bucket_opt| -> DispatchResult {
-            let bucket = bucket_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
-            bucket.object_list.try_push(*file_hash).map_err(|_e| Error::<T>::BoundedVecError)?;
-
-            Ok(())
-        })
-    }
-
     pub(super) fn generate_deal(
         file_hash: Hash, 
         file_info: BoundedVec<SegmentList<T>, T::SegmentCount>, 
@@ -155,24 +113,6 @@ impl<T: Config> Pallet<T> {
 		}
 
         Ok(weight)
-    }
-
-    pub(super) fn bucket_remove_file(
-        file_hash: &Hash, 
-        acc: &AccountOf<T>,
-        file: &FileInfo<T>
-    ) -> DispatchResult {
-        for user_brief in file.owner.iter() {
-            if &user_brief.user == acc {
-                <Bucket<T>>::try_mutate(acc, &user_brief.bucket_name, |bucket_opt| -> DispatchResult {
-                    let bucket = bucket_opt.as_mut().ok_or(Error::<T>::NonExistent)?;
-                    bucket.object_list.retain(|file| file != file_hash);
-                    Ok(())
-                })?
-            }
-		}
-        
-        Ok(())
     }
 
     pub(super) fn remove_user_hold_file_list(
@@ -392,7 +332,7 @@ impl<T: Config> Pallet<T> {
         false
     }
 
-    pub(super) fn check_bucket_name_spec(name: Vec<u8>) -> bool {
+    pub(super) fn check_name_spec(name: Vec<u8>) -> bool {
         let mut point_flag: bool = false;
         let mut count = 0;
         for elem in &name {

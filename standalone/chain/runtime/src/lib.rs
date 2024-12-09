@@ -156,7 +156,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	// and set impl_version to 0. If only runtime
 	// implementation changes and behavior does not, then leave spec_version as
 	// is and increment impl_version.
-	spec_version: 122,
+	spec_version: 123,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -1517,12 +1517,9 @@ pub type Executive = frame_executive::Executive<
 	Migrations,
 >;
 
-// All migrations executed on runtime upgrade as a nested tuple of types implementing
-// `OnRuntimeUpgrade`. Note: These are examples and do not need to be run directly
-// after the genesis block.
 type Migrations = (
-	pallet_contracts::Migration<Runtime>,
-	pallet_cess_staking::migrations::v15::MigrateV14ToV15<Runtime>,
+	pallet_file_bank::Migration<Runtime>,
+	pallet_sminer::Migration<Runtime>,
 );
 
 type EventRecord = frame_system::EventRecord<
@@ -1680,7 +1677,6 @@ impl pallet_file_bank::Config for Runtime {
 	type OneDay = OneDay;
 	type CreditCounter = SchedulerCredit;
 	type OssFindAuthor = Oss;
-	type BucketLimit = BucketLimit;
 	type NameStrLimit = NameStrLimit;
 	type SegmentCount = SegmentCount;
 	type FragmentCount = FragmentCount;
@@ -1688,6 +1684,7 @@ impl pallet_file_bank::Config for Runtime {
 	type NameMinLength = NameMinLength;
 	type RestoralOrderLife = RestoralOrderLife;
 	type MissionCount = MissionCount;
+	type Migrations = (pallet_file_bank::migration::v03::Migration<Runtime>,);
 }
 
 parameter_types! {
@@ -1717,6 +1714,7 @@ impl pallet_sminer::Config for Runtime {
 	type ReservoirGate = Reservoir;
 	type Staking = Staking;
 	type Preimages = Preimage;
+	type Migrations = (pallet_sminer::migration::v01::Migration<Runtime>,);
 }
 
 parameter_types! {
