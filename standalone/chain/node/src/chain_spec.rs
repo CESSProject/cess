@@ -349,6 +349,17 @@ pub fn cess_devnet_config() -> ChainSpec {
 	ChainSpec::from_json_bytes(&include_bytes!("../ccg/cess-develop-spec-raw.json")[..]).unwrap()
 }
 
+pub fn staged_premainnet() -> ChainSpec {
+	ChainSpec::builder(wasm_binary_unwrap(), Default::default())
+		.with_name("cess-premainnet")
+		.with_id("cess-premainnet")
+		.with_protocol_id("cesprem")
+		.with_chain_type(ChainType::Live)
+		.with_properties(properties())
+		.with_genesis_config_patch(cess_testnet_genesis())
+		.build()
+}
+
 pub fn cess_devnet_generate_config() -> ChainSpec {
 	ChainSpec::builder(wasm_binary_unwrap(), Default::default())
 		.with_name("cess-devnet")

@@ -61,6 +61,7 @@ impl SubstrateCli for Cli {
 			"cess-initial-devnet" => Box::new(chain_spec::cess_devnet_generate_config()),
 			"cess-devnet" => Box::new(chain_spec::cess_devnet_config()),
 			"cess-initial-testnet" => Box::new(chain_spec::cess_testnet()),
+			"staged-premainnet" => Box::new(chain_spec::staged_premainnet()),
 			"dev" => Box::new(chain_spec::development_config()),
 			"local" => Box::new(chain_spec::local_testnet_config()),
 			path => Box::new(chain_spec::ChainSpec::from_json_file(std::path::PathBuf::from(path))?),
