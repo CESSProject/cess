@@ -341,8 +341,8 @@ fn cess_testnet_config_genesis() -> serde_json::Value {
 	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts))
 }
 
-pub fn cess_pre_mainnet_config() -> ChainSpec {
-	ChainSpec::from_json_bytes(&include_bytes!("../ccg/cess-pre-mainnet-spec-raw.json")[..]).unwrap()
+pub fn cess_premainnet_config() -> ChainSpec {
+	ChainSpec::from_json_bytes(&include_bytes!("../ccg/cess-premainnet-spec-raw.json")[..]).unwrap()
 }
 
 pub fn cess_testnet_config() -> ChainSpec {
