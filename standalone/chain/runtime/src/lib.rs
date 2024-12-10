@@ -809,7 +809,7 @@ parameter_types! {
 	pub const ProposalBond: Permill = Permill::from_percent(5);
 	pub const ProposalBondMinimum: Balance = 1 * DOLLARS;
 	pub const SpendPeriod: BlockNumber = 1 * DAYS;
-	pub const Burn: Permill = Permill::from_percent(50);
+	pub const Burn: Permill = Permill::from_percent(0);
 	pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
 	pub const MaxApprovals: u32 = 100;
 	pub const MaxBalance: Balance = Balance::max_value();
@@ -1539,6 +1539,7 @@ parameter_types! {
 	pub const PunishTreasuryId: PalletId = PalletId(*b"punisdpt");
 	pub const SpaceTreasuryId: PalletId = PalletId(*b"spacedpt");
 	pub const ReserveRewardId: PalletId = PalletId(*b"sererdpt");
+	pub const PathfinderTreasury: PalletId = PalletId(*b"pathtdpt");
 }
 
 impl pallet_cess_treasury::Config for Runtime {
@@ -1549,6 +1550,7 @@ impl pallet_cess_treasury::Config for Runtime {
 	type PunishTreasuryId = PunishTreasuryId;
 	type SpaceTreasuryId = SpaceTreasuryId;
 	type ReserveRewardId = ReserveRewardId;
+	type PathfinderTreasury = PathfinderTreasury;
 	type BurnDestination = ();
 	type Staking = Staking;
 }

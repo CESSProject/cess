@@ -9,7 +9,7 @@ use frame_support::{
 };
 // use sp_std::prelude::*;
 use sp_runtime::{
-    SaturatedConversion, Perbill,
+    SaturatedConversion, Perbill, Saturating,
 	traits::{CheckedAdd, CheckedSub, AccountIdConversion},
 };
 use frame_system::{
@@ -63,6 +63,8 @@ pub mod pallet {
 		type SpaceTreasuryId: Get<PalletId>;
 
 		type ReserveRewardId: Get<PalletId>;
+
+		type PathfinderTreasury: Get<PalletId>;
 
 		type BurnDestination: OnUnbalanced<NegativeImbalanceOf<Self>>;
 
@@ -207,6 +209,24 @@ pub mod pallet {
 			let sid = T::SpaceTreasuryId::get().into_account_truncating();
 
 			<T as pallet::Config>::Currency::transfer(&sid, &acc, funds, KeepAlive)?;
+
+			Ok(())
+		}
+
+		#[pallet::call_index(6)]
+		#[pallet::weight(Weight::zero())]
+		pub fn pathfinder_treasury_claim(
+			origin: OriginFor<T>,
+			acc: AccountOf<T>,
+			funds: BalanceOf<T>,
+		) -> DispatchResult {
+			let _ = ensure_root(origin)?;
+
+			let pathfinder_treasury: AccountOf<T> = T::PathfinderTreasury::get().into_account_truncating();
+
+			let funds = <T as pallet::Config>::Currency::free_balance(&pathfinder_treasury);
+
+			<T as pallet::Config>::Currency::transfer(&pathfinder_treasury, &acc, funds, KeepAlive)?;
 
 			Ok(())
 		}
@@ -386,10 +406,26 @@ impl<T: Config> OnUnbalanced<NegativeImbalanceOf<T>> for Pallet<T> {
 	fn on_nonzero_unbalanced(amount: NegativeImbalanceOf<T>) {
 		let numeric_amount = amount.peek();
 
-		// Must resolve into existing but better to be safe.
-		let _ = T::Currency::resolve_creating(&T::MinerRewardId::get().into_account_truncating(), amount);
-		// The total issuance amount will not exceed u128::Max, so there is no overflow risk
-		Self::add_miner_reward_pool(numeric_amount).unwrap();
+		let pathfinder_reward: BalanceOf<T> = ERA_REWARD_PATHFINDER.saturated_into();
+		let miner_acc_treasury = T::MinerRewardId::get().into_account_truncating();
+		let pathfinder_treasury = T::PathfinderTreasury::get().into_account_truncating();
+		if numeric_amount > pathfinder_reward {
+			let miner_reward = numeric_amount.saturating_sub(pathfinder_reward);
+			// Must resolve into existing but better to be safe.
+			let _ = T::Currency::resolve_creating(
+				&miner_acc_treasury, 
+				T::Currency::issue(miner_reward),
+			);
+			let _ = T::Currency::resolve_creating(
+				&pathfinder_treasury, 
+				T::Currency::issue(pathfinder_reward),
+			);
+			// The total issuance amount will not exceed u128::Max, so there is no overflow risk
+			Self::add_miner_reward_pool(miner_reward).unwrap();
+		} else {
+			let _ = T::Currency::resolve_creating(&miner_acc_treasury, amount);
+			Self::add_miner_reward_pool(numeric_amount).unwrap();
+		}
 
 		Self::deposit_event(Event::Deposit { balance: numeric_amount });
 	}
