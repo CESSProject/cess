@@ -375,7 +375,7 @@ pub mod pallet {
 		fn default() -> Self {
 			Self {
 				// FOR TESTING
-				expenders: (80, 1024 * 1024, 64),
+				expenders: (8, 1024 * 1024, 80),
 				_marker: PhantomData,
 			}
 		}
