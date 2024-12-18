@@ -31,15 +31,21 @@ COPY pallets pallets
 COPY crates crates
 COPY standalone standalone
 COPY Cargo.toml Cargo.lock rustfmt.toml rust-toolchain.toml Makefile ./
+COPY scripts/wasm_overrides ./wasm_overrides
 
 RUN make node
 
 ## We do not need the Rust toolchain to run the binary!
 FROM ubuntu:20.04 AS runtime
+ARG https_proxy
+ARG http_proxy
+ARG CHAIN_NETWORK
 
 WORKDIR /opt/cess
 
 COPY --from=builder /node/target/release/cess-node .
+COPY --from=builder /node/wasm_overrides/ .wasm_overrides
+RUN if [ "$CHAIN_NETWORK" = "testnet" ]; then ln -s ./.wasm_overrides/testnet ./wasms; else rm -rf .wasm_overrides; fi
 RUN apt-get update && apt-get install -y curl && apt-get clean -y && apt-get autoremove
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=1800s --retries=10 \
