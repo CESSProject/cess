@@ -196,6 +196,7 @@ fi
 docker_build_args+=(
     --build-arg OA=$OA
     --build-arg VC=$VC
+    --build-arg CHAIN_NETWORK=$network
 )
 
 eval $which_build_proc
