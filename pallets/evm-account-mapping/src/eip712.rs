@@ -77,9 +77,9 @@ impl EIP712Domain {
 		};
 
 		let mut tokens = vec![
-			Token::Uint(U256::from(domain_type_hash)),
-			Token::Uint(U256::from(keccak_256(&self.name))),
-			Token::Uint(U256::from(keccak_256(&self.version))),
+			Token::Uint(U256::from_big_endian(&domain_type_hash)),
+			Token::Uint(U256::from_big_endian(&keccak_256(&self.name))),
+			Token::Uint(U256::from_big_endian(&keccak_256(&self.version))),
 			Token::Uint(self.chain_id),
 			Token::Address(self.verifying_contract),
 		];
@@ -94,7 +94,7 @@ impl EIP712Domain {
 
 		// Add the salt to the struct to be hashed if it exists;
 		if let Some(salt) = &self.salt {
-			tokens.push(Token::Uint(U256::from(salt)));
+			tokens.push(Token::Uint(U256::from_big_endian(salt)));
 		}
 		// if let Some(salt) = &self.salt {
 		// 	tokens.push(Token::FixedBytes(salt.to_vec()));

@@ -7,7 +7,7 @@ use subxt::{
 };
 
 pub use subxt::backend::legacy::rpc_methods::{Bytes, NumberOrHex as BlockNumberOrHex};
-pub use subxt::ext::sp_core::storage::{StorageData, StorageKey};
+pub use sp_core::storage::{StorageData, StorageKey};
 
 pub struct ExtraRpcMethods<T> {
     client: RpcClient,

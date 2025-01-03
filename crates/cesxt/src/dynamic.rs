@@ -1,5 +1,7 @@
 pub mod tx;
 
+use subxt::dynamic::{self, Value};
+
 pub fn storage_key(pallet: &str, entry: &str) -> Vec<u8> {
-    ::subxt::dynamic::storage(pallet, entry, Vec::<()>::new()).to_root_bytes()
+    dynamic::storage(pallet, entry, Vec::<Value>::new()).to_root_bytes()
 }

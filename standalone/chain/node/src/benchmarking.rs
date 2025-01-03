@@ -109,7 +109,7 @@ pub fn create_benchmark_extrinsic(
 		.checked_next_power_of_two()
 		.map(|c| c / 2)
 		.unwrap_or(2) as u64;
-	let extra: runtime::SignedExtra = (
+	let extra: runtime::TxExtension = (
 		frame_system::CheckNonZeroSender::<runtime::Runtime>::new(),
 		frame_system::CheckSpecVersion::<runtime::Runtime>::new(),
 		frame_system::CheckTxVersion::<runtime::Runtime>::new(),

@@ -22,11 +22,10 @@ use frame_support::{
 	pallet_prelude::*,
 	parameter_types,
 	traits::{
-		fungible::Mutate, ConstU128, ConstU16, ConstU32, ConstU64, Get, Imbalance, OnUnbalanced,
+		Currency, fungible::Mutate, ConstU128, ConstU16, ConstU32, ConstU64, Get, OnUnbalanced,
 	},
 	weights::{Weight, WeightToFee as WeightToFeeT},
 };
-use pallet_transaction_payment::CurrencyAdapter;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentifyAccount, IdentityLookup, Verify},
 	BuildStorage, MultiSignature, SaturatedConversion,
@@ -118,8 +117,8 @@ impl pallet_balances::Config for Test {
 	type FreezeIdentifier = ();
 	type MaxLocks = ();
 	type MaxReserves = ConstU32<50>;
-	type MaxHolds = ();
 	type MaxFreezes = ();
+	type DoneSlashHandler = ();
 }
 
 impl WeightToFeeT for WeightToFee {
@@ -145,11 +144,11 @@ parameter_types! {
 	pub(crate) static FeeUnbalancedAmount: Balance = 0;
 }
 
+type NegativeImbalance = <Balances as Currency<AccountId>>::NegativeImbalance;
+
 pub struct DealWithFees;
-impl OnUnbalanced<pallet_balances::NegativeImbalance<Test>> for DealWithFees {
-	fn on_unbalanceds<B>(
-		mut fees_then_tips: impl Iterator<Item = pallet_balances::NegativeImbalance<Test>>,
-	) {
+impl OnUnbalanced<NegativeImbalance> for DealWithFees {
+	fn on_unbalanceds(mut fees_then_tips: impl Iterator<Item = NegativeImbalance>) {
 		if let Some(fees) = fees_then_tips.next() {
 			FeeUnbalancedAmount::mutate(|a| *a += fees.peek());
 			if let Some(tips) = fees_then_tips.next() {
@@ -159,13 +158,21 @@ impl OnUnbalanced<pallet_balances::NegativeImbalance<Test>> for DealWithFees {
 	}
 }
 
+pub struct MockTxPaymentWeights;
+impl pallet_transaction_payment::WeightInfo for MockTxPaymentWeights {
+	fn charge_transaction_payment() -> Weight {
+		Weight::from_parts(10, 0)
+	}
+}
+
 impl pallet_transaction_payment::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
-	type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees>;
+	type OnChargeTransaction = pallet_transaction_payment::FungibleAdapter<Balances, DealWithFees>;
 	type OperationalFeeMultiplier = OperationalFeeMultiplier;
 	type WeightToFee = WeightToFee;
 	type LengthToFee = TransactionByteFee;
 	type FeeMultiplierUpdate = ();
+	type WeightInfo = MockTxPaymentWeights;
 }
 
 parameter_types! {

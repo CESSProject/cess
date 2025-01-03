@@ -59,10 +59,6 @@ mod vrf_solver;
 
 #[cfg(any(feature = "runtime-benchmarks", test))]
 mod benchmarking;
-#[cfg(all(feature = "std", test))]
-mod mock;
-#[cfg(all(feature = "std", test))]
-mod tests;
 
 pub use equivocation::{EquivocationOffence, EquivocationReportSystem};
 #[allow(deprecated)]

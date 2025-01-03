@@ -204,13 +204,13 @@ pub fn run() -> sc_cli::Result<()> {
 					BenchmarkCmd::Overhead(cmd) => {
 						let (client, _, _, _, _) = service::new_chain_ops(&mut config)?;
 						let ext_builder = RemarkBuilder::new(client.clone());						
-
 						cmd.run(
-							config,
+							config.chain_spec.name().into(),
 							client,
 							inherent_benchmark_data()?,
 							Vec::new(),
 							&ext_builder,
+							false,
 						)
 					},
 					BenchmarkCmd::Extrinsic(cmd) => {

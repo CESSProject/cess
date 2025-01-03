@@ -71,49 +71,46 @@ pub async fn maybe_sync_mq_egress(
                 .mortal(latest_block.header(), longevity)
                 .build();
             let tx = cesxt::dynamic::tx::sync_offchain_message(message);
-            let extrinsic =
-                api.tx()
-                    .create_signed_with_nonce(&tx, &signer.signer, signer.nonce(), tx_params);
+            let extrinsic = api
+                .tx()
+                .create_signed(&tx, signer, tx_params)
+                .await
+                .expect("failed to sign the sync_offchain_message() call");
+
             signer.increment_nonce();
-            match extrinsic {
-                Ok(extrinsic) => {
-                    let api = api.clone();
-                    let err_report = err_report.clone();
-                    let extrinsic = crate::subxt::utils::Encoded(extrinsic.encoded().to_vec());
-                    tokio::spawn(async move {
-                        const TIMEOUT: u64 = 120;
-                        let fut = api.rpc().author_submit_extrinsic(&extrinsic.0);
-                        let result = tokio::time::timeout(Duration::from_secs(TIMEOUT), fut).await;
-                        match result {
-                            Err(_) => {
-                                error!("Submit message timed out: {}", msg_info);
-                                let _ = err_report.send(Error::OtherRpcError).await;
+
+            let api = api.clone();
+            let err_report = err_report.clone();
+            let extrinsic = crate::subxt::utils::Encoded(extrinsic.encoded().to_vec());
+            tokio::spawn(async move {
+                const TIMEOUT: u64 = 120;
+                let fut = api.rpc().author_submit_extrinsic(&extrinsic.0);
+                let result = tokio::time::timeout(Duration::from_secs(TIMEOUT), fut).await;
+                match result {
+                    Err(_) => {
+                        error!("Submit message timed out: {}", msg_info);
+                        let _ = err_report.send(Error::OtherRpcError).await;
+                    }
+                    Ok(Err(err)) => {
+                        error!("Error submitting message {}: {:?}", msg_info, err);
+                        use cesxt::subxt::{error::RpcError, Error as SubxtError};
+                        let report = match err {
+                            SubxtError::Rpc(RpcError::ClientError(err)) => {
+                                if err.to_string().contains("bad signature") {
+                                    Error::BadSignature
+                                } else {
+                                    Error::OtherRpcError
+                                }
                             }
-                            Ok(Err(err)) => {
-                                error!("Error submitting message {}: {:?}", msg_info, err);
-                                use cesxt::subxt::{error::RpcError, Error as SubxtError};
-                                let report = match err {
-                                    SubxtError::Rpc(RpcError::ClientError(err)) => {
-                                        if err.to_string().contains("bad signature") {
-                                            Error::BadSignature
-                                        } else {
-                                            Error::OtherRpcError
-                                        }
-                                    }
-                                    _ => Error::OtherRpcError,
-                                };
-                                let _ = err_report.send(report).await;
-                            }
-                            Ok(Ok(hash)) => {
-                                info!("Message submited: {} xt-hash={:?}", msg_info, hash);
-                            }
-                        }
-                    });
+                            _ => Error::OtherRpcError,
+                        };
+                        let _ = err_report.send(report).await;
+                    }
+                    Ok(Ok(hash)) => {
+                        info!("Message submited: {} xt-hash={:?}", msg_info, hash);
+                    }
                 }
-                Err(err) => {
-                    panic!("Failed to sign the call: {:?}", err);
-                }
-            }
+            });            
             sync_msgs_count += 1;
             if sync_msgs_count >= max_sync_msgs_per_round {
                 info!("Synced {} messages, take a break", sync_msgs_count);

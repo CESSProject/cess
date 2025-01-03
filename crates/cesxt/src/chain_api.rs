@@ -10,8 +10,7 @@ use subxt::{
         rpc::RpcClient as SubxtRpcClient,
     },
     dynamic::Value,
-    ext::scale_encode::EncodeAsType,
-    storage::Storage,
+    storage::{Storage, StorageKey},
 };
 
 pub async fn connect(uri: &str) -> Result<ChainApi> {
@@ -19,7 +18,7 @@ pub async fn connect(uri: &str) -> Result<ChainApi> {
     let rpc_client = SubxtRpcClient::new(wsc);
     let rpc_methods = LegacyRpcMethods::<Config>::new(rpc_client.clone());
     let extra_rpc_methods = ExtraRpcMethods::<Config>::new(rpc_client.clone());
-    let backend = LegacyBackend::new(rpc_client);
+    let backend = LegacyBackend::builder().build(rpc_client);
     let client = SubxtOnlineClient::from_backend(Arc::new(backend))
         .await
         .context("Failed to connect to substrate")?;
@@ -88,14 +87,14 @@ impl ChainApi {
         &self,
         pallet_name: &str,
         entry_name: &str,
-        key: &impl EncodeAsType,
+        keys: impl StorageKey,
     ) -> Result<Vec<u8>> {
-        let address = subxt::dynamic::storage(pallet_name, entry_name, vec![key]);
+        let address = subxt::dynamic::storage(pallet_name, entry_name, keys);
         Ok(self.storage().address_bytes(&address)?)
     }
 
     pub async fn current_set_id(&self, block_hash: Option<Hash>) -> Result<u64> {
-        let address = subxt::dynamic::storage("Grandpa", "CurrentSetId", Vec::<()>::new());
+        let address = subxt::dynamic::storage("Grandpa", "CurrentSetId", ());
         let set_id = self
             .storage_at(block_hash)
             .await?

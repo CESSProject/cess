@@ -316,7 +316,7 @@ pub mod pallet {
 				*<T as frame_system::Config>::BlockLength::get().max.get(info.class) as u64;
 
 			// bounded_weight is used as a divisor later so we keep it non-zero.
-			let bounded_weight = info.weight.max(Weight::from_parts(1, 1)).min(max_block_weight);
+			let bounded_weight = info.total_weight().max(Weight::from_parts(1, 1)).min(max_block_weight);
 			let bounded_length = (len as u64).clamp(1, max_block_length);
 
 			// returns the scarce resource, i.e. the one that is limiting the number of
@@ -368,7 +368,7 @@ pub mod pallet {
 		#[pallet::weight({
 			let di = call.get_dispatch_info();
 			(
-				T::WeightInfo::meta_call().saturating_add(di.weight),
+				<T as pallet::Config>::WeightInfo::meta_call().saturating_add(di.total_weight()),
 				di.class
 			)
 		})]

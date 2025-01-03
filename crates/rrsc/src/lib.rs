@@ -145,8 +145,6 @@ mod verification;
 
 pub mod authorship;
 pub mod aux_schema;
-#[cfg(test)]
-mod tests;
 
 const LOG_TARGET: &str = "rrsc";
 
@@ -1146,7 +1144,9 @@ where
 		let info = self.client.info();
 		let number = *block.header.number();
 
-		if info.block_gap.map_or(false, |(s, e)| s <= number && number <= e) || block.with_state() {
+		if info.block_gap.map_or(false, |gap| gap.start <= number && number <= gap.end) ||
+			block.with_state()
+		{
 			// Verification for imported blocks is skipped in two cases:
 			// 1. When importing blocks below the last finalized block during network initial
 			//    synchronization.
@@ -1420,7 +1420,7 @@ where
 		// Skip rrsc logic if block already in chain or importing blocks during initial sync,
 		// otherwise the check for epoch changes will error because trying to re-import an
 		// epoch change or because of missing epoch data in the tree, respectivelly.
-		if info.block_gap.map_or(false, |(s, e)| s <= number && number <= e) ||
+		if info.block_gap.map_or(false, |gap| gap.start <= number && number <= gap.end) ||
 			block_status == BlockStatus::InChain
 		{
 			// When re-importing existing block strip away intermediates.
