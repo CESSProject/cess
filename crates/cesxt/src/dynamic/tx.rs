@@ -1,6 +1,6 @@
 use ces_types::messaging::SignedMessage;
 use parity_scale_codec::Encode;
-use subxt::{tx::TxPayload, utils::Encoded};
+use subxt::{ext::subxt_core::Error as SubxtCoreError, tx::Payload, utils::Encoded};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EncodedPayload {
@@ -19,12 +19,12 @@ impl EncodedPayload {
     }
 }
 
-impl TxPayload for EncodedPayload {
+impl Payload for EncodedPayload {
     fn encode_call_data_to(
         &self,
         metadata: &subxt::Metadata,
         out: &mut Vec<u8>,
-    ) -> Result<(), subxt::Error> {
+    ) -> Result<(), SubxtCoreError> {
         let pallet = metadata.pallet_by_name_err(self.pallet_name)?;
         let call = pallet.call_variant_by_name(self.call_name).ok_or_else(|| {
             subxt::error::MetadataError::CallNameNotFound((*self.call_name).to_owned())
