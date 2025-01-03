@@ -70,7 +70,7 @@ impl<Block: BlockT> GrandpaJustification<Block> {
     where
         NumberFor<Block>: finality_grandpa::BlockNumberOps,
     {
-        let mut justification = GrandpaJustification::<Block>::decode(&mut &*encoded).map_err(|e| {
+        let mut justification = GrandpaJustification::<Block>::decode(&mut &*encoded).map_err(|_| {
             // log::error!(
             //     "decode justification error:{:?}, block:{:?}, input(len:{}):{}",
             //     e,

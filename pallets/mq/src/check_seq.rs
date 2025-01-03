@@ -1,12 +1,12 @@
 use super::{Call, CallMatcher, Config, IntoH256, OffchainIngress};
 
 use ces_types::messaging::MessageOrigin;
-use frame_support::dispatch::DispatchInfo;
+use frame_support::{dispatch::DispatchInfo, pallet_prelude::TransactionSource};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
-use sp_runtime::traits::{DispatchInfoOf, Dispatchable, SignedExtension};
-use sp_runtime::transaction_validity::{
-	InvalidTransaction, TransactionValidity, TransactionValidityError, ValidTransaction,
+use sp_runtime::{
+	traits::{DispatchInfoOf, Dispatchable, TransactionExtension, ValidateResult},
+	transaction_validity::{InvalidTransaction, TransactionValidityError, ValidTransaction},
 };
 use sp_std::marker::PhantomData;
 use sp_std::vec;
@@ -51,29 +51,30 @@ impl<T: Config> sp_std::fmt::Debug for CheckMqSequence<T> {
 	}
 }
 
-impl<T: Config> SignedExtension for CheckMqSequence<T>
+impl<T: Config> TransactionExtension<T::RuntimeCall> for CheckMqSequence<T>
 where
 	T::RuntimeCall: Dispatchable<Info = DispatchInfo>,
 	T: Send + Sync,
 	T::AccountId: IntoH256,
 {
 	const IDENTIFIER: &'static str = "CheckMqSequence";
-	type AccountId = T::AccountId;
-	type Call = T::RuntimeCall;
-	type AdditionalSigned = ();
+	type Val = ();
 	type Pre = ();
+	type Implicit = ();
 
-	fn additional_signed(&self) -> sp_std::result::Result<(), TransactionValidityError> {
-		Ok(())
+	fn weight(&self, _: &T::RuntimeCall) -> sp_weights::Weight {
+		//FIXME: To ensure the weight
+		sp_weights::Weight::zero()
 	}
 
-	fn pre_dispatch(
+	fn prepare(
 		self,
-		_who: &Self::AccountId,
-		call: &Self::Call,
-		_info: &DispatchInfoOf<Self::Call>,
+		_: Self::Val,
+		_origin: &T::RuntimeOrigin,
+		call: &T::RuntimeCall,
+		_info: &DispatchInfoOf<T::RuntimeCall>,
 		_len: usize,
-	) -> Result<(), TransactionValidityError> {
+	) -> Result<Self::Pre, TransactionValidityError> {
 		let signed_message = match T::CallMatcher::match_call(call) {
 			Some(Call::sync_offchain_message { signed_message }) => signed_message,
 			_ => return Ok(()),
@@ -83,47 +84,39 @@ where
 		let expected_seq = OffchainIngress::<T>::get(sender).unwrap_or(0);
 		// Strictly require the message to include must match the expected sequence id
 		if sequence != expected_seq {
-			return Err(if sequence < expected_seq {
-				InvalidTransaction::Stale
-			} else {
-				InvalidTransaction::Future
-			}
-			.into());
+			return Err(
+				if sequence < expected_seq { InvalidTransaction::Stale } else { InvalidTransaction::Future }.into()
+			);
 		}
 		Ok(())
 	}
 
 	fn validate(
 		&self,
-		_who: &Self::AccountId,
-		call: &Self::Call,
-		_info: &DispatchInfoOf<Self::Call>,
+		origin: T::RuntimeOrigin,
+		call: &T::RuntimeCall,
+		_info: &DispatchInfoOf<T::RuntimeCall>,
 		_len: usize,
-	) -> TransactionValidity {
+		_self_implicit: Self::Implicit,
+		_inherited_implication: &impl Encode,
+		_source: TransactionSource,
+	) -> ValidateResult<Self::Val, T::RuntimeCall> {
 		let signed_message = match T::CallMatcher::match_call(call) {
 			Some(Call::sync_offchain_message { signed_message }) => signed_message,
-			_ => return Ok(ValidTransaction::default()),
+			_ => return Ok((ValidTransaction::default(), (), origin)),
 		};
 		let sender = &signed_message.message.sender;
 		let sequence = signed_message.sequence;
 		let expected_seq = OffchainIngress::<T>::get(sender).unwrap_or(0);
 		// Drop the stale message immediately
 		if sequence < expected_seq {
-			return InvalidTransaction::Stale.into();
+			return Err(InvalidTransaction::Stale.into());
 		}
 
 		// Otherwise build a dependency graph based on (sender, sequence), hoping that it can be
 		// included later
 		let provides = vec![tag(sender, sequence)];
-		let requires = if sequence > expected_seq {
-			vec![tag(sender, sequence - 1)]
-		} else {
-			vec![]
-		};
-		Ok(ValidTransaction {
-			provides,
-			requires,
-			..Default::default()
-		})
+		let requires = if sequence > expected_seq { vec![tag(sender, sequence - 1)] } else { vec![] };
+		Ok((ValidTransaction { provides, requires, ..Default::default() }, (), origin))
 	}
 }
