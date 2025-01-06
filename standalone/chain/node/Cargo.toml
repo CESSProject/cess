@@ -6,7 +6,7 @@ edition = '2021'
 license = 'Unlicense'
 name = 'cess-node'
 repository = 'https://github.com/CESSProject/cess'
-version = '0.8.1'
+version = '0.8.2'
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
