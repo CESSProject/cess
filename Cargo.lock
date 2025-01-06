@@ -2163,7 +2163,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "array-bytes",
  "async-trait",
