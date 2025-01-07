@@ -431,7 +431,7 @@ impl Keys {
         let mut sigma = num_bigint::BigUint::from_str(&aggr_sigma)
             .map_err(|e| PDPError { error_code: FailCode::InternalError(e.to_string()) })?;
 
-        let mut sub_sigma = num_bigint::BigUint::from_str(&aggr_sigma)
+        let mut sub_sigma = num_bigint::BigUint::from_str(&sub_sigma)
             .map_err(|e| PDPError { error_code: FailCode::InternalError(e.to_string()) })?;
         sigma = sigma * sub_sigma;
         sigma = sigma.mod_floor(&n);
