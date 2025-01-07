@@ -409,8 +409,6 @@ impl Podr2VerifierApi for Podr2VerifierServer {
             info!("-----------------------------raw.result:{:?}", raw.result);
             info!("-----------------------------raw.sigma:{:?}", hex::encode(raw.sigma.clone()));
             info!("-----------------------------service_bloom_filter:{:?}", raw.service_bloom_filter.clone());
-            info!("-----------------------------encode value:{:?}", hex::encode(&raw.encode()));
-            info!("-----------------------------encode value hash:{:?}", hex::encode(&calculate_hash(&raw.encode())));
 
             if !self.master_key.verify_data(
                 &sr25519::Signature::from_raw(
