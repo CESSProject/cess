@@ -3,8 +3,8 @@ use std::pin::Pin;
 use super::Podr2Result;
 use crate::expert::{CesealExpertStub, ExternalResourceKind};
 use cestory_api::podr2::{
-    podr2_api_server::Podr2Api, podr2_verifier_api_server::Podr2VerifierApi, EchoMessage, RequestBatchVerify,
-    RequestGenTag, ResponseBatchVerify, ResponseGenTag,
+    podr2_api_server::Podr2Api, podr2_verifier_api_server::Podr2VerifierApi, EchoMessage, RequestAggregateSignature,
+    RequestBatchVerify, RequestGenTag, ResponseAggregateSignature, ResponseBatchVerify, ResponseGenTag,
 };
 use tokio_stream::Stream;
 use tonic::{Request, Response, Status, Streaming};
@@ -60,5 +60,11 @@ where
             .try_acquire_permit(ExternalResourceKind::Pord2Service)
             .await?;
         self.inner.request_batch_verify(request).await
+    }
+    async fn request_aggregate_signature(
+        &self,
+        request: Request<RequestAggregateSignature>,
+    ) -> Podr2Result<ResponseAggregateSignature> {
+        self.inner.request_aggregate_signature(request).await
     }
 }

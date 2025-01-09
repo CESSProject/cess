@@ -26,7 +26,7 @@ extern crate alloc;
 
 use polkadot_sdk::*;
 
-use alloc::{vec, vec::Vec};
+use alloc::{borrow::Cow, vec, vec::Vec};
 pub use cess_node_primitives::{AccountId, AccountIndex, Balance, BlockNumber, Hash, Moment, Nonce, Signature};
 use codec::{Decode, Encode, MaxEncodedLen};
 use frame_election_provider_support::{
@@ -73,7 +73,7 @@ use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H160, H256, U256};
 use sp_inherents::{CheckInherentsResult, InherentData};
 use sp_runtime::{
-	create_runtime_str, generic, impl_opaque_keys,
+	generic, impl_opaque_keys,
 	traits::{
 		self, AccountIdConversion, BlakeTwo256, Block as BlockT, Bounded, ConvertInto, Keccak256, NumberFor,
 		OpaqueKeys, SaturatedConversion, StaticLookup, UniqueSaturatedInto,
@@ -145,18 +145,18 @@ pub fn wasm_binary_unwrap() -> &'static [u8] {
 /// Runtime version.
 #[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: create_runtime_str!("cess-node"),
-	impl_name: create_runtime_str!("cess-node"),
+	spec_name: Cow::Borrowed("cess-node"),
+	impl_name: Cow::Borrowed("cess-node"),
 	authoring_version: 1,
 	// Per convention: if the runtime behavior changes, increment spec_version
 	// and set impl_version to 0. If only runtime
 	// implementation changes and behavior does not, then leave spec_version as
 	// is and increment impl_version.
-	spec_version: 123,
+	spec_version: 125,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
-	state_version: 0,
+	system_version: 0,
 };
 
 /// The BABE epoch configuration at genesis.
@@ -305,12 +305,13 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 			ProxyType::Any => true,
 			ProxyType::NonTransfer => !matches!(
 				c,
-				RuntimeCall::Balances(..) |
-					RuntimeCall::Assets(..) |
-					RuntimeCall::Indices(pallet_indices::Call::transfer { .. })
+				RuntimeCall::Balances(..)
+					| RuntimeCall::Assets(..)
+					| RuntimeCall::Indices(pallet_indices::Call::transfer { .. })
 			),
-			ProxyType::Governance =>
-				matches!(c, RuntimeCall::Council(..) | RuntimeCall::TechnicalCommittee(..) | RuntimeCall::Treasury(..)),
+			ProxyType::Governance => {
+				matches!(c, RuntimeCall::Council(..) | RuntimeCall::TechnicalCommittee(..) | RuntimeCall::Treasury(..))
+			},
 			ProxyType::Staking => {
 				matches!(c, RuntimeCall::Staking(..) | RuntimeCall::FastUnstake(..))
 			},
@@ -435,6 +436,7 @@ impl pallet_balances::Config for Runtime {
 	type WeightInfo = pallet_balances::weights::SubstrateWeight<Runtime>;
 	type FreezeIdentifier = RuntimeFreezeReason;
 	type MaxFreezes = VariantCountOf<RuntimeFreezeReason>;
+	type DoneSlashHandler = ();
 }
 
 parameter_types! {
@@ -457,6 +459,7 @@ impl pallet_transaction_payment::Config for Runtime {
 	type LengthToFee = ConstantMultiplier<Balance, TransactionByteFee>;
 	type FeeMultiplierUpdate =
 		TargetedFeeAdjustment<Self, TargetBlockFullness, AdjustmentVariable, MinimumMultiplier, MaximumMultiplier>;
+	type WeightInfo = pallet_transaction_payment::weights::SubstrateWeight<Runtime>;
 }
 
 impl pallet_asset_tx_payment::Config for Runtime {
@@ -466,17 +469,19 @@ impl pallet_asset_tx_payment::Config for Runtime {
 		pallet_assets::BalanceToAssetBalance<Balances, Runtime, ConvertInto, Instance1>,
 		CreditToBlockAuthor,
 	>;
+	type WeightInfo = pallet_asset_tx_payment::weights::SubstrateWeight<Runtime>;
+	#[cfg(feature = "runtime-benchmarks")]
+	type BenchmarkHelper = AssetTxHelper;
 }
 
 impl pallet_asset_conversion_tx_payment::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type AssetId = NativeOrWithId<u32>;
-	type OnChargeAssetTransaction = SwapAssetAdapter<
-		Native,
-		NativeAndAssets,
-		AssetConversion,
-		ResolveAssetTo<TreasuryAccount, NativeAndAssets>,
-	>;
+	type OnChargeAssetTransaction =
+		SwapAssetAdapter<Native, NativeAndAssets, AssetConversion, ResolveAssetTo<TreasuryAccount, NativeAndAssets>>;
+	type WeightInfo = pallet_asset_conversion_tx_payment::weights::SubstrateWeight<Runtime>;
+	#[cfg(feature = "runtime-benchmarks")]
+	type BenchmarkHelper = AssetConversionTxHelper;
 }
 
 parameter_types! {
@@ -773,6 +778,9 @@ impl pallet_collective::Config<CouncilCollective> for Runtime {
 	type WeightInfo = pallet_collective::weights::SubstrateWeight<Runtime>;
 	type SetMembersOrigin = EnsureRoot<Self::AccountId>;
 	type MaxProposalWeight = MaxCollectivesProposalWeight;
+	type DisapproveOrigin = EnsureRoot<Self::AccountId>;
+	type KillOrigin = EnsureRoot<Self::AccountId>;
+	type Consideration = ();
 }
 
 parameter_types! {
@@ -793,6 +801,9 @@ impl pallet_collective::Config<TechnicalCollective> for Runtime {
 	type WeightInfo = pallet_collective::weights::SubstrateWeight<Runtime>;
 	type SetMembersOrigin = EnsureRoot<Self::AccountId>;
 	type MaxProposalWeight = MaxCollectivesProposalWeight;
+	type DisapproveOrigin = EnsureRoot<Self::AccountId>;
+	type KillOrigin = EnsureRoot<Self::AccountId>;
+	type Consideration = ();
 }
 
 type EnsureRootOrHalfCouncil = EitherOfDiverse<
@@ -832,6 +843,7 @@ impl pallet_treasury::Config for Runtime {
 	type Paymaster = PayAssetFromAccount<Assets, TreasuryAccount>;
 	type BalanceConverter = AssetRate;
 	type PayoutPeriod = SpendPayoutPeriod;
+	type BlockNumberProvider = System;
 	#[cfg(feature = "runtime-benchmarks")]
 	type BenchmarkHelper = ();
 }
@@ -910,16 +922,27 @@ parameter_types! {
 	pub const MaxPeerInHeartbeats: u32 = 10_000;
 }
 
+impl<LocalCall> frame_system::offchain::CreateTransaction<LocalCall> for Runtime
+where
+	RuntimeCall: From<LocalCall>,
+{
+	type Extension = TxExtension;
+
+	fn create_transaction(call: RuntimeCall, extension: TxExtension) -> UncheckedExtrinsic {
+		generic::UncheckedExtrinsic::new_transaction(call, extension).into()
+	}
+}
+
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 where
 	RuntimeCall: From<LocalCall>,
 {
-	fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
+	fn create_signed_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
 		call: RuntimeCall,
 		public: <Signature as traits::Verify>::Signer,
 		account: AccountId,
 		nonce: Nonce,
-	) -> Option<(RuntimeCall, <UncheckedExtrinsic as traits::Extrinsic>::SignaturePayload)> {
+	) -> Option<UncheckedExtrinsic> {
 		// take the biggest period possible.
 		let period = BlockHashCount::get().checked_next_power_of_two().map(|c| c / 2).unwrap_or(2) as u64;
 		let current_block = System::block_number()
@@ -928,7 +951,7 @@ where
 			// so the actual block number is `n`.
 			.saturating_sub(1);
 		let era = Era::mortal(period, current_block);
-		let extra = (
+		let tx_ext: TxExtension = (
 			frame_system::CheckNonZeroSender::<Runtime>::new(),
 			frame_system::CheckSpecVersion::<Runtime>::new(),
 			frame_system::CheckTxVersion::<Runtime>::new(),
@@ -939,15 +962,25 @@ where
 			ces_pallet_mq::CheckMqSequence::<Runtime>::new(),
 			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(0),
 		);
-		let raw_payload = SignedPayload::new(call, extra)
+		let raw_payload = SignedPayload::new(call, tx_ext)
 			.map_err(|e| {
 				log::warn!("Unable to create signed payload: {:?}", e);
 			})
 			.ok()?;
 		let signature = raw_payload.using_encoded(|payload| C::sign(payload, public))?;
 		let address = Indices::unlookup(account);
-		let (call, extra, _) = raw_payload.deconstruct();
-		Some((call, (address, signature, extra)))
+		let (call, tx_ext, _) = raw_payload.deconstruct();
+		let transaction = generic::UncheckedExtrinsic::new_signed(call, address, signature, tx_ext).into();
+		Some(transaction)
+	}
+}
+
+impl<LocalCall> frame_system::offchain::CreateInherent<LocalCall> for Runtime
+where
+	RuntimeCall: From<LocalCall>,
+{
+	fn create_inherent(call: RuntimeCall) -> UncheckedExtrinsic {
+		generic::UncheckedExtrinsic::new_bare(call).into()
 	}
 }
 
@@ -956,12 +989,12 @@ impl frame_system::offchain::SigningTypes for Runtime {
 	type Signature = Signature;
 }
 
-impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
+impl<C> frame_system::offchain::CreateTransactionBase<C> for Runtime
 where
 	RuntimeCall: From<C>,
 {
 	type Extrinsic = UncheckedExtrinsic;
-	type OverarchingCall = RuntimeCall;
+	type RuntimeCall = RuntimeCall;
 }
 
 impl pallet_im_online::Config for Runtime {
@@ -1078,8 +1111,7 @@ parameter_types! {
 	pub const Native: NativeOrWithId<u32> = NativeOrWithId::Native;
 }
 
-pub type NativeAndAssets =
-	UnionOf<Balances, Assets, NativeFromLeft, NativeOrWithId<u32>, AccountId>;
+pub type NativeAndAssets = UnionOf<Balances, Assets, NativeFromLeft, NativeOrWithId<u32>, AccountId>;
 
 impl pallet_asset_conversion::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
@@ -1095,11 +1127,7 @@ impl pallet_asset_conversion::Config for Runtime {
 			NativeOrWithId<u32>,
 			AccountIdConverter<AssetConversionPalletId, Self::PoolId>,
 		>,
-		Ascending<
-			AccountId,
-			NativeOrWithId<u32>,
-			AccountIdConverter<AssetConversionPalletId, Self::PoolId>,
-		>,
+		Ascending<AccountId, NativeOrWithId<u32>, AccountIdConverter<AssetConversionPalletId, Self::PoolId>>,
 	>;
 	type PoolAssetId = <Self as pallet_assets::Config<Instance2>>::AssetId;
 	type PoolAssets = PoolAssets;
@@ -1222,11 +1250,11 @@ impl EnsureOriginWithArg<RuntimeOrigin, RuntimeParametersKey> for DynamicParamet
 		match key {
 			RuntimeParametersKey::Storage(_) => {
 				frame_system::ensure_root(origin.clone()).map_err(|_| origin)?;
-				return Ok(())
+				return Ok(());
 			},
 			RuntimeParametersKey::Contracts(_) => {
 				frame_system::ensure_root(origin.clone()).map_err(|_| origin)?;
-				return Ok(())
+				return Ok(());
 			},
 		}
 	}
@@ -1444,12 +1472,8 @@ pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 pub type SignedBlock = generic::SignedBlock<Block>;
 /// BlockId type as expected by this runtime.
 pub type BlockId = generic::BlockId<Block>;
-/// The SignedExtension to the basic transaction logic.
-///
-/// When you change this, you **MUST** modify [`sign`] in `bin/node/testing/src/keyring.rs`!
-///
-/// [`sign`]: <../../testing/src/keyring.rs.html>
-pub type SignedExtra = (
+/// The TransactionExtension to the basic transaction logic.
+pub type TxExtension = (
 	frame_system::CheckNonZeroSender<Runtime>,
 	frame_system::CheckSpecVersion<Runtime>,
 	frame_system::CheckTxVersion<Runtime>,
@@ -1462,11 +1486,11 @@ pub type SignedExtra = (
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
-pub type UncheckedExtrinsic = fp_self_contained::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
+pub type UncheckedExtrinsic = fp_self_contained::UncheckedExtrinsic<Address, RuntimeCall, Signature, TxExtension>;
 /// The payload being signed in transactions.
-pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
+pub type SignedPayload = generic::SignedPayload<RuntimeCall, TxExtension>;
 /// Extrinsic type that has already been checked.
-pub type CheckedExtrinsic = fp_self_contained::CheckedExtrinsic<AccountId, RuntimeCall, SignedExtra, H160>;
+pub type CheckedExtrinsic = fp_self_contained::CheckedExtrinsic<AccountId, RuntimeCall, TxExtension, H160>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
 	Runtime,
@@ -1477,21 +1501,20 @@ pub type Executive = frame_executive::Executive<
 	Migrations,
 >;
 
-type Migrations = (
-	pallet_file_bank::Migration<Runtime>,
-	pallet_sminer::Migration<Runtime>,
-);
+// All migrations executed on runtime upgrade as a nested tuple of types implementing
+// `OnRuntimeUpgrade`. Note: These are examples and do not need to be run directly
+// after the genesis block.
+type Migrations =
+	(pallet_contracts::Migration<Runtime>, pallet_cess_staking::migrations::v15::MigrateV14ToV15<Runtime>);
 
-type EventRecord = frame_system::EventRecord<
-	<Runtime as frame_system::Config>::RuntimeEvent,
-	<Runtime as frame_system::Config>::Hash,
->;
+type EventRecord =
+	frame_system::EventRecord<<Runtime as frame_system::Config>::RuntimeEvent, <Runtime as frame_system::Config>::Hash>;
 
 /// MMR helper types.
 mod mmr {
-	use polkadot_sdk::*;
 	use super::Runtime;
 	pub use pallet_mmr::primitives::*;
+	use polkadot_sdk::*;
 
 	pub type Leaf = <<Runtime as pallet_mmr::Config>::LeafData as LeafDataProvider>::LeafData;
 	pub type Hash = <Hashing as sp_runtime::traits::Hash>::Output;
@@ -1599,7 +1622,7 @@ impl pallet_evm_account_mapping::Config for Runtime {
 }
 
 pub const SEGMENT_COUNT: u32 = 1000;
-pub const FRAGMENT_COUNT: u32 = cp_cess_common::FRAGMENT_COUNT; 
+pub const FRAGMENT_COUNT: u32 = cp_cess_common::FRAGMENT_COUNT;
 
 parameter_types! {
 	pub const FilbakPalletId: PalletId = PalletId(*b"rewardpt");
@@ -1793,6 +1816,73 @@ impl pallet_reservoir::Config for Runtime {
 	type EventLimit = EventLimit;
 }
 //------------------------- CESS's end -------------------------
+
+#[cfg(feature = "runtime-benchmarks")]
+pub struct AssetTxHelper;
+#[cfg(feature = "runtime-benchmarks")]
+impl pallet_asset_tx_payment::BenchmarkHelperTrait<AccountId, u32, u32> for AssetTxHelper {
+	fn create_asset_id_parameter(_id: u32) -> (u32, u32) {
+		unimplemented!("FIXME: to implement create_asset_id_parameter()");
+	}
+	fn setup_balances_and_pool(_asset_id: u32, _account: AccountId) {
+		unimplemented!("FIXME: to implement setup_balances_and_pool()");
+	}
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+pub struct AssetConversionTxHelper;
+#[cfg(feature = "runtime-benchmarks")]
+impl
+	pallet_asset_conversion_tx_payment::BenchmarkHelperTrait<
+		AccountId,
+		NativeOrWithId<u32>,
+		NativeOrWithId<u32>,
+	> for AssetConversionTxHelper
+{
+	fn create_asset_id_parameter(seed: u32) -> (NativeOrWithId<u32>, NativeOrWithId<u32>) {
+		(NativeOrWithId::WithId(seed), NativeOrWithId::WithId(seed))
+	}
+
+	fn setup_balances_and_pool(asset_id: NativeOrWithId<u32>, account: AccountId) {
+		use frame_support::{assert_ok, traits::fungibles::Mutate};
+		let NativeOrWithId::WithId(asset_idx) = asset_id.clone() else { unimplemented!() };
+		assert_ok!(Assets::force_create(
+			RuntimeOrigin::root(),
+			asset_idx.into(),
+			account.clone().into(), /* owner */
+			true,                   /* is_sufficient */
+			1,
+		));
+
+		let lp_provider = account.clone();
+		let _ = Balances::deposit_creating(&lp_provider, ((u64::MAX as u128) * 100).into());
+		assert_ok!(Assets::mint_into(
+			asset_idx.into(),
+			&lp_provider,
+			((u64::MAX as u128) * 100).into()
+		));
+
+		let token_native = alloc::boxed::Box::new(NativeOrWithId::Native);
+		let token_second = alloc::boxed::Box::new(asset_id);
+
+		assert_ok!(AssetConversion::create_pool(
+			RuntimeOrigin::signed(lp_provider.clone()),
+			token_native.clone(),
+			token_second.clone()
+		));
+
+		assert_ok!(AssetConversion::add_liquidity(
+			RuntimeOrigin::signed(lp_provider.clone()),
+			token_native,
+			token_second,
+			u64::MAX.into(), // 1 desired
+			u64::MAX.into(), // 2 desired
+			1,               // 1 min
+			1,               // 2 min
+			lp_provider,
+		));
+	}
+}
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benches {
@@ -2226,7 +2316,6 @@ impl_runtime_apis! {
 	#[cfg(feature = "runtime-benchmarks")]
 	impl frame_benchmarking::Benchmark<Block> for Runtime {
 
-		#[allow(non_local_definitions)]
 		fn benchmark_metadata(extra: bool) -> (
 			Vec<frame_benchmarking::BenchmarkList>,
 			Vec<frame_support::traits::StorageInfo>,
@@ -2252,7 +2341,7 @@ impl_runtime_apis! {
 		#[allow(non_local_definitions)]
 		fn dispatch_benchmark(
 			config: frame_benchmarking::BenchmarkConfig
-		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, sp_runtime::RuntimeString> {
+		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, alloc::string::String> {
 			use frame_benchmarking::{baseline, Benchmarking, BenchmarkBatch};
 			use polkadot_sdk::sp_storage::TrackedStorageKey;
 
@@ -2325,9 +2414,7 @@ impl_runtime_apis! {
 		}
 
 		fn storage_at(address: H160, index: U256) -> H256 {
-			let mut tmp = [0u8; 32];
-			index.to_big_endian(&mut tmp);
-			pallet_evm::AccountStorages::<Runtime>::get(address, H256::from_slice(&tmp[..]))
+			pallet_evm::AccountStorages::<Runtime>::get(address, H256::from_slice(&index.to_big_endian()))
 		}
 
 		fn call(
@@ -2494,7 +2581,7 @@ impl_runtime_apis! {
 
 	impl fp_rpc::ConvertTransactionRuntimeApi<Block> for Runtime {
 		fn convert_transaction(transaction: EthereumTransaction) -> <Block as BlockT>::Extrinsic {
-			UncheckedExtrinsic::new_unsigned(
+			UncheckedExtrinsic::new_bare(
 				pallet_ethereum::Call::<Runtime>::transact { transaction }.into(),
 			)
 		}
