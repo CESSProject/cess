@@ -29,17 +29,17 @@ cifrost:
 handover:
 	cargo build -p handover --release
 ceseal:
-	make -C standalone/teeworker/ceseal
+	$(MAKE) -C standalone/teeworker/ceseal BUILD=${BUILD} OA=${OA} VC=${VC}
 test:
 	cargo test --workspace --exclude node-executor --exclude cess-node
 
 clippy:
 	cargo clippy --tests
-	make clippy -C standalone/teeworker/ceseal
+	$(MAKE) clippy -C standalone/teeworker/ceseal
 
 lint:
 	cargo dylint --all --workspace
 
 clean:
 	cargo clean
-	make -C standalone/teeworker/ceseal clean
+	$(MAKE) -C standalone/teeworker/ceseal clean

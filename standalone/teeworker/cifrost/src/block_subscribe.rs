@@ -13,7 +13,6 @@ pub async fn spawn_subscriber(chain_client: &ChainApi, ceseal_client: CesealClie
             let block_number = block.header().number;
             let extrinsics = block.extrinsics().await?;
             for ext in extrinsics.iter() {
-                let ext = ext?;
                 let events = ext.events().await?;
                 for evt in events.iter() {
                     let evt = evt?;

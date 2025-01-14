@@ -12,10 +12,11 @@ scale-encode = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 
-subxt = { workspace = true, features = ["jsonrpsee", "native", "substrate-compat"] }
-jsonrpsee = { version = "0.20" }  # use the same version of jsonrpsee in subxt
+subxt = { workspace = true, features = ["jsonrpsee", "native"] }
+jsonrpsee = { workspace = true }
 primitive-types = { workspace = true, default-features = true }
+sp-core = { workspace = true, default-features = true }
+sp-runtime = { workspace = true, default-features = true }
 
 ces-types = { workspace = true, default-features = true }
 ces-node-rpc-ext-types = { workspace = true, default-features = true }
-# ces-pallets = { workspace = true, default-features = true }

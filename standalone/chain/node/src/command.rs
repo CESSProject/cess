@@ -58,9 +58,9 @@ impl SubstrateCli for Cli {
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
 		let spec = match id {
 			"" | "cess-testnet" => Box::new(chain_spec::cess_testnet_config()),
-			"cess-initial-devnet" => Box::new(chain_spec::cess_testnet_generate_config()),
-			"cess-devnet" => Box::new(chain_spec::cess_develop_config()),
-			"cess-initial-testnet" => Box::new(chain_spec::cess_main()),
+			"cess-initial-devnet" => Box::new(chain_spec::cess_devnet_generate_config()),
+			"cess-devnet" => Box::new(chain_spec::cess_devnet_config()),
+			"cess-initial-testnet" => Box::new(chain_spec::cess_testnet()),
 			"dev" => Box::new(chain_spec::development_config()),
 			"local" => Box::new(chain_spec::local_testnet_config()),
 			path => Box::new(chain_spec::ChainSpec::from_json_file(std::path::PathBuf::from(path))?),
@@ -204,13 +204,13 @@ pub fn run() -> sc_cli::Result<()> {
 					BenchmarkCmd::Overhead(cmd) => {
 						let (client, _, _, _, _) = service::new_chain_ops(&mut config)?;
 						let ext_builder = RemarkBuilder::new(client.clone());						
-
 						cmd.run(
-							config,
+							config.chain_spec.name().into(),
 							client,
 							inherent_benchmark_data()?,
 							Vec::new(),
 							&ext_builder,
+							false,
 						)
 					},
 					BenchmarkCmd::Extrinsic(cmd) => {
