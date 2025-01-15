@@ -423,7 +423,7 @@ impl Keys {
         Ok(sigma.to_string())
     }
 
-    pub fn aggr_append_proof(&self, mut aggr_sigma: String, _sub_sigma: String) -> Result<String, PDPError> {
+    pub fn aggr_append_proof(&self, mut aggr_sigma: String, sub_sigma: String) -> Result<String, PDPError> {
         let n = num_bigint::BigUint::from_bytes_be(&self.pkey.n().to_bytes_be());
         if aggr_sigma == "".to_string() {
             aggr_sigma = "1".to_string()
@@ -431,7 +431,7 @@ impl Keys {
         let mut sigma = num_bigint::BigUint::from_str(&aggr_sigma)
             .map_err(|e| PDPError { error_code: FailCode::InternalError(e.to_string()) })?;
 
-        let sub_sigma = num_bigint::BigUint::from_str(&aggr_sigma)
+        let sub_sigma = num_bigint::BigUint::from_str(&sub_sigma)
             .map_err(|e| PDPError { error_code: FailCode::InternalError(e.to_string()) })?;
         sigma = sigma * sub_sigma;
         sigma = sigma.mod_floor(&n);
