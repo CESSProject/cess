@@ -3,6 +3,8 @@ use frame_support::traits::OnRuntimeUpgrade;
 use sp_runtime::{TryRuntimeError, Saturating};
 #[cfg(feature = "try-runtime")]
 use sp_std::collections::btree_map::BTreeMap;
+#[cfg(feature = "try-runtime")]
+use sp_std::vec::Vec;
 
 use frame_support::{
 	storage_alias, weights::WeightMeter, Blake2_128Concat,
@@ -70,6 +72,33 @@ impl<T: Config, W: weights::WeightInfo> SteppedMigration for SteppedSminer<T, W>
 		}
 
 		Ok(cursor)
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
+		use codec::Encode;
+		return Ok(v2::MinerItems::<T>::iter().collect::<BTreeMap<_, _>>().encode())
+	}
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade(prev_state: Vec<u8>) -> Result<(), TryRuntimeError> {
+		let miner_state = <BTreeMap<AccountOf<T>, v2::OldMinerInfo<T>>>::decode(&mut &prev_state[..]).expect("Failed to decode the previous storage state");
+		assert!(miner_state.len() == MinerItems::<T>::iter().count());
+		for (key, value) in miner_state {
+			let miner = MinerItems::<T>::get(key).unwrap();
+			assert!(miner.idle_space == value.idle_space);
+			assert!(miner.service_space == value.service_space);
+			assert!(miner.lock_space == value.lock_space);
+			assert!(miner.declaration_space == value.declaration_space);
+			assert!(miner.collaterals == value.collaterals);
+			assert!(miner.debt == value.debt);
+			assert!(miner.state == value.state);
+			assert!(miner.space_proof_info == value.space_proof_info);
+			assert!(miner.service_bloom_filter == value.service_bloom_filter);
+			assert!(miner.tee_signature == value.tee_signature);
+			assert_eq!(miner.endpoint, EndPoint::default());
+		}
+		log::info!("sminer check access success");
+		return Ok(())
 	}
 }
 

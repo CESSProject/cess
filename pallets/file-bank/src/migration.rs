@@ -7,6 +7,9 @@ use frame_support::{
 	migrations::{MigrationId, SteppedMigration, SteppedMigrationError},
 };
 
+#[cfg(feature = "try-runtime")]
+use sp_runtime::Vec;
+
 pub const PALLET_MIGRATIONS_ID: &[u8; 26] = b"pallet-file-bank-migration";
 
 pub struct SteppedFileBank<T: Config, W: weights::WeightInfo>(PhantomData<(T, W)>);
@@ -55,6 +58,36 @@ impl<T: Config, W: weights::WeightInfo> SteppedMigration for SteppedFileBank<T, 
 		}
 
 		Ok(cursor)
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<Vec<u8>, TryRuntimeError> {
+		use codec::Encode;
+		let res: (Vec<u8>, Vec<u8>) = (
+			v3::File::<T>::iter().collect::<BTreeMap<_, _>>().encode(),
+			v3::DealMap::<T>::iter().collect::<BTreeMap<_, _>>().encode(),
+		);
+		return Ok(res.encode())
+	}
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade(prev_state: Vec<u8>) -> Result<(), TryRuntimeError> {
+		let res = <(Vec<u8>, Vec<u8>)>::decode(&mut &prev_state[..]).expect("Failed to decode the previous storage state");
+		let (file_state, deal_state) = (
+			<BTreeMap<Hash, v3::OldFileInfo<T>>>::decode(&mut &res.0[..]).expect("Failed to decode the previous storage state"),
+			<BTreeMap<Hash, v3::OldDealInfo<T>>>::decode(&mut &res.1[..]).expect("Failed to decode the previous storage state"),
+		);
+		assert!(file_state.len() == File::<T>::iter().count());
+		assert!(deal_state.len() == DealMap::<T>::iter().count());
+		for (key, value) in file_state {
+			let file = File::<T>::get(key).unwrap();
+			assert!(file.file_size == value.file_size);
+		}
+		for (key, value) in deal_state {
+			let deal = DealMap::<T>::get(key).unwrap();
+			assert!(deal.file_size == value.file_size);
+		}
+		log::info!("file-bank check access success");
+		return Ok(())
 	}
 }
 
