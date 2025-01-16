@@ -9,7 +9,7 @@ pub struct MinerInfo<T: Config> {
 	//Income account
 	pub beneficiary: AccountOf<T>,
 	pub staking_account: AccountOf<T>,
-	pub peer_id: PeerId,
+	pub endpoint: EndPoint,
 	pub collaterals: BalanceOf<T>,
 	pub debt: BalanceOf<T>,
 	//nomal, exit, frozen, e_frozen

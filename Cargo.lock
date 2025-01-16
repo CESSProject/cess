@@ -10510,6 +10510,7 @@ dependencies = [
  "frame-support-test",
  "frame-system",
  "hex",
+ "impl-trait-for-tuples",
  "log",
  "pallet-bags-list",
  "pallet-balances",

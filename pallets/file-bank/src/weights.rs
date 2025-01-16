@@ -48,6 +48,7 @@ pub trait WeightInfo {
 	fn claim_restoral_order() -> Weight;
 	fn claim_restoral_noexist_order() -> Weight;
 	fn restoral_order_complete() -> Weight;
+	fn migration_step() -> Weight;
 }
 
 /// Weights for `pallet_file_bank` using the Substrate node and recommended hardware.
@@ -278,6 +279,20 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 			.saturating_add(T::DbWeight::get().reads(6_u64))
 			.saturating_add(T::DbWeight::get().writes(5_u64))
 	}
+	
+	/// Storage: `FileBank::File` (r:2 w:1)
+	/// Proof: `FileBank::File` (`max_values`: None, `max_size`: Some(9289107), added: 9291582, mode: `MaxEncodedLen`)
+	/// Storage: `FileBank::DealMap` (r:2 w:1)
+	/// Proof: `FileBank::DealMap` (`max_values`: None, `max_size`: Some(833655), added: 836130, mode: `MaxEncodedLen`)
+	fn migration_step() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `2670`
+		//  Estimated: `18584154`
+		// Minimum execution time: 37_302_000 picoseconds.
+		Weight::from_parts(39_078_000, 18584154)
+			.saturating_add(T::DbWeight::get().reads(4_u64))
+			.saturating_add(T::DbWeight::get().writes(2_u64))
+	}
 }
 
 // For backwards compatibility and tests.
@@ -506,5 +521,18 @@ impl WeightInfo for () {
 		Weight::from_parts(92_463_000, 12492572)
 			.saturating_add(RocksDbWeight::get().reads(6_u64))
 			.saturating_add(RocksDbWeight::get().writes(5_u64))
+	}
+	/// Storage: `FileBank::File` (r:2 w:1)
+	/// Proof: `FileBank::File` (`max_values`: None, `max_size`: Some(9289107), added: 9291582, mode: `MaxEncodedLen`)
+	/// Storage: `FileBank::DealMap` (r:2 w:1)
+	/// Proof: `FileBank::DealMap` (`max_values`: None, `max_size`: Some(833655), added: 836130, mode: `MaxEncodedLen`)
+	fn migration_step() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `2670`
+		//  Estimated: `18584154`
+		// Minimum execution time: 37_302_000 picoseconds.
+		Weight::from_parts(39_078_000, 18584154)
+			.saturating_add(RocksDbWeight::get().reads(4_u64))
+			.saturating_add(RocksDbWeight::get().writes(2_u64))
 	}
 }

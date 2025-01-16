@@ -333,6 +333,7 @@ hex-literal = "0.4.1"
 humantime = "2.1.0"
 h2 = { version = "0.4" }
 im = { version = "15", default-features = false }
+impl-trait-for-tuples = { version = "0.2.2" }
 impl-serde = "0.5.0"
 insta = "1"
 itertools = { version = "0.13", default-features = false }
