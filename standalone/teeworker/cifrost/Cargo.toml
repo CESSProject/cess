@@ -1,6 +1,6 @@
 [package]
 name = "cifrost"
-version = "0.3.0"
+version = "0.3.1"
 authors = ["CESS Network"]
 edition = "2021"
 
