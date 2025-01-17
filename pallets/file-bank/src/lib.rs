@@ -83,7 +83,7 @@ pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 
-const STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
+const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 
 #[frame_support::pallet]
 pub mod pallet {
