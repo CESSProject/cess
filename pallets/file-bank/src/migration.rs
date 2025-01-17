@@ -1,6 +1,6 @@
 use super::*;
 use frame_support::{
-	storage_alias,
+	storage_alias, weights::WeightMeter,
 	migrations::{MigrationId, SteppedMigration, SteppedMigrationError},
 };
 
@@ -9,9 +9,7 @@ use sp_runtime::Vec;
 #[cfg(feature = "try-runtime")]
 use sp_std::collections::btree_map::BTreeMap;
 #[cfg(feature = "try-runtime")]
-use sp_runtime::{TryRuntimeError};
-#[cfg(feature = "try-runtime")]
-use frame_support::weights::WeightMeter;
+use sp_runtime::TryRuntimeError;
 
 pub const PALLET_MIGRATIONS_ID: &[u8; 26] = b"pallet-file-bank-migration";
 
