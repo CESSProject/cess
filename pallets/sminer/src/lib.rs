@@ -23,7 +23,7 @@ use cp_bloom_filter::BloomFilter;
 use cp_cess_common::*;
 use frame_support::{
 	dispatch::DispatchResult,
-	ensure,
+	ensure, weights::{Weight, WeightMeter},
 	pallet_prelude::DispatchError,
 	storage::bounded_vec::BoundedVec,
 	traits::{
@@ -32,7 +32,7 @@ use frame_support::{
 			v3::{Anon as ScheduleAnon, Named as ScheduleNamed},
 			DispatchTime,
 		},
-		Currency,
+		Currency, StorageVersion,
 		ExistenceRequirement::KeepAlive,
 		Get, ReservableCurrency,
 	},
@@ -51,7 +51,6 @@ use sp_runtime::{
 };
 use sp_staking::StakingInterface;
 use sp_std::{convert::TryInto, marker::PhantomData, prelude::*};
-
 pub use pallet::*;
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -74,6 +73,10 @@ mod helper;
 
 pub mod weights;
 pub use weights::WeightInfo;
+
+pub mod migration;
+
+const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
 type BalanceOf<T> = <<T as pallet::Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
@@ -186,10 +189,10 @@ pub mod pallet {
 			acc: AccountOf<T>,
 			new: AccountOf<T>,
 		},
-		UpdatePeerId {
+		UpdateEndPoint {
 			acc: AccountOf<T>,
-			old: PeerId,
-			new: PeerId,
+			old: EndPoint,
+			new: EndPoint,
 		},
 		Receive {
 			acc: AccountOf<T>,
@@ -348,6 +351,7 @@ pub mod pallet {
 	pub(super) type FacuetWhitelist<T: Config> = StorageValue<_, AccountOf<T>>;
 
 	#[pallet::pallet]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::genesis_config]
@@ -408,7 +412,7 @@ pub mod pallet {
 		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically,
 		///   this is the account that wishes to register as a Miner.
 		/// - `beneficiary`: The account that will receive the rewards for mining.
-		/// - `peer_id`: A unique identifier for the Miner on the network.
+		/// - `endpoint`: A unique identifier for the Miner on the network.
 		/// - `staking_val`: The amount of collateral that the Miner is staking to participate in mining.
 		/// - `pois_key`: The PoS key provided by the Miner.
 		/// - `tee_sig`: A TeeRSA signature for verifying the authenticity of the PoS key.
@@ -418,7 +422,7 @@ pub mod pallet {
 		pub fn regnstk(
 			origin: OriginFor<T>,
 			beneficiary: AccountOf<T>,
-			peer_id: PeerId,
+			endpoint: EndPoint,
 			staking_val: BalanceOf<T>,
 			tib_count: u32,
 		) -> DispatchResult {
@@ -442,7 +446,7 @@ pub mod pallet {
 				MinerInfo::<T> {
 					beneficiary: beneficiary.clone(),
 					staking_account: sender.clone(),
-					peer_id,
+					endpoint,
 					collaterals: staking_val,
 					debt: BalanceOf::<T>::zero(),
 					state: Self::str_to_bound(STATE_NOT_READY)?,
@@ -595,22 +599,22 @@ pub mod pallet {
 		/// Parameters:
 		/// - `origin`: The origin from which the function is called, ensuring the caller's authorization. Typically,
 		///   this is the account that is a registered Miner.
-		/// - `peer_id`: The new Peer ID to be associated with the Miner for network communication.
+		/// - `endpoint`: The new Peer ID to be associated with the Miner for network communication.
 		#[pallet::call_index(3)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::update_peer_id())]
-		pub fn update_peer_id(origin: OriginFor<T>, peer_id: PeerId) -> DispatchResult {
+		pub fn update_endpoint(origin: OriginFor<T>, endpoint: EndPoint) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			ensure!(MinerItems::<T>::contains_key(&sender), Error::<T>::NotMiner);
 
-			let old = <MinerItems<T>>::try_mutate(&sender, |miner_info_opt| -> Result<PeerId, DispatchError> {
+			let old = <MinerItems<T>>::try_mutate(&sender, |miner_info_opt| -> Result<EndPoint, DispatchError> {
 				let miner_info = miner_info_opt.as_mut().ok_or(Error::<T>::ConversionError)?;
-				let old = miner_info.peer_id.clone();
-				miner_info.peer_id = peer_id.clone();
+				let old = miner_info.endpoint.clone();
+				miner_info.endpoint = endpoint.clone();
 				Ok(old)
 			})?;
 
-			Self::deposit_event(Event::<T>::UpdatePeerId { acc: sender, old, new: peer_id.into() });
+			Self::deposit_event(Event::<T>::UpdateEndPoint { acc: sender, old, new: endpoint.into() });
 			Ok(())
 		}
 
@@ -1001,7 +1005,7 @@ pub mod pallet {
 		pub fn regnstk_assign_staking(
 			origin: OriginFor<T>,
 			beneficiary: AccountOf<T>,
-			peer_id: PeerId,
+			endpoint: EndPoint,
 			staking_account: AccountOf<T>,
 			tib_count: u32,
 		) -> DispatchResult {
@@ -1028,7 +1032,7 @@ pub mod pallet {
 				MinerInfo::<T> {
 					beneficiary: beneficiary.clone(),
 					staking_account: staking_account.clone(),
-					peer_id,
+					endpoint,
 					collaterals: need_staking,
 					debt: BalanceOf::<T>::zero(),
 					state: Self::str_to_bound(STATE_NOT_READY)?,

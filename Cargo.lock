@@ -2211,7 +2211,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node-runtime"
-version = "0.9.1"
+version = "0.10.0"
 dependencies = [
  "ces-pallet-mq",
  "ces-pallet-mq-runtime-api",
@@ -10510,6 +10510,7 @@ dependencies = [
  "frame-support-test",
  "frame-system",
  "hex",
+ "impl-trait-for-tuples",
  "log",
  "pallet-bags-list",
  "pallet-balances",

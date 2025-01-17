@@ -86,6 +86,8 @@ use sp_staking::currency_to_vote::CurrencyToVote;
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
+use pallet_file_bank::migration::SteppedFileBank;
+use pallet_sminer::migration::SteppedSminer;
 
 // Frontier
 use fp_rpc::TransactionStatus;
@@ -152,7 +154,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	// and set impl_version to 0. If only runtime
 	// implementation changes and behavior does not, then leave spec_version as
 	// is and increment impl_version.
-	spec_version: 125,
+	spec_version: 126,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -1188,7 +1190,7 @@ parameter_types! {
 impl pallet_migrations::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	#[cfg(not(feature = "runtime-benchmarks"))]
-	type Migrations = ();
+	type Migrations = (SteppedFileBank<Runtime, <Self as pallet_file_bank::Config>::WeightInfo>, SteppedSminer<Runtime, <Self as pallet_sminer::Config>::WeightInfo>);
 	// Benchmarks need mocked migrations to guarantee that they succeed.
 	#[cfg(feature = "runtime-benchmarks")]
 	type Migrations = pallet_migrations::mock_helpers::MockedMigrations;
@@ -1660,7 +1662,6 @@ impl pallet_file_bank::Config for Runtime {
 	type OneDay = OneDay;
 	type CreditCounter = SchedulerCredit;
 	type OssFindAuthor = Oss;
-	type BucketLimit = BucketLimit;
 	type NameStrLimit = NameStrLimit;
 	type SegmentCount = SegmentCount;
 	type FragmentCount = FragmentCount;

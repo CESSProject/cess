@@ -13,12 +13,6 @@ impl<T: Config> Receptionist<T> {
             ensure!(T::StorageHandle::get_user_avail_space(&user_brief.user, &user_brief.territory_name)? > needed_space, Error::<T>::InsufficientAvailableSpace);
             T::StorageHandle::add_territory_used_space(&user_brief.user, &user_brief.territory_name, needed_space)?;
 
-            if <Bucket<T>>::contains_key(&user_brief.user, &user_brief.bucket_name) {
-                Pallet::<T>::add_file_to_bucket(&user_brief.user, &user_brief.bucket_name, &file_hash)?;
-            } else {
-                Pallet::<T>::create_bucket_helper(&user_brief.user, &user_brief.bucket_name, Some(file_hash))?;
-            }
-     
             Pallet::<T>::add_user_hold_fileslice(&user_brief.user, file_hash, needed_space, user_brief.territory_name.clone())?;
             file.owner.try_push(user_brief.clone()).map_err(|_e| Error::<T>::BoundedVecError)?;
 
@@ -63,11 +57,6 @@ impl<T: Config> Receptionist<T> {
             T::StorageHandle::sub_total_idle_space(needed_space)?;
             T::StorageHandle::add_total_service_space(needed_space)?;
 
-            if <Bucket<T>>::contains_key(&deal_info.user.user, &deal_info.user.bucket_name) {
-                Pallet::<T>::add_file_to_bucket(&deal_info.user.user, &deal_info.user.bucket_name, &deal_hash)?;
-            } else {
-                Pallet::<T>::create_bucket_helper(&deal_info.user.user, &deal_info.user.bucket_name, Some(deal_hash))?;
-            }
             Pallet::<T>::add_user_hold_fileslice(&deal_info.user.user, deal_hash.clone(), needed_space, deal_info.user.territory_name.clone())?;
             <DealMap<T>>::remove(deal_hash);
             Pallet::<T>::deposit_event(Event::<T>::StorageCompleted{ file_hash: deal_hash });
