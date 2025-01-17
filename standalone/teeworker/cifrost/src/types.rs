@@ -99,14 +99,14 @@ pub struct Args {
     pub mnemonic: String,
 
     #[arg(
-        default_value = "1000",
+        default_value = "500",
         long = "fetch-blocks",
         help = "The batch size to fetch blocks from Substrate."
     )]
     pub fetch_blocks: u32,
 
     #[arg(
-        default_value = "4",
+        default_value = "2",
         long = "sync-blocks",
         help = "The batch size to sync blocks to Ceseal."
     )]
