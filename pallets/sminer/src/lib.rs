@@ -23,7 +23,7 @@ use cp_bloom_filter::BloomFilter;
 use cp_cess_common::*;
 use frame_support::{
 	dispatch::DispatchResult,
-	ensure, weights::{Weight, WeightMeter},
+	ensure, weights::Weight,
 	pallet_prelude::DispatchError,
 	storage::bounded_vec::BoundedVec,
 	traits::{
