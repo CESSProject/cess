@@ -54,7 +54,7 @@ use frame_support::{
 	PalletId, 
 	dispatch::DispatchResult, 
 	pallet_prelude::*,
-	weights::{Weight, WeightMeter},
+	weights::Weight,
 };
 use frame_system::pallet_prelude::*;
 use scale_info::TypeInfo;

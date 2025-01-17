@@ -1,4 +1,5 @@
 use super::*;
+#[cfg(feature = "try-runtime")]
 use sp_runtime::{TryRuntimeError};
 #[cfg(feature = "try-runtime")]
 use sp_std::collections::btree_map::BTreeMap;
@@ -110,7 +111,7 @@ impl<T: Config, W: weights::WeightInfo> SteppedMigration for SteppedSminer<T, W>
 }
 
 pub mod v2 {
-	use super::{*, MinerItems as NewMinerItems};
+	use super::*;
 
 	#[storage_alias]
 	pub type MinerItems<T: Config> = StorageMap<Pallet<T>, Blake2_128Concat, AccountOf<T>, OldMinerInfo<T>>;

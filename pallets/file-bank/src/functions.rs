@@ -332,6 +332,8 @@ impl<T: Config> Pallet<T> {
         false
     }
 
+    // FIXME: Will this function still be used?
+    #[allow(dead_code)]
     pub(super) fn check_name_spec(name: Vec<u8>) -> bool {
         let mut point_flag: bool = false;
         let mut count = 0;
