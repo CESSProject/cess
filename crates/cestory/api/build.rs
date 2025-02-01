@@ -1,5 +1,6 @@
 fn main() {
     let mut builder = tonic_build::configure()
+        .protoc_arg("--experimental_allow_proto3_optional")
         .out_dir("./src/proto_generated")
         .disable_package_emission()
         .build_server(true)
