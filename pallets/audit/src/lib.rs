@@ -471,9 +471,9 @@ pub mod pallet {
 				let idle_prove =
 					challenge_info.prove_info.idle_prove.as_mut().ok_or(Error::<T>::UnSubmitted)?;
 
-				if tee_puk != idle_prove.tee_puk {
-					return Err(Error::<T>::NonExistentMission)?
-				}
+				// if tee_puk != idle_prove.tee_puk {
+				// 	return Err(Error::<T>::NonExistentMission)?
+				// }
 
 				if let Some(_) = idle_prove.verify_result {
 					return Err(Error::<T>::Submitted)?
@@ -593,9 +593,10 @@ pub mod pallet {
 					.service_prove
 					.as_mut()
 					.ok_or(Error::<T>::UnSubmitted)?;
-				if tee_puk != service_prove.tee_puk {
-					return Err(Error::<T>::NonExistentMission)?
-				}
+				
+				// if tee_puk != service_prove.tee_puk {
+				// 	return Err(Error::<T>::NonExistentMission)?
+				// }
 
 				if let Some(_) = service_prove.verify_result {
 					return Err(Error::<T>::Submitted)?
