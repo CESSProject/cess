@@ -1299,29 +1299,29 @@ impl<T: Config> MinerControl<<T as frame_system::Config>::AccountId, BlockNumber
 	}
 
 	fn record_snap_shot(miner: &AccountOf<T>, miner_idle_space: u128, miner_service_space: u128) -> DispatchResult {
-		// let now = frame_system::Pallet::<T>::block_number();
-		// let era = T::Staking::current_era();
-		// let power = Self::calculate_power(miner_idle_space, miner_service_space);
+		let now = frame_system::Pallet::<T>::block_number();
+		let era = T::Staking::current_era();
+		let power = Self::calculate_power(miner_idle_space, miner_service_space);
 
-		// <CompleteMinerSnapShot<T>>::mutate(miner, |miner_info_list| -> DispatchResult {
-		// 	let snap_shot =
-		// 		MinerCompleteInfo::<BlockNumberFor<T>> { era_index: era, issued: false, finsh_block: now, power };
+		<CompleteMinerSnapShot<T>>::mutate(miner, |miner_info_list| -> DispatchResult {
+			let snap_shot =
+				MinerCompleteInfo::<BlockNumberFor<T>> { era_index: era, issued: false, finsh_block: now, power };
 
-		// 	if miner_info_list.len() == RELEASE_NUMBER as usize {
-		// 		return Ok(())
-		// 	}
+			if miner_info_list.len() == RELEASE_NUMBER as usize {
+				return Ok(())
+			}
 
-		// 	<CompleteSnapShot<T>>::mutate(&era, |complete_info| -> DispatchResult {
-		// 		complete_info.miner_count = complete_info.miner_count.checked_add(1).ok_or(Error::<T>::Overflow)?;
-		// 		complete_info.total_power = complete_info.total_power.checked_add(power).ok_or(Error::<T>::Overflow)?;
+			<CompleteSnapShot<T>>::mutate(&era, |complete_info| -> DispatchResult {
+				complete_info.miner_count = complete_info.miner_count.checked_add(1).ok_or(Error::<T>::Overflow)?;
+				complete_info.total_power = complete_info.total_power.checked_add(power).ok_or(Error::<T>::Overflow)?;
 
-		// 		Ok(())
-		// 	})?;
+				Ok(())
+			})?;
 
-		// 	miner_info_list.try_push(snap_shot).map_err(|_| Error::<T>::Overflow)?;
+			miner_info_list.try_push(snap_shot).map_err(|_| Error::<T>::Overflow)?;
 
-		// 	Ok(())
-		// })?;
+			Ok(())
+		})?;
 
 		Ok(())
 	}
