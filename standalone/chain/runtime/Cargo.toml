@@ -40,6 +40,7 @@ polkadot-sdk = { workspace = true, features = [
 	"pallet-assets",
 	"pallet-authority-discovery",
 	"pallet-authorship",
+	"pallet-babe",
 	"pallet-bags-list",
 	"pallet-balances",
 	"pallet-balances",
@@ -76,6 +77,8 @@ polkadot-sdk = { workspace = true, features = [
 	"sp-api",
 	"sp-authority-discovery",
 	"sp-block-builder",
+	"sp-consensus-babe",
+	"sp-consensus-beefy",
 	"sp-consensus-grandpa",
 	"sp-core",
 	"sp-genesis-builder",
@@ -109,8 +112,8 @@ pallet-evm-precompile-simple = { workspace = true }
 ces-pallet-mq = { workspace = true }
 ces-pallet-mq-runtime-api = { workspace = true }
 ces-types = { workspace = true }
+ces-rrsc-vrf-solver = { workspace = true }
 cess-node-primitives = { workspace = true }
-cessp-consensus-rrsc = { workspace = true }
 cp-cess-common = { workspace = true }
 cp-scheduler-credit = { workspace = true }
 pallet-audit = { workspace = true }
@@ -121,7 +124,6 @@ pallet-evm-account-mapping = { workspace = true }
 pallet-file-bank = { workspace = true }
 pallet-oss = { workspace = true }
 pallet-reservoir = { workspace = true }
-pallet-rrsc = { workspace = true }
 pallet-scheduler-credit = { workspace = true }
 pallet-sminer = { workspace = true }
 pallet-storage-handler = { workspace = true }
@@ -157,8 +159,8 @@ std = [
 	"ces-pallet-mq-runtime-api/std",
 	"ces-pallet-mq/std",
 	"ces-types/std",
+	"ces-rrsc-vrf-solver/std",
 	"cess-node-primitives/std",
-	"cessp-consensus-rrsc/std",
 	"pallet-audit/std",
 	"pallet-cacher/std",
 	"pallet-cess-staking/std",
@@ -167,7 +169,6 @@ std = [
 	"pallet-file-bank/std",
 	"pallet-oss/std",
 	"pallet-reservoir/std",
-	"pallet-rrsc/std",
 	"pallet-scheduler-credit/std",
 	"pallet-sminer/std",
 	"pallet-storage-handler/std",
@@ -183,7 +184,6 @@ runtime-benchmarks = [
 	"pallet-ethereum/runtime-benchmarks",
 	"pallet-evm/runtime-benchmarks",
 	# CESS
-	"pallet-rrsc/runtime-benchmarks",
 	"pallet-cess-staking/runtime-benchmarks",
 	"pallet-cess-treasury/runtime-benchmarks",
 	"pallet-tee-worker/runtime-benchmarks",
@@ -213,7 +213,6 @@ try-runtime = [
 	"pallet-file-bank/try-runtime",
 	"pallet-oss/try-runtime",
 	"pallet-reservoir/try-runtime",
-	"pallet-rrsc/try-runtime",
 	"pallet-scheduler-credit/try-runtime",
 	"pallet-sminer/try-runtime",
 	"pallet-storage-handler/try-runtime",

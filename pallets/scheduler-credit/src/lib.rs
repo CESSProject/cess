@@ -20,7 +20,7 @@ use sp_runtime::{
 	Percent,
 	RuntimeDebug, Perbill,
 };
-use cessp_consensus_rrsc::traits::ValidatorCredits;
+use ces_rrsc_vrf_solver::ValidatorCredits;
 
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 

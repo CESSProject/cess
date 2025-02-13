@@ -16,7 +16,7 @@ frame-system = { workspace = true }
 
 #lock dependencies
 cp-scheduler-credit = { workspace = true }
-cessp-consensus-rrsc = { workspace = true }
+ces-rrsc-vrf-solver = { workspace = true }
 cp-cess-common = { workspace = true }
 
 [dev-dependencies]
@@ -34,6 +34,6 @@ std = [
     "frame-support/std",
     "frame-system/std",
     "cp-scheduler-credit/std",
-    "cessp-consensus-rrsc/std",
+    "ces-rrsc-vrf-solver/std",
 ]
 try-runtime = []
