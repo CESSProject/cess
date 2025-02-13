@@ -141,7 +141,7 @@ pub fn run() -> sc_cli::Result<()> {
 				let aux_revert = {
 					let backend = backend.clone();
 					Box::new(move |client: Arc<crate::service::FullClient>, _, blocks| {
-						cessc_consensus_rrsc::revert(client.clone(), backend, blocks)?;
+						sc_consensus_babe::revert(client.clone(), backend, blocks)?;
 						sc_consensus_grandpa::revert(client, blocks)?;
 						Ok(())
 					})
