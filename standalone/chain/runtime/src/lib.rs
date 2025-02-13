@@ -86,8 +86,6 @@ use sp_staking::currency_to_vote::CurrencyToVote;
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
-use pallet_file_bank::migration::SteppedFileBank;
-use pallet_sminer::migration::SteppedSminer;
 
 // Frontier
 use fp_rpc::TransactionStatus;
@@ -154,7 +152,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	// and set impl_version to 0. If only runtime
 	// implementation changes and behavior does not, then leave spec_version as
 	// is and increment impl_version.
-	spec_version: 129,
+	spec_version: 130,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -898,7 +896,7 @@ impl pallet_contracts::Config for Runtime {
 	type MaxTransientStorageSize = ConstU32<{ 1 * 1024 * 1024 }>;
 	type RuntimeHoldReason = RuntimeHoldReason;
 	#[cfg(not(feature = "runtime-benchmarks"))]
-	type Migrations = (pallet_contracts::migration::v16::Migration<Runtime>,);
+	type Migrations = ();
 	#[cfg(feature = "runtime-benchmarks")]
 	type Migrations = pallet_contracts::migration::codegen::BenchMigrations;
 	type MaxDelegateDependencies = ConstU32<32>;
@@ -1190,7 +1188,7 @@ parameter_types! {
 impl pallet_migrations::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	#[cfg(not(feature = "runtime-benchmarks"))]
-	type Migrations = (SteppedFileBank<Runtime, <Self as pallet_file_bank::Config>::WeightInfo>, SteppedSminer<Runtime, <Self as pallet_sminer::Config>::WeightInfo>);
+	type Migrations = ();
 	// Benchmarks need mocked migrations to guarantee that they succeed.
 	#[cfg(feature = "runtime-benchmarks")]
 	type Migrations = pallet_migrations::mock_helpers::MockedMigrations;
@@ -1506,8 +1504,7 @@ pub type Executive = frame_executive::Executive<
 // All migrations executed on runtime upgrade as a nested tuple of types implementing
 // `OnRuntimeUpgrade`. Note: These are examples and do not need to be run directly
 // after the genesis block.
-type Migrations =
-	(pallet_contracts::Migration<Runtime>, pallet_cess_staking::migrations::v15::MigrateV14ToV15<Runtime>);
+type Migrations = ();
 
 type EventRecord =
 	frame_system::EventRecord<<Runtime as frame_system::Config>::RuntimeEvent, <Runtime as frame_system::Config>::Hash>;
