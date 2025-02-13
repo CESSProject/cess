@@ -1,13 +1,14 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
+use polkadot_sdk::{sc_consensus_grandpa as grandpa, *};
+
 use futures::prelude::*;
-use polkadot_sdk::*;
-use sc_consensus_grandpa as grandpa;
 use std::{path::Path, sync::Arc};
 // Substrate
 use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use sc_client_api::{Backend, BlockBackend};
 use sc_consensus::BasicQueue;
+use sc_consensus_babe::{self, SlotProportion};
 use sc_network::{event::Event, service::traits::NetworkService, NetworkBackend, NetworkEventStream};
 use sc_network_sync::{strategy::warp::WarpSyncConfig, SyncingService};
 use sc_service::{error::Error as ServiceError, Configuration, PartialComponents, RpcHandlers, TaskManager};
@@ -25,8 +26,6 @@ use crate::{
 	eth::{self, db_config_dir, EthConfiguration, FrontierBackend, FrontierPartialComponents, StorageOverrideHandler},
 	rpc::{self as node_rpc, EthDeps},
 };
-
-use cessc_consensus_rrsc::{self, SlotProportion};
 
 /// Only enable the benchmarking host functions when we actually want to benchmark.
 #[cfg(feature = "runtime-benchmarks")]
@@ -50,9 +49,9 @@ pub type TransactionPool = BasicPool<FullChainApi<FullClient, Block>, Block>;
 /// imported and generated.
 const GRANDPA_JUSTIFICATION_PERIOD: u32 = 4;
 
-type RrscBlockImport = cessc_consensus_rrsc::RRSCBlockImport<Block, FullClient, FullGrandpaBlockImport>;
-type RrscWorkerHandle = cessc_consensus_rrsc::RRSCWorkerHandle<Block>;
-type RrscLink = cessc_consensus_rrsc::RRSCLink<Block>;
+type BabeBlockImport = sc_consensus_babe::BabeBlockImport<Block, FullClient, FullGrandpaBlockImport>;
+type BabeWorkerHandle = sc_consensus_babe::BabeWorkerHandle<Block>;
+type BabeLink = sc_consensus_babe::BabeLink<Block>;
 
 pub fn new_partial(
 	config: &Configuration,
@@ -63,7 +62,7 @@ pub fn new_partial(
 		FullSelectChain,
 		BasicImportQueue,
 		TransactionPool,
-		(RrscBlockImport, RrscWorkerHandle, RrscLink, FullGrandpaLinkHalf, Option<Telemetry>),
+		(BabeBlockImport, BabeWorkerHandle, BabeLink, FullGrandpaLinkHalf, Option<Telemetry>),
 	>,
 	ServiceError,
 > {
@@ -111,17 +110,16 @@ pub fn new_partial(
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 	let justification_import = grandpa_block_import.clone();
-
-	let (block_import, rrsc_link) = cessc_consensus_rrsc::block_import(
-		cessc_consensus_rrsc::configuration(&*client)?,
-		grandpa_block_import.clone(),
+	let (block_import, babe_link) = sc_consensus_babe::block_import(
+		sc_consensus_babe::configuration(&*client)?,
+		grandpa_block_import,
 		client.clone(),
 	)?;
 
-	let slot_duration = rrsc_link.config().slot_duration();
-	let (import_queue, rrsc_worker_handle) = {
-		let param = cessc_consensus_rrsc::ImportQueueParams {
-			link: rrsc_link.clone(),
+	let slot_duration = babe_link.config().slot_duration();
+	let (import_queue, babe_worker_handle) = {
+		let param = sc_consensus_babe::ImportQueueParams {
+			link: babe_link.clone(),
 			block_import: block_import.clone(),
 			justification_import: Some(Box::new(justification_import)),
 			client: client.clone(),
@@ -129,7 +127,7 @@ pub fn new_partial(
 			create_inherent_data_providers: move |_, ()| async move {
 				let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
-				let slot = cessp_consensus_rrsc::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+				let slot = sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 					*timestamp,
 					slot_duration,
 				);
@@ -141,7 +139,7 @@ pub fn new_partial(
 			telemetry: telemetry.as_ref().map(|x| x.handle()),
 			offchain_tx_pool_factory: OffchainTransactionPoolFactory::new(transaction_pool.clone()),
 		};
-		cessc_consensus_rrsc::import_queue(param).map_err::<ServiceError, _>(Into::into)?
+		sc_consensus_babe::import_queue(param).map_err::<ServiceError, _>(Into::into)?
 	};
 
 	Ok(PartialComponents {
@@ -152,7 +150,7 @@ pub fn new_partial(
 		select_chain,
 		import_queue,
 		transaction_pool,
-		other: (block_import, rrsc_worker_handle, rrsc_link, grandpa_link, telemetry),
+		other: (block_import, babe_worker_handle, babe_link, grandpa_link, telemetry),
 	})
 }
 
@@ -202,7 +200,7 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 		keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (block_import, rrsc_worker_handle, rrsc_link, grandpa_link, mut telemetry),
+		other: (block_import, babe_worker_handle, babe_link, grandpa_link, mut telemetry),
 	} = new_partial(&config)?;
 
 	let metrics = N::register_notification_metrics(config.prometheus_config.as_ref().map(|cfg| &cfg.registry));
@@ -256,7 +254,7 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 	) = new_frontier_and_rpc_dep_partial(
 		&mut config,
 		&eth_config,
-		rrsc_link.config().slot_duration(),
+		babe_link.config().slot_duration(),
 		client.clone(),
 		backend.clone(),
 		&mut task_manager,
@@ -311,7 +309,7 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 				pool: transaction_pool.clone(),
 				select_chain: select_chain.clone(),
 				chain_spec: chain_spec.cloned_box(),
-				rrsc: node_rpc::RRSCDeps { keystore: keystore.clone(), rrsc_worker_handle: rrsc_worker_handle.clone() },
+				babe: node_rpc::BabeDeps { keystore: keystore.clone(), babe_worker_handle: babe_worker_handle.clone() },
 				grandpa: node_rpc::GrandpaDeps {
 					shared_voter_state: shared_voter_state.clone(),
 					shared_authority_set: shared_authority_set.clone(),
@@ -371,8 +369,8 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 		);
 
 		let client_clone = client.clone();
-		let slot_duration = rrsc_link.config().slot_duration();
-		let babe_config = cessc_consensus_rrsc::RRSCParams {
+		let slot_duration = babe_link.config().slot_duration();
+		let babe_config = sc_consensus_babe::BabeParams {
 			keystore: keystore_container.keystore(),
 			client: client.clone(),
 			select_chain,
@@ -385,7 +383,7 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 				async move {
 					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
-					let slot = cessp_consensus_rrsc::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+					let slot = sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 						*timestamp,
 						slot_duration,
 					);
@@ -398,13 +396,13 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 			},
 			force_authoring,
 			backoff_authoring_blocks,
-			rrsc_link,
+			babe_link,
 			block_proposal_slot_portion: SlotProportion::new(0.5),
 			max_block_proposal_slot_portion: None,
 			telemetry: telemetry.as_ref().map(|x| x.handle()),
 		};
 
-		let babe = cessc_consensus_rrsc::start_rrsc(babe_config)?;
+		let babe = sc_consensus_babe::start_babe(babe_config)?;
 		task_manager
 			.spawn_essential_handle()
 			.spawn_blocking("babe-proposer", Some("block-authoring"), babe);
@@ -515,7 +513,7 @@ struct EthPendingCreateInherentDataProvider {
 #[async_trait::async_trait]
 impl sp_inherents::CreateInherentDataProviders<Block, ()> for EthPendingCreateInherentDataProvider {
 	type InherentDataProviders = (
-		cessp_consensus_rrsc::inherents::InherentDataProvider,
+		sp_consensus_babe::inherents::InherentDataProvider,
 		sp_timestamp::InherentDataProvider,
 		fp_dynamic_fee::InherentDataProvider,
 	);
@@ -527,7 +525,7 @@ impl sp_inherents::CreateInherentDataProviders<Block, ()> for EthPendingCreateIn
 		let current = sp_timestamp::InherentDataProvider::from_system_time();
 		let next_slot = current.timestamp().as_millis() + self.slot_duration.as_millis();
 		let timestamp = sp_timestamp::InherentDataProvider::new(next_slot.into());
-		let slot = cessp_consensus_rrsc::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
+		let slot = sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_slot_duration(
 			*timestamp,
 			self.slot_duration,
 		);

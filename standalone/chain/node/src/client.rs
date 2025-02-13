@@ -46,7 +46,7 @@ pub trait RuntimeApiCollection<
 >:
 	BaseRuntimeApiCollection<Block>
 	+ EthCompatRuntimeApiCollection<Block>
-	+ cessc_consensus_rrsc::RRSCApi<Block>
+	+ sc_consensus_babe::BabeApi<Block>
 	+ sp_consensus_grandpa::GrandpaApi<Block>
 	+ sp_authority_discovery::AuthorityDiscoveryApi<Block>
 	+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
@@ -64,7 +64,7 @@ where
 	Balance: Codec + MaybeDisplay,
 	Api: BaseRuntimeApiCollection<Block>
 		+ EthCompatRuntimeApiCollection<Block>
-		+ cessc_consensus_rrsc::RRSCApi<Block>
+		+ sc_consensus_babe::BabeApi<Block>
 		+ sp_consensus_grandpa::GrandpaApi<Block>
 		+ sp_authority_discovery::AuthorityDiscoveryApi<Block>
 		+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>

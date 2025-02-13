@@ -2,7 +2,6 @@ use cess_node_primitives::{AccountId, Balance, Block, Signature};
 use cess_node_runtime::{
 	constants::currency::DOLLARS, wasm_binary_unwrap, MaxNominations, SS58Prefix, SessionKeys, StakerStatus,
 };
-use cessp_consensus_rrsc::AuthorityId as RRSCId;
 use pallet_audit::sr25519::AuthorityId as SegmentBookId;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use polkadot_sdk::*;
@@ -11,6 +10,7 @@ use sc_service::ChainType;
 use sc_telemetry::TelemetryEndpoints;
 use serde::{Deserialize, Serialize};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
+use sp_consensus_babe::AuthorityId as BabeId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public};
 use sp_runtime::{
@@ -38,7 +38,7 @@ pub struct Extensions {
 	/// Known bad block hashes.
 	pub bad_blocks: sc_client_api::BadBlocks<Block>,
 	/// The light sync state extension used by the sync-state rpc.
-	pub light_sync_state: cessc_sync_state_rpc::LightSyncStateExtension,
+	pub light_sync_state: sc_sync_state_rpc::LightSyncStateExtension,
 }
 
 /// Specialized `ChainSpec`.
@@ -50,7 +50,7 @@ type AuthorityKeys = (
 	AccountId,
 	AccountId,
 	GrandpaId,
-	RRSCId,
+	BabeId,
 	ImOnlineId,
 	AuthorityDiscoveryId,
 	SegmentBookId
@@ -58,11 +58,11 @@ type AuthorityKeys = (
 
 fn session_keys(
 	grandpa: GrandpaId,
-	rrsc: RRSCId,
+	babe: BabeId,
 	im_online: ImOnlineId,
 	authority_discovery: AuthorityDiscoveryId,
 ) -> SessionKeys {
-	SessionKeys { grandpa, babe: rrsc, im_online, authority_discovery }
+	SessionKeys { grandpa, babe, im_online, authority_discovery }
 }
 
 /// Generate an account ID from seed.
@@ -79,7 +79,7 @@ pub fn authority_keys_from_seed(seed: &str) -> AuthorityKeys {
 		get_account_id_from_seed::<sr25519::Public>(&format!("{}//stash", seed)),
 		get_account_id_from_seed::<sr25519::Public>(seed),
 		get_from_seed::<GrandpaId>(seed),
-		get_from_seed::<RRSCId>(seed),
+		get_from_seed::<BabeId>(seed),
 		get_from_seed::<ImOnlineId>(seed),
 		get_from_seed::<AuthorityDiscoveryId>(seed),
 		get_from_seed::<SegmentBookId>(seed),

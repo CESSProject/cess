@@ -1,10 +1,30 @@
-use super::{Config, EpochIndex, ParentBlockRandomness};
-use cessp_consensus_rrsc::traits::ValidatorCredits;
+#![cfg_attr(not(feature = "std"), no_std)]
+
+use pallet_babe::{Config, EpochIndex, ParentBlockRandomness};
 use codec::{alloc::string::ToString, Decode};
 use frame_election_provider_support::{Assignment, NposSolver, WeightInfo as NposWeightInfo};
 use frame_support::{traits::Randomness, weights::Weight};
 use sp_npos_elections::{ElectionResult, ExtendedBalance, IdentifierT, PerThing128, VoteWeight};
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
+
+/// Trait used to retrieve credits of validators.
+pub trait ValidatorCredits<ValidatorId> {
+	/// Returns the full score.
+	fn full_credit() -> u32;
+
+	/// Returns the credits of all validators when `epoch_index`.
+	fn credits(epoch_index: u64) -> BTreeMap<ValidatorId, u32>;
+}
+
+impl<ValidatorId> ValidatorCredits<ValidatorId> for () {
+	fn full_credit()-> u32 {
+		1000
+	}
+
+	fn credits(_epoch_index: u64) -> BTreeMap<ValidatorId, u32> {
+		BTreeMap::new()
+	}
+}
 
 pub trait VrfSloverConfig {
 	/// A target whose vote weight is less than `min_electable_weight` will never be elected.
