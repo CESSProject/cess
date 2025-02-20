@@ -69,6 +69,7 @@ pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier, TargetedFeeAdj
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
+use sp_consensus_babe::AuthorityId as BabeId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata, H160, H256, U256};
 use sp_inherents::{CheckInherentsResult, InherentData};
@@ -154,7 +155,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	// and set impl_version to 0. If only runtime
 	// implementation changes and behavior does not, then leave spec_version as
 	// is and increment impl_version.
-	spec_version: 129,
+	spec_version: 130,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -162,10 +163,16 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 };
 
 /// The BABE epoch configuration at genesis.
-pub const BABE_GENESIS_EPOCH_CONFIG: cessp_consensus_rrsc::RRSCEpochConfiguration =
+pub const RRSC_GENESIS_EPOCH_CONFIG: cessp_consensus_rrsc::RRSCEpochConfiguration =
 	cessp_consensus_rrsc::RRSCEpochConfiguration {
 		c: PRIMARY_PROBABILITY,
 		allowed_slots: cessp_consensus_rrsc::AllowedSlots::PrimaryAndSecondaryVRFSlots,
+	};
+
+pub const BABE_GENESIS_EPOCH_CONFIG: sp_consensus_babe::BabeEpochConfiguration =
+	sp_consensus_babe::BabeEpochConfiguration {
+		c: PRIMARY_PROBABILITY,
+		allowed_slots: sp_consensus_babe::AllowedSlots::PrimaryAndSecondaryVRFSlots,
 	};
 
 /// Native version.
@@ -404,6 +411,18 @@ impl pallet_rrsc::Config for Runtime {
 	type EquivocationReportSystem = pallet_rrsc::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
 
+impl pallet_babe::Config for Runtime {
+	type EpochDuration = EpochDuration;
+	type ExpectedBlockTime = ExpectedBlockTime;
+	type EpochChangeTrigger = pallet_babe::ExternalTrigger;
+	type DisabledValidators = Session;
+	type WeightInfo = ();
+	type MaxAuthorities = MaxAuthorities;
+	type MaxNominators = MaxNominators;
+	type KeyOwnerProof = <Historical as KeyOwnerProofSystem<(KeyTypeId, pallet_babe::AuthorityId)>>::Proof;
+	type EquivocationReportSystem = pallet_babe::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
+}
+
 parameter_types! {
 	pub const IndexDeposit: Balance = 1 * DOLLARS;
 }
@@ -504,6 +523,44 @@ impl pallet_authorship::Config for Runtime {
 
 impl_opaque_keys! {
 	pub struct SessionKeys {
+		pub grandpa: Grandpa,
+		pub babe: Babe,
+		pub im_online: ImOnline,
+		pub authority_discovery: AuthorityDiscovery,
+		pub babe2: BabeX,
+	}
+}
+
+// When this is removed, should also remove `OldSessionKeys`.
+pub struct UpgradeSessionKeys;
+impl frame_support::traits::OnRuntimeUpgrade for UpgradeSessionKeys {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		Session::upgrade_keys::<OldSessionKeys, _>(transform_session_keys);
+		Perbill::from_percent(50) * BlockWeights::default().max_block
+	}
+}
+
+pub fn dummy_babe_id_from_account_id(a: AccountId) -> BabeId {
+	use polkadot_sdk::sp_core::ByteArray;
+	let mut id = BabeId::from_slice(a.as_slice()).expect("dummy babe id");
+	let id_raw: &mut [u8] = id.as_mut();
+	id_raw[0..].copy_from_slice(a.as_ref());
+	id_raw[0..4].copy_from_slice(&sp_core::crypto::key_types::BABE.0);
+	id
+}
+
+fn transform_session_keys(v: AccountId, old: OldSessionKeys) -> SessionKeys {
+	SessionKeys {
+		grandpa: old.grandpa,
+		babe: old.babe,
+		im_online: old.im_online,
+		authority_discovery: old.authority_discovery,
+		babe2: dummy_babe_id_from_account_id(v),
+	}
+}
+
+impl_opaque_keys! {
+	pub struct OldSessionKeys {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
 		pub im_online: ImOnline,
@@ -670,11 +727,12 @@ impl pallet_election_provider_multi_phase::BenchmarkingConfig for ElectionProvid
 	const MAXIMUM_TARGETS: u32 = 300;
 }
 
+use ces_rrsc_vrf_solver::{VrfSloverConfig as RrscVrfSloverConfig, VrfSolver as RrscVrfSolver};
 /// A candidate whose backed stake is less than `MIN_ELECTABLE_STAKE` will never be elected.
 pub const MIN_ELECTABLE_STAKE: Balance = 3_000_000 * DOLLARS;
 /// A config for VrfSolver
 pub struct OnChainVrfSloverConfig;
-impl pallet_rrsc::VrfSloverConfig for OnChainVrfSloverConfig {
+impl RrscVrfSloverConfig for OnChainVrfSloverConfig {
 	fn min_electable_weight() -> VoteWeight {
 		let total_issuance = <Runtime as pallet_cess_staking::Config>::Currency::total_issuance();
 		<Runtime as pallet_cess_staking::Config>::CurrencyToVote::to_vote(MIN_ELECTABLE_STAKE, total_issuance)
@@ -684,7 +742,7 @@ impl pallet_rrsc::VrfSloverConfig for OnChainVrfSloverConfig {
 pub struct OnChainVrf;
 impl onchain::Config for OnChainVrf {
 	type System = Runtime;
-	type Solver = pallet_rrsc::VrfSolver<
+	type Solver = RrscVrfSolver<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Runtime>,
 		Runtime,
@@ -739,8 +797,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type DataProvider = Staking;
 	type Fallback = onchain::OnChainExecution<OnChainVrf>;
 	type GovernanceFallback = onchain::OnChainExecution<OnChainVrf>;
-	type Solver =
-		pallet_rrsc::VrfSolver<AccountId, SolutionAccuracyOf<Self>, Runtime, SchedulerCredit, OnChainVrfSloverConfig>;
+	type Solver = RrscVrfSolver<AccountId, SolutionAccuracyOf<Self>, Runtime, SchedulerCredit, OnChainVrfSloverConfig>;
 	type ForceOrigin = EnsureRootOrHalfCouncil;
 	type MaxWinners = MaxActiveValidators;
 	type ElectionBounds = ElectionBoundsMultiPhase;
@@ -1298,6 +1355,8 @@ mod runtime {
 
 	#[runtime::pallet_index(2)]
 	pub type Babe = pallet_rrsc::Pallet<Runtime>;
+	#[runtime::pallet_index(18)]
+	pub type BabeX = pallet_babe::Pallet<Runtime>;
 
 	#[runtime::pallet_index(3)]
 	pub type Timestamp = pallet_timestamp::Pallet<Runtime>;
@@ -1507,7 +1566,7 @@ pub type Executive = frame_executive::Executive<
 // `OnRuntimeUpgrade`. Note: These are examples and do not need to be run directly
 // after the genesis block.
 type Migrations =
-	(pallet_contracts::Migration<Runtime>, pallet_cess_staking::migrations::v15::MigrateV14ToV15<Runtime>);
+	(UpgradeSessionKeys,);
 
 type EventRecord =
 	frame_system::EventRecord<<Runtime as frame_system::Config>::RuntimeEvent, <Runtime as frame_system::Config>::Hash>;
@@ -1656,7 +1715,7 @@ impl pallet_file_bank::Config for Runtime {
 	type WeightInfo = pallet_file_bank::weights::SubstrateWeight<Runtime>;
 	type MinerControl = Sminer;
 	type StorageHandle = StorageHandler;
-	type MyRandomness = pallet_rrsc::ParentBlockRandomness<Runtime>;
+	type MyRandomness = pallet_babe::ParentBlockRandomness<Runtime>;
 	type TeeWorkerHandler = TeeWorker;
 	type UserFileLimit = UserFileLimit;
 	type OneDay = OneDay;
@@ -1723,7 +1782,7 @@ impl pallet_audit::Config for Runtime {
 	type Currency = Balances;
 	type RuntimeEvent = RuntimeEvent;
 	type MyPalletId = SegbkPalletId;
-	type MyRandomness = pallet_rrsc::ParentBlockRandomness<Runtime>;
+	type MyRandomness = pallet_babe::ParentBlockRandomness<Runtime>;
 	type WeightInfo = pallet_audit::weights::SubstrateWeight<Runtime>;
 	type AuthorityId = pallet_audit::sr25519::AuthorityId;
 	type CreditCounter = SchedulerCredit;
@@ -1770,7 +1829,7 @@ impl pallet_storage_handler::Config for Runtime {
 	type OneDay = OneDay;
 	type OneHours = OneHours;
 	type RewardPalletId = RewardPalletId;
-	type MyRandomness = pallet_rrsc::ParentBlockRandomness<Runtime>;
+	type MyRandomness = pallet_babe::ParentBlockRandomness<Runtime>;
 	type StateStringMax = StateStringMax;
 	type FrozenDays = FrozenDays;
 	type CessTreasuryHandle = CessTreasury;
@@ -1891,7 +1950,7 @@ mod benches {
 	frame_benchmarking::define_benchmarks!(
 		[frame_benchmarking, BaselineBench::<Runtime>]
 		[pallet_assets, Assets]
-		[pallet_rrsc, Babe]
+		[pallet_babe, Babe]
 		[pallet_bags_list, VoterList]
 		[pallet_balances, Balances]
 		[pallet_collective, Council]
@@ -2030,7 +2089,7 @@ impl_runtime_apis! {
 
 	impl cessp_consensus_rrsc::RRSCApi<Block> for Runtime {
 		fn configuration() -> cessp_consensus_rrsc::RRSCConfiguration {
-			let epoch_config = Babe::epoch_config().unwrap_or(BABE_GENESIS_EPOCH_CONFIG);
+			let epoch_config = Babe::epoch_config().unwrap_or(RRSC_GENESIS_EPOCH_CONFIG);
 			cessp_consensus_rrsc::RRSCConfiguration {
 				slot_duration: Babe::slot_duration(),
 				epoch_length: EpochDuration::get(),
@@ -2071,6 +2130,55 @@ impl_runtime_apis! {
 			let key_owner_proof = key_owner_proof.decode()?;
 
 			Babe::submit_unsigned_equivocation_report(
+				equivocation_proof,
+				key_owner_proof,
+			)
+		}
+	}
+
+	impl sp_consensus_babe::BabeApi<Block> for Runtime {
+		fn configuration() -> sp_consensus_babe::BabeConfiguration {
+			let epoch_config = BabeX::epoch_config().unwrap_or(BABE_GENESIS_EPOCH_CONFIG);
+			sp_consensus_babe::BabeConfiguration {
+				slot_duration: BabeX::slot_duration(),
+				epoch_length: EpochDuration::get(),
+				c: epoch_config.c,
+				authorities: BabeX::authorities().to_vec(),
+				randomness: BabeX::randomness(),
+				allowed_slots: epoch_config.allowed_slots,
+			}
+		}
+
+		fn current_epoch_start() -> sp_consensus_babe::Slot {
+			BabeX::current_epoch_start()
+		}
+
+		fn current_epoch() -> sp_consensus_babe::Epoch {
+			BabeX::current_epoch()
+		}
+
+		fn next_epoch() -> sp_consensus_babe::Epoch {
+			BabeX::next_epoch()
+		}
+
+		fn generate_key_ownership_proof(
+			_slot: sp_consensus_babe::Slot,
+			authority_id: sp_consensus_babe::AuthorityId,
+		) -> Option<sp_consensus_babe::OpaqueKeyOwnershipProof> {
+			use codec::Encode;
+
+			Historical::prove((sp_consensus_babe::KEY_TYPE, authority_id))
+				.map(|p| p.encode())
+				.map(sp_consensus_babe::OpaqueKeyOwnershipProof::new)
+		}
+
+		fn submit_report_equivocation_unsigned_extrinsic(
+			equivocation_proof: sp_consensus_babe::EquivocationProof<<Block as BlockT>::Header>,
+			key_owner_proof: sp_consensus_babe::OpaqueKeyOwnershipProof,
+		) -> Option<()> {
+			let key_owner_proof = key_owner_proof.decode()?;
+
+			BabeX::submit_unsigned_equivocation_report(
 				equivocation_proof,
 				key_owner_proof,
 			)

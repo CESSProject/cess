@@ -38,7 +38,6 @@ cp-cess-common = { workspace = true }
 cp-enclave-verify = { workspace = true }
 pallet-cess-staking = { workspace = true }
 pallet-oss = { workspace = true }
-pallet-rrsc = { workspace = true, optional = true }
 pallet-sminer = { workspace = true }
 pallet-storage-handler = { workspace = true }
 pallet-tee-worker = { workspace = true }
@@ -84,7 +83,6 @@ std = [
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
 	"pallet-cess-staking/runtime-benchmarks",
-	"pallet-rrsc/runtime-benchmarks",
 	"pallet-grandpa/runtime-benchmarks",
 	"rand_chacha",
 ]

@@ -3,10 +3,50 @@
 exclude = ["standalone/teeworker/ceseal"]
 
 members = [
-    "crates/*",
-    "pallets/*",
+    "crates/bloom-filter",
+    "crates/ces-allocator",
+    "crates/ces-crypto",
+    "crates/ces-mq",
+    "crates/ces-node-rpc-ext",
+    "crates/ces-pdp",
+    "crates/ces-pois",
+    "crates/ces-sanitized-logger",
+    "crates/ces-serde-more",
+    "crates/cestory",
+    "crates/cestory/api",
+    "crates/cestory/pal",
+    "crates/ces-trie-storage",
+    "crates/ces-types",
+    "crates/cesxt",
+    "crates/common",
+    "crates/enclave-verify",
+    "crates/reqwest-env-proxy",
+    "crates/rrsc-vrf-solver",
+    "crates/rrsc",
+    "crates/rrsc/pallet",
+    "crates/rrsc/primitives",
+    "crates/rrsc/rpc",
+    "crates/rrsc/sync-state",
+    "crates/scheduler-credit",
+    "crates/sgx-api-lite",
+    "crates/sgx-attestation",
+    "pallets/audit",
+    "pallets/cacher",
+    "pallets/cess-treasury",
+    "pallets/evm-account-mapping",
+    "pallets/file-bank",
+    "pallets/mq",
     "pallets/mq/runtime-api",
-    "standalone/chain/*",
+    "pallets/oss",
+    "pallets/reservoir",
+    "pallets/scheduler-credit",
+    "pallets/sminer",
+    "pallets/staking",
+    "pallets/storage-handler",
+    "pallets/tee-worker",
+    "standalone/chain/node",
+    "standalone/chain/primitives",
+    "standalone/chain/runtime",
     "standalone/teeworker/cifrost",
     "standalone/teeworker/handover",
 ]
@@ -463,6 +503,7 @@ runtime = { path = "standalone/chain/runtime", package = "cess-node-runtime", de
 sgx-api-lite = { path = "crates/sgx-api-lite" }
 sgx-attestation = { path = "crates/sgx-attestation", default-features = false }
 # RRSC
+ces-rrsc-vrf-solver = { path = "crates/rrsc-vrf-solver", default-features = false }
 cessc-consensus-rrsc = { path = "crates/rrsc/" }
 cessc-consensus-rrsc-rpc = { path = "crates/rrsc/rpc" }
 cessc-sync-state-rpc = { path = "crates/rrsc/sync-state" }

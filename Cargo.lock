@@ -2098,6 +2098,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "ces-rrsc-vrf-solver"
+version = "0.1.0"
+dependencies = [
+ "frame-election-provider-support",
+ "frame-support",
+ "log",
+ "pallet-babe",
+ "parity-scale-codec",
+ "sp-npos-elections",
+ "sp-std",
+]
+
+[[package]]
 name = "ces-sanitized-logger"
 version = "0.1.0"
 dependencies = [
@@ -2172,9 +2185,6 @@ dependencies = [
  "ces-pallet-mq-runtime-api",
  "cess-node-primitives",
  "cess-node-runtime",
- "cessc-consensus-rrsc",
- "cessc-consensus-rrsc-rpc",
- "cessc-sync-state-rpc",
  "cessp-consensus-rrsc",
  "clap",
  "fc-api",
@@ -2215,6 +2225,7 @@ version = "0.10.0"
 dependencies = [
  "ces-pallet-mq",
  "ces-pallet-mq-runtime-api",
+ "ces-rrsc-vrf-solver",
  "ces-types",
  "cess-node-primitives",
  "cessp-consensus-rrsc",
@@ -8981,12 +8992,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 
 [[package]]
-name = "multimap"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "defc4c55412d89136f966bbb339008b474350e5e6e78d2714439c386b3137a03"
-
-[[package]]
 name = "multistream-select"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10518,7 +10523,6 @@ dependencies = [
  "pallet-grandpa",
  "pallet-oss",
  "pallet-preimage",
- "pallet-rrsc",
  "pallet-scheduler",
  "pallet-scheduler-credit",
  "pallet-session",
@@ -11302,7 +11306,7 @@ dependencies = [
 name = "pallet-scheduler-credit"
 version = "0.1.0"
 dependencies = [
- "cessp-consensus-rrsc",
+ "ces-rrsc-vrf-solver",
  "cp-cess-common",
  "cp-scheduler-credit",
  "frame-support",
@@ -11941,7 +11945,7 @@ checksum = "4e69bf016dc406eff7d53a7d3f7cf1c2e72c82b9088aac1118591e36dd2cd3e9"
 dependencies = [
  "bitcoin_hashes",
  "rand 0.8.5",
- "rand_core 0.6.4",
+ "rand_core 0.4.2",
  "serde",
  "unicode-normalization",
 ]
@@ -13471,6 +13475,10 @@ dependencies = [
  "sc-client-api",
  "sc-client-db",
  "sc-consensus",
+ "sc-consensus-babe",
+ "sc-consensus-babe-rpc",
+ "sc-consensus-beefy",
+ "sc-consensus-beefy-rpc",
  "sc-consensus-epochs",
  "sc-consensus-grandpa",
  "sc-consensus-grandpa-rpc",
@@ -14315,7 +14323,7 @@ dependencies = [
  "itertools 0.10.5",
  "lazy_static",
  "log",
- "multimap 0.8.3",
+ "multimap",
  "petgraph",
  "prettyplease 0.1.25",
  "prost 0.11.9",
@@ -14335,7 +14343,7 @@ dependencies = [
  "heck 0.5.0",
  "itertools 0.13.0",
  "log",
- "multimap 0.10.0",
+ "multimap",
  "once_cell",
  "petgraph",
  "prettyplease 0.2.25",
@@ -21169,7 +21177,7 @@ checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
  "digest 0.10.7",
- "rand 0.8.5",
+ "rand 0.3.23",
  "static_assertions",
 ]
 

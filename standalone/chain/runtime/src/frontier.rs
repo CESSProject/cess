@@ -24,7 +24,7 @@ impl<F: FindAuthor<u32>> FindAuthor<H160> for FindAuthorTruncated<F> {
 		I: 'a + IntoIterator<Item = (ConsensusEngineId, &'a [u8])>,
 	{
 		if let Some(author_index) = F::find_author(digests) {
-			let authority_id = pallet_rrsc::Authorities::<Runtime>::get()[author_index as usize].clone();
+			let authority_id = pallet_babe::Authorities::<Runtime>::get()[author_index as usize].clone();
 			return Some(H160::from_slice(&authority_id.0.to_raw_vec()[4..24]));
 		}
 		None
@@ -63,7 +63,7 @@ impl pallet_evm::Config for Runtime {
 	type Runner = pallet_evm::runner::stack::Runner<Self>;
 	type OnChargeTransaction = ();
 	type OnCreate = ();
-	type FindAuthor = FindAuthorTruncated<Babe>;
+	type FindAuthor = FindAuthorTruncated<BabeX>;
 	type GasLimitPovSizeRatio = GasLimitPovSizeRatio;
 	type SuicideQuickClearLimit = SuicideQuickClearLimit;
 	type GasLimitStorageGrowthRatio = GasLimitStorageGrowthRatio;
