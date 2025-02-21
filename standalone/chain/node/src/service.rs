@@ -1,9 +1,12 @@
 //! Service and ServiceFactory implementation. Specialized wrapper over substrate service.
 
-use polkadot_sdk::{sc_consensus_grandpa as grandpa, *};
+use polkadot_sdk::{
+	sc_consensus_beefy as beefy, sc_consensus_grandpa as grandpa,
+	sp_consensus_beefy as beefy_primitives, *,
+};
 
-use futures::prelude::*;
 use std::{path::Path, sync::Arc};
+use futures::prelude::*;
 // Substrate
 use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use sc_client_api::{Backend, BlockBackend};
@@ -39,8 +42,19 @@ type FullBackend = FullBackendT<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 type FullGrandpaBlockImport = grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>;
 
+type BeefyAuthorityId = beefy_primitives::ecdsa_crypto::AuthorityId;
+type FullBeefyBlockImport = beefy::import::BeefyBlockImport<
+	Block,
+	FullBackend,
+	FullClient,
+	FullGrandpaBlockImport,
+	BeefyAuthorityId,
+>;
+
 type BasicImportQueue = sc_consensus::DefaultImportQueue<Block>;
 type FullGrandpaLinkHalf = grandpa::LinkHalf<Block, FullClient, FullSelectChain>;
+type FullBeefyVoterLinks = beefy::BeefyVoterLinks<Block, BeefyAuthorityId>;
+type FullBeefyRpcLinks = beefy::BeefyRPCLinks<Block, BeefyAuthorityId>;
 
 /// The transaction pool type definition.
 pub type TransactionPool = BasicPool<FullChainApi<FullClient, Block>, Block>;
@@ -49,7 +63,7 @@ pub type TransactionPool = BasicPool<FullChainApi<FullClient, Block>, Block>;
 /// imported and generated.
 const GRANDPA_JUSTIFICATION_PERIOD: u32 = 4;
 
-type BabeBlockImport = sc_consensus_babe::BabeBlockImport<Block, FullClient, FullGrandpaBlockImport>;
+type BabeBlockImport = sc_consensus_babe::BabeBlockImport<Block, FullClient, FullBeefyBlockImport>;
 type BabeWorkerHandle = sc_consensus_babe::BabeWorkerHandle<Block>;
 type BabeLink = sc_consensus_babe::BabeLink<Block>;
 
@@ -62,7 +76,15 @@ pub fn new_partial(
 		FullSelectChain,
 		BasicImportQueue,
 		TransactionPool,
-		(BabeBlockImport, BabeWorkerHandle, BabeLink, FullGrandpaLinkHalf, Option<Telemetry>),
+		(
+			BabeBlockImport,
+			BabeWorkerHandle,
+			BabeLink,
+			FullGrandpaLinkHalf,
+			FullBeefyVoterLinks,
+			FullBeefyRpcLinks,
+			Option<Telemetry>,
+		),
 	>,
 	ServiceError,
 > {
@@ -110,9 +132,18 @@ pub fn new_partial(
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 	let justification_import = grandpa_block_import.clone();
+
+	let (beefy_block_import, beefy_voter_links, beefy_rpc_links) =
+		beefy::beefy_block_import_and_links(
+			grandpa_block_import,
+			backend.clone(),
+			client.clone(),
+			config.prometheus_registry().cloned(),
+		);
+
 	let (block_import, babe_link) = sc_consensus_babe::block_import(
 		sc_consensus_babe::configuration(&*client)?,
-		grandpa_block_import,
+		beefy_block_import,
 		client.clone(),
 	)?;
 
@@ -150,7 +181,15 @@ pub fn new_partial(
 		select_chain,
 		import_queue,
 		transaction_pool,
-		other: (block_import, babe_worker_handle, babe_link, grandpa_link, telemetry),
+		other: (
+			block_import,
+			babe_worker_handle,
+			babe_link,
+			grandpa_link,
+			beefy_voter_links,
+			beefy_rpc_links,
+			telemetry,
+		),
 	})
 }
 
@@ -177,6 +216,7 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 	eth_config: EthConfiguration,
 	disable_hardware_benchmarks: bool,
 ) -> Result<NewFullBase, ServiceError> {
+	let is_offchain_indexing_enabled = config.offchain_worker.indexing_enabled;
 	let role = config.role;
 	let force_authoring = config.force_authoring;
 	let backoff_authoring_blocks = Some(sc_consensus_slots::BackoffAuthoringOnFinalizedHeadLagging::default());
@@ -200,7 +240,15 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 		keystore_container,
 		select_chain,
 		transaction_pool,
-		other: (block_import, babe_worker_handle, babe_link, grandpa_link, mut telemetry),
+		other: (
+			block_import, 
+			babe_worker_handle,
+			babe_link,
+			grandpa_link,
+			beefy_voter_links,
+			beefy_rpc_links,
+			mut telemetry, 
+		),
 	} = new_partial(&config)?;
 
 	let metrics = N::register_notification_metrics(config.prometheus_config.as_ref().map(|cfg| &cfg.registry));
@@ -223,6 +271,28 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 		Arc::clone(&peer_store_handle),
 	);
 	net_config.add_notification_protocol(grandpa_protocol_config);
+
+	let beefy_gossip_proto_name =
+		beefy::gossip_protocol_name(&genesis_hash, config.chain_spec.fork_id());
+	// `beefy_on_demand_justifications_handler` is given to `beefy-gadget` task to be run,
+	// while `beefy_req_resp_cfg` is added to `config.network.request_response_protocols`.
+	let (beefy_on_demand_justifications_handler, beefy_req_resp_cfg) =
+		beefy::communication::request_response::BeefyJustifsRequestHandler::new::<_, N>(
+			&genesis_hash,
+			config.chain_spec.fork_id(),
+			client.clone(),
+			prometheus_registry.clone(),
+		);
+
+	let (beefy_notification_config, beefy_notification_service) =
+		beefy::communication::beefy_peers_set_config::<_, N>(
+			beefy_gossip_proto_name.clone(),
+			metrics.clone(),
+			Arc::clone(&peer_store_handle),
+		);
+
+	net_config.add_notification_protocol(beefy_notification_config);
+	net_config.add_request_response_protocol(beefy_req_resp_cfg);
 
 	let warp_sync = Arc::new(grandpa::warp_proof::NetworkProvider::new(
 		backend.clone(),
@@ -316,6 +386,15 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 					justification_stream: justification_stream.clone(),
 					subscription_executor: subscription_executor.clone(),
 					finality_provider: finality_proof_provider.clone(),
+				},
+				beefy: node_rpc::BeefyDeps::<BeefyAuthorityId> {
+					beefy_finality_proof_stream: beefy_rpc_links
+						.from_voter_justif_stream
+						.clone(),
+					beefy_best_block_stream: beefy_rpc_links
+						.from_voter_best_beefy_stream
+						.clone(),
+					subscription_executor: subscription_executor.clone(),
 				},
 				backend: backend.clone(),
 			};
@@ -440,6 +519,48 @@ pub fn new_full_base<N: NetworkBackend<Block, <Block as BlockT>::Hash>>(
 	// if the node isn't actively participating in consensus then it doesn't
 	// need a keystore, regardless of which protocol we use below.
 	let keystore = if role.is_authority() { Some(keystore_container.keystore()) } else { None };
+
+	// beefy is enabled if its notification service exists
+	let network_params = beefy::BeefyNetworkParams {
+		network: Arc::new(network.clone()),
+		sync: sync_service.clone(),
+		gossip_protocol_name: beefy_gossip_proto_name,
+		justifications_protocol_name: beefy_on_demand_justifications_handler.protocol_name(),
+		notification_service: beefy_notification_service,
+		_phantom: core::marker::PhantomData::<Block>,
+	};
+	let beefy_params = beefy::BeefyParams {
+		client: client.clone(),
+		backend: backend.clone(),
+		payload_provider: sp_consensus_beefy::mmr::MmrRootProvider::new(client.clone()),
+		runtime: client.clone(),
+		key_store: keystore.clone(),
+		network_params,
+		min_block_delta: 8,
+		prometheus_registry: prometheus_registry.clone(),
+		links: beefy_voter_links,
+		on_demand_justifications_handler: beefy_on_demand_justifications_handler,
+		is_authority: role.is_authority(),
+	};
+
+	let beefy_gadget = beefy::start_beefy_gadget::<_, _, _, _, _, _, _, _>(beefy_params);
+	// BEEFY is part of consensus, if it fails we'll bring the node down with it to make sure it
+	// is noticed.
+	task_manager
+		.spawn_essential_handle()
+		.spawn_blocking("beefy-gadget", None, beefy_gadget);
+	// When offchain indexing is enabled, MMR gadget should also run.
+	if is_offchain_indexing_enabled {
+		task_manager.spawn_essential_handle().spawn_blocking(
+			"mmr-gadget",
+			None,
+			mmr_gadget::MmrGadget::start(
+				client.clone(),
+				backend.clone(),
+				sp_mmr_primitives::INDEXING_PREFIX.to_vec(),
+			),
+		);
+	}
 
 	let grandpa_config = grandpa::Config {
 		// FIXME #1578 make this available through chainspec

@@ -12880,6 +12880,7 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
+ "mmr-gadget",
  "mmr-rpc",
  "pallet-alliance",
  "pallet-asset-conversion",
