@@ -11,6 +11,7 @@ use sc_telemetry::TelemetryEndpoints;
 use serde::{Deserialize, Serialize};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
+use sp_consensus_beefy::ecdsa_crypto::AuthorityId as BeefyId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
 use sp_core::{crypto::UncheckedInto, sr25519, Pair, Public};
 use sp_runtime::{
@@ -53,7 +54,8 @@ type AuthorityKeys = (
 	BabeId,
 	ImOnlineId,
 	AuthorityDiscoveryId,
-	SegmentBookId
+	SegmentBookId,
+	BeefyId,
 );
 
 fn session_keys(
@@ -61,8 +63,9 @@ fn session_keys(
 	babe: BabeId,
 	im_online: ImOnlineId,
 	authority_discovery: AuthorityDiscoveryId,
+	beefy: BeefyId,
 ) -> SessionKeys {
-	SessionKeys { grandpa, babe, im_online, authority_discovery }
+	SessionKeys { grandpa, babe, im_online, authority_discovery, beefy }
 }
 
 /// Generate an account ID from seed.
@@ -83,6 +86,7 @@ pub fn authority_keys_from_seed(seed: &str) -> AuthorityKeys {
 		get_from_seed::<ImOnlineId>(seed),
 		get_from_seed::<AuthorityDiscoveryId>(seed),
 		get_from_seed::<SegmentBookId>(seed),
+		get_from_seed::<BeefyId>(seed),
 	)
 }
 
@@ -115,6 +119,8 @@ fn cess_testnet_genesis() -> serde_json::Value {
 				.unchecked_into(),
 			array_bytes::hex2array_unchecked("2a4d86b50b2d98c3bfb02c00f9731753b01f8151774544f4e78e11ef4bb1eb79")
 				.unchecked_into(),
+			array_bytes::hex2array_unchecked("035cea616c14eef7250f8e08a8609b49acdefb2c8dd56ac92f83475b520f4bc673")
+				.unchecked_into(),
 		),
 		(
 			// cXiHpiCFn6xkypa2Q8SroghuME1hBtDDrJYEEAXLwkfy6y277
@@ -134,6 +140,8 @@ fn cess_testnet_genesis() -> serde_json::Value {
 			array_bytes::hex2array_unchecked("2a20b3a025722789f18ca7e459ec21d4f232b1a1d245272f14248d3cfa8b412a")
 				.unchecked_into(),
 			array_bytes::hex2array_unchecked("2a20b3a025722789f18ca7e459ec21d4f232b1a1d245272f14248d3cfa8b412a")
+				.unchecked_into(),
+			array_bytes::hex2array_unchecked("026cf46275ef5df7d320cc5c959fec34636a9b8ba51334d54b6c19380e0643dc31")
 				.unchecked_into(),
 		),
 		(
@@ -156,6 +164,8 @@ fn cess_testnet_genesis() -> serde_json::Value {
 			//cXfwFY2GaMueyyaSrjMRSQM48mLU7Z5JRmdB4FJE7weicJ7pu
 			array_bytes::hex2array_unchecked("2a66038471e6a62a2df2195efef9d25263858711337cf8dc31804f196bdb7840")
 				.unchecked_into(),
+			array_bytes::hex2array_unchecked("034455f01992d48e2e28ac521930a03865324447ce5ba1e8331a42d17315a27f22")
+				.unchecked_into(),
 		),
 		(
 			// cXik7GNf8qYgt6TtGajELHN8QRjd9iy4pd6soPnjcccsenSuh
@@ -177,6 +187,8 @@ fn cess_testnet_genesis() -> serde_json::Value {
 			// cXgqJbnKuaHXi6ssKaLRBK7BsHMYyqnQkhiPuhjjSF1TGZWsF
 			array_bytes::hex2array_unchecked("521917850191d8787c10d9e35a0f3ff218e992e4ed476e5c33f7de5ab04f1a38")
 				.unchecked_into(),
+			array_bytes::hex2array_unchecked("02dcbd5374c49be753cfd8935b9efa0d42eeff7235c3f4a552b7877ef9a50fcbb9")
+				.unchecked_into(),
 		),
 		(
 			array_bytes::hex_n_into_unchecked("3aa51ef77986966c8aa4c801229e3d0210500bc92be5c7c6542fc540826dad7e"),
@@ -190,6 +202,8 @@ fn cess_testnet_genesis() -> serde_json::Value {
 			array_bytes::hex2array_unchecked("fa93c04ccad2297b8f231291d46599fe9ef54db4c2b41f2a5fdd469adf5dfd18")
 				.unchecked_into(),
 			array_bytes::hex2array_unchecked("fa93c04ccad2297b8f231291d46599fe9ef54db4c2b41f2a5fdd469adf5dfd18")
+				.unchecked_into(),
+			array_bytes::hex2array_unchecked("038ac7eac0aa202a33797544dec561b3837fe2bbedb8b1553bfbf08184e0cb9b5d")
 				.unchecked_into(),
 		),
 	];
@@ -259,6 +273,8 @@ fn cess_testnet_config_genesis() -> serde_json::Value {
 				.unchecked_into(),
 			array_bytes::hex2array_unchecked("2a4d86b50b2d98c3bfb02c00f9731753b01f8151774544f4e78e11ef4bb1eb79")
 				.unchecked_into(),
+			array_bytes::hex2array_unchecked("035cea616c14eef7250f8e08a8609b49acdefb2c8dd56ac92f83475b520f4bc673")
+				.unchecked_into(),
 		),
 		(
 			// cXiHpiCFn6xkypa2Q8SroghuME1hBtDDrJYEEAXLwkfy6y277
@@ -279,6 +295,8 @@ fn cess_testnet_config_genesis() -> serde_json::Value {
 				.unchecked_into(),
 			array_bytes::hex2array_unchecked("2a20b3a025722789f18ca7e459ec21d4f232b1a1d245272f14248d3cfa8b412a")
 				.unchecked_into(),
+			array_bytes::hex2array_unchecked("026cf46275ef5df7d320cc5c959fec34636a9b8ba51334d54b6c19380e0643dc31")
+				.unchecked_into(),
 		),
 		(
 			// cXic3WhctsJ9cExmjE9vog49xaLuVbDLcFi2odeEnvV5Sbq4f
@@ -298,6 +316,8 @@ fn cess_testnet_config_genesis() -> serde_json::Value {
 			array_bytes::hex2array_unchecked("2a66038471e6a62a2df2195efef9d25263858711337cf8dc31804f196bdb7840")
 				.unchecked_into(),
 			array_bytes::hex2array_unchecked("2a66038471e6a62a2df2195efef9d25263858711337cf8dc31804f196bdb7840")
+				.unchecked_into(),
+			array_bytes::hex2array_unchecked("034455f01992d48e2e28ac521930a03865324447ce5ba1e8331a42d17315a27f22")
 				.unchecked_into(),
 		),
 	];
@@ -341,6 +361,7 @@ pub fn cess_devnet_generate_config() -> ChainSpec {
 	ChainSpec::builder(wasm_binary_unwrap(), Default::default())
 		.with_name("cess-devnet")
 		.with_id("cess-devnet")
+		.with_protocol_id("cesdn0")
 		.with_chain_type(ChainType::Live)
 		.with_properties(properties())
 		.with_genesis_config_patch(cess_testnet_config_genesis())
@@ -355,6 +376,7 @@ pub fn cess_testnet() -> ChainSpec {
 	ChainSpec::builder(wasm_binary_unwrap(), Default::default())
 		.with_name("cess-testnet")
 		.with_id("cess-testnet")
+		.with_protocol_id("cestn1")
 		.with_chain_type(ChainType::Live)
 		.with_properties(properties())
 		.with_genesis_config_patch(cess_testnet_genesis())
@@ -466,7 +488,7 @@ fn testnet_genesis(
 		"session": {
 			"keys": initial_authorities
 				.iter()
-				.map(|x| (x.0.clone(), x.0.clone(), session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone())))
+				.map(|x| (x.0.clone(), x.0.clone(), session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.7.clone())))
 				.collect::<Vec<_>>()
 		},
 		"staking": {
