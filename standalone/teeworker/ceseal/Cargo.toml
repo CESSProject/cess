@@ -56,35 +56,20 @@ vergen = { version = "8.3", features = ["build", "git", "gitcl"] }
 [patch.crates-io]
 ring = { git = "https://github.com/jasl/ring-xous", branch = "better-wasm32-support" }
 
-frame-benchmarking = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-application-crypto = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-core = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-crypto-ec-utils = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-crypto-hashing = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-debug-derive = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-externalities = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-runtime = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-runtime-interface = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-runtime-interface-proc-macro = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-std = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-storage = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-tracing = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-wasm-interface = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-
-[patch."https://github.com/paritytech/polkadot-sdk"]
-frame-benchmarking = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-application-crypto = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-core = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-crypto-ec-utils = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-debug-derive = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-externalities = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-runtime = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-runtime-interface = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-runtime-interface-proc-macro = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-std = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-storage = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-tracing = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
-sp-wasm-interface = { git = "https://github.com/CESSProject/polkadot-sdk", branch = "stable2412" }
+frame-benchmarking = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
+sp-application-crypto = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
+sp-core = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
+sp-crypto-ec-utils = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
+sp-crypto-hashing = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
+sp-debug-derive = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
+sp-externalities = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
+sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
+sp-runtime-interface = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
+sp-runtime-interface-proc-macro = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
+sp-std = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
+sp-storage = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
+sp-tracing = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
+sp-wasm-interface = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
 
 
 [features]
