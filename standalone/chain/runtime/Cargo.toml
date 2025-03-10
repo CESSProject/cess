@@ -71,6 +71,7 @@ polkadot-sdk = { workspace = true, features = [
 	"pallet-transaction-payment",
 	"pallet-transaction-storage",
 	"pallet-treasury",
+	"pallet-tx-pause",
 	"pallet-utility",
 	"sp-api",
 	"sp-authority-discovery",

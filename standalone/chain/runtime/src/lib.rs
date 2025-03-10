@@ -45,9 +45,9 @@ use frame_support::{
 	traits::{
 		fungible::{HoldConsideration, NativeFromLeft, NativeOrWithId, UnionOf},
 		tokens::{imbalance::ResolveAssetTo, pay::PayAssetFromAccount},
-		AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU32, Currency, EitherOfDiverse, EnsureOriginWithArg,
-		EqualPrivilegeOnly, Imbalance, InstanceFilter, KeyOwnerProofSystem, LinearStoragePrice, Nothing, OnFinalize,
-		OnUnbalanced, VariantCountOf,
+		AsEnsureOriginWithArg, ConstBool, ConstU128, ConstU32, Contains, Currency, EitherOfDiverse,
+		EnsureOriginWithArg, EqualPrivilegeOnly, Everything, Imbalance, InsideBoth, InstanceFilter,
+		KeyOwnerProofSystem, LinearStoragePrice, Nothing, OnFinalize, OnUnbalanced, VariantCountOf,
 	},
 	weights::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_REF_TIME_PER_MILLIS},
@@ -62,11 +62,14 @@ use frame_system::{
 use pallet_asset_conversion::{AccountIdConverter, Ascending, Chain, WithFirstAsset};
 use pallet_asset_conversion_tx_payment::SwapAssetAdapter;
 use pallet_election_provider_multi_phase::{GeometricDepositBase, SolutionAccuracyOf};
+use pallet_file_bank::migration::SteppedFileBank;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical as pallet_session_historical;
+use pallet_sminer::migration::SteppedSminer;
 #[allow(deprecated)]
 pub use pallet_transaction_payment::{CurrencyAdapter, Multiplier, TargetedFeeAdjustment};
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
+use pallet_tx_pause::RuntimeCallNameOf;
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_grandpa::AuthorityId as GrandpaId;
@@ -86,8 +89,6 @@ use sp_staking::currency_to_vote::CurrencyToVote;
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
-use pallet_file_bank::migration::SteppedFileBank;
-use pallet_sminer::migration::SteppedSminer;
 
 // Frontier
 use fp_rpc::TransactionStatus;
@@ -232,8 +233,31 @@ parameter_types! {
 
 const_assert!(NORMAL_DISPATCH_RATIO.deconstruct() >= AVERAGE_ON_INITIALIZE_RATIO.deconstruct());
 
+/// Calls that cannot be paused by the tx-pause pallet.
+pub struct TxPauseWhitelistedCalls;
+/// Whitelist `Balances::transfer_keep_alive`, all others are pauseable.
+impl Contains<RuntimeCallNameOf<Runtime>> for TxPauseWhitelistedCalls {
+	fn contains(full_name: &RuntimeCallNameOf<Runtime>) -> bool {
+		match (full_name.0.as_slice(), full_name.1.as_slice()) {
+			(b"Balances", b"transfer_keep_alive") => true,
+			_ => false,
+		}
+	}
+}
+
+impl pallet_tx_pause::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeCall = RuntimeCall;
+	type PauseOrigin = EnsureRoot<AccountId>;
+	type UnpauseOrigin = EnsureRoot<AccountId>;
+	type WhitelistedCalls = TxPauseWhitelistedCalls;
+	type MaxNameLen = ConstU32<256>;
+	type WeightInfo = pallet_tx_pause::weights::SubstrateWeight<Runtime>;
+}
+
 #[derive_impl(frame_system::config_preludes::SolochainDefaultConfig)]
 impl frame_system::Config for Runtime {
+	type BaseCallFilter = InsideBoth<Everything, TxPause>;
 	type BlockWeights = RuntimeBlockWeights;
 	type BlockLength = RuntimeBlockLength;
 	type DbWeight = RocksDbWeight;
@@ -1405,6 +1429,9 @@ mod runtime {
 	#[runtime::pallet_index(66)]
 	pub type FastUnstake = pallet_fast_unstake::Pallet<Runtime>;
 
+	#[runtime::pallet_index(69)]
+	pub type TxPause = pallet_tx_pause::Pallet<Runtime>;
+
 	#[runtime::pallet_index(72)]
 	pub type MultiBlockMigrations = pallet_migrations::Pallet<Runtime>;
 
@@ -1926,6 +1953,7 @@ mod benches {
 		[pallet_storage_handler, StorageHandler]
 		[pallet_oss, Oss]
 		[pallet_cacher, Cacher]
+		[pallet_tx_pause, TxPause]
 	);
 }
 
