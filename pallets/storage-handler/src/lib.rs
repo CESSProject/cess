@@ -521,6 +521,7 @@ pub mod pallet {
                 .ok_or(Error::<T>::Overflow)?
                 .checked_mul(&gib_count.saturated_into())
                 .ok_or(Error::<T>::Overflow)?;
+
             ensure!(
                 <T as pallet::Config>::Currency::can_slash(&sender, price.clone()),
                 Error::<T>::InsufficientBalance
@@ -979,6 +980,19 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+        #[pallet::call_index(10)]
+        #[pallet::weight(Weight::zero())]
+        pub fn fix_territory_space_for_reactivate(origin: OriginFor<T>, acc: AccountOf<T>, tname: TerrName) -> DispatchResult {
+            let _ = ensure_root(origin)?;
+
+            let territory = <Territory<T>>::try_get(&acc, &tname).map_err(|_| Error::<T>::NotHaveTerritory)?;
+            let mut territory = territory.as_mut().ok_or(Error::<T>::NotHaveTerritory)?;
+            territory.remaining_space = territory.total_space;
+            <Territory<T>>::insert(&acc, &tname, territory);
+
+            Ok(())
+        }
     }
 }
 
@@ -1122,7 +1136,7 @@ impl<T: Config> Pallet<T> {
             let now = <frame_system::Pallet<T>>::block_number();
             
             t.state = TerritoryState::Active;
-            t.remaining_space = 0;
+            t.remaining_space = t.total_space;
             t.locked_space = 0;
             t.used_space = 0;
             t.start = now;
