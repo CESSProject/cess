@@ -986,8 +986,7 @@ pub mod pallet {
         pub fn fix_territory_space_for_reactivate(origin: OriginFor<T>, acc: AccountOf<T>, tname: TerrName) -> DispatchResult {
             let _ = ensure_root(origin)?;
 
-            let territory = <Territory<T>>::try_get(&acc, &tname).map_err(|_| Error::<T>::NotHaveTerritory)?;
-            let mut territory = territory.as_mut().ok_or(Error::<T>::NotHaveTerritory)?;
+            let mut territory = <Territory<T>>::try_get(&acc, &tname).map_err(|_| Error::<T>::NotHaveTerritory)?;
             territory.remaining_space = territory.total_space;
             <Territory<T>>::insert(&acc, &tname, territory);
 
