@@ -9758,6 +9758,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-cess-pause"
+version = "0.1.0"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "pallet-tx-pause",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-cess-staking"
 version = "38.0.0"
 dependencies = [

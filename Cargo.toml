@@ -204,6 +204,7 @@ pallet-society = { git = "https://github.com/paritytech/polkadot-sdk", branch = 
 pallet-tips = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412", default-features = false }
 pallet-utility = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412", default-features = false }
 pallet-vesting = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412", default-features = false }
+pallet-tx-pause = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412", default-features = false }
 pallet-parameters = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412", default-features = false }
 
 #   client dependencies
