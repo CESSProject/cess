@@ -24,6 +24,7 @@ pallet-cess-treasury = { workspace = true }
 pallet-cess-staking = { workspace = true }
 pallet-tee-worker = { workspace = true }
 pallet-storage-handler = { workspace = true }
+pallet-cess-pause = { workspace = true }
 ces-types = { workspace = true, features = ["enable_serde"] }
 cp-enclave-verify = { workspace = true }
 cp-bloom-filter = { workspace = true }
@@ -64,6 +65,7 @@ std = [
 	"pallet-cess-treasury/std",
 	"pallet-tee-worker/std",
 	"pallet-reservoir/std",
+	"pallet-cess-pause/std",
 ]
 
 runtime-benchmarks = [

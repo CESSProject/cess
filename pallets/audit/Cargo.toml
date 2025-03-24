@@ -45,6 +45,7 @@ pallet-sminer = { workspace = true }
 pallet-tee-worker = { workspace = true }
 # local dependencies
 pallet-storage-handler = { workspace = true }
+pallet-cess-pause = { workspace = true }
 
 [dev-dependencies]
 frame-support-test = { workspace = true }
@@ -77,6 +78,7 @@ std = [
 	"cp-cess-common/std",
 	"cp-cess-common/std",
 	"pallet-cess-treasury/std",
+	"pallet-cess-pause/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",

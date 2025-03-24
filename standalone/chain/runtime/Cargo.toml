@@ -115,6 +115,7 @@ cp-cess-common = { workspace = true }
 cp-scheduler-credit = { workspace = true }
 pallet-audit = { workspace = true }
 pallet-cacher = { workspace = true }
+pallet-cess-pause = { workspace = true }
 pallet-cess-staking = { workspace = true }
 pallet-cess-treasury = { workspace = true }
 pallet-evm-account-mapping = { workspace = true }
@@ -172,6 +173,7 @@ std = [
 	"pallet-sminer/std",
 	"pallet-storage-handler/std",
 	"pallet-tee-worker/std",
+	"pallet-cess-pause/std",
 ]
 runtime-benchmarks = [
 	"polkadot-sdk/frame-benchmarking",

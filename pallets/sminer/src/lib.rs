@@ -51,6 +51,7 @@ use sp_runtime::{
 };
 use sp_staking::StakingInterface;
 use sp_std::{convert::TryInto, marker::PhantomData, prelude::*};
+use pallet_cess_pause::Pauseable;
 pub use pallet::*;
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -149,6 +150,8 @@ pub mod pallet {
 
 		/// The preimage provider with which we look up call hashes to get the call.
 		type Preimages: QueryPreimage<H = Self::Hashing> + StorePreimage;
+
+		type Pauseable: Pauseable;
 	}
 
 	#[pallet::event]
@@ -381,6 +384,9 @@ pub mod pallet {
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(now: BlockNumberFor<T>) -> Weight {
 			let mut weight: Weight = Weight::zero();
+			if !T::Pauseable::is_paused("Sminer".as_bytes().to_vec()) {
+				return weight;
+			}
 			let miner_list = ReturnStakingSchedule::<T>::get(&now);
 			weight = weight.saturating_add(T::DbWeight::get().reads(1));
 			for (miner, staking_acc, collaterals) in miner_list {

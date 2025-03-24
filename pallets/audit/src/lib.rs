@@ -85,6 +85,8 @@ use sp_std::{
 	prelude::*,
 };
 use ces_types::{TeeSig, WorkerPublicKey};
+use pallet_cess_pause::Pauseable;
+
 pub use weights::WeightInfo;
 
 type AccountOf<T> = <T as frame_system::Config>::AccountId;
@@ -209,6 +211,8 @@ pub mod pallet {
 		type ReassignCeiling: Get<u8> + Clone + Eq + PartialEq;
 
 		type CreditCounter: SchedulerCreditCounter<Self::AccountId>;
+
+		type Pauseable: Pauseable;
 	}
 
 	#[pallet::event]
@@ -321,6 +325,9 @@ pub mod pallet {
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(now: BlockNumberFor<T>) -> Weight {
 			let weight: Weight = Weight::zero();
+			if !T::Pauseable::is_paused("Audit".as_bytes().to_vec()) {
+				return weight;
+			}
 			weight
 				.saturating_add(Self::generate_challenge(now))
 				.saturating_add(Self::clear_challenge(now))

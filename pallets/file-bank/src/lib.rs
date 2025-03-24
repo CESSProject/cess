@@ -78,6 +78,7 @@ use pallet_sminer::MinerControl;
 use pallet_tee_worker::TeeWorkerHandler;
 use pallet_oss::OssFindAuthor;
 use ces_types::WorkerPublicKey;
+use pallet_cess_pause::Pauseable;
 
 pub use weights::WeightInfo;
 
@@ -151,6 +152,8 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type MissionCount: Get<u32> + Clone + Eq + PartialEq;
+
+		type Pauseable: Pauseable;
 	}
 
 	#[pallet::event]
@@ -294,6 +297,10 @@ pub mod pallet {
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(_now: BlockNumberFor<T>) -> Weight {
 			let mut weight: Weight = Weight::zero();
+
+			if !T::Pauseable::is_paused("FileBank".as_bytes().to_vec()) {
+				return weight;
+			}
 			
 			let (temp_weight, clear_list) = T::StorageHandle::frozen_task();
 			weight = weight.saturating_add(temp_weight);

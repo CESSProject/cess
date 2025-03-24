@@ -26,6 +26,7 @@ pub use pallet::*;
 use scale_info::TypeInfo;
 use sp_runtime::{DispatchError, RuntimeDebug, SaturatedConversion, Saturating};
 use sp_std::{convert::TryInto, prelude::*};
+use pallet_cess_pause::Pauseable;
 pub use weights::WeightInfo;
 pub mod weights;
 
@@ -111,6 +112,8 @@ pub mod pallet {
 
 		/// Origin used to govern the pallet
 		type GovernanceOrigin: EnsureOrigin<Self::RuntimeOrigin>;
+
+		type Pauseable: Pauseable;
 	}
 
 	#[pallet::event]
@@ -325,7 +328,9 @@ pub mod pallet {
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(now: BlockNumberFor<T>) -> Weight {
 			let weight: Weight = Weight::zero();
-
+			if !T::Pauseable::is_paused("TeeWorker".as_bytes().to_vec()) {
+				return weight;
+			}
 			let least = T::AtLeastWorkBlock::get();
 			if now % least == 0u32.saturated_into() {
 				weight.saturating_add(Self::clear_mission(now));

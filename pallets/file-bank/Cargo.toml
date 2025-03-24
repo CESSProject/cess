@@ -42,6 +42,7 @@ pallet-rrsc = { workspace = true, optional = true }
 pallet-sminer = { workspace = true }
 pallet-storage-handler = { workspace = true }
 pallet-tee-worker = { workspace = true }
+pallet-cess-pause = { workspace = true }
 
 
 # dev dependencies
@@ -77,6 +78,7 @@ std = [
 	"pallet-scheduler/std",
 	"pallet-storage-handler/std",
 	"pallet-tee-worker/std",
+	"pallet-cess-pause/std",
 	"cp-scheduler-credit/std",
 	"cp-cess-common/std",
 ]

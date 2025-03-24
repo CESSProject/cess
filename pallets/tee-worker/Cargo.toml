@@ -28,6 +28,7 @@ sp-std = { workspace = true }
 cp-cess-common = { workspace = true }
 cp-scheduler-credit = { workspace = true }
 pallet-cess-staking = { workspace = true }
+pallet-cess-pause = { workspace = true }
 sgx-attestation = { workspace = true }
 ces-types = { workspace = true, features = ["enable_serde"] }
 ces-pallet-mq ={ workspace = true }

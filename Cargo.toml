@@ -449,6 +449,7 @@ node-executor = { path = "standalone/chain/executor" }
 node-rpc = { path = "standalone/chain/rpc" }
 pallet-audit = { path = "pallets/audit", default-features = false }
 pallet-cacher = { path = "pallets/cacher", default-features = false }
+pallet-cess-pause  = { path = "pallets/cess-pause", default-features = false }
 pallet-cess-staking = { path = "pallets/staking", default-features = false }
 pallet-cess-treasury = { path = "pallets/cess-treasury", default-features = false }
 pallet-evm-account-mapping = { path = "pallets/evm-account-mapping", default-features = false }

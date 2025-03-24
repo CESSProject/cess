@@ -1488,6 +1488,9 @@ mod runtime {
 
 	#[runtime::pallet_index(111)]
 	pub type EvmAccountMapping = pallet_evm_account_mapping::Pallet<Runtime>;
+
+	#[runtime::pallet_index(112)]
+	pub type CessPause = pallet_cess_pause::Pallet<Runtime>;
 	//------------------- CESS's end ---------------------
 }
 
@@ -1619,6 +1622,7 @@ impl pallet_tee_worker::Config for Runtime {
 	type NoneAttestationEnabled = NoneAttestationEnabled;
 	type VerifyCeseal = VerifyCeseal;
 	type GovernanceOrigin = EnsureRootOrHalfCouncil;
+	type Pauseable = CessPause;
 }
 
 pub struct DealWithServiceFee;
@@ -1696,6 +1700,7 @@ impl pallet_file_bank::Config for Runtime {
 	type NameMinLength = NameMinLength;
 	type RestoralOrderLife = RestoralOrderLife;
 	type MissionCount = MissionCount;
+	type Pauseable = CessPause;
 }
 
 parameter_types! {
@@ -1725,6 +1730,7 @@ impl pallet_sminer::Config for Runtime {
 	type ReservoirGate = Reservoir;
 	type Staking = Staking;
 	type Preimages = Preimage;
+	type Pauseable = CessPause;
 }
 
 parameter_types! {
@@ -1770,6 +1776,7 @@ impl pallet_audit::Config for Runtime {
 	type SigmaMax = SigmaMax;
 	type IdleTotalHashLength = IdleTotalHashLength;
 	type ReassignCeiling = ReassignCeiling;
+	type Pauseable = CessPause;
 }
 
 parameter_types! {
@@ -1802,6 +1809,10 @@ impl pallet_storage_handler::Config for Runtime {
 	type FrozenDays = FrozenDays;
 	type CessTreasuryHandle = CessTreasury;
 	type FrozenLimit = FrozenLimit;
+}
+
+impl pallet_cess_pause::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
 }
 
 parameter_types! {
