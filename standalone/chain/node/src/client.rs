@@ -5,7 +5,6 @@ use sc_executor::WasmExecutor;
 use sp_runtime::traits::{Block as BlockT, MaybeDisplay};
 
 use crate::eth::EthCompatRuntimeApiCollection;
-use ces_pallet_mq_runtime_api::MqApi;
 
 /// Full backend.
 pub(crate) type FullBackend<B> = sc_service::TFullBackend<B>;
@@ -51,7 +50,6 @@ pub trait RuntimeApiCollection<
 	+ sp_authority_discovery::AuthorityDiscoveryApi<Block>
 	+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
 	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
-	+ MqApi<Block>
 {
 }
 
@@ -69,6 +67,5 @@ where
 		+ sp_authority_discovery::AuthorityDiscoveryApi<Block>
 		+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
 		+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
-		+ MqApi<Block>
 {
 }

@@ -1,6 +1,6 @@
 use crate::{
-    expert::{CesealExpertStub, ExternalResourceKind},
-    types::ThreadPoolSafeBox,
+    ext_res_permit::{PermitKind, Permitter, PermitterAware},
+    CesealMasterKey, RpcResult,
 };
 use anyhow::{anyhow, Result};
 use ces_crypto::sr25519::Signing;
@@ -16,52 +16,68 @@ use crypto::{digest::Digest, sha2::Sha256};
 use log::info;
 use parity_scale_codec::Encode;
 use sp_core::{bounded::BoundedVec, crypto::AccountId32, sr25519, ByteArray, ConstU32, Pair};
-use std::{error::Error, io::ErrorKind, time::Instant};
+use std::{
+    error::Error,
+    io::ErrorKind,
+    sync::{Arc, Mutex},
+    time::Instant,
+};
 use tokio::sync::mpsc;
 use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tonic::{Request, Response, Status, Streaming};
-// type ResponseStream = Pin<Box<dyn Stream<Item = Result<ResponseGenTag, Status>> + Send>>;
 
 mod proxy;
 
 pub type Podr2ApiServer = podr2_api_server::Podr2ApiServer<Podr2ApiServerProxy<Podr2Server>>;
 pub type Podr2VerifierApiServer =
     podr2_verifier_api_server::Podr2VerifierApiServer<Podr2VerifierApiServerProxy<Podr2VerifierServer>>;
-pub type Podr2Result<T> = Result<Response<T>, Status>;
 
 pub use proxy::{Podr2ApiServerProxy, Podr2VerifierApiServerProxy};
 
-pub fn new_podr2_api_server(ceseal_expert: CesealExpertStub) -> Podr2ApiServer {
-    let podr2_keys =
-        ces_pdp::gen_keypair_from_private_key(ceseal_expert.ceseal_props().master_key.rsa_private_key().clone());
-    let master_key = ceseal_expert.ceseal_props().master_key.sr25519_keypair().clone();
+use threadpool::ThreadPool;
+
+pub type ThreadPoolSafeBox = Arc<Mutex<ThreadPool>>;
+
+pub fn new_podr2_api_server(
+    identity_pubkey: [u8; 32],
+    master_key: CesealMasterKey,
+    res_permitter: Permitter,
+    thread_pool: ThreadPoolSafeBox,
+) -> Podr2ApiServer {
+    // let thread_pool = threadpool::ThreadPool::new(thread_pool_cap);
+    // info!("PODR2 compute thread pool capacity: {}", thread_pool.max_count());
+    let podr2_keys = ces_pdp::gen_keypair_from_private_key(master_key.rsa_private_key().clone());
+    let master_key = master_key.sr25519_keypair().clone();
     let inner = Podr2ApiServerProxy {
         inner: Podr2Server {
             podr2_keys,
             master_key,
-            threadpool: ceseal_expert.thread_pool(),
+            threadpool: thread_pool,
             block_num: 1024,
-            ceseal_identity_key: ceseal_expert.identify_public_key().0,
-            ceseal_expert: ceseal_expert.clone(),
+            ceseal_identity_key: identity_pubkey,
+            res_permitter,
         },
-        ceseal_expert,
     };
     Podr2ApiServer::new(inner)
 }
 
-pub fn new_podr2_verifier_api_server(ceseal_expert: CesealExpertStub) -> Podr2VerifierApiServer {
-    let podr2_keys =
-        ces_pdp::gen_keypair_from_private_key(ceseal_expert.ceseal_props().master_key.rsa_private_key().clone());
-    let master_key = ceseal_expert.ceseal_props().master_key.sr25519_keypair().clone();
+pub fn new_podr2_verifier_api_server(
+    identity_pubkey: [u8; 32],
+    master_key: CesealMasterKey,
+    res_permitter: Permitter,
+    thread_pool: ThreadPoolSafeBox,
+) -> Podr2VerifierApiServer {
+    let podr2_keys = ces_pdp::gen_keypair_from_private_key(master_key.rsa_private_key().clone());
+    let master_key = master_key.sr25519_keypair().clone();
     let inner = Podr2VerifierApiServerProxy {
         inner: Podr2VerifierServer {
             podr2_keys,
             master_key,
-            threadpool: ceseal_expert.thread_pool(),
+            threadpool: thread_pool,
             block_num: 1024,
-            ceseal_identity_key: ceseal_expert.identify_public_key().0,
+            ceseal_identity_key: identity_pubkey,
+            res_permitter,
         },
-        ceseal_expert,
     };
     Podr2VerifierApiServer::new(inner)
 }
@@ -72,7 +88,13 @@ pub struct Podr2Server {
     pub threadpool: ThreadPoolSafeBox,
     pub block_num: u64,
     pub ceseal_identity_key: [u8; 32],
-    pub ceseal_expert: CesealExpertStub,
+    res_permitter: Permitter,
+}
+
+impl PermitterAware for Podr2Server {
+    fn permitter(&self) -> &Permitter {
+        &self.res_permitter
+    }
 }
 
 pub struct Podr2VerifierServer {
@@ -81,6 +103,13 @@ pub struct Podr2VerifierServer {
     pub ceseal_identity_key: [u8; 32],
     pub threadpool: ThreadPoolSafeBox,
     pub block_num: u64,
+    res_permitter: Permitter,
+}
+
+impl PermitterAware for Podr2VerifierServer {
+    fn permitter(&self) -> &Permitter {
+        &self.res_permitter
+    }
 }
 
 struct Podr2Hash {
@@ -140,7 +169,7 @@ impl Podr2Api for Podr2Server {
     async fn request_gen_tag<'life0>(
         &'life0 self,
         request: Request<Streaming<RequestGenTag>>,
-    ) -> Podr2Result<Self::request_gen_tagStream> {
+    ) -> RpcResult<Self::request_gen_tagStream> {
         let mut in_stream = request.into_inner();
         let mut stream_rec_times = 0;
         let (resp_tx, resp_rx) = mpsc::channel(128);
@@ -151,16 +180,12 @@ impl Podr2Api for Podr2Server {
             threadpool: self.threadpool.clone(),
             block_num: self.block_num.clone(),
             ceseal_identity_key: self.ceseal_identity_key.clone(),
-            ceseal_expert: self.ceseal_expert.clone(),
+            res_permitter: self.res_permitter.clone(),
         };
         //start receive
         tokio::spawn(async move {
             while let Some(result) = in_stream.next().await {
-                let _permit = match new_self
-                    .ceseal_expert
-                    .try_acquire_permit(ExternalResourceKind::Pord2Service)
-                    .await
-                {
+                let _permit = match new_self.res_permitter.try_acquire_permit(PermitKind::Pord2Service).await {
                     Ok(p) => p,
                     Err(err) => {
                         resp_tx
@@ -230,7 +255,7 @@ impl Podr2Api for Podr2Server {
     }
 
     /// A echo rpc to measure network RTT.
-    async fn echo(&self, request: Request<EchoMessage>) -> Podr2Result<EchoMessage> {
+    async fn echo(&self, request: Request<EchoMessage>) -> RpcResult<EchoMessage> {
         let echo_msg = request.into_inner().echo_msg;
         Ok(Response::new(EchoMessage { echo_msg }))
     }
@@ -244,7 +269,7 @@ impl Podr2VerifierApi for Podr2VerifierServer {
     async fn request_batch_verify(
         &self,
         request: tonic::Request<RequestBatchVerify>,
-    ) -> Podr2Result<ResponseBatchVerify> {
+    ) -> RpcResult<ResponseBatchVerify> {
         let request = request.into_inner();
         let now = Instant::now();
         let mut result = ResponseBatchVerify::default();
@@ -361,7 +386,7 @@ impl Podr2VerifierApi for Podr2VerifierServer {
     async fn request_aggregate_signature(
         &self,
         request: tonic::Request<RequestAggregateSignature>,
-    ) -> Podr2Result<ResponseAggregateSignature> {
+    ) -> RpcResult<ResponseAggregateSignature> {
         let request = request.into_inner();
         let qslices = if let Some(qslices) = request.qslices {
             qslices
@@ -575,7 +600,7 @@ impl Podr2Server {
             threadpool: self.threadpool.clone(),
             block_num: self.block_num.clone(),
             ceseal_identity_key: self.ceseal_identity_key.clone(),
-            ceseal_expert: self.ceseal_expert.clone(),
+            res_permitter: self.res_permitter.clone(),
         };
         let tag = tokio::task::spawn_blocking(move || {
             let pool = new_self

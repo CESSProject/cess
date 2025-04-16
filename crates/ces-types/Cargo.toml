@@ -16,7 +16,6 @@ sp-core = { workspace = true }
 sp-std = { workspace = true }
 sp-crypto-hashing = { workspace = true }
 
-ces-mq = { workspace = true  }
 sgx-attestation = { workspace = true, features = ["verify"] }
 
 
@@ -34,7 +33,6 @@ std = [
 	"full_crypto",
 	"sp-core/std",
 	"sp-std/std",
-	"ces-mq/std",
 	"sgx-attestation/std",
 ]
 enable_serde = [

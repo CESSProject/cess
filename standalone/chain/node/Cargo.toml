@@ -104,9 +104,6 @@ polkadot-sdk = { workspace = true, default-features = true, features = [
 
 cess-node-primitives = { workspace = true, features = ["std"] }
 cess-node-runtime = { workspace = true, features = ["std"] }
-ces-node-rpc-ext = { workspace = true }
-ces-pallet-mq = { workspace = true }
-ces-pallet-mq-runtime-api = { workspace = true }
 pallet-audit = { workspace = true, features = ["default"] }
 
 # Frontier

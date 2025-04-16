@@ -1,0 +1,50 @@
+
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+package handover_api;
+
+// The Handover service definition.
+service HandoverApi {
+  // Key Handover Server: Get challenge for worker key handover from another ceSeal
+  rpc HandoverCreateChallenge (google.protobuf.Empty) returns (HandoverChallenge) {}
+
+  // Key Handover Server: Get worker key with RA report on challenge from another ceSeal
+  rpc HandoverStart (HandoverChallengeResponse) returns (HandoverWorkerKey) {}
+
+}
+
+message Attestation {
+  int32 version = 1;
+  string provider = 2;
+  AttestationReport payload = 3; // Retired
+  bytes encoded_report = 5;
+  uint64 timestamp = 4;
+}
+
+// Retired
+message AttestationReport {
+  string report = 1;
+  bytes signature = 2;
+  bytes signing_cert = 3;
+}
+
+message HandoverChallenge {
+  // @codec scale ces_types::HandoverChallenge<BlockNumber>
+  bytes encoded_challenge = 1;
+}
+
+message HandoverChallengeResponse {
+  // @codec scale ces_types::ChallengeHandlerInfo<BlockNumber>
+  bytes encoded_challenge_handler = 1;
+  // The sgx attestation on the challenge handler hash
+  Attestation attestation = 2;
+}
+
+message HandoverWorkerKey {
+  // @codec scale ces_types::EncryptedWorkerKey
+  bytes encoded_worker_key = 1;
+  // The sgx attestation on the encrypted worker key hash
+  Attestation attestation = 2;
+}

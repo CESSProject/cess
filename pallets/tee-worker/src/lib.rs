@@ -11,6 +11,7 @@ pub use types::*;
 #[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 
+use alloc::string::{String, ToString};
 use ces_types::{MasterPublicKey, WorkerPublicKey, WorkerRole};
 use codec::{Decode, Encode};
 use cp_cess_common::*;
@@ -22,10 +23,11 @@ use frame_support::{
 	BoundedVec, PalletId,
 };
 use frame_system::{ensure_signed, pallet_prelude::*};
-pub use pallet::*;
 use scale_info::TypeInfo;
 use sp_runtime::{DispatchError, RuntimeDebug, SaturatedConversion, Saturating};
 use sp_std::{convert::TryInto, prelude::*};
+
+pub use pallet::*;
 pub use weights::WeightInfo;
 pub mod weights;
 
@@ -51,29 +53,16 @@ pub mod pallet {
 	use scale_info::TypeInfo;
 	use sp_core::H256;
 
-	use ces_pallet_mq::MessageOriginInfo;
 	use ces_types::{
 		attestation::{self, Error as AttestationError},
-		messaging::{bind_topic, DecodedMessage, MasterKeyApply, MasterKeyLaunch, MessageOrigin, WorkerEvent},
-		wrap_content_to_sign, AttestationProvider, EcdhPublicKey, MasterKeyApplyPayload, SignedContentType,
-		WorkerEndpointPayload, WorkerRegistrationInfo,
+		AttestationProvider, EcdhPublicKey, MasterKeyApplyPayload, MasterKeyDistributePayload, MasterKeyLaunchPayload,
+		WorkerRegistrationInfo,
 	};
 
 	// Re-export
 	pub use ces_types::AttestationReport;
 	// TODO: Legacy
-	pub use ces_types::attestation::legacy::{Attestation, AttestationValidator, SgxFields, IasValidator};
-
-	bind_topic!(MasterKeySubmission, b"^cess/masterkey/submit");
-	#[derive(Encode, Decode, TypeInfo, Clone, Debug)]
-	pub enum MasterKeySubmission {
-		///	MessageOrigin::Worker -> Pallet
-		///
-		/// Only used for first master pubkey upload, the origin has to be worker identity since there is no master
-		/// pubkey on-chain yet.
-		MasterPubkey { master_pubkey: MasterPublicKey },
-	}
-
+	pub use ces_types::attestation::legacy::{Attestation, AttestationValidator, IasValidator, SgxFields};
 	#[pallet::config]
 	pub trait Config: frame_system::Config + pallet_cess_staking::Config {
 		/// The overarching event type.
@@ -126,8 +115,13 @@ pub mod pallet {
 
 		MasterKeyLaunched,
 
-		MasterKeyApplied {
-			worker_pubkey: WorkerPublicKey,
+		MasterKeyAppling {
+			applier: WorkerPublicKey,
+			distributor: WorkerPublicKey,
+		},
+
+		MasterKeySubmitted {
+			receiver: WorkerPublicKey,
 		},
 
 		WorkerAdded {
@@ -277,6 +271,13 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type MasterKeyLaunchedAt<T: Config> = StorageValue<_, (BlockNumberFor<T>, u64)>;
 
+	#[pallet::storage]
+	pub type MasterKeyPostation<T: Config> =
+		StorageMap<_, Twox64Concat, WorkerPublicKey, Option<(BlockNumberFor<T>, MasterKeyDistributePayload)>>;
+
+	#[pallet::storage]
+	pub type MasterKeyDistributeNotify<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerPublicKey>;
+
 	/// Mapping from worker pubkey to WorkerInfo
 	#[pallet::storage]
 	pub type Workers<T: Config> = CountedStorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfo<T::AccountId>>;
@@ -297,6 +298,7 @@ pub mod pallet {
 	pub type CesealBinAddedAt<T: Config> = StorageMap<_, Twox64Concat, H256, BlockNumberFor<T>>;
 
 	/// Mapping from worker pubkey to CESS Network identity
+	/// deprecated, use Workers element value.endpoint instead
 	#[pallet::storage]
 	pub type Endpoints<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, alloc::string::String>;
 
@@ -309,10 +311,6 @@ pub mod pallet {
 	/// Ceseals whoes version less than MinimumCesealVersion would be forced to quit.
 	#[pallet::storage]
 	pub type MinimumCesealVersion<T: Config> = StorageValue<_, (u32, u32, u32), ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn is_note_stalled)]
-	pub type NoteStalled<T: Config> = StorageValue<_, bool>;
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
@@ -331,23 +329,35 @@ pub mod pallet {
 				weight.saturating_add(Self::clear_mission(now));
 			}
 
+			weight.saturating_add(Self::clean_expired_master_key_postation(now));
+
 			weight
 		}
 	}
 
 	#[pallet::call]
-	impl<T: Config> Pallet<T>
-	where
-		T: ces_pallet_mq::Config,
-	{
+	impl<T: Config> Pallet<T> {
+		/// Registers a worker on the blockchain.
+		///
+		/// Both support DCAP and EPID attestation type.
 		#[pallet::call_index(1)]
 		#[pallet::weight({0})]
-		pub fn refresh_tee_status(
+		pub fn register_worker(
 			origin: OriginFor<T>,
 			ceseal_info: WorkerRegistrationInfo<T::AccountId>,
 			attestation: Box<Option<AttestationReport>>,
 		) -> DispatchResult {
 			ensure_signed(origin)?;
+			match &ceseal_info.stash_account {
+				Some(acc) => {
+					<pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond)?;
+					ensure!(
+						ceseal_info.role == WorkerRole::Verifier || ceseal_info.role == WorkerRole::Full,
+						Error::<T>::WrongTeeType
+					);
+				},
+				None => ensure!(ceseal_info.role == WorkerRole::Marker, Error::<T>::WrongTeeType),
+			};
 			// Validate RA report & embedded user data
 			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
 			let runtime_info_hash = crate::hashing::blake2_256(&Encode::encode(&ceseal_info));
@@ -363,25 +373,62 @@ pub mod pallet {
 
 			// Update the registry
 			let pubkey = ceseal_info.pubkey;
+			ensure!(!Workers::<T>::contains_key(&pubkey), Error::<T>::CesealAlreadyExists);
 
-			Workers::<T>::try_mutate(&pubkey, |worker_opt| -> DispatchResult {
-				let worker = worker_opt.as_mut().ok_or(Error::<T>::NonTeeWorker)?;
+			if !Workers::<T>::contains_key(&pubkey) {
+				let worker_info = WorkerInfo {
+					pubkey,
+					ecdh_pubkey: ceseal_info.ecdh_pubkey,
+					version: ceseal_info.version,
+					last_updated: now,
+					stash_account: ceseal_info.stash_account,
+					attestation_provider: attestation_report.provider,
+					confidence_level: attestation_report.confidence_level,
+					features: ceseal_info.features,
+					role: ceseal_info.role.clone(),
+					endpoint: ceseal_info.endpoint.clone(),
+				};
 
-				worker.confidence_level = attestation_report.confidence_level;
+				Workers::<T>::insert(&pubkey, worker_info);
+				WorkerAddedAt::<T>::insert(&pubkey, frame_system::Pallet::<T>::block_number());
+				Endpoints::<T>::insert(&pubkey, ceseal_info.endpoint.clone()); //will deprecated
+				let now = <frame_system::Pallet<T>>::block_number();
+				<LastWork<T>>::insert(&pubkey, now);
+				<LastRefresh<T>>::insert(&pubkey, now);
 
-				Ok(())
-			})?;
+				if ceseal_info.role == WorkerRole::Full || ceseal_info.role == WorkerRole::Verifier {
+					ValidationTypeList::<T>::mutate(|puk_list| -> DispatchResult {
+						puk_list.try_push(pubkey).map_err(|_| Error::<T>::BoundedVecError)?;
+						Ok(())
+					})?;
+				}
 
-			let now = <frame_system::Pallet<T>>::block_number();
-			<LastRefresh<T>>::insert(&pubkey, now);
-
-			Self::deposit_event(Event::<T>::RefreshStatus {
-				pubkey,
-				level: attestation_report.confidence_level,
-			});
+				Self::deposit_event(Event::<T>::WorkerAdded {
+					pubkey,
+					attestation_provider: attestation_report.provider,
+					confidence_level: attestation_report.confidence_level,
+				});
+			} else {
+				Workers::<T>::try_mutate(&pubkey, |worker_opt| -> DispatchResult {
+					let worker = worker_opt.as_mut().ok_or(Error::<T>::NonTeeWorker)?;
+					worker.version = ceseal_info.version;
+					worker.last_updated = now;
+					worker.stash_account = ceseal_info.stash_account;
+					worker.attestation_provider = attestation_report.provider;
+					worker.confidence_level = attestation_report.confidence_level;
+					worker.features = ceseal_info.features;
+					worker.role = ceseal_info.role;
+					worker.endpoint = ceseal_info.endpoint.clone();
+					Ok(())
+				})?;
+				<LastRefresh<T>>::insert(&pubkey, <frame_system::Pallet<T>>::block_number());
+				Endpoints::<T>::insert(&pubkey, ceseal_info.endpoint.clone());
+				Self::deposit_event(Event::<T>::RefreshStatus { pubkey, level: attestation_report.confidence_level });
+			}
 
 			Ok(())
 		}
+
 		/// Force register a worker with the given pubkey with sudo permission
 		///
 		/// For test only.
@@ -404,10 +451,10 @@ pub mod pallet {
 				confidence_level: 128u8,
 				features: vec![1, 4],
 				role: WorkerRole::Full,
+				endpoint: "https://cess.network/".to_string(),
 			};
 			Workers::<T>::insert(worker_info.pubkey, &worker_info);
 			WorkerAddedAt::<T>::insert(worker_info.pubkey, frame_system::Pallet::<T>::block_number());
-			Self::push_message(WorkerEvent::new_worker(pubkey));
 			Self::deposit_event(Event::<T>::WorkerAdded {
 				pubkey,
 				attestation_provider: Some(AttestationProvider::Root),
@@ -428,11 +475,38 @@ pub mod pallet {
 			ensure!(MasterPubkey::<T>::get().is_none(), Error::<T>::MasterKeyAlreadyLaunched);
 			ensure!(MasterKeyFirstHolder::<T>::get().is_none(), Error::<T>::MasterKeyLaunching);
 
-			let worker_info = Workers::<T>::get(worker_pubkey).ok_or(Error::<T>::WorkerNotFound)?;
+			let _worker_info = Workers::<T>::get(worker_pubkey).ok_or(Error::<T>::WorkerNotFound)?;
 			MasterKeyFirstHolder::<T>::put(worker_pubkey);
-			Self::push_message(MasterKeyLaunch::launch_request(worker_pubkey, worker_info.ecdh_pubkey));
 			// wait for the lead worker to upload the master pubkey
 			Self::deposit_event(Event::<T>::MasterKeyLaunching { holder: worker_pubkey });
+			Ok(())
+		}
+
+		#[pallet::call_index(31)]
+		#[pallet::weight({0})]
+		pub fn settle_master_key_launch(
+			origin: OriginFor<T>,
+			payload: MasterKeyLaunchPayload,
+			_signature: Vec<u8>,
+		) -> DispatchResult {
+			ensure_signed(origin)?;
+			let holder = MasterKeyFirstHolder::<T>::get().ok_or(Error::<T>::MasterKeyLaunchRequire)?;
+			ensure!(payload.launcher.0 == holder.0, Error::<T>::InvalidMasterKeyFirstHolder);
+			match MasterPubkey::<T>::try_get() {
+				Ok(saved_pubkey) => {
+					ensure!(
+						saved_pubkey.0 == payload.master_pubkey.0,
+						Error::<T>::MasterKeyMismatch // Oops, this is really bad
+					);
+				},
+				_ => {
+					MasterPubkey::<T>::put(payload.master_pubkey);
+					let block_number = frame_system::Pallet::<T>::block_number();
+					let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
+					MasterKeyLaunchedAt::<T>::put((block_number, now));
+					Self::deposit_event(Event::<T>::MasterKeyLaunched);
+				},
+			}
 			Ok(())
 		}
 
@@ -452,197 +526,6 @@ pub mod pallet {
 				list.push(old_pubkey2);
 			});
 			MasterPubkey::<T>::kill();
-			Self::reset_keyfairy_channel_seq();
-
-			Ok(())
-		}
-
-		/// Registers a worker on the blockchain
-		/// This is the legacy version that support EPID attestation type only.
-		///
-		/// Usually called by a bridging relayer program (`cifrost`). Can be called by
-		/// anyone on behalf of a worker.
-		#[pallet::call_index(16)]
-		#[pallet::weight({0})]
-		pub fn register_worker(
-			origin: OriginFor<T>,
-			ceseal_info: WorkerRegistrationInfo<T::AccountId>,
-			attestation: Attestation,
-		) -> DispatchResult {
-			ensure_signed(origin)?;
-			// Validate RA report & embedded user data
-			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
-			let runtime_info_hash = crate::hashing::blake2_256(&Encode::encode(&ceseal_info));
-			let fields = T::LegacyAttestationValidator::validate(
-				&attestation,
-				&runtime_info_hash,
-				now,
-				T::VerifyCeseal::get(),
-				CesealBinAllowList::<T>::get(),
-			)
-			.map_err(Into::<Error<T>>::into)?;
-
-			// Update the registry
-			let pubkey = ceseal_info.pubkey;
-			ensure!(!Workers::<T>::contains_key(&pubkey), Error::<T>::CesealAlreadyExists);
-
-			match &ceseal_info.operator {
-				Some(acc) => {
-					<pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond)?;
-					ensure!(ceseal_info.role == WorkerRole::Verifier || ceseal_info.role == WorkerRole::Full, Error::<T>::WrongTeeType);
-				},
-				None => ensure!(ceseal_info.role == WorkerRole::Marker, Error::<T>::WrongTeeType),
-			};
-
-			let worker_info = WorkerInfo {
-				pubkey,
-				ecdh_pubkey: ceseal_info.ecdh_pubkey,
-				version: ceseal_info.version,
-				last_updated: now,
-				stash_account: ceseal_info.operator,
-				attestation_provider: Some(AttestationProvider::Ias),
-				confidence_level: fields.confidence_level,
-				features: ceseal_info.features,
-				role: ceseal_info.role.clone(),
-			};
-
-			Workers::<T>::insert(&pubkey, worker_info);
-			let now = <frame_system::Pallet<T>>::block_number();
-			<LastWork<T>>::insert(&pubkey, now);
-			<LastRefresh<T>>::insert(&pubkey, now);
-
-			if ceseal_info.role == WorkerRole::Full || ceseal_info.role == WorkerRole::Verifier {
-				ValidationTypeList::<T>::mutate(|puk_list| -> DispatchResult {
-					puk_list
-						.try_push(pubkey)
-						.map_err(|_| Error::<T>::BoundedVecError)?;
-					Ok(())
-				})?;
-			}
-
-			Self::push_message(WorkerEvent::new_worker(pubkey));
-			Self::deposit_event(Event::<T>::WorkerAdded {
-				pubkey,
-				attestation_provider: Some(AttestationProvider::Ias),
-				confidence_level: fields.confidence_level,
-			});
-			WorkerAddedAt::<T>::insert(pubkey, frame_system::Pallet::<T>::block_number());
-
-			Ok(())
-		}
-
-		/// Registers a worker on the blockchain.
-		/// This is the version 2 that both support DCAP attestation type.
-		///
-		/// Usually called by a bridging relayer program (`cifrost`). Can be called by
-		/// anyone on behalf of a worker.
-		#[pallet::call_index(17)]
-		#[pallet::weight({0})]
-		pub fn register_worker_v2(
-			origin: OriginFor<T>,
-			ceseal_info: WorkerRegistrationInfo<T::AccountId>,
-			attestation: Box<Option<AttestationReport>>,
-		) -> DispatchResult {
-			ensure_signed(origin)?;
-			// Validate RA report & embedded user data
-			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
-			let runtime_info_hash = crate::hashing::blake2_256(&Encode::encode(&ceseal_info));
-			let attestation_report = attestation::validate(
-				*attestation,
-				&runtime_info_hash,
-				now,
-				T::VerifyCeseal::get(),
-				CesealBinAllowList::<T>::get(),
-				T::NoneAttestationEnabled::get(),
-			)
-			.map_err(Into::<Error<T>>::into)?;
-
-			// Update the registry
-			let pubkey = ceseal_info.pubkey;
-			ensure!(!Workers::<T>::contains_key(&pubkey), Error::<T>::CesealAlreadyExists);
-
-			match &ceseal_info.operator {
-				Some(acc) => {
-					<pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond)?;
-					ensure!(ceseal_info.role == WorkerRole::Verifier || ceseal_info.role == WorkerRole::Full, Error::<T>::WrongTeeType);
-				},
-				None => ensure!(ceseal_info.role == WorkerRole::Marker, Error::<T>::WrongTeeType),
-			};
-
-			let worker_info = WorkerInfo {
-				pubkey,
-				ecdh_pubkey: ceseal_info.ecdh_pubkey,
-				version: ceseal_info.version,
-				last_updated: now,
-				stash_account: ceseal_info.operator,
-				attestation_provider: attestation_report.provider,
-				confidence_level: attestation_report.confidence_level,
-				features: ceseal_info.features,
-				role: ceseal_info.role.clone(),
-			};
-
-			Workers::<T>::insert(&pubkey, worker_info);
-			let now = <frame_system::Pallet<T>>::block_number();
-			<LastWork<T>>::insert(&pubkey, now);
-			<LastRefresh<T>>::insert(&pubkey, now);
-
-			if ceseal_info.role == WorkerRole::Full || ceseal_info.role == WorkerRole::Verifier {
-				ValidationTypeList::<T>::mutate(|puk_list| -> DispatchResult {
-					puk_list
-						.try_push(pubkey)
-						.map_err(|_| Error::<T>::BoundedVecError)?;
-					Ok(())
-				})?;
-			}
-
-			Self::push_message(WorkerEvent::new_worker(pubkey));
-			Self::deposit_event(Event::<T>::WorkerAdded {
-				pubkey,
-				attestation_provider: attestation_report.provider,
-				confidence_level: attestation_report.confidence_level,
-			});
-			WorkerAddedAt::<T>::insert(pubkey, frame_system::Pallet::<T>::block_number());
-
-			Ok(())
-		}
-
-		#[pallet::call_index(18)]
-		#[pallet::weight({0})]
-		pub fn update_worker_endpoint(
-			origin: OriginFor<T>,
-			endpoint_payload: WorkerEndpointPayload,
-			signature: Vec<u8>,
-		) -> DispatchResult {
-			ensure_signed(origin)?;
-
-			// Validate the signature
-			ensure!(signature.len() == 64, Error::<T>::InvalidSignatureLength);
-			let sig =
-				sp_core::sr25519::Signature::try_from(signature.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
-			let encoded_data = endpoint_payload.encode();
-			let data_to_sign = wrap_content_to_sign(&encoded_data, SignedContentType::EndpointInfo);
-			ensure!(
-				sp_io::crypto::sr25519_verify(&sig, &data_to_sign, &endpoint_payload.pubkey),
-				Error::<T>::InvalidSignature
-			);
-
-			let Some(endpoint) = endpoint_payload.endpoint else { return Err(Error::<T>::EmptyEndpoint.into()) };
-			if endpoint.is_empty() {
-				return Err(Error::<T>::EmptyEndpoint.into())
-			}
-
-			// Validate the time
-			let expiration = 4 * 60 * 60 * 1000; // 4 hours
-			let now = T::UnixTime::now().as_millis().saturated_into::<u64>();
-			ensure!(
-				endpoint_payload.signing_time < now && now <= endpoint_payload.signing_time + expiration,
-				Error::<T>::InvalidEndpointSigningTime
-			);
-
-			// Validate the public key
-			ensure!(Workers::<T>::contains_key(endpoint_payload.pubkey), Error::<T>::InvalidWorkerPubKey);
-
-			Endpoints::<T>::insert(endpoint_payload.pubkey, endpoint);
 
 			Ok(())
 		}
@@ -656,26 +539,50 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_signed(origin)?;
 			// Validate the signature
-			ensure!(signature.len() == 64, Error::<T>::InvalidSignatureLength);
-			let sig =
-				sp_core::sr25519::Signature::try_from(signature.as_slice()).or(Err(Error::<T>::MalformedSignature))?;
-			let encoded_data = payload.encode();
-			let data_to_sign = wrap_content_to_sign(&encoded_data, SignedContentType::MasterKeyApply);
-			ensure!(sp_io::crypto::sr25519_verify(&sig, &data_to_sign, &payload.pubkey), Error::<T>::InvalidSignature);
-
-			// Validate the time
-			let expiration = 30 * 60 * 1000; // 30 minutes
-			let now = T::UnixTime::now().as_millis().saturated_into::<u64>();
-			ensure!(
-				payload.signing_time < now && now <= payload.signing_time + expiration,
-				Error::<T>::InvalidMasterKeyApplySigningTime
-			);
-
+			Self::verify_signature(&signature, &payload.encode(), &payload.pubkey)?;
+			// Validate the signing time: 10 minutes expiration
+			Self::verify_signing_time(payload.signing_time, 10 * 60)?;
 			// Validate the public key
 			ensure!(Workers::<T>::contains_key(payload.pubkey), Error::<T>::InvalidWorkerPubKey);
 
-			Self::push_message(MasterKeyApply::Apply(payload.pubkey.clone(), payload.ecdh_pubkey));
-			Self::deposit_event(Event::<T>::MasterKeyApplied { worker_pubkey: payload.pubkey });
+			let applier = &payload.pubkey;
+			//TODO: round by origin nounce
+			let distributor = {
+				let mut i = Workers::<T>::iter();
+				loop {
+					let (worker_pubkey, _) = i.next().ok_or(Into::<DispatchError>::into(Error::<T>::WorkerNotFound))?; //TODO: introduce a new error
+					if *applier == worker_pubkey {
+						continue;
+					}
+					break worker_pubkey;
+				}
+			};
+
+			MasterKeyPostation::<T>::insert(applier, None::<(BlockNumberFor<T>, MasterKeyDistributePayload)>);
+			MasterKeyDistributeNotify::<T>::insert(distributor, applier.clone());
+
+			Self::deposit_event(Event::<T>::MasterKeyAppling { applier: *applier, distributor });
+			Ok(())
+		}
+
+		#[pallet::call_index(30)]
+		#[pallet::weight({0})]
+		pub fn distribute_master_key(
+			origin: OriginFor<T>,
+			payload: MasterKeyDistributePayload,
+			signature: Vec<u8>,
+		) -> DispatchResult {
+			ensure_signed(origin)?;
+			// Validate the signature
+			Self::verify_signature(&signature, &payload.encode(), &payload.distributor)?;
+			// Validate the signing time: 10 minutes expiration
+			Self::verify_signing_time(payload.signing_time, 10 * 60)?;
+			let receiver = payload.target.clone();
+			let distributor = payload.distributor.clone();
+			let bn = <frame_system::Pallet<T>>::block_number();
+			MasterKeyPostation::<T>::insert(&receiver, Some((bn, payload)));
+			MasterKeyDistributeNotify::<T>::remove(distributor);
+			Self::deposit_event(Event::<T>::MasterKeySubmitted { receiver });
 			Ok(())
 		}
 
@@ -700,7 +607,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		
 		#[pallet::call_index(22)]
 		#[pallet::weight({0})]
 		pub fn change_first_holder(origin: OriginFor<T>, pubkey: WorkerPublicKey) -> DispatchResult {
@@ -712,7 +618,7 @@ pub mod pallet {
 				Ok(())
 			})?;
 
-			Self::deposit_event(Event::<T>::ChangeFirstHolder{ pubkey });
+			Self::deposit_event(Event::<T>::ChangeFirstHolder { pubkey });
 			Ok(())
 		}
 
@@ -764,7 +670,7 @@ pub mod pallet {
 		#[pallet::weight({0})]
 		pub fn patch_clear_invalid_tee(origin: OriginFor<T>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
-			
+
 			let now = <frame_system::Pallet<T>>::block_number();
 			let _ = Self::clear_mission(now);
 
@@ -793,68 +699,6 @@ pub mod pallet {
 
 			Ok(())
 		}
-
-		#[pallet::call_index(118)]
-		#[pallet::weight({0})]
-		pub fn set_note_stalled(origin: OriginFor<T>, note_stalled: bool) -> DispatchResult {
-			ensure_root(origin)?;
-			NoteStalled::<T>::put(note_stalled);
-			Ok(())
-		}
-	}
-
-	impl<T: Config> ces_pallet_mq::MasterPubkeySupplier for Pallet<T> {
-		fn try_get() -> Option<MasterPublicKey> {
-			MasterPubkey::<T>::get()
-		}
-	}
-
-	impl<T: Config> Pallet<T>
-	where
-		T: ces_pallet_mq::Config,
-	{
-		pub fn on_message_received(message: DecodedMessage<MasterKeySubmission>) -> DispatchResult {
-			let worker_pubkey = match &message.sender {
-				MessageOrigin::Worker(key) => key,
-				_ => return Err(Error::<T>::InvalidSender.into()),
-			};
-
-			let holder = MasterKeyFirstHolder::<T>::get().ok_or(Error::<T>::MasterKeyLaunchRequire)?;
-			match message.payload {
-				MasterKeySubmission::MasterPubkey { master_pubkey } => {
-					ensure!(worker_pubkey.0 == holder.0, Error::<T>::InvalidMasterKeyFirstHolder);
-					match MasterPubkey::<T>::try_get() {
-						Ok(saved_pubkey) => {
-							ensure!(
-								saved_pubkey.0 == master_pubkey.0,
-								Error::<T>::MasterKeyMismatch // Oops, this is really bad
-							);
-						},
-						_ => {
-							MasterPubkey::<T>::put(master_pubkey);
-							Self::push_message(MasterKeyLaunch::on_chain_launched(master_pubkey));
-							Self::on_master_key_launched();
-						},
-					}
-				},
-			}
-			Ok(())
-		}
-
-		fn on_master_key_launched() {
-			let block_number = frame_system::Pallet::<T>::block_number();
-			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
-			MasterKeyLaunchedAt::<T>::put((block_number, now));
-			Self::deposit_event(Event::<T>::MasterKeyLaunched);
-		}
-
-		fn reset_keyfairy_channel_seq() {
-			Self::reset_ingress_channel_seq(MessageOrigin::Keyfairy);
-		}
-	}
-
-	impl<T: Config + ces_pallet_mq::Config> MessageOriginInfo for Pallet<T> {
-		type Config = T;
 	}
 
 	/// The basic information of a registered worker
@@ -883,6 +727,7 @@ pub mod pallet {
 		pub features: Vec<u32>,
 
 		pub role: WorkerRole,
+		pub endpoint: String,
 	}
 
 	impl<T: Config> From<AttestationError> for Error<T> {
@@ -898,38 +743,41 @@ pub mod pallet {
 				AttestationError::InvalidUserDataHash => Self::InvalidCesealInfoHash,
 				AttestationError::NoneAttestationDisabled => Self::NoneAttestationDisabled,
 				AttestationError::UnsupportedAttestationType => Self::UnsupportedAttestationType,
-				AttestationError::InvalidDCAPQuote(attestation_error) => {
-					match attestation_error {
-						sgx_attestation::Error::InvalidCertificate => Self::InvalidCertificate,
-						sgx_attestation::Error::InvalidSignature => Self::InvalidSignature,
-						sgx_attestation::Error::CodecError => Self::CodecError,
-						sgx_attestation::Error::TCBInfoExpired => Self::TCBInfoExpired,
-						sgx_attestation::Error::KeyLengthIsInvalid => Self::KeyLengthIsInvalid,
-						sgx_attestation::Error::PublicKeyIsInvalid => Self::PublicKeyIsInvalid,
-						sgx_attestation::Error::RsaSignatureIsInvalid => Self::RsaSignatureIsInvalid,
-						sgx_attestation::Error::DerEncodingError => Self::DerEncodingError,
-						sgx_attestation::Error::UnsupportedDCAPQuoteVersion => Self::UnsupportedDCAPQuoteVersion,
-						sgx_attestation::Error::UnsupportedDCAPAttestationKeyType => Self::UnsupportedDCAPAttestationKeyType,
-						sgx_attestation::Error::UnsupportedQuoteAuthData => Self::UnsupportedQuoteAuthData,
-						sgx_attestation::Error::UnsupportedDCAPPckCertFormat => Self::UnsupportedDCAPPckCertFormat,
-						sgx_attestation::Error::LeafCertificateParsingError => Self::LeafCertificateParsingError,
-						sgx_attestation::Error::CertificateChainIsInvalid => Self::CertificateChainIsInvalid,
-						sgx_attestation::Error::CertificateChainIsTooShort => Self::CertificateChainIsTooShort,
-						sgx_attestation::Error::IntelExtensionCertificateDecodingError => Self::IntelExtensionCertificateDecodingError,
-						sgx_attestation::Error::IntelExtensionAmbiguity => Self::IntelExtensionAmbiguity,
-						sgx_attestation::Error::CpuSvnLengthMismatch => Self::CpuSvnLengthMismatch,
-						sgx_attestation::Error::CpuSvnDecodingError => Self::CpuSvnDecodingError,
-						sgx_attestation::Error::PceSvnDecodingError => Self::PceSvnDecodingError,
-						sgx_attestation::Error::PceSvnLengthMismatch => Self::PceSvnLengthMismatch,
-						sgx_attestation::Error::FmspcLengthMismatch => Self::FmspcLengthMismatch,
-						sgx_attestation::Error::FmspcDecodingError => Self::FmspcDecodingError,
-						sgx_attestation::Error::FmspcMismatch => Self::FmspcMismatch,
-						sgx_attestation::Error::QEReportHashMismatch => Self::QEReportHashMismatch,
-						sgx_attestation::Error::IsvEnclaveReportSignatureIsInvalid => Self::IsvEnclaveReportSignatureIsInvalid,
-						sgx_attestation::Error::DerDecodingError => Self::DerDecodingError,
-						sgx_attestation::Error::OidIsMissing => Self::OidIsMissing,
-					
-					}
+				AttestationError::InvalidDCAPQuote(attestation_error) => match attestation_error {
+					sgx_attestation::Error::InvalidCertificate => Self::InvalidCertificate,
+					sgx_attestation::Error::InvalidSignature => Self::InvalidSignature,
+					sgx_attestation::Error::CodecError => Self::CodecError,
+					sgx_attestation::Error::TCBInfoExpired => Self::TCBInfoExpired,
+					sgx_attestation::Error::KeyLengthIsInvalid => Self::KeyLengthIsInvalid,
+					sgx_attestation::Error::PublicKeyIsInvalid => Self::PublicKeyIsInvalid,
+					sgx_attestation::Error::RsaSignatureIsInvalid => Self::RsaSignatureIsInvalid,
+					sgx_attestation::Error::DerEncodingError => Self::DerEncodingError,
+					sgx_attestation::Error::UnsupportedDCAPQuoteVersion => Self::UnsupportedDCAPQuoteVersion,
+					sgx_attestation::Error::UnsupportedDCAPAttestationKeyType => {
+						Self::UnsupportedDCAPAttestationKeyType
+					},
+					sgx_attestation::Error::UnsupportedQuoteAuthData => Self::UnsupportedQuoteAuthData,
+					sgx_attestation::Error::UnsupportedDCAPPckCertFormat => Self::UnsupportedDCAPPckCertFormat,
+					sgx_attestation::Error::LeafCertificateParsingError => Self::LeafCertificateParsingError,
+					sgx_attestation::Error::CertificateChainIsInvalid => Self::CertificateChainIsInvalid,
+					sgx_attestation::Error::CertificateChainIsTooShort => Self::CertificateChainIsTooShort,
+					sgx_attestation::Error::IntelExtensionCertificateDecodingError => {
+						Self::IntelExtensionCertificateDecodingError
+					},
+					sgx_attestation::Error::IntelExtensionAmbiguity => Self::IntelExtensionAmbiguity,
+					sgx_attestation::Error::CpuSvnLengthMismatch => Self::CpuSvnLengthMismatch,
+					sgx_attestation::Error::CpuSvnDecodingError => Self::CpuSvnDecodingError,
+					sgx_attestation::Error::PceSvnDecodingError => Self::PceSvnDecodingError,
+					sgx_attestation::Error::PceSvnLengthMismatch => Self::PceSvnLengthMismatch,
+					sgx_attestation::Error::FmspcLengthMismatch => Self::FmspcLengthMismatch,
+					sgx_attestation::Error::FmspcDecodingError => Self::FmspcDecodingError,
+					sgx_attestation::Error::FmspcMismatch => Self::FmspcMismatch,
+					sgx_attestation::Error::QEReportHashMismatch => Self::QEReportHashMismatch,
+					sgx_attestation::Error::IsvEnclaveReportSignatureIsInvalid => {
+						Self::IsvEnclaveReportSignatureIsInvalid
+					},
+					sgx_attestation::Error::DerDecodingError => Self::DerDecodingError,
+					sgx_attestation::Error::OidIsMissing => Self::OidIsMissing,
 				},
 			}
 		}
@@ -952,7 +800,7 @@ impl<T: Config> TeeWorkerHandler<AccountOf<T>, BlockNumberFor<T>> for Pallet<T> 
 	fn can_tag(pbk: &WorkerPublicKey) -> bool {
 		if let Ok(tee_info) = Workers::<T>::try_get(pbk) {
 			if WorkerRole::Marker == tee_info.role || WorkerRole::Full == tee_info.role {
-				return true
+				return true;
 			}
 		}
 
@@ -962,7 +810,7 @@ impl<T: Config> TeeWorkerHandler<AccountOf<T>, BlockNumberFor<T>> for Pallet<T> 
 	fn can_verify(pbk: &WorkerPublicKey) -> bool {
 		if let Ok(tee_info) = Workers::<T>::try_get(pbk) {
 			if WorkerRole::Verifier == tee_info.role || WorkerRole::Full == tee_info.role {
-				return true
+				return true;
 			}
 		}
 
@@ -972,7 +820,7 @@ impl<T: Config> TeeWorkerHandler<AccountOf<T>, BlockNumberFor<T>> for Pallet<T> 
 	fn can_cert(pbk: &WorkerPublicKey) -> bool {
 		if let Ok(tee_info) = Workers::<T>::try_get(pbk) {
 			if WorkerRole::Marker == tee_info.role || WorkerRole::Full == tee_info.role {
-				return true
+				return true;
 			}
 		}
 
@@ -986,7 +834,7 @@ impl<T: Config> TeeWorkerHandler<AccountOf<T>, BlockNumberFor<T>> for Pallet<T> 
 	fn is_bonded(pbk: &WorkerPublicKey) -> bool {
 		if let Ok(tee_info) = Workers::<T>::try_get(pbk) {
 			let result = tee_info.stash_account.is_some();
-			return result
+			return result;
 		}
 
 		false
@@ -996,7 +844,7 @@ impl<T: Config> TeeWorkerHandler<AccountOf<T>, BlockNumberFor<T>> for Pallet<T> 
 		let tee_info = Workers::<T>::try_get(pbk).map_err(|_| Error::<T>::NonTeeWorker)?;
 
 		if let Some(stash_account) = tee_info.stash_account {
-			return Ok(stash_account)
+			return Ok(stash_account);
 		}
 
 		Err(Error::<T>::NonTeeWorker.into())
@@ -1018,7 +866,7 @@ impl<T: Config> TeeWorkerHandler<AccountOf<T>, BlockNumberFor<T>> for Pallet<T> 
 		acc_list
 	}
 
-	fn verify_master_sig(sig: &sp_core::sr25519::Signature, hash: SHA256)  -> bool {
+	fn verify_master_sig(sig: &sp_core::sr25519::Signature, hash: SHA256) -> bool {
 		let cur_pubkey = match <MasterPubkey<T>>::try_get().map_err(|_| Error::<T>::MasterKeyUninitialized) {
 			Ok(cur_pubkey) => cur_pubkey,
 			Err(_) => return false,
@@ -1032,7 +880,7 @@ impl<T: Config> TeeWorkerHandler<AccountOf<T>, BlockNumberFor<T>> for Pallet<T> 
 				break;
 			}
 		}
-		
+
 		if sp_io::crypto::sr25519_verify(&sig, &hash, &cur_pubkey) || flag {
 			return true;
 		}

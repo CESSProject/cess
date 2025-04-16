@@ -48,6 +48,7 @@ insta = "1"
 [features]
 default = ["std", "report", "verify"]
 std = [
+    "base64/std",
     "pink-json/std",
     "serde/std",
     "parity-scale-codec/std",

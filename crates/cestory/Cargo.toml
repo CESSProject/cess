@@ -1,6 +1,6 @@
 [package]
 name = "cestory"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 resolver = "2"
 
@@ -15,6 +15,7 @@ hex = { workspace = true, features = ["alloc"] }
 hex_fmt = { workspace = true }
 hex-literal = { workspace = true }
 h2 = { workspace = true }
+futures = { workspace = true, features = ["async-await"] }
 im = { workspace = true }
 itertools = { workspace = true }
 libc = { workspace = true }
@@ -33,53 +34,36 @@ ring = { workspace = true }
 scale-info = { workspace = true, features = ["derive"] }
 scopeguard = { workspace = true }
 serde = { workspace = true, features = ["derive", "std", "rc"] }
-serde_cbor = { workspace = true }
 serde_json = { workspace = true }
-sp-externalities = { workspace = true }
-sp-io = { workspace = true, features = [
-    "disable_panic_handler",
-    "disable_oom",
-] } #, "disable_allocator"] }
-sp-runtime = { workspace = true }
-sp-state-machine = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tokio-stream = { workspace = true }
 tracing = { workspace = true }
 # for light_validation
 derive_more = { workspace = true, features = ["from", "deref", "deref_mut"] }
-finality-grandpa = { workspace = true, features = ["derive-codec"] }
-frame-system = { workspace = true }
 hash-db = { workspace = true }
 num-traits = { workspace = true }
-sp-application-crypto = { workspace = true }
-sp-consensus-grandpa = { workspace = true }
 sp-core = { workspace = true }
-sp-trie = { workspace = true }
 tonic = { workspace = true }
 rsa = { workspace = true }
 
+subxt = { workspace = true, default-features = true, features = [
+    "jsonrpsee",
+    "native",
+    "unstable-light-client",
+] }
+subxt-signer = { workspace = true, features = ["sr25519", "subxt"] }
+
 # CESS specific
-ces-crypto = { workspace = true, features = [
-    "stream",
+ces-crypto = { workspace = true, features = ["stream", "full_crypto"] }
+ces-serde-more = { workspace = true, features = ["crypto"] }
+ces-types = { workspace = true, default-features = true, features = [
+    "enable_serde",
     "full_crypto",
 ] }
-ces-mq = { workspace = true, features = [
-    "dispatcher",
-    "queue",
-    "checkpoint",
-    "signers",
-] }
-ces-pallet-mq = { workspace = true }
-ces-serde-more = { workspace = true }
-ces-trie-storage = { workspace = true }
-ces-types = { workspace = true, features = ["enable_serde", "full_crypto"] }
-cestory-api = { workspace = true }
+cestory-api = { workspace = true, default-features = true }
 cestory-pal = { workspace = true }
-pallet-tee-worker = { workspace = true }
-pallet-sminer = { workspace = true }
 reqwest-env-proxy = { workspace = true }
-runtime = { workspace = true, features = ["std"] }
 sgx-api-lite = { workspace = true }
 
 dashmap = { workspace = true }
@@ -98,14 +82,3 @@ rmp-serde = "1"
 serde_path_to_error = "0.1.5"
 ron = "0.8.0"
 ciborium = "0.2.0"
-
-[features]
-default = ["sp-io/disable_panic_handler", "sp-io/disable_oom"]
-shadow-gk = []
-
-only-attestation = [
-	"runtime/only-attestation"
-]
-verify-cesealbin = [
-	"runtime/verify-cesealbin"
-]

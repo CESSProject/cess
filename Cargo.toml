@@ -6,8 +6,6 @@ members = [
     "crates/bloom-filter",
     "crates/ces-allocator",
     "crates/ces-crypto",
-    "crates/ces-mq",
-    "crates/ces-node-rpc-ext",
     "crates/ces-pdp",
     "crates/ces-pois",
     "crates/ces-sanitized-logger",
@@ -15,9 +13,7 @@ members = [
     "crates/cestory",
     "crates/cestory/api",
     "crates/cestory/pal",
-    "crates/ces-trie-storage",
     "crates/ces-types",
-    "crates/cesxt",
     "crates/common",
     "crates/enclave-verify",
     "crates/reqwest-env-proxy",
@@ -30,8 +26,6 @@ members = [
     "pallets/cess-treasury",
     "pallets/evm-account-mapping",
     "pallets/file-bank",
-    "pallets/mq",
-    "pallets/mq/runtime-api",
     "pallets/oss",
     "pallets/reservoir",
     "pallets/scheduler-credit",
@@ -42,7 +36,6 @@ members = [
     "standalone/chain/node",
     "standalone/chain/primitives",
     "standalone/chain/runtime",
-    "standalone/teeworker/cifrost",
     "standalone/teeworker/handover",
 ]
 
@@ -428,6 +421,8 @@ spin = { version = "0.9", default-features = false, features = [
 ] }
 static_assertions = "1.1.0"
 subxt = { git = "https://github.com/CESSProject/subxt", branch = "polkadot-stable2412", default-features = false }
+subxt-signer = { git = "https://github.com/CESSProject/subxt", branch = "polkadot-stable2412", default-features = false }
+smoldot = { version = "0.19", default-features = false }
 syn = "2.0"
 tempfile = "3.10"
 thiserror = "1.0"
@@ -458,22 +453,15 @@ x509-cert = { version = "0.2.4", default-features = false }
 
 # ---- Cess workspace crates and pallets begin ----
 ces-crypto = { path = "crates/ces-crypto", default-features = false }
-ces-mq = { path = "crates/ces-mq", default-features = false }
-ces-node-rpc-ext = { path = "crates/ces-node-rpc-ext" }
-ces-node-rpc-ext-types = { path = "crates/ces-node-rpc-ext/types" }
 ces-node-runtime = { path = "standalone/chain/runtime", package = "cess-node-runtime", default-features = false }
-ces-pallet-mq = { path = "pallets/mq", default-features = false }
-ces-pallet-mq-runtime-api = { path = "pallets/mq/runtime-api", default-features = false }
 ces-pdp = { path = "crates/ces-pdp" }
 ces-pois = { path = "crates/ces-pois" }
 ces-sanitized-logger = { path = "crates/ces-sanitized-logger" }
 ces-serde-more = { path = "crates/ces-serde-more", default-features = false }
-ces-trie-storage = { path = "crates/ces-trie-storage", default-features = false }
 ces-types = { path = "crates/ces-types", default-features = false }
 cess-node-runtime = { path = "standalone/chain/runtime", default-features = false }
 cestory-api = { path = "crates/cestory/api", default-features = false }
 cestory-pal = { path = "crates/cestory/pal", default-features = false }
-cesxt = { path = "crates/cesxt" }
 chain = { path = "standalone/chain/runtime", package = "cess-node-runtime", default-features = false }
 cp-bloom-filter = { path = "crates/bloom-filter", default-features = false }
 cp-cess-common = { path = "crates/common", default-features = false }
@@ -506,3 +494,5 @@ cess-node-primitives = { path = "standalone/chain/primitives", default-features 
 
 [patch.crates-io]
 ring = { git = "https://github.com/jasl/ring-xous", branch = "better-wasm32-support" }
+# FIXME: https://github.com/jhpratt/deranged/issues/18
+deranged = { git = "https://github.com/jhpratt/deranged", rev = "3c95431a375bca409a4731ae8749acc84e076267" }
