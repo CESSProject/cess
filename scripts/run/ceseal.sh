@@ -1,13 +1,15 @@
 #!/bin/bash
 
 inst_seq=${INST_SEQ:-0}
-ceseal_port=$((${CESEAL_PORT:-8000} + $inst_seq))
 pub_port=$((${PUB_PORT:-19999} + $inst_seq))
+mnemonic=${MNEMONIC:-//Ferdie}
+inject_key=$(printf %064d $(($inst_seq + 1)))
 work_dir="./standalone/teeworker/ceseal/bin"
 
-export RUST_LOG=debug,ceseal=trace,cestory=trace,h2=info,hyper=info,reqwest=info,tower=info
+export RUST_LOG=${RUST_LOG:-"info,ceseal=debug,cestory=debug,subxt-light-client-background-task=debug"}
 export RUST_LOG_SANITIZED=false
 export RUST_LOG_ANSI_COLOR=true
+export RUST_BACKTRACE=1
 
 purge_data=0
 getopts ":p" opt
@@ -34,8 +36,13 @@ if [[ $purge_data -eq 1 && -e $data_dir ]]; then
 fi
 
 $bin \
-    --port $ceseal_port \
-    --public-port $pub_port \
+    --listening-port $pub_port \
     --data-dir $data_dir \
-    --role full |&
+    --public-endpoint http://127.0.0.1:$pub_port \
+    --inject-key $inject_key \
+    --mnemonic $mnemonic \
+    --attestation-provider none \
+    --longevity 16 \
+    --role full \
+    --stash-account cXjHGCWMUM8gM9YFJUK2rqq2tiFWB4huBKWdQPkWdcXcZHhHA |&
     tee $log_file

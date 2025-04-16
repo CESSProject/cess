@@ -128,7 +128,6 @@ pub mod assets_api;
 mod frontier;
 pub use frontier::TransactionConverter;
 
-mod msg_routing;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -163,7 +162,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
-	system_version: 0,
+	system_version: 1,
 };
 
 /// The BABE epoch configuration at genesis.
@@ -990,7 +989,6 @@ where
 			frame_system::CheckEra::<Runtime>::from(era),
 			frame_system::CheckNonce::<Runtime>::from(nonce),
 			frame_system::CheckWeight::<Runtime>::new(),
-			ces_pallet_mq::CheckMqSequence::<Runtime>::new(),
 			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(0),
 		);
 		let raw_payload = SignedPayload::new(call, tx_ext)
@@ -1499,9 +1497,6 @@ mod runtime {
 	#[runtime::pallet_index(101)]
 	pub type SchedulerCredit = pallet_scheduler_credit::Pallet<Runtime>;
 
-	#[runtime::pallet_index(102)]
-	pub type CesMq = ces_pallet_mq::Pallet<Runtime>;
-
 	#[runtime::pallet_index(103)]
 	pub type TeeWorker = pallet_tee_worker::Pallet<Runtime>;
 
@@ -1550,7 +1545,6 @@ pub type TxExtension = (
 	frame_system::CheckEra<Runtime>,
 	frame_system::CheckNonce<Runtime>,
 	frame_system::CheckWeight<Runtime>,
-	ces_pallet_mq::CheckMqSequence<Runtime>,
 	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
 
@@ -1618,21 +1612,6 @@ parameter_types! {
 impl pallet_scheduler_credit::Config for Runtime {
 	type PeriodDuration = PeriodDuration;
 	type StashAccountFinder = SchedulerStashAccountFinder;
-}
-
-pub struct MqCallMatcher;
-impl ces_pallet_mq::CallMatcher<Runtime> for MqCallMatcher {
-	fn match_call(call: &RuntimeCall) -> Option<&ces_pallet_mq::Call<Runtime>> {
-		match call {
-			RuntimeCall::CesMq(mq_call) => Some(mq_call),
-			_ => None,
-		}
-	}
-}
-impl ces_pallet_mq::Config for Runtime {
-	type QueueNotifyConfig = msg_routing::MessageRouteConfig;
-	type CallMatcher = MqCallMatcher;
-	type MasterPubkeySupplier = pallet_tee_worker::Pallet<Runtime>;
 }
 
 parameter_types! {
@@ -2729,13 +2708,6 @@ impl_runtime_apis! {
 	}
 	//------------------- Frontier's end ---------------------
 
-	//------------------------- CESS's begin -------------------------
-	impl ces_pallet_mq_runtime_api::MqApi<Block> for Runtime {
-		fn sender_sequence(sender: &ces_types::messaging::MessageOrigin) -> Option<u64> {
-			CesMq::offchain_ingress(sender)
-		}
-	}
-	//------------------------- CESS's end -------------------------
 }
 
 #[cfg(test)]

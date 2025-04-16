@@ -1,7 +1,7 @@
 use reqwest_env_proxy::EnvProxyBuilder as _;
 use tracing::{error, info, warn};
-use anyhow::{anyhow, Context as _, Result};
-use std::{time::Duration};
+use anyhow::{anyhow, Context, Result};
+use std::time::Duration;
 use crate::types::AttestationReport;
 
 fn get_report_from_intel(

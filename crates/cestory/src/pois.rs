@@ -1,4 +1,8 @@
-use crate::{expert::CesealExpertStub, verify_signature};
+use crate::{
+    ext_res_permit::{Permitter, PermitterAware},
+    podr2::verify_signature,
+    try_account_from, CesealMasterKey, ChainQueryHelper, PoisParam, RpcResult,
+};
 use ces_crypto::sr25519::Signing;
 use ces_pdp::Keys;
 use ces_pois::{
@@ -23,7 +27,7 @@ use num_bigint_dig::BigUint;
 use parity_scale_codec::Encode;
 use prost::Message;
 use rsa::pkcs1::EncodeRsaPublicKey;
-use sp_core::{crypto::AccountId32, sr25519, ByteArray};
+use sp_core::{crypto::AccountId32, sr25519};
 use std::{fmt::Debug, time::Instant};
 use tonic::{Request, Response, Status};
 use tracing::info;
@@ -34,46 +38,48 @@ pub type PoisCertifierApiServer =
     pois_certifier_api_server::PoisCertifierApiServer<PoisCertifierApiServerProxy<PoisCertifierServer>>;
 pub type PoisVerifierApiServer =
     pois_verifier_api_server::PoisVerifierApiServer<PoisVerifierApiServerProxy<PoisVerifierServer>>;
-pub type PoisResult<T> = Result<Response<T>, Status>;
 
 pub use proxy::{PoisCertifierApiServerProxy, PoisVerifierApiServerProxy};
 
 pub fn new_pois_certifier_api_server(
-    pois_param: (i64, i64, i64),
-    ceseal_expert: CesealExpertStub,
+    chainq_helper: ChainQueryHelper,
+    identity_pubkey: [u8; 32],
+    master_key: CesealMasterKey,
+    res_permitter: Permitter,
+    pois_param: PoisParam,
 ) -> PoisCertifierApiServer {
-    let podr2_keys =
-        ces_pdp::gen_keypair_from_private_key(ceseal_expert.ceseal_props().master_key.rsa_private_key().clone());
-    let master_key = ceseal_expert.ceseal_props().master_key.sr25519_keypair().clone();
+    let podr2_keys = ces_pdp::gen_keypair_from_private_key(master_key.rsa_private_key().clone());
+    let master_key = master_key.sr25519_keypair().clone();
     let inner = PoisCertifierApiServerProxy {
         inner: PoisCertifierServer {
             podr2_keys,
             master_key,
             verifier: Verifier::new(pois_param.0, pois_param.1, pois_param.2),
             commit_acc_proof_chals_map: DashMap::new(),
-            ceseal_identity_key: ceseal_expert.identify_public_key().0,
-            ceseal_expert: ceseal_expert.clone(),
+            ceseal_identity_key: identity_pubkey,
+            res_permitter,
+            chainq_helper,
         },
-        ceseal_expert,
     };
     PoisCertifierApiServer::new(inner)
 }
 
 pub fn new_pois_verifier_api_server(
+    identity_pubkey: [u8; 32],
+    master_key: CesealMasterKey,
+    res_permitter: Permitter,
     pois_param: (i64, i64, i64),
-    ceseal_expert: CesealExpertStub,
 ) -> PoisVerifierApiServer {
-    let podr2_keys =
-        ces_pdp::gen_keypair_from_private_key(ceseal_expert.ceseal_props().master_key.rsa_private_key().clone());
-    let master_key = ceseal_expert.ceseal_props().master_key.sr25519_keypair().clone();
+    let podr2_keys = ces_pdp::gen_keypair_from_private_key(master_key.rsa_private_key().clone());
+    let master_key = master_key.sr25519_keypair().clone();
     let inner = PoisVerifierApiServerProxy {
         inner: PoisVerifierServer {
             podr2_keys,
             master_key,
             verifier: Verifier::new(pois_param.0, pois_param.1, pois_param.2),
-            ceseal_identity_key: ceseal_expert.identify_public_key().0,
+            ceseal_identity_key: identity_pubkey,
+            res_permitter,
         },
-        ceseal_expert,
     };
     PoisVerifierApiServer::new(inner)
 }
@@ -137,7 +143,14 @@ pub struct PoisCertifierServer {
     pub verifier: Verifier,
     pub commit_acc_proof_chals_map: DashMap<Vec<u8>, Vec<Vec<i64>>>,
     pub ceseal_identity_key: [u8; 32],
-    ceseal_expert: CesealExpertStub,
+    res_permitter: Permitter,
+    chainq_helper: ChainQueryHelper,
+}
+
+impl PermitterAware for PoisCertifierServer {
+    fn permitter(&self) -> &Permitter {
+        &self.res_permitter
+    }
 }
 
 pub struct PoisVerifierServer {
@@ -145,6 +158,13 @@ pub struct PoisVerifierServer {
     pub master_key: sr25519::Pair,
     pub verifier: Verifier,
     pub ceseal_identity_key: [u8; 32],
+    res_permitter: Permitter,
+}
+
+impl PermitterAware for PoisVerifierServer {
+    fn permitter(&self) -> &Permitter {
+        &self.res_permitter
+    }
 }
 
 fn try_into_proto_byte_hash<T>(data: &T) -> Result<Vec<u8>, Status>
@@ -168,26 +188,23 @@ impl PoisCertifierApi for PoisCertifierServer {
     async fn request_miner_get_new_key(
         &self,
         request: Request<RequestMinerInitParam>,
-    ) -> PoisResult<ResponseMinerInitParam> {
+    ) -> RpcResult<ResponseMinerInitParam> {
         //create key for miner
         let miner_id: Vec<u8> = request.into_inner().miner_id;
         let now = Instant::now();
         info!("[Pois Request New Key] miner {:?} request new key...", get_ss58_address(&miner_id)?);
 
         //FIXME: TO OPTIMIZE
-        let miner_acc_id =
-            AccountId32::from_slice(&miner_id[..]).map_err(|_| Status::internal("invalid input account"))?;
+        let miner_acc_id = try_account_from(&miner_id[..]).map_err(|_| Status::internal("invalid input account"))?;
         let miner_info = self
-            .ceseal_expert
-            .using_chain_storage(
-                move |opt| if let Some(cs) = opt { cs.get_storage_miner_info(miner_acc_id) } else { None },
-            )
+            .chainq_helper
+            .get_storage_miner_info(&miner_acc_id)
             .await
             .map_err(|e| Status::internal(format!("internal error: {}", e.to_string())))?;
         let Some(miner_info) = miner_info else { return Err(Status::internal("the miner not exists")) };
 
-        if !matches!(miner_info.state.as_slice(), MINER_NOT_READY) {
-            return Err(Status::invalid_argument("You have already registered the POIS key!"))
+        if !matches!(miner_info.state.0.as_slice(), MINER_NOT_READY) {
+            return Err(Status::invalid_argument("You have already registered the POIS key!"));
         }
         let key = rsa_keygen(2048);
         let acc = key.g.to_bytes_be();
@@ -225,7 +242,7 @@ impl PoisCertifierApi for PoisCertifierServer {
     async fn request_miner_commit_gen_chall(
         &self,
         request: Request<RequestMinerCommitGenChall>,
-    ) -> PoisResult<Challenge> {
+    ) -> RpcResult<Challenge> {
         let req = request.into_inner();
         let now = Instant::now();
         //get a structural to verify the sign from miner
@@ -241,7 +258,7 @@ impl PoisCertifierApi for PoisCertifierServer {
         if verify_signature(miner_req.miner_id, req.miner_sign, &miner_req_hash)
             .map_err(|e| Status::internal("Error check miner request signature fail:".to_string() + &e.to_string()))?
         {
-            return Err(Status::unauthenticated("The miner request signature is incorrect!"))
+            return Err(Status::unauthenticated("The miner request signature is incorrect!"));
         };
 
         let miner_id = req.miner_id;
@@ -255,17 +272,19 @@ impl PoisCertifierApi for PoisCertifierServer {
 
         //verify received commit
         if !self.verifier.receive_commits(&miner_id, &mut commits) {
-            self.verifier.logout_prover_node(&miner_id)
+            self.verifier
+                .logout_prover_node(&miner_id)
                 .map_err(|e| Status::invalid_argument(format!("logout_prover_node() error: {}", e.to_string())))?;
-            return Err(Status::invalid_argument("The commit submitted by the miner is wrong".to_string()))
+            return Err(Status::invalid_argument("The commit submitted by the miner is wrong".to_string()));
         };
         //gen commit chals for this miner and save it in verifier
         let chals = match self.verifier.commit_challenges(&miner_id) {
             Ok(chals) => chals,
             Err(e) => {
-                self.verifier.logout_prover_node(&miner_id)
+                self.verifier
+                    .logout_prover_node(&miner_id)
                     .map_err(|e| Status::internal(format!("logout_prover_node() error: {}", e.to_string())))?;
-                return Err(Status::internal(e.to_string()))
+                return Err(Status::internal(e.to_string()));
             },
         };
         self.commit_acc_proof_chals_map.insert(miner_id, chals.clone());
@@ -284,7 +303,7 @@ impl PoisCertifierApi for PoisCertifierServer {
     async fn request_verify_commit_proof(
         &self,
         request: Request<RequestVerifyCommitAndAccProof>,
-    ) -> PoisResult<ResponseVerifyCommitOrDeletionProof> {
+    ) -> RpcResult<ResponseVerifyCommitOrDeletionProof> {
         let now = Instant::now();
         let mut commit_and_acc_proof = request.into_inner();
         let miner_sign = commit_and_acc_proof.miner_sign;
@@ -294,7 +313,7 @@ impl PoisCertifierApi for PoisCertifierServer {
 
         //Check if the miner has logged out
         if self.verifier.is_logout(&miner_id) {
-            return Err(Status::unauthenticated(format!("This tee never know the miner {:?}", &miner_id)))
+            return Err(Status::unauthenticated(format!("This tee never know the miner {:?}", &miner_id)));
         }
 
         //Check whether the data sent by the miner is incorrect
@@ -303,7 +322,7 @@ impl PoisCertifierApi for PoisCertifierServer {
         if verify_signature(miner_id.clone(), miner_sign, &miner_req_hash)
             .map_err(|e| Status::internal("Error check miner request signature fail:".to_string() + &e.to_string()))?
         {
-            return Err(Status::unauthenticated("The miner request signature is incorrect!"))
+            return Err(Status::unauthenticated("The miner request signature is incorrect!"));
         };
 
         //Check the miner pois info is from tee or not
@@ -358,7 +377,7 @@ impl PoisCertifierApi for PoisCertifierServer {
         let commit_proof_group_inner = if let Some(commit_proof_group) = commit_and_acc_proof.commit_proof_group {
             commit_proof_group.commit_proof_group_inner
         } else {
-            return Err(Status::invalid_argument("Miner request data is invalid, loss parameter 'commit_proof_group'"))
+            return Err(Status::invalid_argument("Miner request data is invalid, loss parameter 'commit_proof_group'"));
         };
         let mut commit_proofs = Vec::new();
         for inner in commit_proof_group_inner {
@@ -368,12 +387,12 @@ impl PoisCertifierApi for PoisCertifierServer {
                 if cp.elders.is_empty() {
                     return Err(Status::invalid_argument(
                         "Miner request data is invalid, loss parameter 'elders' in 'CommitProof'",
-                    ))
+                    ));
                 };
                 if cp.parents.is_empty() {
                     return Err(Status::invalid_argument(
                         "Miner request data is invalid, loss parameter 'parents' in 'CommitProof'",
-                    ))
+                    ));
                 }
                 commit_proof_row.push(cp);
             }
@@ -397,17 +416,18 @@ impl PoisCertifierApi for PoisCertifierServer {
         let chals = if let Some((_, chals)) = self.commit_acc_proof_chals_map.remove(&miner_id) {
             chals
         } else {
-            return Err(Status::data_loss("This miner does not have a corresponding commit challenge".to_string()))
+            return Err(Status::data_loss("This miner does not have a corresponding commit challenge".to_string()));
         };
         match self
             .verifier
             .verify_commit_proofs(&miner_id, chals.clone(), commit_proofs.clone())
         {
             Ok(_) => {},
-            Err(e) =>
+            Err(e) => {
                 return Err(Status::invalid_argument(
                     format!("Error when verify commit :{:?}", e.to_string()).to_string(),
-                )),
+                ))
+            },
         };
         let pb_acc_proof = commit_and_acc_proof
             .acc_proof
@@ -416,18 +436,20 @@ impl PoisCertifierApi for PoisCertifierServer {
 
         match self.verifier.verify_acc(&miner_id, chals, acc_proof) {
             Ok(_) => {},
-            Err(e) =>
-                return Err(Status::invalid_argument(format!("Error when verify acc :{:?}", e.to_string()).to_string())),
+            Err(e) => {
+                return Err(Status::invalid_argument(format!("Error when verify acc :{:?}", e.to_string()).to_string()))
+            },
         };
         //The miners will verify the 16G commit proof every time. After each verification, they need to log out and
         // then sign and return to the state in tee. The miners will put the state on the chain to ensure that
         // the data on the chain is synchronized.
         let node_state = match self.verifier.logout_prover_node(&miner_id) {
             Ok(i) => i,
-            Err(e) =>
+            Err(e) => {
                 return Err(Status::invalid_argument(
                     format!("Error when verify proof and sig the result fail:{:?}", e.to_string()).to_string(),
-                )),
+                ))
+            },
         };
         let (pois_status, status_tee_sign, signature_with_tee_controller) = get_pois_status_and_signature(
             node_state.0,
@@ -453,7 +475,7 @@ impl PoisCertifierApi for PoisCertifierServer {
     async fn request_verify_deletion_proof(
         &self,
         request: Request<RequestVerifyDeletionProof>,
-    ) -> PoisResult<ResponseVerifyCommitOrDeletionProof> {
+    ) -> RpcResult<ResponseVerifyCommitOrDeletionProof> {
         let mut deletion_proof = request.into_inner();
         let miner_sign = deletion_proof.miner_sign;
         let miner_id = deletion_proof.miner_id.clone();
@@ -466,14 +488,14 @@ impl PoisCertifierApi for PoisCertifierServer {
         if verify_signature(miner_id.clone(), miner_sign, &miner_req_hash)
             .map_err(|e| Status::internal("Error check miner request signature fail:".to_string() + &e.to_string()))?
         {
-            return Err(Status::unauthenticated("The miner request signature is incorrect!"))
+            return Err(Status::unauthenticated("The miner request signature is incorrect!"));
         };
 
         let mut del_proof = convert_to_deletion_proof(&deletion_proof);
         let miner_pois_info = if let Some(pois_info) = deletion_proof.pois_info {
             pois_info
         } else {
-            return Err(Status::invalid_argument("Miner send invalid parameter,loss 'pois_info'"))
+            return Err(Status::invalid_argument("Miner send invalid parameter,loss 'pois_info'"));
         };
 
         let mut miner_key_info = MinerPoisInfo::default();
@@ -524,10 +546,11 @@ impl PoisCertifierApi for PoisCertifierServer {
         // it to the chain
         let node_state = match self.verifier.logout_prover_node(&miner_id) {
             Ok(i) => i,
-            Err(e) =>
+            Err(e) => {
                 return Err(Status::invalid_argument(
                     format!("Error when verify proof and sig the result fail:{:?}", e.to_string()).to_string(),
-                )),
+                ))
+            },
         };
         let (pois_status, status_tee_sign, signature_with_tee_controller) = get_pois_status_and_signature(
             node_state.0,
@@ -557,7 +580,7 @@ impl PoisVerifierApi for PoisVerifierServer {
     async fn request_space_proof_verify_single_block(
         &self,
         request: Request<RequestSpaceProofVerify>,
-    ) -> PoisResult<ResponseSpaceProofVerify> {
+    ) -> RpcResult<ResponseSpaceProofVerify> {
         //parse space challenge
         let now = std::time::Instant::now();
         let req = request.into_inner();
@@ -582,7 +605,9 @@ impl PoisVerifierApi for PoisVerifierServer {
         if !verify_signature(miner_id.clone(), miner_space_proof_hash_polkadot_sig, &miner_req_hash).map_err(|e| {
             Status::internal("Error happened when verify space proof hash :".to_string() + &e.to_string())
         })? {
-            return Err(Status::unauthenticated("The space proof signature verification provided by the miner failed!"))
+            return Err(Status::unauthenticated(
+                "The space proof signature verification provided by the miner failed!",
+            ));
         };
 
         let proof_hash_and_left_right = ProofHashAndLeftRight {
@@ -604,16 +629,18 @@ impl PoisVerifierApi for PoisVerifierServer {
 
         match self.verifier.verify_space(&p_node, space_chals, &mut space_proof) {
             Ok(_) => {},
-            Err(e) =>
-                return Err(Status::invalid_argument("Error space proof verify fail:".to_string() + &e.to_string())),
+            Err(e) => {
+                return Err(Status::invalid_argument("Error space proof verify fail:".to_string() + &e.to_string()))
+            },
         };
 
         let signature = match self.podr2_keys.sign_data(&proof_hash_and_left_right_hash) {
             Ok(sig) => sig,
-            Err(e) =>
+            Err(e) => {
                 return Err(Status::internal(
                     "Error space proof verify compute signature fail:".to_string() + &e.error_code.to_string(),
-                )),
+                ))
+            },
         };
         info!(
             "[Pois Verify Single Space Proof] miner {:?} Pois Space Proof Verify Single Block in:{:.2?}",
@@ -625,7 +652,7 @@ impl PoisVerifierApi for PoisVerifierServer {
     async fn request_verify_space_total(
         &self,
         request: Request<RequestSpaceProofVerifyTotal>,
-    ) -> PoisResult<ResponseSpaceProofVerifyTotal> {
+    ) -> RpcResult<ResponseSpaceProofVerifyTotal> {
         let req = request.into_inner();
         let proof_list = &req.proof_list;
         let miner_id: [u8; 32] = req
@@ -655,7 +682,7 @@ impl PoisVerifierApi for PoisVerifierServer {
         }
         blocks_proof.sort_by_key(|proof| proof.left);
         if blocks_proof.len() == 0 {
-            return Err(Status::invalid_argument("Please pass in the correct length of proof_list!".to_string()))
+            return Err(Status::invalid_argument("Please pass in the correct length of proof_list!".to_string()));
         };
 
         //check proof list validity,simultaneously set it in haser
@@ -686,11 +713,11 @@ impl PoisVerifierApi for PoisVerifierServer {
         //     }
         // }
 
-        info!("miner id :{:?}",miner_id.clone());
-        info!("req.space_chals is :{:?}",req.space_chals.clone());
-        info!("front is :{}",front);
-        info!("rear is :{}",rear);
-        info!("proof_list.len() is :{}",proof_list.len() as i64);
+        info!("miner id :{:?}", miner_id.clone());
+        info!("req.space_chals is :{:?}", req.space_chals.clone());
+        info!("front is :{}", front);
+        info!("rear is :{}", rear);
+        info!("proof_list.len() is :{}", proof_list.len() as i64);
 
         if let Some(mut call) = challenge::new_challenge_handle(
             &miner_id,
@@ -703,22 +730,28 @@ impl PoisVerifierApi for PoisVerifierServer {
             let mut space_proof_hash = Vec::new();
             for serial in 0..blocks_proof.len() {
                 if call(&space_proof_hash, blocks_proof[serial].left, blocks_proof[serial].right) {
-                    info!("block proof index is:{},left is:{},right is:{},space_proof_hash is:{:?}",serial,blocks_proof[serial].left,blocks_proof[serial].right,blocks_proof[serial].space_proof_hash.clone());
-                    info!("but this time use space_proof_hash is :{:?}",space_proof_hash.clone());
+                    info!(
+                        "block proof index is:{},left is:{},right is:{},space_proof_hash is:{:?}",
+                        serial,
+                        blocks_proof[serial].left,
+                        blocks_proof[serial].right,
+                        blocks_proof[serial].space_proof_hash.clone()
+                    );
+                    info!("but this time use space_proof_hash is :{:?}", space_proof_hash.clone());
                     if !is_valid_proof(&blocks_proof[serial], &self.podr2_keys, self.ceseal_identity_key.to_vec())? {
                         result = false;
-                        break
+                        break;
                     };
                     total_proof_hasher.input(&blocks_proof[serial].space_proof_hash);
                 } else {
                     info!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!,index is:{}use space_proof_hash is :{:?},left is:{},right is:{}",serial,space_proof_hash.clone(),blocks_proof[serial].left,blocks_proof[serial].right);
                     result = false;
-                    break
+                    break;
                 }
                 space_proof_hash = blocks_proof[serial].space_proof_hash.clone()
             }
         } else {
-            return Err(Status::unauthenticated("Verify miner challenge failed, challenge handle create fail!"))
+            return Err(Status::unauthenticated("Verify miner challenge failed, challenge handle create fail!"));
         };
 
         //Concatenate all hashes to calculate the total hash
@@ -884,8 +917,8 @@ fn is_valid_proof(proof: &BlocksProof, podr2_keys: &Keys, tee_id: Vec<u8>) -> Re
         .encode(&mut proof_hash_and_left_right_byte)
         .map_err(|e| {
             Status::internal(
-                "Error happened in check the proof is valid when compute proof_hash_and_left_right_byte:".to_string() +
-                    &e.to_string(),
+                "Error happened in check the proof is valid when compute proof_hash_and_left_right_byte:".to_string()
+                    + &e.to_string(),
             )
         })?;
     let mut proof_hash_and_left_right_hash = vec![0u8; 32];
@@ -902,12 +935,12 @@ fn is_valid_proof(proof: &BlocksProof, podr2_keys: &Keys, tee_id: Vec<u8>) -> Re
                 proof.right,
                 e.error_code.to_string()
             );
-            return Ok(false)
+            return Ok(false);
         },
     }
     if proof.right <= proof.left {
         info!("The right of the block must be greater than the left!");
-        return Ok(false)
+        return Ok(false);
     };
     Ok(true)
 }
@@ -982,9 +1015,9 @@ fn verify_pois_status_signature(
         ),
         &hash_raw,
     ) {
-        return Err(Status::unauthenticated("The miner provided the wrong signature!"))
+        return Err(Status::unauthenticated("The miner provided the wrong signature!"));
     } else {
-        return Ok(())
+        return Ok(());
     };
 }
 
@@ -997,7 +1030,7 @@ pub struct AccountConvertError(String);
 
 pub fn get_ss58_address(account: &[u8]) -> std::result::Result<String, AccountConvertError> {
     if account.len() != 32 {
-        return Err(AccountConvertError("The length of raw account bytes must be 32".to_string()))
+        return Err(AccountConvertError("The length of raw account bytes must be 32".to_string()));
     }
     let ss58_address: AccountId32 = account
         .try_into()
@@ -1018,9 +1051,12 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_hash256(){
+    fn test_hash256() {
         let mut total_proof_hasher = Sha256::new();
-        total_proof_hasher.input(&vec![81, 64, 6, 253, 142, 97, 167, 41, 81, 81, 79, 79, 234, 10, 45, 183, 213, 117, 255, 197, 252, 145, 122, 123, 74, 214, 1, 22, 84, 230, 86, 45]);
+        total_proof_hasher.input(&vec![
+            81, 64, 6, 253, 142, 97, 167, 41, 81, 81, 79, 79, 234, 10, 45, 183, 213, 117, 255, 197, 252, 145, 122, 123,
+            74, 214, 1, 22, 84, 230, 86, 45,
+        ]);
         let mut total_proof_hash = vec![0u8; 32];
         total_proof_hasher.result(&mut total_proof_hash);
         println!("total proof hash is :{:?}", total_proof_hash);

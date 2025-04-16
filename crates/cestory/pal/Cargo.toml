@@ -7,4 +7,3 @@ description = "Platform abstraction layer for Ceseal"
 [dependencies]
 anyhow = { workspace = true }
 ces-types = { workspace = true, features = ["enable_serde", "full_crypto"] }
-cestory-api = { workspace = true }

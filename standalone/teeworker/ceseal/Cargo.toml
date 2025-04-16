@@ -13,6 +13,7 @@ base64 = { version = "0.13", default-features = false, features = ["alloc"] }
 clap = { version = "4.5", features = ["derive", "cargo"] }
 const-str = { version = "0.5", features = ["proc"] }
 hex_fmt = "0.3.0"
+hex = { version = "0.4" }
 humantime = "2.1.0"
 lazy_static = { version = "1.4.0", default-features = false }
 num_cpus = "1.13"
@@ -34,9 +35,7 @@ rustls-pki-types = { version = "=0.2.1", default-features = false, optional = tr
 reqwest-env-proxy = { path = "../../../crates/reqwest-env-proxy" }
 ces-sanitized-logger = { path = "../../../crates/ces-sanitized-logger" }
 cestory = { path = "../../../crates/cestory" }
-cestory-api = { path = "../../../crates/cestory/api", features = [
-    "ceseal-client",
-] }
+cestory-api = { path = "../../../crates/cestory/api" }
 cestory-pal = { path = "../../../crates/cestory/pal" }
 ces-allocator = { path = "../../../crates/ces-allocator" }
 ces-types = { path = "../../../crates/ces-types", default-features = false, features = [
@@ -44,10 +43,11 @@ ces-types = { path = "../../../crates/ces-types", default-features = false, feat
     "full_crypto",
 ] }
 sgx-api-lite = { path = "../../../crates/sgx-api-lite" }
-sgx-attestation = { path = "../../../crates/sgx-attestation", features = ["report"] }
+sgx-attestation = { path = "../../../crates/sgx-attestation", features = [
+    "report",
+] }
 # PODR2
 threadpool = "1.8.1"
-ces-pdp = { path = "../../../crates/ces-pdp" }
 
 [build-dependencies]
 vergen = { version = "8.3", features = ["build", "git", "gitcl"] }
@@ -56,22 +56,3 @@ vergen = { version = "8.3", features = ["build", "git", "gitcl"] }
 [patch.crates-io]
 ring = { git = "https://github.com/jasl/ring-xous", branch = "better-wasm32-support" }
 
-frame-benchmarking = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-application-crypto = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-core = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-crypto-ec-utils = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-crypto-hashing = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-debug-derive = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-externalities = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-runtime = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-runtime-interface = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-runtime-interface-proc-macro = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-std = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-storage = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-tracing = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-sp-wasm-interface = { git = "https://github.com/paritytech/polkadot-sdk", branch = "stable2412" }
-
-
-[features]
-only-attestation = ["cestory/only-attestation", "cestory-api/only-attestation"]
-verify-cesealbin = ["cestory/verify-cesealbin", "cestory-api/verify-cesealbin"]

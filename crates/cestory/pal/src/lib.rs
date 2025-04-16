@@ -4,8 +4,7 @@ use ces_types::AttestationProvider;
 use core::time::Duration;
 use std::{fmt::Debug, path::Path};
 
-pub use ces_types::attestation::ExtendMeasurement;
-pub use cestory_api::crpc::MemoryUsage;
+pub use ces_types::{attestation::ExtendMeasurement, MemoryUsage};
 
 pub trait ErrorType: Debug + Into<anyhow::Error> {}
 impl<T: Debug + Into<anyhow::Error>> ErrorType for T {}

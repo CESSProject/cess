@@ -20,12 +20,10 @@ endif
 
 .PHONY: all node ceseal test clippy
 
-all: ceseal
-	cargo build ${XARGS}
+all: node ceseal
+
 node:
 	cargo build -p cess-node ${XARGS}
-cifrost:
-	cargo build -p cifrost ${XARGS}
 handover:
 	cargo build -p handover --release
 ceseal:

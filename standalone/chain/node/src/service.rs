@@ -61,7 +61,7 @@ pub type TransactionPool = BasicPool<FullChainApi<FullClient, Block>, Block>;
 
 /// The minimum period of blocks on which justifications will be
 /// imported and generated.
-const GRANDPA_JUSTIFICATION_PERIOD: u32 = 4;
+const GRANDPA_JUSTIFICATION_PERIOD: u32 = 512;
 
 type BabeBlockImport = sc_consensus_babe::BabeBlockImport<Block, FullClient, FullBeefyBlockImport>;
 type BabeWorkerHandle = sc_consensus_babe::BabeWorkerHandle<Block>;
@@ -744,7 +744,7 @@ fn new_frontier_and_rpc_dep_partial(
 pub fn new_full(config: Configuration, cli: crate::cli::Cli) -> Result<TaskManager, ServiceError> {
 	let database_path = config.database.path().map(Path::to_path_buf);
 	let eth_config = cli.eth;
-	let task_manager = match config.network.network_backend {
+	let task_manager = match config.network.network_backend.unwrap_or_default() {
 		sc_network::config::NetworkBackendType::Libp2p => {
 			let task_manager =
 				new_full_base::<sc_network::NetworkWorker<_, _>>(config, eth_config, cli.no_hardware_benchmarks)

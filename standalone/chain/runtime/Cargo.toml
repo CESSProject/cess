@@ -91,7 +91,6 @@ polkadot-sdk = { workspace = true, features = [
 	"sp-transaction-pool",
 	"sp-version",
 	"tuples-96",
-	"with-tracing",
 ] }
 
 # Frontier
@@ -109,8 +108,6 @@ pallet-evm-precompile-sha3fips = { workspace = true }
 pallet-evm-precompile-simple = { workspace = true }
 
 # CESS
-ces-pallet-mq = { workspace = true }
-ces-pallet-mq-runtime-api = { workspace = true }
 ces-types = { workspace = true }
 ces-rrsc-vrf-solver = { workspace = true }
 cess-node-primitives = { workspace = true }
@@ -156,8 +153,6 @@ std = [
 	"pallet-evm-precompile-simple/std",
 	"pallet-evm/std",
 	# CESS
-	"ces-pallet-mq-runtime-api/std",
-	"ces-pallet-mq/std",
 	"ces-types/std",
 	"ces-rrsc-vrf-solver/std",
 	"cess-node-primitives/std",

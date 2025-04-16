@@ -1,70 +1,46 @@
 [package]
 name = "cestory-api"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 resolver = "2"
 
 [dependencies]
-frame-system = { workspace = true }
-sp-consensus-grandpa = { workspace = true }
 sp-core = { workspace = true, features = ["full_crypto"] }
-sp-application-crypto = { workspace = true, features = ["full_crypto"] }
 sp-runtime = { workspace = true }
-parity-scale-codec   = { workspace = true, features = ["derive"] }
+parity-scale-codec = { workspace = true, features = ["derive"] }
 scale-info = { workspace = true, features = ["derive"] }
 serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
-base64 = { workspace = true }
-derive_more = { workspace = true, features = ["from_str"] }
 prost = { workspace = true }
 async-trait = { workspace = true }
 anyhow = { workspace = true, optional = true }
-log = { workspace = true }
-primitive-types = { workspace = true, optional = true }
-im = { workspace = true }
 tonic = { workspace = true }
 
-ces-trie-storage = { workspace = true, features = ["serde"] }
 ces-types = { workspace = true, features = ["enable_serde", "full_crypto"] }
 ces-crypto = { workspace = true }
-chain = { workspace = true }
-ces-mq = { workspace = true }
 
+subxt = { workspace = true, default-features = false, features = [
+    "native",
+    "runtime-wasm-path",
+] }
 
 [dev-dependencies]
-insta = "1.13.0"
-hex = "0.4.3"
+tokio = { workspace = true, features = ["full"] }
 
 
 [build-dependencies]
 tonic-build = { workspace = true, features = ["prost"] }
-
+hex = { workspace = true }
+smoldot = { workspace = true, default-features = false }
+ces-types = { workspace = true }
 
 [features]
 default = ["std"]
 
 std = [
-    "derive_serde",
-    "sp-core/full_crypto",
+    "sp-core/std",
     "sp-runtime/std",
-    "sp-application-crypto/std",
-    "frame-system/std",
-    "chain/std",
+    "ces-types/std",
+    "ces-crypto/std",
 ]
 
-sgx = []
-ceseal-client = [
-    "anyhow",
-]
-
-derive_serde = [
-    "ces-trie-storage/serde",
-    "primitive-types/serde",
-]
-
-only-attestation = [
-	"chain/only-attestation"
-]
-verify-cesealbin = [
-	"chain/verify-cesealbin"
-]
+api-client = []

@@ -10,20 +10,18 @@ pub mod legacy;
 // 		&["INTEL-SA-00334", "INTEL-SA-00219", "INTEL-SA-00381", "INTEL-SA-00389"];
 // }
 
-use sgx_attestation::quote_status_levels::*;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
+use sgx_attestation::quote_status_levels::*;
+pub use sgx_attestation::{
+	dcap::quote::Quote,
+	types::{AttestationReport, Collateral, SgxQuote, SgxV30QuoteCollateral},
+};
 use sp_core::H256;
 use sp_std::vec::Vec;
-pub use sgx_attestation::{types::{AttestationReport,SgxQuote,Collateral,SgxV30QuoteCollateral},dcap::quote::Quote};
 
 #[cfg(feature = "enable_serde")]
 use serde::{Deserialize, Serialize};
-
-// #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
-// pub enum AttestationReport {
-// 	SgxIas { ra_report: Vec<u8>, signature: Vec<u8>, raw_signing_cert: Vec<u8> },
-// }
 
 #[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
 #[derive(Encode, Decode, TypeInfo, Debug, Copy, Clone, PartialEq, Eq)]
@@ -33,7 +31,7 @@ pub enum AttestationProvider {
 	#[cfg_attr(feature = "enable_serde", serde(rename = "ias"))]
 	Ias,
 	#[cfg_attr(feature = "enable_serde", serde(rename = "dcap"))]
-    Dcap,
+	Dcap,
 }
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
@@ -124,7 +122,7 @@ impl SgxFields {
 			confidence_level = 5;
 		}
 		if confidence_level == 128 {
-			return Err(Error::InvalidQuoteStatus)
+			return Err(Error::InvalidQuoteStatus);
 		}
 		// CL 1 means there is no known issue of the CPU
 		// CL 2 means the worker's firmware up to date, and the worker has well configured to prevent known issues
@@ -160,8 +158,9 @@ impl SgxFields {
 
 	pub fn from_dcap_quote_report(raw_quote: &[u8]) -> Result<(SgxFields, i64), Error> {
 		let mut quote = raw_quote;
-    	let quote = Quote::decode(&mut quote).map_err(|_| Error::InvalidDCAPQuote(sgx_attestation::Error::CodecError))?;
-		
+		let quote =
+			Quote::decode(&mut quote).map_err(|_| Error::InvalidDCAPQuote(sgx_attestation::Error::CodecError))?;
+
 		Ok((
 			SgxFields {
     			mr_enclave: quote.report.mr_enclave,
@@ -171,7 +170,7 @@ impl SgxFields {
     			report_data: quote.report.report_data,
     			confidence_level: /*no know confidence level over here,should catch it in collateral*/0,
 			},
-			/*no judege time this way in dcap verification*/0,
+			/*no judege time this way in dcap verification*/ 0,
 		))
 	}
 
@@ -206,21 +205,15 @@ pub fn validate(
 			let Some(Collateral::SgxV30(collateral)) = collateral else {
 				return Err(Error::UnsupportedAttestationType);
 			};
-			validate_dcap(
-				&quote,
-				&collateral,
-				now,
-				user_data_hash,
-				verify_ceseal_hash,
-				ceseal_bin_allowlist,
-			)
+			validate_dcap(&quote, &collateral, now, user_data_hash, verify_ceseal_hash, ceseal_bin_allowlist)
 		},
-		None =>
+		None => {
 			if opt_out_enabled {
 				Ok(ConfidentialReport { provider: None, measurement_hash: Default::default(), confidence_level: 128u8 })
 			} else {
 				Err(Error::NoneAttestationDisabled)
-			},
+			}
+		},
 	}
 }
 
@@ -234,25 +227,30 @@ pub fn validate_ias_report(
 	ceseal_bin_allowlist: Vec<H256>,
 ) -> Result<ConfidentialReport, Error> {
 	// Validate report
-	sgx_attestation::ias::verify::verify_signature(report, signature, raw_signing_cert, core::time::Duration::from_secs(now))
-		.or(Err(Error::InvalidIASSigningCert))?;
+	sgx_attestation::ias::verify::verify_signature(
+		report,
+		signature,
+		raw_signing_cert,
+		core::time::Duration::from_secs(now),
+	)
+	.or(Err(Error::InvalidIASSigningCert))?;
 
 	let (sgx_fields, report_timestamp) = SgxFields::from_ias_report(report)?;
 
 	// Validate Ceseal
 	let ceseal_hash = sgx_fields.measurement_hash();
 	if verify_ceseal_hash && !ceseal_bin_allowlist.contains(&ceseal_hash) {
-		return Err(Error::CesealRejected)
+		return Err(Error::CesealRejected);
 	}
 
 	// Validate time
 	if (now as i64 - report_timestamp) >= 7200 {
-		return Err(Error::OutdatedIASReport)
+		return Err(Error::OutdatedIASReport);
 	}
 
 	let commit = &sgx_fields.report_data[..32];
 	if commit != user_data_hash {
-		return Err(Error::InvalidUserDataHash)
+		return Err(Error::InvalidUserDataHash);
 	}
 
 	// Check the following fields
@@ -272,11 +270,8 @@ pub fn validate_dcap(
 	ceseal_bin_allowlist: Vec<H256>,
 ) -> Result<ConfidentialReport, Error> {
 	// Validate report
-	let (report_data, ceseal_hash, tcb_status, advisory_ids) = sgx_attestation::dcap::verify::verify(
-		quote,
-		collateral,
-		now,
-	).map_err(Error::InvalidDCAPQuote)?;
+	let (report_data, ceseal_hash, tcb_status, advisory_ids) =
+		sgx_attestation::dcap::verify::verify(quote, collateral, now).map_err(Error::InvalidDCAPQuote)?;
 
 	// Validate Ceseal
 	if verify_ceseal_hash && !ceseal_bin_allowlist.contains(&fixed_measurement_hash(&ceseal_hash)) {
@@ -320,7 +315,7 @@ pub fn validate_dcap(
 	Ok(ConfidentialReport {
 		provider: Some(AttestationProvider::Dcap),
 		measurement_hash: fixed_measurement_hash(&ceseal_hash),
-		confidence_level
+		confidence_level,
 	})
 }
 

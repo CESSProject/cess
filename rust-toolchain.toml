@@ -1,5 +1,5 @@
 [toolchain]
-channel = "1.82.0" # rustc 1.82.0 (f6e511eec 2024-10-15)
+channel = "1.85.1" # rustc 1.85.1 (4eb161250 2025-03-15)
 components = [
 	"cargo",
 	"clippy",

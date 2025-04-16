@@ -118,7 +118,6 @@ where
 	C::Api: fp_rpc::ConvertTransactionRuntimeApi<Block>,
 	C::Api: fp_rpc::EthereumRuntimeRPCApi<Block>,
 	C::Api: BabeApi<Block>,
-	C::Api: ces_pallet_mq_runtime_api::MqApi<Block>,
 	C: BlockchainEvents<Block> + 'static,
 	C: HeaderBackend<Block> + HeaderMetadata<Block, Error = BlockChainError> + 'static,
 	C: AuxStore + UsageProvider<Block> + StorageProvider<Block, B>,
@@ -132,7 +131,6 @@ where
 	AuthorityId: AuthorityIdBound,
 	<AuthorityId as RuntimeAppPublic>::Signature: Send + Sync,
 {
-	use ces_node_rpc_ext::{NodeRpcExt, NodeRpcExtApiServer};
 	use sc_sync_state_rpc::{SyncState, SyncStateApiServer};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
 	use sc_consensus_grandpa_rpc::{Grandpa, GrandpaApiServer};
@@ -169,9 +167,7 @@ where
 
 	io.merge(SyncState::new(chain_spec, client.clone(), shared_authority_set, babe_worker_handle)?.into_rpc())?;
 
-	io.merge(StateMigration::new(client.clone(), backend.clone()).into_rpc())?;
-	io.merge(NodeRpcExt::new(client, backend, pool).into_rpc())
-		.expect("Initialize CESS node RPC ext failed.");
+	io.merge(StateMigration::new(client.clone(), backend.clone()).into_rpc())?;	
 
 	io.merge(
 		Beefy::<Block, AuthorityId>::new(
