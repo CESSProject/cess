@@ -213,6 +213,3 @@ try-runtime = [
 	"pallet-storage-handler/try-runtime",
 	"pallet-tee-worker/try-runtime",
 ]
-
-only-attestation = []
-verify-cesealbin = []

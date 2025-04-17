@@ -13,6 +13,7 @@ ARG BUILD=release
 ARG OA
 ARG VC
 ARG GIT_SHA
+ARG CHAIN_NETWORK
 
 RUN <<EOF
   set -e
@@ -58,8 +59,8 @@ ENV SKIP_AESMD=0
 ENV SLEEP_BEFORE_START=6
 ENV RUST_LOG=info
 ENV EXTRA_OPTS=
-EXPOSE 8000
+EXPOSE 19999
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["/bin/bash", "./start.sh"]
-HEALTHCHECK --start-period=8s --timeout=5s \
-  CMD curl -s --fail --http2-prior-knowledge http://localhost:8000 || exit 1
+HEALTHCHECK --start-period=30s --timeout=5s \
+  CMD curl -s --fail --http2-prior-knowledge http://localhost:19999 || exit 1

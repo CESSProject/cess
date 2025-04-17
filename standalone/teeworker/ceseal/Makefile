@@ -1,14 +1,9 @@
 BUILD?=release
 OA?=1
 VC?=1
+CHAIN_NETWORK?=dev
 ifeq ($(BUILD),release)
 	XARGS=--release
-endif
-ifeq ($(OA),1)
-	XARGS += --features only-attestation
-endif
-ifeq ($(VC),1)
-	XARGS += --features verify-cesealbin
 endif
 
 .PHONY: all clean run app 
@@ -26,7 +21,7 @@ bin/ceseal: target/${BUILD}/ceseal
 
 .PHONY: target/${BUILD}/ceseal
 target/${BUILD}/ceseal:
-	cargo build ${XARGS}
+	OA=${OA} VC=${VC} CHAIN_NETWORK=${CHAIN_NETWORK} cargo build ${XARGS}
 
 clean:
 	rm -rf bin/*

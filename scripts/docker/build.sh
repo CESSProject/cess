@@ -87,6 +87,7 @@ function build_ceseal() {
     echo "IAS_SPID: $IAS_SPID"
     echo "CESEAL_VERSION: $CESEAL_VERSION"
     echo "RA_METHOD: $RA_METHOD"
+    echo "CHAIN_NETWORK: $network"
     local docker_file="$the_script_dir/ceseal/gramine/handover.Dockerfile"
     image_id="$org_id/ceseal:$image_tag"
     echo "begin build image $image_id ..."

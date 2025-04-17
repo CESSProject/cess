@@ -19,6 +19,8 @@ use sp_runtime::{
 	Perbill,
 };
 
+include!(concat!(env!("OUT_DIR"), "/constants.rs"));
+
 // The URL for the telemetry server.
 const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 
@@ -455,8 +457,12 @@ fn testnet_genesis(
 	let stakers = initial_authorities
 		.iter()
 		.map(|x| (x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator))
-		.chain(initial_nominators.iter().map(|x| {			
-			let nominations = initial_authorities.iter().take(MaxNominations::get() as usize).cloned().collect::<Vec<_>>();
+		.chain(initial_nominators.iter().map(|x| {
+			let nominations = initial_authorities
+				.iter()
+				.take(MaxNominations::get() as usize)
+				.cloned()
+				.collect::<Vec<_>>();
 			(x.clone(), x.clone(), STASH, StakerStatus::Nominator(nominations))
 		}))
 		.collect::<Vec<_>>();
@@ -500,6 +506,10 @@ fn testnet_genesis(
 		},
 		"storageHandler": {
 			"price": 30 * DOLLARS
+		},
+		"teeWorker": {
+			"noneAttestationEnabled": constants::NONE_ATTESTATION_ENABLED,
+			"cesealVerifyRequired": constants::CESEAL_VERIFY_REQUIRED,
 		}
 	})
 }

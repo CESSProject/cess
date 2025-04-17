@@ -3,6 +3,7 @@ OA?=1
 VC?=1
 XARGS=
 DEV=
+CHAIN_NETWORK?=dev
 ifeq ($(DEV),1)
 	OA=0
 	VC=0
@@ -11,23 +12,17 @@ endif
 ifeq ($(BUILD),release)
 	XARGS = --release
 endif
-ifeq ($(OA),1)
-	XARGS += --features only-attestation
-endif
-ifeq ($(VC),1)
-	XARGS += --features verify-cesealbin
-endif
 
 .PHONY: all node ceseal test clippy
 
 all: node ceseal
 
 node:
-	cargo build -p cess-node ${XARGS}
+	OA=${OA} VC=${VC} CHAIN_NETWORK=${CHAIN_NETWORK} cargo build -p cess-node ${XARGS}
 handover:
 	cargo build -p handover --release
 ceseal:
-	$(MAKE) -C standalone/teeworker/ceseal BUILD=${BUILD} OA=${OA} VC=${VC}
+	$(MAKE) -C standalone/teeworker/ceseal BUILD=${BUILD} OA=${OA} VC=${VC} CHAIN_NETWORK=${CHAIN_NETWORK}
 test:
 	cargo test --workspace --exclude node-executor --exclude cess-node
 

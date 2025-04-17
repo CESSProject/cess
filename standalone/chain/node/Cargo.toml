@@ -138,5 +138,3 @@ runtime-benchmarks = [
 	"cess-node-runtime/runtime-benchmarks",
 ]
 try-runtime = ["cess-node-runtime/try-runtime"]
-only-attestation = ["cess-node-runtime/only-attestation"]
-verify-cesealbin = ["cess-node-runtime/verify-cesealbin"]

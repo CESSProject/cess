@@ -14,6 +14,7 @@ ARG BUILD=release
 ARG OA
 ARG VC
 ARG GIT_SHA
+ARG CHAIN_NETWORK
 
 RUN <<EOF
   set -e
@@ -40,6 +41,7 @@ RUN <<EOF
   cd /root/cess-code
   make handover
   cp ./target/release/handover /root/prebuilt
+  make node
   cd /root/cess-code/standalone/teeworker/ceseal/gramine-build
   if [ "$RA_METHOD" = "any" ]; then
     echo "Initiating build ceseal with dcap feat..."
@@ -91,9 +93,9 @@ ENV RUST_LOG=info
 ENV EXTRA_OPTS=
 ENV CESEAL_HOME=${CESEAL_HOME}
 
-EXPOSE 8000
+EXPOSE 19999
 SHELL ["/bin/bash", "-c"]
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ${CESEAL_HOME}/start.sh
-HEALTHCHECK --start-period=8s --timeout=5s \
-  CMD curl -s --fail --http2-prior-knowledge http://localhost:8000 || exit 1
+HEALTHCHECK --start-period=30s --timeout=5s \
+  CMD curl -s --fail --http2-prior-knowledge http://localhost:19999 || exit 1
