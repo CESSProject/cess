@@ -834,7 +834,6 @@ pub mod pallet {
             Ok(())
         }
 
-
         #[pallet::call_index(6)]
         #[transactional]
         #[pallet::weight(<T as pallet::Config>::WeightInfo::create_order())]
@@ -848,7 +847,7 @@ pub mod pallet {
             // minute
             expired: u32,
         ) -> DispatchResult {
-            let _ = ensure_signed(origin)?;
+            let sender = ensure_signed(origin)?;
 
             let expired: BlockNumberFor<T> = (expired
                 .checked_mul(6).ok_or(Error::<T>::Overflow)?).saturated_into();
@@ -887,7 +886,7 @@ pub mod pallet {
             };
 
             let (seed, _) =
-					T::MyRandomness::random(&(T::RewardPalletId::get(), now).encode());
+					T::MyRandomness::random(&(T::RewardPalletId::get(), now, sender).encode());
 			let seed = match seed {
 				Some(v) => v,
 				None => Default::default(),
@@ -1214,7 +1213,9 @@ impl<T: Config> Pallet<T> {
                     let _ = <Territory<T>>::try_mutate(&acc, &territory_name, |t_opt| -> DispatchResult {
                         let t = t_opt.as_mut().ok_or(Error::<T>::Unexpected)?;
                         Self::sub_purchased_space(t.total_space)?;
-                        t.state = TerritoryState::Expired;
+                        if t.state == TerritoryState::Frozen {
+                            t.state = TerritoryState::Expired;
+                        }
                         Ok(())
                     });
                     weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));

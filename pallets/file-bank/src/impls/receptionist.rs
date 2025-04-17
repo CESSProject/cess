@@ -6,10 +6,8 @@ impl<T: Config> Receptionist<T> {
     pub fn fly_upload_file(file_hash: Hash, user_brief: UserBrief<T>) -> DispatchResult {
         <File<T>>::try_mutate(&file_hash, |file_opt| -> DispatchResult {
             let file = file_opt.as_mut().ok_or(Error::<T>::FileNonExistent)?;
-            let needed_space = SEGMENT_SIZE
-                .checked_mul(15).ok_or(Error::<T>::Overflow)?
-                .checked_div(10).ok_or(Error::<T>::Overflow)?
-                .checked_mul(file.segment_list.len() as u128).ok_or(Error::<T>::Overflow)?;
+            let segment_len = file.segment_list.len();
+            let needed_space = Pallet::<T>::cal_file_size(segment_len as u128);
             ensure!(T::StorageHandle::get_user_avail_space(&user_brief.user, &user_brief.territory_name)? > needed_space, Error::<T>::InsufficientAvailableSpace);
             T::StorageHandle::add_territory_used_space(&user_brief.user, &user_brief.territory_name, needed_space)?;
 
