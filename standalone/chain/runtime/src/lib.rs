@@ -128,7 +128,6 @@ pub mod assets_api;
 mod frontier;
 pub use frontier::TransactionConverter;
 
-
 // Make the WASM binary available.
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
@@ -1246,7 +1245,10 @@ parameter_types! {
 impl pallet_migrations::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	#[cfg(not(feature = "runtime-benchmarks"))]
-	type Migrations = (SteppedFileBank<Runtime, <Self as pallet_file_bank::Config>::WeightInfo>, SteppedSminer<Runtime, <Self as pallet_sminer::Config>::WeightInfo>);
+	type Migrations = (
+		SteppedFileBank<Runtime, <Self as pallet_file_bank::Config>::WeightInfo>,
+		SteppedSminer<Runtime, <Self as pallet_sminer::Config>::WeightInfo>,
+	);
 	// Benchmarks need mocked migrations to guarantee that they succeed.
 	#[cfg(feature = "runtime-benchmarks")]
 	type Migrations = pallet_migrations::mock_helpers::MockedMigrations;
@@ -1620,8 +1622,6 @@ parameter_types! {
 	pub const SchedulerMaximum: u32 = 10000;
 	#[derive(Clone, Eq, PartialEq)]
 	pub const MaxWhitelist: u32 = 200;
-	pub const NoneAttestationEnabled: bool = if cfg!(not(feature = "only-attestation")) { true } else { false };
-	pub const VerifyCeseal: bool = if cfg!(not(feature = "verify-cesealbin")) { false } else { true };
 	pub const AtLeastWorkBlock: BlockNumber = DAYS / 2;
 }
 
@@ -1635,8 +1635,6 @@ impl pallet_tee_worker::Config for Runtime {
 	type MaxWhitelist = MaxWhitelist;
 	type AtLeastWorkBlock = AtLeastWorkBlock;
 	type LegacyAttestationValidator = pallet_tee_worker::IasValidator;
-	type NoneAttestationEnabled = NoneAttestationEnabled;
-	type VerifyCeseal = VerifyCeseal;
 	type GovernanceOrigin = EnsureRootOrHalfCouncil;
 }
 

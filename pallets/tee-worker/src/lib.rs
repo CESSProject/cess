@@ -85,18 +85,8 @@ pub mod pallet {
 
 		type LegacyAttestationValidator: AttestationValidator;
 
-		/// Enable None Attestation, SHOULD BE SET TO FALSE ON PRODUCTION !!!
-		#[pallet::constant]
-		type NoneAttestationEnabled: Get<bool>;
-
 		#[pallet::constant]
 		type AtLeastWorkBlock: Get<BlockNumberFor<Self>>;
-
-		/// Verify attestation
-		///
-		/// SHOULD NOT SET TO FALSE ON PRODUCTION!!!
-		#[pallet::constant]
-		type VerifyCeseal: Get<bool>;
 
 		/// Origin used to govern the pallet
 		type GovernanceOrigin: EnsureOrigin<Self::RuntimeOrigin>;
@@ -312,12 +302,50 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type MinimumCesealVersion<T: Config> = StorageValue<_, (u32, u32, u32), ValueQuery>;
 
+	/// Is none-attestation enabled
+	///
+	/// SHOULD BE SET TO FALSE ON PRODUCTION !!!
+	#[pallet::storage]
+	pub type NoneAttestationEnabled<T: Config> = StorageValue<_, bool, ValueQuery>;
+
+	/// Is `ceseal_bin` verification required
+	///
+	/// SHOULD BE SET TO TRUE ON PRODUCTION!!!
+	#[pallet::storage]
+	pub type CesealVerifyRequired<T: Config> = StorageValue<_, bool, ValueQuery>;
+
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 	#[pallet::pallet]
 	#[pallet::storage_version(STORAGE_VERSION)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
+
+	#[pallet::genesis_config]
+	pub struct GenesisConfig<T: Config> {
+		pub none_attestation_enabled: bool,
+		pub ceseal_verify_required: bool,
+		_marker: PhantomData<T>,
+	}
+
+	impl<T: Config> Default for GenesisConfig<T> {
+		fn default() -> Self {
+			Self {
+				// For Development network
+				none_attestation_enabled: true,
+				ceseal_verify_required: false,
+				_marker: PhantomData,
+			}
+		}
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> BuildGenesisConfig for GenesisConfig<T> {
+		fn build(&self) {
+			NoneAttestationEnabled::<T>::put(self.none_attestation_enabled);
+			CesealVerifyRequired::<T>::put(self.ceseal_verify_required);
+		}
+	}
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
@@ -365,9 +393,9 @@ pub mod pallet {
 				*attestation,
 				&runtime_info_hash,
 				now,
-				T::VerifyCeseal::get(),
+				CesealVerifyRequired::<T>::get(),
 				CesealBinAllowList::<T>::get(),
-				T::NoneAttestationEnabled::get(),
+				NoneAttestationEnabled::<T>::get(),
 			)
 			.map_err(Into::<Error<T>>::into)?;
 
@@ -697,6 +725,22 @@ pub mod pallet {
 
 			Self::execute_exit(puk)?;
 
+			Ok(())
+		}
+
+		#[pallet::call_index(118)]
+		#[pallet::weight({0})]
+		pub fn set_none_attestation_enabled(origin: OriginFor<T>, enabled: bool) -> DispatchResult {
+			ensure_root(origin)?;
+			NoneAttestationEnabled::<T>::put(enabled);
+			Ok(())
+		}
+
+		#[pallet::call_index(119)]
+		#[pallet::weight({0})]
+		pub fn set_ceseal_verify_required(origin: OriginFor<T>, required: bool) -> DispatchResult {
+			ensure_root(origin)?;
+			CesealVerifyRequired::<T>::put(required);
 			Ok(())
 		}
 	}
