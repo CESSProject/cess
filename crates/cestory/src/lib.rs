@@ -84,7 +84,7 @@ impl std::fmt::Debug for Config {
             .field("debug_set_key", &self.debug_set_key.as_ref().map(|e| hex::encode(e)))
             .field("attestation_provider", &self.attestation_provider)
             .field("endpoint", &self.endpoint)
-            .field("stash_account", &self.stash_account)
+            .field("stash_account", &self.stash_account.as_ref().map(|e| format!("{e}")))
             .finish()
     }
 }
