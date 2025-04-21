@@ -3,7 +3,8 @@
 export RUST_LOG=${RUST_LOG:-"info,rpc=debug,runtime=debug"}
 export RUST_BACKTRACE=1
 
-bin=./target/debug/cess-node
+build=${BUILD:-"debug"}
+bin=./target/$build/cess-node
 work_dir="./local_run"
 inst_seq=${INST_SEQ:-0}
 rpc_port=$((${RPC_PORT:-9944} + $inst_seq))
@@ -25,6 +26,7 @@ t)
 esac
 
 $bin \
+    --validator \
     --chain $chain_spec \
     $base_path_args \
     --no-telemetry \
