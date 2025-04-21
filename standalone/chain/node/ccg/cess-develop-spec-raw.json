@@ -2,7 +2,7 @@
   "name": "cess-devnet",
   "id": "cess-devnet",
   "chainType": "Live",
-  "bootNodes": ["/ip4/119.28.9.226/tcp/30333/p2p/12D3KooWAzvdt4JdeC6akgc1HQJJ9K4yUuY9wY11R5HUuvvhwLaj"],
+  "bootNodes": ["/ip4/43.157.39.169/tcp/30333/p2p/12D3KooWAzvdt4JdeC6akgc1HQJJ9K4yUuY9wY11R5HUuvvhwLaj"],
   "telemetryEndpoints": [],
   "protocolId": "cesdn0",
   "properties": {
