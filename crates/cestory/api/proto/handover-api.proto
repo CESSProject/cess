@@ -16,18 +16,9 @@ service HandoverApi {
 }
 
 message Attestation {
-  int32 version = 1;
-  string provider = 2;
-  AttestationReport payload = 3; // Retired
-  bytes encoded_report = 5;
-  uint64 timestamp = 4;
-}
-
-// Retired
-message AttestationReport {
-  string report = 1;
-  bytes signature = 2;
-  bytes signing_cert = 3;
+  string provider = 1;
+  bytes encoded_report = 2;
+  uint64 timestamp = 3;
 }
 
 message HandoverChallenge {

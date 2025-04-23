@@ -1,19 +1,23 @@
 use crate::pal_gramine::GraminePlatform;
 use anyhow::{Context, Result};
-use cestory::RpcService;
-use cestory_api::{
-    ceseal_client::CesealClient, crpc::ceseal_api_server::CesealApi, ecall_args::InitArgs,
+use cestory::{CesealClient, ChainQueryHelper};
+use cestory_api::handover::{
+    handover_api_client::HandoverApiClient, HandoverChallenge, HandoverWorkerKey,
 };
 use tonic::{transport::Channel, Request};
 use tracing::info;
 
-pub(crate) async fn handover_from(url: &str, args: InitArgs) -> Result<()> {
+pub(crate) async fn handover_from(
+    from_url: &str,
+    my_ceseal_client: CesealClient,
+    cqh: ChainQueryHelper,
+) -> Result<()> {
     let this = RpcService::new(GraminePlatform);
     this.lock_ceseal(true, false)
         .expect("Failed to lock Ceseal")
         .init(args);
 
-    let mut from_ceseal = CesealClient::<Channel>::connect(url.to_string()).await?;
+    let mut from_ceseal = HandoverApiClient::<Channel>::connect(from_url.to_string()).await?;
     info!("Requesting for challenge");
     let challenge = from_ceseal
         .handover_create_challenge(())

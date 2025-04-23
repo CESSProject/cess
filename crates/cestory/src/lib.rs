@@ -11,7 +11,7 @@ use std::str::FromStr;
 
 mod attestation;
 mod ceseal;
-// mod handover;
+mod handover;
 mod identity_key;
 mod master_key;
 pub mod podr2;

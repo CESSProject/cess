@@ -83,6 +83,19 @@ pub mod cqh {
                 .map_or_else(|| false, |e| e == worker_pubkey.0);
             Ok(r)
         }
+
+        pub async fn current_block(&self) -> Result<(BlockNumber, u64)> {
+            let block = self.chain_client.blocks().at_latest().await?;
+            let q = runtime::storage().timestamp().now();
+            let r = self
+                .chain_client
+                .storage()
+                .at(block.reference())
+                .fetch(&q)
+                .await?
+                .ok_or(anyhow!("no timestamp"))?;
+            Ok((block.number(), r))
+        }
     }
 }
 

@@ -1,4 +1,4 @@
-// mod handover;
+mod handover;
 mod pal_gramine;
 
 use anyhow::{anyhow, Result};
