@@ -228,7 +228,7 @@ impl<Platform: pal::Platform> RegisteredCeseal<Platform> {
 
         let master_pubkey = new_master_key.sr25519_public_key();
         // upload the master key on chain via worker egress
-        info!("upload master pubkey: {} on chain", hex::encode(master_pubkey));
+        info!("Uploading Master-Pubkey: {} on chain", hex::encode(master_pubkey));
 
         // Claim launched to chain
         use runtime::tee_worker::calls::types::settle_master_key_launch::Payload;
