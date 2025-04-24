@@ -200,6 +200,7 @@ impl<Platform: pal::Platform> System<Platform> {
         let egress = block.send_mq.channel(MessageOrigin::Keyfairy, signer);
         self.keyfairy = Some(keyfairy::Keyfairy::new(master_key, egress));
         info!("keyfairy inited at block {}", block.block_number);
+        let _ = self.backup_rsa_der_if_absent();
     }
 
     /// Generate the master key if this is the first keyfairy
@@ -373,8 +374,22 @@ impl<P: pal::Platform> System<P> {
     pub fn on_restored(&mut self, _safe_mode_level: u8) -> Result<()> {
         if self.keyfairy.is_some() {
             info!("system.on_restored(), keyfairy was assigned");
+            let _ = self.backup_rsa_der_if_absent();
         } else {
             warn!("system.on_restored(), keyfairy is not set");
+        }
+        Ok(())
+    }
+
+    fn backup_rsa_der_if_absent(&self) -> Result<()> {
+        use std::{fs::File, io::Write, path::PathBuf};
+        let p = PathBuf::from(&self.args.storage_path).join("mk_rsa_der.dat");
+        if !p.exists() {
+            if let Some(ref kf) = self.keyfairy {
+                let mut file = File::create(&p)?;
+                let buf = kf.master_key().dump_rsa_secret_der();
+                file.write_all(&buf)?;
+            }
         }
         Ok(())
     }
