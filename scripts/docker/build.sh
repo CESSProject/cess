@@ -21,7 +21,7 @@ Usage:
     $0 [options]
 
 Options:
-    -b <program name>  which program image to build, options: node ceseal and cifrost
+    -b <program name>  which program image to build, options: node ceseal
     -n <network profile>  options: devnet, testnet, mainnet, ownnet
     -s <image tag suffix>  padding a suffix for the image tag
     -t <image tag>  specific the tag name of the image, exclusion from option -s
@@ -97,15 +97,6 @@ function build_ceseal() {
     docker_build $progress_option -t $image_id -f $docker_file ${docker_build_args[@]} $docker_build_ctx_dir
 }
 
-function build_cifrost() {
-    local docker_file="$the_script_dir/cifrost/Dockerfile"
-    image_id="cesslab/cifrost:$image_tag"
-    echo "begin build image $image_id ..."
-    local progress_option
-    progress_option=$(print_docker_build_log)
-    docker_build $progress_option -t $image_id -f $docker_file ${docker_build_args[@]} $docker_build_ctx_dir
-}
-
 function print_docker_build_log() {
     if [ $docker_build_log = "1" ]; then
         echo "Print out the detail log of docker image build" >&2
@@ -164,8 +155,8 @@ while getopts ":hpn:b:x:t:s:o:v:m:l:c:" opt; do
         image_tag_suffix=$OPTARG
         ;;
     b)
-        if [[ $OPTARG != "ceseal" && $OPTARG != "cifrost" && $OPTARG != "node" ]]; then
-            echo "Invalid program name: $OPTARG, options: ceseal cifrost or node"
+        if [[ $OPTARG != "ceseal" && $OPTARG != "node" ]]; then
+            echo "Invalid program name: $OPTARG, options: ceseal or node"
             exit 1
         fi
         which_build_proc=$(echo build_$OPTARG)
