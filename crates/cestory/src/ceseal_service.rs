@@ -26,6 +26,7 @@ use sp_core::{crypto::Pair, sr25519};
 use std::{
     borrow::Borrow,
     fmt::Debug,
+    path::PathBuf,
     sync::{Arc, MutexGuard},
     time::Duration,
 };
@@ -544,6 +545,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> CesealApi for RpcSe
         let request = request.into_inner();
         self.lock_ceseal(false, false)?
             .load_chain_state(request.block_number, request.decode_state().map_err(to_status)?)
+            .map_err(from_display)?;
+        Ok(Response::new(()))
+    }
+
+    async fn load_chain_state_from_file(&self, request: Request<pb::ChainStateOnlyBn>) -> RpcResult<()> {
+        let request = request.into_inner();
+        self.lock_ceseal(false, false)?
+            .load_chain_state_from_file(request.block_number)
             .map_err(from_display)?;
         Ok(Response::new(()))
     }
@@ -1095,6 +1104,45 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
             anyhow::bail!("Runtime is uninitialized");
         };
         let chain_storage = ChainStorage::from_pairs(storage.into_iter());
+        if chain_storage.is_worker_registered(&system.identity_key.public()) {
+            anyhow::bail!("Failed to load state: the worker is already registered at block {block}",);
+        }
+        state
+            .storage_synchronizer
+            .assume_at_block(block)
+            .map_err(|e| anyhow!("Failed to set synchronizer state:{e}"))?;
+        state.chain_storage = Arc::new(parking_lot::RwLock::new(chain_storage));
+        system.genesis_block = block;
+        Ok(())
+    }
+
+    pub fn load_chain_state_from_file(&mut self, block: chain::BlockNumber) -> anyhow::Result<()> {
+        let p = PathBuf::from(format!("{}/{}.state", self.args.storage_path, block));
+        if !p.exists() {
+            anyhow::bail!("Failed to load state: the file {p:?} does not exist");
+        }
+        use std::io::Read;
+        let mut file = std::fs::File::open(&p).map_err(|e| anyhow!("Failed to open state file {p:?}: {e}"))?;
+        let mut buf = vec![];
+        file.read_to_end(&mut buf)?;
+        let pairs =
+            StorageState::decode(&mut buf.as_slice()).map_err(|e| anyhow!("Failed to decode state file {p:?}: {e}"))?;
+
+        if !self.can_load_chain_state() {
+            anyhow::bail!("Can not load chain state");
+        }
+        if block == 0 {
+            anyhow::bail!("Can not load chain state from block 0");
+        }
+        let Some(system) = &mut self.system else {
+            anyhow::bail!("System is uninitialized");
+        };
+        let Some(state) = &mut self.runtime_state else {
+            anyhow::bail!("Runtime is uninitialized");
+        };
+
+        let chain_storage = ChainStorage::from_pairs(pairs.into_iter());
+
         if chain_storage.is_worker_registered(&system.identity_key.public()) {
             anyhow::bail!("Failed to load state: the worker is already registered at block {block}",);
         }

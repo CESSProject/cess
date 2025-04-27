@@ -52,6 +52,8 @@ service CesealApi {
   // Load given chain state into the ceseal
   rpc LoadChainState (ChainState) returns (google.protobuf.Empty) {}
 
+  rpc LoadChainStateFromFile(ChainStateOnlyBn) returns (google.protobuf.Empty) {}
+
   // Stop and optionally remove checkpoints
   rpc Stop (StopOptions) returns (google.protobuf.Empty) {}
 
@@ -290,6 +292,10 @@ message ChainState {
   uint32 block_number = 1;
   // @codec scale crate::blocks::StorageState
   bytes encoded_state = 2;
+}
+
+message ChainStateOnlyBn {
+  uint32 block_number = 1;  
 }
 
 message StopOptions {
