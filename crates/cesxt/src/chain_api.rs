@@ -37,7 +37,7 @@ pub async fn connect(uri: &str) -> Result<ChainApi> {
 }
 
 const MAX_REQUEST_SIZE: u32 = 8 << 20; // 8MiB
-const MAX_RESPONSE_SIZE: u32 = 256 << 20; //256MiB
+const MAX_RESPONSE_SIZE: u32 = 2048 << 20; //2048MiB
 
 async fn ws_client(url: &str) -> Result<jsonrpsee::async_client::Client> {
     use jsonrpsee::client_transport::ws::Url;
