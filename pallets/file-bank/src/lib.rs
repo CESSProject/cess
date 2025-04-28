@@ -340,6 +340,8 @@ pub mod pallet {
 						}
 					}
 
+					<UserHoldFileList<T>>::insert(&acc, file_info_list);
+
 					ClearUserList::<T>::mutate(|target_list| {
 						target_list.retain(|temp_acc| temp_acc.0 != *acc);
 					});

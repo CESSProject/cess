@@ -541,6 +541,56 @@ pub mod pallet {
             Ok(())
         }
 
+        /// temporary solution
+        #[pallet::call_index(120)]
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::reactivate_territory())]
+        pub fn other_reactivate_territory(
+            origin: OriginFor<T>, 
+            target_acc: AccountOf<T>,
+            territory_name: TerrName,
+            days: u32,
+        ) -> DispatchResult {
+            let signer = ensure_signed(origin)?;
+            let sender = target_acc;
+
+            let territory = <Territory<T>>::try_get(&sender, &territory_name)
+                .map_err(|_| Error::<T>::NotHaveTerritory)?;
+            
+            ensure!(territory.state == TerritoryState::Expired, Error::<T>::NotExpire);
+
+            let days_unit_price = <UnitPrice<T>>::try_get()
+                .map_err(|_e| Error::<T>::BugInvalid)?
+                .checked_div(&30u32.saturated_into())
+                .ok_or(Error::<T>::Overflow)?;
+
+            let gib_count = territory.total_space.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
+
+            let price = days_unit_price
+                .checked_mul(&days.saturated_into())
+                .ok_or(Error::<T>::Overflow)?
+                .checked_mul(&gib_count.saturated_into())
+                .ok_or(Error::<T>::Overflow)?;
+
+            ensure!(
+                <T as pallet::Config>::Currency::can_slash(&signer, price.clone()),
+                Error::<T>::InsufficientBalance
+            );
+
+            T::CessTreasuryHandle::send_to_sid(signer.clone(), price.clone())?;
+
+            Self::add_purchased_space(territory.total_space)?;
+            Self::initial_territory(sender.clone(), territory_name.clone(), days)?;
+            
+            Self::deposit_event(Event::<T>::ReactivateTerritory {
+				name: territory_name,
+				days: days,
+				spend: price,
+			});
+
+            Ok(())
+        }
+
         #[pallet::call_index(102)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::territory_consignment())]
