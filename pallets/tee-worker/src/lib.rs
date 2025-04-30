@@ -289,9 +289,6 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type LastWork<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, BlockNumberFor<T>, ValueQuery>;
 
-	#[pallet::storage]
-	pub type LastRefresh<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, BlockNumberFor<T>, ValueQuery>;
-
 	/// Ceseals whoes version less than MinimumCesealVersion would be forced to quit.
 	#[pallet::storage]
 	pub type MinimumCesealVersion<T: Config> = StorageValue<_, (u32, u32, u32), ValueQuery>;
@@ -413,7 +410,6 @@ pub mod pallet {
 				Endpoints::<T>::insert(&pubkey, ceseal_info.endpoint.clone()); //will deprecated
 				let now = <frame_system::Pallet<T>>::block_number();
 				<LastWork<T>>::insert(&pubkey, now);
-				<LastRefresh<T>>::insert(&pubkey, now);
 
 				if ceseal_info.role == WorkerRole::Full || ceseal_info.role == WorkerRole::Verifier {
 					ValidationTypeList::<T>::mutate(|puk_list| -> DispatchResult {
@@ -441,7 +437,6 @@ pub mod pallet {
 					worker.endpoint = ceseal_info.endpoint.clone();
 					Ok(())
 				})?;
-				<LastRefresh<T>>::insert(&pubkey, <frame_system::Pallet<T>>::block_number());
 				Endpoints::<T>::insert(&pubkey, ceseal_info.endpoint.clone());
 				Self::deposit_event(Event::<T>::RefreshStatus { pubkey, level: attestation_report.confidence_level });
 			}
@@ -494,8 +489,8 @@ pub mod pallet {
 
 			ensure!(MasterPubkey::<T>::get().is_none(), Error::<T>::MasterKeyAlreadyLaunched);
 			ensure!(MasterKeyFirstHolder::<T>::get().is_none(), Error::<T>::MasterKeyLaunching);
+			ensure!(!Workers::<T>::contains_key(&worker_pubkey), Error::<T>::WorkerNotFound);
 
-			let _worker_info = Workers::<T>::get(worker_pubkey).ok_or(Error::<T>::WorkerNotFound)?;
 			MasterKeyFirstHolder::<T>::put(worker_pubkey);
 			// wait for the lead worker to upload the master pubkey
 			Self::deposit_event(Event::<T>::MasterKeyLaunching { holder: worker_pubkey });
