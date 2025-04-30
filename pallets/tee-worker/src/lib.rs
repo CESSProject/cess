@@ -249,9 +249,6 @@ pub mod pallet {
 	pub type MasterPubkey<T: Config> = StorageValue<_, MasterPublicKey>;
 
 	#[pallet::storage]
-	pub type OldMasterPubkey<T: Config> = StorageValue<_, MasterPublicKey>;
-
-	#[pallet::storage]
 	pub type OldMasterPubkeyList<T: Config> = StorageValue<_, Vec<MasterPublicKey>, ValueQuery>;
 
 	/// The block number and unix timestamp when the master-key is launched
@@ -545,10 +542,8 @@ pub mod pallet {
 
 			let old_pubkey = MasterPubkey::<T>::get().ok_or(Error::<T>::WorkerNotFound)?;
 			MasterKeyFirstHolder::<T>::kill();
-			let old_pubkey2 = OldMasterPubkey::<T>::get().ok_or(Error::<T>::WorkerNotFound)?;
 			OldMasterPubkeyList::<T>::mutate(|list| {
 				list.push(old_pubkey);
-				list.push(old_pubkey2);
 			});
 			MasterPubkey::<T>::kill();
 
