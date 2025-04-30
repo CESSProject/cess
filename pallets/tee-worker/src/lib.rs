@@ -392,11 +392,8 @@ pub mod pallet {
 				NoneAttestationEnabled::<T>::get(),
 			)
 			.map_err(Into::<Error<T>>::into)?;
-
-			// Update the registry
+			
 			let pubkey = ceseal_info.pubkey;
-			ensure!(!Workers::<T>::contains_key(&pubkey), Error::<T>::CesealAlreadyExists);
-
 			if !Workers::<T>::contains_key(&pubkey) {
 				let worker_info = WorkerInfo {
 					pubkey,
@@ -431,6 +428,7 @@ pub mod pallet {
 					confidence_level: attestation_report.confidence_level,
 				});
 			} else {
+				// Update the registry
 				Workers::<T>::try_mutate(&pubkey, |worker_opt| -> DispatchResult {
 					let worker = worker_opt.as_mut().ok_or(Error::<T>::NonTeeWorker)?;
 					worker.version = ceseal_info.version;
