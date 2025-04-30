@@ -1634,7 +1634,6 @@ impl pallet_tee_worker::Config for Runtime {
 	type CreditCounter = SchedulerCredit;
 	type MaxWhitelist = MaxWhitelist;
 	type AtLeastWorkBlock = AtLeastWorkBlock;
-	type LegacyAttestationValidator = pallet_tee_worker::IasValidator;
 	type GovernanceOrigin = EnsureRootOrHalfCouncil;
 }
 
