@@ -61,8 +61,7 @@ pub mod pallet {
 
 	// Re-export
 	pub use ces_types::AttestationReport;
-	// TODO: Legacy
-	pub use ces_types::attestation::legacy::{Attestation, AttestationValidator, IasValidator, SgxFields};
+
 	#[pallet::config]
 	pub trait Config: frame_system::Config + pallet_cess_staking::Config {
 		/// The overarching event type.
@@ -82,8 +81,6 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type MaxWhitelist: Get<u32> + Clone + Eq + PartialEq;
-
-		type LegacyAttestationValidator: AttestationValidator;
 
 		#[pallet::constant]
 		type AtLeastWorkBlock: Get<BlockNumberFor<Self>>;
