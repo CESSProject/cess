@@ -410,16 +410,15 @@ pub(crate) async fn do_register(
     registration_info: &RegistrationInfo,
     attestation: &AttestationInfo,
 ) -> Result<()> {
-    debug!("attestation: {:?}", attestation);
     use runtime::tee_worker::calls::types::register_worker::{Attestation, CesealInfo};
     let reg_info: CesealInfo = Decode::decode(&mut &registration_info.encode()[..])?;
     let attestation: Attestation = Decode::decode(&mut &attestation.encoded_report[..])?;
-    let reg_tx = runtime::tx().tee_worker().register_worker(reg_info, attestation);
-    chain_client
-        .tx()
-        .sign_and_submit_then_watch_default(&reg_tx, tx_signer)
-        .await?
-        .wait_for_finalized_success()
-        .await?;
+    let tx = runtime::tx().tee_worker().register_worker(reg_info, attestation);
+    let tx_progress = chain_client.tx().sign_and_submit_then_watch_default(&tx, tx_signer).await?;
+    debug!("The register tx hash: {:?}", hex::encode(tx_progress.extrinsic_hash()));
+    let tx_in_block = tx_progress.wait_for_finalized().await?;
+    debug!("The register tx in block: {:?}", hex::encode(tx_in_block.block_hash()));
+    tx_in_block.wait_for_success().await?;
+
     Ok(())
 }
