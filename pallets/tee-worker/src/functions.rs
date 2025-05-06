@@ -33,8 +33,8 @@ impl<T: Config> Pallet<T> {
 	pub fn execute_exit(pbk: WorkerPublicKey) -> Result<Weight, DispatchError> {
 		let mut weight: Weight = Weight::zero();
 
-		if let Some(first_holder) = MasterKeyFirstHolder::<T>::get() {
-			ensure!(first_holder != pbk, Error::<T>::CannotExitMasterKeyHolder);
+		if let LaunchStatus::Launched(mk_info) = MasterKeyStatus::<T>::get() {
+			ensure!(mk_info.holder != pbk, Error::<T>::CannotExitMasterKeyHolder);
 		}
 		weight = weight.saturating_add(T::DbWeight::get().reads(1));
 

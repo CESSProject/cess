@@ -94,6 +94,7 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		MasterKeyLaunching {
 			holder: WorkerPublicKey,
+			rolling: bool,
 		},
 
 		MasterKeyLaunched,
@@ -107,6 +108,11 @@ pub mod pallet {
 			receiver: WorkerPublicKey,
 		},
 
+		MasterKeyHolderChanged {
+			from: WorkerPublicKey,
+			to: WorkerPublicKey,
+		},
+
 		WorkerAdded {
 			pubkey: WorkerPublicKey,
 			attestation_provider: Option<AttestationProvider>,
@@ -117,10 +123,6 @@ pub mod pallet {
 			pubkey: WorkerPublicKey,
 			attestation_provider: Option<AttestationProvider>,
 			confidence_level: u8,
-		},
-
-		ChangeFirstHolder {
-			pubkey: WorkerPublicKey,
 		},
 
 		ClearInvalidTee {
@@ -203,19 +205,12 @@ pub mod pallet {
 	pub(super) type ValidationTypeList<T: Config> =
 		StorageValue<_, BoundedVec<WorkerPublicKey, T::SchedulerMaximum>, ValueQuery>;
 
+	/// Master key status
 	#[pallet::storage]
-	pub type MasterKeyFirstHolder<T: Config> = StorageValue<_, WorkerPublicKey>;
-
-	/// Master public key
-	#[pallet::storage]
-	pub type MasterPubkey<T: Config> = StorageValue<_, MasterPublicKey>;
+	pub type MasterKeyStatus<T: Config> = StorageValue<_, LaunchStatus<T>, ValueQuery, LaunchStatusDefault>;
 
 	#[pallet::storage]
-	pub type OldMasterPubkeyList<T: Config> = StorageValue<_, Vec<MasterPublicKey>, ValueQuery>;
-
-	/// The block number and unix timestamp when the master-key is launched
-	#[pallet::storage]
-	pub type MasterKeyLaunchedAt<T: Config> = StorageValue<_, (BlockNumberFor<T>, u64)>;
+	pub type MasterKeyHistory<T: Config> = StorageValue<_, Vec<MasterKeyInfo<T>>, ValueQuery>;
 
 	#[pallet::storage]
 	pub type MasterKeyPostation<T: Config> =
@@ -410,60 +405,68 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Force register a worker with the given pubkey with sudo permission
-		///
-		/// For test only.
-		#[pallet::call_index(11)]
-		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn force_register_worker(
-			origin: OriginFor<T>,
-			pubkey: WorkerPublicKey,
-			ecdh_pubkey: EcdhPublicKey,
-			stash_account: Option<AccountOf<T>>,
-		) -> DispatchResult {
-			ensure_root(origin)?;
-			let worker_info = WorkerInfo {
-				pubkey,
-				ecdh_pubkey,
-				version: 0,
-				last_updated: 1,
-				stash_account,
-				attestation_provider: Some(AttestationProvider::Root),
-				confidence_level: 128u8,
-				features: vec![1, 4],
-				role: WorkerRole::Full,
-				endpoint: "https://cess.network/".to_string(),
-			};
-			Workers::<T>::insert(worker_info.pubkey, &worker_info);
-			WorkerAddedAt::<T>::insert(worker_info.pubkey, frame_system::Pallet::<T>::block_number());
-			Self::deposit_event(Event::<T>::WorkerAdded {
-				pubkey,
-				attestation_provider: Some(AttestationProvider::Root),
-				confidence_level: worker_info.confidence_level,
-			});
-
-			Ok(())
-		}
-
 		/// Launch master-key
 		///
 		/// Can only be called by `GovernanceOrigin`.
-		#[pallet::call_index(13)]
+		#[pallet::call_index(2)]
 		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn launch_master_key(origin: OriginFor<T>, worker_pubkey: WorkerPublicKey) -> DispatchResult {
+		pub fn launch_master_key(
+			origin: OriginFor<T>,
+			holder: WorkerPublicKey,
+			roll_if_launched: bool,
+		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
+			ensure!(Workers::<T>::contains_key(&holder), Error::<T>::WorkerNotFound);
+			let mut rolled_mk_info = None;
+			match MasterKeyStatus::<T>::get() {
+				LaunchStatus::<T>::Launching(_) => {
+					return Err(Error::<T>::MasterKeyLaunching.into());
+				},
+				LaunchStatus::<T>::Launched(mk_info) => {
+					if !roll_if_launched {
+						return Err(Error::<T>::MasterKeyAlreadyLaunched.into());
+					}
+					rolled_mk_info = Some(mk_info);
+				},
+				_ => {},
+			}
 
-			ensure!(MasterPubkey::<T>::get().is_none(), Error::<T>::MasterKeyAlreadyLaunched);
-			ensure!(MasterKeyFirstHolder::<T>::get().is_none(), Error::<T>::MasterKeyLaunching);
-			ensure!(!Workers::<T>::contains_key(&worker_pubkey), Error::<T>::WorkerNotFound);
-
-			MasterKeyFirstHolder::<T>::put(worker_pubkey);
-			// wait for the lead worker to upload the master pubkey
-			Self::deposit_event(Event::<T>::MasterKeyLaunching { holder: worker_pubkey });
+			MasterKeyStatus::<T>::put(LaunchStatus::<T>::Launching(holder));
+			let mut rolling = false;
+			if let Some(mk_info) = rolled_mk_info {
+				rolling = true;
+				MasterKeyHistory::<T>::mutate(|history| {
+					history.push(mk_info);
+				});
+			}
+			// wait for the holder to upload the master pubkey
+			Self::deposit_event(Event::<T>::MasterKeyLaunching { holder, rolling });
 			Ok(())
 		}
 
-		#[pallet::call_index(31)]
+		#[pallet::call_index(3)]
+		#[pallet::weight({0})]
+		pub fn change_master_key_holder(origin: OriginFor<T>, new_holder: WorkerPublicKey) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+			MasterKeyStatus::<T>::try_mutate(|mks| -> DispatchResult {
+				match mks {
+					LaunchStatus::<T>::NotLaunched | LaunchStatus::<T>::Launching(_) => {
+						return Err(Error::<T>::MasterKeyLaunchRequire.into())
+					},
+					LaunchStatus::<T>::Launched(ref mut mk_info) => {
+						if mk_info.holder != new_holder {
+							let from = mk_info.holder.clone();
+							mk_info.holder = new_holder;
+							Self::deposit_event(Event::<T>::MasterKeyHolderChanged { from, to: new_holder });
+						}
+					},
+				}
+				Ok(())
+			})?;
+			Ok(())
+		}
+
+		#[pallet::call_index(4)]
 		#[pallet::weight({0})]
 		pub fn settle_master_key_launch(
 			origin: OriginFor<T>,
@@ -471,45 +474,25 @@ pub mod pallet {
 			_signature: Vec<u8>,
 		) -> DispatchResult {
 			ensure_signed(origin)?;
-			let holder = MasterKeyFirstHolder::<T>::get().ok_or(Error::<T>::MasterKeyLaunchRequire)?;
-			ensure!(payload.launcher.0 == holder.0, Error::<T>::InvalidMasterKeyFirstHolder);
-			match MasterPubkey::<T>::try_get() {
-				Ok(saved_pubkey) => {
-					ensure!(
-						saved_pubkey.0 == payload.master_pubkey.0,
-						Error::<T>::MasterKeyMismatch // Oops, this is really bad
-					);
-				},
-				_ => {
-					MasterPubkey::<T>::put(payload.master_pubkey);
+			match MasterKeyStatus::<T>::get() {
+				LaunchStatus::<T>::NotLaunched => return Err(Error::<T>::MasterKeyLaunchRequire.into()),
+				LaunchStatus::<T>::Launched(_) => return Err(Error::<T>::MasterKeyAlreadyLaunched.into()),
+				LaunchStatus::<T>::Launching(holder) => {
+					ensure!(payload.launcher.0 == holder.0, Error::<T>::InvalidMasterKeyFirstHolder);
 					let block_number = frame_system::Pallet::<T>::block_number();
 					let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
-					MasterKeyLaunchedAt::<T>::put((block_number, now));
+					MasterKeyStatus::<T>::put(LaunchStatus::<T>::Launched(MasterKeyInfo {
+						pubkey: payload.master_pubkey,
+						holder,
+						launched_at: (block_number, now),
+					}));
 					Self::deposit_event(Event::<T>::MasterKeyLaunched);
 				},
 			}
 			Ok(())
 		}
 
-		#[pallet::call_index(14)]
-		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
-		pub fn clear_master_key(origin: OriginFor<T>) -> DispatchResult {
-			T::GovernanceOrigin::ensure_origin(origin)?;
-
-			ensure!(MasterPubkey::<T>::get().is_some(), Error::<T>::MasterKeyAlreadyLaunched);
-			ensure!(MasterKeyFirstHolder::<T>::get().is_some(), Error::<T>::MasterKeyLaunching);
-
-			let old_pubkey = MasterPubkey::<T>::get().ok_or(Error::<T>::WorkerNotFound)?;
-			MasterKeyFirstHolder::<T>::kill();
-			OldMasterPubkeyList::<T>::mutate(|list| {
-				list.push(old_pubkey);
-			});
-			MasterPubkey::<T>::kill();
-
-			Ok(())
-		}
-
-		#[pallet::call_index(21)]
+		#[pallet::call_index(5)]
 		#[pallet::weight({0})]
 		pub fn apply_master_key(
 			origin: OriginFor<T>,
@@ -544,7 +527,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(30)]
+		#[pallet::call_index(6)]
 		#[pallet::weight({0})]
 		pub fn distribute_master_key(
 			origin: OriginFor<T>,
@@ -568,7 +551,7 @@ pub mod pallet {
 		/// Registers a ceseal binary to [`CesealBinAllowList`]
 		///
 		/// Can only be called by `GovernanceOrigin`.
-		#[pallet::call_index(19)]
+		#[pallet::call_index(7)]
 		#[pallet::weight({0})]
 		pub fn add_ceseal(origin: OriginFor<T>, ceseal_hash: H256) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
@@ -586,25 +569,10 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::call_index(22)]
-		#[pallet::weight({0})]
-		pub fn change_first_holder(origin: OriginFor<T>, pubkey: WorkerPublicKey) -> DispatchResult {
-			T::GovernanceOrigin::ensure_origin(origin)?;
-
-			MasterKeyFirstHolder::<T>::try_mutate(|first_key_opt| -> DispatchResult {
-				let first_key = first_key_opt.as_mut().ok_or(Error::<T>::MasterKeyFirstHolderNotFound)?;
-				*first_key = pubkey;
-				Ok(())
-			})?;
-
-			Self::deposit_event(Event::<T>::ChangeFirstHolder { pubkey });
-			Ok(())
-		}
-
 		/// Removes a ceseal binary from [`CesealBinAllowList`]
 		///
 		/// Can only be called by `GovernanceOrigin`.
-		#[pallet::call_index(110)]
+		#[pallet::call_index(8)]
 		#[pallet::weight({0})]
 		pub fn remove_ceseal(origin: OriginFor<T>, ceseal_hash: H256) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
@@ -624,12 +592,28 @@ pub mod pallet {
 		/// Set minimum ceseal version. Versions less than MinimumCesealVersion would be forced to quit.
 		///
 		/// Can only be called by `GovernanceOrigin`.
-		#[pallet::call_index(113)]
+		#[pallet::call_index(9)]
 		#[pallet::weight({0})]
 		pub fn set_minimum_ceseal_version(origin: OriginFor<T>, major: u32, minor: u32, patch: u32) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 			MinimumCesealVersion::<T>::put((major, minor, patch));
 			Self::deposit_event(Event::<T>::MinimumCesealVersionChangedTo(major, minor, patch));
+			Ok(())
+		}
+
+		#[pallet::call_index(10)]
+		#[pallet::weight({0})]
+		pub fn set_none_attestation_enabled(origin: OriginFor<T>, enabled: bool) -> DispatchResult {
+			ensure_root(origin)?;
+			NoneAttestationEnabled::<T>::put(enabled);
+			Ok(())
+		}
+
+		#[pallet::call_index(11)]
+		#[pallet::weight({0})]
+		pub fn set_ceseal_verify_required(origin: OriginFor<T>, required: bool) -> DispatchResult {
+			ensure_root(origin)?;
+			CesealVerifyRequired::<T>::put(required);
 			Ok(())
 		}
 
@@ -644,6 +628,7 @@ pub mod pallet {
 
 			Ok(())
 		}
+
 		// FOR TEST
 		#[pallet::call_index(115)]
 		#[pallet::weight({0})]
@@ -679,19 +664,38 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Force register a worker with the given pubkey with sudo permission
+		///
+		/// For test only.
 		#[pallet::call_index(118)]
-		#[pallet::weight({0})]
-		pub fn set_none_attestation_enabled(origin: OriginFor<T>, enabled: bool) -> DispatchResult {
+		#[pallet::weight(Weight::from_parts(10_000u64, 0) + T::DbWeight::get().writes(1u64))]
+		pub fn force_register_worker(
+			origin: OriginFor<T>,
+			pubkey: WorkerPublicKey,
+			ecdh_pubkey: EcdhPublicKey,
+			stash_account: Option<AccountOf<T>>,
+		) -> DispatchResult {
 			ensure_root(origin)?;
-			NoneAttestationEnabled::<T>::put(enabled);
-			Ok(())
-		}
+			let worker_info = WorkerInfo {
+				pubkey,
+				ecdh_pubkey,
+				version: 0,
+				last_updated: 1,
+				stash_account,
+				attestation_provider: Some(AttestationProvider::Root),
+				confidence_level: 128u8,
+				features: vec![1, 4],
+				role: WorkerRole::Full,
+				endpoint: "https://cess.network/".to_string(),
+			};
+			Workers::<T>::insert(worker_info.pubkey, &worker_info);
+			WorkerAddedAt::<T>::insert(worker_info.pubkey, frame_system::Pallet::<T>::block_number());
+			Self::deposit_event(Event::<T>::WorkerAdded {
+				pubkey,
+				attestation_provider: Some(AttestationProvider::Root),
+				confidence_level: worker_info.confidence_level,
+			});
 
-		#[pallet::call_index(119)]
-		#[pallet::weight({0})]
-		pub fn set_ceseal_verify_required(origin: OriginFor<T>, required: bool) -> DispatchResult {
-			ensure_root(origin)?;
-			CesealVerifyRequired::<T>::put(required);
 			Ok(())
 		}
 	}
@@ -776,6 +780,51 @@ pub mod pallet {
 				},
 			}
 		}
+	}
+
+	#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
+	#[scale_info(skip_type_params(T))]
+	pub enum LaunchStatus<T: Config> {
+		/// The master key is not launched yet
+		NotLaunched,
+		/// The master key is being launched
+		Launching(WorkerPublicKey),
+		/// The master key is launched
+		Launched(MasterKeyInfo<T>),
+	}
+
+	impl<T: Config> Default for LaunchStatus<T> {
+		fn default() -> Self {
+			Self::NotLaunched
+		}
+	}
+
+	pub struct LaunchStatusDefault;
+	impl<T: Config> Get<LaunchStatus<T>> for LaunchStatusDefault {
+		fn get() -> LaunchStatus<T> {
+			LaunchStatus::<T>::NotLaunched
+		}
+	}
+
+	impl<T: Config> AsMut<LaunchStatus<T>> for LaunchStatus<T> {
+		fn as_mut(&mut self) -> &mut LaunchStatus<T> {
+			self
+		}
+	}
+
+	impl<T: Config> AsRef<LaunchStatus<T>> for LaunchStatus<T> {
+		fn as_ref(&self) -> &LaunchStatus<T> {
+			self
+		}
+	}
+
+	#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
+	#[scale_info(skip_type_params(T))]
+	pub struct MasterKeyInfo<T: Config> {
+		pub pubkey: MasterPublicKey,
+		pub holder: WorkerPublicKey,
+		/// The block number and unix timestamp when the master-key is launched
+		pub launched_at: (BlockNumberFor<T>, u64),
 	}
 }
 
@@ -863,24 +912,24 @@ impl<T: Config> TeeWorkerHandler<AccountOf<T>, BlockNumberFor<T>> for Pallet<T> 
 	}
 
 	fn verify_master_sig(sig: &sp_core::sr25519::Signature, hash: SHA256) -> bool {
-		let cur_pubkey = match <MasterPubkey<T>>::try_get().map_err(|_| Error::<T>::MasterKeyUninitialized) {
-			Ok(cur_pubkey) => cur_pubkey,
-			Err(_) => return false,
-		};
-
-		let mut flag = false;
-		let pubkey_list = OldMasterPubkeyList::<T>::get();
-		for pubkey in pubkey_list {
-			if sp_io::crypto::sr25519_verify(&sig, &hash, &pubkey) {
-				flag = true;
-				break;
+		use core::ops::ControlFlow;
+		if let LaunchStatus::Launched(mk_info) = MasterKeyStatus::<T>::get() {
+			let mk_pubkey_list = MasterKeyHistory::<T>::get();
+			let ret = mk_pubkey_list
+				.iter()
+				.map(|mk_info| mk_info.pubkey)
+				.chain(core::iter::once(mk_info.pubkey))
+				.rev()
+				.try_for_each(|mk_pubkey| {
+					if sp_io::crypto::sr25519_verify(&sig, &hash, &mk_pubkey) {
+						return ControlFlow::Break(());
+					}
+					ControlFlow::Continue(())
+				});
+			if let ControlFlow::Break(_) = ret {
+				return true;
 			}
 		}
-
-		if sp_io::crypto::sr25519_verify(&sig, &hash, &cur_pubkey) || flag {
-			return true;
-		}
-
 		false
 	}
 
