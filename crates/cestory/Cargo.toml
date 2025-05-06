@@ -9,40 +9,29 @@ anyhow = { workspace = true }
 async-trait = { workspace = true }
 base64 = { workspace = true }
 chrono = { workspace = true, features = ["now"] }
-environmental = { workspace = true }
 glob = { workspace = true }
 hex = { workspace = true, features = ["alloc"] }
 hex_fmt = { workspace = true }
-hex-literal = { workspace = true }
 h2 = { workspace = true }
 futures = { workspace = true, features = ["async-await"] }
-im = { workspace = true }
-itertools = { workspace = true }
-libc = { workspace = true }
 log = { workspace = true }
 num-bigint = { workspace = true }
-once_cell = { workspace = true }
 parity-scale-codec = { workspace = true, features = [
     "derive",
     "full",
     "chain-error",
 ] }
-parking_lot = { workspace = true }
 rand = { workspace = true }
 regex = { workspace = true }
 ring = { workspace = true }
 scale-info = { workspace = true, features = ["derive"] }
-scopeguard = { workspace = true }
 serde = { workspace = true, features = ["derive", "std", "rc"] }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["full"] }
 tokio-stream = { workspace = true }
 tracing = { workspace = true }
-# for light_validation
 derive_more = { workspace = true, features = ["from", "deref", "deref_mut"] }
-hash-db = { workspace = true }
-num-traits = { workspace = true }
 sp-core = { workspace = true }
 tonic = { workspace = true }
 rsa = { workspace = true }
