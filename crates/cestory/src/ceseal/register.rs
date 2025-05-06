@@ -206,17 +206,20 @@ impl<Platform: pal::Platform> RegisteredCeseal<Platform> {
     }
 
     async fn is_assigned_me_to_launch(&self) -> Result<bool> {
-        let id_pubkey = self.id_key.public_key();
-        let q = runtime::storage().tee_worker().master_key_first_holder();
-        let ret = self
+        use runtime::runtime_types::pallet_tee_worker::pallet::LaunchStatus;
+        let q = runtime::storage().tee_worker().master_key_status();
+        let r = self
             .chain_client
             .storage()
             .at_latest()
             .await?
             .fetch(&q)
             .await?
-            .map_or(false, |e| id_pubkey.0 == e);
-        Ok(ret)
+            .unwrap_or(LaunchStatus::NotLaunched);
+        match r {
+            LaunchStatus::Launching(holder) => Ok(holder == self.id_key.public_key().0),
+            _ => Ok(false),
+        }
     }
 
     /// Generate the master key if this is the first keyfairy
@@ -244,8 +247,20 @@ impl<Platform: pal::Platform> RegisteredCeseal<Platform> {
     }
 
     async fn launched_master_pubkey_on_chain(&self) -> Result<Option<[u8; 32]>> {
-        let q = runtime::storage().tee_worker().master_pubkey();
-        Ok(self.chain_client.storage().at_latest().await?.fetch(&q).await?)
+        use runtime::runtime_types::pallet_tee_worker::pallet::{LaunchStatus, MasterKeyInfo};
+        let q = runtime::storage().tee_worker().master_key_status();
+        let r = self
+            .chain_client
+            .storage()
+            .at_latest()
+            .await?
+            .fetch(&q)
+            .await?
+            .unwrap_or(LaunchStatus::NotLaunched);
+        match r {
+            LaunchStatus::Launched(MasterKeyInfo { pubkey, .. }) => Ok(Some(pubkey)),
+            _ => Ok(None),
+        }
     }
 
     async fn ensure_master_key_from_local(

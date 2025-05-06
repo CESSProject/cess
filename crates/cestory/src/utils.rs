@@ -63,19 +63,6 @@ pub mod cqh {
         pub async fn is_storage_miner_registered_ignore_state(&self, miner_account_id: &AccountId) -> Result<bool> {
             self.get_storage_miner_info(miner_account_id).await.map(|r| r.is_some())
         }
-
-        pub async fn is_master_key_first_holder(&self, worker_pubkey: &ces_types::WorkerPublicKey) -> Result<bool> {
-            let q = runtime::storage().tee_worker().master_key_first_holder();
-            let r = self
-                .chain_client
-                .storage()
-                .at_latest()
-                .await?
-                .fetch(&q)
-                .await?
-                .map_or_else(|| false, |e| e == worker_pubkey.0);
-            Ok(r)
-        }
     }
 }
 
