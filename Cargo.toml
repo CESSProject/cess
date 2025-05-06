@@ -364,7 +364,7 @@ im = { version = "15", default-features = false }
 impl-trait-for-tuples = { version = "0.2.2" }
 impl-serde = "0.5.0"
 insta = "1"
-itertools = { version = "0.13", default-features = false }
+itertools = { version = "0.14", default-features = false }
 jsonrpsee = { version = "0.24.3" }
 keccak-hasher = "0.16.0"
 lazy_static = { version = "1", default-features = false }
@@ -382,11 +382,11 @@ parking_lot = "0.12"
 platforms = "3.0"
 primitive-types = { version = "0.13.1", default-features = false }
 proc-macro2 = "1.0"
-prost = { version = "0.11", default-features = false, features = [
+prost = { version = "0.13", default-features = false, features = [
     "prost-derive",
 ] }
-prost-build = "0.12"
-prost-types = "0.12"
+prost-build = "0.13"
+prost-types = "0.13"
 pink-json = { version = "0.4", default-features = false }
 pem = { version = "3", default-features = false }
 quote = "1.0"
@@ -429,10 +429,10 @@ thiserror = "1.0"
 threadpool = "1.8.1"
 tokio = { version = "1" }
 tokio-util = { version = "0.7", features = ["compat"] }
-tonic = { version = "0.9.2" }
-tonic-build = { version = "0.9.2", features = ["prost"] }
+tonic = { version = "0.13" }
+tonic-build = { version = "0.13", features = ["prost"] }
 tokio-stream = { version = "0.1" }
-tower = { version = "0.4" }
+tower = { version = "0.5" }
 tracing = { version = "0.1", default-features = false }
 tracing-core = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

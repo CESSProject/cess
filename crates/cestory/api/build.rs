@@ -138,6 +138,6 @@ fn build_protos() {
         .build_client(if cfg!(feature = "api-client") { true } else { false });
 
     builder
-        .compile(&["handover-api.proto", "pois-api.proto", "podr2-api.proto", "pubkeys.proto"], &["proto"])
+        .compile_protos(&["handover-api.proto", "pois-api.proto", "podr2-api.proto", "pubkeys.proto"], &["proto"])
         .unwrap();
 }
