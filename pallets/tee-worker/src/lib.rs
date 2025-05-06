@@ -92,10 +92,6 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		Exit {
-			tee: WorkerPublicKey,
-		},
-
 		MasterKeyLaunching {
 			holder: WorkerPublicKey,
 		},
@@ -131,11 +127,6 @@ pub mod pallet {
 			pubkey: WorkerPublicKey,
 		},
 
-		RefreshStatus {
-			pubkey: WorkerPublicKey,
-			level: u8,
-		},
-
 		MinimumCesealVersionChangedTo(u32, u32, u32),
 
 		CesealBinAdded(H256),
@@ -147,33 +138,37 @@ pub mod pallet {
 	pub enum Error<T> {
 		/// Boundedvec conversion error
 		BoundedVecError,
-
 		NotBond,
+		WorkerNotFound,
+		WrongWorkerRole,
+		InvalidWorkerPubKey,
+		MalformedSignature,
+		InvalidSignatureLength,
+		InvalidSignature,
+		MasterKeyLaunchRequire,
+		InvalidMasterKeyFirstHolder,
+		InvalidMasterKeyApplySigningTime,
+		CannotExitMasterKeyHolder,
+		MasterKeyFirstHolderNotFound,
+		MasterKeyAlreadyLaunched,
+		MasterKeyLaunching,
+		MasterKeyMismatch,
+		MasterKeyUninitialized,
+		CesealBinAlreadyExists,
+		CesealBinNotFound,
 
-		NonTeeWorker,
-
+		// Adaptations for SGX-related errors
 		CesealRejected,
-
 		InvalidIASSigningCert,
-
 		InvalidReport,
-
 		InvalidQuoteStatus,
-
 		BadIASReport,
-
 		OutdatedIASReport,
-
 		UnknownQuoteBodyFormat,
-
 		InvalidCesealInfoHash,
-
 		NoneAttestationDisabled,
-
 		UnsupportedAttestationType,
-
 		InvalidDCAPQuote,
-
 		InvalidCertificate,
 		CodecError,
 		TCBInfoExpired,
@@ -201,39 +196,6 @@ pub mod pallet {
 		IsvEnclaveReportSignatureIsInvalid,
 		DerDecodingError,
 		OidIsMissing,
-
-		WrongTeeType,
-
-		InvalidSender,
-		InvalidWorkerPubKey,
-		MalformedSignature,
-		InvalidSignatureLength,
-		InvalidSignature,
-		/// IAS related
-		WorkerNotFound,
-		/// master-key launch related
-		MasterKeyLaunchRequire,
-		InvalidMasterKeyFirstHolder,
-		MasterKeyFirstHolderNotFound,
-		MasterKeyAlreadyLaunched,
-		MasterKeyLaunching,
-		MasterKeyMismatch,
-		MasterKeyUninitialized,
-		InvalidMasterKeyApplySigningTime,
-
-		CesealAlreadyExists,
-
-		CesealBinAlreadyExists,
-		CesealBinNotFound,
-
-		CannotExitMasterKeyHolder,
-
-		EmptyEndpoint,
-		InvalidEndpointSigningTime,
-
-		PayloadError,
-
-		LastWorker,
 	}
 
 	#[pallet::storage]
@@ -372,10 +334,10 @@ pub mod pallet {
 					<pallet_cess_staking::Pallet<T>>::bonded(acc).ok_or(Error::<T>::NotBond)?;
 					ensure!(
 						ceseal_info.role == WorkerRole::Verifier || ceseal_info.role == WorkerRole::Full,
-						Error::<T>::WrongTeeType
+						Error::<T>::WrongWorkerRole
 					);
 				},
-				None => ensure!(ceseal_info.role == WorkerRole::Marker, Error::<T>::WrongTeeType),
+				None => ensure!(ceseal_info.role == WorkerRole::Marker, Error::<T>::WrongWorkerRole),
 			};
 			// Validate RA report & embedded user data
 			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
@@ -389,7 +351,7 @@ pub mod pallet {
 				NoneAttestationEnabled::<T>::get(),
 			)
 			.map_err(Into::<Error<T>>::into)?;
-			
+
 			let pubkey = ceseal_info.pubkey;
 			if !Workers::<T>::contains_key(&pubkey) {
 				let worker_info = WorkerInfo {
@@ -426,7 +388,7 @@ pub mod pallet {
 			} else {
 				// Update the registry
 				Workers::<T>::try_mutate(&pubkey, |worker_opt| -> DispatchResult {
-					let worker = worker_opt.as_mut().ok_or(Error::<T>::NonTeeWorker)?;
+					let worker = worker_opt.as_mut().ok_or(Error::<T>::WorkerNotFound)?;
 					worker.version = ceseal_info.version;
 					worker.last_updated = now;
 					worker.stash_account = ceseal_info.stash_account;
@@ -438,7 +400,11 @@ pub mod pallet {
 					Ok(())
 				})?;
 				Endpoints::<T>::insert(&pubkey, ceseal_info.endpoint.clone());
-				Self::deposit_event(Event::<T>::RefreshStatus { pubkey, level: attestation_report.confidence_level });
+				Self::deposit_event(Event::<T>::WorkerUpdated {
+					pubkey,
+					attestation_provider: attestation_report.provider,
+					confidence_level: attestation_report.confidence_level,
+				});
 			}
 
 			Ok(())
@@ -812,6 +778,7 @@ pub mod pallet {
 		}
 	}
 }
+
 pub trait TeeWorkerHandler<AccountId, Block> {
 	fn can_tag(pbk: &WorkerPublicKey) -> bool;
 	fn can_verify(pbk: &WorkerPublicKey) -> bool;
@@ -870,17 +837,17 @@ impl<T: Config> TeeWorkerHandler<AccountOf<T>, BlockNumberFor<T>> for Pallet<T> 
 	}
 
 	fn get_stash(pbk: &WorkerPublicKey) -> Result<AccountOf<T>, DispatchError> {
-		let tee_info = Workers::<T>::try_get(pbk).map_err(|_| Error::<T>::NonTeeWorker)?;
+		let tee_info = Workers::<T>::try_get(pbk).map_err(|_| Error::<T>::WorkerNotFound)?;
 
 		if let Some(stash_account) = tee_info.stash_account {
 			return Ok(stash_account);
 		}
 
-		Err(Error::<T>::NonTeeWorker.into())
+		Err(Error::<T>::WorkerNotFound.into())
 	}
 
 	fn punish_scheduler(pbk: WorkerPublicKey) -> DispatchResult {
-		let tee_worker = Workers::<T>::try_get(&pbk).map_err(|_| Error::<T>::NonTeeWorker)?;
+		let tee_worker = Workers::<T>::try_get(&pbk).map_err(|_| Error::<T>::WorkerNotFound)?;
 		if let Some(stash_account) = tee_worker.stash_account {
 			pallet_cess_staking::slashing::slash_scheduler::<T>(&stash_account);
 			T::CreditCounter::record_punishment(&stash_account)?;
