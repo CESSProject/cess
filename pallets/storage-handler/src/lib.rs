@@ -541,6 +541,56 @@ pub mod pallet {
             Ok(())
         }
 
+        /// temporary solution
+        #[pallet::call_index(120)]
+		#[transactional]
+		#[pallet::weight(<T as pallet::Config>::WeightInfo::reactivate_territory())]
+        pub fn other_reactivate_territory(
+            origin: OriginFor<T>, 
+            target_acc: AccountOf<T>,
+            territory_name: TerrName,
+            days: u32,
+        ) -> DispatchResult {
+            let signer = ensure_signed(origin)?;
+            let sender = target_acc;
+
+            let territory = <Territory<T>>::try_get(&sender, &territory_name)
+                .map_err(|_| Error::<T>::NotHaveTerritory)?;
+            
+            ensure!(territory.state == TerritoryState::Expired, Error::<T>::NotExpire);
+
+            let days_unit_price = <UnitPrice<T>>::try_get()
+                .map_err(|_e| Error::<T>::BugInvalid)?
+                .checked_div(&30u32.saturated_into())
+                .ok_or(Error::<T>::Overflow)?;
+
+            let gib_count = territory.total_space.checked_div(G_BYTE).ok_or(Error::<T>::Overflow)?;
+
+            let price = days_unit_price
+                .checked_mul(&days.saturated_into())
+                .ok_or(Error::<T>::Overflow)?
+                .checked_mul(&gib_count.saturated_into())
+                .ok_or(Error::<T>::Overflow)?;
+
+            ensure!(
+                <T as pallet::Config>::Currency::can_slash(&signer, price.clone()),
+                Error::<T>::InsufficientBalance
+            );
+
+            T::CessTreasuryHandle::send_to_sid(signer.clone(), price.clone())?;
+
+            Self::add_purchased_space(territory.total_space)?;
+            Self::initial_territory(sender.clone(), territory_name.clone(), days)?;
+            
+            Self::deposit_event(Event::<T>::ReactivateTerritory {
+				name: territory_name,
+				days: days,
+				spend: price,
+			});
+
+            Ok(())
+        }
+
         #[pallet::call_index(102)]
 		#[transactional]
 		#[pallet::weight(<T as pallet::Config>::WeightInfo::territory_consignment())]
@@ -834,7 +884,6 @@ pub mod pallet {
             Ok(())
         }
 
-
         #[pallet::call_index(6)]
         #[transactional]
         #[pallet::weight(<T as pallet::Config>::WeightInfo::create_order())]
@@ -848,7 +897,7 @@ pub mod pallet {
             // minute
             expired: u32,
         ) -> DispatchResult {
-            let _ = ensure_signed(origin)?;
+            let sender = ensure_signed(origin)?;
 
             let expired: BlockNumberFor<T> = (expired
                 .checked_mul(6).ok_or(Error::<T>::Overflow)?).saturated_into();
@@ -887,7 +936,7 @@ pub mod pallet {
             };
 
             let (seed, _) =
-					T::MyRandomness::random(&(T::RewardPalletId::get(), now).encode());
+					T::MyRandomness::random(&(T::RewardPalletId::get(), now, sender).encode());
 			let seed = match seed {
 				Some(v) => v,
 				None => Default::default(),
@@ -1214,7 +1263,9 @@ impl<T: Config> Pallet<T> {
                     let _ = <Territory<T>>::try_mutate(&acc, &territory_name, |t_opt| -> DispatchResult {
                         let t = t_opt.as_mut().ok_or(Error::<T>::Unexpected)?;
                         Self::sub_purchased_space(t.total_space)?;
-                        t.state = TerritoryState::Expired;
+                        if t.state == TerritoryState::Frozen {
+                            t.state = TerritoryState::Expired;
+                        }
                         Ok(())
                     });
                     weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));

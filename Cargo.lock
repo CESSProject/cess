@@ -2052,7 +2052,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node-runtime"
-version = "0.10.1"
+version = "0.10.2"
 dependencies = [
  "ces-pallet-mq",
  "ces-pallet-mq-runtime-api",
@@ -11220,7 +11220,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-storage-handler"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "cp-cess-common",
  "frame-benchmarking",
