@@ -3,6 +3,10 @@ name = "ces-pois"
 version = "0.4.5"
 edition = "2021"
 
+[features]
+default = []
+use-sysinfo = []
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -19,4 +23,9 @@ prost = { workspace = true }
 rand = { workspace = true }
 rsa = { workspace = true, features = ["std"] }
 serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = ["std"] }
 sha2 = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+sysinfo = { workspace = true, optional = true }
+async-trait = { workspace = true }
+byteorder = { workspace = true }

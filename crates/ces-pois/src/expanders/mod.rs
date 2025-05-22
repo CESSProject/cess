@@ -2,10 +2,10 @@ pub mod generate_expanders;
 pub mod generate_idle_file;
 use std::mem;
 
+use generate_idle_file::HASH_SIZE;
 use num_bigint_dig::BigInt;
 use num_traits::{Signed, ToPrimitive};
 
-pub use generate_idle_file::new_hash;
 pub type NodeType = i32;
 
 #[derive(Clone, Debug)]
@@ -15,8 +15,11 @@ pub struct Expanders {
     pub d: i64,
     pub size: i64,
     pub hash_size: i64,
+    pub file_pool: Vec<u8>,
+    pub nodes_pool: Node,
 }
 
+#[derive(Clone, Debug, Default)]
 pub struct Node {
     pub index: NodeType,
     pub parents: Vec<NodeType>,
@@ -30,40 +33,41 @@ impl Expanders {
             d,
             size: (k + 1) * n,
             hash_size: 64,
+            file_pool: vec![0u8; (n * HASH_SIZE as i64) as usize],
+            nodes_pool: Node { index: 0, parents: Vec::with_capacity(d as usize + 1) },
         }
     }
 }
 
 impl Node {
     pub fn new(idx: NodeType) -> Self {
-        Self {
-            index: idx,
-            parents: Vec::new(),
-        }
+        Self { index: idx, parents: Vec::new() }
     }
 
     pub fn add_parent(&mut self, parent: NodeType) -> bool {
         if self.index == parent {
             return false;
         }
-        if self.parents.is_empty() || self.parents.len() >= self.parents.capacity() {
+
+        if self.parents.len() >= self.parents.capacity() {
             return false;
         }
 
-        let (i, ok) = self.parent_in_list(parent);
-        if ok {
+        let (insert_pos, found) = self.parent_in_list(parent);
+        if found {
             return false;
         }
+
         self.parents.push(0);
         let lens = self.parents.len();
-        if lens == 1 || i == lens as i32 - 1 {
-            self.parents[i as usize] = parent;
+
+        if lens == 1 || insert_pos as usize == lens - 1 {
+            self.parents[insert_pos as usize] = parent;
             return true;
         }
-        self.parents
-            .copy_within(i as usize + 1..lens - 1, i as usize);
-        self.parents[i as usize] = parent;
 
+        self.parents.copy_within(insert_pos as usize..lens - 1, insert_pos as usize + 1);
+        self.parents[insert_pos as usize] = parent;
         true
     }
 
@@ -127,13 +131,9 @@ pub fn bytes_to_node_value(data: &[u8], max: i64) -> NodeType {
     let big_max = BigInt::from(max);
 
     let value = value % &big_max;
-    let i_value = value.to_i64().unwrap_or_else(|| {
-        if value.is_negative() {
-            i64::min_value()
-        } else {
-            i64::max_value()
-        }
-    });
+    let i_value = value
+        .to_i64()
+        .unwrap_or_else(|| if value.is_negative() { i64::min_value() } else { i64::max_value() });
 
     ((i_value + max) % max) as NodeType
 }

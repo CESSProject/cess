@@ -30,3 +30,8 @@ RUN curl -fsSL 'https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gn
     .cargo/bin/rustup component add rust-src rust-analysis clippy && \
     .cargo/bin/rustup target add wasm32-unknown-unknown && \
     rm rustup-init && rm -rf .cargo/registry && rm -rf .cargo/git
+
+RUN .cargo/bin/rustup install 1.82.0 && \
+    .cargo/bin/rustup default 1.82.0 && \
+    .cargo/bin/rustup component add cargo clippy rust-analyzer rust-src rust-std rustc-dev rustc rustfmt && \
+    .cargo/bin/rustup target add wasm32-unknown-unknown

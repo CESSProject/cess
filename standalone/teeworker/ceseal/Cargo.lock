@@ -1403,7 +1403,9 @@ name = "ces-pois"
 version = "0.4.5"
 dependencies = [
  "anyhow",
+ "async-trait",
  "bigdecimal",
+ "byteorder",
  "dashmap",
  "hex",
  "lazy_static",
@@ -1415,7 +1417,9 @@ dependencies = [
  "rand 0.8.5",
  "rsa",
  "serde",
+ "serde_json",
  "sha2 0.10.8",
+ "tokio",
 ]
 
 [[package]]
@@ -1519,7 +1523,7 @@ dependencies = [
 
 [[package]]
 name = "cess-node-runtime"
-version = "0.10.0"
+version = "0.10.1"
 dependencies = [
  "ces-pallet-mq",
  "ces-pallet-mq-runtime-api",

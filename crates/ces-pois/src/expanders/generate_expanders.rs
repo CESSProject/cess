@@ -6,13 +6,7 @@ pub fn construct_stacked_expanders(k: i64, n: i64, d: i64) -> Expanders {
     Expanders::new(k, n, d)
 }
 
-pub fn calc_parents(
-    expanders: &Expanders,
-    node: &mut Node,
-    miner_id: &[u8],
-    count: i64,
-    rlayer: i64,
-) {
+pub fn calc_parents(expanders: &Expanders, node: &mut Node, miner_id: &[u8], count: i64, rlayer: i64) {
     if node.parents.capacity() != (expanders.d + 1) as usize {
         return;
     }
@@ -25,38 +19,38 @@ pub fn calc_parents(
     let group_size = expanders.n / expanders.d;
     let offset = group_size / 256;
 
-    let mut hash = Sha512::new();
-    hash.update(miner_id);
-    hash.update(count.to_be_bytes());
-    hash.update(rlayer.to_be_bytes()); // add real layer
-    hash.update((node.index as i64).to_be_bytes());
-    let res = hash.clone().finalize();
-    let mut res = res.to_vec();
-    if expanders.d > 64 {
-        hash.reset();
-        hash.update(res.clone());
-        let result = hash.finalize();
-        res.append(&mut result.to_vec());
-    }
-    res = res[..expanders.d as usize].to_vec();
+    let mut hasher = Sha512::new();
+    hasher.update(miner_id);
+    hasher.update(&count.to_be_bytes());
+    hasher.update(&rlayer.to_be_bytes());
+    hasher.update((node.index as i64).to_be_bytes());
 
-    let parent = node.index - expanders.n as NodeType;
+    let mut res = hasher.finalize().to_vec();
+
+    if expanders.d > 64 {
+        let mut hasher2 = Sha512::new();
+        hasher2.update(&res);
+        let extra = hasher2.finalize().to_vec();
+        res.extend_from_slice(&extra);
+    }
+
+    res.truncate(expanders.d as usize);
+
+    let parent = (node.index - expanders.n as i32) as NodeType;
     node.add_parent(parent);
-    for i in 0..res.len() as i64 {
-        let index = (layer - 1) * expanders.n
-            + i * group_size
-            + res[i as usize] as i64 * offset
-            + res[i as usize] as i64 % offset;
-        match index {
-            i if i == parent as i64 => {
-                node.add_parent((i + 1) as i32);
-            }
-            i if i < parent as i64 => {
-                node.add_parent((i + expanders.n) as i32);
-            }
-            _ => {
-                node.add_parent(index as i32);
-            }
+
+    for (i, &byte_val) in res.iter().enumerate() {
+        let byte_i64 = byte_val as i64;
+        let calc_index = (layer - 1) * expanders.n + i as i64 * group_size + byte_i64 * offset + (byte_i64 % offset);
+
+        let index = calc_index as NodeType;
+
+        if index == parent {
+            node.add_parent(index + 1);
+        } else if index < parent {
+            node.add_parent(index + expanders.n as i32);
+        } else {
+            node.add_parent(index);
         }
     }
 }
