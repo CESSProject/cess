@@ -60,10 +60,7 @@ tonic = { workspace = true }
 rsa = { workspace = true }
 
 # CESS specific
-ces-crypto = { workspace = true, features = [
-    "stream",
-    "full_crypto",
-] }
+ces-crypto = { workspace = true, features = ["stream", "full_crypto"] }
 ces-mq = { workspace = true, features = [
     "dispatcher",
     "queue",
@@ -103,9 +100,5 @@ ciborium = "0.2.0"
 default = ["sp-io/disable_panic_handler", "sp-io/disable_oom"]
 shadow-gk = []
 
-only-attestation = [
-	"runtime/only-attestation"
-]
-verify-cesealbin = [
-	"runtime/verify-cesealbin"
-]
+only-attestation = ["runtime/only-attestation"]
+verify-cesealbin = ["runtime/verify-cesealbin"]

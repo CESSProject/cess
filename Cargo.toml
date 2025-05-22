@@ -394,6 +394,7 @@ spin = { version = "0.9", default-features = false, features = [
 static_assertions = "1.1.0"
 subxt = { git = "https://github.com/CESSProject/subxt", branch = "polkadot-stable2412", default-features = false }
 syn = "2.0"
+sysinfo = { version = "0.34.2" }
 tempfile = "3.10"
 thiserror = "1.0"
 threadpool = "1.8.1"

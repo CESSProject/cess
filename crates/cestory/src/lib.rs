@@ -178,13 +178,14 @@ fn glob_checkpoint_files_sorted(basedir: &str) -> Result<Vec<(chain::BlockNumber
 fn maybe_remove_checkpoints(basedir: &str) {
     match glob_checkpoint_files(basedir) {
         Err(err) => error!("Error globbing checkpoints: {:?}", err),
-        Ok(iter) =>
+        Ok(iter) => {
             for filename in iter {
                 info!("Removing {}", filename.display());
                 if let Err(e) = std::fs::remove_file(&filename) {
                     error!("Failed to remove {}: {}", filename.display(), e);
                 }
-            },
+            }
+        },
     }
 }
 
@@ -194,7 +195,7 @@ fn remove_outdated_checkpoints(basedir: &str, max_kept: u32, current_block: chai
         glob_checkpoint_files_sorted(basedir).map_err(|e| anyhow!("error in glob_checkpoint_files_sorted(): {e}"))?;
     for (block, filename) in checkpoints {
         if block > current_block {
-            continue
+            continue;
         }
         kept += 1;
         if kept > max_kept {
@@ -288,7 +289,7 @@ pub struct Ceseal<Platform> {
     #[serde(skip)]
     #[serde(default = "Instant::now")]
     last_checkpoint: Instant,
-    
+
     #[codec(skip)]
     #[serde(skip)]
     trusted_sk: bool,
@@ -365,10 +366,10 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
             if let Some(ref keyfariy) = system.keyfairy {
                 Ok(keyfariy.master_key().clone())
             } else {
-                return Err(types::Error::KeyfairyNotReady)
+                return Err(types::Error::KeyfairyNotReady);
             }
         } else {
-            return Err(types::Error::SystemNotReady)
+            return Err(types::Error::SystemNotReady);
         }
     }
 
@@ -444,7 +445,7 @@ impl<Platform: pal::Platform> Ceseal<Platform> {
         let filepath = PathBuf::from(sealing_path).join(RUNTIME_SEALED_DATA_FILE);
         let data = platform
             .unseal_data(filepath)
-            .map_err(|_| Error::UnsealOnLoad)?
+            .map_err(|e| Error::UnsealOnLoad(e.into()))?
             .ok_or(Error::PersistentRuntimeNotFound)?;
         let data: RuntimeDataSeal = Decode::decode(&mut &data[..]).map_err(Error::DecodeError)?;
         match data {
@@ -587,7 +588,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Ceseal<Platform> {
         let files = glob_checkpoint_files_sorted(&args.storage_path)
             .map_err(|e| anyhow!("Glob checkpoint files failed: {e}"))?;
         if files.is_empty() {
-            return Ok(None)
+            return Ok(None);
         }
         let (_block, ckpt_filename) = &files[0];
 
@@ -669,7 +670,7 @@ impl<Platform: Serialize + DeserializeOwned> Ceseal<Platform> {
                     .next_element()?
                     .ok_or_else(|| de::Error::custom("Checkpoint version missing"))?;
                 if version > CHECKPOINT_VERSION {
-                    return Err(de::Error::custom(format!("Checkpoint version {version} is not supported")))
+                    return Err(de::Error::custom(format!("Checkpoint version {version} is not supported")));
                 }
 
                 let mut factory: Self::Value =
@@ -788,10 +789,10 @@ impl<Platform: pal::Platform> CesealSafeBox<Platform> {
         let guard = self.0.lock().map_err(|e| CesealLockError::Poison(e.to_string()))?;
         trace!(target: "cestory::lock", "Locked cestory");
         if !allow_rcu && guard.rcu_dispatching {
-            return Err(CesealLockError::Rcu)
+            return Err(CesealLockError::Rcu);
         }
         if !allow_safemode && guard.args.safe_mode_level > 0 {
-            return Err(CesealLockError::SafeMode)
+            return Err(CesealLockError::SafeMode);
         }
         Ok(LogOnDrop { inner: guard, msg: "Unlocked cestory" })
     }

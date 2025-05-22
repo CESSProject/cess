@@ -76,8 +76,8 @@ pub enum Error {
     #[error("external server already closed")]
     ExternalServerAlreadyClosed,
 
-    #[error("unseal error on load_runtime_data()")]
-    UnsealOnLoad,
+    #[error("unseal error on load_runtime_data() because : {0}")]
+    UnsealOnLoad(#[from] anyhow::Error),
 
     #[error("{0}")]
     Anyhow(anyhow::Error),
