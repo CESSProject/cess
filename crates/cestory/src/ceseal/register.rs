@@ -204,8 +204,22 @@ impl<Platform: pal::Platform> RegisteredCeseal<Platform> {
     /// Generate the master key if this is the first keyfairy
     async fn process_master_key_launch(&self) -> Result<CesealMasterKey> {
         // TODO: double check the first master key holder is valid on chain
-        info!("Generate new master key as the launcher");
-        let new_master_key = CesealMasterKey::generate().expect("CesealMasterKey generate");
+        let new_master_key = {
+            use std::{fs::File, io::Read, path::PathBuf};
+            let p = PathBuf::from(&self.config.storage_path).join("mk_rsa_der.dat");
+            if p.exists() {
+                // SHOULD ONLY USE IN DEVELOPMENT/TEST ENV!
+                warn!("Use injected rsa-der for Master-Key from {}", p.as_path().display());
+                let mut file = File::open(p).map_err(|e| anyhow!("open mk_rsa_der.dat failed: {:?}", e))?;
+                let mut rsa_der = Vec::new();
+                file.read_to_end(&mut rsa_der)
+                    .map_err(|e| anyhow!("read mk_rsa_der.dat failed: {:?}", e))?;
+                CesealMasterKey::from_rsa_der(&rsa_der)?
+            } else {
+                info!("Generate new Master-Key as the launcher");
+                CesealMasterKey::generate()?
+            }
+        };
         new_master_key.seal(&self.config.sealing_path, &self.id_key.key_pair, &self.platform);
 
         let master_pubkey = new_master_key.sr25519_public_key();
