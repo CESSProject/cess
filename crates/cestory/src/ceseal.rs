@@ -82,3 +82,60 @@ impl CesealClient {
         Ok((signature, public_key))
     }
 }
+
+pub(crate) mod master_pubkey_q {
+    use anyhow::Result;
+    use async_trait::async_trait;
+    use cestory_api::chain_client::{runtime, CesChainClient};
+
+    #[async_trait]
+    pub trait OnChainMasterPubkeyQuerier {
+        async fn try_query(&self) -> Result<Option<[u8; 32]>>;
+        async fn is_launching(&self) -> Result<Option<[u8; 32]>>;
+    }
+
+    pub fn new_default(chain_client: CesChainClient) -> DefaultOnChainMasterPubkeyQuerier {
+        DefaultOnChainMasterPubkeyQuerier { chain_client }
+    }
+
+    pub(crate) struct DefaultOnChainMasterPubkeyQuerier {
+        chain_client: CesChainClient,
+    }
+
+    #[async_trait]
+    impl OnChainMasterPubkeyQuerier for DefaultOnChainMasterPubkeyQuerier {
+        async fn try_query(&self) -> Result<Option<[u8; 32]>> {
+            use runtime::runtime_types::pallet_tee_worker::pallet::{LaunchStatus, MasterKeyInfo};
+            let q = runtime::storage().tee_worker().master_key_status();
+            let r = self
+                .chain_client
+                .storage()
+                .at_latest()
+                .await?
+                .fetch(&q)
+                .await?
+                .unwrap_or(LaunchStatus::NotLaunched);
+            match r {
+                LaunchStatus::Launched(MasterKeyInfo { pubkey, .. }) => Ok(Some(pubkey)),
+                _ => Ok(None),
+            }
+        }
+
+        async fn is_launching(&self) -> Result<Option<[u8; 32]>> {
+            use runtime::runtime_types::pallet_tee_worker::pallet::LaunchStatus;
+            let q = runtime::storage().tee_worker().master_key_status();
+            let r = self
+                .chain_client
+                .storage()
+                .at_latest()
+                .await?
+                .fetch(&q)
+                .await?
+                .unwrap_or(LaunchStatus::NotLaunched);
+            match r {
+                LaunchStatus::Launching(holder) => Ok(Some(holder)),
+                _ => Ok(None),
+            }
+        }
+    }
+}

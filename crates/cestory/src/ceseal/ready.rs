@@ -1,4 +1,5 @@
 use super::{
+    master_pubkey_q::{self, OnChainMasterPubkeyQuerier},
     register::{self, RegisteredCeseal},
     RegistrationInfo, TxSigner,
 };
@@ -105,12 +106,7 @@ impl<Platform: pal::Platform> BackgroundTask<Platform> {
                     data.handle_requests(message).await;
                 },
                 _ = from_interval_fut => {
-                    if let Err(e) = data.try_process_master_key_apply().await {
-                        warn!("Try process master key apply return error: {:?}", e);
-                    }
-                    if let Err(e) = data.try_process_attestation_update().await {
-                        warn!("Try process atttestation update return error: {:?}", e);
-                    }
+                    data.handle_chain_tick().await;
                 }
             }
         }
@@ -150,6 +146,28 @@ impl<Platform: pal::Platform> ReadyCeseal<Platform> {
             Message::GetMasterKey { sender } => {
                 let _ = sender.send(self.master_key.clone());
             },
+        }
+    }
+
+    async fn handle_chain_tick(&mut self) {
+        {
+            let mk_pub_on_chain_q = master_pubkey_q::new_default(self.chain_client.clone());
+            match mk_pub_on_chain_q.is_launching().await {
+                Ok(Some(_)) => {
+                    info!("The MasterKey is rolling, exit and restart it");
+                    std::process::exit(1);
+                },
+                Ok(None) => {},
+                Err(e) => {
+                    warn!("Failed to check MasterKey: {:?}", e);
+                },
+            }
+        }
+        if let Err(e) = self.try_process_master_key_apply().await {
+            warn!("Try process master key apply return error: {:?}", e);
+        }
+        if let Err(e) = self.try_process_attestation_update().await {
+            warn!("Try process atttestation update return error: {:?}", e);
         }
     }
 
