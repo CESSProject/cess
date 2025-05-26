@@ -1,4 +1,7 @@
-use super::{ReadyCeseal, RegistrationInfo, TxSigner};
+use super::{
+    master_pubkey_q::{self, OnChainMasterPubkeyQuerier},
+    ReadyCeseal, RegistrationInfo, TxSigner,
+};
 use crate::{
     attestation::{create_attestation_report_on, AttestationInfo},
     identity_key::PublicKey,
@@ -123,34 +126,20 @@ impl<Platform: pal::Platform> RegisteredCeseal<Platform> {
 
     pub async fn wait_for_ready(self) -> Result<ReadyCeseal<Platform>> {
         info!("Waiting for Ceseal to be ready ...");
-        let mut mk_pub_on_chain: Option<[u8; 32]> = None;
-        let mut mk_in_local: Option<CesealMasterKey> = None;
-        let ctx_query_mk_pub_on_chain = async |mk_pub_on_chain: Option<[u8; 32]>| {
-            if mk_pub_on_chain.is_none() {
-                match self.launched_master_pubkey_on_chain().await {
-                    Ok(mk) => return mk,
-                    Err(e) => debug!("failed to query master key pubkey on chain: {:?}", e),
-                }
-            }
-            mk_pub_on_chain
-        };
-        let ctx_ensure_mk_from_local = async |mk_pub_on_chain: &[u8; 32], mk_in_local: Option<CesealMasterKey>| {
-            if mk_in_local.is_none() {
-                if let Ok(mk) = self.ensure_master_key_from_local(mk_pub_on_chain).await {
-                    return Some(mk);
-                }
-            }
-            mk_in_local
-        };
+        let mk_pub_on_chain_q = master_pubkey_q::new_default(self.chain_client.clone());
+        let mut mk_in_local = self.load_local_master_key();
         let mut applied = false;
         let mut apply_cnt = 0;
         let mut delivery_check_cnt = 0;
         loop {
-            mk_pub_on_chain = ctx_query_mk_pub_on_chain(mk_pub_on_chain).await;
-            if let Some(ref mk_on_chain) = mk_pub_on_chain {
-                mk_in_local = ctx_ensure_mk_from_local(mk_on_chain, mk_in_local).await;
-                if let Some(mk) = mk_in_local {
-                    return Ok(ReadyCeseal::new_from(self, mk));
+            if let Some(ref mk_on_chain) = mk_pub_on_chain_q.try_query().await? {
+                if let Some(ref local_mk) = mk_in_local {
+                    if &local_mk.sr25519_public_key().0 == mk_on_chain {
+                        let local_mk = mk_in_local.take().unwrap(); // Should never panic as earlier condition guarantees it
+                        return Ok(ReadyCeseal::new_from(self, local_mk));
+                    } else if !applied {
+                        warn!("Local master key mismatches the on-chain master key");
+                    }
                 }
 
                 if applied {
@@ -178,16 +167,21 @@ impl<Platform: pal::Platform> RegisteredCeseal<Platform> {
             } else {
                 // mk not launched
                 debug!("Waiting for master key to launch on chain");
-                if self.is_assigned_me_to_launch().await? {
-                    let mk = self.process_master_key_launch().await?;
-                    return Ok(ReadyCeseal::new_from(self, mk));
+                match mk_pub_on_chain_q.is_launching().await? {
+                    Some(holder) if holder == self.id_key.public_key().0 => {
+                        // We are the holder, so we should generate the master key
+                        let mk = self.process_master_key_launch().await?;
+                        return Ok(ReadyCeseal::new_from(self, mk));
+                    },
+                    _ => {},
                 }
             }
-            tokio::time::sleep(std::time::Duration::from_secs(6)).await;
+            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
         }
     }
 
     async fn apply_master_key(&self) -> Result<()> {
+        debug!("Appling master key ...");
         use runtime::tee_worker::calls::types::apply_master_key::Payload;
         let payload = Payload {
             pubkey: self.id_key.public_key().0.clone(),
@@ -203,23 +197,6 @@ impl<Platform: pal::Platform> RegisteredCeseal<Platform> {
             .wait_for_finalized_success()
             .await?;
         Ok(())
-    }
-
-    async fn is_assigned_me_to_launch(&self) -> Result<bool> {
-        use runtime::runtime_types::pallet_tee_worker::pallet::LaunchStatus;
-        let q = runtime::storage().tee_worker().master_key_status();
-        let r = self
-            .chain_client
-            .storage()
-            .at_latest()
-            .await?
-            .fetch(&q)
-            .await?
-            .unwrap_or(LaunchStatus::NotLaunched);
-        match r {
-            LaunchStatus::Launching(holder) => Ok(holder == self.id_key.public_key().0),
-            _ => Ok(false),
-        }
     }
 
     /// Generate the master key if this is the first keyfairy
@@ -246,41 +223,16 @@ impl<Platform: pal::Platform> RegisteredCeseal<Platform> {
         Ok(new_master_key)
     }
 
-    async fn launched_master_pubkey_on_chain(&self) -> Result<Option<[u8; 32]>> {
-        use runtime::runtime_types::pallet_tee_worker::pallet::{LaunchStatus, MasterKeyInfo};
-        let q = runtime::storage().tee_worker().master_key_status();
-        let r = self
-            .chain_client
-            .storage()
-            .at_latest()
-            .await?
-            .fetch(&q)
-            .await?
-            .unwrap_or(LaunchStatus::NotLaunched);
-        match r {
-            LaunchStatus::Launched(MasterKeyInfo { pubkey, .. }) => Ok(Some(pubkey)),
-            _ => Ok(None),
-        }
-    }
-
-    async fn ensure_master_key_from_local(
-        &self,
-        on_chain_mk_pub: &[u8; 32],
-    ) -> Result<CesealMasterKey, MasterKeyEnsureError> {
+    fn load_local_master_key(&self) -> Option<CesealMasterKey> {
         if is_master_key_exists_on_local(&self.config.sealing_path) {
-            info!("the master key on local, unseal it");
-            let local_mk =
+            debug!("the master key on local, unseal it");
+            let mk =
                 CesealMasterKey::from_sealed_file(&self.config.sealing_path, &self.id_key.key_pair, &self.platform)
                     .expect("CesealMasterKey from sealed file");
-
-            if &local_mk.sr25519_public_key().0 != on_chain_mk_pub {
-                warn!("local MasterKey mismatch to chain");
-                return Err(MasterKeyEnsureError::Mismatch.into());
-            } else {
-                return Ok(local_mk);
-            }
+            Some(mk)
+        } else {
+            None
         }
-        Err(MasterKeyEnsureError::NeedApply.into())
     }
 
     async fn try_pickup_my_master_key_delivery(&self) -> Result<PostationState> {
@@ -324,14 +276,6 @@ impl<Platform: pal::Platform> RegisteredCeseal<Platform> {
         };
         secret_data
     }
-}
-
-#[derive(thiserror::Error, Debug)]
-enum MasterKeyEnsureError {
-    #[error("local MasterKey mismatch to chain")]
-    Mismatch,
-    #[error("MasterKey not found on local, need to apply")]
-    NeedApply,
 }
 
 enum PostationState {
