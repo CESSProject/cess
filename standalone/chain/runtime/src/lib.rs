@@ -155,7 +155,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	// and set impl_version to 0. If only runtime
 	// implementation changes and behavior does not, then leave spec_version as
 	// is and increment impl_version.
-	spec_version: 131,
+	spec_version: 132,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -1702,7 +1702,7 @@ parameter_types! {
 	pub const FaucetId: PalletId = PalletId(*b"facuetid");
 	#[derive(Clone, Eq, PartialEq)]
 	pub const StakingLockBlock: BlockNumber = DAYS * 180;
-	pub const MaximumRelease: u128 = 5_000_000_000_000_000_000_000_000;
+	pub const MaximumRelease: u128 = 5_000_000_000_000_000_000_000_000_000;
 }
 
 impl pallet_sminer::Config for Runtime {
