@@ -4,10 +4,19 @@ mod pal_gramine;
 use anyhow::{anyhow, Result};
 use ces_sanitized_logger as logger;
 use ces_types::{AttestationProvider, WorkerRole};
-use cestory::{self, chain_client, AccountId, Config, ExtResPermitter};
+use cestory::{
+    self, chain_client, AccountId, CesealClient, CesealMasterKey, ChainQueryHelper, Config,
+    ExtResPermitter, PoisParam,
+};
 use clap::{crate_version, Parser, Subcommand};
 use pal_gramine::GraminePlatform;
-use std::{env, str::FromStr, time::Duration};
+use std::{
+    env,
+    str::FromStr,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+use tonic::{service::RoutesBuilder, transport::Server};
 use tracing::{info, warn};
 
 const VERSION: &str = const_str::format!(
@@ -280,12 +289,13 @@ async fn serve(sgx: bool, args: Args) -> Result<()> {
     };
 
     let config = args.into_config(sealing_path, storage_path);
-    let thread_pool_cap = config.cores.saturating_sub(1).max(1);
-    let worker_role = config.role.clone();
-
     info!("Ceseal config: {:#?}", config);
-    let (ceseal_client, cqh, _) = cestory::build(config, GraminePlatform).await?;
+
+    let (ceseal_client, cqh, _) = cestory::build(config.clone(), GraminePlatform).await?;
     info!("Ceseal initialized!");
+
+    let svc_params = ServiceBuildParams::make(&ceseal_client, &config, &cqh).await?;
+
     // if let Some(from) = args.request_handover_from {
     //     info!(%from, "Starting handover");
     //     handover::handover_from(&from, init_args)
@@ -295,83 +305,110 @@ async fn serve(sgx: bool, args: Args) -> Result<()> {
     //     return Ok(());
     // }
 
-    const MAX_ENCODED_MSG_SIZE: usize = 104857600; // 100MiB
-    const MAX_DECODED_MSG_SIZE: usize = MAX_ENCODED_MSG_SIZE;
-
-    use cestory::{podr2, pois, pubkeys};
-    use std::sync::{Arc, Mutex};
-    use tonic::transport::Server;
-
-    let identity_pubkey = ceseal_client.identify_public().await?.0;
-    let master_key = ceseal_client.master_key().await?;
-    let pois_param = cqh.pois_param().clone();
-    let podr2_thread_pool = threadpool::ThreadPool::new(thread_pool_cap as usize);
-    info!(
-        "PODR2 compute thread pool capacity: {}",
-        podr2_thread_pool.max_count()
-    );
-    let podr2_thread_pool = Arc::new(Mutex::new(podr2_thread_pool));
-    let res_permitter = ExtResPermitter::new(worker_role.clone());
-
-    let podr2_srv = podr2::new_podr2_api_server(
-        identity_pubkey.clone(),
-        master_key.clone(),
-        res_permitter.clone(),
-        podr2_thread_pool.clone(),
-    )
-    .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
-    .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
-    let podr2v_srv = podr2::new_podr2_verifier_api_server(
-        identity_pubkey.clone(),
-        master_key.clone(),
-        res_permitter.clone(),
-        podr2_thread_pool.clone(),
-    )
-    .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
-    .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
-    let pois_srv = pois::new_pois_certifier_api_server(
-        cqh.clone(),
-        identity_pubkey.clone(),
-        master_key.clone(),
-        res_permitter.clone(),
-        pois_param.clone(),
-    )
-    .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
-    .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
-    let poisv_srv = pois::new_pois_verifier_api_server(
-        identity_pubkey.clone(),
-        master_key.clone(),
-        res_permitter.clone(),
-        pois_param.clone(),
-    )
-    .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
-    .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
-    let pubkeys = pubkeys::new_pubkeys_provider_server(ceseal_client, cqh);
-
-    let mut server = Server::builder();
-    let router = match worker_role {
-        ces_types::WorkerRole::Full => server
-            .add_service(pubkeys)
-            .add_service(podr2_srv)
-            .add_service(podr2v_srv)
-            .add_service(pois_srv)
-            .add_service(poisv_srv),
-        ces_types::WorkerRole::Verifier => server
-            .add_service(pubkeys)
-            .add_service(podr2v_srv)
-            .add_service(poisv_srv),
-        ces_types::WorkerRole::Marker => server
-            .add_service(pubkeys)
-            .add_service(podr2_srv)
-            .add_service(pois_srv),
+    let mut routes_builder = RoutesBuilder::default();
+    routes_builder.add_service(cestory::pubkeys::new_pubkeys_provider_server(
+        ceseal_client,
+        cqh,
+    ));
+    match config.role {
+        ces_types::WorkerRole::Verifier => for_verifier_routes(&mut routes_builder, &svc_params),
+        ces_types::WorkerRole::Marker => for_marker_routes(&mut routes_builder, &svc_params),
+        ces_types::WorkerRole::Full => {
+            for_verifier_routes(&mut routes_builder, &svc_params);
+            for_marker_routes(&mut routes_builder, &svc_params);
+        }
     };
     info!(
-        "the external server will listening on {} run with {:?} role",
-        listener_addr, worker_role
+        "The external server will listening on {} run with {:?} role",
+        listener_addr, config.role
     );
-    let result = router
+    let result = Server::builder()
+        .add_routes(routes_builder.routes())
         .serve(listener_addr)
         .await
-        .map_err(|e| anyhow!("start external server failed: {e}"))?;
+        .map_err(|e| anyhow!("Start external server failed: {e}"))?;
     Ok::<(), anyhow::Error>(result)
+}
+
+const MAX_ENCODED_MSG_SIZE: usize = 104857600; // 100MiB
+const MAX_DECODED_MSG_SIZE: usize = MAX_ENCODED_MSG_SIZE;
+
+struct ServiceBuildParams {
+    identity_pubkey: [u8; 32],
+    master_key: CesealMasterKey,
+    res_permitter: ExtResPermitter,
+    podr2_thread_pool: Arc<Mutex<threadpool::ThreadPool>>,
+    pois_param: PoisParam,
+    cqh: ChainQueryHelper,
+}
+
+impl ServiceBuildParams {
+    async fn make(
+        ceseal_client: &CesealClient,
+        config: &Config,
+        cqh: &ChainQueryHelper,
+    ) -> Result<Self> {
+        let identity_pubkey = ceseal_client.identify_public().await?.0;
+        let master_key = ceseal_client.master_key().await?;
+        let pois_param = cqh.pois_param().clone();
+        let thread_pool_cap = config.cores.saturating_sub(1).max(1);
+        let podr2_thread_pool = threadpool::ThreadPool::new(thread_pool_cap as usize);
+        info!(
+            "PODR2 compute thread pool capacity: {}",
+            podr2_thread_pool.max_count()
+        );
+        let podr2_thread_pool = Arc::new(Mutex::new(podr2_thread_pool));
+        let res_permitter = ExtResPermitter::new(config.role.clone());
+        Ok(Self {
+            identity_pubkey,
+            master_key,
+            res_permitter,
+            podr2_thread_pool,
+            pois_param,
+            cqh: cqh.clone(),
+        })
+    }
+}
+
+fn for_verifier_routes(builder: &mut RoutesBuilder, svc_params: &ServiceBuildParams) {
+    use cestory::{podr2, pois};
+    let podr2_svc = podr2::new_podr2_verifier_api_server(
+        svc_params.identity_pubkey.clone(),
+        svc_params.master_key.clone(),
+        svc_params.res_permitter.clone(),
+        svc_params.podr2_thread_pool.clone(),
+    )
+    .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
+    .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
+    let poisv_svc = pois::new_pois_verifier_api_server(
+        svc_params.identity_pubkey.clone(),
+        svc_params.master_key.clone(),
+        svc_params.res_permitter.clone(),
+        svc_params.pois_param.clone(),
+    )
+    .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
+    .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
+    builder.add_service(podr2_svc).add_service(poisv_svc);
+}
+
+fn for_marker_routes(builder: &mut RoutesBuilder, svc_params: &ServiceBuildParams) {
+    use cestory::{podr2, pois};
+    let podr2_svc = podr2::new_podr2_api_server(
+        svc_params.identity_pubkey.clone(),
+        svc_params.master_key.clone(),
+        svc_params.res_permitter.clone(),
+        svc_params.podr2_thread_pool.clone(),
+    )
+    .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
+    .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
+    let pois_svc = pois::new_pois_certifier_api_server(
+        svc_params.cqh.clone(),
+        svc_params.identity_pubkey.clone(),
+        svc_params.master_key.clone(),
+        svc_params.res_permitter.clone(),
+        svc_params.pois_param.clone(),
+    )
+    .max_decoding_message_size(MAX_DECODED_MSG_SIZE)
+    .max_encoding_message_size(MAX_ENCODED_MSG_SIZE);
+    builder.add_service(podr2_svc).add_service(pois_svc);
 }
