@@ -133,7 +133,6 @@ fn build_genesis_hash(spec_json: &str) -> String {
 
 fn build_protos() {
     let builder = tonic_build::configure()
-        .disable_package_emission()
         .build_server(true)
         .build_client(if cfg!(feature = "api-client") { true } else { false });
 
