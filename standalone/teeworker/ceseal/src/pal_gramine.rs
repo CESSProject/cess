@@ -2,7 +2,8 @@ use anyhow::anyhow;
 use ces_allocator::StatSizeAllocator;
 use ces_types::AttestationProvider;
 use cestory_pal::{
-    AppInfo, AppVersion, ExtendMeasurement, Machine, MemoryStats, MemoryUsage, Sealing, RA,
+    AppInfo, AppVersion, ExtendMeasurement, Machine, MemoryStats, MemoryUsage, Sealing,
+    SgxEnvAware, RA,
 };
 use parity_scale_codec::Encode;
 use std::alloc::System;
@@ -54,13 +55,24 @@ impl RA for GraminePlatform {
                 const IAS_REPORT_ENDPOINT: &str = env!("IAS_REPORT_ENDPOINT");
 
                 let attestation_report =
-                    Some(sgx_attestation::ias::report::create_attestation_report(data, IAS_API_KEY_STR, IAS_HOST, IAS_REPORT_ENDPOINT, timeout)?);
+                    Some(sgx_attestation::ias::report::create_attestation_report(
+                        data,
+                        IAS_API_KEY_STR,
+                        IAS_HOST,
+                        IAS_REPORT_ENDPOINT,
+                        timeout,
+                    )?);
 
                 Ok(Encode::encode(&attestation_report))
             }
             Some(AttestationProvider::Dcap) => {
                 const CESS_DCAP_PCCS_URL: &str = env!("DCAP_PCCS_URL");
-                let attestation_report = Some(sgx_attestation::dcap::report::create_attestation_report(data, CESS_DCAP_PCCS_URL, timeout)?);
+                let attestation_report =
+                    Some(sgx_attestation::dcap::report::create_attestation_report(
+                        data,
+                        CESS_DCAP_PCCS_URL,
+                        timeout,
+                    )?);
                 info!("Generate dcap collateral success!");
                 Ok(Encode::encode(&attestation_report))
             }
@@ -150,6 +162,12 @@ impl AppInfo for GraminePlatform {
             minor: env!("CARGO_PKG_VERSION_MINOR").parse().unwrap(),
             patch: env!("CARGO_PKG_VERSION_PATCH").parse().unwrap(),
         }
+    }
+}
+
+impl SgxEnvAware for GraminePlatform {
+    fn is_sgx_env() -> bool {
+        is_gramine()
     }
 }
 

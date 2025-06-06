@@ -71,9 +71,13 @@ impl IdentityKey {
     pub fn sign(&self, message: &[u8]) -> Signature {
         self.key_pair.sign(message)
     }
+
+    pub fn dump_secret_key(&self) -> Sr25519SecretKey {
+        self.key_pair.dump_secret_key()
+    }
 }
 
-mod persistence {
+pub(crate) mod persistence {
     use super::*;
     use anyhow::anyhow;
     use std::path::Path;
@@ -95,7 +99,7 @@ mod persistence {
     impl From<IdentityKey> for PersistIdentityKey {
         fn from(id_key: IdentityKey) -> Self {
             PersistIdentityKey {
-                sk: id_key.key_pair.dump_secret_key(),
+                sk: id_key.dump_secret_key(),
                 trusted_sk: id_key.trusted_sk,
                 dev_mode: id_key.dev_mode,
             }

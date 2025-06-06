@@ -35,7 +35,7 @@ rustls-pki-types = { version = "=0.2.1", default-features = false, optional = tr
 reqwest-env-proxy = { path = "../../../crates/reqwest-env-proxy" }
 ces-sanitized-logger = { path = "../../../crates/ces-sanitized-logger" }
 cestory = { path = "../../../crates/cestory" }
-cestory-api = { path = "../../../crates/cestory/api" }
+cestory-api = { path = "../../../crates/cestory/api", features = ["api-client"] }
 cestory-pal = { path = "../../../crates/cestory/pal" }
 ces-allocator = { path = "../../../crates/ces-allocator" }
 ces-types = { path = "../../../crates/ces-types", default-features = false, features = [

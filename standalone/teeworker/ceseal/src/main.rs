@@ -1,4 +1,4 @@
-// mod handover;
+mod handover;
 mod pal_gramine;
 
 use anyhow::{anyhow, Result};
@@ -41,6 +41,9 @@ struct Args {
     #[arg(long)]
     listening_port: Option<u16>,
 
+    #[arg(long)]
+    only_handover_server: bool,
+
     /// Handover key from another running ceseal instance
     #[arg(long)]
     request_handover_from: Option<String>,
@@ -78,7 +81,7 @@ struct Args {
         long,
         help = "The http endpoint where Ceseal provides services to the outside world"
     )]
-    pub public_endpoint: String,
+    pub public_endpoint: Option<String>,
 
     #[arg(
         long,
@@ -282,51 +285,67 @@ async fn serve(sgx: bool, args: Args) -> Result<()> {
     info!(sgx, "Starting ceseal...");
     let (sealing_path, storage_path) = prepare_paths(sgx, &args)?;
 
+    // for handover client side
+    if let Some(from) = args.request_handover_from.clone() {
+        info!(%from, "Starting handover");
+        let config = args.into_config(sealing_path, storage_path);
+        info!("Ceseal config: {:#?}", config);
+        handover::handover_from(config, GraminePlatform, &from)
+            .await
+            .expect("Handover failed");
+        info!("Handover done");
+        return Ok(());
+    }
+
     let listener_addr = {
         let ip = args.listening_ip.as_ref().map_or("0.0.0.0", String::as_str);
         let port = args.listening_port.unwrap_or(19999);
         format!("{ip}:{port}").parse().unwrap()
     };
-
+    let only_handover_server = args.only_handover_server;
     let config = args.into_config(sealing_path, storage_path);
     info!("Ceseal config: {:#?}", config);
-
-    let (ceseal_client, cqh, _) = cestory::build(config.clone(), GraminePlatform).await?;
-    info!("Ceseal initialized!");
-
-    let svc_params = ServiceBuildParams::make(&ceseal_client, &config, &cqh).await?;
-
-    // if let Some(from) = args.request_handover_from {
-    //     info!(%from, "Starting handover");
-    //     handover::handover_from(&from, init_args)
-    //         .await
-    //         .expect("Handover failed");
-    //     info!("Handover done");
-    //     return Ok(());
-    // }
+    let chain_client = cestory::build_light_client(&config).await?;
+    let cqh = ChainQueryHelper::build(chain_client.clone()).await?;
+    let ceseal_client =
+        cestory::build_ceseal_client(config.clone(), GraminePlatform, chain_client).await?;
 
     let mut routes_builder = RoutesBuilder::default();
-    routes_builder.add_service(cestory::pubkeys::new_pubkeys_provider_server(
-        ceseal_client,
-        cqh,
-    ));
-    match config.role {
-        ces_types::WorkerRole::Verifier => for_verifier_routes(&mut routes_builder, &svc_params),
-        ces_types::WorkerRole::Marker => for_marker_routes(&mut routes_builder, &svc_params),
-        ces_types::WorkerRole::Full => {
-            for_verifier_routes(&mut routes_builder, &svc_params);
-            for_marker_routes(&mut routes_builder, &svc_params);
-        }
-    };
-    info!(
-        "The external server will listening on {} run with {:?} role",
-        listener_addr, config.role
-    );
+    if only_handover_server {
+        let svc = cestory::handover::new_handover_server(ceseal_client, cqh)
+            .await
+            .map_err(|e| anyhow!("Failed to create handover server: {e}"))?;
+        routes_builder.add_service(svc);
+        info!(
+            "The ceseal server will listening on {}, only for handover",
+            listener_addr
+        );
+    } else {
+        let svc_params = ServiceBuildParams::make(&ceseal_client, &config, &cqh).await?;
+        routes_builder.add_service(cestory::pubkeys::new_pubkeys_provider_server(
+            ceseal_client,
+            cqh,
+        ));
+        match config.role {
+            ces_types::WorkerRole::Verifier => {
+                for_verifier_routes(&mut routes_builder, &svc_params)
+            }
+            ces_types::WorkerRole::Marker => for_marker_routes(&mut routes_builder, &svc_params),
+            ces_types::WorkerRole::Full => {
+                for_verifier_routes(&mut routes_builder, &svc_params);
+                for_marker_routes(&mut routes_builder, &svc_params);
+            }
+        };
+        info!(
+            "The ceseal server will listening on {} run with {:?} role",
+            listener_addr, config.role
+        );
+    }
     let result = Server::builder()
         .add_routes(routes_builder.routes())
         .serve(listener_addr)
         .await
-        .map_err(|e| anyhow!("Start external server failed: {e}"))?;
+        .map_err(|e| anyhow!("Start server failed: {e}"))?;
     Ok::<(), anyhow::Error>(result)
 }
 
@@ -348,7 +367,7 @@ impl ServiceBuildParams {
         config: &Config,
         cqh: &ChainQueryHelper,
     ) -> Result<Self> {
-        let identity_pubkey = ceseal_client.identify_public().await?.0;
+        let identity_pubkey = ceseal_client.identity_public().await?.0;
         let master_key = ceseal_client.master_key().await?;
         let pois_param = cqh.pois_param().clone();
         let thread_pool_cap = config.cores.saturating_sub(1).max(1);

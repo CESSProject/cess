@@ -1,16 +1,16 @@
 mod ready;
 mod register;
 
-use crate::{master_key::CesealMasterKey, AccountId, Config};
+use crate::{attestation::AttestationInfo, master_key::CesealMasterKey, Config, IdentityKey};
 use anyhow::Result;
-use ces_types::{WorkerPublicKey, WorkerRegistrationInfo};
+use ces_types::WorkerPublicKey;
 use cestory_api::chain_client::CesChainClient;
 use ready::{BackgroundTask, BackgroundTaskHandle};
 use register::RegisteredCeseal;
 use sp_core::{sr25519, ByteArray, Pair, H256};
+use std::sync::Arc;
 
 pub type TxSigner = subxt_signer::sr25519::Keypair;
-pub type RegistrationInfo = WorkerRegistrationInfo<AccountId>;
 pub type RawPublicKey = Vec<u8>;
 pub type RawSignature = Vec<u8>;
 
@@ -22,20 +22,25 @@ pub async fn build<Platform: pal::Platform>(
     chain_client: CesChainClient,
     genesis_hash: H256,
 ) -> Result<CesealClient> {
-    let registered = RegisteredCeseal::build(config, chain_client, platform, genesis_hash).await?;
+    let registered = RegisteredCeseal::build(config, chain_client, platform, genesis_hash.clone()).await?;
     let ready = registered.wait_for_ready().await?;
     let (bg_task, bg_handle) = BackgroundTask::new(ready).await?;
     tokio::spawn(async move { bg_task.run().await });
-    Ok(CesealClient { handle: bg_handle })
+    Ok(CesealClient { genesis_hash, handle: bg_handle })
 }
 
 #[derive(Debug, Clone)]
 pub struct CesealClient {
+    genesis_hash: H256,
     handle: BackgroundTaskHandle,
 }
 
 impl CesealClient {
-    pub async fn identify_public(&self) -> Result<WorkerPublicKey> {
+    pub async fn identity_key(&self) -> Result<IdentityKey> {
+        self.handle.get_identity_key().await
+    }
+
+    pub async fn identity_public(&self) -> Result<WorkerPublicKey> {
         self.handle.get_identity_key().await.map(|ik| ik.public_key())
     }
 
@@ -80,6 +85,22 @@ impl CesealClient {
             .map_err(anyhow::Error::new)?;
         let public_key = master_key.rsa_public_key_as_pkcs1_der().map_err(anyhow::Error::new)?;
         Ok((signature, public_key))
+    }
+
+    pub fn genesis_hash(&self) -> &H256 {
+        &self.genesis_hash
+    }
+
+    pub async fn get_config(&self) -> Result<Config> {
+        self.handle.get_config().await
+    }
+
+    pub async fn is_sgx_env(&self) -> Result<bool> {
+        self.handle.is_sgx_env().await
+    }
+
+    pub async fn make_attestation_report(&self, data: Arc<[u8]>) -> Result<AttestationInfo> {
+        self.handle.make_attestation_report(data).await
     }
 }
 

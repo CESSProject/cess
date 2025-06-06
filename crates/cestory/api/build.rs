@@ -41,7 +41,10 @@ fn build_runtime_client() {
                 let dev_spec_path = Path::new(&out_dir).join("dev-spec.json");
                 let node_bin = workspace_dir.join("target").join(&profile).join(node_crate_name);
                 if !node_bin.exists() {
-                    panic!("{node_crate_name} binary missing: {}. Build '{node_crate_name}' crate first.", node_bin.display());
+                    panic!(
+                        "{node_crate_name} binary missing: {}. Build '{node_crate_name}' crate first.",
+                        node_bin.display()
+                    );
                 }
                 let chain_spec_output = Command::new(&node_bin)
                     .args(["build-spec", "--chain", "dev", "--raw", "--disable-default-bootnode"])

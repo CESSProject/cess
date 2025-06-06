@@ -1,9 +1,14 @@
 use super::{
     master_pubkey_q::{self, OnChainMasterPubkeyQuerier},
     register::{self, RegisteredCeseal},
-    RegistrationInfo, TxSigner,
+    TxSigner,
 };
-use crate::{attestation::AttestationInfo, unix_now, BlockNumber, CesealMasterKey, Config, IdentityKey};
+use crate::{
+    attestation::{
+        create_attestation_report_on, create_register_attestation_report, save_attestation, AttestationInfo,
+    },
+    unix_now, BlockNumber, CesealMasterKey, Config, IdentityKey, RegistrationInfo,
+};
 use anyhow::{anyhow, Result};
 use ces_crypto::{
     aead, key_share,
@@ -15,6 +20,7 @@ use cestory_api::chain_client::{runtime, CesChainClient};
 use futures::{stream::StreamExt, FutureExt};
 use parity_scale_codec::Encode;
 use sp_core::{hashing, sr25519};
+use std::sync::Arc;
 use tokio::{
     sync::{mpsc, oneshot},
     time::{self, Duration},
@@ -37,6 +43,9 @@ pub struct ReadyCeseal<Platform> {
 enum Message {
     GetIdentityKey { sender: oneshot::Sender<IdentityKey> },
     GetMasterKey { sender: oneshot::Sender<CesealMasterKey> },
+    MakeAttestation { data: Arc<[u8]>, sender: oneshot::Sender<AttestationInfo> },
+    GetConfig { sender: oneshot::Sender<Config> },
+    IsSgxEnv { sender: oneshot::Sender<bool> },
 }
 
 /// A handle to communicate with the background task.
@@ -56,6 +65,24 @@ impl BackgroundTaskHandle {
         let (tx, rx) = oneshot::channel();
         self.to_backend.send(Message::GetMasterKey { sender: tx })?;
         rx.await.map_err(|_| anyhow!("Failed to receive master key"))
+    }
+
+    pub async fn make_attestation_report(&self, data: Arc<[u8]>) -> Result<AttestationInfo> {
+        let (tx, rx) = oneshot::channel();
+        self.to_backend.send(Message::MakeAttestation { data, sender: tx })?;
+        rx.await.map_err(|_| anyhow!("Failed to receive attestation"))
+    }
+
+    pub async fn get_config(&self) -> Result<Config> {
+        let (tx, rx) = oneshot::channel();
+        self.to_backend.send(Message::GetConfig { sender: tx })?;
+        rx.await.map_err(|_| anyhow!("Failed to receive config"))
+    }
+
+    pub async fn is_sgx_env(&self) -> Result<bool> {
+        let (tx, rx) = oneshot::channel();
+        self.to_backend.send(Message::IsSgxEnv { sender: tx })?;
+        rx.await.map_err(|_| anyhow!("Failed to receive SGX environment status"))
     }
 }
 
@@ -145,6 +172,23 @@ impl<Platform: pal::Platform> ReadyCeseal<Platform> {
             },
             Message::GetMasterKey { sender } => {
                 let _ = sender.send(self.master_key.clone());
+            },
+            Message::MakeAttestation { data, sender } => {
+                let attestation = create_attestation_report_on(
+                    &self.platform,
+                    self.config.attestation_provider.clone(),
+                    &data,
+                    self.config.ra_timeout,
+                    self.config.ra_max_retries,
+                )
+                .expect("Failed to make attestation report");
+                let _ = sender.send(attestation);
+            },
+            Message::GetConfig { sender } => {
+                let _ = sender.send(self.config.clone());
+            },
+            Message::IsSgxEnv { sender } => {
+                let _ = sender.send(Platform::is_sgx_env());
             },
         }
     }
@@ -260,8 +304,8 @@ impl<Platform: pal::Platform> ReadyCeseal<Platform> {
         if self.attestation.is_attestation_expired(None) {
             debug!("Updating TEE Worker attestation ...");
             self.attestation =
-                register::create_register_attestation_report(&self.platform, &self.registration_info, &self.config)?;
-            register::save_attestation(&self.platform, &self.attestation, &self.config)?;
+                create_register_attestation_report(&self.platform, &self.registration_info, &self.config)?;
+            save_attestation(&self.platform, &self.attestation, &self.config)?;
             register::do_register(&self.chain_client, &self.tx_signer, &self.registration_info, &self.attestation)
                 .await?;
         }

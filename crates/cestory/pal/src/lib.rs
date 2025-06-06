@@ -50,5 +50,9 @@ pub trait AppInfo {
     fn app_version() -> AppVersion;
 }
 
-pub trait Platform: Sealing + RA + Machine + MemoryStats + AppInfo + Clone + Send + 'static {}
-impl<T: Sealing + RA + Machine + MemoryStats + AppInfo + Clone + Send + 'static> Platform for T {}
+pub trait SgxEnvAware {
+    fn is_sgx_env() -> bool;
+}
+
+pub trait Platform: Sealing + RA + Machine + MemoryStats + AppInfo + SgxEnvAware + Clone + Send + 'static {}
+impl<T: Sealing + RA + Machine + MemoryStats + AppInfo + SgxEnvAware + Clone + Send + 'static> Platform for T {}

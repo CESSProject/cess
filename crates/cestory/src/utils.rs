@@ -25,8 +25,9 @@ pub mod cqh {
     use anyhow::{anyhow, Result};
     use cestory_api::chain_client::{
         runtime::{self, runtime_types::pallet_sminer::types::MinerInfo},
-        AccountId, CesChainClient,
+        AccountId, BlockNumber, CesChainClient,
     };
+    use subxt::config::substrate::H256;
 
     #[derive(Clone)]
     pub struct ChainQueryHelper {
@@ -62,6 +63,25 @@ pub mod cqh {
 
         pub async fn is_storage_miner_registered_ignore_state(&self, miner_account_id: &AccountId) -> Result<bool> {
             self.get_storage_miner_info(miner_account_id).await.map(|r| r.is_some())
+        }
+
+        pub(crate) async fn get_ceseal_bin_added_at(&self, runtime_hash: &H256) -> Result<Option<BlockNumber>> {
+            let q = runtime::storage().tee_worker().ceseal_bin_added_at(runtime_hash);
+            let r = self.chain_client.storage().at_latest().await?.fetch(&q).await?;
+            Ok(r)
+        }
+
+        pub async fn current_block(&self) -> Result<(BlockNumber, u64)> {
+            let block = self.chain_client.blocks().at_latest().await?;
+            let q = runtime::storage().timestamp().now();
+            let r = self
+                .chain_client
+                .storage()
+                .at(block.reference())
+                .fetch(&q)
+                .await?
+                .ok_or(anyhow!("no timestamp pallet in chain"))?;
+            Ok((block.number(), r))
         }
     }
 }
