@@ -1,40 +1,38 @@
-use crate::pal_gramine::GraminePlatform;
 use anyhow::{Context, Result};
-use cestory::RpcService;
-use cestory_api::{
-    ceseal_client::CesealClient, crpc::ceseal_api_server::CesealApi, ecall_args::InitArgs,
-};
-use tonic::{transport::Channel, Request};
+use cestory::{handover, Config};
+use cestory_api::handover::handover_server_api_client::HandoverServerApiClient;
+use cestory_pal::Platform;
+use tonic::transport::Channel;
 use tracing::info;
 
-pub(crate) async fn handover_from(url: &str, args: InitArgs) -> Result<()> {
-    let this = RpcService::new(GraminePlatform);
-    this.lock_ceseal(true, false)
-        .expect("Failed to lock Ceseal")
-        .init(args);
-
-    let mut from_ceseal = CesealClient::<Channel>::connect(url.to_string()).await?;
+pub(crate) async fn handover_from<P: Platform>(
+    config: Config,
+    platform: P,
+    from_url: &str,
+) -> Result<()> {
+    let mut handover_client = handover::new_handover_client(config, platform);
+    let mut handover_server =
+        HandoverServerApiClient::<Channel>::connect(from_url.to_string()).await?;
     info!("Requesting for challenge");
-    let challenge = from_ceseal
-        .handover_create_challenge(())
+    let challenge = handover_server
+        .create_challenge(())
         .await
         .context("Failed to create challenge")?
         .into_inner();
     info!("Challenge received");
-    let response = this
-        .handover_accept_challenge(Request::new(challenge))
+    let response = handover_client
+        .accept_challenge(challenge)
         .await
-        .context("Failed to accept challenge")?
-        .into_inner();
+        .context("Failed to accept challenge")?;
     info!("Requesting for key");
-    let encrypted_key = from_ceseal
-        .handover_start(response)
+    let encrypted_key = handover_server
+        .start(response)
         .await
         .context("Failed to start handover")?
         .into_inner();
     info!("Key received");
-    this.handover_receive(Request::new(encrypted_key))
-        .await
+    handover_client
+        .receive(encrypted_key)
         .context("Failed to receive handover result")?;
     Ok(())
 }

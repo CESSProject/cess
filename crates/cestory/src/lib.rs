@@ -11,7 +11,7 @@ use std::str::FromStr;
 
 mod attestation;
 mod ceseal;
-// mod handover;
+pub mod handover;
 mod identity_key;
 mod master_key;
 pub mod podr2;
@@ -31,6 +31,7 @@ pub use utils::{
 
 /// POIS k, n, d parameters
 pub type PoisParam = (i64, i64, i64);
+pub type RegistrationInfo = ces_types::WorkerRegistrationInfo<AccountId>;
 
 #[derive(Default, Clone)]
 pub struct Config {
@@ -65,7 +66,7 @@ pub struct Config {
 
     pub debug_set_key: Option<Vec<u8>>,
     pub attestation_provider: Option<ces_types::AttestationProvider>,
-    pub endpoint: String,
+    pub endpoint: Option<String>,
     pub stash_account: Option<AccountId>,
 }
 
@@ -114,28 +115,34 @@ pub fn try_account_from(account_slice: &[u8]) -> Result<AccountId> {
     }
 }
 
-pub async fn build<Platform: pal::Platform>(
-    config: Config,
-    platform: Platform,
-) -> Result<(CesealClient, ChainQueryHelper, CesChainClient)> {
+pub async fn build_light_client(config: &Config) -> Result<CesChainClient> {
     use cestory_api::chain_client::{self, CesRuntimeConfig};
-    use sp_core::H256;
     use subxt::{
         client::OnlineClient,
         lightclient::{ChainConfig, LightClient},
     };
-    let genesis_hash = H256::from_str(chain_client::GENESIS_HASH)?;
-    info!("{:?} chain genesis hash: {:?}", chain_client::CHAIN_NETWORK, genesis_hash);
     let chain_config = if let Some(ref bootnodes) = config.chain_bootnodes {
-        ChainConfig::chain_spec(chain_client::CHAIN_SPEC).set_bootnodes(bootnodes)?
+        ChainConfig::chain_spec(chain_client::CHAIN_SPEC).set_bootnodes(bootnodes.clone())?
     } else {
         ChainConfig::chain_spec(chain_client::CHAIN_SPEC)
     };
     info!("Building light-client ...");
     let (_light_client, light_client_rpc) = LightClient::relay_chain(chain_config)?;
     let chain_client = OnlineClient::<CesRuntimeConfig>::from_rpc_client(light_client_rpc).await?;
-    let cqh = ChainQueryHelper::build(chain_client.clone()).await?;
+    Ok(chain_client)
+}
+
+pub async fn build_ceseal_client<Platform: pal::Platform>(
+    config: Config,
+    platform: Platform,
+    chain_client: CesChainClient,
+) -> Result<CesealClient> {
+    use cestory_api::chain_client;
+    use sp_core::H256;
+    info!("Building ceseal-client ...");
+    let genesis_hash = H256::from_str(chain_client::GENESIS_HASH)?;
+    info!("{:?} chain genesis hash: {:?}", chain_client::CHAIN_NETWORK, genesis_hash);
     let ceseal_client = ceseal::build(config, platform, chain_client.clone(), genesis_hash).await?;
-    info!("Ceseal client was ready");
-    Ok((ceseal_client, cqh, chain_client))
+    info!("Ceseal-client was ready");
+    Ok(ceseal_client)
 }

@@ -1,16 +1,16 @@
 use super::{
     master_pubkey_q::{self, OnChainMasterPubkeyQuerier},
-    ReadyCeseal, RegistrationInfo, TxSigner,
+    ReadyCeseal, TxSigner,
 };
 use crate::{
-    attestation::{create_attestation_report_on, AttestationInfo},
+    attestation::{create_register_attestation_report, save_attestation, try_load_attestation, AttestationInfo},
     identity_key::PublicKey,
     master_key::is_master_key_exists_on_local,
-    unix_now, CesealMasterKey, Config, IdentityKey,
+    unix_now, CesealMasterKey, Config, IdentityKey, RegistrationInfo,
 };
 use anyhow::{anyhow, Result};
 use ces_crypto::{key_share, rsa::RsaDer, sr25519::KDF, SecretKey};
-use ces_types::{attestation::SgxFields, AeadIV, AttestationReport};
+use ces_types::AeadIV;
 use cestory_api::chain_client::{
     runtime::{self, runtime_types::pallet_tee_worker::pallet::WorkerInfo},
     AccountId, CesChainClient,
@@ -35,6 +35,7 @@ impl<Platform: pal::Platform> RegisteredCeseal<Platform> {
         platform: Platform,
         genesis_hash: H256,
     ) -> Result<RegisteredCeseal<Platform>> {
+        let endpoint = config.endpoint.clone().ok_or(anyhow!("config.endpoint is required"))?;
         let tx_signer = {
             use core::str::FromStr;
             use subxt_signer::{sr25519::Keypair, SecretUri};
@@ -61,7 +62,7 @@ impl<Platform: pal::Platform> RegisteredCeseal<Platform> {
             features: vec![platform.cpu_core_num(), platform.cpu_feature_level()],
             stash_account: config.stash_account.clone(),
             role: config.role.clone(),
-            endpoint: config.endpoint.clone(),
+            endpoint,
         };
 
         info!("Identity pubkey: {:?}", hex::encode(registration_info.pubkey.0.as_ref()));
@@ -282,85 +283,6 @@ enum PostationState {
     NoApply,
     Pending,
     Delivered(CesealMasterKey),
-}
-
-const ATTESTATION_FILE: &str = "attestation.seal";
-
-fn try_load_attestation<Platform: pal::Platform>(
-    platform: &Platform,
-    config: &Config,
-) -> Result<Option<AttestationInfo>> {
-    use std::path::PathBuf;
-    let attest_file = PathBuf::from(&config.sealing_path).join(ATTESTATION_FILE);
-    if let Some(data) = platform
-        .unseal_data(attest_file)
-        .map_err(|e| anyhow!("unseal attestation error: {:?}", e))?
-    {
-        let data: AttestationInfo = Decode::decode(&mut &data[..])?;
-        Ok(Some(data))
-    } else {
-        Ok(None)
-    }
-}
-
-pub(crate) fn save_attestation<Platform: pal::Platform>(
-    platform: &Platform,
-    attestation: &AttestationInfo,
-    config: &Config,
-) -> Result<()> {
-    use std::path::PathBuf;
-    let data = attestation.encode();
-    let attest_file = PathBuf::from(&config.sealing_path).join(ATTESTATION_FILE);
-    platform
-        .seal_data(attest_file, &data)
-        .map_err(|e| anyhow!("seal attestation error: {:?}", e))?;
-    Ok(())
-}
-
-pub(crate) fn create_register_attestation_report<Platform: pal::Platform>(
-    platform: &Platform,
-    registration_info: &RegistrationInfo,
-    config: &Config,
-) -> Result<AttestationInfo> {
-    let encoded_reg_info = registration_info.encode();
-    let reg_info_hash = sp_core::hashing::blake2_256(&encoded_reg_info);
-    debug!("Encoded registration info: {}, hash: {}", hex::encode(&encoded_reg_info), hex::encode(&reg_info_hash));
-    let report = create_attestation_report_on(
-        platform,
-        config.attestation_provider.clone(),
-        &reg_info_hash,
-        config.ra_timeout,
-        config.ra_max_retries,
-    )?;
-    {
-        let mut encoded_report = &report.encoded_report[..];
-        let report: Option<AttestationReport> = Decode::decode(&mut encoded_report)?;
-        if let Some(report) = report {
-            match report {
-                AttestationReport::SgxIas { ra_report, .. } => match SgxFields::from_ias_report(&ra_report[..]) {
-                    Ok((sgx_fields, _)) => {
-                        info!("EPID RA report measurement       :{}", hex::encode(sgx_fields.measurement()));
-                        info!("EPID RA report measurement hash  :{:?}", sgx_fields.measurement_hash());
-                    },
-                    Err(e) => {
-                        error!("deserial ias report to SgxFields failed: {:?}", e);
-                    },
-                },
-                AttestationReport::SgxDcap { quote, collateral: _ } => {
-                    match SgxFields::from_dcap_quote_report(&quote) {
-                        Ok((sgx_fields, _)) => {
-                            info!("DCAP measurement       :{}", hex::encode(sgx_fields.measurement()));
-                            info!("DCAP measurement hash  :{:?}", sgx_fields.measurement_hash());
-                        },
-                        Err(e) => {
-                            error!("deserial dcap report to SgxFields failed: {:?}", e);
-                        },
-                    }
-                },
-            }
-        }
-    }
-    Ok(report)
 }
 
 pub(crate) async fn do_register(
