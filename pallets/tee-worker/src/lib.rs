@@ -198,6 +198,9 @@ pub mod pallet {
 		IsvEnclaveReportSignatureIsInvalid,
 		DerDecodingError,
 		OidIsMissing,
+
+		EmpltyFullWorker,
+		NotFoundDistributor,
 	}
 
 	#[pallet::storage]
@@ -507,13 +510,20 @@ pub mod pallet {
 			// Validate the public key
 			ensure!(Workers::<T>::contains_key(payload.pubkey), Error::<T>::InvalidWorkerPubKey);
 
+			let workers = ValidationTypeList::<T>::get();
+			let workers_len = workers.len();
+			ensure!(workers_len > 0, Error::<T>::EmpltyFullWorker);
 			let applier = &payload.pubkey;
-			//TODO: round by origin nounce
+			let now = T::UnixTime::now().as_secs().saturated_into::<usize>();
 			let distributor = {
-				let mut i = Workers::<T>::iter();
+				let mut i = 0usize;
 				loop {
-					let (worker_pubkey, _) = i.next().ok_or(Into::<DispatchError>::into(Error::<T>::WorkerNotFound))?; //TODO: introduce a new error
+					let worker_pubkey = workers[(i + now) % workers_len];
 					if *applier == worker_pubkey {
+						i += 1;
+						if i >= workers_len {
+							return Err(Error::<T>::NotFoundDistributor.into());
+						}
 						continue;
 					}
 					break worker_pubkey;
