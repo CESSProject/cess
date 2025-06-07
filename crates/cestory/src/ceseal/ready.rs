@@ -21,6 +21,7 @@ use futures::{stream::StreamExt, FutureExt};
 use parity_scale_codec::Encode;
 use sp_core::{hashing, sr25519};
 use std::sync::Arc;
+use subxt::tx::Payload;
 use tokio::{
     sync::{mpsc, oneshot},
     time::{self, Duration},
@@ -255,6 +256,12 @@ impl<Platform: pal::Platform> ReadyCeseal<Platform> {
         };
         let signature = self.id_key.sign(&payload.encode()).encode();
         let tx = runtime::tx().tee_worker().distribute_master_key(payload, signature);
+        if log::log_enabled!(log::Level::Trace) {
+            let encoded_call_data = tx
+                .encode_call_data(&self.chain_client.metadata())
+                .expect("should encoded tx call");
+            trace!("distribute_master_key call: 0x{}", hex::encode(encoded_call_data));
+        }
         self.chain_client
             .tx()
             .sign_and_submit_then_watch_default(&tx, &self.tx_signer)
