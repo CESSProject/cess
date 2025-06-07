@@ -165,6 +165,7 @@ impl<Platform: pal::Platform> RegisteredCeseal<Platform> {
                     applied = true;
                     apply_cnt += 1;
                 }
+                tokio::time::sleep(std::time::Duration::from_secs(6)).await;
             } else {
                 // mk not launched
                 debug!("Waiting for master key to launch on chain");
@@ -176,8 +177,8 @@ impl<Platform: pal::Platform> RegisteredCeseal<Platform> {
                     },
                     _ => {},
                 }
+                tokio::time::sleep(std::time::Duration::from_secs(12)).await;
             }
-            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
         }
     }
 
