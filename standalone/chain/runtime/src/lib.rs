@@ -157,7 +157,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	// and set impl_version to 0. If only runtime
 	// implementation changes and behavior does not, then leave spec_version as
 	// is and increment impl_version.
-	spec_version: 135,
+	spec_version: 136,
 	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -1635,6 +1635,7 @@ impl pallet_tee_worker::Config for Runtime {
 	type MaxWhitelist = MaxWhitelist;
 	type AtLeastWorkBlock = AtLeastWorkBlock;
 	type GovernanceOrigin = EnsureRootOrHalfCouncil;
+	type Randomness = RandomnessCollectiveFlip;
 }
 
 pub struct DealWithServiceFee;
