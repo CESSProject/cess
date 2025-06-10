@@ -8,7 +8,6 @@ members = [
     "crates/ces-crypto",
     "crates/ces-pdp",
     "crates/ces-pois",
-    "crates/ces-sanitized-logger",
     "crates/ces-serde-more",
     "crates/cestory",
     "crates/cestory/api",
@@ -427,7 +426,6 @@ ces-crypto = { path = "crates/ces-crypto", default-features = false }
 ces-node-runtime = { path = "standalone/chain/runtime", package = "cess-node-runtime", default-features = false }
 ces-pdp = { path = "crates/ces-pdp" }
 ces-pois = { path = "crates/ces-pois" }
-ces-sanitized-logger = { path = "crates/ces-sanitized-logger" }
 ces-serde-more = { path = "crates/ces-serde-more", default-features = false }
 ces-types = { path = "crates/ces-types", default-features = false }
 cess-node-runtime = { path = "standalone/chain/runtime", default-features = false }

@@ -2,7 +2,6 @@ mod handover;
 mod pal_gramine;
 
 use anyhow::{anyhow, Result};
-use ces_sanitized_logger as logger;
 use ces_types::{AttestationProvider, WorkerRole};
 use cestory::{
     self, chain_client, AccountId, CesealClient, CesealMasterKey, ChainQueryHelper, Config,
@@ -225,6 +224,7 @@ impl Args {
 }
 
 fn main() -> Result<()> {
+    tracing_subscriber::fmt::init();
     let mut args = Args::parse();
     match args.command {
         Some(Commands::Version) => {
@@ -245,7 +245,6 @@ fn main() -> Result<()> {
                 .build()?;
 
             let sgx = pal_gramine::is_gramine();
-            logger::init_subscriber(sgx);
             pal_gramine::print_target_info();
 
             rt.block_on(serve(sgx, args))?;
