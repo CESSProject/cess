@@ -27,13 +27,13 @@ reqwest = { version = "0.12", default-features = false, features = [
 serde_json = "1.0"
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 urlencoding = "2.1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
 tower = { version = "0.5", features = ["limit", "load-shed"] }
 tonic = { version = "0.13" }
 rustls-pki-types = { version = "=0.2.1", default-features = false, optional = true }
 reqwest-env-proxy = { path = "../../../crates/reqwest-env-proxy" }
-ces-sanitized-logger = { path = "../../../crates/ces-sanitized-logger" }
 cestory = { path = "../../../crates/cestory" }
 cestory-api = { path = "../../../crates/cestory/api", features = ["api-client"] }
 cestory-pal = { path = "../../../crates/cestory/pal" }
