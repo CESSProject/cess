@@ -13,13 +13,13 @@ pub mod benchmarking;
 
 use alloc::string::{String, ToString};
 use ces_types::{MasterPublicKey, WorkerPublicKey, WorkerRole};
-use codec::{Decode, Encode};
+use codec::{Decode, Encode, MaxEncodedLen};
 use cp_cess_common::*;
 use cp_scheduler_credit::SchedulerCreditCounter;
 use frame_support::{
 	dispatch::DispatchResult,
 	pallet_prelude::*,
-	traits::{Get, ReservableCurrency, StorageVersion, UnixTime},
+	traits::{Get, Randomness, ReservableCurrency, StorageVersion, UnixTime},
 	BoundedVec, PalletId,
 };
 use frame_system::{ensure_signed, pallet_prelude::*};
@@ -87,6 +87,8 @@ pub mod pallet {
 
 		/// Origin used to govern the pallet
 		type GovernanceOrigin: EnsureOrigin<Self::RuntimeOrigin>;
+
+		type Randomness: Randomness<Self::Hash, BlockNumberFor<Self>>;
 	}
 
 	#[pallet::event]
@@ -511,14 +513,16 @@ pub mod pallet {
 			ensure!(Workers::<T>::contains_key(payload.pubkey), Error::<T>::InvalidWorkerPubKey);
 
 			let workers = ValidationTypeList::<T>::get();
-			let workers_len = workers.len();
+			let workers_len = workers.len() as u32;
 			ensure!(workers_len > 0, Error::<T>::EmpltyFullWorker);
 			let applier = &payload.pubkey;
-			let now = T::UnixTime::now().as_secs().saturated_into::<usize>();
+			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
+			let (seed, _) = T::Randomness::random(&(T::TeeWorkerPalletId::get(), now).encode());
+			let seed = <u32>::decode(&mut seed.as_ref()).expect("secure hashes should always be bigger than u32; qed");
 			let distributor = {
-				let mut i = 0usize;
+				let mut i = 0u32;
 				loop {
-					let worker_pubkey = workers[(i + now) % workers_len];
+					let worker_pubkey = workers[((i + seed) % workers_len) as usize];
 					if *applier == worker_pubkey {
 						i += 1;
 						if i >= workers_len {
