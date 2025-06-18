@@ -6,6 +6,7 @@ extern crate log;
 extern crate cestory_pal as pal;
 
 use anyhow::{anyhow, Result};
+use serde::{Deserialize, Serialize};
 use sp_core::{crypto::Pair, sr25519};
 use std::str::FromStr;
 
@@ -33,7 +34,7 @@ pub use utils::{
 pub type PoisParam = (i64, i64, i64);
 pub type RegistrationInfo = ces_types::WorkerRegistrationInfo<AccountId>;
 
-#[derive(Default, Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Config {
     pub chain_bootnodes: Option<Vec<String>>,
 
@@ -68,6 +69,46 @@ pub struct Config {
     pub attestation_provider: Option<ces_types::AttestationProvider>,
     pub endpoint: Option<String>,
     pub stash_account: Option<AccountId>,
+    pub tip: u64,
+    pub longevity: u64,
+}
+
+impl Config {
+    pub fn validate(&self) -> Result<()> {
+        if self.longevity > 0 {
+            if !(self.longevity >= 4) {
+                return Err(anyhow!("'longevity' must be 0 or >= 4."));
+            }
+            if !(self.longevity.is_power_of_two()) {
+                return Err(anyhow!("'longevity' must be a power of two."));
+            }
+        }
+        Ok(())
+    }
+}
+
+impl std::default::Default for Config {
+    fn default() -> Self {
+        Self {
+            chain_bootnodes: None,
+            sealing_path: "/data/protected_files".into(),
+            storage_path: "/data/storage_files".into(),
+            version: "".into(),
+            git_revision: "".into(),
+            cores: 0,
+            ra_timeout: std::time::Duration::from_secs(8),
+            ra_max_retries: 3,
+            ra_type: None,
+            role: ces_types::WorkerRole::Full,
+            mnemonic: "//Alice".into(),
+            debug_set_key: None,
+            attestation_provider: None,
+            endpoint: None,
+            stash_account: None,
+            tip: 0,
+            longevity: 0,
+        }
+    }
 }
 
 impl std::fmt::Debug for Config {
@@ -86,6 +127,7 @@ impl std::fmt::Debug for Config {
             .field("attestation_provider", &self.attestation_provider)
             .field("endpoint", &self.endpoint)
             .field("stash_account", &self.stash_account.as_ref().map(|e| format!("{e}")))
+            .field("role", &self.role)
             .finish()
     }
 }

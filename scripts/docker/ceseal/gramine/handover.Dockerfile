@@ -66,22 +66,21 @@ ARG http_proxy
 ARG CESEAL_VERSION
 RUN : "${CESEAL_VERSION:?CESEAL_VERSION needs to be set and a long integer.}"
 ARG CESEAL_HOME=/opt/ceseal
-ARG CESEAL_DIR=${CESEAL_HOME}/releases/${CESEAL_VERSION}
-ARG CESEAL_DATA_DIR=${CESEAL_HOME}/${CESEAL_VERSION}/data
-ARG REAL_CESEAL_DATA_DIR=${CESEAL_HOME}/data/${CESEAL_VERSION}
+ARG RELEASES_DIR=${CESEAL_HOME}/releases/${CESEAL_VERSION}
+ARG DATA_DIR=${CESEAL_HOME}/data/${CESEAL_VERSION}
 
-COPY --from=builder /root/prebuilt/ ${CESEAL_DIR}
-ADD --chmod=0755 ./scripts/docker/ceseal/gramine/start.sh ${CESEAL_DIR}/start.sh
+COPY --from=builder /root/prebuilt/ ${RELEASES_DIR}
+ADD --chmod=0755 ./scripts/docker/ceseal/gramine/start.sh ${RELEASES_DIR}/start.sh
 ADD --chmod=0755 ./scripts/docker/ceseal/gramine/start-with-handover.sh ${CESEAL_HOME}/start.sh
 ADD ./standalone/teeworker/ceseal/gramine-build/conf /opt/conf
 
 RUN <<EOF
   set -e
-  ln -s ${CESEAL_DIR} ${CESEAL_HOME}/releases/current
-  #Since the file will be overwritten when the mount is started, it is meaningless to create ${REAL_CESEAL_DATA_DIR} here.
-  #mkdir -p ${REAL_CESEAL_DATA_DIR}
-  rm -rf ${CESEAL_DIR}/data
-  ln -s ${REAL_CESEAL_DATA_DIR} ${CESEAL_DIR}/data
+  ln -s ${RELEASES_DIR} ${CESEAL_HOME}/releases/current
+  #Since the file will be overwritten when the mount is started, it is meaningless to create ${DATA_DIR} here.
+  #mkdir -p ${DATA_DIR}
+  rm -rf ${RELEASES_DIR}/data
+  ln -s ${DATA_DIR} ${RELEASES_DIR}/data
 EOF
 
 WORKDIR ${CESEAL_HOME}/releases/current

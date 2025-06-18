@@ -4,13 +4,14 @@ mod pal_gramine;
 use anyhow::{anyhow, Result};
 use ces_types::{AttestationProvider, WorkerRole};
 use cestory::{
-    self, chain_client, AccountId, CesealClient, CesealMasterKey, ChainQueryHelper, Config,
-    ExtResPermitter, PoisParam,
+    self, chain_client, AccountId, CesealClient, CesealMasterKey, ChainQueryHelper,
+    Config as CestoryConfig, ExtResPermitter, PoisParam,
 };
 use clap::{crate_version, Parser, Subcommand};
 use pal_gramine::GraminePlatform;
 use std::{
     env,
+    path::PathBuf,
     str::FromStr,
     sync::{Arc, Mutex},
     time::Duration,
@@ -28,8 +29,22 @@ const VERSION: &str = const_str::format!(
 #[derive(Parser, Debug, Clone)]
 #[clap(about = "The CESS TEE worker app.", version = VERSION, author)]
 struct Args {
-    /// Number of CPU cores to be used for PODR2 thread-pool.
+    #[command(subcommand)]
+    command: Option<Commands>,
+
+    /// The path to the Ceseal configuration file.
     #[arg(short, long)]
+    config: Option<PathBuf>,
+
+    #[arg(long)]
+    only_handover_server: bool,
+
+    /// Handover key from another running ceseal instance
+    #[arg(long)]
+    request_handover_from: Option<String>,
+
+    /// Number of CPU cores to be used for PODR2 thread-pool.
+    #[arg(long)]
     cores: Option<u32>,
 
     /// Listening IP address of public H2 server
@@ -41,40 +56,29 @@ struct Args {
     listening_port: Option<u16>,
 
     #[arg(long)]
-    only_handover_server: bool,
-
-    /// Handover key from another running ceseal instance
-    #[arg(long)]
-    request_handover_from: Option<String>,
-
-    #[arg(long)]
     ra_type: Option<String>,
 
     /// The timeout of getting the attestation report. (in seconds)
-    #[arg(long, value_parser = humantime::parse_duration, default_value = "8s")]
-    ra_timeout: Duration,
+    #[arg(long, value_parser = humantime::parse_duration)]
+    ra_timeout: Option<Duration>,
 
     /// The max retry times of getting the attestation report.
-    #[arg(long, default_value = "1")]
-    ra_max_retries: u32,
+    #[arg(long)]
+    ra_max_retries: Option<u32>,
 
-    #[arg(long, value_parser = WorkerRole::from_str, default_value = "full")]
-    role: WorkerRole,
+    #[arg(long, value_parser = WorkerRole::from_str)]
+    role: Option<WorkerRole>,
 
     /// Custom ceseal data directory in non-SGX environment
     #[arg(long)]
     data_dir: Option<String>,
 
-    #[command(subcommand)]
-    command: Option<Commands>,
-
     #[arg(
-        default_value = "//Alice",
         short = 'm',
         long = "mnemonic",
         help = "Controller SR25519 private key mnemonic, private key seed, or derive path"
     )]
-    pub mnemonic: String,
+    pub mnemonic: Option<String>,
 
     #[arg(
         long,
@@ -101,23 +105,18 @@ struct Args {
     )]
     pub inject_key: String,
 
-    #[arg(
-        default_value = "0",
-        long,
-        help = "The charge transaction payment, unit: balance"
-    )]
-    pub tip: u128,
+    #[arg(long, help = "The charge transaction payment, unit: balance")]
+    pub tip: Option<u64>,
 
     #[arg(
-        default_value = "16",
         long,
         help = "The transaction longevity, should be a power of two between 4 and 65536. unit: block"
     )]
-    pub longevity: u64,
+    pub longevity: Option<u64>,
 
     /// Attestation provider
-    #[arg(long, value_enum, default_value_t = RaOption::Ias)]
-    pub attestation_provider: RaOption,
+    #[arg(long, value_enum)]
+    pub attestation_provider: Option<RaOption>,
 
     #[arg(long)]
     chain_bootnodes: Option<Vec<String>>,
@@ -155,16 +154,8 @@ impl Args {
     fn validate_on_serve(&mut self) {
         if self.dev {
             self.use_dev_key = true;
-            self.mnemonic = String::from("//Alice");
-            self.attestation_provider = RaOption::None;
-        }
-        if self.longevity > 0 {
-            assert!(self.longevity >= 4, "Option --longevity must be 0 or >= 4.");
-            assert_eq!(
-                self.longevity.count_ones(),
-                1,
-                "Option --longevity must be power of two."
-            );
+            self.mnemonic = Some(String::from("//Alice"));
+            self.attestation_provider = Some(RaOption::None);
         }
         self.fix_bootnode_if_absent_for_dev();
     }
@@ -197,29 +188,100 @@ impl Args {
         }
     }
 
-    fn into_config(self, sealing_path: String, storage_path: String) -> Config {
-        let debug_set_key = self.debug_set_key();
-        Config {
-            chain_bootnodes: self.chain_bootnodes,
-            sealing_path,
-            storage_path,
-            version: env!("CARGO_PKG_VERSION").into(),
-            git_revision: format!(
-                "{}-{}",
-                env!("VERGEN_GIT_SHA"),
-                env!("VERGEN_BUILD_TIMESTAMP")
-            ),
-            cores: self.cores.unwrap_or_else(|| num_cpus::get() as _),
-            ra_timeout: self.ra_timeout,
-            ra_max_retries: self.ra_max_retries,
-            ra_type: self.ra_type,
-            role: self.role,
-            debug_set_key,
-            mnemonic: self.mnemonic,
-            attestation_provider: self.attestation_provider.into(),
-            endpoint: self.public_endpoint,
-            stash_account: self.stash_account,
+    fn prepare_paths(&self) -> Result<(String, String)> {
+        let sealing_path;
+        let storage_path;
+        if pal_gramine::is_gramine() {
+            // In gramine, the protected files are configured via manifest file. So we must not allow it to
+            // be changed at runtime for security reason. Thus hardcoded it to `/data/protected_files` here.
+            // Should keep it the same with the manifest config.
+            sealing_path = "/data/protected_files".to_string();
+            storage_path = "/data/storage_files".to_string();
+        } else {
+            use std::{fs, path::Path};
+            let data_dir = self.data_dir.as_ref().map_or("./data", |dir| dir.as_str());
+            {
+                let p = Path::new(data_dir).join("protected_files");
+                sealing_path = p.to_str().unwrap().to_string();
+                fs::create_dir_all(p)?;
+            }
+            {
+                let p = Path::new(data_dir).join("storage_files");
+                storage_path = p.to_str().unwrap().to_string();
+                fs::create_dir_all(p)?;
+            }
         }
+        Ok((sealing_path, storage_path))
+    }
+
+    fn into_config(self) -> Result<CestoryConfig> {
+        use config::{Config, ConfigError, Environment, File};
+        let (sealing_path, storage_path) = self.prepare_paths()?;
+        let defaults = Config::try_from(&CestoryConfig::default())?;
+        let cfg = {
+            let builder = Config::builder().add_source(defaults);
+            if let Some(ref config_path) = self.config {
+                builder.add_source(File::with_name(config_path.to_str().unwrap()).required(true))
+            } else {
+                builder
+            }
+            .add_source(Environment::with_prefix("CESEAL"))
+            .build()?
+        };
+        let mut cfg = cfg
+            .try_deserialize::<CestoryConfig>()
+            .map_err(|e: ConfigError| anyhow!("Failed to deserialize config: {e}"))?;
+
+        cfg.sealing_path = sealing_path;
+        cfg.storage_path = storage_path;
+        cfg.version = env!("CARGO_PKG_VERSION").to_string();
+        cfg.git_revision = format!(
+            "{}-{}",
+            env!("VERGEN_GIT_SHA"),
+            env!("VERGEN_BUILD_TIMESTAMP")
+        );
+        if let Some(dsk) = self.debug_set_key() {
+            cfg.debug_set_key = Some(dsk);
+        }
+        if let Some(cores) = self.cores {
+            cfg.cores = cores;
+        } else {
+            cfg.cores = num_cpus::get() as u32;
+        }
+        if let Some(ra_type) = self.ra_type {
+            cfg.ra_type = Some(ra_type);
+        }
+        if let Some(ra_timeout) = self.ra_timeout {
+            cfg.ra_timeout = ra_timeout;
+        }
+        if let Some(ra_max_retries) = self.ra_max_retries {
+            cfg.ra_max_retries = ra_max_retries;
+        }
+        if self.chain_bootnodes.is_some() {
+            cfg.chain_bootnodes = self.chain_bootnodes;
+        }
+        if self.public_endpoint.is_some() {
+            cfg.endpoint = self.public_endpoint;
+        }
+        if self.stash_account.is_some() {
+            cfg.stash_account = self.stash_account;
+        }
+        if let Some(mnemonic) = self.mnemonic {
+            cfg.mnemonic = mnemonic;
+        }
+        if let Some(attestation_provider) = self.attestation_provider {
+            cfg.attestation_provider = attestation_provider.into();
+        }
+        if let Some(role) = self.role {
+            cfg.role = role;
+        }
+        if let Some(tip) = self.tip {
+            cfg.tip = tip;
+        }
+        if let Some(longevity) = self.longevity {
+            cfg.longevity = longevity;
+        }
+        Ok(cfg)
     }
 }
 
@@ -244,50 +306,22 @@ fn main() -> Result<()> {
                 .enable_all()
                 .build()?;
 
-            let sgx = pal_gramine::is_gramine();
             pal_gramine::print_target_info();
 
-            rt.block_on(serve(sgx, args))?;
+            rt.block_on(serve(args))?;
         }
     }
     Ok(())
 }
 
-fn prepare_paths(sgx: bool, args: &Args) -> Result<(String, String)> {
-    let sealing_path;
-    let storage_path;
-    if sgx {
-        // In gramine, the protected files are configured via manifest file. So we must not allow it to
-        // be changed at runtime for security reason. Thus hardcoded it to `/data/protected_files` here.
-        // Should keep it the same with the manifest config.
-        sealing_path = "/data/protected_files".to_string();
-        storage_path = "/data/storage_files".to_string();
-    } else {
-        use std::{fs, path::Path};
-        let data_dir = args.data_dir.as_ref().map_or("./data", |dir| dir.as_str());
-        {
-            let p = Path::new(data_dir).join("protected_files");
-            sealing_path = p.to_str().unwrap().to_string();
-            fs::create_dir_all(p)?;
-        }
-        {
-            let p = Path::new(data_dir).join("storage_files");
-            storage_path = p.to_str().unwrap().to_string();
-            fs::create_dir_all(p)?;
-        }
-    }
-    Ok((sealing_path, storage_path))
-}
-
 #[tracing::instrument(name = "main", skip_all)]
-async fn serve(sgx: bool, args: Args) -> Result<()> {
-    info!(sgx, "Starting ceseal...");
-    let (sealing_path, storage_path) = prepare_paths(sgx, &args)?;
+async fn serve(args: Args) -> Result<()> {
+    info!(sgx = pal_gramine::is_gramine(), "Starting ceseal...");
 
     // for handover client side
     if let Some(from) = args.request_handover_from.clone() {
         info!(%from, "Starting handover");
-        let config = args.into_config(sealing_path, storage_path);
+        let config = args.into_config()?;
         info!("Ceseal config: {:#?}", config);
         handover::handover_from(config, GraminePlatform, &from)
             .await
@@ -302,7 +336,7 @@ async fn serve(sgx: bool, args: Args) -> Result<()> {
         format!("{ip}:{port}").parse().unwrap()
     };
     let only_handover_server = args.only_handover_server;
-    let config = args.into_config(sealing_path, storage_path);
+    let config = args.into_config()?;
     info!("Ceseal config: {:#?}", config);
     let chain_client = cestory::build_light_client(&config).await?;
     let cqh = ChainQueryHelper::build(chain_client.clone()).await?;
@@ -363,7 +397,7 @@ struct ServiceBuildParams {
 impl ServiceBuildParams {
     async fn make(
         ceseal_client: &CesealClient,
-        config: &Config,
+        config: &CestoryConfig,
         cqh: &ChainQueryHelper,
     ) -> Result<Self> {
         let identity_pubkey = ceseal_client.identity_public().await?.0;

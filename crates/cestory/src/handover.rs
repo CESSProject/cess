@@ -253,7 +253,7 @@ impl<Platform: pal::Platform> HandoverClient<Platform> {
         let ecdh_pubkey = ces_types::EcdhPublicKey::from_raw(handover_ecdh_key.public());
         self.handover_ecdh_key = Some(handover_ecdh_key);
 
-        let challenge = request.decode_challenge().map_err(as_status)?;
+        let challenge = request.decode_challenge()?;
         let dev_mode = challenge.dev_mode;
         // generate local attestation report to ensure the handover ceseals are on the same machine
         let sgx_local_report = if !dev_mode {
@@ -279,8 +279,7 @@ impl<Platform: pal::Platform> HandoverClient<Platform> {
                 &handler_hash,
                 self.config.ra_timeout,
                 self.config.ra_max_retries,
-            )
-            .map_err(as_status)?;
+            )?;
             Some(pb::Attestation { provider: a.provider, encoded_report: a.encoded_report, timestamp: a.timestamp })
         } else {
             info!("Omit client RA report for dev mode challenge");

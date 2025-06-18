@@ -5,6 +5,8 @@ use alloc::{string::String, vec::Vec};
 use core::{fmt::Debug, str::FromStr};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
+#[cfg(feature = "enable_serde")]
+use serde::{Deserialize, Serialize};
 use sp_core::H256;
 
 pub mod attestation;
@@ -80,6 +82,7 @@ pub struct WorkerRegistrationInfo<AccountId> {
 
 #[repr(u8)]
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+#[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
 pub enum WorkerRole {
 	Full,
 	Verifier,
@@ -148,6 +151,7 @@ pub struct MemoryUsage {
 
 #[repr(u8)]
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
 pub enum ChainNetwork {
 	Dev,
 	Devnet,

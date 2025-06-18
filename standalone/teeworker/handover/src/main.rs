@@ -1,188 +1,311 @@
-mod arg;
-mod error;
-use arg::Args;
+//mod arg;
+
+use anyhow::{anyhow, Context, Result};
 use clap::Parser;
-use core::panic;
-use error::Error;
-use std::{path::Path, process::Stdio};
+use std::{
+	path::{Path, PathBuf},
+	process::Stdio,
+};
 use tokio::{
+	fs,
 	io::{AsyncBufReadExt, BufReader, BufWriter},
 	process::{Child, ChildStdout, Command},
 };
 
-#[tokio::main]
-async fn main() {
-	let args = Args::parse();
-	let current_version: u64;
-	let previous_version: u64;
-	match tokio::fs::read_link(&args.current_version_ceseal_path).await {
-		Ok(real_path) =>
-			if let Some(path_str) = real_path.to_str() {
-				current_version = path_str
-					.split("/")
-					.last()
-					.expect("no last version number")
-					.parse::<u64>()
-					.expect("parse current ceseal version from str to u64 failed!");
-			} else {
-				panic!("can't get real path of current ceseal");
-			},
-		Err(e) => panic!("Error reading symlink {}: {}", args.current_version_ceseal_path, e),
-	}
-	log(format!("Current version: {}", current_version));
+macro_rules! log {
+    ($($arg:tt)*) => {
+		println!("[Handover🤝] {}", format!($($arg)*))
+    }
+}
 
-	// Get the path to the current Ceseal version and check whether it has been initialized.
-	let current_ceseal_runtime_data_path = Path::new(&args.current_version_ceseal_path)
-		.join(&args.ceseal_protected_files_path)
-		.join("runtime-data.seal");
-	if current_ceseal_runtime_data_path.exists() {
-		log(format!("runtime-data.seal exists, no need to handover"));
-		return
+#[derive(Parser, Debug)]
+#[command(about = "Handover tool for ceseal", version, author)]
+pub struct Args {
+	#[arg(long, help = "The path of the ceseal home directory", default_value = "/opt/ceseal")]
+	pub ceseal_home: PathBuf,
+
+	#[arg(long, help = "old ceseal start on this port", default_value = "1888")]
+	pub previous_port: u16,
+
+	#[arg(long, help = "remote attestation type")]
+	pub ra_type: String,
+}
+
+const FRAG_DATA_PROTECTED: &str = "data/protected_files";
+const FRAG_DATA_STORAGE: &str = "data/storage_files";
+
+pub struct PathLayout {
+	current_release_dir: PathBuf,
+	config_file: PathBuf,
+	backups_dir: PathBuf,
+	datas_dir: PathBuf,
+	previous_log_path: PathBuf,
+	current_log_path: PathBuf,
+}
+
+impl PathLayout {
+	pub fn new(home: &Path) -> Self {
+		let current_release_dir = home.join("releases").join("current");
+		let config_file = current_release_dir.join(FRAG_DATA_STORAGE).join("config.toml");
+		let backups_dir = home.join("backups");
+		let datas_dir = home.join("data");
+		let previous_log_path = home.join("pre_ceseal.log");
+		let current_log_path = home.join("current_ceseal.log");
+
+		Self { current_release_dir, config_file, backups_dir, datas_dir, previous_log_path, current_log_path }
 	}
 
-	let current_ceseal_backup_path = Path::new(&args.previous_version_ceseal_path).join(current_version.to_string());
-	match confirm_previous_ceseal_version(
-		args.previous_version_ceseal_path.clone(),
-		args.ceseal_protected_files_path.clone(),
-		args.ceseal_data_path.clone(),
-		current_version,
-	)
-	.await
-	{
-		Ok(ver) => {
-			// Anyway, back up the current version
-			if !current_ceseal_backup_path.exists() {
-				if let Err(err) =
-					copy_directory(Path::new(&args.current_version_ceseal_path), &current_ceseal_backup_path).await
-				{
-					panic!("Error backing up current version: {}", err);
+	pub fn current_id_key_path(&self) -> PathBuf {
+		self.current_release_dir.join(FRAG_DATA_PROTECTED).join("id_key.seal")
+	}
+
+	pub async fn current_version_number(&self) -> Result<u64> {
+		let real_path = fs::read_link(&self.current_release_dir)
+			.await
+			.context(format!("Failed to read symlink: {:?}", &self.current_release_dir))?;
+		real_path
+			.file_name()
+			.ok_or(anyhow!("Failed to get filename of path: {:?}", &real_path))?
+			.to_string_lossy()
+			.parse::<u64>()
+			.context(format!("Failed to parse current ceseal version from path: {:?}", &real_path))
+	}
+
+	async fn ensure_current_version_data_dir(&self, current_version: u64) -> Result<()> {
+		let data_dir = self.datas_dir.join(current_version.to_string());
+		if !data_dir.exists() {
+			fs::create_dir_all(&data_dir).await?;
+		}
+		// Create the protected_files subdirectory if it does not exist
+		let protected_files_dir = data_dir.join("protected_files");
+		if !protected_files_dir.exists() {
+			fs::create_dir_all(&protected_files_dir).await?;
+			log!("Created dir: {}", protected_files_dir.display());
+		}
+
+		let storage_files_dir = data_dir.join("storage_files");
+		if !storage_files_dir.exists() {
+			fs::create_dir_all(&storage_files_dir).await?;
+			log!("Created dir: {}", storage_files_dir.display());
+		}
+		Ok(())
+	}
+
+	pub async fn previous_version_number(&self, current_version: u64) -> Result<u64> {
+		if !self.backups_dir.exists() {
+			fs::create_dir_all(&self.backups_dir).await?;
+			return Ok(0);
+		}
+
+		let mut entries = fs::read_dir(&self.backups_dir).await?;
+		let mut versions = vec![];
+		while let Some(entry) = entries.next_entry().await? {
+			let path = entry.path();
+			if path.is_dir() {
+				if let Some(file_name) = path.file_name() {
+					versions.push(
+						file_name
+							.to_str()
+							.ok_or(anyhow!("error file appears in the path {:?}", &self.backups_dir))?
+							.parse::<u64>()?,
+					)
 				}
 			}
+		}
+		versions.sort_by(|a, b| b.cmp(a));
 
-			if ver == 0 {
-				log(format!("No previous version, no need to handover!"));
-				return
+		let mut previous_version = 0;
+		for version in versions {
+			if previous_version == 0 || previous_version < version {
+				if version >= current_version {
+					continue;
+				}
+				previous_version = version;
+				break;
 			}
-			//If the current version is the same as the previous version, there is no need to hand over and exit
-			// directly.
-			if ver == current_version {
-				log(format!("same version, no need to handover"));
-				return
-			}
-			previous_version = ver;
-		},
-		Err(e) => {
-			panic!("confirm_previous_ceseal_version error :{:?}", e);
-		},
-	};
+		}
+		Ok(previous_version)
+	}
 
-	let previous_ceseal_path = Path::new(&args.previous_version_ceseal_path).join(previous_version.to_string());
-	log(format!("Previous {previous_version}"));
+	async fn backup_current_release_if_need(&self, current_version: u64) -> Result<()> {
+		let current_version_backup_dir = self.backups_dir.join(current_version.to_string());
+		if !current_version_backup_dir.exists() {
+			log!("Backing up current version to: {:?}", &current_version_backup_dir);
+			copy_directory(&self.current_release_dir, &current_version_backup_dir).await?;
+		}
+		Ok(())
+	}
 
-	if let Err(err) = tokio::fs::remove_file(&args.previous_ceseal_log_path).await {
-		log(format!("remove old ceseal log file fail : {err}"))
-	};
-	if let Err(err) = tokio::fs::remove_file(&args.new_ceseal_log_path).await {
-		log(format!("remove new ceseal log file fail : {err}"))
-	};
-
-	//start old ceseal
-	let mut old_process = start_previous_ceseal(
-		previous_ceseal_path.to_str().unwrap().to_string(),
-		args.previous_ceseal_port.to_string(),
-	)
-	.await
-	.expect("start previous ceseal fail");
-	redirect_ceseal_runtime_log(
-		old_process.stdout.take().expect("previous ceseal log output in invaid!"),
-		args.previous_ceseal_log_path.clone(),
-	)
-	.await
-	.expect("redirect ceseal runtime log fail");
-
-	//wait for preivious ceseal went well
-	wait_for_ceseal_to_run_successfully(
-		args.previous_ceseal_log_path.clone(),
-		"Ceseal internal server will listening on",
-	)
-	.await
-	.expect("wait for previous ceseal log fail");
-	log(format!("previous ceseal started!"));
-
-	let current_ceseal_real_storage_path =
-		Path::new(&args.ceseal_data_path).join(&current_version.to_string());
-	ensure_data_dir(&current_ceseal_real_storage_path)
-		.await
-		.expect("ensure current data dir fail");
-
-	//start current version ceseal
-	let command = Command::new("/opt/ceseal/releases/current/gramine-sgx")
-		.args(&["ceseal",
-		&format!("--request-handover-from=http://localhost:{}", args.previous_ceseal_port),
-		&format!("--ra-type={}", args.ra_type),
-		])
-		.current_dir(&args.current_version_ceseal_path)
-		.stdout(Stdio::piped())
-		.stderr(Stdio::piped())
-		.spawn();
-	match command {
-		Ok(mut child) => {
-			redirect_ceseal_runtime_log(
-				child.stdout.take().expect("new ceseal log output in invaid!"),
-				args.new_ceseal_log_path.clone(),
+	async fn fix_previous_data_dir_if_need(&self, previous_version: u64) -> Result<bool> {
+		if previous_version == 0 {
+			return Ok(false);
+		}
+		//Everytime publish next version of ceseal will be detect overhere
+		//Let's backup the previous id_key.seal file into 'backups ceseal's data first
+		let previous_version = previous_version.to_string();
+		let previous_id_key = self
+			.backups_dir
+			.join(&previous_version)
+			.join(FRAG_DATA_PROTECTED)
+			.join("id_key.seal");
+		if !previous_id_key.exists() {
+			log!("No 'id_key.seal' found in previous version {previous_version}, fix it from {:?} now", self.datas_dir);
+			//Since the data generated by ceseal was not saved to the '/opt/ceseal/backups' path after exiting
+			// when it was started for the first time, it needs to be synchronized here to avoid data loss from data to
+			// backup.
+			copy_directory(
+				&self.datas_dir.join(&previous_version),
+				&self.backups_dir.join(&previous_version).join("data"),
 			)
-			.await
-			.expect("redirect ceseal runtime log fail");
-			wait_for_ceseal_to_run_successfully(args.new_ceseal_log_path, "Handover done")
-				.await
-				.expect("wait for new ceseal log fail");
-			log(format!("handover success!"));
-		},
-		Err(e) => panic!("Error executing current ceseal command: {}", e),
+			.await?;
+		}
+		Ok(true)
 	}
-	old_process.kill().await.expect("old ceseal stop fail");
-	kill_previous_ceseal(previous_version).await;
 
-	let current_ceseal_storage_path =
-		Path::new(&args.current_version_ceseal_path).join(&args.ceseal_storage_files_path);
-	let previous_ceseal_storage_path = previous_ceseal_path.join(&args.ceseal_storage_files_path);
-	match tokio::fs::remove_dir_all(&current_ceseal_storage_path).await {
-		Ok(_) => log("Removed current storage successfully.".to_string()),
-		Err(e) => eprintln!("Error removing previous storage: {}", e),
+	async fn remove_log_files(&self) -> Result<()> {
+		if self.previous_log_path.exists() {
+			let _ = fs::remove_file(&self.previous_log_path).await;
+		}
+		if self.current_log_path.exists() {
+			let _ = fs::remove_file(&self.current_log_path).await;
+		}
+		Ok(())
 	}
-	match copy_directory(&previous_ceseal_storage_path, &current_ceseal_storage_path).await {
-		Ok(_) => log("Copied checkpoint from previous successfully.".to_string()),
-		Err(e) => panic!("Error copying checkpoint from previous: {}", e),
+
+	async fn run_previous_ceseal_until_on_serving(&self, previous_version: u64, previous_port: u16) -> Result<Child> {
+		let previous_ceseal_home_dir = self.backups_dir.join(previous_version.to_string());
+
+		//Reuse current config.toml file for previous ceseal startup
+		let pre_config_file = previous_ceseal_home_dir.join(FRAG_DATA_STORAGE).join("config.toml");
+		if !pre_config_file.exists() {
+			log!("Copy current config file to previous ceseal: {:?}", &pre_config_file);
+			fs::copy(&self.config_file, &pre_config_file).await?;
+		}
+
+		let extra_args =
+			format!("-c=/data/storage_files/config.toml --listening-port={} --only-handover-server", previous_port);
+		let mut cmd = Command::new(previous_ceseal_home_dir.join("start.sh"));
+		let mut process = cmd
+			.stdin(Stdio::piped())
+			.stdout(Stdio::piped())
+			// .stderr(Stdio::piped())
+			.env("SKIP_AESMD", "1")
+			.env("EXTRA_OPTS", extra_args)
+			.spawn()?;
+
+		// Remove config.toml file after previous started, since config.toml is mounted from host environment
+		if pre_config_file.exists() {
+			let _ = fs::remove_file(&pre_config_file).await;
+		}
+
+		redirect_stdout(process.stdout.take().ok_or(anyhow!("process missing stdout"))?, &self.previous_log_path)
+			.await?;
+		//wait for preivious ceseal went well
+		wait_for_a_message(&self.previous_log_path, "server", "The ceseal server will listening on").await?;
+		log!("Previous ceseal on serving!");
+		Ok(process)
+	}
+
+	async fn run_current_ceseal_until_on_serving(&self, previous_port: u16, ra_type: &str) -> Result<Child> {
+		let mut process = Command::new("/opt/ceseal/releases/current/gramine-sgx")
+			.args(&[
+				"ceseal",
+				&format!("--request-handover-from=http://localhost:{}", previous_port),
+				&format!("--ra-type={}", ra_type),
+				"-c=/data/storage_files/config.toml",
+			])
+			.current_dir(&self.current_release_dir)
+			.stdout(Stdio::piped())
+			.stderr(Stdio::piped())
+			.spawn()?;
+
+		redirect_stdout(process.stdout.take().ok_or(anyhow!("process missing stdout"))?, &self.current_log_path)
+			.await?;
+		wait_for_a_message(&self.current_log_path, "client", "Handover done").await?;
+		log!("Current ceseal on serving!");
+		Ok(process)
+	}
+
+	async fn copy_storage_dir_to_current(&self, previous_version: u64) -> Result<()> {
+		let current_storage_dir = self.current_release_dir.join(FRAG_DATA_STORAGE);
+		fs::remove_dir_all(&current_storage_dir).await?;
+		let previous_storage_dir = self.backups_dir.join(previous_version.to_string()).join(FRAG_DATA_STORAGE);
+		if previous_storage_dir.exists() {
+			copy_directory(&previous_storage_dir, &current_storage_dir).await?;
+			log!("Copy storage files from {} to {}", previous_storage_dir.display(), current_storage_dir.display());
+		} else {
+			log!("No previous storage files found, skip copy");
+		}
+		Ok(())
 	}
 }
 
-pub async fn start_previous_ceseal(previous_ceseal_path: String, port: String) -> Result<Child, Error> {
-	let extra_args: &[&str] = &vec!["--port", &port];
+#[tokio::main]
+async fn main() -> Result<()> {
+	let args = Args::parse();
+	let path_layout = PathLayout::new(&args.ceseal_home);
+	// Get the path to the current Ceseal version and check whether it has been initialized.
+	let current_id_key_path = path_layout.current_id_key_path();
+	if current_id_key_path.exists() {
+		log!("The `id_key.seal` exists, no need to handover");
+		return Ok(());
+	}
 
-	let mut cmd = Command::new(Path::new(&previous_ceseal_path).join("start.sh"));
-	cmd.stdin(Stdio::piped())
-		.stdout(Stdio::piped())
-		// .stderr(Stdio::piped())
-		.env("SKIP_AESMD", "1")
-		.env("EXTRA_OPTS", extra_args.join(" "));
+	let current_version = path_layout.current_version_number().await?;
+	log!("Current version: {}", current_version);
+	path_layout.ensure_current_version_data_dir(current_version).await?;
 
-	let child = cmd.spawn().map_err(|e| Error::StartCesealFailed(e.to_string()))?;
+	let previous_version = path_layout.previous_version_number(current_version).await?;
+	if previous_version == 0 {
+		log!("No previous version, no need to handover!");
+		return Ok(());
+	}
 
-	Ok(child)
+	log!("Previous {previous_version}");
+	path_layout
+		.fix_previous_data_dir_if_need(previous_version)
+		.await
+		.context("Failed to fix previous data dir")?;
+
+	// Anyway, back up the current version
+	path_layout
+		.backup_current_release_if_need(current_version)
+		.await
+		.context("Failed to backup current version")?;
+
+	// If the current version is the same as the previous version, there is no need to hand over and exit directly.
+	if previous_version == current_version {
+		log!("Same version, no need to handover");
+		return Ok(());
+	}
+
+	path_layout.remove_log_files().await?;
+
+	// Run old ceseal
+	let old_ceseal_process = path_layout
+		.run_previous_ceseal_until_on_serving(previous_version, args.previous_port)
+		.await?;
+	// Run new ceseal
+	let _ = path_layout
+		.run_current_ceseal_until_on_serving(args.previous_port, &args.ra_type)
+		.await?;
+	log!("Handover success!");
+
+	kill_previous_ceseal(old_ceseal_process, previous_version).await?;
+
+	path_layout.copy_storage_dir_to_current(previous_version).await?;
+	Ok(())
 }
 
-pub async fn redirect_ceseal_runtime_log(stdout: ChildStdout, log_path: String) -> Result<(), Error> {
+async fn redirect_stdout(stdout: ChildStdout, log_path: &Path) -> Result<()> {
 	//redirect process log into new created log file
-	let log_path = Path::new(&log_path);
-	let log_file = tokio::fs::OpenOptions::new()
+	let log_file = fs::OpenOptions::new()
 		.read(true)
 		.write(true)
 		.create(true)
 		.open(log_path)
-		.await
-		.map_err(|e| Error::RedirectCesealLogFailed(e.to_string()))?;
+		.await?;
 	let mut log_writer = BufWriter::new(log_file);
-
 	let mut reader = BufReader::new(stdout);
 
 	tokio::spawn(async move {
@@ -193,22 +316,21 @@ pub async fn redirect_ceseal_runtime_log(stdout: ChildStdout, log_path: String) 
 	Ok(())
 }
 
-pub async fn wait_for_ceseal_to_run_successfully(log_path: String, flag: &str) -> Result<(), Error> {
+async fn wait_for_a_message(log_path: &Path, tag: &str, message: &str) -> Result<()> {
 	let sleep_for_ceseal_running = tokio::time::Duration::from_secs(5);
-	let mut sleep_times = 60;  //TODO! To extract the hard code into configured parameters
-	let log_file = tokio::fs::File::open(&log_path)
-		.await
-		.map_err(|e| Error::DetectCesealRunningStatueFailed(e.to_string()))?;
-	let mut reader = BufReader::new(log_file);
+	let mut sleep_times = 60; //TODO! To extract the hard code into configured parameters
+	let mut reader = BufReader::new(
+		fs::File::open(log_path)
+			.await
+			.context(format!("Failed to open log file: {:?}", log_path))?,
+	);
 	let mut line = String::new();
 	loop {
 		match reader.read_line(&mut line).await {
 			Ok(bytes_read) if bytes_read > 0 => {
-				log(format!("{}:{}", &log_path, line));
-
-				if line.contains(flag) {
-					log(format!("remain sleep time: {sleep_times}"));
-					return Ok(())
+				log!("[{tag}] {}", line.trim_end());
+				if line.contains(message) {
+					return Ok(());
 				}
 				line.clear();
 			},
@@ -216,214 +338,48 @@ pub async fn wait_for_ceseal_to_run_successfully(log_path: String, flag: &str) -
 				if sleep_times > 0 {
 					tokio::time::sleep(sleep_for_ceseal_running).await;
 					sleep_times -= 1;
-					continue
+					continue;
 				}
-				return Err(Error::DetectCesealRunningStatueFailed("ceseal log has no content".to_string()))
+				return Err(anyhow!("Ceseal did not start successfully within the expected time"));
 			},
-			Err(err) => return Err(Error::DetectCesealRunningStatueFailed(err.to_string())),
+			Err(err) => return Err(anyhow!("Error reading log file: {:?}", err)),
 		}
 	}
 }
 
-pub async fn confirm_previous_ceseal_version(
-	previous_version_ceseal_path: String,
-	ceseal_protected_files_path: String,
-	ceseal_data_path: String,
-	current_version: u64,
-) -> Result<u64, Error> {
-	if !Path::new(&previous_version_ceseal_path).exists() {
-		tokio::fs::create_dir_all(&previous_version_ceseal_path)
-			.await
-			.map_err(|e| Error::PreviousVersionFailed(e.to_string()))?;
-	}
-	let mut entries = tokio::fs::read_dir(&previous_version_ceseal_path)
-		.await
-		.map_err(|e| Error::PreviousVersionFailed(e.to_string()))?;
-	let mut versiont_list: Vec<u64> = Vec::new();
-	while let Some(entry) = entries
-		.next_entry()
-		.await
-		.map_err(|e| Error::PreviousVersionFailed(e.to_string()))?
-	{
-		let path = entry.path();
-		if path.is_dir() {
-			if let Some(file_name) = path.file_name() {
-				versiont_list.push(
-					file_name
-						.to_str()
-						.ok_or(Error::PreviousVersionFailed(format!(
-							"error file appears in the path {:?}",
-							&previous_version_ceseal_path
-						)))?
-						.to_string()
-						.parse::<u64>()
-						.map_err(|e| Error::PreviousVersionFailed(e.to_string()))?,
-				)
-			}
-		}
-	}
-	versiont_list.sort_by(|a, b| b.cmp(a));
-
-	let mut previous_version = 0;
-	for version in versiont_list {
-		if previous_version == 0 || previous_version < version {
-			if version >= current_version {
-				continue
-			}
-			previous_version = version;
-			break
-		}
-	}
-	//Everytime publish next version of ceseal will be detect overhere
-	//Let's backup the previous runtime-data.seal file into 'backups ceseal's data' first
-	if previous_version != 0 {
-		let previous_runtime_data = Path::new(&previous_version_ceseal_path)
-			.join(&previous_version.to_string())
-			.join(&ceseal_protected_files_path)
-			.join("runtime-data.seal");
-		if !previous_runtime_data.exists() {
-			log(format!("no runtime-data.seal found in version {previous_version}, sync from {ceseal_data_path} now"));
-			//Since the runtimedata generated by ceseal was not saved to the '/opt/ceseal/backups' path after exiting
-			// when it was started for the first time, it needs to be synchronized here to avoid data loss from data to
-			// backup.
-			copy_directory(
-				&Path::new(&ceseal_data_path).join(&previous_version.to_string()),
-				&Path::new(&previous_version_ceseal_path)
-					.join(&previous_version.to_string())
-					.join(
-						&ceseal_protected_files_path
-							.split("/")
-							.next()
-							.unwrap()
-							.parse::<String>()
-							.unwrap(),
-					),
-			)
-			.await?;
-		}
-	}
-
-	Ok(previous_version)
-}
-
-async fn ensure_data_dir(data_dir: &Path) -> Result<(), std::io::Error> {
-	if !data_dir.exists() {
-		tokio::fs::create_dir_all(data_dir).await?;
-	}
-
-	// Create the protected_files subdirectory if it does not exist
-	let protected_files_dir = data_dir.join("protected_files");
-	if !protected_files_dir.exists() {
-		tokio::fs::create_dir_all(&protected_files_dir).await?;
-		log("create protected file for current ceseal...".to_string())
-	}
-
-	let storage_files_dir = data_dir.join("storage_files");
-	if !storage_files_dir.exists() {
-		tokio::fs::create_dir_all(&storage_files_dir).await?;
-		log("create storage file for current ceseal...".to_string())
-	}
-	Ok(())
-}
-
-const LOG_PREFIX: &str = "[Handover🤝]";
-fn log(log_text: String) {
-	println!("{} {}", LOG_PREFIX, log_text)
-}
-
-use walkdir::WalkDir;
-async fn copy_directory(source: &Path, destination: &Path) -> Result<(), Error> {
-	let mut tasks = vec![];
+async fn copy_directory(source: &Path, destination: &Path) -> Result<()> {
+	use walkdir::WalkDir;
 	for entry in WalkDir::new(source).into_iter().filter_map(Result::ok) {
 		let path = entry.path();
-		let relative_path = path.strip_prefix(source).map_err(|e| Error::CopyDirectory(e.to_string()))?;
+		let relative_path = path.strip_prefix(source)?;
 		let dest_path = destination.join(relative_path);
-
 		if path.is_dir() {
-			tokio::fs::create_dir_all(&dest_path)
-				.await
-				.map_err(|e| Error::CopyDirectory(e.to_string()))?;
+			fs::create_dir_all(&dest_path).await?;
 		} else if path.is_file() {
-			let path = path.to_path_buf();
-			let dest_path = dest_path.to_path_buf();
-			let task = tokio::spawn(async move { tokio::fs::copy(&path, &dest_path).await });
-			tasks.push(task);
+			fs::copy(path, &dest_path).await?;
 		}
-	}
-
-	for task in tasks {
-		let _ = task.await;
 	}
 	Ok(())
 }
 
-pub async fn kill_previous_ceseal(version: u64) {
-	let cmd =
+async fn kill_previous_ceseal(mut process: Child, version: u64) -> Result<()> {
+	log!("Start to kill the previous ceseal process: {:?}, version: {}", process.id(), version);
+	process.kill().await?;
+
+	let script =
 		format!("ps -eaf | grep \"backups/{}/cruntime/sgx/loader\" | grep -v \"grep\" | awk '{{print $2}}'", version);
-
-	let process = Command::new("bash")
-		.arg("-c")
-		.arg(cmd)
-		.stdout(Stdio::piped())
-		.stderr(Stdio::piped())
-		.spawn()
-		.expect("Failed to spawn process");
-
-	let output = process.wait_with_output().await.expect("Failed to read output");
-
+	let mut bash = Command::new("bash");
+	let cmd = bash.arg("-c").arg(script).stdout(Stdio::piped()).stderr(Stdio::piped());
+	let process = cmd.spawn()?;
+	let output = process.wait_with_output().await?;
 	if output.status.success() {
-		let pid_str = std::str::from_utf8(&output.stdout).expect("Failed to parse output as UTF-8");
+		let pid_str = String::from_utf8_lossy(&output.stdout);
 		if let Ok(pid) = pid_str.trim().parse::<i32>() {
-			log(format!("kill the previous version {} ceseal pid: {}", version, pid));
-			Command::new("kill")
-				.arg("-9")
-				.arg(pid.to_string())
-				.status()
-				.await
-				.expect("Failed to kill process");
+			log!("Kill the gramine loader (pid: {pid}) of the previous ceseal version {version}");
+			Command::new("kill").arg("-9").arg(pid.to_string()).status().await?;
 		}
 	} else {
-		let error_str = std::str::from_utf8(&output.stderr).expect("Failed to parse error as UTF-8");
-		log(format!("{}", error_str));
+		log!("Run cmd: {:?} rasie error: {}", cmd, String::from_utf8_lossy(&output.stderr));
 	}
-}
-
-#[cfg(test)]
-mod test {
-	use super::*;
-	use tokio::test;
-	#[test]
-	async fn start_old_ceseal() {
-		let args = Args::parse();
-		let previous_version = 1;
-		let previous_ceseal_path = Path::new(&args.previous_version_ceseal_path).join(previous_version.to_string());
-		log(format!("Previous ${previous_version}"));
-
-		if let Err(err) = tokio::fs::remove_file(&args.previous_ceseal_log_path).await {
-			log(format!("remove old ceseal log file fail : {err}"))
-		};
-
-		//start old ceseal
-		let mut old_process = start_previous_ceseal(
-			previous_ceseal_path.to_str().unwrap().to_string(),
-			args.previous_ceseal_port.to_string(),
-		)
-		.await
-		.expect("start previous ceseal fail");
-		redirect_ceseal_runtime_log(
-			old_process.stdout.take().expect("previous ceseal log output in invaid!"),
-			args.previous_ceseal_log_path.clone(),
-		)
-		.await
-		.expect("redirect ceseal runtime log fail");
-
-		//wait for old ceseal went well
-		wait_for_ceseal_to_run_successfully(
-			args.previous_ceseal_log_path.clone(),
-			"Ceseal internal server will listening on",
-		)
-		.await
-		.expect("wait for ceseal log fail");
-		log(format!("previous ceseal started!"));
-	}
+	Ok(())
 }

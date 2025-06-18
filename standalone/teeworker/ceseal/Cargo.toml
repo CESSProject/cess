@@ -12,6 +12,7 @@ anyhow = { version = "1" }
 base64 = { version = "0.13", default-features = false, features = ["alloc"] }
 clap = { version = "4.5", features = ["derive", "cargo"] }
 const-str = { version = "0.5", features = ["proc"] }
+config = { version = "0.15", default-features = false, features = ["toml"] }
 hex_fmt = "0.3.0"
 hex = { version = "0.4" }
 humantime = "2.1.0"
