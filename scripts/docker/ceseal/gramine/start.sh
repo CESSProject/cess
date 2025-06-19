@@ -14,7 +14,7 @@ if [[ "$SGX" -eq 1 && "$SKIP_AESMD" -eq 0 ]]; then
     echo "Found custom sgx_default_qcnl.conf, override the default."
     cp /opt/conf/sgx_default_qcnl.conf /etc/
   fi
-  
+
   /bin/mkdir -p /var/run/aesmd/
   /bin/chown -R aesmd:aesmd /var/run/aesmd/
   /bin/chmod 0755 /var/run/aesmd/
@@ -23,8 +23,7 @@ if [[ "$SGX" -eq 1 && "$SKIP_AESMD" -eq 0 ]]; then
 
   LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm /opt/intel/sgx-aesm-service/aesm/aesm_service --no-daemon &
 
-  if [ ! "${SLEEP_BEFORE_START:=0}" -eq 0 ]
-  then
+  if [ ! "${SLEEP_BEFORE_START:=0}" -eq 0 ]; then
     echo "Waiting for device. Sleep ${SLEEP_BEFORE_START}s"
 
     sleep "${SLEEP_BEFORE_START}"
@@ -68,6 +67,6 @@ if [ "$SGX" -eq 0 ]; then
   echo "Ceseal will running in software mode"
   cd $WORK_DIR && echo "$EXTRA_OPTS" | xargs $GRAMINE_DIRECT_BIN ceseal
 else
-  echo "Ceseal will running in hardware mode"  
+  echo "Ceseal will running in hardware mode"
   cd $WORK_DIR && echo "$EXTRA_OPTS" | xargs $GRAMINE_SGX_BIN ceseal
 fi

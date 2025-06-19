@@ -1,15 +1,15 @@
-//mod arg;
-
 use anyhow::{anyhow, Context, Result};
 use clap::Parser;
 use std::{
 	path::{Path, PathBuf},
-	process::Stdio,
+	process::{ExitStatus, Stdio},
 };
 use tokio::{
 	fs,
-	io::{AsyncBufReadExt, BufReader, BufWriter},
+	io::{AsyncBufReadExt, BufReader, Lines},
 	process::{Child, ChildStdout, Command},
+	select,
+	time::{timeout, Duration},
 };
 
 macro_rules! log {
@@ -39,8 +39,6 @@ pub struct PathLayout {
 	config_file: PathBuf,
 	backups_dir: PathBuf,
 	datas_dir: PathBuf,
-	previous_log_path: PathBuf,
-	current_log_path: PathBuf,
 }
 
 impl PathLayout {
@@ -49,10 +47,8 @@ impl PathLayout {
 		let config_file = current_release_dir.join(FRAG_DATA_STORAGE).join("config.toml");
 		let backups_dir = home.join("backups");
 		let datas_dir = home.join("data");
-		let previous_log_path = home.join("pre_ceseal.log");
-		let current_log_path = home.join("current_ceseal.log");
 
-		Self { current_release_dir, config_file, backups_dir, datas_dir, previous_log_path, current_log_path }
+		Self { current_release_dir, config_file, backups_dir, datas_dir }
 	}
 
 	pub fn current_id_key_path(&self) -> PathBuf {
@@ -162,17 +158,8 @@ impl PathLayout {
 		Ok(true)
 	}
 
-	async fn remove_log_files(&self) -> Result<()> {
-		if self.previous_log_path.exists() {
-			let _ = fs::remove_file(&self.previous_log_path).await;
-		}
-		if self.current_log_path.exists() {
-			let _ = fs::remove_file(&self.current_log_path).await;
-		}
-		Ok(())
-	}
-
 	async fn run_previous_ceseal_until_on_serving(&self, previous_version: u64, previous_port: u16) -> Result<Child> {
+		log!("Starting previous version({}) ceseal", previous_version);
 		let previous_ceseal_home_dir = self.backups_dir.join(previous_version.to_string());
 
 		//Reuse current config.toml file for previous ceseal startup
@@ -193,16 +180,19 @@ impl PathLayout {
 			.env("EXTRA_OPTS", extra_args)
 			.spawn()?;
 
+		//wait for preivious ceseal went well
+		let ret =
+			wait_for_a_message_or_exit(&mut process, "The ceseal server will listening on", Some(60), "server").await?;
+		if ret != WaitResult::MeetMessage {
+			return Err(anyhow!("Failed to start previous ceseal: {:?}", ret));
+		}
+		log!("Previous ceseal on serving!");
+
 		// Remove config.toml file after previous started, since config.toml is mounted from host environment
 		if pre_config_file.exists() {
-			let _ = fs::remove_file(&pre_config_file).await;
+			let ret = fs::remove_file(&pre_config_file).await;
+			log!("Remove previous ceseal config file: {:?}, return: {:?}", &pre_config_file, ret);
 		}
-
-		redirect_stdout(process.stdout.take().ok_or(anyhow!("process missing stdout"))?, &self.previous_log_path)
-			.await?;
-		//wait for preivious ceseal went well
-		wait_for_a_message(&self.previous_log_path, "server", "The ceseal server will listening on").await?;
-		log!("Previous ceseal on serving!");
 		Ok(process)
 	}
 
@@ -219,10 +209,11 @@ impl PathLayout {
 			.stderr(Stdio::piped())
 			.spawn()?;
 
-		redirect_stdout(process.stdout.take().ok_or(anyhow!("process missing stdout"))?, &self.current_log_path)
-			.await?;
-		wait_for_a_message(&self.current_log_path, "client", "Handover done").await?;
-		log!("Current ceseal on serving!");
+		let ret = wait_for_a_message_or_exit(&mut process, "Handover done", Some(60), "client").await?;
+		if !(ret == WaitResult::MeetMessage || ret == WaitResult::NormalExit) {
+			return Err(anyhow!("Failed to start current ceseal: {:?}", ret));
+		}
+		log!("Current ceseal report handover is complete.");
 		Ok(process)
 	}
 
@@ -261,7 +252,7 @@ async fn main() -> Result<()> {
 		return Ok(());
 	}
 
-	log!("Previous {previous_version}");
+	log!("Previous version: {previous_version}");
 	path_layout
 		.fix_previous_data_dir_if_need(previous_version)
 		.await
@@ -279,8 +270,6 @@ async fn main() -> Result<()> {
 		return Ok(());
 	}
 
-	path_layout.remove_log_files().await?;
-
 	// Run old ceseal
 	let old_ceseal_process = path_layout
 		.run_previous_ceseal_until_on_serving(previous_version, args.previous_port)
@@ -297,53 +286,70 @@ async fn main() -> Result<()> {
 	Ok(())
 }
 
-async fn redirect_stdout(stdout: ChildStdout, log_path: &Path) -> Result<()> {
-	//redirect process log into new created log file
-	let log_file = fs::OpenOptions::new()
-		.read(true)
-		.write(true)
-		.create(true)
-		.open(log_path)
-		.await?;
-	let mut log_writer = BufWriter::new(log_file);
-	let mut reader = BufReader::new(stdout);
-
-	tokio::spawn(async move {
-		tokio::io::copy(&mut reader, &mut log_writer)
-			.await
-			.expect("Error piping stdout to log file");
-	});
-	Ok(())
+#[derive(Debug, PartialEq)]
+pub enum WaitResult {
+	MeetMessage,
+	StdoutEof,
+	NormalExit,
+	AbnormalExit(ExitStatus),
+	Timeout,
 }
 
-async fn wait_for_a_message(log_path: &Path, tag: &str, message: &str) -> Result<()> {
-	let sleep_for_ceseal_running = tokio::time::Duration::from_secs(5);
-	let mut sleep_times = 60; //TODO! To extract the hard code into configured parameters
-	let mut reader = BufReader::new(
-		fs::File::open(log_path)
-			.await
-			.context(format!("Failed to open log file: {:?}", log_path))?,
-	);
-	let mut line = String::new();
-	loop {
-		match reader.read_line(&mut line).await {
-			Ok(bytes_read) if bytes_read > 0 => {
-				log!("[{tag}] {}", line.trim_end());
-				if line.contains(message) {
-					return Ok(());
+async fn wait_for_a_message_or_exit(
+	child: &mut Child,
+	message: &str,
+	timeout_secs: Option<u64>,
+	message_tag: &str,
+) -> Result<WaitResult> {
+	let stdout = child.stdout.take().expect("Child must have stdout");
+	let mut lines = BufReader::new(stdout).lines();
+	let stdout_keeper = async |mut lines: Lines<BufReader<ChildStdout>>| loop {
+		match lines.next_line().await {
+			Ok(ss) => {
+				if ss.is_none() {
+					break;
 				}
-				line.clear();
 			},
-			Ok(_) => {
-				if sleep_times > 0 {
-					tokio::time::sleep(sleep_for_ceseal_running).await;
-					sleep_times -= 1;
-					continue;
-				}
-				return Err(anyhow!("Ceseal did not start successfully within the expected time"));
+			Err(e) => {
+				log!("Error reading stdout: {}", e);
+				break;
 			},
-			Err(err) => return Err(anyhow!("Error reading log file: {:?}", err)),
 		}
+	};
+	let wait_fut = async {
+		loop {
+			select! {
+				line = lines.next_line() => {
+					match line? {
+						Some(l) => {
+							log!("[{message_tag}] {}", l.trim_end());
+							if l.contains(message) {
+								tokio::spawn(stdout_keeper(lines));
+								return Ok(WaitResult::MeetMessage);
+							}
+						}
+						None => return Ok(WaitResult::StdoutEof),
+					}
+				}
+				status = child.wait() => {
+					let status = status?;
+					if status.success() {
+						return Ok(WaitResult::NormalExit);
+					} else {
+						log!("Process({:?}) exited with status: {}", child.id(), status);
+						return Ok(WaitResult::AbnormalExit(status));
+					}
+				}
+			}
+		}
+	};
+
+	match timeout_secs {
+		Some(secs) => match timeout(Duration::from_secs(secs), wait_fut).await {
+			Ok(res) => res,
+			Err(_) => Ok(WaitResult::Timeout),
+		},
+		None => wait_fut.await,
 	}
 }
 

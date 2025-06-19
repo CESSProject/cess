@@ -5,9 +5,7 @@ LIBPAL_PATH="$GRAMINE_DIR/sgx/libpal.so"
 
 APPLICATION=
 
-
-while [ "$1" != "" ];
-do
+while [ "$1" != "" ]; do
 	if [ "$APPLICATION" == "" ]; then
 		APPLICATION=$1
 		shift
@@ -22,10 +20,10 @@ if [ "$APPLICATION" == "" ]; then
 fi
 
 if [ ! -e "$APPLICATION.manifest.sgx" ]; then
-    echo "Invalid application path specified ($APPLICATION.manifest.sgx does not exist)." >&2
-    echo "The path should point to application configuration files, so that they can be" >&2
-    echo "found after appending corresponding extensions." >&2
-    exit 2
+	echo "Invalid application path specified ($APPLICATION.manifest.sgx does not exist)." >&2
+	echo "The path should point to application configuration files, so that they can be" >&2
+	echo "found after appending corresponding extensions." >&2
+	exit 2
 fi
 
 if [ ! -f "$PAL_CMD" ]; then
@@ -34,4 +32,6 @@ if [ ! -f "$PAL_CMD" ]; then
 fi
 
 "$PAL_CMD" "$LIBPAL_PATH" init "$APPLICATION" "$@"
-echo "$APPLICATION exited with code $?"
+app_exit_code=$?
+echo "$APPLICATION exited with code $app_exit_code"
+exit $app_exit_code
