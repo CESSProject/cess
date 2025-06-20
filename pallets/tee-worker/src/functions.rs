@@ -84,7 +84,7 @@ impl<T: Config> Pallet<T> {
 	pub fn verify_signing_time(signing_time_by_sec: u64, expiration_secs: u64) -> Result<(), Error<T>> {
 		let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
 		let delta = now as i64 - signing_time_by_sec as i64;
-		ensure!(delta >= -7 && delta <= expiration_secs as i64, Error::<T>::InvalidMasterKeyApplySigningTime);
+		ensure!(delta >= -24 && delta <= expiration_secs as i64, Error::<T>::InvalidMasterKeyApplySigningTime);
 		Ok(())
 	}
 }
