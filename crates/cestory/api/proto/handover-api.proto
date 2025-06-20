@@ -13,6 +13,7 @@ service HandoverServerApi {
   // Key Handover Server: Get worker key with RA report on challenge from another ceSeal
   rpc Start (HandoverChallengeResponse) returns (HandoverWorkerKey) {}
 
+  rpc Shutdown(google.protobuf.Empty) returns(google.protobuf.Empty) {}
 }
 
 message Attestation {

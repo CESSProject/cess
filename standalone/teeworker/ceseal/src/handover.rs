@@ -34,5 +34,7 @@ pub(crate) async fn handover_from<P: Platform>(
     handover_client
         .receive(encrypted_key)
         .context("Failed to receive handover result")?;
+    handover_server.shutdown(()).await?;
+    info!("Shutdown server request has been sent");
     Ok(())
 }

@@ -232,6 +232,17 @@ impl HandoverServerApi for HandoverServerImpl {
 
         Ok(Response::new(pb::HandoverWorkerKey::new(encrypted_worker_key, attestation)))
     }
+
+    async fn shutdown(&self, _: Request<()>) -> RpcResult<()> {
+        info!("Receive client shutdown request, Ceseal server will shutdown after 3 seconds");
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+            info!("Ceseal server normal exit");
+            // TODO: Shutdown the server gracefully
+            std::process::exit(0);
+        });
+        Ok(Response::new(()))
+    }
 }
 
 pub fn new_handover_client<Platform: pal::Platform>(config: Config, platform: Platform) -> HandoverClient<Platform> {

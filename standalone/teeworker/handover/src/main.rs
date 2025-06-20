@@ -164,10 +164,8 @@ impl PathLayout {
 
 		//Reuse current config.toml file for previous ceseal startup
 		let pre_config_file = previous_ceseal_home_dir.join(FRAG_DATA_STORAGE).join("config.toml");
-		if !pre_config_file.exists() {
-			log!("Copy current config file to previous ceseal: {:?}", &pre_config_file);
-			fs::copy(&self.config_file, &pre_config_file).await?;
-		}
+		log!("Copy current config file to previous ceseal: {:?}", &pre_config_file);
+		fs::copy(&self.config_file, &pre_config_file).await?;
 
 		let extra_args =
 			format!("-c=/data/storage_files/config.toml --listening-port={} --only-handover-server", previous_port);
@@ -189,10 +187,8 @@ impl PathLayout {
 		log!("Previous ceseal on serving!");
 
 		// Remove config.toml file after previous started, since config.toml is mounted from host environment
-		if pre_config_file.exists() {
-			let ret = fs::remove_file(&pre_config_file).await;
-			log!("Remove previous ceseal config file: {:?}, return: {:?}", &pre_config_file, ret);
-		}
+		let ret = fs::remove_file(&pre_config_file).await;
+		log!("Remove previous ceseal config file: {:?}, return: {:?}", &pre_config_file, ret);
 		Ok(process)
 	}
 
@@ -219,7 +215,6 @@ impl PathLayout {
 
 	async fn copy_storage_dir_to_current(&self, previous_version: u64) -> Result<()> {
 		let current_storage_dir = self.current_release_dir.join(FRAG_DATA_STORAGE);
-		fs::remove_dir_all(&current_storage_dir).await?;
 		let previous_storage_dir = self.backups_dir.join(previous_version.to_string()).join(FRAG_DATA_STORAGE);
 		if previous_storage_dir.exists() {
 			copy_directory(&previous_storage_dir, &current_storage_dir).await?;
@@ -235,16 +230,23 @@ impl PathLayout {
 async fn main() -> Result<()> {
 	let args = Args::parse();
 	let path_layout = PathLayout::new(&args.ceseal_home);
+
+	let current_version = path_layout.current_version_number().await?;
+	log!("Current version: {}", current_version);
+	path_layout.ensure_current_version_data_dir(current_version).await?;
+
+	// Anyway, back up the current version if need
+	path_layout
+		.backup_current_release_if_need(current_version)
+		.await
+		.context("Failed to backup current version")?;
+
 	// Get the path to the current Ceseal version and check whether it has been initialized.
 	let current_id_key_path = path_layout.current_id_key_path();
 	if current_id_key_path.exists() {
 		log!("The `id_key.seal` exists, no need to handover");
 		return Ok(());
 	}
-
-	let current_version = path_layout.current_version_number().await?;
-	log!("Current version: {}", current_version);
-	path_layout.ensure_current_version_data_dir(current_version).await?;
 
 	let previous_version = path_layout.previous_version_number(current_version).await?;
 	if previous_version == 0 {
@@ -258,12 +260,6 @@ async fn main() -> Result<()> {
 		.await
 		.context("Failed to fix previous data dir")?;
 
-	// Anyway, back up the current version
-	path_layout
-		.backup_current_release_if_need(current_version)
-		.await
-		.context("Failed to backup current version")?;
-
 	// If the current version is the same as the previous version, there is no need to hand over and exit directly.
 	if previous_version == current_version {
 		log!("Same version, no need to handover");
@@ -271,18 +267,17 @@ async fn main() -> Result<()> {
 	}
 
 	// Run old ceseal
-	let old_ceseal_process = path_layout
+	let _ = path_layout
 		.run_previous_ceseal_until_on_serving(previous_version, args.previous_port)
 		.await?;
 	// Run new ceseal
 	let _ = path_layout
 		.run_current_ceseal_until_on_serving(args.previous_port, &args.ra_type)
 		.await?;
-	log!("Handover success!");
-
-	kill_previous_ceseal(old_ceseal_process, previous_version).await?;
 
 	path_layout.copy_storage_dir_to_current(previous_version).await?;
+
+	log!("Handover success!");
 	Ok(())
 }
 
@@ -364,28 +359,6 @@ async fn copy_directory(source: &Path, destination: &Path) -> Result<()> {
 		} else if path.is_file() {
 			fs::copy(path, &dest_path).await?;
 		}
-	}
-	Ok(())
-}
-
-async fn kill_previous_ceseal(mut process: Child, version: u64) -> Result<()> {
-	log!("Start to kill the previous ceseal process: {:?}, version: {}", process.id(), version);
-	process.kill().await?;
-
-	let script =
-		format!("ps -eaf | grep \"backups/{}/cruntime/sgx/loader\" | grep -v \"grep\" | awk '{{print $2}}'", version);
-	let mut bash = Command::new("bash");
-	let cmd = bash.arg("-c").arg(script).stdout(Stdio::piped()).stderr(Stdio::piped());
-	let process = cmd.spawn()?;
-	let output = process.wait_with_output().await?;
-	if output.status.success() {
-		let pid_str = String::from_utf8_lossy(&output.stdout);
-		if let Ok(pid) = pid_str.trim().parse::<i32>() {
-			log!("Kill the gramine loader (pid: {pid}) of the previous ceseal version {version}");
-			Command::new("kill").arg("-9").arg(pid.to_string()).status().await?;
-		}
-	} else {
-		log!("Run cmd: {:?} rasie error: {}", cmd, String::from_utf8_lossy(&output.stderr));
 	}
 	Ok(())
 }
