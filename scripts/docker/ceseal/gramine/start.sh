@@ -63,10 +63,13 @@ mkdir -p "${DATA_DIR}/protected_files"
 mkdir -p "${DATA_DIR}/storage_files"
 
 echo "Starting Ceseal with extra opts '${EXTRA_OPTS}'"
+cd $WORK_DIR
 if [ "$SGX" -eq 0 ]; then
   echo "Ceseal will running in software mode"
-  cd $WORK_DIR && echo "$EXTRA_OPTS" | xargs $GRAMINE_DIRECT_BIN ceseal
+  eval "set -- $EXTRA_OPTS"
+  exec $GRAMINE_DIRECT_BIN ceseal "$@"
 else
   echo "Ceseal will running in hardware mode"
-  cd $WORK_DIR && echo "$EXTRA_OPTS" | xargs $GRAMINE_SGX_BIN ceseal
+  eval "set -- $EXTRA_OPTS"
+  exec $GRAMINE_SGX_BIN ceseal "$@"
 fi

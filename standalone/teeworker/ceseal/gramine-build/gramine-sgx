@@ -31,7 +31,4 @@ if [ ! -f "$PAL_CMD" ]; then
 	exit 1
 fi
 
-"$PAL_CMD" "$LIBPAL_PATH" init "$APPLICATION" "$@"
-app_exit_code=$?
-echo "$APPLICATION exited with code $app_exit_code"
-exit $app_exit_code
+exec "$PAL_CMD" "$LIBPAL_PATH" init "$APPLICATION" "$@"
