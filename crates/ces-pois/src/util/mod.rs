@@ -1,5 +1,4 @@
 use std::{
-    env::current_dir,
     fs,
     io::{BufReader, BufWriter, Read, Write},
     path::Path,
@@ -29,7 +28,7 @@ pub fn save_proof_file(path: &Path, data: &[Vec<u8>]) -> Result<()> {
 
 #[cfg(feature = "use-sysinfo")]
 pub fn get_dir_free_space(dir: &str) -> Result<u64> {
-    let current_dir = current_dir()?;
+    let current_dir = env::current_dir()?;
     let mut dir = Path::new(dir);
     let joined_dir = current_dir.join(dir);
 
