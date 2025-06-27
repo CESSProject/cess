@@ -21,7 +21,7 @@ pub struct AttestationInfo {
 
 impl AttestationInfo {
     pub fn is_attestation_expired(&self, expired_duration_secs: Option<u64>) -> bool {
-        const MAX_ATTESTATION_AGE: u64 = 60 * 60; // default expired duration: 60mins
+        const MAX_ATTESTATION_AGE: u64 = 6 * 60 * 60; // default expired duration: 6hours
         let eds = expired_duration_secs.unwrap_or(MAX_ATTESTATION_AGE);
         crate::unix_now() > self.timestamp + eds
     }
