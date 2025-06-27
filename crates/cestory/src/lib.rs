@@ -71,6 +71,7 @@ pub struct Config {
     pub stash_account: Option<AccountId>,
     pub tip: u64,
     pub longevity: u64,
+    pub handover_serving: bool,
 }
 
 impl Config {
@@ -107,6 +108,7 @@ impl std::default::Default for Config {
             stash_account: None,
             tip: 0,
             longevity: 0,
+            handover_serving: false,
         }
     }
 }

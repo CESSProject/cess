@@ -73,7 +73,9 @@ impl<Platform: pal::Platform> RegisteredCeseal<Platform> {
         let attestation =
             if let Some(worker_info_on_chain) = Self::get_worker_info_on_chain(&chain_client, &id_pubkey).await? {
                 let (attestation, new_attest) = if let Some(a) = try_load_attestation(&platform, &config)? {
-                    if a.is_attestation_expired(None) {
+                    if config.handover_serving {
+                        (a, false)
+                    } else if a.is_attestation_expired(None) {
                         (create_register_attestation_report(&platform, &registration_info, &config)?, true)
                     } else if Self::need_update_worker_info(worker_info_on_chain, &registration_info) {
                         (create_register_attestation_report(&platform, &registration_info, &config)?, true)

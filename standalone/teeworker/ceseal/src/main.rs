@@ -240,6 +240,7 @@ impl Args {
             env!("VERGEN_GIT_SHA"),
             env!("VERGEN_BUILD_TIMESTAMP")
         );
+        cfg.handover_serving = self.only_handover_server;
         if let Some(dsk) = self.debug_set_key() {
             cfg.debug_set_key = Some(dsk);
         }
