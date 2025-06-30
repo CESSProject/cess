@@ -162,7 +162,7 @@ impl HandoverServerApi for HandoverServerImpl {
                 sgx_fields.measurement_hash()
             };
             let attestation = attestation.ok_or_else(|| anyhow!("Client attestation not found").as_status())?;
-            let req_runtime_hash = match attestation {
+            let req_ceseal_hash = match attestation {
                 AttestationReport::SgxIas { ra_report, signature: _, raw_signing_cert: _ } => {
                     let (sgx_fields, _) = SgxFields::from_ias_report(&ra_report)
                         .map_err(|_| anyhow!("Invalid client RA report").as_status())?;
@@ -174,15 +174,24 @@ impl HandoverServerApi for HandoverServerImpl {
                     sgx_fields.measurement_hash()
                 },
             };
-            let req_runtime_timestamp = self
-                .cqh
-                .get_ceseal_bin_added_at(&req_runtime_hash)
-                .await
-                .map_err(as_status)?
-                .ok_or_else(|| anyhow!("Client ceseal not allowed on chain").as_status())?;
-
-            if my_runtime_timestamp >= req_runtime_timestamp {
-                return Err(Status::internal("Same ceseal version or rollback ,No local handover provided"));
+            if my_ceseal_hash != req_ceseal_hash {
+                let my_ceseal_timestamp = self
+                    .cqh
+                    .get_ceseal_bin_added_at(&my_ceseal_hash)
+                    .await
+                    .map_err(as_status)?
+                    .ok_or_else(|| Status::internal("Server ceseal not allowed on chain"))?;
+                let req_ceseal_timestamp = self
+                    .cqh
+                    .get_ceseal_bin_added_at(&req_ceseal_hash)
+                    .await
+                    .map_err(as_status)?
+                    .ok_or_else(|| Status::internal("Client ceseal not allowed on chain"))?;
+                if my_ceseal_timestamp >= req_ceseal_timestamp {
+                    return Err(Status::internal("Same ceseal version or rollback ,No local handover provided"));
+                }
+            } else {
+                info!("Both hashes are the same: {my_ceseal_hash:?}; ignore the timestamp check.");
             }
         } else {
             info!("Skip ceseal timestamp check in dev mode");
