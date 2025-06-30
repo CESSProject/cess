@@ -44,12 +44,12 @@ pub mod handover {
         }
     }
 
-    impl HandoverWorkerKey {
-        pub fn decode_worker_key(&self) -> Result<ces_types::EncryptedWorkerKey, ScaleDecodeError> {
-            Decode::decode(&mut &self.encoded_worker_key[..])
+    impl HandoverKeyStaffs {
+        pub fn decode_key_staffs(&self) -> Result<ces_types::EncryptedKeyStaffs, ScaleDecodeError> {
+            Decode::decode(&mut &self.encoded_key_staffs[..])
         }
-        pub fn new(worker_key: ces_types::EncryptedWorkerKey, attestation: Option<Attestation>) -> Self {
-            Self { encoded_worker_key: worker_key.encode(), attestation }
+        pub fn new(key_staffs: ces_types::EncryptedKeyStaffs, attestation: Option<Attestation>) -> Self {
+            Self { encoded_key_staffs: key_staffs.encode(), attestation }
         }
     }
 }

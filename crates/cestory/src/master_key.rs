@@ -1,12 +1,15 @@
-use crate::pal::Sealing;
+use crate::{pal::Sealing, BlockNumber};
 use ces_crypto::{
+    aead, key_share,
     rsa::{Persistence, RsaDer},
-    CryptoError,
+    sr25519::{Persistence as Sr25519Persistence, KDF},
+    CryptoError, SecretKey,
 };
 use ces_serde_more as more;
+use ces_types::{EcdhPublicKey, EncryptedKey};
 use rsa::{rand_core::OsRng, RsaPrivateKey, RsaPublicKey};
 use serde::{Deserialize, Serialize};
-use sp_core::{sr25519, Pair};
+use sp_core::{hashing, sr25519, Pair};
 use std::fmt;
 
 #[derive(Debug, thiserror::Error)]
@@ -136,6 +139,42 @@ impl CesealMasterKey {
 
     pub fn dump_rsa_secret_der(&self) -> RsaDer {
         self.rsa_priv_key.dump_secret_der()
+    }
+
+    /// Manually encrypt the secret key for sharing    
+    pub fn as_encrypt_key(
+        &self,
+        key_derive_info: &[&[u8]],
+        ecdh_pubkey: &EcdhPublicKey,
+        block_number: BlockNumber,
+        iv_seq: u64,
+    ) -> EncryptedKey {
+        let iv = self.generate_iv(block_number, iv_seq);
+        let rsa_secret_der = self.dump_rsa_secret_der();
+        let (ecdh_pubkey, encrypted_key) = key_share::encrypt_secret_to(
+            self.sr25519_keypair(),
+            key_derive_info,
+            &ecdh_pubkey.0,
+            &SecretKey::Rsa(rsa_secret_der),
+            &iv,
+        )
+        .expect("should never fail with valid master key; qed.");
+        EncryptedKey { ecdh_pubkey: sr25519::Public::from_raw(ecdh_pubkey), encrypted_key, iv }
+    }
+
+    fn generate_iv(&self, block_number: BlockNumber, iv_seq: u64) -> aead::IV {
+        let derived_key = self
+            .sr25519_keypair()
+            .derive_sr25519_pair(&[b"iv_generator"])
+            .expect("should not fail with valid info");
+
+        let mut buf: Vec<u8> = Vec::new();
+        buf.extend(derived_key.dump_secret_key().iter().copied());
+        buf.extend(block_number.to_be_bytes().iter().copied());
+        buf.extend(iv_seq.to_be_bytes().iter().copied());
+
+        let hash = hashing::blake2_256(buf.as_ref());
+        hash[0..12].try_into().expect("should never fail given correct length; qed.")
     }
 }
 

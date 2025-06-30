@@ -7,19 +7,12 @@ use crate::{
     attestation::{
         create_attestation_report_on, create_register_attestation_report, save_attestation, AttestationInfo,
     },
-    unix_now, BlockNumber, CesealMasterKey, Config, IdentityKey, RegistrationInfo,
+    unix_now, CesealMasterKey, Config, IdentityKey, RegistrationInfo,
 };
 use anyhow::{anyhow, Result};
-use ces_crypto::{
-    aead, key_share,
-    sr25519::{Persistence, KDF},
-    SecretKey,
-};
-use ces_types::{EcdhPublicKey, EncryptedKey};
 use cestory_api::chain_client::{runtime, CesChainClient};
 use futures::{stream::StreamExt, FutureExt};
 use parity_scale_codec::Encode;
-use sp_core::{hashing, sr25519};
 use std::sync::Arc;
 use subxt::tx::Payload;
 use tokio::{
@@ -233,16 +226,11 @@ impl<Platform: pal::Platform> ReadyCeseal<Platform> {
         let block_number = self.chain_client.blocks().at_latest().await?.number();
         // Use the identity public key for the ecdh public key as that their are the same thing right now
         let ecdh_pubkey = applier.clone();
-        let master_key = &self.master_key;
-        const MASTER_KEY_SHARING_SALT: &[u8] = b"master_key_sharing";
         info!("Sharing master key at block: {block_number} for applier: {}", hex::encode(&ecdh_pubkey));
-        let encrypted_key = Self::encrypt_key_to(
-            master_key,
-            &[MASTER_KEY_SHARING_SALT],
-            &ecdh_pubkey.into(),
-            block_number,
-            self.iv_seq,
-        );
+        let encrypted_key =
+            &self
+                .master_key
+                .as_encrypt_key(&[b"master_key_sharing"], &ecdh_pubkey.into(), block_number, self.iv_seq);
         self.iv_seq += 1;
 
         use runtime::tee_worker::calls::types::distribute_master_key::Payload;
@@ -250,7 +238,7 @@ impl<Platform: pal::Platform> ReadyCeseal<Platform> {
             distributor: id_pubkey.0,
             target: applier,
             ecdh_pubkey: encrypted_key.ecdh_pubkey.0,
-            encrypted_master_key: encrypted_key.encrypted_key,
+            encrypted_master_key: encrypted_key.encrypted_key.clone(),
             iv: encrypted_key.iv,
             signing_time: unix_now(),
         };
@@ -269,42 +257,6 @@ impl<Platform: pal::Platform> ReadyCeseal<Platform> {
             .wait_for_finalized_success()
             .await?;
         Ok(())
-    }
-
-    /// Manually encrypt the secret key for sharing
-    fn encrypt_key_to(
-        master_key: &CesealMasterKey,
-        key_derive_info: &[&[u8]],
-        ecdh_pubkey: &EcdhPublicKey,
-        block_number: BlockNumber,
-        iv_seq: u64,
-    ) -> EncryptedKey {
-        let iv = Self::generate_iv(master_key, block_number, iv_seq);
-        let rsa_secret_der = master_key.dump_rsa_secret_der();
-        let (ecdh_pubkey, encrypted_key) = key_share::encrypt_secret_to(
-            master_key.sr25519_keypair(),
-            key_derive_info,
-            &ecdh_pubkey.0,
-            &SecretKey::Rsa(rsa_secret_der),
-            &iv,
-        )
-        .expect("should never fail with valid master key; qed.");
-        EncryptedKey { ecdh_pubkey: sr25519::Public::from_raw(ecdh_pubkey), encrypted_key, iv }
-    }
-
-    fn generate_iv(master_key: &CesealMasterKey, block_number: BlockNumber, iv_seq: u64) -> aead::IV {
-        let derived_key = master_key
-            .sr25519_keypair()
-            .derive_sr25519_pair(&[b"iv_generator"])
-            .expect("should not fail with valid info");
-
-        let mut buf: Vec<u8> = Vec::new();
-        buf.extend(derived_key.dump_secret_key().iter().copied());
-        buf.extend(block_number.to_be_bytes().iter().copied());
-        buf.extend(iv_seq.to_be_bytes().iter().copied());
-
-        let hash = hashing::blake2_256(buf.as_ref());
-        hash[0..12].try_into().expect("should never fail given correct length; qed.")
     }
 
     async fn try_process_attestation_update(&mut self) -> Result<()> {

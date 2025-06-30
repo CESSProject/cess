@@ -46,10 +46,11 @@ pub struct ChallengeHandlerInfo<BlockNumber> {
 }
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
-pub struct EncryptedWorkerKey {
+pub struct EncryptedKeyStaffs {
 	pub genesis_block_hash: H256,
 	pub dev_mode: bool,
-	pub encrypted_key: EncryptedKey,
+	pub encrypted_id_key: EncryptedKey,
+	pub encrypted_master_key: EncryptedKey,
 }
 
 pub type AeadIV = [u8; 12];

@@ -1,10 +1,9 @@
 use crate::{
-    as_status, attestation::create_attestation_report_on, unix_now, BlockNumber, CesealClient, ChainQueryHelper,
-    Config, IdentityKey, RpcResult, RpcStatusSource,
+    as_status, attestation::create_attestation_report_on, unix_now, BlockNumber, CesealClient, CesealMasterKey,
+    ChainQueryHelper, Config, IdentityKey, RpcResult, RpcStatusSource,
 };
 use anyhow::{anyhow, Result};
 use ces_crypto::{
-    aead,
     ecdh::EcdhKey,
     key_share,
     sr25519::{Persistence, KDF},
@@ -12,7 +11,7 @@ use ces_crypto::{
 };
 use ces_types::{
     attestation::{validate as validate_attestation_report, SgxFields},
-    AttestationReport, ChallengeHandlerInfo, EncryptedKey, EncryptedWorkerKey, HandoverChallenge,
+    AttestationReport, ChallengeHandlerInfo, EncryptedKeyStaffs, HandoverChallenge,
 };
 use cestory_api::handover::{
     self as pb,
@@ -30,13 +29,6 @@ use tonic::{Request, Response, Status};
 
 fn generate_random_info() -> [u8; 32] {
     let mut nonce_vec = [0u8; 32];
-    let rand = ring::rand::SystemRandom::new();
-    rand.fill(&mut nonce_vec).unwrap();
-    nonce_vec
-}
-
-fn generate_random_iv() -> aead::IV {
-    let mut nonce_vec = [0u8; aead::IV_BYTES];
     let rand = ring::rand::SystemRandom::new();
     rand.fill(&mut nonce_vec).unwrap();
     nonce_vec
@@ -101,9 +93,10 @@ impl HandoverServerApi for HandoverServerImpl {
     }
 
     /// Key Handover Server: Get worker key with RA report on challenge from another Ceseal
-    async fn start(&self, request: Request<pb::HandoverChallengeResponse>) -> RpcResult<pb::HandoverWorkerKey> {
+    async fn start(&self, request: Request<pb::HandoverChallengeResponse>) -> RpcResult<pb::HandoverKeyStaffs> {
         let request = request.into_inner();
         let id_key = self.ceseal_client.identity_key().await.map_err(as_status)?;
+        let master_key = self.ceseal_client.master_key().await.map_err(as_status)?;
         let in_sgx = self.ceseal_client.is_sgx_env().await.map_err(as_status)?;
         let dev_mode = id_key.dev_mode;
         let (block_number, now_ms) = self.cqh.current_block().await.map_err(as_status)?;
@@ -157,7 +150,7 @@ impl HandoverServerApi for HandoverServerImpl {
                     //.context("Cannot read server ceseal info")
                     .map_err(as_status)?
             };
-            let my_runtime_hash = {
+            let my_ceseal_hash = {
                 let sgx_fields = SgxFields {
                     mr_enclave: my_la_report.body.mr_enclave.m,
                     mr_signer: my_la_report.body.mr_signer.m,
@@ -168,13 +161,6 @@ impl HandoverServerApi for HandoverServerImpl {
                 };
                 sgx_fields.measurement_hash()
             };
-            let my_runtime_timestamp = self
-                .cqh
-                .get_ceseal_bin_added_at(&my_runtime_hash)
-                .await
-                .map_err(as_status)?
-                .ok_or_else(|| Status::internal("Server ceseal not allowed on chain"))?;
-
             let attestation = attestation.ok_or_else(|| anyhow!("Client attestation not found").as_status())?;
             let req_runtime_hash = match attestation {
                 AttestationReport::SgxIas { ra_report, signature: _, raw_signing_cert: _ } => {
@@ -203,25 +189,17 @@ impl HandoverServerApi for HandoverServerImpl {
         }
 
         // Share the key with attestation
-        let ecdh_pubkey = challenge_handler.ecdh_pubkey;
-        let iv = generate_random_iv();
-        let (ecdh_pubkey, encrypted_key) = key_share::encrypt_secret_to(
-            id_key.key_pair(),
-            &[b"worker_key_handover"],
-            &ecdh_pubkey.0,
-            &SecretKey::Sr25519(id_key.dump_secret_key()),
-            &iv,
-        )
-        .map_err(as_status)?;
-        let encrypted_key = EncryptedKey { ecdh_pubkey: sr25519::Public::from_raw(ecdh_pubkey), encrypted_key, iv };
+        let encrypted_id_key = id_key.as_encrypt_key(&[b"id_key_handover"], &challenge_handler.ecdh_pubkey);
+        let encrypted_master_key =
+            master_key.as_encrypt_key(&[b"master_key_handover"], &challenge_handler.ecdh_pubkey, block_number, 0);
         let genesis_block_hash = self.ceseal_client.genesis_hash().clone();
-        let encrypted_worker_key = EncryptedWorkerKey { genesis_block_hash, dev_mode, encrypted_key };
+        let key_staffs = EncryptedKeyStaffs { genesis_block_hash, dev_mode, encrypted_id_key, encrypted_master_key };
 
-        let worker_key_hash = Arc::new(sp_core::hashing::blake2_256(&encrypted_worker_key.encode()));
+        let key_staffs_hash = Arc::new(sp_core::hashing::blake2_256(&key_staffs.encode()));
         let attestation = if !dev_mode && in_sgx {
             let a = self
                 .ceseal_client
-                .make_attestation_report(worker_key_hash)
+                .make_attestation_report(key_staffs_hash)
                 .await
                 .map_err(as_status)?;
             Some(pb::Attestation { provider: a.provider, encoded_report: a.encoded_report, timestamp: a.timestamp })
@@ -230,7 +208,7 @@ impl HandoverServerApi for HandoverServerImpl {
             None
         };
 
-        Ok(Response::new(pb::HandoverWorkerKey::new(encrypted_worker_key, attestation)))
+        Ok(Response::new(pb::HandoverKeyStaffs::new(key_staffs, attestation)))
     }
 
     async fn shutdown(&self, _: Request<()>) -> RpcResult<()> {
@@ -301,44 +279,63 @@ impl<Platform: pal::Platform> HandoverClient<Platform> {
     }
 
     /// Key Handover Client: Receive encrypted worker key
-    pub fn receive(&mut self, request: pb::HandoverWorkerKey) -> Result<()> {
-        let encrypted_worker_key = request.decode_worker_key()?;
+    pub fn receive(&mut self, request: pb::HandoverKeyStaffs) -> Result<()> {
+        let encrypted_key_staffs = request.decode_key_staffs()?;
 
-        let dev_mode = encrypted_worker_key.dev_mode;
+        let dev_mode = encrypted_key_staffs.dev_mode;
         // verify RA report
         if !dev_mode {
-            let worker_key_hash = sp_core::hashing::blake2_256(&encrypted_worker_key.encode());
+            let key_staffs_hash = sp_core::hashing::blake2_256(&encrypted_key_staffs.encode());
             let raw_attestation = request.attestation.ok_or_else(|| anyhow!("Server attestation not found"))?;
             let attn_to_validate = Option::<AttestationReport>::decode(&mut &raw_attestation.encoded_report[..])
                 .map_err(|_| anyhow!("Decode server attestation failed"))?;
-            validate_attestation_report(attn_to_validate, &worker_key_hash, unix_now(), false, vec![], false)
+            validate_attestation_report(attn_to_validate, &key_staffs_hash, unix_now(), false, vec![], false)
                 .map_err(|_| anyhow!("Invalid server RA report"))?;
         } else {
             info!("Skip server RA report check for dev mode key");
         }
 
-        let encrypted_key = encrypted_worker_key.encrypted_key;
         let my_ecdh_key = self
             .handover_ecdh_key
             .as_ref()
             .ok_or_else(|| anyhow!("Handover ecdhkey not initialized"))?;
-        let secret = key_share::decrypt_secret_from(
-            my_ecdh_key,
-            &encrypted_key.ecdh_pubkey.0,
-            &encrypted_key.encrypted_key,
-            &encrypted_key.iv,
-        )
-        .map_err(|e| anyhow!("handover_clientFailed to decrypt secret: {:?}", e))?;
+        let id_key = {
+            let encrypted_key = encrypted_key_staffs.encrypted_id_key;
+            let secret = key_share::decrypt_secret_from(
+                my_ecdh_key,
+                &encrypted_key.ecdh_pubkey.0,
+                &encrypted_key.encrypted_key,
+                &encrypted_key.iv,
+            )
+            .map_err(|e| anyhow!("handover_client failed to decrypt id key secret: {:?}", e))?;
 
-        let key_pair = sr25519::Pair::restore_from_secret_key(&match secret {
-            SecretKey::Sr25519(key) => key,
-            _ => panic!("Expected sr25519 key, but got rsa key."),
-        });
-        let id_key = IdentityKey { key_pair, trusted_sk: false, dev_mode };
+            let key_pair = sr25519::Pair::restore_from_secret_key(&match secret {
+                SecretKey::Sr25519(key) => key,
+                _ => panic!("Expected sr25519 key, but got rsa key."),
+            });
+            IdentityKey { key_pair, trusted_sk: false, dev_mode }
+        };
         use crate::identity_key::persistence::save_identity;
         // only seal if the key is successfully updated
         save_identity(&id_key, &self.platform, &PathBuf::from_str(&self.config.sealing_path)?)
             .map_err(|e| anyhow!("Failed to save identity key: {:?}", e))?;
+
+        let master_key = {
+            let encrypted_key = encrypted_key_staffs.encrypted_master_key;
+            let secret = key_share::decrypt_secret_from(
+                my_ecdh_key,
+                &encrypted_key.ecdh_pubkey.0,
+                &encrypted_key.encrypted_key,
+                &encrypted_key.iv,
+            )
+            .map_err(|e| anyhow!("handover_client failed to decrypt master key secret: {:?}", e))?;
+            let rsa_der = match secret {
+                SecretKey::Rsa(key) => key,
+                _ => panic!("Expected rsa key, but got sr25519 key."),
+            };
+            CesealMasterKey::from_rsa_der(&rsa_der)?
+        };
+        master_key.seal(&self.config.sealing_path, &id_key.key_pair, &self.platform);
 
         // clear cached RA report and handover ecdh key to prevent replay
         self.handover_ecdh_key = None;

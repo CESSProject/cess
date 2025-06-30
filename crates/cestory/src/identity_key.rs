@@ -1,9 +1,13 @@
 use crate::{new_sr25519_key, pal::Sealing};
 use anyhow::Result;
 use ces_crypto::{
+    aead,
     ecdh::EcdhKey,
+    key_share,
     sr25519::{Persistence as Persist, Sr25519SecretKey, KDF},
+    SecretKey,
 };
+use ces_types::{EcdhPublicKey, EncryptedKey};
 use parity_scale_codec::{Decode, Encode};
 use sp_core::{
     sr25519::{self, Signature},
@@ -74,6 +78,27 @@ impl IdentityKey {
 
     pub fn dump_secret_key(&self) -> Sr25519SecretKey {
         self.key_pair.dump_secret_key()
+    }
+
+    pub fn as_encrypt_key(&self, key_derive_info: &[&[u8]], ecdh_pubkey: &EcdhPublicKey) -> EncryptedKey {
+        let iv = Self::generate_random_iv();
+        let (ecdh_pubkey, encrypted_key) = key_share::encrypt_secret_to(
+            self.key_pair(),
+            key_derive_info,
+            &ecdh_pubkey.0,
+            &SecretKey::Sr25519(self.dump_secret_key()),
+            &iv,
+        )
+        .expect("should never fail with valid id key; qed.");
+        EncryptedKey { ecdh_pubkey: sr25519::Public::from_raw(ecdh_pubkey), encrypted_key, iv }
+    }
+
+    fn generate_random_iv() -> aead::IV {
+        use ring::rand::SecureRandom;
+        let mut nonce_vec = [0u8; aead::IV_BYTES];
+        let rand = ring::rand::SystemRandom::new();
+        rand.fill(&mut nonce_vec).unwrap();
+        nonce_vec
     }
 }
 

@@ -7,12 +7,13 @@ package handover_api;
 
 // The Handover service definition.
 service HandoverServerApi {
-  // Key Handover Server: Get challenge for worker key handover from another ceSeal
+  // Key Handover Server: Get challenge for worker key and master key handover from another ceSeal
   rpc CreateChallenge (google.protobuf.Empty) returns (HandoverChallenge) {}
 
-  // Key Handover Server: Get worker key with RA report on challenge from another ceSeal
-  rpc Start (HandoverChallengeResponse) returns (HandoverWorkerKey) {}
+  // Key Handover Server: Get worker key and master key with RA report on challenge from another ceSeal
+  rpc Start (HandoverChallengeResponse) returns (HandoverKeyStaffs) {}
 
+  // Shutdown handover server after handover done
   rpc Shutdown(google.protobuf.Empty) returns(google.protobuf.Empty) {}
 }
 
@@ -34,9 +35,9 @@ message HandoverChallengeResponse {
   Attestation attestation = 2;
 }
 
-message HandoverWorkerKey {
-  // @codec scale ces_types::EncryptedWorkerKey
-  bytes encoded_worker_key = 1;
+message HandoverKeyStaffs {
+  // @codec scale ces_types::EncryptedKeyStaffs
+  bytes encoded_key_staffs = 1;
   // The sgx attestation on the encrypted worker key hash
   Attestation attestation = 2;
 }
