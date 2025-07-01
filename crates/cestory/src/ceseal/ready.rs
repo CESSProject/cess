@@ -260,7 +260,7 @@ impl<Platform: pal::Platform> ReadyCeseal<Platform> {
     }
 
     async fn try_process_attestation_update(&mut self) -> Result<()> {
-        if self.attestation.is_attestation_expired(None) {
+        if self.config.is_sgx_attestation_expired(self.attestation.timestamp) {
             debug!("Updating TEE Worker attestation ...");
             self.attestation =
                 create_register_attestation_report(&self.platform, &self.registration_info, &self.config)?;

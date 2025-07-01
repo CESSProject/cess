@@ -8,7 +8,7 @@ extern crate cestory_pal as pal;
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use sp_core::{crypto::Pair, sr25519};
-use std::str::FromStr;
+use std::{str::FromStr, time::Duration};
 
 mod attestation;
 mod ceseal;
@@ -53,7 +53,7 @@ pub struct Config {
     pub cores: u32,
 
     /// The timeout of getting the attestation report.
-    pub ra_timeout: std::time::Duration,
+    pub ra_timeout: Duration,
 
     /// The max retry times of getting the attestation report.
     pub ra_max_retries: u32,
@@ -72,6 +72,8 @@ pub struct Config {
     pub tip: u64,
     pub longevity: u64,
     pub handover_serving: bool,
+    /// SGX attestation expired duration, default: 6 hours
+    pub sgx_attestation_age: Duration,
 }
 
 impl Config {
@@ -86,6 +88,10 @@ impl Config {
         }
         Ok(())
     }
+
+    pub fn is_sgx_attestation_expired(&self, timestamp_in_secs: u64) -> bool {
+        crate::unix_now() > timestamp_in_secs + self.sgx_attestation_age.as_secs()
+    }
 }
 
 impl std::default::Default for Config {
@@ -97,7 +103,7 @@ impl std::default::Default for Config {
             version: "".into(),
             git_revision: "".into(),
             cores: 0,
-            ra_timeout: std::time::Duration::from_secs(8),
+            ra_timeout: Duration::from_secs(8),
             ra_max_retries: 3,
             ra_type: None,
             role: ces_types::WorkerRole::Full,
@@ -109,6 +115,7 @@ impl std::default::Default for Config {
             tip: 0,
             longevity: 0,
             handover_serving: false,
+            sgx_attestation_age: Duration::from_secs(6 * 60 * 60),
         }
     }
 }
@@ -130,6 +137,7 @@ impl std::fmt::Debug for Config {
             .field("endpoint", &self.endpoint)
             .field("stash_account", &self.stash_account.as_ref().map(|e| format!("{e}")))
             .field("role", &self.role)
+            .field("sgx_attestation_age", &self.sgx_attestation_age)
             .finish()
     }
 }
