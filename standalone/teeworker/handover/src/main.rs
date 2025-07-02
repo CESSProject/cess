@@ -26,9 +26,6 @@ pub struct Args {
 
 	#[arg(long, help = "old ceseal start on this port", default_value = "1888")]
 	pub previous_port: u16,
-
-	#[arg(long, help = "remote attestation type")]
-	pub ra_type: String,
 }
 
 const FRAG_DATA_PROTECTED: &str = "data/protected_files";
@@ -192,12 +189,11 @@ impl PathLayout {
 		Ok(process)
 	}
 
-	async fn run_current_ceseal_until_on_serving(&self, previous_port: u16, ra_type: &str) -> Result<Child> {
+	async fn run_current_ceseal_until_on_serving(&self, previous_port: u16) -> Result<Child> {
 		let mut process = Command::new("/opt/ceseal/releases/current/gramine-sgx")
 			.args(&[
 				"ceseal",
 				&format!("--request-handover-from=http://localhost:{}", previous_port),
-				&format!("--ra-type={}", ra_type),
 				"-c=/data/storage_files/config.toml",
 			])
 			.current_dir(&self.current_release_dir)
@@ -272,7 +268,7 @@ async fn main() -> Result<()> {
 		.await?;
 	// Run new ceseal
 	let _ = path_layout
-		.run_current_ceseal_until_on_serving(args.previous_port, &args.ra_type)
+		.run_current_ceseal_until_on_serving(args.previous_port)
 		.await?;
 
 	path_layout.copy_storage_dir_to_current(previous_version).await?;

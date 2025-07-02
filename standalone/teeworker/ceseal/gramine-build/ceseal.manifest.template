@@ -2,9 +2,8 @@
 entrypoint = "ceseal"
 
 [loader]
-entrypoint = "file:{{ libos }}"
+entrypoint.uri = "file:{{ libos }}"
 log_level = "{{ log_level }}"
-argv0_override = "ceseal"
 insecure__use_cmdline_argv = true
 
 [sys]
@@ -22,16 +21,6 @@ LD_LIBRARY_PATH = "/lib:/lib/x86_64-linux-gnu"
 MALLOC_ARENA_MAX = "1"
 {# Chunks over 256K would alloc with mmap. #}
 MALLOC_MMAP_THRESHOLD_ = "262144"
-{#
-The size of the thread pool for the tokio runtime created by rocket that
-serving the async tasks.
-#}
-ROCKET_WORKERS = "8"
-{#
-When enable, the ceseal will only logs with targets in the hardcoded whitelist.
-So, log from thirdparty crates will be ignored to avoid unexpected information leaks.
-#}
-RUST_LOG_SANITIZED = "true"
 RUST_LOG = { passthrough = true }
 all_proxy = { passthrough = true }
 i2p_proxy = { passthrough = true }
@@ -59,19 +48,13 @@ uri = "file:/etc"
 
 [sgx]
 debug = false
-nonpie_binary = true
 enclave_size = "2G"
 max_threads = 128
-remote_attestation = "{{ ra_method }}"
-
-{% if ra_method == "epid" %}
-ra_client_linkable = true
-ra_client_spid = "{{ ra_client_spid }}"
-{% endif %}
+remote_attestation = "dcap"
 
 trusted_files = [
-  "file:{{ libos }}",
   "file:ceseal",
+  "file:{{ libos }}",
   "file:{{ libdir }}",
 ]
 

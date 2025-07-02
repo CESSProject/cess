@@ -2,6 +2,12 @@ DS_Store
 Dockerfile
 **/target
 **/ceseal/bin/*
+**/ceseal/gramine-build/ceseal
+**/ceseal/gramine-build/ceseal.manifest
+**/ceseal/gramine-build/ceseal.manifest.sgx
+**/ceseal/gramine-build/ceseal.sig
+**/ceseal/gramine-build/data
+**/ceseal/gramine-build/cruntime
 .github
 .maintain
 .vscode

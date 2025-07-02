@@ -48,22 +48,9 @@ impl RA for GraminePlatform {
         timeout: Duration,
     ) -> Result<Vec<u8>, Self::Error> {
         match provider {
+            #[allow(deprecated)]
             Some(AttestationProvider::Ias) => {
-                // TODO: move the key out of the binary?
-                const IAS_API_KEY_STR: &str = env!("IAS_API_KEY");
-                const IAS_HOST: &str = env!("IAS_HOST");
-                const IAS_REPORT_ENDPOINT: &str = env!("IAS_REPORT_ENDPOINT");
-
-                let attestation_report =
-                    Some(sgx_attestation::ias::report::create_attestation_report(
-                        data,
-                        IAS_API_KEY_STR,
-                        IAS_HOST,
-                        IAS_REPORT_ENDPOINT,
-                        timeout,
-                    )?);
-
-                Ok(Encode::encode(&attestation_report))
+                Err(anyhow!("IAS Attestation Provider not support, only DCAP"))
             }
             Some(AttestationProvider::Dcap) => {
                 const CESS_DCAP_PCCS_URL: &str = env!("DCAP_PCCS_URL");
@@ -83,7 +70,8 @@ impl RA for GraminePlatform {
 
     fn quote_test(&self, provider: Option<AttestationProvider>) -> Result<(), Self::Error> {
         match provider {
-            Some(AttestationProvider::Ias) => Ok(()),
+            #[allow(deprecated)]
+            Some(AttestationProvider::Ias) => Err(anyhow!("IAS Attestation Provider not support, only DCAP")),
             Some(AttestationProvider::Dcap) => Ok(()),
             None => Ok(()),
             _ => Err(anyhow!("Unknown attestation provider `{:?}`", provider)),

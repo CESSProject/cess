@@ -1,15 +1,12 @@
 # ====== build ceseal ======
 
-FROM cesslab/gramine-rust-env:latest AS builder
+FROM cesslab/gramine-rust-env:1.9-jammy AS builder
 
 WORKDIR /root
 
 ARG https_proxy
 ARG http_proxy
-ARG IAS_API_KEY
-ARG IAS_SPID
-ARG RA_METHOD
-ARG SGX_ENV
+ARG SGX
 ARG BUILD=release
 ARG OA
 ARG VC
@@ -17,12 +14,6 @@ ARG GIT_SHA
 ARG CHAIN_NETWORK
 
 RUN <<EOF
-  set -e
-  : "${RA_METHOD:?RA_METHOD needs to be set and non-empty.}"
-  if [ "$RA_METHOD" != "dcap" ]; then
-    : "${IAS_API_KEY:?IAS_API_KEY needs to be set and non-empty.}"
-    : "${IAS_SPID:?IAS_SPID needs to be set and non-empty.}"
-  fi
   mkdir cess-code
   mkdir prebuilt
 EOF
@@ -43,23 +34,14 @@ RUN <<EOF
   cp ./target/release/handover /root/prebuilt
   make node
   cd /root/cess-code/standalone/teeworker/ceseal/gramine-build
-  if [ "$RA_METHOD" = "any" ]; then
-    echo "Initiating build ceseal with dcap feat..."
-    RA_METHOD="dcap" make dist PREFIX=/root/prebuilt/dcap-ver
-    make clean
-    echo "Initiating build ceseal with epid feat..."
-    RA_METHOD="epid" make dist PREFIX=/root/prebuilt/epid-ver
-    make clean
-  else
-    make dist PREFIX=/root/prebuilt
-  fi
+  make dist PREFIX=/root/prebuilt
   rm -rf /root/.cargo/registry
   rm -rf /root/.cargo/git
 EOF
 
 # ====== runtime ======
 
-FROM cesslab/intel-sgx-env:latest AS runtime
+FROM cesslab/intel-sgx-env:ubuntu-22 AS runtime
 
 ARG https_proxy
 ARG http_proxy

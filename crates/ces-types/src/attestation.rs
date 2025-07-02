@@ -20,19 +20,40 @@ pub use sgx_attestation::{
 use sp_core::H256;
 use sp_std::vec::Vec;
 
-#[cfg(feature = "enable_serde")]
-use serde::{Deserialize, Serialize};
+#[allow(deprecated)]
+mod allow_deprecated_enum_variant {
+	use super::*;
+	use alloc::{format, string::String};
+	use core::str::FromStr;
+	#[cfg(feature = "enable_serde")]
+	use serde::{Deserialize, Serialize};
 
-#[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
-#[derive(Encode, Decode, TypeInfo, Debug, Copy, Clone, PartialEq, Eq)]
-pub enum AttestationProvider {
-	#[cfg_attr(feature = "enable_serde", serde(rename = "root"))]
-	Root,
-	#[cfg_attr(feature = "enable_serde", serde(rename = "ias"))]
-	Ias,
-	#[cfg_attr(feature = "enable_serde", serde(rename = "dcap"))]
-	Dcap,
+	#[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
+	#[derive(Encode, Decode, TypeInfo, Debug, Copy, Clone, PartialEq, Eq)]
+	pub enum AttestationProvider {
+		#[cfg_attr(feature = "enable_serde", serde(rename = "root"))]
+		Root,
+		#[cfg_attr(feature = "enable_serde", serde(rename = "ias"))]
+		#[deprecated]
+		Ias,
+		#[cfg_attr(feature = "enable_serde", serde(rename = "dcap"))]
+		Dcap,
+	}
+
+	impl FromStr for AttestationProvider {
+		type Err = String;
+		fn from_str(s: &str) -> Result<Self, Self::Err> {
+			match s.to_lowercase().as_str() {
+				"dcap" => Ok(AttestationProvider::Dcap),
+				"ias" => Ok(AttestationProvider::Ias),
+				"root" => Ok(AttestationProvider::Root),
+				_ => Err(format!("Unknown AttestationProvider: {s}")),
+			}
+		}
+	}
 }
+
+pub use allow_deprecated_enum_variant::AttestationProvider;
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -253,6 +274,7 @@ pub fn validate_ias_report(
 		return Err(Error::InvalidUserDataHash);
 	}
 
+	#[allow(deprecated)]
 	// Check the following fields
 	Ok(ConfidentialReport {
 		provider: Some(AttestationProvider::Ias),

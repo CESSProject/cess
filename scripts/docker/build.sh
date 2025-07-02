@@ -4,7 +4,6 @@ the_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 docker_build_ctx_dir=$(dirname $(dirname $the_script_dir))
 docker_build_args=(--build-arg GIT_SHA=$(git rev-parse --short HEAD))
 docker_build_log=0
-RA_METHOD=epid
 org_id="cesslab"
 network="devnet"
 image_id=
@@ -28,7 +27,6 @@ Options:
     -x <proxy address>  use proxy access network in build
     -o <enable 'only-attestation' feature to build>  options: 1(default) or 0
     -v <enable 'verify-cesealbin' feature to build>  options: 1(default) or 0
-    -m <method of ceseal attestation> options:dcap or epid(default)
     -l <docker build runtime log print out> options: 1 or 0(default)
     -c <ceseal build version>  8-digit integer, date +%y%m%d%H for default value
     -p  publish image to docker hub
@@ -49,31 +47,10 @@ function build_node() {
     docker_build -t $image_id -f $docker_file ${docker_build_args[@]} $docker_build_ctx_dir
 }
 
-function build_ceseal() {
-    if ! [[ $RA_METHOD = "dcap" || $RA_METHOD = "epid" || $RA_METHOD = "any" ]]; then
-        echo "[Error] wrong remote attestaion method type in"
-        exit 1
-    fi
-    docker_build_args+=(
-            --build-arg RA_METHOD=$RA_METHOD
-        )
-    if [[ $RA_METHOD = "epid" || $RA_METHOD = "any" ]]; then
-        if [[ -z $IAS_API_KEY ]]; then
-        echo "the IAS_API_KEY environment variable is missing"
-        exit 1
-        fi
-        if [[ -z $IAS_SPID ]]; then
-            echo "the IAS_SPID environment variable is missing"
-            exit 1
-        fi
+function build_ceseal() {    
+    if [[ ! -z $SGX_PROFILE ]]; then
         docker_build_args+=(
-            --build-arg IAS_API_KEY=$IAS_API_KEY
-            --build-arg IAS_SPID=$IAS_SPID
-        )
-    fi
-    if [[ ! -z $SGX_ENV ]]; then
-        docker_build_args+=(
-            --build-arg SGX_ENV=$SGX_ENV
+            --build-arg SGX_PROFILE=$SGX_PROFILE
         )
     fi
     if [[ -z $CESEAL_VERSION ]]; then
@@ -82,13 +59,10 @@ function build_ceseal() {
     docker_build_args+=(
         --build-arg CESEAL_VERSION=$CESEAL_VERSION
     )
-    echo "SGX_ENV: $SGX_ENV"
-    echo "IAS_API_KEY: $IAS_API_KEY"
-    echo "IAS_SPID: $IAS_SPID"
+    echo "SGX_PROFILE: $SGX_PROFILE"
     echo "CESEAL_VERSION: $CESEAL_VERSION"
-    echo "RA_METHOD: $RA_METHOD"
     echo "CHAIN_NETWORK: $network"
-    local docker_file="$the_script_dir/ceseal/gramine/handover.Dockerfile"
+    local docker_file="$the_script_dir/ceseal/gramine/Dockerfile"
     image_id="$org_id/ceseal:$image_tag"
     echo "begin build image $image_id ..."
 
@@ -108,7 +82,7 @@ function print_docker_build_log() {
     fi
 }
 
-while getopts ":hpn:b:x:t:s:o:v:m:l:c:" opt; do
+while getopts ":hpn:b:x:t:s:o:v:l:c:" opt; do
     case ${opt} in
     h)
         usage
@@ -138,10 +112,7 @@ while getopts ":hpn:b:x:t:s:o:v:m:l:c:" opt; do
         else
             VC=0
         fi
-        ;;
-    m)
-        RA_METHOD=$OPTARG
-        ;;
+        ;;    
     l)
         docker_build_log=$OPTARG
         ;;

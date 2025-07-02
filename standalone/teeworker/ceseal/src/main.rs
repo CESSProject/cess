@@ -55,9 +55,6 @@ struct Args {
     #[arg(long)]
     listening_port: Option<u16>,
 
-    #[arg(long)]
-    ra_type: Option<String>,
-
     /// The timeout of getting the attestation report. (in seconds)
     #[arg(long, value_parser = humantime::parse_duration)]
     ra_timeout: Option<Duration>,
@@ -116,30 +113,13 @@ struct Args {
 
     /// Attestation provider
     #[arg(long, value_enum)]
-    pub attestation_provider: Option<RaOption>,
+    pub attestation_provider: Option<AttestationProvider>,
 
     #[arg(long)]
     chain_bootnodes: Option<Vec<String>>,
 
     #[arg(long, help = "The stash account for the TEE worker.")]
     pub stash_account: Option<AccountId>,
-}
-
-#[derive(clap::ValueEnum, Clone, Copy, Debug)]
-pub enum RaOption {
-    None,
-    Ias,
-    Dcap,
-}
-
-impl From<RaOption> for Option<AttestationProvider> {
-    fn from(other: RaOption) -> Self {
-        match other {
-            RaOption::None => None,
-            RaOption::Ias => Some(AttestationProvider::Ias),
-            RaOption::Dcap => Some(AttestationProvider::Dcap),
-        }
-    }
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -155,7 +135,7 @@ impl Args {
         if self.dev {
             self.use_dev_key = true;
             self.mnemonic = Some(String::from("//Alice"));
-            self.attestation_provider = Some(RaOption::None);
+            self.attestation_provider = None;
         }
         self.fix_bootnode_if_absent_for_dev();
     }
@@ -249,9 +229,6 @@ impl Args {
         } else {
             cfg.cores = num_cpus::get() as u32;
         }
-        if let Some(ra_type) = self.ra_type {
-            cfg.ra_type = Some(ra_type);
-        }
         if let Some(ra_timeout) = self.ra_timeout {
             cfg.ra_timeout = ra_timeout;
         }
@@ -271,7 +248,7 @@ impl Args {
             cfg.mnemonic = mnemonic;
         }
         if let Some(attestation_provider) = self.attestation_provider {
-            cfg.attestation_provider = attestation_provider.into();
+            cfg.attestation_provider = Some(attestation_provider);
         }
         if let Some(role) = self.role {
             cfg.role = role;

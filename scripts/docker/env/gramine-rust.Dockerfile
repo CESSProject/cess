@@ -1,9 +1,9 @@
-FROM gramineproject/gramine:v1.5 AS builder
+FROM gramineproject/gramine:1.9-jammy AS builder
 
 ARG https_proxy
 ARG http_proxy
 ARG DEBIAN_FRONTEND='noninteractive'
-ARG RUST_TOOLCHAIN=1.82.0
+ARG RUST_TOOLCHAIN=1.85.1
 
 # To fix the intel-sgx PublicKey issue on the gramine image
 RUN curl -fsSL https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add -
@@ -31,7 +31,7 @@ RUN curl -fsSL 'https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gn
     .cargo/bin/rustup target add wasm32-unknown-unknown && \
     rm rustup-init && rm -rf .cargo/registry && rm -rf .cargo/git
 
-RUN .cargo/bin/rustup install 1.82.0 && \
-    .cargo/bin/rustup default 1.82.0 && \
+RUN .cargo/bin/rustup install ${RUST_TOOLCHAIN} && \
+    .cargo/bin/rustup default ${RUST_TOOLCHAIN} && \
     .cargo/bin/rustup component add cargo clippy rust-analyzer rust-src rust-std rustc-dev rustc rustfmt && \
     .cargo/bin/rustup target add wasm32-unknown-unknown

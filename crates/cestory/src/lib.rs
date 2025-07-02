@@ -58,9 +58,6 @@ pub struct Config {
     /// The max retry times of getting the attestation report.
     pub ra_max_retries: u32,
 
-    /// The type of ceseal's remote attestation method, None means epid.
-    pub ra_type: Option<String>,
-
     pub role: ces_types::WorkerRole,
 
     pub mnemonic: String,
@@ -105,7 +102,6 @@ impl std::default::Default for Config {
             cores: 0,
             ra_timeout: Duration::from_secs(8),
             ra_max_retries: 3,
-            ra_type: None,
             role: ces_types::WorkerRole::Full,
             mnemonic: "//Alice".into(),
             debug_set_key: None,
@@ -130,7 +126,6 @@ impl std::fmt::Debug for Config {
             .field("git_revision", &self.git_revision)
             .field("cores", &self.cores)
             .field("ra_timeout", &self.ra_timeout)
-            .field("ra_type", &self.ra_type)
             .field("mnemonic", &"***")
             .field("debug_set_key", &self.debug_set_key.as_ref().map(|e| hex::encode(e)))
             .field("attestation_provider", &self.attestation_provider)

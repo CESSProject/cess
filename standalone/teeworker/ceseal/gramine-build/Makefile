@@ -3,6 +3,7 @@ SGX ?= 1
 BUILD ?= release
 OA?=1
 VC?=1
+CHAIN_NETWORK?=dev
 
 ARCH_LIBDIR ?= /lib/$(shell $(CC) -dumpmachine)
 
@@ -13,7 +14,6 @@ GRAMINE_LOG_LEVEL = error
 USE_MUSL ?= 0
 
 BIN_NAME = ceseal
-RA_METHOD ?= epid
 
 DATA_DIRS = data/protected_files \
             data/storage_files
@@ -53,30 +53,24 @@ signed-sgx-artifacts: ${BIN_NAME}.manifest ${BIN_NAME}.manifest.sgx ${BIN_NAME}.
 
 .PHONY: ${BIN_FILE}
 ${BIN_FILE}:
-	@echo "SGX_ENV: ${SGX_ENV}"
-	@echo "RA_METHOD: ${RA_METHOD}"
-	@echo "IAS_SPID: ${IAS_SPID}"
-	@echo "IAS_API_KEY: ${IAS_API_KEY}"
+	@echo "SGX_PROFILE: ${SGX_PROFILE}"
 	@echo "BUILD: ${BUILD}"
 	@echo "OA: ${OA}"
 	@echo "VC: ${VC}"
-	make BUILD=${BUILD} OA=${OA} VC=${VC} -C ..
+	make BUILD=${BUILD} OA=${OA} VC=${VC} CHAIN_NETWORK=${CHAIN_NETWORK} -C ..
 
 ${BIN_NAME}: ${BIN_FILE}
 	cp ${BIN_FILE} ${BIN_NAME}	
 
 ${BIN_NAME}.manifest: ${BIN_NAME}.manifest.template
-	@echo "IAS_SPID: ${IAS_SPID}"
 	gramine-manifest \
 		-Dinstall_dir=$(INSTALL_DIR) \
 		-Dlog_level=$(GRAMINE_LOG_LEVEL) \
-		-Dra_client_spid=${IAS_SPID} \
 		-Dseal_dir=${CESEAL_SEAL_DIR} \
 		-Dstorage_dir=${CESEAL_STORAGE_DIR} \
 		-Dlibdir=${RUNTIME_DIR}/lib/ \
 		-Darch_libdir=${ARCH_LIBDIR}/ \
 		-Dlibos=${LIBOS} \
-		-Dra_method=${RA_METHOD} \
 		$< $@
 
 ${BIN_NAME}.manifest.sgx: ${BIN_NAME}.manifest ${BIN_NAME} ${LIBOS}
@@ -100,12 +94,8 @@ endif
 
 ${BIN_NAME}.sig: ${BIN_NAME}.manifest.sgx
 
-${BIN_NAME}.token: ${BIN_NAME}.sig
-	gramine-sgx-get-token \
-		--output $@ --sig $<
-
-.PHONY: token
-token: ${BIN_NAME}.token
+.PHONY: sig
+sig: ${BIN_NAME}.sig
 
 .PHONY: dirs
 dirs: ${DATA_DIRS}
@@ -115,7 +105,7 @@ ${DATA_DIRS}:
 
 .PHONY: clean
 clean:
-	$(RM) *.token *.sig *.manifest.sgx *.manifest ${BIN_NAME}.o ${BIN_NAME} OUTPUT
+	$(RM) *.sig *.manifest.sgx *.manifest ${BIN_NAME}.o ${BIN_NAME} OUTPUT
 	$(RM) -rf ../target
 	$(RM) -rf data
 	$(RM) -rf ${RUNTIME_DIR}
@@ -141,11 +131,8 @@ dist: pre-dist ${BIN_NAME}.manifest
 	cp ${BIN_NAME}.manifest ${PREFIX}/
 endif
 
-token-dist: token dist
-	cp ${BIN_NAME}.token ${PREFIX}/
-
 .PHONY: run
-run: all token
+run: all sig
 	make dirs
 ifeq ($(SGX),1)
 	./gramine-sgx ceseal
