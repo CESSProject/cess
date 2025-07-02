@@ -1,4 +1,4 @@
-FROM lukemathwalker/cargo-chef:latest-rust-1-slim-bullseye AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1-slim-bookworm AS chef
 ARG DEBIAN_FRONTEND='noninteractive'
 ARG https_proxy
 ARG http_proxy

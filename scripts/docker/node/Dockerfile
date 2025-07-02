@@ -1,4 +1,4 @@
-FROM cesslab/rust-chef-protoc-env:latest as chef
+FROM cesslab/rust-chef-protoc-env:bookworm AS chef
 WORKDIR /node
 COPY ./scripts/docker/cargo-config.toml /usr/local/cargo/config
 
@@ -36,7 +36,7 @@ COPY scripts/wasm_overrides ./wasm_overrides
 RUN make node
 
 ## We do not need the Rust toolchain to run the binary!
-FROM ubuntu:20.04 AS runtime
+FROM ubuntu:22.04 AS runtime
 ARG https_proxy
 ARG http_proxy
 ARG CHAIN_NETWORK
