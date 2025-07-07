@@ -30,9 +30,9 @@ RUN <<EOF
   set -e
   PATH=$PATH:/root/.cargo/bin
   cd /root/cess-code
+  make chain-runtime
   make handover
   cp ./target/release/handover /root/prebuilt
-  make node
   cd /root/cess-code/standalone/teeworker/ceseal/gramine-build
   make dist PREFIX=/root/prebuilt
   rm -rf /root/.cargo/registry

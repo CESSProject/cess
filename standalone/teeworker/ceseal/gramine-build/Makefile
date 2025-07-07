@@ -3,7 +3,17 @@ SGX ?= 1
 BUILD ?= release
 OA?=1
 VC?=1
+XARGS=
+DEV=
 CHAIN_NETWORK?=dev
+ifeq ($(DEV),1)
+	OA=0
+	VC=0
+	BUILD=debug
+endif
+ifeq ($(BUILD),release)
+	XARGS = --release
+endif
 
 ARCH_LIBDIR ?= /lib/$(shell $(CC) -dumpmachine)
 
@@ -26,12 +36,13 @@ RUNTIME_DIR = cruntime
 LIBOS_BASENAME ?= $(shell basename ${GRAMINE_LIBOS})
 LIBOS ?= ${RUNTIME_DIR}/${LIBOS_BASENAME}
 
+BIN_TARGET_DIR = ../../../../target
 ifeq ($(USE_MUSL),1)
-BIN_FILE = ../target/x86_64-unknown-linux-musl/${BUILD}/${BIN_NAME}
+BIN_FILE = ${BIN_TARGET_DIR}/x86_64-unknown-linux-musl/${BUILD}/${BIN_NAME}
 CARGO_ARGS = --target x86_64-unknown-linux-musl
 HOST_LIBC_DIR = /lib/x86_64-linux-musl
 else
-BIN_FILE = ../target/${BUILD}/${BIN_NAME}
+BIN_FILE = ${BIN_TARGET_DIR}/${BUILD}/${BIN_NAME}
 CARGO_ARGS =
 HOST_LIBC_DIR = /lib/x86_64-linux-gnu
 endif
@@ -45,11 +56,15 @@ CESEAL_DATA_DIR ?= data
 CESEAL_SEAL_DIR ?= ${CESEAL_DATA_DIR}/protected_files
 CESEAL_STORAGE_DIR ?= ${CESEAL_DATA_DIR}/storage_files
 
+.PHONY: check-gramine-env
+check-gramine-env:
+	@./gramine-dir libs >/dev/null 2>&1 || { echo "Error: gramine-dir script failed, please check Gramine environment!"; exit 1; }
+
 .PHONY: all
-all: ${BIN_NAME} ${LIBOS}
+all: check-gramine-env ${BIN_NAME} LibOS
 
 .PHONY: signed-sgx-artifacts
-signed-sgx-artifacts: ${BIN_NAME}.manifest ${BIN_NAME}.manifest.sgx ${BIN_NAME}.sig
+signed-sgx-artifacts: check-gramine-env ${BIN_NAME}.manifest ${BIN_NAME}.manifest.sgx ${BIN_NAME}.sig
 
 .PHONY: ${BIN_FILE}
 ${BIN_FILE}:
@@ -57,12 +72,12 @@ ${BIN_FILE}:
 	@echo "BUILD: ${BUILD}"
 	@echo "OA: ${OA}"
 	@echo "VC: ${VC}"
-	make BUILD=${BUILD} OA=${OA} VC=${VC} CHAIN_NETWORK=${CHAIN_NETWORK} -C ..
+	OA=${OA} VC=${VC} CHAIN_NETWORK=${CHAIN_NETWORK} cargo build --manifest-path ../Cargo.toml -p ceseal ${XARGS}
 
 ${BIN_NAME}: ${BIN_FILE}
 	cp ${BIN_FILE} ${BIN_NAME}	
 
-${BIN_NAME}.manifest: ${BIN_NAME}.manifest.template
+${BIN_NAME}.manifest: check-gramine-env ${BIN_NAME}.manifest.template
 	gramine-manifest \
 		-Dinstall_dir=$(INSTALL_DIR) \
 		-Dlog_level=$(GRAMINE_LOG_LEVEL) \
@@ -71,9 +86,9 @@ ${BIN_NAME}.manifest: ${BIN_NAME}.manifest.template
 		-Dlibdir=${RUNTIME_DIR}/lib/ \
 		-Darch_libdir=${ARCH_LIBDIR}/ \
 		-Dlibos=${LIBOS} \
-		$< $@
+		$(word 2,$^) $@
 
-${BIN_NAME}.manifest.sgx: ${BIN_NAME}.manifest ${BIN_NAME} ${LIBOS}
+${BIN_NAME}.manifest.sgx: ${BIN_NAME}.manifest ${BIN_NAME} LibOS
 	@test -s $(SGX_SIGNER_KEY) || \
 	    { echo "SGX signer private key was not found, please specify SGX_SIGNER_KEY!"; exit 1; }
 	gramine-sgx-sign \
@@ -81,7 +96,8 @@ ${BIN_NAME}.manifest.sgx: ${BIN_NAME}.manifest ${BIN_NAME} ${LIBOS}
 		--manifest $< \
 		--output $@
 
-${LIBOS}:
+.PHONY: LibOS
+LibOS: check-gramine-env
 	mkdir -p ${RUNTIME_DIR}
 	rsync -r --no-links ${GRAMINE_RUNTIME_DIR}/ ${RUNTIME_DIR}/lib
 ifeq ($(USE_MUSL),0)
@@ -105,13 +121,10 @@ ${DATA_DIRS}:
 
 .PHONY: clean
 clean:
-	$(RM) *.sig *.manifest.sgx *.manifest ${BIN_NAME}.o ${BIN_NAME} OUTPUT
-	$(RM) -rf ../target
+	$(RM) *.sig *.manifest.sgx *.manifest ${BIN_NAME}.o ${BIN_NAME}
 	$(RM) -rf data
 	$(RM) -rf ${RUNTIME_DIR}
 
-.PHONY: distclean
-distclean: clean
 
 .PHONY: pre-dist
 pre-dist: all

@@ -4,56 +4,55 @@ name = "ceseal"
 version = "0.4.1"
 build = "build.rs"
 
-[profile.release]
-panic = "abort"
+# FIXME: Cargo workspace currently does not support setting the `panic` strategy for individual packages; 
+# it can only be set globally. The `[profile.release] panic = "abort"` in the subpackage will be ignored 
+# and a warning will be issued.
+# As an SGX Enclave program, **ceseal** needs to use `panic = "abort"` for release builds due to considerations
+# of small size and security. However, for now, to simplify management, this is temporarily being ignored.
+#
+# [profile.release]
+# panic = "abort"
 
 [dependencies]
-anyhow = { version = "1" }
-base64 = { version = "0.13", default-features = false, features = ["alloc"] }
-clap = { version = "4.5", features = ["derive", "cargo"] }
-const-str = { version = "0.5", features = ["proc"] }
-config = { version = "0.15", default-features = false, features = ["toml"] }
-hex_fmt = "0.3.0"
-hex = { version = "0.4" }
-humantime = "2.1.0"
-lazy_static = { version = "1.4.0", default-features = false }
-num_cpus = "1.13"
-parity-scale-codec = { version = "3.6.12", default-features = false }
-reqwest = { version = "0.12", default-features = false, features = [
+anyhow = { workspace = true }
+base64 = { workspace = true, default-features = false, features = ["alloc"] }
+clap = { workspace = true, features = ["derive", "cargo"] }
+const-str = { workspace = true, features = ["proc"] }
+config = { workspace = true, default-features = false, features = ["toml"] }
+hex_fmt = { workspace = true }
+hex = { workspace = true }
+humantime = { workspace = true }
+lazy_static = { workspace = true, default-features = false }
+num_cpus = { workspace = true }
+parity-scale-codec = { workspace = true, default-features = false }
+reqwest = { workspace = true, default-features = false, features = [
     "rustls-tls",
     "socks",
     "blocking",
     "hickory-dns",
 ] }
-serde_json = "1.0"
-serde = { version = "1.0", default-features = false, features = ["derive"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-urlencoding = "2.1"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
-tower = { version = "0.5", features = ["limit", "load-shed"] }
-tonic = { version = "0.13" }
-rustls-pki-types = { version = "=0.2.1", default-features = false, optional = true }
-reqwest-env-proxy = { path = "../../../crates/reqwest-env-proxy" }
-cestory = { path = "../../../crates/cestory" }
-cestory-api = { path = "../../../crates/cestory/api", features = ["api-client"] }
-cestory-pal = { path = "../../../crates/cestory/pal" }
-ces-allocator = { path = "../../../crates/ces-allocator" }
-ces-types = { path = "../../../crates/ces-types", default-features = false, features = [
+serde_json = { workspace = true }
+serde = { workspace = true, default-features = false, features = ["derive"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+urlencoding = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+tower = { workspace = true, features = ["limit", "load-shed"] }
+tonic = { workspace = true }
+rustls-pki-types = { workspace = true, default-features = false, optional = true }
+reqwest-env-proxy = { workspace = true }
+cestory = { workspace = true }
+cestory-api = { workspace = true, features = ["api-client"] }
+cestory-pal = { workspace = true }
+ces-allocator = { workspace = true }
+ces-types = { workspace = true, default-features = false, features = [
     "enable_serde",
     "full_crypto",
 ] }
-sgx-api-lite = { path = "../../../crates/sgx-api-lite" }
-sgx-attestation = { path = "../../../crates/sgx-attestation", features = [
-    "report",
-] }
+sgx-api-lite = { workspace = true }
+sgx-attestation = { workspace = true, features = ["report"] }
 # PODR2
-threadpool = "1.8.1"
+threadpool = { workspace = true }
 
 [build-dependencies]
-vergen = { version = "8.3", features = ["build", "git", "gitcl"] }
-
-
-[patch.crates-io]
-ring = { git = "https://github.com/jasl/ring-xous", branch = "better-wasm32-support" }
-
+vergen = { workspace = true, features = ["build", "git", "gitcl"] }

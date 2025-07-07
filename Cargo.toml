@@ -1,6 +1,5 @@
 [workspace]
 
-exclude = ["standalone/teeworker/ceseal"]
 
 members = [
     "crates/bloom-filter",
@@ -35,6 +34,7 @@ members = [
     "standalone/chain/node",
     "standalone/chain/primitives",
     "standalone/chain/runtime",
+    "standalone/teeworker/ceseal",
     "standalone/teeworker/handover",
 ]
 
@@ -361,6 +361,7 @@ num-bigint-dig = "0.8.4"
 num-integer = "0.1.45"
 num-rational = "0.4"
 num-traits = "0.2"
+num_cpus = "1.13"
 parity-scale-codec = { version = "3.6.12", default-features = false }
 primitive-types = { version = "0.13.1", default-features = false }
 prost = { version = "0.13", default-features = false, features = [
@@ -382,6 +383,7 @@ reqwest = { version = "0.12", default-features = false, features = [
 ring = "0.16.20"
 rsa = { version = "0.8", default-features = false }
 rust-crypto = "0.2.36"
+rustls-pki-types = { version = "=0.2.1", default-features = false }
 scale-bits = "0.6"
 scale-decode = "0.13"
 scale-encode = "0.7"
@@ -422,6 +424,7 @@ x509-cert = { version = "0.2.4", default-features = false }
 # ---- Generic crates end ----
 
 # ---- Cess workspace crates and pallets begin ----
+ces-allocator ={ path = "crates/ces-allocator", default-features = false }
 ces-crypto = { path = "crates/ces-crypto", default-features = false }
 ces-node-runtime = { path = "standalone/chain/runtime", package = "cess-node-runtime", default-features = false }
 ces-pdp = { path = "crates/ces-pdp" }
@@ -429,6 +432,7 @@ ces-pois = { path = "crates/ces-pois" }
 ces-serde-more = { path = "crates/ces-serde-more", default-features = false }
 ces-types = { path = "crates/ces-types", default-features = false }
 cess-node-runtime = { path = "standalone/chain/runtime", default-features = false }
+cestory = { path = "crates/cestory" }
 cestory-api = { path = "crates/cestory/api", default-features = false }
 cestory-pal = { path = "crates/cestory/pal", default-features = false }
 chain = { path = "standalone/chain/runtime", package = "cess-node-runtime", default-features = false }
