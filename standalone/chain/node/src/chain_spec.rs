@@ -7,7 +7,6 @@ use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use polkadot_sdk::*;
 use sc_chain_spec::{ChainSpecExtension, Properties};
 use sc_service::ChainType;
-use sc_telemetry::TelemetryEndpoints;
 use serde::{Deserialize, Serialize};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_consensus_babe::AuthorityId as BabeId;
@@ -20,9 +19,6 @@ use sp_runtime::{
 };
 
 include!(concat!(env!("OUT_DIR"), "/constants.rs"));
-
-// The URL for the telemetry server.
-const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
 
@@ -367,10 +363,6 @@ pub fn cess_devnet_generate_config() -> ChainSpec {
 		.with_chain_type(ChainType::Live)
 		.with_properties(properties())
 		.with_genesis_config_patch(cess_testnet_config_genesis())
-		.with_telemetry_endpoints(
-			TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
-				.expect("Staging telemetry url is valid; qed"),
-		)
 		.build()
 }
 
@@ -382,10 +374,6 @@ pub fn cess_testnet() -> ChainSpec {
 		.with_chain_type(ChainType::Live)
 		.with_properties(properties())
 		.with_genesis_config_patch(cess_testnet_genesis())
-		.with_telemetry_endpoints(
-			TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
-				.expect("Staging telemetry url is valid; qed"),
-		)
 		.build()
 }
 
