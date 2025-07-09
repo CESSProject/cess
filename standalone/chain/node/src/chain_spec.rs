@@ -352,11 +352,11 @@ fn cess_testnet_config_genesis() -> serde_json::Value {
 }
 
 pub fn cess_testnet_config() -> ChainSpec {
-	ChainSpec::from_json_bytes(&include_bytes!("../ccg/cess-testnet-spec-raw.json")[..]).unwrap()
+	ChainSpec::from_json_bytes(&include_bytes!("../ccg/testnet-spec-raw.json")[..]).unwrap()
 }
 
 pub fn cess_devnet_config() -> ChainSpec {
-	ChainSpec::from_json_bytes(&include_bytes!("../ccg/cess-develop-spec-raw.json")[..]).unwrap()
+	ChainSpec::from_json_bytes(&include_bytes!("../ccg/devnet-spec-raw.json")[..]).unwrap()
 }
 
 pub fn cess_devnet_generate_config() -> ChainSpec {
