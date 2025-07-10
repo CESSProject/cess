@@ -17,11 +17,8 @@ endif
 
 all: node ceseal
 
-CES_NODE_BIN_FILE = target/${BUILD}/cess-node
-${CES_NODE_BIN_FILE}:
+node:
 	OA=${OA} VC=${VC} CHAIN_NETWORK=${CHAIN_NETWORK} cargo build -p cess-node ${XARGS}
-
-node: ${CES_NODE_BIN_FILE}
 
 handover:
 	cargo build -p handover --release
@@ -49,8 +46,9 @@ check-chain-network:
 		CHAIN_NETWORK=devnet; \
 	fi
 
+CES_NODE_BIN_FILE = target/${BUILD}/cess-node
 .PHONY: stage-chain-spec
-stage-chain-spec: check-boot-nodes check-chain-network ${CES_NODE_BIN_FILE}
+stage-chain-spec: check-boot-nodes check-chain-network node
 	@# Convert BOOT_NODES to the array format required by jq
 	@BOOT_NODES_ARRAY=$$(echo "$(BOOT_NODES)" | sed 's/,/","/g; s/^/["/; s/$$/"]/'); \
 	  ${CES_NODE_BIN_FILE} build-spec --chain cess-initial-${CHAIN_NETWORK} --raw --disable-default-bootnode  | \
