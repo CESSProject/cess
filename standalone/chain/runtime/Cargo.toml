@@ -1,6 +1,6 @@
 [package]
 authors = ["CESS LAB"]
-edition = "2021"
+edition.workspace = true
 license = "Unlicense"
 name = "cess-node-runtime"
 repository = "https://github.com/CESSProject/cess"

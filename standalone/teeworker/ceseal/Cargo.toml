@@ -1,5 +1,5 @@
 [package]
-edition = "2021"
+edition.workspace = true
 name = "ceseal"
 version = "0.4.1"
 build = "build.rs"

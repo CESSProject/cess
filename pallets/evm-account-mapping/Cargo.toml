@@ -6,7 +6,7 @@ authors = ["Phala Network"]
 repository = "https://github.com/phala-network/substrate-evm_account_mapping"
 homepage = "https://github.com/phala-network/substrate-evm_account_mapping"
 license = "Apache-2.0"
-edition = "2021"
+edition.workspace = true
 publish = false
 
 [dependencies]

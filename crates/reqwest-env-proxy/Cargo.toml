@@ -2,7 +2,7 @@
 description = "Helper to let reqwest use proxy from the env `all_proxy`"
 name = "reqwest-env-proxy"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 license = "Apache-2.0"
 repository = ""
 

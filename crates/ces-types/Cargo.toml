@@ -2,7 +2,7 @@
 name = "ces-types"
 version = "0.3.0"
 authors = ["CESS Network"]
-edition = "2021"
+edition.workspace = true
 
 [dependencies]
 chrono = { workspace = true }

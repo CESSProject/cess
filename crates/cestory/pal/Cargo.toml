@@ -1,7 +1,7 @@
 [package]
 name = "cestory-pal"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 description = "Platform abstraction layer for Ceseal"
 
 [dependencies]
