@@ -31,7 +31,7 @@ fn build_runtime_client() {
             "dev".to_string()
         }))
         .unwrap();
-        println!("cargo::warning=building for Chain-Network: {:?}", chain_network);
+        println!("cargo::warning=Building for Chain-Network: {:?}", chain_network);
         let node_crate_name = "cess-node";
         let node_crate_src_path = workspace_dir.join("standalone").join("chain").join("node").join("src");
         let fixed_specs_dir = workspace_dir.join("standalone").join("chain").join("node").join("ccg");
@@ -69,6 +69,7 @@ fn build_runtime_client() {
         }
         let spec_content = fs::read_to_string(&spec_path).expect("Failed to read chain spec");
         let genesis_hash = build_genesis_hash(&spec_content);
+        println!("cargo::warning=Genesis hash of {:?} chain: {}", chain_network, genesis_hash);
         writeln!(
             genesis_hash_file,
             r#"
