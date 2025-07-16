@@ -15,7 +15,7 @@ pub struct Error {
 #[derive(Debug, Encode, Decode, Default, Clone)]
 pub struct AttestationInfo {
     pub provider: String,
-    pub encoded_report: Vec<u8>,
+    pub encoded_report: Option<Vec<u8>>,
     pub timestamp: u64,
 }
 
@@ -99,32 +99,33 @@ pub fn create_register_attestation_report<Platform: pal::Platform>(
         config.ra_timeout,
         config.ra_max_retries,
     )?;
-    {
-        let mut encoded_report = &report.encoded_report[..];
-        let report: Option<AttestationReport> = Decode::decode(&mut encoded_report)?;
-        if let Some(report) = report {
-            match report {
-                AttestationReport::SgxIas { ra_report, .. } => match SgxFields::from_ias_report(&ra_report[..]) {
-                    Ok((sgx_fields, _)) => {
-                        info!("EPID RA report measurement       :{}", hex::encode(sgx_fields.measurement()));
-                        info!("EPID RA report measurement hash  :{:?}", sgx_fields.measurement_hash());
-                    },
-                    Err(e) => {
-                        error!("deserial ias report to SgxFields failed: {:?}", e);
-                    },
+    if config.attestation_provider.is_some() && report.encoded_report.is_none() {
+        return Err(anyhow!(
+            "the attestation_provider: {:?} must return correct attestation report",
+            config.attestation_provider
+        ));
+    }
+    if let Some(ref encoded_report) = report.encoded_report {
+        let report: AttestationReport = Decode::decode(&mut &encoded_report[..])?;
+        match report {
+            AttestationReport::SgxIas { ra_report, .. } => match SgxFields::from_ias_report(&ra_report[..]) {
+                Ok((sgx_fields, _)) => {
+                    info!("EPID RA report measurement       :{}", hex::encode(sgx_fields.measurement()));
+                    info!("EPID RA report measurement hash  :{:?}", sgx_fields.measurement_hash());
                 },
-                AttestationReport::SgxDcap { quote, collateral: _ } => {
-                    match SgxFields::from_dcap_quote_report(&quote) {
-                        Ok((sgx_fields, _)) => {
-                            info!("DCAP measurement       :{}", hex::encode(sgx_fields.measurement()));
-                            info!("DCAP measurement hash  :{:?}", sgx_fields.measurement_hash());
-                        },
-                        Err(e) => {
-                            error!("deserial dcap report to SgxFields failed: {:?}", e);
-                        },
-                    }
+                Err(e) => {
+                    error!("deserial ias report to SgxFields failed: {:?}", e);
                 },
-            }
+            },
+            AttestationReport::SgxDcap { quote, collateral: _ } => match SgxFields::from_dcap_quote_report(&quote) {
+                Ok((sgx_fields, _)) => {
+                    info!("DCAP measurement       :{}", hex::encode(sgx_fields.measurement()));
+                    info!("DCAP measurement hash  :{:?}", sgx_fields.measurement_hash());
+                },
+                Err(e) => {
+                    error!("deserial dcap report to SgxFields failed: {:?}", e);
+                },
+            },
         }
     }
     Ok(report)

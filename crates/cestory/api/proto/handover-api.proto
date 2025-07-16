@@ -19,7 +19,7 @@ service HandoverServerApi {
 
 message Attestation {
   string provider = 1;
-  bytes encoded_report = 2;
+  optional bytes encoded_report = 2;
   uint64 timestamp = 3;
 }
 

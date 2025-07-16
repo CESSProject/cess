@@ -24,7 +24,7 @@ pub trait RA {
         provider: Option<AttestationProvider>,
         data: &[u8],
         timeout: Duration,
-    ) -> Result<Vec<u8>, Self::Error>;
+    ) -> Result<Option<Vec<u8>>, Self::Error>;
     fn quote_test(&self, provider: Option<AttestationProvider>) -> Result<(), Self::Error>;
     fn mr_enclave(&self) -> Option<Vec<u8>>;
     fn extend_measurement(&self) -> Result<ExtendMeasurement, Self::Error>;

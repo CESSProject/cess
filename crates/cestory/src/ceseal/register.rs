@@ -293,9 +293,14 @@ pub(crate) async fn do_register(
     registration_info: &RegistrationInfo,
     attestation: &AttestationInfo,
 ) -> Result<()> {
-    use ces_types::AttestationReport;
-    let attestation_report: AttestationReport = Decode::decode(&mut &attestation.encoded_report[..])?;
-    let tx = runtime::tx().tee_worker().register_worker(registration_info.clone().into(), Some(attestation_report.into()));
+    let attestation_report = if let Some(ref encoded_report) = attestation.encoded_report {
+        Some(<ces_types::AttestationReport>::decode(&mut &encoded_report[..])?.into())
+    } else {
+        None
+    };
+    let tx = runtime::tx()
+        .tee_worker()
+        .register_worker(registration_info.clone().into(), attestation_report);
     let tx_progress = chain_client.tx().sign_and_submit_then_watch_default(&tx, tx_signer).await?;
     trace!("The register tx hash: {:?}", hex::encode(tx_progress.extrinsic_hash()));
     let tx_in_block = tx_progress.wait_for_finalized().await?;

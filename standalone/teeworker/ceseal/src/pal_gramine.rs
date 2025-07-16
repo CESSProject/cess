@@ -46,7 +46,7 @@ impl RA for GraminePlatform {
         provider: Option<AttestationProvider>,
         data: &[u8],
         timeout: Duration,
-    ) -> Result<Vec<u8>, Self::Error> {
+    ) -> Result<Option<Vec<u8>>, Self::Error> {
         match provider {
             #[allow(deprecated)]
             Some(AttestationProvider::Ias) => {
@@ -54,16 +54,15 @@ impl RA for GraminePlatform {
             }
             Some(AttestationProvider::Dcap) => {
                 const CESS_DCAP_PCCS_URL: &str = env!("DCAP_PCCS_URL");
-                let attestation_report =
-                    Some(sgx_attestation::dcap::report::create_attestation_report(
-                        data,
-                        CESS_DCAP_PCCS_URL,
-                        timeout,
-                    )?);
+                let attestation_report = sgx_attestation::dcap::report::create_attestation_report(
+                    data,
+                    CESS_DCAP_PCCS_URL,
+                    timeout,
+                )?;
                 info!("Generate dcap collateral success!");
-                Ok(Encode::encode(&attestation_report))
+                Ok(Some(Encode::encode(&attestation_report)))
             }
-            None => Ok(Encode::encode(&None::<AttestationProvider>)),
+            None => Ok(None),
             _ => Err(anyhow!("Unknown attestation provider `{:?}`", provider)),
         }
     }
@@ -71,7 +70,9 @@ impl RA for GraminePlatform {
     fn quote_test(&self, provider: Option<AttestationProvider>) -> Result<(), Self::Error> {
         match provider {
             #[allow(deprecated)]
-            Some(AttestationProvider::Ias) => Err(anyhow!("IAS Attestation Provider not support, only DCAP")),
+            Some(AttestationProvider::Ias) => {
+                Err(anyhow!("IAS Attestation Provider not support, only DCAP"))
+            }
             Some(AttestationProvider::Dcap) => Ok(()),
             None => Ok(()),
             _ => Err(anyhow!("Unknown attestation provider `{:?}`", provider)),
