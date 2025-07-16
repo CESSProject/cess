@@ -4,9 +4,8 @@ inst_seq=${INST_SEQ:-0}
 pub_port=$((${PUB_PORT:-19999} + $inst_seq))
 mnemonic=${MNEMONIC:-//Ferdie}
 inject_key=$(printf %064d $(($inst_seq + 1)))
-work_dir="./standalone/teeworker/ceseal/bin"
 
-export RUST_LOG=${RUST_LOG:-"info,ceseal=debug,cestory=debug,subxt-light-client-background-task=debug"}
+export RUST_LOG=${RUST_LOG:-"info,ceseal=debug,cestory=debug,json-rpc=debug"}
 export RUST_LOG_SANITIZED=false
 export RUST_LOG_ANSI_COLOR=true
 export RUST_BACKTRACE=1
@@ -20,10 +19,10 @@ p)
 *) ;;
 esac
 
-cd $work_dir
-
-bin="./ceseal"
-data_dir="data-$inst_seq"
+build=${BUILD:-"debug"}
+bin=./target/$build/ceseal
+work_dir="./local_run/ceseal"
+data_dir="$work_dir/data-$inst_seq"
 log_file="$data_dir/ceseal.log"
 
 if [[ -e $log_file ]]; then
@@ -41,7 +40,6 @@ $bin \
     --public-endpoint http://127.0.0.1:$pub_port \
     --inject-key $inject_key \
     --mnemonic $mnemonic \
-    --attestation-provider none \
     --longevity 16 \
     --role full \
     --stash-account cXjHGCWMUM8gM9YFJUK2rqq2tiFWB4huBKWdQPkWdcXcZHhHA |&

@@ -1,11 +1,11 @@
 #!/bin/bash
 
-export RUST_LOG=${RUST_LOG:-"info,rpc=debug,runtime=debug"}
+export RUST_LOG=${RUST_LOG:-"info,rpc=debug,runtime=info"}
 export RUST_BACKTRACE=1
 
 build=${BUILD:-"debug"}
 bin=./target/$build/cess-node
-work_dir="./local_run"
+work_dir="./local_run/node"
 inst_seq=${INST_SEQ:-0}
 rpc_port=$((${RPC_PORT:-9944} + $inst_seq))
 p2p_port=$((${P2P_PORT:-30333} + $inst_seq))
