@@ -27,7 +27,7 @@ const VERSION: &str = const_str::format!(
 );
 
 #[derive(Parser, Debug, Clone)]
-#[clap(about = "The CESS TEE worker app.", version = VERSION, author)]
+#[command(about = "The CESS TEE worker app.", version = VERSION, author)]
 struct Args {
     #[command(subcommand)]
     command: Option<Commands>,

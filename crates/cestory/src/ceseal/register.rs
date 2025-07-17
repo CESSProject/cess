@@ -106,7 +106,7 @@ impl<Platform: pal::Platform> RegisteredCeseal<Platform> {
         chain_client: &CesChainClient,
         id_pubkey: &PublicKey,
     ) -> Result<Option<WorkerInfo<AccountId>>> {
-        let q = runtime::storage().tee_worker().workers(&id_pubkey.0);
+        let q = runtime::storage().tee_worker().workers(id_pubkey.0.clone());
         let r = chain_client.storage().at_latest().await?.fetch(&q).await?;
         Ok(r)
     }
@@ -186,14 +186,13 @@ impl<Platform: pal::Platform> RegisteredCeseal<Platform> {
 
     async fn apply_master_key(&self) -> Result<()> {
         debug!("Appling master key ...");
-        use runtime::tee_worker::calls::types::apply_master_key::Payload;
-        let payload = Payload {
-            pubkey: self.id_key.public_key().0.clone(),
-            ecdh_pubkey: self.id_key.ecdh_public_key().0.clone(),
+        let payload = ces_types::MasterKeyApplyPayload {
+            pubkey: self.id_key.public_key(),
+            ecdh_pubkey: self.id_key.ecdh_public_key(),
             signing_time: unix_now(),
         };
         let signature = self.id_key.sign(&payload.encode()).encode();
-        let tx = runtime::tx().tee_worker().apply_master_key(payload, signature);
+        let tx = runtime::tx().tee_worker().apply_master_key(payload.into(), signature);
         self.chain_client
             .tx()
             .sign_and_submit_then_watch_default(&tx, &self.tx_signer)
@@ -241,7 +240,7 @@ impl<Platform: pal::Platform> RegisteredCeseal<Platform> {
 
     async fn try_pickup_my_master_key_delivery(&self) -> Result<PostationState> {
         let id_pubkey = self.id_key.public_key();
-        let q = runtime::storage().tee_worker().master_key_postation(&id_pubkey.0);
+        let q = runtime::storage().tee_worker().master_key_postation(id_pubkey.0.clone());
         let payload = self.chain_client.storage().at_latest().await?.fetch(&q).await?;
         if payload.is_none() {
             return Ok(PostationState::NoApply);
@@ -294,14 +293,13 @@ pub(crate) async fn do_register(
     registration_info: &RegistrationInfo,
     attestation: &AttestationInfo,
 ) -> Result<()> {
-    use runtime::tee_worker::calls::types::register_worker::{Attestation, CesealInfo};
-    let reg_info: CesealInfo = Decode::decode(&mut &registration_info.encode()[..])?;
-    let attestation: Attestation = Decode::decode(&mut &attestation.encoded_report[..])?;
-    let tx = runtime::tx().tee_worker().register_worker(reg_info, attestation);
+    use ces_types::AttestationReport;
+    let attestation_report: AttestationReport = Decode::decode(&mut &attestation.encoded_report[..])?;
+    let tx = runtime::tx().tee_worker().register_worker(registration_info.clone().into(), Some(attestation_report.into()));
     let tx_progress = chain_client.tx().sign_and_submit_then_watch_default(&tx, tx_signer).await?;
-    debug!("The register tx hash: {:?}", hex::encode(tx_progress.extrinsic_hash()));
+    trace!("The register tx hash: {:?}", hex::encode(tx_progress.extrinsic_hash()));
     let tx_in_block = tx_progress.wait_for_finalized().await?;
-    debug!("The register tx in block: {:?}", hex::encode(tx_in_block.block_hash()));
+    trace!("The register tx in block: {:?}", hex::encode(tx_in_block.block_hash()));
     tx_in_block.wait_for_success().await?;
 
     Ok(())

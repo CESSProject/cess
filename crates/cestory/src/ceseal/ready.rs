@@ -211,7 +211,7 @@ impl<Platform: pal::Platform> ReadyCeseal<Platform> {
 
     async fn try_process_master_key_apply(&mut self) -> Result<()> {
         let id_pubkey = self.id_key.public_key();
-        let q = runtime::storage().tee_worker().master_key_distribute_notify(&id_pubkey.0);
+        let q = runtime::storage().tee_worker().master_key_distribute_notify(id_pubkey.0.clone());
         let Some(applier) = self.chain_client.storage().at_latest().await?.fetch(&q).await? else {
             trace!("not found mk distribute notify for you");
             return Ok(());
@@ -232,18 +232,17 @@ impl<Platform: pal::Platform> ReadyCeseal<Platform> {
                 .master_key
                 .as_encrypt_key(&[b"master_key_sharing"], &ecdh_pubkey.into(), block_number, self.iv_seq);
         self.iv_seq += 1;
-
-        use runtime::tee_worker::calls::types::distribute_master_key::Payload;
-        let payload = Payload {
-            distributor: id_pubkey.0,
-            target: applier,
-            ecdh_pubkey: encrypted_key.ecdh_pubkey.0,
+                
+        let payload = ces_types::MasterKeyDistributePayload {
+            distributor: id_pubkey,
+            target: applier.into(),
+            ecdh_pubkey: encrypted_key.ecdh_pubkey,
             encrypted_master_key: encrypted_key.encrypted_key.clone(),
             iv: encrypted_key.iv,
             signing_time: unix_now(),
-        };
+        };        
         let signature = self.id_key.sign(&payload.encode()).encode();
-        let tx = runtime::tx().tee_worker().distribute_master_key(payload, signature);
+        let tx = runtime::tx().tee_worker().distribute_master_key(payload.into(), signature);
         if log::log_enabled!(log::Level::Trace) {
             let encoded_call_data = tx
                 .encode_call_data(&self.chain_client.metadata())

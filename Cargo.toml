@@ -328,8 +328,6 @@ bigdecimal = "0.4"
 byteorder = { version = "1.5.0", default-features = false }
 chrono = { version = "0.4.38", default-features = false }
 clap = { version = "4.5", features = ["derive"] }
-codec = { package = "parity-scale-codec", version = "3.6.12", default-features = false }
-scale-codec = { package = "parity-scale-codec", version = "3.6.12", default-features = false }
 const-str = { version = "0.5", default-features = false }
 const-oid = { version = "0.9.5", default-features = false }
 config = { version = "0.15", default-features = false }
@@ -362,7 +360,7 @@ num-integer = "0.1.45"
 num-rational = "0.4"
 num-traits = "0.2"
 num_cpus = "1.13"
-parity-scale-codec = { version = "3.6.12", default-features = false }
+
 primitive-types = { version = "0.13.1", default-features = false }
 prost = { version = "0.13", default-features = false, features = [
     "prost-derive",
@@ -384,11 +382,14 @@ ring = "0.16.20"
 rsa = { version = "0.8", default-features = false }
 rust-crypto = "0.2.36"
 rustls-pki-types = { version = "=0.2.1", default-features = false }
-scale-bits = "0.6"
-scale-decode = "0.13"
-scale-encode = "0.7"
+parity-scale-codec = { version = "3.7.5", default-features = false }
+codec = { package = "parity-scale-codec", version = "3.7.5", default-features = false }
+scale-codec = { package = "parity-scale-codec", version = "3.7.5", default-features = false }
+scale-bits = "0.7"
+scale-decode = "0.16"
+scale-encode = "0.10"
 scale-info = { version = "2.11", default-features = false }
-scale-value = "0.16"
+scale-value = "0.18"
 schnorrkel = { version = "0.11", default-features = false }
 scopeguard = { version = "1.1", default-features = false }
 serde = { version = "1", default-features = false }

@@ -66,7 +66,7 @@ pub mod cqh {
         }
 
         pub(crate) async fn get_ceseal_bin_added_at(&self, runtime_hash: &H256) -> Result<Option<BlockNumber>> {
-            let q = runtime::storage().tee_worker().ceseal_bin_added_at(runtime_hash);
+            let q = runtime::storage().tee_worker().ceseal_bin_added_at(runtime_hash.clone());
             let r = self.chain_client.storage().at_latest().await?.fetch(&q).await?;
             Ok(r)
         }
