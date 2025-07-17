@@ -165,7 +165,7 @@ pub struct DigestInfo {
 impl Podr2Api for Podr2Server {
     #[allow(non_camel_case_types)]
     type request_gen_tagStream = proxy::ResponseStream;
-    #[must_use]
+
     async fn request_gen_tag<'life0>(
         &'life0 self,
         request: Request<Streaming<RequestGenTag>>,
@@ -265,7 +265,6 @@ impl Podr2Api for Podr2Server {
 impl Podr2VerifierApi for Podr2VerifierServer {
     /// By passing in the Bloom filter, you can verify it in batches,
     /// And finally get the on-chain signature through the aggregation methods
-    #[must_use]
     async fn request_batch_verify(
         &self,
         request: tonic::Request<RequestBatchVerify>,
@@ -382,7 +381,6 @@ impl Podr2VerifierApi for Podr2VerifierServer {
         Ok(Response::new(result))
     }
 
-    #[must_use]
     async fn request_aggregate_signature(
         &self,
         request: tonic::Request<RequestAggregateSignature>,

@@ -3,7 +3,7 @@ FROM gramineproject/gramine:1.9-jammy AS builder
 ARG https_proxy
 ARG http_proxy
 ARG DEBIAN_FRONTEND='noninteractive'
-ARG RUST_TOOLCHAIN=1.85.1
+ARG RUST_TOOLCHAIN=1.88.0
 
 # To fix the intel-sgx PublicKey issue on the gramine image
 RUN curl -fsSL https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add -
