@@ -458,7 +458,7 @@ pub mod pallet {
 					LaunchStatus::<T>::NotLaunched | LaunchStatus::<T>::Launching(_) => {
 						return Err(Error::<T>::MasterKeyLaunchRequire.into())
 					},
-					LaunchStatus::<T>::Launched(ref mut mk_info) => {
+					LaunchStatus::<T>::Launched(mk_info) => {
 						if mk_info.holder != new_holder {
 							let from = mk_info.holder.clone();
 							mk_info.holder = new_holder;

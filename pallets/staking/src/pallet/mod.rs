@@ -1779,7 +1779,7 @@ pub mod pallet {
 				.into_iter()
 			{
 				Nominators::<T>::mutate(&nom_stash, |maybe_nom| {
-					if let Some(ref mut nom) = maybe_nom {
+					if let Some(nom) = maybe_nom {
 						if let Some(pos) = nom.targets.iter().position(|v| v == stash) {
 							nom.targets.swap_remove(pos);
 							Self::deposit_event(Event::<T>::Kicked {

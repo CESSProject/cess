@@ -113,7 +113,7 @@ overflow-checks = true
 
 [workspace.package]
 authors = ["CESS LAB"]
-edition = "2021"
+edition = "2024"
 repository = "https://github.com/CESSProject/cess"
 
 [workspace.dependencies]

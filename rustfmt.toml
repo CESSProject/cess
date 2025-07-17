@@ -1,5 +1,5 @@
 # Basic
-edition = "2021"
+edition = "2024"
 hard_tabs = true
 tab_spaces = 4
 max_width = 120

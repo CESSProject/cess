@@ -217,11 +217,11 @@ pub mod pallet {
 		) -> TransactionValidity {
 			// Only allow `meta_call`
 			let Call::meta_call {
-				ref who,
-				ref call,
-				ref nonce,
-				ref signature,
-				ref tip,
+				who,
+				call,
+				nonce,
+				signature,
+				tip,
 			} = unsigned_call
 			else {
 				return Err(InvalidTransaction::Call.into())

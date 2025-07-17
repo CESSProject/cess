@@ -51,7 +51,7 @@ pub unsafe fn decode<T>(data: &[u8]) -> Result<&T> {
     if data.len() != size_of::<T>() {
         return Err(SgxError);
     }
-    Ok(&*(data as *const _ as *const T))
+    Ok(unsafe { &*(data as *const _ as *const T) })
 }
 
 /// Get the target info of the current enclave.

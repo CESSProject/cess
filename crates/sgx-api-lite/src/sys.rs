@@ -244,24 +244,24 @@ pub const XSAVE_NON_FX_MASK: i32 = -4;
 pub const RETURN_FROM_OCALL: i32 = -1;
 pub const RFLAGS_DF: u32 = 1024;
 pub const RFLAGS_AC: u32 = 262144;
-extern "C" {
-    pub fn __assert_fail(
+unsafe extern "C" {
+    pub unsafe fn __assert_fail(
         __assertion: *const ::std::os::raw::c_char,
         __file: *const ::std::os::raw::c_char,
         __line: ::std::os::raw::c_uint,
         __function: *const ::std::os::raw::c_char,
     );
 }
-extern "C" {
-    pub fn __assert_perror_fail(
+unsafe extern "C" {
+    pub unsafe fn __assert_perror_fail(
         __errnum: ::std::os::raw::c_int,
         __file: *const ::std::os::raw::c_char,
         __line: ::std::os::raw::c_uint,
         __function: *const ::std::os::raw::c_char,
     );
 }
-extern "C" {
-    pub fn __assert(
+unsafe extern "C" {
+    pub unsafe fn __assert(
         __assertion: *const ::std::os::raw::c_char,
         __file: *const ::std::os::raw::c_char,
         __line: ::std::os::raw::c_int,
@@ -3807,22 +3807,22 @@ fn bindgen_test_layout__key_request_t() {
 }
 pub type sgx_key_request_t = _key_request_t;
 pub type sgx_key_128bit_t = [u8; 16usize];
-extern "C" {
+unsafe extern "C" {
     #[doc = " \\brief Low-level wrapper around EREPORT instruction leaf."]
     #[doc = ""]
     #[doc = " Caller is responsible for parameter alignment: 512B for `targetinfo`, 128B for `reportdata`,"]
     #[doc = " and 512B for `report`."]
-    pub fn sgx_report(
+    pub unsafe fn sgx_report(
         targetinfo: *const sgx_target_info_t,
         reportdata: *const sgx_report_data_t,
         report: *mut sgx_report_t,
     ) -> ::std::os::raw::c_int;
 }
-extern "C" {
+unsafe extern "C" {
     #[doc = " \\brief Low-level wrapper around EGETKEY instruction leaf."]
     #[doc = ""]
     #[doc = " Caller is responsible for parameter alignment: 512B for `keyrequest` and 16B for `key`."]
-    pub fn sgx_getkey(keyrequest: *mut sgx_key_request_t, key: *mut sgx_key_128bit_t) -> i64;
+    pub unsafe fn sgx_getkey(keyrequest: *mut sgx_key_request_t, key: *mut sgx_key_128bit_t) -> i64;
 }
 
 #[cfg(all(target_arch = "x86_64", not(target_os = "macos")))]
