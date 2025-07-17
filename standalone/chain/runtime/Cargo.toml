@@ -4,7 +4,7 @@ edition.workspace = true
 license = "Unlicense"
 name = "cess-node-runtime"
 repository = "https://github.com/CESSProject/cess"
-version = "0.10.2"
+version = "0.11.0"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
