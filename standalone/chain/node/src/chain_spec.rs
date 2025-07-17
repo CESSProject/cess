@@ -96,7 +96,7 @@ fn properties() -> Properties {
 	properties
 }
 
-fn cess_testnet_genesis() -> serde_json::Value {
+fn testnet_genesis_config() -> serde_json::Value {
 	let initial_authorities: Vec<AuthorityKeys> = vec![
 		(
 			// cXfg2SYcq85nyZ1U4ccx6QnAgSeLQB8aXZ2jstbw9CPGSmhXY
@@ -241,7 +241,7 @@ fn cess_testnet_genesis() -> serde_json::Value {
 	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts))
 }
 
-fn cess_testnet_config_genesis() -> serde_json::Value {
+fn devnet_genesis_config() -> serde_json::Value {
 	#[rustfmt::skip]
 	// stash, controller, session-key
 	// generated with secret:
@@ -347,37 +347,52 @@ fn cess_testnet_config_genesis() -> serde_json::Value {
 	testnet_genesis(initial_authorities, vec![], root_key, Some(endowed_accounts))
 }
 
-pub fn cess_testnet_config() -> ChainSpec {
+pub fn testnet_chain_spec() -> ChainSpec {
 	ChainSpec::from_json_bytes(&include_bytes!("../ccg/testnet-spec-raw.json")[..]).unwrap()
 }
 
-pub fn cess_devnet_config() -> ChainSpec {
+pub fn testnet2_chain_spec() -> ChainSpec {
+	ChainSpec::from_json_bytes(&include_bytes!("../ccg/testnet2-spec-raw.json")[..]).unwrap()
+}
+
+pub fn devnet_chain_spec() -> ChainSpec {
 	ChainSpec::from_json_bytes(&include_bytes!("../ccg/devnet-spec-raw.json")[..]).unwrap()
 }
 
-pub fn cess_devnet_generate_config() -> ChainSpec {
+pub fn make_devnet_chain_spec() -> ChainSpec {
 	ChainSpec::builder(wasm_binary_unwrap(), Default::default())
 		.with_name("cess-devnet")
 		.with_id("cess-devnet")
 		.with_protocol_id("cesdn0")
 		.with_chain_type(ChainType::Live)
 		.with_properties(properties())
-		.with_genesis_config_patch(cess_testnet_config_genesis())
+		.with_genesis_config_patch(devnet_genesis_config())
 		.build()
 }
 
-pub fn cess_testnet() -> ChainSpec {
+pub fn make_testnet_chain_spec() -> ChainSpec {
 	ChainSpec::builder(wasm_binary_unwrap(), Default::default())
 		.with_name("cess-testnet")
 		.with_id("cess-testnet")
 		.with_protocol_id("cestn1")
 		.with_chain_type(ChainType::Live)
 		.with_properties(properties())
-		.with_genesis_config_patch(cess_testnet_genesis())
+		.with_genesis_config_patch(testnet_genesis_config())
 		.build()
 }
 
-pub fn development_config() -> ChainSpec {
+pub fn make_testnet2_chain_spec() -> ChainSpec {
+	ChainSpec::builder(wasm_binary_unwrap(), Default::default())
+		.with_name("cess-testnet2")
+		.with_id("cess-testnet2")
+		.with_protocol_id("cestn2")
+		.with_chain_type(ChainType::Live)
+		.with_properties(properties())
+		.with_genesis_config_patch(testnet_genesis_config())
+		.build()
+}
+
+pub fn make_dev_chain_spec() -> ChainSpec {
 	ChainSpec::builder(wasm_binary_unwrap(), Default::default())
 		.with_name("Development")
 		.with_id("dev")
@@ -392,7 +407,7 @@ pub fn development_config() -> ChainSpec {
 		.build()
 }
 
-pub fn local_testnet_config() -> ChainSpec {
+pub fn make_local_testnet_chain_spec() -> ChainSpec {
 	ChainSpec::builder(wasm_binary_unwrap(), Default::default())
 		.with_name("Local Testnet")
 		.with_id("local_testnet")

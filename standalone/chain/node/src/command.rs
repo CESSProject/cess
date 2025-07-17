@@ -57,12 +57,14 @@ impl SubstrateCli for Cli {
 
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
 		let spec = match id {
-			"testnet" | "cess-testnet" | "" => Box::new(chain_spec::cess_testnet_config()),
-			"devnet" | "cess-devnet" => Box::new(chain_spec::cess_devnet_config()),
-			"initial-devnet" | "cess-initial-devnet" => Box::new(chain_spec::cess_devnet_generate_config()),
-			"initial-testnet" | "cess-initial-testnet" => Box::new(chain_spec::cess_testnet()),
-			"dev" => Box::new(chain_spec::development_config()),
-			"local" => Box::new(chain_spec::local_testnet_config()),
+			"testnet2" | "cess-testnet2" | "" => Box::new(chain_spec::testnet2_chain_spec()),
+			"testnet" | "cess-testnet" => Box::new(chain_spec::testnet_chain_spec()),
+			"devnet" | "cess-devnet" => Box::new(chain_spec::devnet_chain_spec()),
+			"initial-devnet" | "cess-initial-devnet" => Box::new(chain_spec::make_devnet_chain_spec()),
+			"initial-testnet" | "cess-initial-testnet" => Box::new(chain_spec::make_testnet_chain_spec()),
+			"initial-testnet2" | "cess-initial-testnet2" => Box::new(chain_spec::make_testnet2_chain_spec()),
+			"dev" => Box::new(chain_spec::make_dev_chain_spec()),
+			"local" => Box::new(chain_spec::make_local_testnet_chain_spec()),
 			path => Box::new(chain_spec::ChainSpec::from_json_file(std::path::PathBuf::from(path))?),
 		};
 		Ok(spec)

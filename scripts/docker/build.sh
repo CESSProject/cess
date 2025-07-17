@@ -21,7 +21,7 @@ Usage:
 
 Options:
     -b <program name>  which program image to build, options: node ceseal
-    -n <network profile>  options: devnet, testnet, mainnet, ownnet
+    -n <network profile>  options: devnet, testnet, testnet2, mainnet
     -s <image tag suffix>  padding a suffix for the image tag
     -t <image tag>  specific the tag name of the image, exclusion from option -s
     -x <proxy address>  use proxy access network in build
@@ -144,7 +144,7 @@ if [[ -z $which_build_proc ]]; then
     exit 1
 fi
 
-if ! [[ $network = "devnet" || $network = "testnet" || $network = "mainnet" || $network = "ownnet" ]]; then
+if ! [[ $network = "devnet" || $network = "testnet" || $network = "mainnet" || $network = "testnet2" ]]; then
     echo "Invalid network option, use 'devnet' instead"
     network="devnet"
 fi

@@ -58,8 +58,9 @@ fn build_runtime_client() {
                 fs::write(&dev_spec_path, &chain_spec_output.stdout).expect("Failed to write dev-spec.json");
                 dev_spec_path
             },
-            ChainNetwork::Devnet => fixed_specs_dir.join(format!("cess-develop-spec-raw.json")),
-            ChainNetwork::Testnet => fixed_specs_dir.join(format!("cess-testnet-spec-raw.json")),
+            ChainNetwork::Devnet => fixed_specs_dir.join(format!("devnet-spec-raw.json")),
+            ChainNetwork::Testnet => fixed_specs_dir.join(format!("testnet-spec-raw.json")),
+            ChainNetwork::Testnet2 => fixed_specs_dir.join(format!("testnet2-spec-raw.json")),
         };
 
         let genesis_hash_path = Path::new(&out_dir).join("genesis_hash.rs");
