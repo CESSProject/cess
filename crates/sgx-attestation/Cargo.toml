@@ -1,6 +1,6 @@
 [package]
 name = "sgx-attestation"
-version = "0.1.0"
+version = "0.1.1"
 edition.workspace = true
 
 [dependencies]
@@ -11,7 +11,7 @@ base64 = { workspace = true, features = ["alloc"] }
 parity-scale-codec = { workspace = true, features = ["derive"] }
 webpki = { workspace = true, features = ["alloc", "ring"] }
 rustls-pki-types = { version = "=0.2.1", default-features = false, optional = true }
-pink-json = { workspace = true }
+serde-json-core = { workspace = true, default-features = false }
 scale-info = { workspace = true, features = ["derive"] }
 chrono = { workspace = true, features = [
     "alloc",
@@ -49,7 +49,7 @@ insta = "1"
 default = ["std", "report", "verify"]
 std = [
     "base64/std",
-    "pink-json/std",
+    "serde-json-core/std",
     "serde/std",
     "parity-scale-codec/std",
     "scale-info/std",

@@ -367,7 +367,6 @@ prost = { version = "0.13", default-features = false, features = [
 ] }
 prost-build = "0.13"
 prost-types = "0.13"
-pink-json = { version = "0.4", default-features = false }
 pem = { version = "3", default-features = false }
 quote = "1.0"
 rand = "0.8.5"
@@ -394,6 +393,7 @@ schnorrkel = { version = "0.11", default-features = false }
 scopeguard = { version = "1.1", default-features = false }
 serde = { version = "1", default-features = false }
 serde_json = { version = "1.0", default-features = false }
+serde-json-core = { version = "0.6", default-features = false }
 sha2 = { version = "0.10", default-features = false }
 static_assertions = "1.1.0"
 subxt = { git = "https://github.com/CESSProject/subxt", branch = "polkadot-stable2412", default-features = false }

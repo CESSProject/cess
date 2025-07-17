@@ -1,4 +1,4 @@
-use pink_json::de::Error as JsonError;
+use serde_json_core::de::Error as JsonError;
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use core::time::Duration;
@@ -65,7 +65,7 @@ pub struct SignedIasReport {
 
 impl SignedIasReport {
     pub fn parse_report(&self) -> Result<RaReport, JsonError> {
-        pink_json::from_str(&self.ra_report)
+        serde_json_core::from_str(&self.ra_report).map(|t| t.0)
     }
 
     pub fn verify(&self, now_since_unix_epoch: Duration) -> Result<(), SgxError> {

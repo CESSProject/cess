@@ -25,7 +25,8 @@ pub fn verify(
     let mut quote = raw_quote;
     let quote = Quote::decode(&mut quote).map_err(|_| Error::CodecError)?;
 
-    let tcb_info = pink_json::from_str::<TcbInfo>(&quote_collateral.tcb_info)
+    let tcb_info = serde_json_core::from_str::<TcbInfo>(&quote_collateral.tcb_info)
+        .map(|t| t.0)
         .map_err(|_| Error::CodecError)?;
 
     let next_update = chrono::DateTime::parse_from_rfc3339(&tcb_info.next_update)
