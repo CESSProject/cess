@@ -13,18 +13,12 @@ ifeq ($(BUILD),release)
 	XARGS = --release
 endif
 
-.PHONY: all node ceseal test clippy chain-runtime
+.PHONY: all node test clippy chain-runtime
 
-all: node ceseal
+all: node 
 
 node:
 	OA=${OA} VC=${VC} CHAIN_NETWORK=${CHAIN_NETWORK} cargo build -p cess-node ${XARGS}
-
-handover:
-	cargo build -p handover --release
-
-ceseal:
-	OA=${OA} VC=${VC} CHAIN_NETWORK=${CHAIN_NETWORK} cargo build -p ceseal ${XARGS}
 
 chain-runtime:
 	OA=${OA} VC=${VC} CHAIN_NETWORK=${CHAIN_NETWORK} cargo build -p cess-node-runtime ${XARGS}
@@ -68,4 +62,3 @@ lint:
 
 clean:
 	cargo clean
-	$(MAKE) -C standalone/teeworker/ceseal/gramine-build clean

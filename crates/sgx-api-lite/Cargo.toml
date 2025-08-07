@@ -1,8 +1,0 @@
-[package]
-name = "sgx-api-lite"
-version = "0.1.0"
-edition.workspace = true
-
-[dependencies]
-cmac = "0.7.1"
-aes = "0.8.1"

@@ -20,7 +20,7 @@ Usage:
     $0 [options]
 
 Options:
-    -b <program name>  which program image to build, options: node ceseal
+    -b <program name>  which program image to build, default: node
     -n <network profile>  options: devnet, testnet, testnet2, mainnet
     -s <image tag suffix>  padding a suffix for the image tag
     -t <image tag>  specific the tag name of the image, exclusion from option -s
@@ -28,7 +28,6 @@ Options:
     -o <enable 'only-attestation' feature to build>  options: 1(default) or 0
     -v <enable 'verify-cesealbin' feature to build>  options: 1(default) or 0
     -l <docker build runtime log print out> options: 1 or 0(default)
-    -c <ceseal build version>  8-digit integer, date +%y%m%d%H for default value
     -p  publish image to docker hub
     -h  display this help message.
 EOF
@@ -47,30 +46,6 @@ function build_node() {
     docker_build -t $image_id -f $docker_file ${docker_build_args[@]} $docker_build_ctx_dir
 }
 
-function build_ceseal() {    
-    if [[ ! -z $SGX_PROFILE ]]; then
-        docker_build_args+=(
-            --build-arg SGX_PROFILE=$SGX_PROFILE
-        )
-    fi
-    if [[ -z $CESEAL_VERSION ]]; then
-        CESEAL_VERSION=$(date +%y%m%d%H)
-    fi
-    docker_build_args+=(
-        --build-arg CESEAL_VERSION=$CESEAL_VERSION
-    )
-    echo "SGX_PROFILE: $SGX_PROFILE"
-    echo "CESEAL_VERSION: $CESEAL_VERSION"
-    echo "CHAIN_NETWORK: $network"
-    local docker_file="$the_script_dir/ceseal/gramine/Dockerfile"
-    image_id="$org_id/ceseal:$image_tag"
-    echo "begin build image $image_id ..."
-
-    local progress_option
-    progress_option=$(print_docker_build_log)
-    docker_build $progress_option -t $image_id -f $docker_file ${docker_build_args[@]} $docker_build_ctx_dir
-}
-
 function print_docker_build_log() {
     if [ $docker_build_log = "1" ]; then
         echo "Print out the detail log of docker image build" >&2
@@ -82,7 +57,7 @@ function print_docker_build_log() {
     fi
 }
 
-while getopts ":hpn:b:x:t:s:o:v:l:c:" opt; do
+while getopts ":hpn:b:x:t:s:o:v:l:" opt; do
     case ${opt} in
     h)
         usage
@@ -116,22 +91,12 @@ while getopts ":hpn:b:x:t:s:o:v:l:c:" opt; do
     l)
         docker_build_log=$OPTARG
         ;;
-    c)
-        CESEAL_VERSION=$OPTARG
-        ;;
     t)
         image_tag=$OPTARG
         ;;
     s)
         image_tag_suffix=$OPTARG
-        ;;
-    b)
-        if [[ $OPTARG != "ceseal" && $OPTARG != "node" ]]; then
-            echo "Invalid program name: $OPTARG, options: ceseal or node"
-            exit 1
-        fi
-        which_build_proc=$(echo build_$OPTARG)
-        ;;
+        ;;    
     \?)
         echo "Invalid option: -$OPTARG" 1>&2
         exit 1
@@ -139,10 +104,6 @@ while getopts ":hpn:b:x:t:s:o:v:l:c:" opt; do
     esac
 done
 
-if [[ -z $which_build_proc ]]; then
-    echo "The program name option -b must be specific!"
-    exit 1
-fi
 
 if ! [[ $network = "devnet" || $network = "testnet" || $network = "mainnet" || $network = "testnet2" ]]; then
     echo "Invalid network option, use 'devnet' instead"
@@ -162,7 +123,7 @@ docker_build_args+=(
     --build-arg CHAIN_NETWORK=$network
 )
 
-eval $which_build_proc
+build_node
 if [ $? -ne 0 ]; then
     echo "$image_id build failed!"
     exit 1
