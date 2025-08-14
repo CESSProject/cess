@@ -3,8 +3,10 @@
   "id": "cess-testnet2",
   "chainType": "Live",
   "bootNodes": [
-    "/ip4/43.129.201.131/tcp/30333/p2p/12D3KooWDesEbDGEaMMc3UjLiJMK1U6kD8X377KiovPxqE7qcERY",
-    "/ip4/43.132.168.124/tcp/30333/p2p/12D3KooWHLG8YuDkeUZJTbBSkANqtySURs32cMjniibEse5oASH5"
+    "/dns4/t2-vltr1.cess.network/tcp/30333/p2p/12D3KooWDesEbDGEaMMc3UjLiJMK1U6kD8X377KiovPxqE7qcERY",
+    "/dns4/t2-vltr2.cess.network/tcp/30333/p2p/12D3KooWEiwTUPiq5qpYSWgbGygeXnVBByCXQ5QJGddh5m1MbZTL",
+    "/dns4/t2-vltr3.cess.network/tcp/30333/p2p/12D3KooWB7TQsEuq9Q1S1djHCYGvqaRL96w7AVUz9Pe1N9YwBx8f",
+    "/ip4/8.222.247.34/tcp/30333/p2p/12D3KooWPNthnXiBUYRiciLigU6ScdEnqweeQ4UZyfzohVLt9UwE"
   ],
   "telemetryEndpoints": [],
   "protocolId": "cestn2",
