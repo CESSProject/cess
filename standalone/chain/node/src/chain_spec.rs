@@ -351,8 +351,8 @@ pub fn testnet_chain_spec() -> ChainSpec {
 	ChainSpec::from_json_bytes(&include_bytes!("../ccg/testnet-spec-raw.json")[..]).unwrap()
 }
 
-pub fn testnet2_chain_spec() -> ChainSpec {
-	ChainSpec::from_json_bytes(&include_bytes!("../ccg/testnet2-spec-raw.json")[..]).unwrap()
+pub fn premainnet_chain_spec() -> ChainSpec {
+	ChainSpec::from_json_bytes(&include_bytes!("../ccg/premainnet-spec-raw.json")[..]).unwrap()
 }
 
 pub fn devnet_chain_spec() -> ChainSpec {
@@ -381,11 +381,11 @@ pub fn make_testnet_chain_spec() -> ChainSpec {
 		.build()
 }
 
-pub fn make_testnet2_chain_spec() -> ChainSpec {
+pub fn make_premainnet_chain_spec() -> ChainSpec {
 	ChainSpec::builder(wasm_binary_unwrap(), Default::default())
-		.with_name("cess-testnet2")
-		.with_id("cess-testnet2")
-		.with_protocol_id("cestn2")
+		.with_name("cess-premainnet")
+		.with_id("cess-premainnet")
+		.with_protocol_id("cespn1")
 		.with_chain_type(ChainType::Live)
 		.with_properties(properties())
 		.with_genesis_config_patch(testnet_genesis_config())

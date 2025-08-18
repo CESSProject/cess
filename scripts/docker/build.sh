@@ -21,7 +21,7 @@ Usage:
 
 Options:
     -b <program name>  which program image to build, default: node
-    -n <network profile>  options: devnet, testnet, testnet2, mainnet
+    -n <network profile>  options: devnet, testnet, premainnet, mainnet
     -s <image tag suffix>  padding a suffix for the image tag
     -t <image tag>  specific the tag name of the image, exclusion from option -s
     -x <proxy address>  use proxy access network in build
@@ -87,7 +87,7 @@ while getopts ":hpn:b:x:t:s:o:v:l:" opt; do
         else
             VC=0
         fi
-        ;;    
+        ;;
     l)
         docker_build_log=$OPTARG
         ;;
@@ -96,7 +96,7 @@ while getopts ":hpn:b:x:t:s:o:v:l:" opt; do
         ;;
     s)
         image_tag_suffix=$OPTARG
-        ;;    
+        ;;
     \?)
         echo "Invalid option: -$OPTARG" 1>&2
         exit 1
@@ -105,7 +105,7 @@ while getopts ":hpn:b:x:t:s:o:v:l:" opt; do
 done
 
 
-if ! [[ $network = "devnet" || $network = "testnet" || $network = "mainnet" || $network = "testnet2" ]]; then
+if ! [[ $network = "devnet" || $network = "testnet" || $network = "mainnet" || $network = "premainnet" ]]; then
     echo "Invalid network option, use 'devnet' instead"
     network="devnet"
 fi

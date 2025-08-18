@@ -57,12 +57,12 @@ impl SubstrateCli for Cli {
 
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
 		let spec = match id {
-			"testnet2" | "cess-testnet2" | "" => Box::new(chain_spec::testnet2_chain_spec()),
+			"premainnet" | "cess-premainnet" | "" => Box::new(chain_spec::premainnet_chain_spec()),
 			"testnet" | "cess-testnet" => Box::new(chain_spec::testnet_chain_spec()),
 			"devnet" | "cess-devnet" => Box::new(chain_spec::devnet_chain_spec()),
 			"initial-devnet" | "cess-initial-devnet" => Box::new(chain_spec::make_devnet_chain_spec()),
 			"initial-testnet" | "cess-initial-testnet" => Box::new(chain_spec::make_testnet_chain_spec()),
-			"initial-testnet2" | "cess-initial-testnet2" => Box::new(chain_spec::make_testnet2_chain_spec()),
+			"initial-premainnet" | "cess-initial-premainnet" => Box::new(chain_spec::make_premainnet_chain_spec()),
 			"dev" => Box::new(chain_spec::make_dev_chain_spec()),
 			"local" => Box::new(chain_spec::make_local_testnet_chain_spec()),
 			path => Box::new(chain_spec::ChainSpec::from_json_file(std::path::PathBuf::from(path))?),
@@ -164,7 +164,7 @@ pub fn run() -> sc_cli::Result<()> {
 			};
 			use frame_benchmarking_cli::{
 				BenchmarkCmd, ExtrinsicFactory, SUBSTRATE_REFERENCE_HARDWARE,
-			};			
+			};
 
 			let runner = cli.create_runner(cmd)?;
 
@@ -205,7 +205,7 @@ pub fn run() -> sc_cli::Result<()> {
 					},
 					BenchmarkCmd::Overhead(cmd) => {
 						let (client, _, _, _, _) = service::new_chain_ops(&mut config)?;
-						let ext_builder = RemarkBuilder::new(client.clone());						
+						let ext_builder = RemarkBuilder::new(client.clone());
 						cmd.run(
 							config.chain_spec.name().into(),
 							client,
@@ -234,11 +234,11 @@ pub fn run() -> sc_cli::Result<()> {
 				}
 			})
 		},
-		
+
 		Some(Subcommand::FrontierDb(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.sync_run(|mut config| {
-				let (client, _, _, _, frontier_backend) = service::new_chain_ops(&mut config)?;				
+				let (client, _, _, _, frontier_backend) = service::new_chain_ops(&mut config)?;
 				cmd.run(client, frontier_backend)
 			})
 		},

@@ -158,7 +158,7 @@ def main():
     p_gen = subparsers.add_parser("gen", help="Generate docker-compose.yml")
     p_gen.add_argument(
         "--chain",
-        choices=["testnet2", "testnet", "devnet"],
+        choices=["premainnet", "testnet", "devnet"],
         default="devnet",
         help="CESS chain-specification, default: devnet",
     )

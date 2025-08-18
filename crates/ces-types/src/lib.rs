@@ -157,7 +157,7 @@ pub enum ChainNetwork {
 	Dev,
 	Devnet,
 	Testnet,
-	Testnet2
+	Premainnet
 }
 
 impl Default for ChainNetwork {
@@ -171,7 +171,7 @@ impl FromStr for ChainNetwork {
 
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
 		match s {
-			"testnet2" => Ok(ChainNetwork::Testnet2),
+			"premainnet" => Ok(ChainNetwork::Premainnet),
 			"testnet" => Ok(ChainNetwork::Testnet),
 			"devnet" => Ok(ChainNetwork::Devnet),
 			"dev" => Ok(ChainNetwork::Dev),
