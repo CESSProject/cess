@@ -42,7 +42,7 @@ fn update_works() {
 			ip: IpAddress::IPV4([127, 0, 0, 1], 80),
 			byte_price: 200u32.into(),
 		};
-		// Wrong accout update fails.
+		// Wrong account update fails.
 
 		assert_noop!(
 			Cacher::update(RuntimeOrigin::signed(2), new_info.clone()),
@@ -66,7 +66,7 @@ fn logout_works() {
 		};
 		assert_ok!(Cacher::register(RuntimeOrigin::signed(1), info.clone()));
 
-		// Wrong accout logout fails.
+		// Wrong account logout fails.
 		assert_noop!(Cacher::logout(RuntimeOrigin::signed(2)), Error::<Test>::UnRegister);
 
 		// Logout works.
